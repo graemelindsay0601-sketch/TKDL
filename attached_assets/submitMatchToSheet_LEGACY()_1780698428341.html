@@ -1,0 +1,261 @@
+/* =========================
+   SUBMIT MATCH
+========================= */
+
+function submitMatchToSheet(data){
+  // Check season rollover before processing
+  try { checkAndRolloverSeason(); } catch(e) { Logger.log("Season check: " + e); }
+
+const ss =
+SpreadsheetApp.openById(
+  "1XMiRxT7W_OMmnaplaAKzdTWQngepIQFCfI3qJ1oVbwc"
+);
+
+  const sheet =
+    ss.getSheetByName(
+      "FORM_SUBMISSIONS"
+    );
+
+  const playersSheet =
+    ss.getSheetByName(
+      "PLAYERS"
+    );
+
+Logger.log(sheet);
+Logger.log(playersSheet);
+
+if(!sheet){
+
+  throw new Error(
+    "FORM_SUBMISSIONS sheet missing"
+  );
+
+}
+
+if(!playersSheet){
+
+  throw new Error(
+    "PLAYERS sheet missing"
+  );
+
+}
+
+  const playersData =
+    playersSheet
+      .getDataRange()
+      .getValues();
+
+  const existingPlayers =
+    playersData
+      .slice(1)
+      .map(row => String(row[0]));
+
+const p1Raw =
+  String(data.player1 || "")
+    .trim();
+
+const p2Raw =
+  String(data.player2 || "")
+    .trim();
+
+const winnerRaw =
+  String(data.winner || "")
+    .trim();
+
+const normalizePlayerName = name =>
+
+  name
+    .toLowerCase()
+    .replace(/\s+/g," ")
+    .trim();
+
+const existingNameMap = {};
+
+playersData
+  .slice(1)
+  .forEach(row => {
+
+    const existingName =
+      String(row[0] || "").trim();
+
+    existingNameMap[
+      normalizePlayerName(
+        existingName
+      )
+    ] = existingName;
+
+  });
+
+const p1 =
+
+  existingNameMap[
+    normalizePlayerName(p1Raw)
+  ]
+
+  ||
+
+  p1Raw;
+
+const p2 =
+
+  existingNameMap[
+    normalizePlayerName(p2Raw)
+  ]
+
+  ||
+
+  p2Raw;
+
+const winner =
+
+  existingNameMap[
+    normalizePlayerName(winnerRaw)
+  ]
+
+  ||
+
+  winnerRaw;
+
+  const gameType =
+    String(
+      data.gameType || "League"
+    );
+
+  const stake =
+    Number(data.stake || 3);
+
+  if(!p1 || !p2){
+
+    return {
+      success:false,
+      error:"Missing players."
+    };
+
+  }
+
+if (p1 === p2) {
+    return { success:false, error:'Players cannot match.' };
+  }
+  if (winner !== p1 && winner !== p2) {
+    return { success:false, error:'Winner must be one of the two players.' };
+  }
+  const existingNormalized = existingPlayers.map(n => n.toLowerCase().trim());
+  [p1, p2].forEach(name => {
+    if (!existingNormalized.includes(name.toLowerCase().trim())) {
+      try { createPlayer(name); Logger.log('PLAYER CREATED: ' + name); }
+      catch(e) { Logger.log('createPlayer failed: ' + e); }
+    }
+  });
+
+sheet.appendRow([
+
+  new Date(),
+  `${p1} vs ${p2}`,
+  stake,
+  winner,
+  gameType
+
+]);
+
+const careerSheet =
+  ss.getSheetByName(
+    "CAREER_MATCHES"
+  );
+  if(!careerSheet){
+
+  throw new Error(
+    "CAREER_MATCHES sheet missing"
+  );
+
+}
+
+careerSheet.appendRow([
+
+  new Date(),
+
+  p1,
+
+  p2,
+
+  winner,
+
+  stake,
+
+  gameType,
+
+  getCurrentSeason()
+
+]);
+
+const loser =
+
+  winner === p1
+    ? p2
+    : p1;
+
+
+
+recalculatePlayerStats();
+const freshRows = ss.getSheetByName('PLAYERS').getDataRange().getValues().slice(1);
+const makePlayer = row => ({
+  name:         String(row[0] || '').trim(),
+  playerId:     String(row[13] || '').trim(),
+  elo:          Number(row[8])  || 1000,
+  wins:         Number(row[5])  || 0,
+  losses:       Number(row[6])  || 0,
+  games:        Number(row[4])  || 0,
+  points:       Number(row[3])  || 0,
+  careerWins:   Number(row[14]) || 0,
+  careerLosses: Number(row[15]) || 0,
+  careerGames:  Number(row[16]) || 0,
+  winStreak:    getPlayerWinStreak(String(row[0] || '').trim()),
+  lossStreak:   getPlayerLossStreak(String(row[0] || '').trim())
+});
+const winnerPlayer = makePlayer(freshRows.find(r => String(r[0]).trim() === winner) || []);
+const loserPlayer  = makePlayer(freshRows.find(r => String(r[0]).trim() === loser)  || []);
+
+if(
+  winnerPlayer &&
+  loserPlayer
+){
+
+  const winnerPrePoints =
+    winnerPlayer.points - stake;
+
+  const loserPrePoints =
+    loserPlayer.points + stake;
+
+  const context =
+
+    buildMatchContext({
+
+      winnerPlayer,
+      loserPlayer,
+
+      stake,
+
+      winnerPrePoints,
+      loserPrePoints,
+
+      winnerPostPoints:
+        winnerPlayer.points,
+
+      loserPostPoints:
+        loserPlayer.points,
+
+      season:
+        getCurrentSeason()
+
+    });
+
+}
+
+
+
+try { rebuildCareerLeaderboard(); } catch(e) { Logger.log('Career LB: ' + e); }
+  rebuildLeaderboard();
+  try{awardAchievementsForMatch(winner,loser,{stake:stake,season:getCurrentSeason(),gameType:gameType});}catch(e){Logger.log('Achievement error: '+e);}
+  rebuildLeagueDataCache();
+return { success:true };
+
+}

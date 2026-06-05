@@ -1,0 +1,261 @@
+TKDL — A Living Competitive Sports Universe
+
+TKDL is a persistent competitive ecosystem that transforms casual darts matches into an evolving sports world where every player develops a career, reputation, identity, history, rivalries, achievements, and legacy.
+
+At its core, TKDL is designed around a simple belief:
+
+Every match should matter long after it has been played.
+
+What Players Experience
+
+A new player joins the league.
+
+They begin with the same starting balance as everyone else.
+
+From that moment onward, every match permanently contributes to their story.
+
+The system tracks:
+
+Wins
+Losses
+Games played
+Points earned
+Elo rating
+Win streaks
+Rivalries
+Seasonal performance
+Career performance
+Achievements
+Historical milestones
+
+Unlike traditional leagues, results are never forgotten.
+
+A match played today can still influence how that player is viewed years later.
+
+The Season System
+
+Each month acts as its own standalone season.
+
+Every player starts equal.
+
+Every player receives:
+
+25 starting points
+
+Players challenge each other and wager points.
+
+Winning:
+
+Gain the stake
+
+Losing:
+
+Lose the stake
+
+The season becomes a constantly shifting economy where points move between players.
+
+By the end of the season:
+
+A champion is crowned.
+Final standings are archived forever.
+Seasonal history is preserved.
+A new season begins.
+
+But career history remains.
+
+Career Mode
+
+This is where TKDL becomes unique.
+
+Most league systems forget previous seasons.
+
+TKDL doesn't.
+
+The platform maintains:
+
+Lifetime wins
+Lifetime losses
+Lifetime games
+Historical rankings
+Longest streaks
+Career achievements
+Rival records
+Seasonal appearances
+Career prestige
+
+A player's career becomes its own story.
+
+The Legacy Engine
+
+One of the most ambitious parts of the project.
+
+The Legacy Engine attempts to answer:
+
+Who is this player?
+
+Not statistically.
+
+Narratively.
+
+The system builds player identities from their historical data.
+
+Examples:
+
+The Champion
+The Giant Killer
+The Rival Maker
+The Underdog
+The Clutch Performer
+The Streak Monster
+
+The goal is for players to develop recognisable personalities based entirely on their behaviour within the league.
+
+The Narrative Engine
+
+Perhaps the most unusual feature.
+
+TKDL doesn't just display statistics.
+
+It generates league stories.
+
+The Narrative Engine automatically identifies:
+
+Hottest Player
+
+Who's currently on the best run.
+
+Most Dangerous Player
+
+Who is currently the biggest threat.
+
+Title Race
+
+Whether the championship battle is tightening.
+
+Elimination Watch
+
+Which player is under pressure.
+
+Rivalry Spotlight
+
+The biggest active rivalry.
+
+Streak Watch
+
+Who is building momentum.
+
+The goal is to make the league feel alive rather than simply presenting data.
+
+Rivalry System
+
+TKDL tracks head-to-head histories.
+
+It identifies:
+
+Signature rivals
+Competitive histories
+Long-term opponents
+Historic matchups
+
+The system attempts to determine:
+
+Which opponent defines a player's career?
+
+This turns repeated matches into stories rather than isolated events.
+
+Achievement System
+
+The league contains a full gaming-style achievement framework.
+
+Players unlock rewards for:
+
+Wins
+Streaks
+Milestones
+Points thresholds
+Special accomplishments
+Historic moments
+
+This creates engagement for players even when they are not competing for the title.
+
+A player can still pursue achievements, prestige, and reputation.
+
+Aura System
+
+One of the more experimental features.
+
+The Aura System attempts to measure a player's current standing in the league ecosystem.
+
+It combines:
+
+Form
+Reputation
+Results
+Momentum
+Performance
+
+to create a visual identity around a player.
+
+The idea is that players become more than numbers.
+
+They develop presence.
+
+Profile Identity System
+
+Each player profile acts almost like a sporting biography.
+
+Profiles can include:
+
+Statistics
+Achievements
+Rivalries
+Prestige
+Career records
+Historical performance
+Identity traits
+
+A player profile is designed to answer:
+
+Why does this player matter?
+
+Broadcast Platform
+
+The website is designed not only for players.
+
+It is designed for spectators.
+
+The broadcast layer presents:
+
+Live leaderboards
+Featured players
+Season standings
+Historical champions
+Achievement showcases
+League narratives
+
+allowing the league to feel like a real sporting competition.
+
+The Long-Term Vision
+
+The vision has evolved far beyond a Tesco workplace darts league.
+
+The architecture is becoming a framework for:
+
+Darts leagues
+Workplace competitions
+Pool leagues
+Table tennis leagues
+Amateur sports communities
+Social gaming competitions
+
+Anywhere people compete regularly.
+
+In One Sentence
+
+TKDL is a gamified competitive ecosystem that turns ordinary darts matches into persistent player careers, evolving rivalries, seasonal championships, historical records, achievements, narratives, and sporting legacies.
+
+That is the product you've been building.
+
+The darts matches are actually the input.
+
+The real product is the world that gets built around them.

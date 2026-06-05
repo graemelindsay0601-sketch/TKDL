@@ -1,0 +1,3764 @@
+<script>
+
+const API_URL =
+  "https://script.google.com/macros/s/AKfycbwTUMy-u9-d98SmnugybU55sk7DU6nstfV_tb3PvC-9jiSS06oA0jrXqO1rTauxoZ2OKA/exec?function=getLeagueData";
+
+let leagueData = null;
+
+
+// Helper: get a player's unlocked achievement metadata objects
+function getPlayerUnlocks(player){
+
+  console.log(
+    "ACH TEST:",
+    player.name,
+    player.achievements
+  );
+
+  return player?.achievements || [];
+
+}
+/* =========================
+   INIT
+========================= */
+
+async function init(){
+
+  try{
+
+    const response =
+      await fetch(API_URL);
+
+    leagueData =
+      await response.json();
+
+    renderHome();
+    renderLeaderboard();
+    renderPlayers();
+    renderMatches();
+    renderSeasons();
+    renderSubmit();
+
+    setInterval(async () => {
+
+  try{
+
+    const response =
+      await fetch(API_URL);
+
+    leagueData =
+      await response.json();
+
+    renderHome();
+    renderLeaderboard();
+    renderPlayers();
+    renderMatches();
+    renderSeasons();
+
+  }catch(err){
+
+    console.error(err);
+
+  }
+
+}, 30000);
+
+  }catch(err){
+
+    console.error(err);
+
+  }
+
+}
+
+/* =========================
+   NAVIGATION
+========================= */
+
+function showSection(id){
+
+  document
+    .querySelectorAll(".app-section")
+    .forEach(section => {
+
+      section.classList.add(
+        "hidden-section"
+      );
+
+    });
+
+  document
+    .getElementById(id)
+    .classList.remove(
+      "hidden-section"
+    );
+
+  document
+    .querySelectorAll(".nav-button")
+    .forEach(button => {
+
+      button.classList.remove(
+        "active-nav"
+      );
+
+    });
+
+  document
+    .querySelector(
+      `[data-section="${id}"]`
+    )
+    .classList.add(
+      "active-nav"
+    );
+
+}
+
+/* =========================
+   HOME
+========================= */
+
+function renderHome(){
+
+  const players =
+    leagueData.players || [];
+
+  const leader =
+    players[0] || {};
+
+  const stats =
+    leagueData.stats || {};
+
+const hottestPlayer =
+  [...players]
+    .sort((a,b) =>
+      (b.wins - b.losses) -
+      (a.wins - a.losses)
+    )[0];
+
+const mostActive =
+  [...players]
+    .sort((a,b) =>
+      b.games - a.games
+    )[0];
+
+const iceCold =
+  [...players]
+    .sort((a,b) =>
+      (a.wins - a.losses) -
+      (b.wins - b.losses)
+    )[0];
+
+
+  document
+    .getElementById("home-section")
+    .innerHTML = `
+
+<div class="status-strip">
+
+  <div class="status-track">
+
+    <span>
+
+      🔴 LIVE SEASON
+
+    </span>
+
+    <span>
+
+      🎯 <span class="count-up">${stats.totalMatches || 0}</span> MATCHES PLAYED
+
+    </span>
+
+    <span>
+
+      🏆 ${leader.name || "-"} LEADS THE LEAGUE
+
+    </span>
+
+    <span>
+
+      ☠️ ${players.filter(p => p.points <= 0).length} ELIMINATED
+
+    </span>
+
+    <span>
+
+      ⚡ TITLE RACE ACTIVE
+
+    </span>
+
+    <span>
+
+      🔥 TKDL SEASON IN PROGRESS
+
+    </span>
+
+  </div>
+
+</div>
+
+
+
+    <div class="live-hero">
+    
+
+      <div class="live-hero-left">
+      <div class="hero-core-glow"></div>
+      <div class="hero-center-mark">TKDL</div>
+
+        <div class="live-badge">
+
+          ● LIVE SEASON
+
+        </div>
+
+<div class="hero-title">
+  TKDL
+  <span>LIVE SEASON</span>
+</div>
+        <div class="hero-subtitle">
+
+          Tesco Kilbirnie Darts League
+
+        </div>
+
+        <div class="hero-leader-card">
+
+          <div class="hero-label">
+
+            CURRENT #1
+
+          </div>
+
+          <div class="hero-player-name">
+
+            ${leader.name || "-"}
+
+          </div>
+
+          <div class="hero-player-points">
+
+            <span class="count-up">${leader.points || 0}</span> POINTS
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="live-hero-right">
+
+        <div class="featured-match-card">
+
+          <div class="featured-label">
+
+            LEAGUE STATUS
+
+          </div>
+
+          <div class="featured-players">
+
+            ${leagueData.season || "-"}
+
+          </div>
+
+<div class="featured-meta">
+
+  <div class="featured-stat">
+
+    <span class="featured-stat-label">
+
+      PLAYERS
+
+    </span>
+
+    <span class="featured-stat-value">
+
+      <span class="count-up">${stats.totalPlayers || 0}</span>
+
+    </span>
+
+  </div>
+
+  <div class="featured-stat">
+
+    <span class="featured-stat-label">
+
+      MATCHES
+
+    </span>
+
+    <span class="featured-stat-value">
+
+      <span class="count-up">${stats.totalMatches || 0}</span>
+
+    </span>
+
+  </div>
+
+</div>
+
+          <div class="featured-type">
+
+            <span class="count-up">${stats.averageElo || 0}</span> Avg ELO
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+<div class="league-alerts">
+
+  ${leader.points >= 20 ? `
+
+    <div class="league-alert alert-gold">
+
+      👑
+
+      <div>
+
+        <strong>
+
+          ${leader.name}
+
+        </strong>
+
+        is dominating the league.
+
+      </div>
+
+    </div>
+
+  ` : ""}
+
+${players[players.length-1] ? `
+
+    <div class="
+      league-alert
+      ${players[players.length-1].points <= 0
+  ? "alert-eliminated"
+  : "alert-danger"}
+    ">
+
+      ${players[players.length-1].points <= 0
+  ? "☠️"
+  : "⚠️"}
+
+      <div>
+
+        <strong>
+
+          ${players[players.length-1].name}
+
+        </strong>
+
+        ${players[players.length-1].points <= 0
+
+  ? "has been eliminated from the season."
+
+  : "is on the brink of elimination."
+}
+
+      </div>
+
+    </div>
+
+  ` : ""}
+
+  ${hottestPlayer?.wins >= 3 ? `
+
+    <div class="league-alert alert-hot">
+
+      🔥
+
+      <div>
+
+        <strong>
+
+          ${hottestPlayer.name}
+
+        </strong>
+
+        is surging up the rankings.
+
+      </div>
+
+    </div>
+
+  ` : ""}
+
+</div>
+
+
+
+<div class="spotlight-grid">
+
+  <div class="spotlight-card gold-spotlight">
+
+    <div class="spotlight-label">
+
+      CURRENT LEADER
+
+    </div>
+
+    <div class="spotlight-player">
+
+      ${leader.name || "-"}
+
+    </div>
+
+    <div class="spotlight-meta">
+
+      ${leader.points || 0} Points
+
+    </div>
+
+  </div>
+
+  <div class="spotlight-card">
+
+    <div class="spotlight-label">
+
+      HOTTEST PLAYER
+
+    </div>
+
+    <div class="spotlight-player">
+
+      ${hottestPlayer?.name || "-"}
+
+    </div>
+
+    <div class="spotlight-meta">
+
+      ${hottestPlayer?.wins || 0} Wins
+
+    </div>
+
+  </div>
+
+  <div class="spotlight-card">
+
+    <div class="spotlight-label">
+
+      MOST ACTIVE
+
+    </div>
+
+    <div class="spotlight-player">
+
+      ${mostActive?.name || "-"}
+
+    </div>
+
+    <div class="spotlight-meta">
+
+      ${mostActive?.games || 0} Games
+
+    </div>
+
+  </div>
+
+  <div class="spotlight-card cold-spotlight">
+
+    <div class="spotlight-label">
+
+      ICE COLD
+
+    </div>
+
+    <div class="spotlight-player">
+
+      ${iceCold?.name || "-"}
+
+    </div>
+
+    <div class="spotlight-meta">
+
+      ${iceCold?.losses || 0} Losses
+
+    </div>
+
+  </div>
+
+</div>
+
+
+    <div class="compact-stats-row">
+
+  <div class="compact-stat-card">
+
+    <div class="compact-stat-label">
+
+      PLAYERS
+
+    </div>
+
+    <div class="compact-stat-value">
+
+      <span class="count-up">${stats.totalPlayers || 0}</span>
+
+    </div>
+
+  </div>
+
+  <div class="compact-stat-card">
+
+    <div class="compact-stat-label">
+
+      MATCHES
+
+    </div>
+
+    <div class="compact-stat-value">
+
+      <span class="count-up">${stats.totalMatches || 0}</span>
+
+    </div>
+
+  </div>
+
+  <div class="compact-stat-card">
+
+    <div class="compact-stat-label">
+
+      AVG ELO
+
+    </div>
+
+    <div class="compact-stat-value">
+
+      ${stats.averageElo || 1000}
+
+    </div>
+
+  </div>
+
+</div>
+
+<div class="season-clock-card">
+
+  <div class="season-clock-top">
+
+    <div class="season-label">
+
+      CURRENT SEASON
+
+    </div>
+
+    <div id="seasonName">
+
+    </div>
+
+  </div>
+
+  <div class="season-progress-wrapper">
+
+    <div class="season-progress-bar">
+
+      <div
+        id="seasonProgressFill"
+        class="season-progress-fill">
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <div class="season-bottom">
+
+    <div id="seasonDaysLeft">
+
+    </div>
+
+    <div id="seasonPercent">
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<div class="home-layout">
+
+  <div class="home-main-column">
+
+    ${renderActivityFeed(
+      leagueData.recentMatches
+    )}
+
+  </div>
+
+  <div class="home-side-column">
+
+    <div class="section-card">
+
+      <h2>
+
+        TOP 3 PLAYERS
+
+      </h2>
+
+      <div id="mini-leaderboard"></div>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+
+
+  `;
+
+  renderMiniLeaderboard();
+  renderSeasonClock();
+  animateCountUps();
+
+}
+
+function renderActivityFeed(matches){
+
+  return `
+
+    <div class="section-card">
+
+      <h2>
+
+        LIVE LEAGUE FEED
+
+      </h2>
+
+      <div class="activity-feed">
+
+        ${(matches || [])
+          .slice(0,8)
+          .map(match => `
+
+            <div class="activity-item">
+
+              <div class="activity-icon">
+
+                🔥
+
+              </div>
+
+              <div class="activity-content">
+
+                <div class="activity-main">
+
+                  <span class="activity-winner">
+
+                    ${match.winner}
+
+                  </span>
+
+                  defeated
+
+                  <span class="activity-match">
+
+                    ${(() => {
+
+                      const parts =
+                        (match.match || "")
+                          .split(" vs ");
+
+                      return parts.find(
+                        p => p !== match.winner
+                      ) || "Unknown";
+
+                    })()}
+
+                  </span>
+
+                </div>
+
+                <div class="activity-meta">
+
+                  ${match.gameType}
+                  •
+                  ${match.stake} Points
+
+                </div>
+
+                <div class="activity-elo-row">
+
+                  <span class="elo-pill elo-gain">
+
+                    ⚡ ${getEloChange(match.stake,true)} ELO
+
+                  </span>
+
+                  <span class="elo-pill elo-loss">
+
+                    ${getEloChange(match.stake,false)} ELO
+
+                  </span>
+
+                </div>
+
+                <div class="activity-tags">
+
+                  ${match.stake >= 5 ? `
+
+                    <div class="match-tag tag-high">
+
+                      🔥 HIGH STAKES
+
+                    </div>
+
+                  ` : ""}
+
+                  ${match.stake >= 8 ? `
+
+                    <div class="match-tag tag-title">
+
+                      👑 TITLE IMPACT
+
+                    </div>
+
+                  ` : ""}
+
+                  ${String(match.gameType || "")
+                        .toLowerCase()
+                        .includes("elimination")
+                    ? `
+
+                      <div class="match-tag tag-elim">
+
+                        ☠️ ELIMINATION
+
+                      </div>
+
+                    `
+                    : ""
+                  }
+
+                </div>
+
+              </div>
+
+            </div>
+
+          `).join("")}
+
+      </div>
+
+    </div>
+
+  `;
+
+  setTimeout(() => {
+    pulseLeaderboardMovements();
+  }, 120);
+
+}
+
+function renderSeasonClock(){
+
+  const now = new Date();
+
+  const year =
+    now.getFullYear();
+
+  const month =
+    now.getMonth();
+
+  const monthNames = [
+
+    "JANUARY",
+    "FEBRUARY",
+    "MARCH",
+    "APRIL",
+    "MAY",
+    "JUNE",
+    "JULY",
+    "AUGUST",
+    "SEPTEMBER",
+    "OCTOBER",
+    "NOVEMBER",
+    "DECEMBER"
+
+  ];
+
+  const end =
+    new Date(year, month + 1, 0);
+
+  const totalDays =
+    end.getDate();
+
+  const currentDay =
+    now.getDate();
+
+  const daysLeft =
+    totalDays - currentDay;
+
+  const percent =
+    Math.round(
+      (currentDay / totalDays) * 100
+    );
+
+  document.getElementById(
+    "seasonName"
+  ).innerHTML = `
+
+    ${monthNames[month]}
+    ${year}
+
+  `;
+
+  document.getElementById(
+    "seasonDaysLeft"
+  ).innerHTML = `
+
+    ${daysLeft} DAYS LEFT
+
+  `;
+
+  document.getElementById(
+    "seasonPercent"
+  ).innerHTML = `
+
+    ${percent}% COMPLETE
+
+  `;
+
+  document.getElementById(
+    "seasonProgressFill"
+  ).style.width =
+    `${percent}%`;
+
+}
+
+
+/* =========================
+   MINI LEADERBOARD
+========================= */
+
+function renderMiniLeaderboard(){
+
+  const players =
+    leagueData.players || [];
+
+  const top3 =
+    players.slice(0,3);
+
+  document
+    .getElementById("mini-leaderboard")
+    .innerHTML = `
+
+    <div class="podium-wrapper">
+
+      ${top3[1] ? `
+
+        <div class="podium-card silver">
+
+          <div class="podium-rank">
+
+            #2
+
+          </div>
+
+          <div class="podium-name">
+
+            ${top3[1].name}
+
+          </div>
+
+          <div class="podium-tier">
+
+            ${top3[1].tier}
+
+          </div>
+
+          <div class="podium-points">
+
+            ${top3[1].points} PTS
+
+          </div>
+
+        </div>
+
+      ` : ""}
+
+      ${top3[0] ? `
+
+        <div class="podium-card gold main-podium">
+
+          <div class="champion-banner">
+
+            LEAGUE LEADER
+
+          </div>
+
+          <div class="podium-rank">
+
+            #1
+
+          </div>
+
+          <div class="podium-name">
+
+            ${top3[0].name}
+
+          </div>
+
+          <div class="podium-tier">
+
+            ${top3[0].tier}
+
+          </div>
+
+          <div class="podium-points">
+
+            ${top3[0].points} PTS
+
+          </div>
+
+          <div class="podium-elo">
+
+            ${top3[0].elo} ELO
+
+          </div>
+
+        </div>
+
+      ` : ""}
+
+      ${top3[2] ? `
+
+        <div class="podium-card bronze">
+
+          <div class="podium-rank">
+
+            #3
+
+          </div>
+
+          <div class="podium-name">
+
+            ${top3[2].name}
+
+          </div>
+
+          <div class="podium-tier">
+
+            ${top3[2].tier}
+
+          </div>
+
+          <div class="podium-points">
+
+            ${top3[2].points} PTS
+
+          </div>
+
+        </div>
+
+      ` : ""}
+
+    </div>
+
+  `;
+
+}
+
+/* =========================
+   FULL LEADERBOARD
+========================= */
+
+function renderLeaderboard() {
+  const seasonPlayers = (leagueData.players || []).filter(p => String(p.status||"").toUpperCase() === "ACTIVE");
+  const careerPlayers = leagueData.careerLeaderboard || [];
+
+  document.getElementById('leaderboard-section').innerHTML = `
+    <div class="section-card">
+      <div class="lb-tab-bar">
+        <button class="lb-tab lb-tab-active" id="lb-tab-season"
+          onclick="switchLbTab('season')">🏆 SEASON</button>
+        <button class="lb-tab" id="lb-tab-career"
+          onclick="switchLbTab('career')">📊 ALL TIME</button>
+      </div>
+
+      <div id="lb-panel-season">
+        <h2>OFFICIAL LEADERBOARD</h2>
+        <div class="league-table">
+          <div class="table-header">
+            <div>RK</div><div>MOV</div><div>PLAYER</div>
+            <div>W</div><div>L</div><div>ELO</div><div>PTS</div><div>TIER</div>
+          </div>
+          ${seasonPlayers.map((player, index) => `
+            <div class="table-row rank-${index+1} ${player.points <= 0 ? 'eliminated-row' : ''}"
+              onclick="openPlayerProfile('${player.name}')">
+              <div class="table-rank">#${index+1}</div>
+              <div class="table-movement">
+                ${player.rankChange > 0
+                  ? `<span class="move-up">▲${player.rankChange}</span>`
+                  : player.rankChange < 0
+                  ? `<span class="move-down">▼${Math.abs(player.rankChange)}</span>`
+                  : `<span class="move-flat">—</span>`}
+              </div>
+              <div>
+                <div class="table-player-name">${index === 0 ? '👑 ' : ''}${player.name}</div>
+                <div class="table-player-tier">${player.tier || ''}</div>
+              </div>
+              <div class="table-stat">${player.wins}</div>
+              <div class="table-stat">${player.losses}</div>
+              <div class="table-stat">${player.elo}</div>
+              <div class="table-points">${player.points}</div>
+              <div>${player.points <= 0
+                ? `<span class="eliminated-pill">ELIMINATED</span>` : ''}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div id="lb-panel-career" style="display:none">
+        <div class="leaderboard-hero">
+  <div class="leaderboard-badge">
+    🏆 ALL TIME
+  </div>
+
+  <h2 class="leaderboard-title">
+    ALL TIME RANKINGS
+  </h2>
+
+  <div class="leaderboard-subtitle">
+    Every TKDL player ranked by career victories.
+  </div>
+</div>
+        <div class="league-table">
+          <div class="table-header career-header">
+  <div>RK</div><div>MOV</div><div>PLAYER</div>
+<div>W</div><div>L</div><div>G</div>
+<div>WIN%</div><div>STREAK</div>
+</div>
+          ${careerPlayers.length === 0
+            ? `<div style="padding:2rem;text-align:center;color:#aaa">
+                No career data yet — run rebuildCareerLeaderboard() in Apps Script.
+               </div>`
+            : careerPlayers.map((p, i) => `
+              <div class="table-row career-row rank-${i+1} ${p.status === 'INACTIVE' ? 'career-inactive' : ''}"
+  onclick="openPlayerProfile('${p.name}')">
+                <div class="table-rank">${p.rank || i+1}</div>
+                <div class="table-movement">
+  <span class="move-flat">—</span>
+</div>
+
+<div>
+  <div class="table-player-name">
+    ${i === 0 ? '🏅 ' : ''}${p.name}
+  </div>
+
+  <div class="table-player-tier">
+    ${p.status === 'INACTIVE' ? 'RETIRED' : 'CAREER PLAYER'}
+  </div>
+</div>
+
+<div class="table-stat">${p.careerWins}</div>
+                <div class="table-stat">${p.careerLosses}</div>
+                <div class="table-stat">${p.careerGames}</div>
+                <div class="table-stat">${p.winRate}%</div>
+                
+                <div class="table-stat">${p.bestStreak}</div>
+                
+              </div>
+            `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function switchLbTab(tab) {
+  var seasonPanel = document.getElementById('lb-panel-season');
+  var careerPanel = document.getElementById('lb-panel-career');
+  var seasonTab = document.getElementById('lb-tab-season');
+  var careerTab = document.getElementById('lb-tab-career');
+  if (!seasonPanel || !careerPanel) return;
+  if (tab === 'season') {
+    seasonPanel.style.display = '';
+    careerPanel.style.display = 'none';
+    if (seasonTab) seasonTab.classList.add('lb-tab-active');
+    if (careerTab) careerTab.classList.remove('lb-tab-active');
+  } else {
+    seasonPanel.style.display = 'none';
+    careerPanel.style.display = '';
+    if (careerTab) careerTab.classList.add('lb-tab-active');
+    if (seasonTab) seasonTab.classList.remove('lb-tab-active');
+  }
+}
+function renderPlayers(){
+
+  const players =
+    (leagueData.players || []).filter(p => String(p.status||'').toUpperCase() === 'ACTIVE');
+
+  document
+    .getElementById("players-section")
+    .innerHTML = `
+
+    <div class="player-grid">
+
+ ${players.map(player => {
+  const profile =
+  leagueData.playerProfiles?.[
+    player.playerId
+  ] || {};
+
+const visuals =
+  profile.visuals || {};
+
+const visualIdentity =
+  profile.visualIdentity || {};
+
+  const form =
+    player.wins - player.losses;
+
+  return `
+
+
+
+<div
+class="
+  player-card
+  rank-${player.rank}
+
+  theme-${visuals.cardTheme || 'default'}
+  aura-${visuals.auraGlow || 'none'}
+  prestige-${visuals.prestigeBorder || 'bronze'}
+
+  identity-${profile.visualIdentity?.theme || 'default'}
+  glow-${profile.visualIdentity?.glow || 'standard'}
+  border-${profile.visualIdentity?.border || 'default'}
+
+  threat-${(profile.threatLevel || 'low').toLowerCase()}
+
+  ${player.points <= 0
+    ? 'eliminated-player-card'
+    : ''}
+"
+  data-initial="${
+    player.name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .slice(0,2)
+  }"
+onclick="openPlayerProfile('${player.name}')">
+
+<div class="shine"></div>
+
+<div class="player-card-rank">
+  #${player.rank}
+</div>
+<div class="player-card-header">
+
+  <div class="player-avatar
+    ${player.tier.includes('Gold')
+      ? 'avatar-gold'
+      : player.tier.includes('Silver')
+        ? 'avatar-silver'
+        : 'avatar-bronze'}">
+
+    ${player.name
+      .split(" ")
+      .map(n => n[0])
+      .join("")
+      .slice(0,2)}
+
+  </div>
+
+  <div>
+
+    <div class="player-card-name">
+
+      ${player.rank === 1 ? "👑 " : ""}
+      ${player.name}
+
+    </div>
+
+    <div class="player-card-tier">
+
+      🏅 ${player.tier}
+
+    </div>
+
+${profile.title || visuals.archetypeLabel || 'Competitor'}
+
+  </div>
+
+</div>
+
+<div class="player-card-stats">
+
+  <div class="player-stat">
+
+    <div class="player-stat-label">
+
+      POINTS
+
+    </div>
+
+    <div class="player-stat-value">
+
+      ${player.points}
+
+    </div>
+
+  </div>
+
+  <div class="player-stat">
+
+    <div class="player-stat-label">
+
+      ELO
+
+    </div>
+
+    <div class="player-stat-value">
+
+      ${player.elo}
+
+    </div>
+
+  </div>
+
+</div>
+
+        ${player.rank === 1 ? `
+
+          <div class="player-status champion-status">
+
+            👑 LEAGUE LEADER
+
+          </div>
+
+        ` : form >= 3 ? `
+
+          <div class="player-status hot-status">
+
+            🔥 HOT STREAK
+
+          </div>
+
+        ` : form <= -3 ? `
+
+          <div class="player-status cold-status">
+
+            🧊 UNDER PRESSURE
+
+          </div>
+
+        ` : `
+
+          <div class="player-status normal-status">
+
+            🎯 ACTIVE COMPETITOR
+
+          </div>
+
+        `}
+
+      </div>
+
+    `;
+
+}).join("")}
+
+    </div>
+
+  `;
+
+}
+
+
+
+function getEloChange(stake, isWinner){
+
+  const base =
+    Number(stake || 1) * 2;
+
+  return isWinner
+    ? `+${base}`
+    : `-${base}`;
+
+}
+
+
+/* =========================
+   MATCHES
+========================= */
+
+function renderMatches(){
+
+  const matches =
+    leagueData.recentMatches || [];
+
+  document
+    .getElementById("matches-section")
+    .innerHTML = `
+
+    <div class="section-card">
+
+      <h2>
+
+        MATCH CENTRE
+
+      </h2>
+
+      <div class="matches-feed">
+
+        ${matches.slice(0,30).map(match => {
+
+          const players =
+            (match.match || "")
+              .split(" vs ");
+
+          const loser =
+            players.find(
+              p => p !== match.winner
+            ) || "Unknown";
+
+return `
+
+<div class="match-feed-card">
+
+  <div class="match-feed-top">
+
+    <div class="match-feed-icon">
+
+      🏆
+
+    </div>
+
+    <div class="match-feed-main">
+
+      <div class="match-feed-result">
+
+        ${match.winner}
+        defeated
+        ${loser}
+
+      </div>
+
+      <div class="match-feed-meta">
+
+        ${match.gameType}
+        •
+        ${match.stake} PTS
+
+      </div>
+
+      <div class="match-feed-elo-row">
+
+        <span class="elo-pill elo-gain">
+
+          ⚡ ${getEloChange(match.stake,true)} ELO
+
+        </span>
+
+        <span class="elo-pill elo-loss">
+
+          ${getEloChange(match.stake,false)} ELO
+
+        </span>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <div class="match-feed-tags">
+
+    ${Number(match.stake) >= 5
+
+      ?
+
+      `<span class="feed-tag high-stakes">
+
+        🔥 HIGH STAKES
+
+      </span>`
+
+      :
+
+      ""
+    }
+
+    ${Number(match.stake) >= 8
+
+      ?
+
+      `<span class="feed-tag title-impact">
+
+        👑 TITLE IMPACT
+
+      </span>`
+
+      :
+
+      ""
+    }
+
+    ${String(match.gameType || "")
+      .toLowerCase()
+      .includes("elimination")
+
+      ?
+
+      `<span class="feed-tag elim-tag">
+
+        ☠️ ELIMINATION
+
+      </span>`
+
+      :
+
+      ""
+    }
+
+  </div>
+
+</div>
+
+`;
+
+        }).join("")}
+
+      </div>
+
+    </div>
+
+  `;
+
+}
+
+/* =========================
+   SEASONS
+========================= */
+
+
+function renderSeasons() {
+  const archives = leagueData.seasonArchives || [];
+  document.getElementById('seasons-section').innerHTML = `
+    <div class="section-card">
+      <h2 class="section-title">SEASON HUB</h2>
+      <div class="season-grid">
+        <div class="season-card current-season-card">
+          <div class="season-label">CURRENT SEASON</div>
+          <div class="season-title">${leagueData.seasonDisplayName || leagueData.season}
+</div>
+          <div class="season-meta">🎯 Live Competitive Season</div>
+          <div class="season-meta">⚔️ ${(leagueData.players || []).length} Active Players</div>
+          <div class="season-meta">🎯 ${leagueData.stats?.totalMatches || 0} Matches Played</div>
+          <div class="season-meta">👑 Leader: ${(leagueData.players || [])[0]?.name || '—'}</div>
+        </div>
+        ${archives.map(season => `
+          <div class="season-card archive-card"
+            onclick="openSeasonStandingsModal('${season.season}')"
+            style="cursor:pointer">
+            <div class="season-label">ARCHIVED SEASON</div>
+            <div class="season-title">${season.season}</div>
+            <div class="season-meta">👑 Champion: <strong>${season.champion}</strong></div>
+            <div class="season-meta">🎯 Matches: ${season.matches}</div>
+            <div class="season-meta">⚡ Peak ELO: ${season.highestElo}</div>
+            <div class="season-meta">⚔️ Players: ${season.players}</div>
+            ${season.notes ? `<div class="season-meta">📝 ${season.notes}</div>` : ''}
+            <div class="season-expand-hint">📊 Tap to see final standings</div>
+            <div class="season-standings-panel" id="standings-${season.season}" style="display:none">
+              <div class="standings-loading">Loading standings...</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+async function showSeasonStandings(seasonName, card) {
+  const panelId = 'standings-' + seasonName;
+  const panel   = document.getElementById(panelId);
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  panel.innerHTML = '<div class="standings-loading">Loading...</div>';
+  try {
+    const url  = API_URL.split('?')[0] + '?function=getSeasonStandingsData&season=' + encodeURIComponent(seasonName);
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!data || !data.standings || data.standings.length === 0) {
+      panel.innerHTML = '<div class="standings-empty">No standings data saved for this season.<br><small>Standings are saved automatically at each rollover going forward.</small></div>';
+      return;
+    }
+    panel.innerHTML = `
+      <div class="standings-table">
+        <div class="standings-header">
+          <span>RK</span><span>PLAYER</span><span>PTS</span><span>W</span><span>L</span><span>ELO</span>
+        </div>
+        ${data.standings.map(p => `
+          <div class="standings-row ${p.rank === 1 ? 'standings-champion' : ''}">
+            <span>${p.rank === 1 ? '👑' : '#' + p.rank}</span>
+            <span>${p.name}</span>
+            <span>${p.points}</span>
+            <span>${p.wins}</span>
+            <span>${p.losses}</span>
+            <span>${p.elo}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch(e) {
+    panel.innerHTML = '<div class="standings-empty">Could not load standings.</div>';
+  }
+}
+
+async function openSeasonStandingsModal(seasonName){
+
+  try{
+
+    const url =
+      API_URL.split('?')[0] +
+      '?function=getSeasonStandingsData&season=' +
+      encodeURIComponent(seasonName);
+
+    const resp =
+      await fetch(url);
+
+    const data =
+      await resp.json();
+
+    if(
+      !data ||
+      !data.standings ||
+      !data.standings.length
+    ){
+
+      document.getElementById(
+        "player-modal"
+      ).innerHTML = `
+
+        <div class="modal-backdrop"
+          onclick="closePlayerProfile()">
+
+          <div class="player-modal"
+            onclick="event.stopPropagation()">
+
+            <button
+              class="close-modal"
+              onclick="closePlayerProfile()">
+
+              ✕
+
+            </button>
+
+            <h2>
+              🏆 ${seasonName}
+            </h2>
+
+            <p>
+              No standings available.
+            </p>
+
+          </div>
+
+        </div>
+
+      `;
+
+      return;
+
+    }
+
+    document.getElementById(
+      "player-modal"
+    ).innerHTML = `
+
+      <div class="modal-backdrop"
+        onclick="closePlayerProfile()">
+
+        <div class="player-modal"
+          onclick="event.stopPropagation()">
+
+          <button
+            class="close-modal"
+            onclick="closePlayerProfile()">
+
+            ✕
+
+          </button>
+
+          <h2>
+            🏆 ${seasonName}
+          </h2>
+
+          <div class="league-table">
+
+            <<div class="table-header season-table-header">
+
+  <div>RK</div>
+  <div>PLAYER</div>
+  <div>PTS</div>
+  <div>W</div>
+  <div>L</div>
+
+</div>
+
+${data.standings.map(p => `
+
+  <div class="table-row season-table-row rank-${p.rank}">
+
+    <div class="table-rank">
+      ${p.rank === 1 ? '👑' : '#' + p.rank}
+    </div>
+
+    <div>
+      <div class="table-player-name">
+        ${p.name}
+      </div>
+    </div>
+
+    <div class="table-points">
+      ${p.points}
+    </div>
+
+    <div class="table-stat">
+      ${p.wins}
+    </div>
+
+    <div class="table-stat">
+      ${p.losses}
+    </div>
+
+  </div>
+
+`).join('')}
+          </div>
+
+        </div>
+
+      </div>
+
+    `;
+
+  }catch(err){
+
+    console.error(err);
+
+  }
+
+}
+
+/* =========================
+   SUBMIT MATCH
+========================= */
+
+function renderSubmit() {
+  const players = (leagueData.players || [])
+    .filter(p => String(p.status || '').toUpperCase() !== 'INACTIVE')
+    .map(p => p.name)
+    .sort();
+  const playerOptions = players
+    .map(name => `<option value="${name}">${name}</option>`)
+    .join('');
+  document.getElementById('submit-section').innerHTML = `
+    <div class="section-card">
+      <div class="lb-tab-bar">
+        <button class="lb-tab lb-tab-active" id="sub-tab-match"
+          onclick="switchSubmitTab('match')">⚔️ SUBMIT MATCH</button>
+        <button class="lb-tab" id="sub-tab-join"
+          onclick="switchSubmitTab('join')">➕ JOIN LEAGUE</button>
+      </div>
+      <div id="sub-panel-match">
+      <div class="submit-hero">
+
+  <div class="submit-hero-icon">
+    ⚔️
+  </div>
+
+  <div class="submit-hero-title">
+    MATCH SUBMISSION
+  </div>
+
+  <div class="submit-hero-text">
+    Submit official TKDL match results.
+    All rankings, ELO and achievements update automatically.
+  </div>
+
+</div>
+        <div class="submit-form-native">
+          <div class="form-group">
+            <label class="form-label">PLAYER 1</label>
+            <select class="form-select" id="sf-player1" onchange="updateWinnerOptions()">
+              <option value="">— Select player —</option>
+              ${playerOptions}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">PLAYER 2</label>
+            <select class="form-select" id="sf-player2" onchange="updateWinnerOptions()">
+              <option value="">— Select player —</option>
+              ${playerOptions}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">WINNER</label>
+            <select class="form-select" id="sf-winner">
+              <option value="">— Select players first —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">STAKE (points wagered)</label>
+            <input type="number" class="form-input" id="sf-stake" min="1"
+              placeholder="Enter points (e.g. 5, 10, 25)"
+              style="width:100%;padding:10px;font-size:16px;"
+              oninput="validateStakeInput(this)"/>
+            <div id="sf-stake-hint" style="font-size:11px;color:#888;margin-top:4px;"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">GAME TYPE</label>
+            <input type="text" class="form-input" id="sf-gametype"
+              placeholder="e.g. 301, Cricket, Around the World, Killer..."
+              maxlength="50" autocomplete="off"
+              style="width:100%;padding:10px;font-size:16px;"/>
+          </div>
+          <div id="sf-error" class="form-error" style="display:none"></div>
+          <div id="sf-success" class="form-success" style="display:none"></div>
+          <button class="form-submit-btn" id="sf-submit-btn" onclick="submitMatchNative()">
+            ⚔️ SUBMIT MATCH
+          </button>
+        </div>
+      </div>
+      <div id="sub-panel-join" style="display:none">
+        <div class="submit-form-native">
+          <div class="join-intro">
+            <p>Enter your name below to join the Tesco Kilbirnie Darts League.</p>
+            <p>You'll start with <strong>25 points</strong> and be added to the next active season.</p>
+          </div>
+          <div class="form-group">
+            <label class="form-label">YOUR NAME</label>
+            <input type="text" class="form-input" id="join-name"
+              placeholder="Enter your full name" maxlength="30" autocomplete="off"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">CONFIRM NAME</label>
+            <input type="text" class="form-input" id="join-name-confirm"
+              placeholder="Enter your name again" maxlength="30" autocomplete="off"/>
+          </div>
+          <div id="join-error" class="form-error" style="display:none"></div>
+          <div id="join-success" class="form-success" style="display:none"></div>
+          <button class="form-submit-btn" id="join-submit-btn" onclick="submitJoinLeague()">
+            ➕ JOIN THE LEAGUE
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+
+function validateStakeInput(el) {
+  const val = parseInt(el.value, 10);
+  const hint = document.getElementById('sf-stake-hint');
+  const p1 = document.getElementById('sf-player1')?.value;
+  const p2 = document.getElementById('sf-player2')?.value;
+  const players = leagueData ? leagueData.players || [] : [];
+  let maxStake = Infinity;
+  if (p1) { const pd = players.find(p => p.name === p1); if (pd) maxStake = Math.min(maxStake, pd.points || 0); }
+  if (p2) { const pd = players.find(p => p.name === p2); if (pd) maxStake = Math.min(maxStake, pd.points || 0); }
+  if (maxStake < Infinity) {
+    el.max = maxStake;
+    if (hint) hint.textContent = 'Max stake: ' + maxStake + ' points (lowest of the two players)';
+  }
+  if (val > maxStake) el.value = maxStake;
+  if (val < 1 && el.value !== '') el.value = 1;
+}
+
+function switchSubmitTab(tab) {
+  document.getElementById('sub-panel-match').style.display = tab === 'match' ? '' : 'none';
+  document.getElementById('sub-panel-join').style.display  = tab === 'join'  ? '' : 'none';
+  document.getElementById('sub-tab-match').classList.toggle('lb-tab-active', tab === 'match');
+  document.getElementById('sub-tab-join').classList.toggle('lb-tab-active',  tab === 'join');
+}
+
+function updateWinnerOptions() {
+  const p1  = document.getElementById('sf-player1')?.value;
+  const p2  = document.getElementById('sf-player2')?.value;
+  const sel = document.getElementById('sf-winner');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Select winner —</option>';
+  if (p1) sel.innerHTML += `<option value="${p1}">${p1}</option>`;
+  if (p2) sel.innerHTML += `<option value="${p2}">${p2}</option>`;
+}
+
+async function submitMatchNative() {
+  const p1       = document.getElementById('sf-player1')?.value;
+  const p2       = document.getElementById('sf-player2')?.value;
+  const winner   = document.getElementById('sf-winner')?.value;
+  const stake    = document.getElementById('sf-stake')?.value    || '3';
+  const gameType = document.getElementById('sf-gametype')?.value || 'League';
+  const errDiv   = document.getElementById('sf-error');
+  const okDiv    = document.getElementById('sf-success');
+  const btn      = document.getElementById('sf-submit-btn');
+  errDiv.style.display = 'none';
+  okDiv.style.display  = 'none';
+  if (!p1 || !p2)                     { _sfErr(errDiv, 'Please select both players.');            return; }
+  if (p1 === p2)                      { _sfErr(errDiv, 'Players must be different.');             return; }
+  if (!winner)                        { _sfErr(errDiv, 'Please select a winner.');                return; }
+  if (winner !== p1 && winner !== p2) { _sfErr(errDiv, 'Winner must be one of the two players.'); return; }
+  btn.disabled    = true;
+  btn.textContent = '⏳ Submitting...';
+
+  // Stake validation
+  const stakeNum = Number(stake);
+  if (!stake || isNaN(stakeNum) || stakeNum < 1) { _sfErr(errDiv, 'Please enter a valid stake (minimum 1 point).'); return; }
+  if (!Number.isInteger(stakeNum))               { _sfErr(errDiv, 'Stake must be a whole number.');                   return; }
+  const players = leagueData ? leagueData.players || [] : [];
+  const p1Data  = players.find(p => p.name === p1);
+  const p2Data  = players.find(p => p.name === p2);
+  if (p1Data && stakeNum > (p1Data.points || 0)) { _sfErr(errDiv, p1 + ' only has ' + (p1Data.points||0) + ' points — can\'t stake ' + stakeNum + '.'); return; }
+  if (p2Data && stakeNum > (p2Data.points || 0)) { _sfErr(errDiv, p2 + ' only has ' + (p2Data.points||0) + ' points — can\'t stake ' + stakeNum + '.'); return; }
+  // Game type validation
+  if (!gameType || !gameType.trim()) { _sfErr(errDiv, 'Please enter a game type.'); return; }
+
+  try {
+    const baseUrl = API_URL.split('?')[0];
+    const resp = await fetch(baseUrl + '?function=submitMatch', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body:    new URLSearchParams({ function:'submitMatch', player1:p1, player2:p2, winner, stake, gameType })
+    });
+    const result = await resp.json();
+    if (result.success) {
+      okDiv.textContent   = '✅ Match submitted! ' + winner + ' wins.';
+      okDiv.style.display = 'block';
+      btn.textContent     = '✅ Submitted!';
+      setTimeout(async () => {
+        document.getElementById('sf-player1').value = '';
+        document.getElementById('sf-player2').value = '';
+        document.getElementById('sf-winner').innerHTML = '<option value="">— Select players first —</option>';
+        okDiv.style.display = 'none';
+        btn.disabled        = false;
+        btn.textContent     = '⚔️ SUBMIT MATCH';
+        try {
+          const fresh = await fetch(API_URL);
+          leagueData  = await fresh.json();
+          renderHome(); renderLeaderboard(); renderPlayers();
+        } catch(e) {}
+      }, 2500);
+    } else {
+      _sfErr(errDiv, result.error || 'Submission failed. Please try again.');
+      btn.disabled    = false;
+      btn.textContent = '⚔️ SUBMIT MATCH';
+    }
+  } catch(e) {
+    _sfErr(errDiv, 'Network error. Check your connection and try again.');
+    btn.disabled    = false;
+    btn.textContent = '⚔️ SUBMIT MATCH';
+  }
+}
+
+async function submitJoinLeague() {
+  const name        = (document.getElementById('join-name')?.value         || '').trim();
+  const nameConfirm = (document.getElementById('join-name-confirm')?.value || '').trim();
+  const errDiv      = document.getElementById('join-error');
+  const okDiv       = document.getElementById('join-success');
+  const btn         = document.getElementById('join-submit-btn');
+  errDiv.style.display = 'none';
+  okDiv.style.display  = 'none';
+  if (!name)                { _sfErr(errDiv, 'Please enter your name.');                          return; }
+  if (name.length < 2)      { _sfErr(errDiv, 'Name must be at least 2 characters.');              return; }
+  if (name !== nameConfirm) { _sfErr(errDiv, "Names don't match. Please check and try again.");   return; }
+  const existing = (leagueData.players || []).find(p => p.name.toLowerCase() === name.toLowerCase());
+  if (existing) { _sfErr(errDiv, name + ' is already registered in the league.'); return; }
+  btn.disabled    = true;
+  btn.textContent = '⏳ Registering...';
+  try {
+    const baseUrl = API_URL.split('?')[0];
+    const resp = await fetch(baseUrl + '?function=joinLeague', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body:    new URLSearchParams({ function:'joinLeague', playerName: name })
+    });
+    const result = await resp.json();
+    if (result.success) {
+      okDiv.innerHTML     = '🎉 <strong>' + result.playerName + '</strong> has joined TKDL!<br><small>You\'ll appear on the leaderboard once you play your first match.</small>';
+      okDiv.style.display = 'block';
+      btn.textContent     = '✅ Joined!';
+      document.getElementById('join-name').value         = '';
+      document.getElementById('join-name-confirm').value = '';
+      setTimeout(async () => {
+        try {
+          const fresh = await fetch(API_URL);
+          leagueData  = await fresh.json();
+          leagueData = fresh;
+          renderPlayers();
+          btn.disabled    = false;
+          btn.textContent = '➕ JOIN THE LEAGUE';
+        } catch(e) {}
+      }, 3000);
+    } else {
+      _sfErr(errDiv, result.error || 'Registration failed. Please try again.');
+      btn.disabled    = false;
+      btn.textContent = '➕ JOIN THE LEAGUE';
+    }
+  } catch(e) {
+    _sfErr(errDiv, 'Network error. Check your connection and try again.');
+    btn.disabled    = false;
+    btn.textContent = '➕ JOIN THE LEAGUE';
+  }
+}
+
+function _sfErr(div, msg) {
+  div.textContent  = '⚠️ ' + msg;
+  div.style.display = 'block';
+}
+ 
+
+
+
+/* =========================
+   ACHIEVEMENT PROGRESS
+========================= */
+
+function getAchievementProgress(
+
+  achievementId,
+  playerName,
+  context
+
+){
+
+  const player =
+    leagueData.players.find(
+      p => p.name === playerName
+    );
+
+  if(!player){
+
+    return {
+      current:0,
+      target:1
+    };
+
+  }
+
+  switch(achievementId){
+
+    /* =========================
+       CAREER
+    ========================= */
+
+    case "FIRST_BLOOD":
+
+      return {
+        current:Math.min(player.wins,1),
+        target:1
+      };
+
+    case "WARMED_UP":
+
+      return {
+        current:player.games || 0,
+        target:5
+      };
+
+    case "BREAKTHROUGH":
+
+      return {
+        current:player.wins || 0,
+        target:5
+      };
+
+    case "CONTENDER":
+
+      return {
+        current:player.wins || 0,
+        target:10
+      };
+
+    case "VETERAN":
+
+      return {
+        current:player.games || 0,
+        target:25
+      };
+
+    case "IRON_MAN":
+
+      return {
+        current:player.games || 0,
+        target:50
+      };
+
+/* =========================
+   STREAKS
+========================= */
+
+case "HOT_STREAK":
+
+  return {
+
+    current:
+
+      unlockedAchievement(
+        player,
+        "HOT_STREAK"
+      )
+
+        ? 3
+        : 0,
+
+    target:3
+
+  };
+
+case "RED_HOT":
+
+  return {
+
+    current:
+
+      unlockedAchievement(
+        player,
+        "RED_HOT"
+      )
+
+        ? 5
+        : 0,
+
+    target:5
+
+  };
+
+case "UNSTOPPABLE":
+
+  return {
+
+    current:
+
+      unlockedAchievement(
+        player,
+        "UNSTOPPABLE"
+      )
+
+        ? 10
+        : 0,
+
+    target:10
+
+  };
+
+/* =========================
+   RISK
+========================= */
+
+case "PAY_DAY":
+
+  return {
+
+    current:
+
+      unlockedAchievement(
+        player,
+        "PAY_DAY"
+      )
+
+        ? 10
+        : 0,
+
+    target:10
+
+  };
+
+case "HIGH_ROLLER":
+
+  return {
+
+    current:
+
+      unlockedAchievement(
+        player,
+        "HIGH_ROLLER"
+      )
+
+        ? 25
+        : 0,
+
+    target:25
+
+  };    
+
+    /* =========================
+       DEFAULT
+    ========================= */
+
+default:
+
+  return {
+
+    current:
+
+      unlockedAchievement(
+        player,
+        achievementId
+      )
+
+        ? 100
+        : 0,
+
+    target:100
+
+  };
+
+  }
+
+}
+
+/* =========================
+   HELPER
+========================= */
+
+function unlockedAchievement(
+  player,
+  achievementId
+){
+
+  return getPlayerUnlocks(player)
+    .some(a => a.id === achievementId);
+
+}
+/* =========================
+   ACHIEVEMENT SCORE
+========================= */
+
+function getAchievementScore(
+  achievementIds
+){
+
+  const metadata =
+leagueData
+  .allAchievements || [];
+
+  let score = 0;
+
+  achievementIds.forEach(id => {
+
+    const achievement =
+      metadata.find(
+        a => a.id === id
+      );
+
+    if(!achievement)
+      return;
+
+    switch(
+      String(
+        achievement.rarity || ''
+      ).toLowerCase()
+    ){
+
+      case 'common':
+        score += 5;
+        break;
+
+      case 'rare':
+        score += 15;
+        break;
+
+      case 'epic':
+        score += 35;
+        break;
+
+      case 'legendary':
+        score += 75;
+        break;
+
+      default:
+        score += 5;
+
+    }
+
+  });
+
+  return score;
+
+}
+
+/* =========================
+   PRESTIGE LEVELS
+========================= */
+
+function getPrestigeLevel(score){
+
+  if(score >= 600)
+    return 'MYTHIC';
+
+  if(score >= 350)
+    return 'LEGEND';
+
+  if(score >= 200)
+    return 'MASTER';
+
+  if(score >= 100)
+    return 'ELITE';
+
+  if(score >= 40)
+    return 'RISING';
+
+  return 'ROOKIE';
+
+}
+/* =========================
+   PLAYER PROFILE
+========================= */
+function renderNextAchievements(player) {
+  const allMeta  = leagueData.achievementMetadata || [];
+  const unlocked = new Set((player.achievements || []).map(a => a.id));
+  const cs           = player.careerStats || {};
+  const careerWins   = cs.totalWins   || player.careerWins   || 0;
+  const careerGames  = cs.totalMatches || player.careerGames  || 0;
+  const careerLoss   = cs.totalLosses  || player.careerLosses || 0;
+  const elo          = player.elo      || 1000;
+  const winStreak    = player.winStreak || 0;
+  const total        = careerWins + careerLoss;
+  const winRate      = total >= 10 ? Math.round((careerWins / total) * 100) : 0;
+  const progressMap = {
+    FIRST_BLOOD:   { current: careerWins,  target: 1,    label: 'career win'   },
+    WARMED_UP:     { current: careerWins,  target: 5,    label: 'career wins'  },
+    BREAKTHROUGH:  { current: careerWins,  target: 10,   label: 'career wins'  },
+    WARLORD:       { current: careerWins,  target: 25,   label: 'career wins'  },
+    LEGEND:        { current: careerWins,  target: 50,   label: 'career wins'  },
+    IMMORTAL:      { current: careerWins,  target: 100,  label: 'career wins'  },
+    APEX_PREDATOR: { current: careerWins,  target: 250,  label: 'career wins'  },
+    ETERNAL:       { current: careerWins,  target: 500,  label: 'career wins'  },
+    FIGHTER:       { current: careerGames, target: 5,    label: 'games played' },
+    GLADIATOR:     { current: careerGames, target: 25,   label: 'games played' },
+    VETERAN:       { current: careerGames, target: 50,   label: 'games played' },
+    PROFESSIONAL:  { current: careerGames, target: 75,   label: 'games played' },
+    MARATHON:      { current: careerGames, target: 100,  label: 'games played' },
+    IRONMAN:       { current: careerGames, target: 250,  label: 'games played' },
+    HOT_STREAK:    { current: winStreak,   target: 3,    label: 'win streak'   },
+    RED_HOT:       { current: winStreak,   target: 5,    label: 'win streak'   },
+    UNSTOPPABLE:   { current: winStreak,   target: 10,   label: 'win streak'   },
+    EXECUTIONER:   { current: winStreak,   target: 15,   label: 'win streak'   },
+    SUPERSTAR:     { current: elo,         target: 1200, label: 'ELO'          },
+    BULLSEYE:      { current: winRate,     target: 60,   label: '% win rate'   },
+    PRECISION:     { current: winRate,     target: 70,   label: '% win rate'   },
+    SNIPER:        { current: winRate,     target: 80,   label: '% win rate'   },
+  };
+const candidates = allMeta
+    .filter(a => !unlocked.has(a.id) && String(a.hidden || '').toUpperCase() !== 'TRUE' && progressMap[a.id])
+    .map(a => { const p = progressMap[a.id]; const pct = Math.min(99, Math.round((p.current / p.target) * 100)); return { ...a, ...p, pct }; })
+    .sort((a, b) => b.pct - a.pct).slice(0, 3);
+  if (candidates.length === 0) return '';
+  return `
+    <div class="profile-section next-achievements-section">
+      <h3>🎯 NEXT ACHIEVEMENTS</h3>
+      <div class="next-achievements-list">
+        ${candidates.map(a => `
+          <div class="next-achievement-item rarity-${String(a.rarity || 'common').toLowerCase()}">
+            <div class="next-achievement-icon">${a.icon || '🏆'}</div>
+            <div class="next-achievement-body">
+              <div class="next-achievement-name">${a.name}<span class="next-achievement-rarity">${a.rarity}</span></div>
+              <div class="next-achievement-desc">${a.description || ''}</div>
+              <div class="next-achievement-progress-row">
+                <div class="next-achievement-bar-wrap">
+                  <div class="next-achievement-bar-fill" style="width:${a.pct}%"></div>
+                </div>
+                <div class="next-achievement-numbers">${a.current} / ${a.target} ${a.label} &nbsp;·&nbsp; ${a.pct}%</div>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+
+
+function openPlayerProfile(name){
+
+  const players =
+    leagueData.players || [];
+
+  const player =
+    players.find(p =>
+      p.name === name
+    );
+    const profile =
+  leagueData.playerProfiles?.[
+    player.playerId
+  ] || {};
+
+const visuals =
+  profile.visuals || {};
+
+const aura =
+  profile.aura || {};
+
+const prestige =
+  profile.prestige || {};
+
+  const rivalry =
+  profile.rivalrySpotlight || {};
+
+const winRate =
+  player.games > 0
+
+    ? Math.round(
+        (player.wins / player.games) * 100
+      )
+
+    : 0;
+
+const bestRank =
+  player.bestRank || player.rank;
+
+  const eliminated =
+    String(player.status||'').toUpperCase() !== 'INACTIVE' && player.points <= 0;
+  const achievementIds =
+
+  getPlayerUnlocks(player)
+    .map(a => a.id);
+
+const achievementScore =
+  getAchievementScore(
+    achievementIds
+  );
+
+const prestigeLevel =
+  getPrestigeLevel(
+    achievementScore
+  );
+
+/* =========================
+   LEGACY PROFILE
+========================= */
+
+const legacyProfile =
+
+  buildLegacyPreview(
+    player
+  );
+    const recentMatches =
+  (leagueData.recentMatches || [])
+    .filter(match =>
+
+      (match.match || "")
+        .toLowerCase()
+        .includes(
+          name.toLowerCase()
+        )
+
+    )
+    .slice(0,5);
+
+const formResults =
+  recentMatches.map(match => {
+
+    return (
+      match.winner &&
+      match.winner
+        .toLowerCase()
+        ===
+      name.toLowerCase()
+    )
+
+      ? "W"
+
+      : "L";
+
+  });
+
+const currentStreak = (() => {
+
+  if(!formResults.length)
+    return null;
+
+  const first =
+    formResults[0];
+
+  let count = 0;
+
+  for(let i = 0; i < formResults.length; i++){
+
+    if(formResults[i] === first){
+
+      count++;
+
+    }else{
+
+      break;
+
+    }
+
+  }
+
+  return `${first}${count}`;
+
+})();
+
+  if(!player)
+    return;
+
+  document
+    .getElementById("player-modal")
+    .innerHTML = `
+
+    <div class="modal-backdrop"
+      onclick="closePlayerProfile()">
+
+      <div class="player-modal"
+        onclick="event.stopPropagation()">
+
+        <button
+          class="close-modal"
+          onclick="closePlayerProfile()">
+
+          ✕
+
+        </button>
+
+<div class="
+  profile-hero
+  tier-${player.tier.toLowerCase()}
+  prestige-hero-${prestigeLevel.toLowerCase()}
+  theme-${visuals.cardTheme || 'default'}
+  aura-${visuals.auraGlow || 'none'}
+  prestige-${visuals.prestigeBorder || 'bronze'}
+  ${eliminated ? 'profile-eliminated' : ''}
+">
+
+  <div class="profile-hero-overlay"></div>
+
+  <div class="profile-hero-content">
+
+    <div class="profile-left">
+
+      <div class="
+        profile-avatar
+        avatar-${player.tier.toLowerCase()}
+      ">
+
+        ${player.name.charAt(0)}
+
+      </div>
+
+      <div>
+
+        <div class="profile-rank">
+
+          RANK #${player.rank}
+
+        </div>
+
+        <div class="profile-name">
+
+          ${player.name}
+
+        </div>
+
+        <div class="profile-tier">
+
+          ${player.tier} TIER
+
+        </div>
+        <div class="profile-archetype">
+
+  ${profile.title || visuals.archetypeLabel || 'Competitor'}
+  <div class="profile-subtitle">
+
+  ${profile.subtitle || 'Active Competitor'}
+
+</div>
+
+</div>
+<div class="
+  profile-prestige
+  prestige-${prestigeLevel.toLowerCase()}
+">
+
+  ${prestigeLevel}
+  •
+  ${achievementScore} AP
+
+</div>
+<div class="profile-aura-display">
+
+  ${aura.tier || 'NONE'} AURA
+
+</div>
+
+      </div>
+
+    </div>
+
+    ${eliminated ? `
+
+  <div class="profile-eliminated-banner">
+
+    ☠️ ELIMINATED
+
+  </div>
+
+` : ""}
+
+    <div class="profile-right">
+
+      <div class="profile-points">
+
+        ${player.points}
+
+        <span>
+
+          SEASON POINTS
+
+        </span>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<div class="profile-form-row">
+
+  <div class="profile-streak">
+
+    ${currentStreak
+      ? `🔥 ${currentStreak}`
+      : "No streak"}
+
+  </div>
+
+  <div class="profile-form">
+
+    ${formResults.length
+
+      ? formResults.map(result => `
+
+        <div class="
+          form-pill
+          ${result === "W"
+            ? "form-win"
+            : "form-loss"}">
+
+          ${result}
+
+        </div>
+
+      `).join("")
+
+      :
+
+      `<div class="empty-form">
+
+        No recent form
+
+      </div>`
+
+    }
+
+  </div>
+
+</div>
+${rivalry.hasRivalry ? `
+
+<div class="rivalry-spotlight-card">
+
+  <div class="rivalry-header">
+
+    ⚔️ RIVALRY SPOTLIGHT
+
+  </div>
+
+  <div class="rivalry-opponent">
+
+    vs ${rivalry.spotlight.opponent}
+
+  </div>
+
+  <div class="rivalry-label">
+
+    ${rivalry.spotlight.label}
+
+  </div>
+
+  <div class="rivalry-record">
+
+    Record:
+    ${rivalry.spotlight.record}
+
+    •
+
+    ${rivalry.spotlight.matches}
+    Matches
+
+  </div>
+
+</div>
+
+` : ''}
+<div class="profile-section legacy-profile-section">
+
+
+<div class="legacy-top-row">
+
+  <div>
+
+    <div class="legacy-kicker">
+
+      ⚔ LEGACY PROFILE
+
+    </div>
+
+    <div class="legacy-hero-name">
+
+      ${legacyProfile.title}
+
+    </div>
+
+    <div class="legacy-tagline">
+
+      "${profile.signatureTrait || 'Balanced Competitor'}"
+
+    </div>
+
+  </div>
+
+  <div class="legacy-score-orb">
+
+    <span>
+
+      ${legacyProfile.legacyScore}
+
+    </span>
+
+    LEGACY
+
+  </div>
+
+</div>
+
+<div class="legacy-identity-grid">
+
+  <div class="legacy-identity-card">
+
+    <div class="legacy-card-label">
+  👑 STATUS
+</div>
+
+    <div class="legacy-card-value">
+
+      ${profile.subtitle || 'Active Competitor'}
+
+    </div>
+
+  </div>
+
+  <div class="legacy-identity-card">
+
+    <div class="legacy-card-label">
+  ⚡ AURA
+</div>
+
+    <div class="legacy-card-value">
+
+      ${legacyProfile.aura}
+
+    </div>
+
+  </div>
+
+  <div class="legacy-identity-card">
+
+    <div class="legacy-card-label">
+  PRESTIGE
+</div>
+
+    <div class="legacy-card-value">
+
+      ${legacyProfile.legacyTier}
+
+    </div>
+
+  </div>
+
+  <div class="legacy-identity-card rival-highlight">
+
+    <div class="legacy-card-label">
+  ⚔️ SIGNATURE RIVAL
+</div>
+
+    <div class="legacy-card-value">
+
+      ${legacyProfile.rival || 'Awaiting Nemesis'}
+
+    </div>
+
+  </div>
+
+</div>
+
+<div class="legacy-badge-row">
+
+  ${legacyProfile.badges.map(
+    badge => `
+
+      <div class="legacy-badge-pill">
+
+        ${badge}
+
+      </div>
+
+    `
+  ).join("")}
+
+</div>
+
+<div class="legacy-moments">
+
+  ${legacyProfile.moments.map(
+    moment => `
+
+      <div class="legacy-moment-card">
+
+        <div class="legacy-moment-title">
+
+          ${moment.title}
+
+        </div>
+
+<div class="legacy-moment-description">
+
+  ${moment.description}
+
+</div>
+
+</div>
+
+    `
+  ).join("")}
+</div>
+</div>
+<div class="profile-showcase-row">
+
+  ${getPlayerUnlocks(player)
+    .slice(0,3)
+    .map(a => `
+
+      <div class="
+        showcase-achievement
+        rarity-${String(a.rarity || '')
+          .toLowerCase()}
+      ">
+
+        <div class="showcase-icon">
+
+          ${a.icon || '🏆'}
+
+        </div>
+
+        <div class="showcase-info">
+
+          <div class="showcase-name">
+
+            ${a.name}
+
+          </div>
+
+          <div class="showcase-rarity">
+
+            ${a.rarity || 'Common'}
+
+          </div>
+
+        </div>
+
+      </div>
+
+    `).join("")
+  }
+
+</div>
+        <div class="profile-stats-grid">
+
+          <div class="profile-stat-card">
+
+            <div class="profile-stat-label">
+
+              WINS
+
+            </div>
+
+            <div class="profile-stat-value">
+
+              ${player.wins}
+
+            </div>
+
+          </div>
+
+          <div class="profile-stat-card">
+
+            <div class="profile-stat-label">
+
+              LOSSES
+
+            </div>
+
+            <div class="profile-stat-value">
+
+              ${player.losses}
+
+            </div>
+
+          </div>
+
+          <div class="profile-stat-card">
+
+            <div class="profile-stat-label">
+
+              GAMES
+
+            </div>
+
+            <div class="profile-stat-value">
+
+              ${player.games}
+
+            </div>
+
+          </div>
+
+          <div class="profile-stat-card">
+
+  <div class="profile-stat-label">
+
+    ELO
+
+  </div>
+
+  <div class="profile-stat-value">
+
+    ${player.elo}
+
+  </div>
+
+</div>
+
+<div class="profile-stat-card">
+
+  <div class="profile-stat-label">
+
+    WIN RATE
+
+  </div>
+
+  <div class="profile-stat-value">
+
+    ${winRate}%
+
+  </div>
+
+</div>
+
+<div class="profile-stat-card">
+
+  <div class="profile-stat-label">
+
+    BEST RANK
+
+  </div>
+
+  <div class="profile-stat-value">
+
+    #${bestRank}
+
+  </div>
+
+</div>
+
+
+
+
+
+<div class="profile-stat-card">
+
+  <div class="profile-stat-label">
+
+    STATUS
+
+  </div>
+
+  <div class="profile-stat-value">
+
+    ${eliminated ? "OUT" : "ACTIVE"}
+
+  </div>
+
+</div>
+
+</div>
+
+
+
+<div class="profile-section">
+
+  <h3>
+
+    CAREER STATS
+
+  </h3>
+
+  <div class="profile-stats-grid">
+
+    <div class="profile-stat-card">
+
+      <div class="profile-stat-label">
+
+        CAREER WINS
+
+      </div>
+
+      <div class="profile-stat-value">
+
+        ${player.careerStats?.totalWins || 0}
+
+      </div>
+
+    </div>
+
+    <div class="profile-stat-card">
+
+      <div class="profile-stat-label">
+
+        CAREER LOSSES
+
+      </div>
+
+      <div class="profile-stat-value">
+
+        ${player.careerStats?.totalLosses || 0}
+
+      </div>
+
+    </div>
+
+    <div class="profile-stat-card">
+
+      <div class="profile-stat-label">
+
+        CAREER GAMES
+
+      </div>
+
+      <div class="profile-stat-value">
+
+        ${player.careerStats?.totalMatches || 0}
+
+      </div>
+
+    </div>
+
+    <div class="profile-stat-card">
+
+      <div class="profile-stat-label">
+
+        CAREER WIN RATE
+
+      </div>
+
+      <div class="profile-stat-value">
+
+        ${player.careerStats?.winRate || 0}%
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<div class="profile-section">
+
+  <h3>
+
+  ${name.toUpperCase()}'S RECENT MATCHES
+
+  </h3>
+
+  <div class="recent-player-matches">
+
+    ${recentMatches.length
+? recentMatches.map(match => {
+  const won = (match.winner || '').toLowerCase() === name.toLowerCase();
+  const parts = (match.match || '').split(/ vs\.? /i);
+  const opponent = parts.length === 2
+    ? (parts[0].trim().toLowerCase() === name.toLowerCase() ? parts[1].trim() : parts[0].trim())
+    : (match.match || '');
+  return `
+    <div class="player-match-row ${won ? 'match-won' : 'match-lost'}">
+      <div class="match-result-badge ${won ? 'badge-win' : 'badge-loss'}">${won ? 'W' : 'L'}</div>
+      <div class="player-match-main">vs ${opponent}</div>
+      <div class="player-match-meta">
+        ${match.gameType || 'Match'} • ${match.stake || 0} pts
+      </div>
+    </div>`;
+}).join('')
+
+      : `
+
+        <div class="empty-history">
+
+          No recent matches found.
+
+        </div>
+
+      `
+    }
+
+  </div>
+
+</div>
+
+
+
+${renderNextAchievements(player)}
+<div
+  class="profile-section clickable-achievements"
+  onclick="
+    openAchievementsModal(
+      '${player.name}'
+    )
+  ">
+
+<h3>
+
+  ACHIEVEMENT CABINET
+
+</h3>
+
+
+
+  <div class="achievement-progress">
+
+  ${getPlayerUnlocks(player).length}
+    UNLOCKED
+
+  </div>
+
+  <div class="achievement-cabinet">
+
+    ${getPlayerUnlocks(player)
+      .map(a => {
+
+        const rarityClass =
+
+          String(a.rarity || "")
+            .toLowerCase();
+
+        return `
+
+          <div class="
+            achievement-card
+            rarity-${rarityClass}
+          ">
+
+            <div class="achievement-icon">
+
+              ${a.icon}
+
+            </div>
+
+            <div class="achievement-info">
+
+              <div class="achievement-name">
+
+                ${a.name}
+
+              </div>
+
+              <div class="achievement-rarity">
+
+                ${a.rarity}
+
+              </div>
+
+              <div class="achievement-description">
+
+                ${a.description || ""}
+
+              </div>
+
+            </div>
+
+          </div>
+
+        `;
+
+      }).join("")
+    }
+
+    ${Array.from({
+
+      length: Math.max(
+        0,
+        12 - getPlayerUnlocks(player).length
+      )
+
+    }).map(() => `
+
+      <div class="
+        achievement-card
+        locked-achievement
+      ">
+
+        <div class="achievement-icon">
+
+          ❔
+
+        </div>
+
+        <div class="achievement-info">
+
+          <div class="achievement-name">
+
+            Locked Achievement
+
+          </div>
+
+          <div class="achievement-rarity">
+
+            Hidden
+
+          </div>
+
+          <div class="achievement-description">
+
+            Continue competing to unlock more achievements.
+
+          </div>
+
+        </div>
+
+      </div>
+
+    `).join("")}
+
+  </div>
+
+</div>
+
+      </div>
+
+    </div>
+
+  `;
+
+}
+
+
+
+/* =========================================================
+   FULLSCREEN ACHIEVEMENT CABINET
+========================================================= */
+
+/* =========================================================
+   FULLSCREEN ACHIEVEMENT CABINET
+   DROP-IN REPLACEMENT for openAchievementsModal in app.html
+
+   FIXES:
+   1. Filter buttons are now rendered inside the modal
+   2. Cards get 'achievement-filter-item' class so filters work
+   3. Non-hidden locked achievements show real name/description
+   4. Hidden locked achievements still show ❔ / ???
+   5. Safe guard if leagueData.achievementMetadata is empty
+========================================================= */
+
+function openAchievementsModal(playerName){
+
+  if(
+    !leagueData ||
+    !leagueData.players
+  ){
+    return;
+  }
+
+  const player =
+    leagueData.players.find(
+      p => p.name === playerName
+    );
+
+  if(!player){
+    return;
+  }
+
+  // Build unlocked achievements from leagueData.playerAchievements
+const unlockedIds = new Set(
+  (player.achievements || [])
+    .map(a => a.id)
+);
+
+  const allAchievements =
+  leagueData.allAchievements ||
+  leagueData.achievementMetadata ||
+  [];
+
+  const unlockedCount =
+    unlockedIds.size;
+
+  const totalCount =
+    allAchievements.filter(
+      a => String(a.hidden).toUpperCase() !== 'TRUE'
+    ).length;
+
+  document
+    .getElementById("player-modal")
+    .innerHTML = `
+
+    <div
+      class="modal-backdrop"
+      onclick="closePlayerProfile()">
+
+      <div
+        class="player-modal achievement-modal"
+        onclick="event.stopPropagation()">
+
+        <button
+          class="close-modal"
+          onclick="closePlayerProfile()">
+
+          ✕
+
+        </button>
+
+        <div class="achievement-header">
+
+          <h2>🏆 ${playerName} — Achievement Cabinet</h2>
+
+          <div class="achievement-progress">
+            ${unlockedCount} / ${totalCount} Unlocked
+          </div>
+
+        </div>
+
+        <div class="achievement-filter-bar">
+
+          <button
+            class="achievement-filter active-filter"
+            onclick="filterAchievements('all', this)">
+            All
+          </button>
+
+          <button
+            class="achievement-filter"
+            onclick="filterAchievements('unlocked', this)">
+            Unlocked
+          </button>
+
+          <button
+            class="achievement-filter"
+            onclick="filterAchievements('locked', this)">
+            Locked
+          </button>
+
+          <button
+            class="achievement-filter"
+            onclick="filterAchievements('legendary', this)">
+            Legendary+
+          </button>
+
+        </div>
+
+        <div class="achievement-full-grid">
+
+          ${allAchievements.map(a => {
+
+            const unlocked =
+              unlockedIds.has(a.id);
+
+            const isHidden = String(a.hidden).toUpperCase() === 'TRUE';
+            
+            const rarityClass =
+              String(a.rarity || "common")
+                .toLowerCase();
+
+            const showDetails =
+              unlocked || !isHidden;
+
+            return `
+
+              <div class="
+                achievement-card
+                achievement-filter-item
+                rarity-${rarityClass}
+                ${unlocked
+                  ? "achievement-unlocked"
+                  : "achievement-locked"}
+              ">
+
+                <div class="achievement-icon">
+                  ${unlocked
+                    ? (a.icon || "🏆")
+                    : (isHidden ? "❔" : (a.icon || "🔒"))}
+                </div>
+
+                <div class="achievement-info">
+
+                  <div class="achievement-name">
+                    ${showDetails
+                      ? (a.name || "Unknown")
+                      : "???"}
+                  </div>
+
+                  <div class="achievement-rarity">
+                    ${showDetails
+                      ? (a.rarity || "Common")
+                      : "Hidden"}
+                  </div>
+
+                  <div class="achievement-description">
+                    ${unlocked
+                      ? (a.description || "")
+                      : showDetails
+                        ? "Keep competing to unlock: " + (a.description || "")
+                        : "Criteria hidden. Keep playing to discover this achievement."}
+                  </div>
+
+                </div>
+
+              </div>
+
+            `;
+
+          }).join("")}
+
+        </div>
+
+      </div>
+
+    </div>
+
+  `;
+
+}
+
+/* =========================================================
+   ACHIEVEMENT FILTERS
+========================================================= */
+
+function filterAchievements(
+  filter,
+  button
+){
+
+  document
+    .querySelectorAll(
+      '.achievement-filter'
+    )
+    .forEach(btn => {
+
+      btn.classList.remove(
+        'active-filter'
+      );
+
+    });
+
+  button.classList.add(
+    'active-filter'
+  );
+
+  document
+    .querySelectorAll(
+      '.achievement-filter-item'
+    )
+    .forEach(card => {
+
+      let visible = false;
+
+      if(filter === 'all'){
+        visible = true;
+      }
+
+      if(
+        filter === 'unlocked' &&
+        card.classList.contains(
+          'achievement-unlocked'
+        )
+      ){
+        visible = true;
+      }
+
+      if(
+        filter === 'locked' &&
+        card.classList.contains(
+          'achievement-locked'
+        )
+      ){
+        visible = true;
+      }
+
+      if(
+        filter === 'legendary' &&
+        card.classList.contains(
+          'rarity-legendary'
+        )
+      ){
+        visible = true;
+      }
+
+      card.style.display =
+        visible
+          ? 'flex'
+          : 'none';
+
+    });
+
+}
+
+
+
+
+
+
+function closePlayerProfile(){
+
+  document
+    .getElementById("player-modal")
+    .innerHTML = "";
+
+}
+ 
+
+
+
+
+
+
+
+
+
+function animateCountUps(){
+
+  const counters =
+    document.querySelectorAll('.count-up');
+
+  counters.forEach(counter => {
+
+    const target =
+      Number(
+        counter.textContent
+          .replace(/[^0-9]/g,'')
+      );
+
+    if(isNaN(target)) return;
+
+    let current = 0;
+
+    const increment =
+      Math.max(
+        1,
+        Math.ceil(target / 40)
+      );
+
+    counter.textContent = '0';
+
+    const timer = setInterval(() => {
+
+      current += increment;
+
+      if(current >= target){
+
+        counter.textContent = target;
+
+        clearInterval(timer);
+
+      }else{
+
+        counter.textContent = current;
+
+      }
+
+    }, 18);
+
+  });
+
+}
+
+
+
+function pulseLeaderboardMovements(){
+
+  document
+    .querySelectorAll(
+      '.move-up,.move-down'
+    )
+    .forEach(el => {
+
+      el.animate(
+
+        [
+          {
+            transform:'scale(1)'
+          },
+          {
+            transform:'scale(1.06)'
+          },
+          {
+            transform:'scale(1)'
+          }
+        ],
+
+        {
+          duration:1800,
+          iterations:1
+        }
+
+      );
+
+    });
+
+}
+
+/* =========================
+   LEGACY PREVIEW BUILDER
+========================= */
+
+function buildLegacyPreview(
+  player
+){
+
+  return {
+
+    title:
+      player.legacyTitle
+      || "Competitor",
+
+    archetype:
+      player.archetype
+      || "Competitor",
+
+    legacyTier:
+      player.legacyTier
+      || "LOCAL",
+
+    legacyScore:
+      player.legacyScore
+      || 0,
+
+    aura:
+      player.playerAura
+      || "Balanced",
+
+    rival:
+      player.signatureRival
+      || "None",
+
+    badges:
+      player.profileBadges
+      || [],
+
+    moments:
+      player.signatureMoments
+      || []
+
+  };
+
+}
+window.onload = init;
+
+</script>
+
+<div class="app-container">
+
+  <header class="top-header">
+
+    <div class="header-content">
+
+      <div class="league-title">
+
+        TKDL
+
+      </div>
+
+      <div class="league-subtitle">
+
+        Tesco Kilbirnie Darts League
+
+      </div>
+
+    </div>
+
+  </header>
+
+  <main class="main-content">
+
+    <section
+      id="home-section"
+      class="app-section">
+    </section>
+
+    <section
+      id="leaderboard-section"
+      class="app-section hidden-section">
+    </section>
+
+    <section
+      id="players-section"
+      class="app-section hidden-section">
+    </section>
+
+    <section
+  id="matches-section"
+  class="app-section hidden-section">
+</section>
+
+
+<section
+  id="seasons-section"
+  class="app-section hidden-section">
+</section>
+
+<section
+  id="submit-section"
+  class="app-section hidden-section">
+</section>
+
+  </main>
+
+<nav class="bottom-nav">
+
+  <button
+    class="nav-button active-nav"
+    data-section="home-section"
+    onclick="showSection('home-section')">
+
+    <span class="nav-icon">
+
+      🏠
+
+    </span>
+
+    <span class="nav-label">
+
+      Home
+
+    </span>
+
+  </button>
+
+  <button
+    class="nav-button"
+    data-section="leaderboard-section"
+    onclick="showSection('leaderboard-section')">
+
+    <span class="nav-icon">
+
+      🏆
+
+    </span>
+
+    <span class="nav-label">
+
+      Leaderboard
+
+    </span>
+
+  </button>
+
+  <button
+    class="nav-button"
+    data-section="players-section"
+    onclick="showSection('players-section')">
+
+    <span class="nav-icon">
+
+      🎯
+
+    </span>
+
+    <span class="nav-label">
+
+      Players
+
+    </span>
+
+  </button>
+
+<button
+  class="nav-button"
+  data-section="matches-section"
+  onclick="showSection('matches-section')">
+
+  <span class="nav-icon">
+
+    ⚔️
+
+  </span>
+
+  <span class="nav-label">
+
+    Matches
+
+  </span>
+
+</button>
+
+<button
+  class="nav-button"
+  data-section="seasons-section"
+  onclick="showSection('seasons-section')">
+
+  <span class="nav-icon">
+
+    🏆
+
+  </span>
+
+  <span class="nav-label">
+
+    Seasons
+
+  </span>
+
+</button>
+
+<button
+  class="nav-button"
+  data-section="submit-section"
+  onclick="showSection('submit-section')">
+
+  <span class="nav-icon">
+
+    ➕
+
+  </span>
+
+  <span class="nav-label">
+
+    Submit
+
+  </span>
+
+</button>
+
+
+</nav>
+  <div id="player-modal"></div>
+
+</div>
+
