@@ -1,0 +1,376 @@
+# TKDL – Tesco Kitchen Darts League
+
+## Product Overview & Investment Summary
+
+### Executive Summary
+
+TKDL (Tesco Kitchen Darts League) is a fully digital, gamified workplace darts competition platform designed to transform casual recreational darts into an engaging, persistent league ecosystem.
+
+What began as a simple workplace darts competition has evolved into a complete league management, statistics, achievements, player progression, and historical records platform with the potential to serve workplaces, pubs, clubs, universities, community centres, and amateur darts leagues worldwide.
+
+The platform combines league management software, player statistics tracking, gamification systems, achievement hunting, historical records, season archives, player profiles, rankings, and live broadcasting into a single web-based experience.
+
+---
+
+# The Problem
+
+Most amateur darts leagues suffer from several issues:
+
+* Results are recorded manually.
+* Historical statistics are lost between seasons.
+* Players have little incentive beyond winning individual games.
+* Casual players struggle to stay engaged.
+* No meaningful progression system exists.
+* League administration becomes increasingly time-consuming as participation grows.
+
+Traditional spreadsheets solve record keeping but fail to create long-term engagement.
+
+TKDL was designed to solve this problem.
+
+---
+
+# The Solution
+
+TKDL turns every match into part of a larger player journey.
+
+Players do not simply play darts.
+
+They:
+
+* Earn points
+* Climb rankings
+* Unlock achievements
+* Build career records
+* Collect season titles
+* Improve ratings
+* Build legacies
+
+The platform automatically tracks and presents all of this through a modern web experience.
+
+---
+
+# Core Platform Features
+
+## Live League Leaderboard
+
+Real-time ranking system showing:
+
+* Current position
+* Movement up/down rankings
+* Wins
+* Losses
+* Games played
+* Elo rating
+* Tier ranking
+* Current points
+
+The leaderboard updates dynamically as matches are submitted.
+
+---
+
+## Monthly Seasons
+
+TKDL operates using seasonal competition structures.
+
+Each season:
+
+* Starts with equal player balances
+* Runs independently
+* Produces a champion
+* Creates historical records
+* Archives standings permanently
+
+This allows infinite replayability without losing historical achievements.
+
+---
+
+## Career Statistics Engine
+
+Beyond seasonal performance, every player accumulates career statistics:
+
+* Career wins
+* Career losses
+* Career games played
+* Career win percentage
+* Longest win streaks
+* Historical achievements
+* Lifetime rankings
+
+This creates long-term investment for players.
+
+---
+
+## Player Profiles
+
+Every player receives a fully interactive profile page.
+
+Features include:
+
+* Career statistics
+* Seasonal performance
+* Win rates
+* Current ranking
+* Historical achievements
+* Seasonal history
+* Streak tracking
+* Achievement showcases
+
+The profile system effectively acts as a personal sporting resume.
+
+---
+
+## Achievement System
+
+One of TKDL's strongest differentiators.
+
+Players unlock achievements for:
+
+* Match wins
+* Win streaks
+* High point balances
+* Seasonal milestones
+* League participation
+* Special accomplishments
+
+Achievements create additional goals beyond simply winning games.
+
+This dramatically increases engagement among lower-ranked players.
+
+---
+
+## Elo Rating System
+
+A competitive skill rating system calculates player performance independently of seasonal points.
+
+Benefits:
+
+* Tracks skill growth over time.
+* Creates fairer player comparisons.
+* Allows long-term ranking systems.
+* Adds prestige beyond seasonal results.
+
+---
+
+## Historical Season Archive
+
+Every completed season becomes permanently accessible.
+
+Users can review:
+
+* Final standings
+* Historical champions
+* Previous rankings
+* Archived records
+
+The league effectively builds its own history over time.
+
+---
+
+## Live Match Submission
+
+Players submit results through a web interface.
+
+The platform automatically:
+
+* Validates players
+* Records results
+* Updates standings
+* Updates statistics
+* Updates achievements
+* Updates rankings
+
+No manual spreadsheet maintenance is required.
+
+---
+
+## Broadcasting & Display Mode
+
+A dedicated broadcast interface provides:
+
+* Large-screen displays
+* Live standings
+* Featured player cards
+* Match updates
+* Event presentation
+
+Designed for workplace TVs, tournaments, and public display screens.
+
+---
+
+# Technical Architecture
+
+## Front End
+
+* HTML
+* CSS
+* JavaScript
+* Mobile-first design
+* Responsive layouts
+* Dynamic rendering
+
+---
+
+## Backend
+
+* Google Apps Script
+* Spreadsheet database architecture
+* Automated processing engine
+* Cached data delivery
+* Real-time updates
+
+---
+
+## Data Infrastructure
+
+Core data sources include:
+
+### PLAYERS
+
+Master player database
+
+### FORM_SUBMISSIONS
+
+Seasonal match records
+
+### CAREER_MATCHES
+
+Permanent historical match archive
+
+### ACHIEVEMENTS
+
+Achievement metadata and unlocks
+
+### SEASONS
+
+Historical season records
+
+### LEADERBOARD
+
+Live ranking output
+
+---
+
+# Development Roadmap
+
+## Phase 1 (Completed)
+
+League foundation
+
+* Player registration
+* Match submission
+* Basic leaderboard
+* Statistics tracking
+
+---
+
+## Phase 2 (Completed)
+
+Gamification
+
+* Achievement system
+* Player profiles
+* Historical tracking
+* Career leaderboards
+
+---
+
+## Phase 3 (In Progress)
+
+Infrastructure hardening
+
+* Season rebuild engine
+* Historical reconstruction
+* Data integrity controls
+* Player identity system
+
+---
+
+## Phase 4 (Planned)
+
+Broadcast ecosystem
+
+* Enhanced TV display mode
+* Featured player spotlights
+* Live ticker systems
+* Match-of-the-day displays
+
+---
+
+## Phase 5 (Planned)
+
+Multi-League Support
+
+Allow:
+
+* Multiple workplaces
+* Multiple venues
+* Independent leagues
+* Shared player accounts
+
+This transforms TKDL from a single league platform into a scalable SaaS product.
+
+---
+
+# Market Potential
+
+Potential customers include:
+
+* Workplace recreation groups
+* Corporate wellbeing programs
+* Pub leagues
+* Amateur darts organisations
+* Universities
+* Community clubs
+* Social sports leagues
+
+The platform architecture is adaptable beyond darts and could be expanded into:
+
+* Pool leagues
+* Table tennis leagues
+* Bowling leagues
+* Fantasy-style workplace competitions
+* General amateur sports management
+
+---
+
+# Competitive Advantages
+
+### Gamification First
+
+Most league software records results.
+
+TKDL creates engagement.
+
+---
+
+### Career Persistence
+
+Players build a legacy that survives individual seasons.
+
+---
+
+### Achievement Ecosystem
+
+Achievement hunting drives participation from all skill levels.
+
+---
+
+### Historical Storytelling
+
+Every season contributes to a growing league history.
+
+---
+
+### Broadcast Ready
+
+Designed not only for administration but also for presentation and spectator engagement.
+
+---
+
+# Vision
+
+TKDL aims to become the definitive gamified league platform for amateur competitive communities.
+
+The long-term vision is a system where every match matters, every player has a story, every season becomes history, and every participant has meaningful reasons to stay engaged regardless of skill level.
+
+The platform transforms casual recreational competition into an ongoing competitive experience with progression, recognition, community identity, and historical legacy.

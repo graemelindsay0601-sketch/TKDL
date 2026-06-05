@@ -3,20 +3,34 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: TKDL – Tesco Kitchen Darts League API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: players
+    description: Player management
+  - name: matches
+    description: Match submission and history
+  - name: seasons
+    description: Season management and history
+  - name: leaderboard
+    description: Live rankings
+  - name: achievements
+    description: Achievement system
+  - name: stats
+    description: Statistics and analytics
+  - name: broadcast
+    description: Broadcast/display mode
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +38,712 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Players ────────────────────────────────────────────────────────────────
+  /players:
+    get:
+      operationId: listPlayers
+      tags: [players]
+      summary: List all players
+      responses:
+        "200":
+          description: List of players
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Player"
+    post:
+      operationId: createPlayer
+      tags: [players]
+      summary: Register a new player
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlayerInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
+        "400":
+          description: Validation error
+
+  /players/{id}:
+    get:
+      operationId: getPlayer
+      tags: [players]
+      summary: Get a player by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Player
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
+        "404":
+          description: Not found
+    patch:
+      operationId: updatePlayer
+      tags: [players]
+      summary: Update a player
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlayerUpdate"
+      responses:
+        "200":
+          description: Updated player
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
+        "404":
+          description: Not found
+    delete:
+      operationId: deletePlayer
+      tags: [players]
+      summary: Delete a player
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /players/{id}/stats:
+    get:
+      operationId: getPlayerStats
+      tags: [players]
+      summary: Get full career + current season stats for a player
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Player stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerStats"
+        "404":
+          description: Not found
+
+  /players/{id}/achievements:
+    get:
+      operationId: getPlayerAchievements
+      tags: [achievements]
+      summary: Get achievements unlocked by a player
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Player achievements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlayerAchievement"
+
+  # ── Matches ─────────────────────────────────────────────────────────────────
+  /matches:
+    get:
+      operationId: listMatches
+      tags: [matches]
+      summary: List matches (optionally filtered by season)
+      parameters:
+        - name: seasonId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Match"
+    post:
+      operationId: submitMatch
+      tags: [matches]
+      summary: Submit a match result
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchInput"
+      responses:
+        "201":
+          description: Match recorded, standings updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Match"
+        "400":
+          description: Validation error
+
+  /matches/{id}:
+    get:
+      operationId: getMatch
+      tags: [matches]
+      summary: Get a match by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Match
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Match"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteMatch
+      tags: [matches]
+      summary: Delete / void a match result
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  # ── Seasons ─────────────────────────────────────────────────────────────────
+  /seasons:
+    get:
+      operationId: listSeasons
+      tags: [seasons]
+      summary: List all historical seasons
+      responses:
+        "200":
+          description: Season history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Season"
+
+  /seasons/current:
+    get:
+      operationId: getCurrentSeason
+      tags: [seasons]
+      summary: Get the current active season
+      responses:
+        "200":
+          description: Current season
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Season"
+
+  /seasons/{id}:
+    get:
+      operationId: getSeason
+      tags: [seasons]
+      summary: Get a specific historical season with standings snapshot
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Season with final standings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeasonDetail"
+        "404":
+          description: Not found
+
+  /seasons/reset:
+    post:
+      operationId: resetSeason
+      tags: [seasons]
+      summary: Close current season and open a new one (monthly auto-reset)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeasonResetInput"
+      responses:
+        "201":
+          description: New season started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Season"
+
+  # ── Leaderboard ─────────────────────────────────────────────────────────────
+  /leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [leaderboard]
+      summary: Current season live leaderboard
+      responses:
+        "200":
+          description: Ranked leaderboard entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
+  # ── Achievements ─────────────────────────────────────────────────────────────
+  /achievements:
+    get:
+      operationId: listAchievements
+      tags: [achievements]
+      summary: List all achievement definitions
+      responses:
+        "200":
+          description: Achievement catalogue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Achievement"
+
+  # ── Stats (wow endpoints) ────────────────────────────────────────────────────
+  /stats/summary:
+    get:
+      operationId: getStatsSummary
+      tags: [stats]
+      summary: Dashboard summary – totals, top player, current leader, last match
+      responses:
+        "200":
+          description: Summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsSummary"
+
+  /stats/career-leaders:
+    get:
+      operationId: getCareerLeaders
+      tags: [stats]
+      summary: Top players ranked by career wins, win rate, and Elo
+      responses:
+        "200":
+          description: Career leaders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CareerLeader"
+
+  /stats/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [stats]
+      summary: Recent match activity feed (last 10 matches with player names)
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  # ── Broadcast ────────────────────────────────────────────────────────────────
+  /broadcast:
+    get:
+      operationId: getBroadcastData
+      tags: [broadcast]
+      summary: All-in-one broadcast display payload (leaderboard + recent matches + featured player)
+      responses:
+        "200":
+          description: Broadcast data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BroadcastData"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    # ── Player ─────────────────────────────────────────────────────────────────
+    Player:
+      type: object
+      required: [id, name, elo, tier, careerWins, careerLosses, careerGamesPlayed, currentSeasonPoints, isActive, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        nickname:
+          type: ["string", "null"]
+        avatarInitials:
+          type: string
+        elo:
+          type: integer
+        tier:
+          type: string
+          description: "Bronze / Silver / Gold / Platinum / Diamond"
+        careerWins:
+          type: integer
+        careerLosses:
+          type: integer
+        careerGamesPlayed:
+          type: integer
+        careerWinRate:
+          type: number
+        currentSeasonPoints:
+          type: integer
+        currentSeasonWins:
+          type: integer
+        currentSeasonLosses:
+          type: integer
+        longestWinStreak:
+          type: integer
+        currentWinStreak:
+          type: integer
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    PlayerInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        nickname:
+          type: string
+
+    PlayerUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        nickname:
+          type: string
+        isActive:
+          type: boolean
+
+    PlayerStats:
+      type: object
+      required: [player, seasonHistory]
+      properties:
+        player:
+          $ref: "#/components/schemas/Player"
+        seasonHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/SeasonRecord"
+        recentMatches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Match"
+        achievements:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerAchievement"
+
+    SeasonRecord:
+      type: object
+      required: [seasonId, seasonName, position, wins, losses, points]
+      properties:
+        seasonId:
+          type: integer
+        seasonName:
+          type: string
+        position:
+          type: integer
+        wins:
+          type: integer
+        losses:
+          type: integer
+        points:
+          type: integer
+        isChampion:
+          type: boolean
+
+    # ── Match ──────────────────────────────────────────────────────────────────
+    Match:
+      type: object
+      required: [id, seasonId, winnerId, loserId, winnerName, loserName, pointsAwarded, eloChange, playedAt]
+      properties:
+        id:
+          type: integer
+        seasonId:
+          type: integer
+        winnerId:
+          type: integer
+        loserId:
+          type: integer
+        winnerName:
+          type: string
+        loserName:
+          type: string
+        pointsAwarded:
+          type: integer
+        eloChange:
+          type: integer
+        notes:
+          type: ["string", "null"]
+        playedAt:
+          type: string
+          format: date-time
+
+    MatchInput:
+      type: object
+      required: [winnerId, loserId]
+      properties:
+        winnerId:
+          type: integer
+        loserId:
+          type: integer
+        notes:
+          type: string
+
+    # ── Season ─────────────────────────────────────────────────────────────────
+    Season:
+      type: object
+      required: [id, name, startDate, isActive]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: ["string", "null"]
+          format: date
+        isActive:
+          type: boolean
+        championId:
+          type: ["integer", "null"]
+        championName:
+          type: ["string", "null"]
+        totalMatches:
+          type: integer
+
+    SeasonDetail:
+      type: object
+      required: [season, standings]
+      properties:
+        season:
+          $ref: "#/components/schemas/Season"
+        standings:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderboardEntry"
+
+    SeasonResetInput:
+      type: object
+      properties:
+        name:
+          type: string
+          description: "Override name for the new season, defaults to auto-generated month name"
+
+    # ── Leaderboard ─────────────────────────────────────────────────────────────
+    LeaderboardEntry:
+      type: object
+      required: [position, positionChange, playerId, playerName, wins, losses, gamesPlayed, points, elo, tier]
+      properties:
+        position:
+          type: integer
+        positionChange:
+          type: integer
+          description: "Change in rank since last match (+2 means moved up 2 spots)"
+        playerId:
+          type: integer
+        playerName:
+          type: string
+        playerNickname:
+          type: ["string", "null"]
+        wins:
+          type: integer
+        losses:
+          type: integer
+        gamesPlayed:
+          type: integer
+        points:
+          type: integer
+        elo:
+          type: integer
+        tier:
+          type: string
+        winRate:
+          type: number
+        currentStreak:
+          type: integer
+
+    # ── Achievements ─────────────────────────────────────────────────────────────
+    Achievement:
+      type: object
+      required: [id, key, name, description, icon, rarity]
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        rarity:
+          type: string
+          description: "common / rare / epic / legendary"
+        threshold:
+          type: ["integer", "null"]
+
+    PlayerAchievement:
+      type: object
+      required: [achievement, unlockedAt]
+      properties:
+        achievement:
+          $ref: "#/components/schemas/Achievement"
+        unlockedAt:
+          type: string
+          format: date-time
+
+    # ── Stats ────────────────────────────────────────────────────────────────────
+    StatsSummary:
+      type: object
+      required: [totalPlayers, totalMatches, currentSeasonMatches, currentSeasonName]
+      properties:
+        totalPlayers:
+          type: integer
+        totalMatches:
+          type: integer
+        currentSeasonMatches:
+          type: integer
+        currentSeasonName:
+          type: string
+        currentLeader:
+          $ref: "#/components/schemas/LeaderboardEntry"
+        topEloPlayer:
+          $ref: "#/components/schemas/Player"
+        lastMatch:
+          $ref: "#/components/schemas/Match"
+        seasonsCompleted:
+          type: integer
+
+    CareerLeader:
+      type: object
+      required: [player, careerWins, careerWinRate, elo, seasonTitles]
+      properties:
+        player:
+          $ref: "#/components/schemas/Player"
+        careerWins:
+          type: integer
+        careerWinRate:
+          type: number
+        elo:
+          type: integer
+        seasonTitles:
+          type: integer
+
+    ActivityItem:
+      type: object
+      required: [matchId, winnerName, loserName, pointsAwarded, eloChange, playedAt]
+      properties:
+        matchId:
+          type: integer
+        winnerName:
+          type: string
+        loserName:
+          type: string
+        pointsAwarded:
+          type: integer
+        eloChange:
+          type: integer
+        playedAt:
+          type: string
+          format: date-time
+
+    # ── Broadcast ─────────────────────────────────────────────────────────────────
+    BroadcastData:
+      type: object
+      required: [season, leaderboard, recentMatches]
+      properties:
+        season:
+          $ref: "#/components/schemas/Season"
+        leaderboard:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderboardEntry"
+        recentMatches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Match"
+        featuredPlayer:
+          $ref: "#/components/schemas/Player"
+        nextSeasonReset:
+          type: ["string", "null"]
+          format: date-time
