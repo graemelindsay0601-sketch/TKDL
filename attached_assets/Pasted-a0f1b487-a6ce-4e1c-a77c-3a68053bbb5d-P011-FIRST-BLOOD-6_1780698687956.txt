@@ -1,0 +1,639 @@
+a0f1b487-a6ce-4e1c-a77c-3a68053bbb5d	P011	FIRST_BLOOD	6/3/2026 5:16:22	2026_2	Common																				
+9066de89-d36b-4dd9-af84-c12dea331018	P011	ICE_COLD	6/3/2026 5:16:23	2026_2	Legendary																				
+f64b7a87-171d-4a27-8439-24722bd3e21f	P011	ROCKET_START	6/3/2026 5:16:23	2026_2	Rare																				
+65ff3834-0431-442e-8388-5967da7128ba	P011	ELO_1050	6/3/2026 5:16:25	2026_2	Rare																				
+6fa1f16a-f06e-42aa-a079-faadbea996a2	P006	FIRST_BLOOD	6/3/2026 5:16:26	2026_2	Common																				
+10ff7757-5ca3-44fe-b2be-06836ef2a734	P006	ICE_COLD	6/3/2026 5:16:27	2026_2	Legendary																				
+f63245ed-cea6-4d0c-9bd8-ab6aa88adc18	P006	HEAT_CHECK	6/3/2026 5:16:28	2026_2	Common																				
+66647e9f-74d1-405c-83b0-5171ce0e6a1c	P006	FIGHTER	6/3/2026 5:16:28	2026_2	Common																				
+2e89a3b9-0e97-481e-8688-2c2a0c1594dc	P006	ELO_1050	6/3/2026 5:16:29	2026_2	Rare																				
+50d06ff1-47a1-400a-9233-d8d33154b2ef	P001	FIRST_BLOOD	6/3/2026 5:16:32	2026_2	Common																				
+c8501cbf-b5c1-429b-b2a6-93a0b4bb73e7	P001	ICE_COLD	6/3/2026 5:16:34	2026_2	Legendary																				
+61c1ec05-040d-4957-84cc-3f34f29f274f	P001	ROCKET_START	6/3/2026 5:16:34	2026_2	Rare																				
+4144c6fb-0326-4215-8ac6-4ac3555c4eae	P001	ELO_1050	6/3/2026 5:16:35	2026_2	Rare																				
+25c1593a-9dc4-4beb-bc33-24517221c896	P001	HEAT_CHECK	6/3/2026 5:16:36	2026_2	Common																				
+9e18714f-8ac2-4b50-99be-5ee5bdda9f85	P001	FIGHTER	6/3/2026 5:16:36	2026_2	Common																				
+a5ad710d-3fe5-4b13-8d1b-24274bcd9485	P003	FIRST_BLOOD	6/3/2026 5:16:40	2026_2	Common																				
+afe622a3-7cdf-45f2-a67a-3534ed3c2138	P003	FIGHTER	6/3/2026 5:16:41	2026_2	Common																				
+c696c6a9-1fbf-44ae-a167-2c2e00a5e843	P003	ICE_COLD	6/3/2026 5:16:42	2026_2	Legendary																				
+9e014bae-63ea-4dc7-8097-1fa7d14fc992	P003	HEAT_CHECK	6/3/2026 5:16:42	2026_2	Common																				
+2dc6f523-a846-40ff-98ca-e71a891865b8	P005	FIRST_BLOOD	6/3/2026 5:16:46	2026_2	Common																				
+8e361331-d543-4f3d-8360-da1e04868a3d	P005	ICE_COLD	6/3/2026 5:16:48	2026_2	Legendary																				
+403566a3-cd86-433d-8916-07b727a1576a	P005	HEAT_CHECK	6/3/2026 5:16:48	2026_2	Common																				
+1a9f2b13-1a4e-48ef-b0fb-2ac8edad5123	P005	FIGHTER	6/3/2026 5:16:49	2026_2	Common																				
+b6d63efa-2fc0-43db-abda-7a3e7e1b4368	P005	ELO_1050	6/3/2026 5:16:50	2026_2	Rare																				
+7b9842fe-857f-4de2-b172-35adce131f74	P008	FIGHTER	6/3/2026 5:16:51	2026_2	Common																				
+ff6246b1-b3bb-4c66-bd09-ae284cefff82	P005	WARMED_UP	6/3/2026 5:16:52	2026_2	Common																				
+86104160-7e86-4864-843a-218b6a545c25	P005	HOT_STREAK	6/3/2026 5:16:52	2026_2	Epic																				
+1794ee2e-b38c-4cc3-9973-740062776db2	P005	BULLSEYE	6/3/2026 5:16:53	2026_2	Rare																				
+45a567bd-cd24-4c9c-a8d8-e0f636851aa8	P008	FIRST_BLOOD	6/3/2026 5:16:54	2026_2	Common																				
+81b02c8e-f4c6-4ebb-9102-83535009c954	P013	FIGHTER	6/3/2026 5:16:55	2026_2	Common																				
+6ed2d616-ee6e-4c22-b58f-efbada88012f	P008	ICE_COLD	6/3/2026 5:16:56	2026_2	Legendary																				
+14a354a1-fce5-469f-9f1c-afb8d8c2b2bc	P008	HEAT_CHECK	6/3/2026 5:16:58	2026_2	Common																				
+83ea96e8-fa4d-4dd0-9dfc-2f47f84ae06e	P014	FIGHTER	6/3/2026 5:16:58	2026_2	Common																				
+829b0b19-d10b-46c1-a0dc-526fe2092604	P004	FIRST_BLOOD	6/3/2026 5:16:59	2026_2	Common																				
+781d7c20-7772-4e3c-a90a-d629afc02136	P004	FIGHTER	6/3/2026 5:17:00	2026_2	Common																				
+dd1d5423-a4a3-4ff6-907b-fb39d07e7911	P015	FIRST_BLOOD	6/3/2026 5:17:00	2026_2	Common																				
+49d22b2a-b23f-4e72-af16-808d4b1be52e	P001	WARMED_UP	6/3/2026 5:17:01	2026_2	Common																				
+45792ca5-1525-4298-94de-c3a332e8ef01	P001	BULLSEYE	6/3/2026 5:17:01	2026_2	Rare																				
+ed79e2c8-cbee-44b8-8409-c793e16b12e1	P015	ICE_COLD	6/3/2026 5:17:03	2026_2	Legendary																				
+5be2e1d0-6a67-4aa6-a896-b7adf510d317	P008	WARMED_UP	6/3/2026 5:17:03	2026_2	Common																				
+40618d29-aff9-4110-b9b2-f0b766470dc5	P002	FIRST_BLOOD	6/3/2026 5:17:04	2026_2	Common																				
+363ecb18-d35e-4123-86ca-c50467a37f26	P012	FIGHTER	6/3/2026 5:17:05	2026_2	Common																				
+b3f49f55-08d1-45da-8404-5890955681ed	P006	WARMED_UP	6/3/2026 5:17:06	2026_2	Common																				
+25095963-a672-4b79-a46c-3b815a8394f1	P006	BULLSEYE	6/3/2026 5:17:07	2026_2	Rare																				
+52858001-71ef-459f-9ddc-72a501245864	P002	ICE_COLD	6/3/2026 5:17:09	2026_2	Legendary																				
+181623ce-5a56-43c7-882e-5fa65be4da86	P002	HEAT_CHECK	6/3/2026 5:17:10	2026_2	Common																				
+84316e37-c2b7-4a6b-9dc4-7b7837f70e44	P002	FIGHTER	6/3/2026 5:17:10	2026_2	Common																				
+0980bfb6-9141-4747-b4a7-f27b11264cc8	P007	FIGHTER	6/3/2026 5:17:11	2026_2	Common																				
+fc4f7005-4d7b-40e7-842b-fc56d2ac0b58	P002	ELO_1050	6/3/2026 5:17:12	2026_2	Rare																				
+96b27625-129b-4f3b-aaf6-c03c97814b51	P002	WARMED_UP	6/3/2026 5:17:14	2026_2	Common																				
+c1adcdc0-56e2-4db7-a932-89c83bd6ea52	P002	HOT_STREAK	6/3/2026 5:17:14	2026_2	Epic																				
+1963362b-cb6d-4baa-b12c-8642516c27d9	P002	BULLSEYE	6/3/2026 5:17:15	2026_2	Rare																				
+dd0f4f8c-8741-4dc8-8a36-d11884da2238	P015	FIGHTER	6/3/2026 5:17:17	2026_2	Common																				
+cffca4de-236e-4675-93b4-cafb93d7e534	P003	WARMED_UP	6/3/2026 5:17:20	2026_2	Common																				
+fd943099-e4ce-4400-bd8b-054e7d66797f	P004	WARMED_UP	6/3/2026 5:17:21	2026_2	Common																				
+46501639-55b8-4d8f-b0dc-6c9e5d0ebd65	P001	BRONZE_BLOODED	6/3/2026 5:17:24	2026_2	Common																				
+8f1a8a1d-36f0-40ee-9243-28a8a3d653d8	P003	TARGET_LOCKED	6/3/2026 5:17:24	2026_2	Rare																				
+30f14c97-96b4-44cd-ba21-be3721ae430f	P001	TARGET_LOCKED	6/3/2026 5:17:26	2026_2	Rare																				
+a3a487a6-9c17-4669-967d-4bcf1f9da712	P001	COLLECTOR	6/3/2026 5:17:27	2026_2	Rare																				
+df73f07d-39ea-41be-920e-5d35d03ff85e	P002	PAY_DAY	6/3/2026 5:17:28	2026_2	Rare																				
+78794af6-cc7d-4931-9443-01cf0062e90b	P002	BRONZE_BLOODED	6/3/2026 5:17:29	2026_2	Common																				
+9edb78ac-6294-45c6-b55a-12c24dc02fd9	P002	COLLECTOR	6/3/2026 5:17:30	2026_2	Rare																				
+89d9f84f-649f-4e63-a02a-fcb4bfdf350c	P002	TARGET_LOCKED	6/3/2026 5:17:31	2026_2	Rare																				
+aee25c39-525c-4bd9-b939-a8d283437469	P003	BRONZE_BLOODED	6/3/2026 5:17:34	2026_2	Common																				
+340ba6eb-798a-4a15-a52a-2e6392596a77	P002	PRECISION	6/3/2026 5:17:36	2026_2	Rare																				
+8ee26ebd-8a53-46b2-9eb4-ecea9c25886f	P002	RED_HOT	6/3/2026 5:17:37	2026_2	Rare																				
+30cdf86f-2895-4e64-aac1-f3cf9432d2ea	P007	FIRST_BLOOD	6/3/2026 5:17:38	2026_2	Common																				
+c9d8725b-3f6e-4160-a2f6-e2c357ac2fa6	P007	PAY_DAY	6/3/2026 5:17:38	2026_2	Rare																				
+386cf5c5-223d-4b3a-8ade-265bd6334cea	P003	ROCK_SOLID	6/3/2026 5:17:39	2026_2	Rare																				
+5172493a-e795-4e42-8317-c18f260f8aa2	P003	ELO_1050	6/3/2026 5:17:40	2026_2	Rare																				
+3f4a168c-8d8b-4477-8ef1-a34a74258a6f	P007	WARMED_UP	6/3/2026 5:17:40	2026_2	Common																				
+1ebad408-e491-4a81-9c05-4a4a44c45303	P006	PAY_DAY	6/3/2026 5:17:41	2026_2	Rare																				
+ee7dc355-9ce6-4098-b0d0-fdac5de65bce	P003	COLD_SNAP	6/3/2026 5:17:42	2026_2	Rare																				
+5eef1460-3f69-4d4f-aaa0-0d2b3a9d3865	P006	TARGET_LOCKED	6/3/2026 5:17:43	2026_2	Rare																				
+0b787240-f1da-439a-bd3e-7fe74e7058b3	P003	COLLECTOR	6/3/2026 5:17:43	2026_2	Rare																				
+7f7c6085-f3f1-410e-94d8-2009126a916a	P001	PAY_DAY	6/3/2026 5:17:45	2026_2	Rare																				
+6dab5124-0b97-4002-b467-d0489270c533	P001	COLD_SNAP	6/3/2026 5:17:45	2026_2	Rare																				
+c4ad4022-5ee6-4e84-9f23-a69d0794d987	P001	ROCK_SOLID	6/3/2026 5:17:46	2026_2	Rare																				
+3359f025-1a25-4478-bfcc-97e5dfb6a2c4	P005	BRONZE_BLOODED	6/3/2026 5:17:47	2026_2	Common																				
+bb7db79f-3f4e-4c8c-85c4-7810b90c4f69	P003	HIGH_ROLLER	6/3/2026 5:17:48	2026_2	Rare																				
+2b756123-a9d4-429b-a813-f457012b4c80	P003	RISK_TAKER	6/3/2026 5:17:48	2026_2	Rare																				
+594f0330-32d2-465a-b492-a322682a55cf	P003	PAY_DAY	6/3/2026 5:17:49	2026_2	Rare																				
+5e4b4881-3032-41e8-80c5-cf2907ef2756	P001	HIGH_ROLLER	6/3/2026 5:17:49	2026_2	Rare																				
+3554b93c-ce24-4555-bcd5-be450f35cf56	P001	RISK_TAKER	6/3/2026 5:17:50	2026_2	Rare																				
+a5786dd7-a446-4a8f-b6be-042216764ece	P005	PAY_DAY	6/3/2026 5:17:51	2026_2	Rare																				
+914a4a6e-2645-41c8-8b22-be1c8f62eb3d	P005	COLLECTOR	6/3/2026 5:17:51	2026_2	Rare																				
+47730973-2cdb-4afc-a47e-63d44f72c964	P003	IRON_WALL	6/3/2026 5:17:53	2026_2	Epic																				
+86ba2819-b7eb-4763-9b98-047a5a55352a	P003	DUELIST	6/3/2026 5:17:54	2026_2	Common																				
+74b3b4f4-8fda-4b36-b9fc-af9815e9fc37	P003	BULLSEYE	6/3/2026 5:17:54	2026_2	Rare																				
+7e99332f-acb1-4684-986b-2085f33ae056	P001	DUELIST	6/3/2026 5:17:55	2026_2	Common																				
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									
+																									

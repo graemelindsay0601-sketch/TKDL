@@ -1,0 +1,92 @@
+Achievement	AchievementID	Category	Rarity	Priority	Hidden	Icon	Description	CriteriaType	CriteriaValue	EngineType	SecondaryCriteria	SecondaryValue	TrackingScope
+🩸 First Blood	FIRST_BLOOD	Career	Common	20	FALSE	🩸	Win your first TKDL match	CAREER_WINS	1	STAT_BASED			
+🎯 Warm-Up	WARMED_UP	Career	Common	20	FALSE	🎯	Play 10 TKDL matches	CAREER_GAMES	10	STAT_BASED			
+🎖 Veteran	VETERAN	Career	Rare	40	FALSE	🎖	Play 50 TKDL matches	CAREER_GAMES	50	STAT_BASED			
+💰 High Roller	HIGH_ROLLER	Career	Rare	40	FALSE	💰	Win a match wagering 25+ points	HIGH_STAKE_WIN	25	MATCH_EVENT			
+⚔ Eliminator	ELIMINATOR	Career	Epic	60	FALSE	⚔	Eliminate a player (reduce to 0 points)	ELIMINATIONS	1	MATCH_EVENT			
+👑 Crowned	CROWNED	Career	Legendary	80	FALSE	👑	Finish a season with most points	SEASON_POINTS_LEADER	1	SEASON_EVENT			
+🏆 Dynasty	DYNASTY	Career	Mythic	90	FALSE	🏆	Be season champion 3 times	SEASON_CHAMPION_COUNT	3	SEASON_EVENT			
+⚔ Giant Killer	GIANT_KILLER	Career	Epic	60	FALSE	⚔	Beat a top-ranked player 3 times	TOP_RANKED_WINS	3	MATCH_EVENT			
+🛡 Survivor	SURVIVOR	Career	Rare	40	FALSE	🛡	Play 20+ matches in a single season	SEASON_GAMES	20	SEASON_EVENT			
+🔥 Hot Streak	HOT_STREAK	Career	Epic	60	FALSE	🔥	Win 5 consecutive matches	WIN_STREAK	5	MATCH_EVENT	CAREER_GAMES	10	
+☠ Last Man Standing	LAST_MAN_STANDING	Hidden	Mythic	90	TRUE	☠	Never be eliminated across entire career	NEVER_ELIMINATED	1	STAT_BASED			
+🧊 Ice Cold	ICE_COLD	Hidden	Legendary	80	TRUE	🧊	Win 3 consecutive matches in a difficult season	WIN_STREAK	3	SEASON_EVENT			
+🩹 Comeback King	COMEBACK_KING	Career	Epic	60	FALSE	🩹	Win 3 matches after losing 2+	COMEBACK_STREAK	3	MATCH_EVENT			
+🎲 Risk Taker	RISK_TAKER	Career	Rare	40	FALSE	🎲	Play 5 matches with 1000+ points wagered	HIGH_STAKES_TOTAL	1	MATCH_EVENT			
+💎 Untouchable Elite	UNTOUCHABLE	Career	Mythic	90	FALSE	💎	Maintain 85% win rate over 50 games	WIN_RATE	85	STAT_BASED	CAREER_GAMES	50	
+💯 Point Master	POINT_MASTER	Career	Epic	60	FALSE	💯	Win 500+ total points in career	CAREER_POINTS	500	STAT_BASED			
+⚡ Win Collector	WIN_COLLECTOR	Career	Rare	40	FALSE	⚡	Win matches in 4+ different seasons	MULTI_SEASON_WINS	4	SEASON_EVENT			
+🧱 Iron Wall	IRON_WALL	Career	Epic	60	FALSE	🧱	Finish season with no eliminations (stay active)	SEASON_UNELIMINATED	1	SEASON_EVENT	SEASON_GAMES	15	
+🪓 Predator	PREDATOR	Career	Epic	60	FALSE	🪓	Eliminate the same player twice	PLAYER_ELIMINATIONS	2	MATCH_EVENT			
+🏹 Sharpshooter	SHARPSHOOTER	Career	Epic	60	FALSE	🏹	Maintain 75% win rate over 30 games	WIN_RATE	75	STAT_BASED	CAREER_GAMES	30	
+🎯 Perfect Run	PERFECT_RUN	Hidden	Mythic	90	TRUE	🎯	Win 10 consecutive matches	WIN_STREAK	10	MATCH_EVENT	CAREER_GAMES	20	
+🪙 Phoenix Rising	PHOENIX	Hidden	Legendary	80	TRUE	🪙	Win a match starting with only 1 point left	LOW_POINT_WIN	1	MATCH_EVENT			
+🧨 Chaos Agent	CHAOS_AGENT	Hidden	Legendary	80	TRUE	🧨	Eliminate 5 different players	UNIQUE_ELIMINATIONS	5	MATCH_EVENT			
+🐍 Snake	SNAKE	Hidden	Epic	60	TRUE	🐍	Beat the same player 5 times	SAME_OPPONENT_WINS	5	MATCH_EVENT			
+💣 Point Thief	POINT_THIEF	Hidden	Mythic	90	TRUE	💣	Win 200+ points in a single season	SEASON_POINTS	200	SEASON_EVENT			
+🔒 Unbreakable	UNBREAKABLE	Hidden	Legendary	80	TRUE	🔒	Finish season in top 3 points	SEASON_TOP3	1	SEASON_EVENT			
+🐺 Lone Wolf	LONE_WOLF	Hidden	Epic	60	TRUE	🐺	Win 15+ matches in a season with low participation	SEASON_WINS	15	SEASON_EVENT	SEASON_GAMES	12	
+👻 Ghost	GHOST	Hidden	Rare	40	TRUE	👻	Play only once then never return	SINGLE_SEASON_INACTIVE	1	SEASON_EVENT			
+☣ Toxic	TOXIC	Hidden	Epic	60	TRUE	☣	Eliminate 2 different players	UNIQUE_ELIMINATIONS	2	MATCH_EVENT			
+🩸 Blood Hunter	BLOOD_HUNTER	Hidden	Legendary	80	TRUE	🩸	Eliminate 10 different players	UNIQUE_ELIMINATIONS	10	MATCH_EVENT			
+📈 Rising Star	RISING_STAR	Seasonal	Rare	40	FALSE	📈	Gain 100+ points in first season	FIRST_SEASON_POINTS	100	SEASON_EVENT			
+📉 Collapse	COLLAPSING	Seasonal	Rare	40	FALSE	📉	Lose 50+ points in a season	SEASON_POINTS_LOSS	50	SEASON_EVENT			
+🎖 Season MVP	MVP	Seasonal	Legendary	80	FALSE	🎖	Finish season with most points overall	SEASON_POINTS_LEADER	1	SEASON_EVENT			
+💀 Reaper	REAPER_SEASONAL	Seasonal	Epic	60	FALSE	💀	Most eliminations in a season	SEASON_ELIMINATIONS	1	SEASON_EVENT			
+🎯 Most Active	MOST_ACTIVE	Seasonal	Rare	40	FALSE	🎯	Play 50+ matches in a season	SEASON_GAMES	50	SEASON_EVENT			
+⚔ Duelist	DUELIST	Career	Common	20	FALSE	⚔	Play 25 matches	CAREER_GAMES	25	STAT_BASED			
+🏹 Bullseye	BULLSEYE	Career	Rare	40	FALSE	🏹	Reach 60% win rate over 10 games	WIN_RATE	60	STAT_BASED	CAREER_GAMES	10	
+🔥 Heat Check	HEAT_CHECK	Career	Common	20	FALSE	🔥	Win 3 in a row	WIN_STREAK	3	MATCH_EVENT	CAREER_GAMES	5	
+💵 Pay Day	PAY_DAY	Career	Rare	40	FALSE	💵	Win a match wagering 10+ points	HIGH_STAKE_WIN	10	MATCH_EVENT			
+🧠 Tactical	TACTICAL	Career	Rare	40	FALSE	🧠	Win despite being underdog in points	UPSET_WIN	1	MATCH_EVENT			
+🪨 Rock Solid	ROCK_SOLID	Career	Rare	40	FALSE	🪨	Survive a season (never eliminated)	SEASON_UNELIMINATED	1	SEASON_EVENT	SEASON_GAMES	10	
+👑 King Slayer	KING_SLAYER	Career	Epic	60	FALSE	👑	Beat the top-ranked player 3 times	TOP_RANKED_WINS	3	MATCH_EVENT			
+⚡ Shockwave	SHOCKWAVE	Career	Epic	60	FALSE	⚡	Win 100+ points in a season	SEASON_POINTS	100	SEASON_EVENT			
+🧨 Detonator	DETONATOR	Career	Epic	60	FALSE	🧨	Win a 100-point+ swing match	MASSIVE_SWING	100	MATCH_EVENT			
+🪦 Grave Digger	GRAVE_DIGGER	Career	Epic	60	FALSE	🪦	Eliminate 3 different players in a season	SEASON_UNIQUE_ELIMS	3	SEASON_EVENT			
+🔥 Inferno	INFERNO	Career	Legendary	80	FALSE	🔥	Win 10 in a row	WIN_STREAK	10	MATCH_EVENT	CAREER_GAMES	30	
+🐐 Immortal	IMMORTAL	Career	Mythic	90	FALSE	🐐	Reach 100 career wins	CAREER_WINS	100	STAT_BASED			
+🌌 ELO Legend	ASCENDED	Career	Mythic	90	FALSE	🌌	Reach 1200 ELO rating	PEAK_ELO	1200	STAT_BASED	CAREER_GAMES	50	
+👹 Nightmare	NIGHTMARE	Career	Mythic	90	FALSE	👹	Eliminate 10 players total	ELIMINATIONS	10	MATCH_EVENT			
+⚔ Warpath	WARPATH	Career	Mythic	90	FALSE	⚔	Win 15 in a row	WIN_STREAK	15	MATCH_EVENT	CAREER_GAMES	50	
+💀 Apocalypse	APOCALYPSE	Career	Mythic	90	FALSE	💀	Eliminate 5 top-ranked players	TOP_RANKED_ELIMS	5	MATCH_EVENT			
+🧬 Hall of Fame	HALL_OF_FAME	Career	Mythic	90	FALSE	🧬	Reach 200 career wins	CAREER_WINS	200	STAT_BASED			
+🥉 Bronze Blooded	BRONZE_BLOODED	Tier	Common	20	FALSE	🥉	Reach 10 career wins	CAREER_WINS	10	STAT_BASED			
+🥈 Silver Standard	SILVER_STANDARD	Tier	Rare	40	FALSE	🥈	Reach 30 career wins	CAREER_WINS	30	STAT_BASED			
+🥇 Golden Era	GOLDEN_ERA	Tier	Epic	60	FALSE	🥇	Reach 75 career wins	CAREER_WINS	75	STAT_BASED			
+👑 Conqueror	CONQUEROR	Rank	Epic	60	FALSE	👑	Beat all top 5 ranked players	TOP_RANKED_WINS	5	MATCH_EVENT			
+📚 Historian	HISTORIAN	Career	Rare	40	FALSE	📚	Play in 3+ seasons	MULTI_SEASON_PLAYS	3	SEASON_EVENT			
+⏳ Marathon	MARATHON	Career	Epic	60	FALSE	⏳	Play 100 matches	CAREER_GAMES	100	STAT_BASED			
+🎯 Sniper	SNIPER	Career	Epic	60	FALSE	🎯	Maintain 80% win rate over 50 games	WIN_RATE	80	STAT_BASED	CAREER_GAMES	50	
+🚀 Rocket Start	ROCKET_START	Seasonal	Rare	40	FALSE	🚀	Win first 3 matches of a season	SEASON_START_WINS	3	SEASON_EVENT			
+🌪 Storm Bringer	STORM_BRINGER	Career	Epic	60	FALSE	🌪	Win 20+ matches in a season	SEASON_WINS	20	SEASON_EVENT			
+🛑 Fortress	FORTRESS	Career	Epic	60	FALSE	🛑	Never be eliminated for entire season	SEASON_UNELIMINATED	1	SEASON_EVENT	SEASON_GAMES	20	
+🎰 Gambler	GAMBLER	Career	Rare	40	FALSE	🎰	Play 10 matches with 1000+ points wagered	HIGH_STAKES_MATCHES	10	MATCH_EVENT			
+🥶 Frozen Out	FROZEN_OUT	Hidden	Epic	60	TRUE	🥶	Be eliminated in a season	ELIMINATED_SEASON	1	SEASON_EVENT			
+🧨 Double Eliminator	DOUBLE_TROUBLE	Career	Rare	40	FALSE	🧨	Eliminate 2 players in one season	SEASON_ELIMINATIONS	2	SEASON_EVENT			
+🎖 Decorated	DECORATED	Career	Legendary	80	FALSE	🎖	Unlock 25 achievements	TOTAL_ACHIEVEMENTS	25	STAT_BASED			
+🏛 Legend	LEGEND	Career	Mythic	90	FALSE	🏛	Unlock 50 achievements	TOTAL_ACHIEVEMENTS	50	STAT_BASED			
+📦 Collector	COLLECTOR	Career	Rare	40	FALSE	📦	Unlock 10 achievements	TOTAL_ACHIEVEMENTS	10	STAT_BASED			
+🧱 Fortress King	FORTRESS_KING	Career	Epic	60	FALSE	🧱	Stay top 3 in points all season	TOP3_FULL_SEASON	1	SEASON_EVENT			
+🗡 Assassin	ASSASSIN	Career	Epic	60	FALSE	🗡	Eliminate 5 top-ranked opponents	TOP_RANKED_ELIMS	5	MATCH_EVENT			
+🎯 Precision	PRECISION	Career	Rare	40	FALSE	🎯	Reach 70% win rate over 20 games	WIN_RATE	70	STAT_BASED	CAREER_GAMES	20	
+🪜 Climber	CLIMBER	Seasonal	Common	20	FALSE	🪜	Gain 75+ points in a season	SEASON_POINTS	75	SEASON_EVENT			
+🕳 Freefall	FREEFALL	Seasonal	Rare	40	FALSE	🕳	Lose 75+ points in a season	SEASON_POINTS_LOSS	75	SEASON_EVENT			
+☄ Meteor	METEOR	Seasonal	Epic	60	FALSE	☄	Finish top 3 in your first season	FIRST_SEASON_TOP3	1	SEASON_EVENT			
+🎯 Target Locked	TARGET_LOCKED	Career	Rare	40	FALSE	🎯	Beat same opponent 3 times	SAME_OPPONENT_WINS	3	MATCH_EVENT			
+⚔ Rival Breaker	RIVAL_BREAKER	Career	Epic	60	FALSE	⚔	Defeat a rival 10 times	RIVAL_WINS	10	MATCH_EVENT			
+💼 Professional	PROFESSIONAL	Career	Rare	40	FALSE	💼	Play 75 career matches	CAREER_GAMES	75	STAT_BASED			
+🎪 Showman	SHOWMAN	Career	Rare	40	FALSE	🎪	Win 5 featured matches	FEATURED_WINS	5	MATCH_EVENT			
+💡 Genius	GENIUS	Hidden	Epic	60	TRUE	💡	Win 3 times as underdog (lower points)	UPSET_WIN	3	MATCH_EVENT			
+🪖 Survivor Elite	SURVIVOR_ELITE	Career	Legendary	80	FALSE	🪖	Survive 5+ seasons (never eliminated)	MULTI_SEASON_SURVIVOR	5	SEASON_EVENT			
+📈 Momentum	MOMENTUM	Seasonal	Common	20	FALSE	📈	Win streaks in 3 consecutive weeks	WEEKLY_WINS	3	SEASON_EVENT			
+🧿 Untouchable Plus	UNTOUCHABLE_PLUS	Career	Mythic	90	FALSE	🧿	Maintain 85% win rate with 50+ games	WIN_RATE	85	STAT_BASED	CAREER_GAMES	50	
+🥊 Fighter	FIGHTER	Career	Common	20	FALSE	🥊	Play 5 matches	CAREER_GAMES	5	STAT_BASED			
+🔥 Red Hot	RED_HOT	Career	Rare	40	FALSE	🔥	Win 7 in a row	WIN_STREAK	7	MATCH_EVENT	CAREER_GAMES	20	
+❄ Cold Snap	COLD_SNAP	Hidden	Rare	40	TRUE	❄	Lose 7 in a row	LOSS_STREAK	7	MATCH_EVENT	CAREER_GAMES	20	
+💥 Breakthrough	BREAKTHROUGH	Career	Rare	40	FALSE	💥	Reach 50 career wins	CAREER_WINS	50	STAT_BASED	CAREER_GAMES	10	
+🌟 Superstar	SUPERSTAR	Career	Legendary	80	FALSE	🌟	Reach 100 career wins	CAREER_WINS	100	STAT_BASED	CAREER_GAMES	30	
+🔷 Elite Threshold	ELO_1050	Career	Rare	40	FALSE	🔷	Reach 1050 ELO rating	PEAK_ELO	1050	STAT_BASED			
+🔶 Master Level	ELO_1200	Career	Epic	60	FALSE	🔶	Reach 1200 ELO rating	PEAK_ELO	1200	STAT_BASED	CAREER_GAMES	30	
+🔸 Legendary Rank	ELO_1300	Career	Legendary	80	FALSE	🔸	Reach 1300 ELO rating	PEAK_ELO	1300	STAT_BASED	CAREER_GAMES	50	
+🪬 Mystic	MYSTIC	Hidden	Mythic	90	TRUE	🪬	Unlock every hidden achievement	ALL_HIDDEN_UNLOCKED	1	STAT_BASED			
