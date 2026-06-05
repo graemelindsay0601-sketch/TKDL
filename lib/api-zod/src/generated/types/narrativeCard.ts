@@ -6,7 +6,11 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export type ListMatchesParams = {
-seasonId?: number;
-limit?: number;
-};
+export interface NarrativeCard {
+  type: string;
+  headline: string;
+  body: string;
+  priority: number;
+  playerIds: number[];
+  icon: string;
+}

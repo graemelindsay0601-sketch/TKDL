@@ -9,8 +9,9 @@ export const matchesTable = pgTable("matches", {
   loserId: integer("loser_id").notNull(),
   winnerName: text("winner_name").notNull(),
   loserName: text("loser_name").notNull(),
-  pointsAwarded: integer("points_awarded").notNull().default(3),
-  eloChange: integer("elo_change").notNull().default(20),
+  stake: integer("stake").notNull().default(0),
+  eloChange: integer("elo_change").notNull().default(16),
+  gameType: text("game_type").notNull().default("501"),
   notes: text("notes"),
   playedAt: timestamp("played_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -20,7 +21,6 @@ export const insertMatchSchema = createInsertSchema(matchesTable).omit({
   playedAt: true,
   winnerName: true,
   loserName: true,
-  pointsAwarded: true,
   eloChange: true,
   seasonId: true,
 });

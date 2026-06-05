@@ -6,7 +6,9 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export type ListMatchesParams = {
-seasonId?: number;
-limit?: number;
-};
+export interface HeadToHead {
+  opponentId: number;
+  opponentName: string;
+  wins: number;
+  losses: number;
+}

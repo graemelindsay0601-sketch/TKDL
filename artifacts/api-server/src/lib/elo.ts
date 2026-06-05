@@ -1,24 +1,26 @@
 const K = 32;
+const ELO_FLOOR = 800;
 
 export function calcEloChange(winnerElo: number, loserElo: number): number {
-  const expectedWin = 1 / (1 + Math.pow(10, (loserElo - winnerElo) / 400));
-  const change = Math.round(K * (1 - expectedWin));
-  return Math.max(1, change);
+  const expected = 1 / (1 + Math.pow(10, (loserElo - winnerElo) / 400));
+  return Math.max(1, Math.round(K * (1 - expected)));
 }
 
 export function calcTier(elo: number): string {
-  if (elo >= 1400) return "Diamond";
-  if (elo >= 1250) return "Platinum";
   if (elo >= 1100) return "Gold";
-  if (elo >= 950)  return "Silver";
+  if (elo >= 980)  return "Silver";
   return "Bronze";
 }
 
-export function calcPoints(winnerElo: number, loserElo: number): number {
-  const diff = loserElo - winnerElo;
-  if (diff >= 200) return 5;
-  if (diff >= 100) return 4;
-  if (diff >= 0)   return 3;
-  if (diff >= -100) return 2;
-  return 1;
+export function applyEloChange(winnerElo: number, loserElo: number): {
+  newWinnerElo: number;
+  newLoserElo: number;
+  change: number;
+} {
+  const change = calcEloChange(winnerElo, loserElo);
+  return {
+    newWinnerElo: winnerElo + change,
+    newLoserElo: Math.max(ELO_FLOOR, loserElo - change),
+    change,
+  };
 }

@@ -1,8 +1,13 @@
 import { Router } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, seasonsTable, playersTable, seasonStandingsTable } from "@workspace/db";
-import { GetSeasonParams, ResetSeasonBody } from "@workspace/api-zod";
+import { z } from "zod/v4";
 import { performSeasonReset } from "../lib/seasonReset";
+import { calcTier } from "../lib/elo";
+import { computeIdentity } from "../lib/identity";
+
+const GetSeasonParams  = z.object({ id: z.coerce.number().int().positive() });
+const ResetSeasonBody  = z.object({ name: z.string().optional() });
 
 const router = Router();
 
@@ -13,8 +18,7 @@ router.get("/seasons", async (_req, res): Promise<void> => {
 
 router.get("/seasons/current", async (_req, res): Promise<void> => {
   const [season] = await db.select().from(seasonsTable).where(eq(seasonsTable.isActive, true)).limit(1);
-  if (!season) { res.json(null); return; }
-  res.json(season);
+  res.json(season ?? null);
 });
 
 router.post("/seasons/reset", async (req, res): Promise<void> => {
@@ -26,60 +30,55 @@ router.post("/seasons/reset", async (req, res): Promise<void> => {
 
 router.get("/seasons/:id", async (req, res): Promise<void> => {
   const params = GetSeasonParams.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const [season] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, params.data.id));
   if (!season) { res.status(404).json({ error: "Season not found" }); return; }
 
+  const allPlayers = await db.select().from(playersTable);
+  const playerMap = new Map(allPlayers.map(p => [p.id, p]));
+
+  const allStandings = await db.select().from(seasonStandingsTable).where(eq(seasonStandingsTable.isChampion, true));
+  const titleCounts = new Map<number, number>();
+  for (const s of allStandings) titleCounts.set(s.playerId, (titleCounts.get(s.playerId) ?? 0) + 1);
+
   let standings;
   if (season.isActive) {
-    // Live standings from player data
-    const players = await db.select().from(playersTable).where(eq(playersTable.isActive, true));
-    const sorted = [...players].sort((a, b) => b.currentSeasonPoints - a.currentSeasonPoints || b.currentSeasonWins - a.currentSeasonWins);
-    standings = sorted.map((p, i) => ({
-      position: i + 1,
-      positionChange: 0,
-      playerId: p.id,
-      playerName: p.name,
-      playerNickname: p.nickname,
-      wins: p.currentSeasonWins,
-      losses: p.currentSeasonLosses,
-      gamesPlayed: p.currentSeasonWins + p.currentSeasonLosses,
-      points: p.currentSeasonPoints,
-      elo: p.elo,
-      tier: p.tier,
-      winRate: p.careerGamesPlayed > 0 ? p.currentSeasonWins / (p.currentSeasonWins + p.currentSeasonLosses || 1) : 0,
-      currentStreak: p.currentWinStreak,
-    }));
+    const players = allPlayers.filter(p => p.isActive);
+    const active = players.filter(p => p.status !== "ELIMINATED");
+    const eliminated = players.filter(p => p.status === "ELIMINATED");
+    const sorted = [...active.sort((a,b) => b.points-a.points || b.elo-a.elo), ...eliminated.sort((a,b) => b.points-a.points)];
+    standings = sorted.map((p, i) => {
+      const isChampion = (titleCounts.get(p.id) ?? 0) > 0;
+      const identity = computeIdentity(p, i+1, isChampion);
+      const games = p.seasonWins + p.seasonLosses;
+      return {
+        position: i+1, positionChange: 0,
+        playerId: p.id, playerName: p.name,
+        wins: p.seasonWins, losses: p.seasonLosses, gamesPlayed: games,
+        points: p.points, peakPoints: p.peakPoints,
+        elo: p.elo, tier: calcTier(p.elo),
+        winRate: games > 0 ? p.seasonWins/games : 0,
+        currentStreak: p.currentWinStreak, status: p.status, ...identity,
+      };
+    });
   } else {
-    // Historical standings snapshot
-    const rows = await db
-      .select()
-      .from(seasonStandingsTable)
+    const rows = await db.select().from(seasonStandingsTable)
       .where(eq(seasonStandingsTable.seasonId, params.data.id))
       .orderBy(seasonStandingsTable.position);
-
-    const playerIds = rows.map(r => r.playerId);
-    const allPlayers = await db.select().from(playersTable);
-    const playerMap = new Map(allPlayers.map(p => [p.id, p]));
-
     standings = rows.map(r => {
       const p = playerMap.get(r.playerId);
       const games = r.wins + r.losses;
       return {
-        position: r.position,
-        positionChange: 0,
-        playerId: r.playerId,
-        playerName: p?.name ?? "Unknown",
-        playerNickname: p?.nickname ?? null,
-        wins: r.wins,
-        losses: r.losses,
-        gamesPlayed: games,
-        points: r.points,
-        elo: p?.elo ?? 1000,
-        tier: p?.tier ?? "Bronze",
-        winRate: games > 0 ? r.wins / games : 0,
-        currentStreak: 0,
+        position: r.position, positionChange: 0,
+        playerId: r.playerId, playerName: p?.name ?? "Unknown",
+        wins: r.wins, losses: r.losses, gamesPlayed: games,
+        points: r.points, peakPoints: r.points,
+        elo: r.elo, tier: calcTier(r.elo),
+        winRate: games > 0 ? r.wins/games : 0,
+        currentStreak: 0, status: r.isChampion ? "CHAMPION" : "ACTIVE",
+        archetype: "COMPETITOR", archetypeIcon: "🎲",
+        aura: "BALANCED", auraColor: "#888899", title: r.isChampion ? "The Champion" : "—",
       };
     });
   }

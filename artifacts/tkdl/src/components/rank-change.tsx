@@ -1,25 +1,19 @@
 import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 
-export function RankChange({ change }: { change: number }) {
+export function RankChange({ change }: { change?: number }) {
+  if (!change || change === 0) {
+    return <span className="inline-flex items-center text-white/20 text-xs"><Minus className="w-3 h-3" /></span>;
+  }
   if (change > 0) {
     return (
-      <span className="inline-flex items-center text-emerald-500 font-mono text-xs">
-        <ArrowUp className="w-3 h-3 mr-0.5" />
-        {change}
-      </span>
-    );
-  }
-  if (change < 0) {
-    return (
-      <span className="inline-flex items-center text-destructive font-mono text-xs">
-        <ArrowDown className="w-3 h-3 mr-0.5" />
-        {Math.abs(change)}
+      <span className="inline-flex items-center gap-0.5 text-xs font-bold" style={{ color: "#22c55e" }}>
+        <ArrowUp className="w-3 h-3" />{change}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center text-muted-foreground font-mono text-xs">
-      <Minus className="w-3 h-3" />
+    <span className="inline-flex items-center gap-0.5 text-xs font-bold" style={{ color: "#ff005c" }}>
+      <ArrowDown className="w-3 h-3" />{Math.abs(change)}
     </span>
   );
 }

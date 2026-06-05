@@ -1,13 +1,8 @@
 import { db } from "@workspace/db";
-import {
-  playersTable,
-  seasonsTable,
-  seasonStandingsTable,
-  playerAchievementsTable,
-  achievementsTable,
-} from "@workspace/db";
-import { eq, desc, and } from "drizzle-orm";
+import { playersTable, seasonsTable, seasonStandingsTable } from "@workspace/db";
+import { eq, desc } from "drizzle-orm";
 import { logger } from "./logger";
+import { checkSeasonAchievements } from "./achievements";
 
 export async function performSeasonReset(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
   const [currentSeason] = await db
@@ -18,7 +13,9 @@ export async function performSeasonReset(overrideName?: string): Promise<typeof 
 
   if (currentSeason) {
     const players = await db.select().from(playersTable).where(eq(playersTable.isActive, true));
-    const sorted = [...players].sort((a, b) => b.currentSeasonPoints - a.currentSeasonPoints || b.currentSeasonWins - a.currentSeasonWins);
+    const sorted = [...players].sort((a, b) => b.points - a.points || b.elo - a.elo);
+
+    const champion = sorted.find(p => p.status === "ACTIVE") ?? sorted[0] ?? null;
 
     // Save standings snapshot
     for (let i = 0; i < sorted.length; i++) {
@@ -27,76 +24,50 @@ export async function performSeasonReset(overrideName?: string): Promise<typeof 
         seasonId: currentSeason.id,
         playerId: p.id,
         position: i + 1,
-        wins: p.currentSeasonWins,
-        losses: p.currentSeasonLosses,
-        points: p.currentSeasonPoints,
-        isChampion: i === 0 ? 1 : 0,
+        wins: p.seasonWins,
+        losses: p.seasonLosses,
+        points: p.points,
+        elo: p.elo,
+        isChampion: champion ? p.id === champion.id : false,
       });
     }
 
-    // Crown champion
-    let championId: number | null = null;
-    let championName: string | null = null;
-    if (sorted.length > 0) {
-      championId = sorted[0].id;
-      championName = sorted[0].name;
-      // Grant champion achievement
-      const [champAch] = await db
-        .select()
-        .from(achievementsTable)
-        .where(eq(achievementsTable.key, "champion"));
-      if (champAch) {
-        const existing = await db
-          .select()
-          .from(playerAchievementsTable)
-          .where(
-            and(
-              eq(playerAchievementsTable.playerId, championId),
-              eq(playerAchievementsTable.achievementId, champAch.id)
-            )
-          );
-        if (existing.length === 0) {
-          await db.insert(playerAchievementsTable).values({
-            playerId: championId,
-            achievementId: champAch.id,
-          });
-        }
-      }
-    }
+    // Grant season achievements
+    await checkSeasonAchievements(currentSeason.id, sorted, champion?.id ?? null);
 
-    // Close current season
-    await db
-      .update(seasonsTable)
-      .set({
-        isActive: false,
-        endDate: new Date().toISOString().split("T")[0],
-        championId,
-        championName,
-      })
-      .where(eq(seasonsTable.id, currentSeason.id));
+    // Close season
+    await db.update(seasonsTable).set({
+      isActive: false,
+      endDate: new Date().toISOString().split("T")[0],
+      championId: champion?.id ?? null,
+      championName: champion?.name ?? null,
+    }).where(eq(seasonsTable.id, currentSeason.id));
 
-    logger.info({ seasonId: currentSeason.id, championId }, "Season closed");
+    logger.info({ seasonId: currentSeason.id, champion: champion?.name }, "Season closed");
   }
 
-  // Reset all players' season stats
-  await db.update(playersTable).set({
-    currentSeasonPoints: 0,
-    currentSeasonWins: 0,
-    currentSeasonLosses: 0,
-    currentWinStreak: 0,
-  });
-
-  // Create new season
-  const now = new Date();
-  const monthName = now.toLocaleString("en-GB", { month: "long", year: "numeric" });
-  const [newSeason] = await db
-    .insert(seasonsTable)
-    .values({
-      name: overrideName ?? `${monthName} Season`,
-      startDate: now.toISOString().split("T")[0],
-      isActive: true,
+  // Reset all active players for new season
+  await db.update(playersTable)
+    .set({
+      points: 25,
+      peakPoints: 25,
+      seasonWins: 0,
+      seasonLosses: 0,
+      seasonGamesPlayed: 0,
+      currentWinStreak: 0,
+      currentLossStreak: 0,
+      status: "ACTIVE",
     })
-    .returning();
+    .where(eq(playersTable.isActive, true));
+
+  const now = new Date();
+  const monthName = now.toLocaleString("en-GB", { month: "long" });
+  const year = now.getFullYear();
+  const [newSeason] = await db.insert(seasonsTable).values({
+    name: overrideName ?? `${monthName} ${year}`,
+    startDate: now.toISOString().split("T")[0],
+    isActive: true,
+  }).returning();
 
   logger.info({ newSeasonId: newSeason.id, name: newSeason.name }, "New season started");
   return newSeason;
@@ -111,7 +82,7 @@ export async function maybeAutoResetSeason(): Promise<void> {
     .limit(1);
 
   if (!current) {
-    await performSeasonReset();
+    logger.info("No active season found on startup, skipping auto-reset");
     return;
   }
 
@@ -120,7 +91,7 @@ export async function maybeAutoResetSeason(): Promise<void> {
   const sameMonth = start.getMonth() === now.getMonth() && start.getFullYear() === now.getFullYear();
 
   if (!sameMonth) {
-    logger.info({ currentSeasonId: current.id }, "Auto season reset triggered");
+    logger.info({ currentSeasonId: current.id }, "Auto season reset triggered (new month)");
     await performSeasonReset();
   }
 }

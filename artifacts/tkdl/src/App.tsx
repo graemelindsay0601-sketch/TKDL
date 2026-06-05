@@ -1,56 +1,44 @@
-import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout";
 
-import Dashboard from "@/pages/dashboard";
-import Leaderboard from "@/pages/leaderboard";
-import SubmitMatch from "@/pages/submit-match";
-import Players from "@/pages/players";
+import Dashboard    from "@/pages/dashboard";
+import Leaderboard  from "@/pages/leaderboard";
+import SubmitMatch  from "@/pages/submit-match";
+import Players      from "@/pages/players";
 import PlayerDetail from "@/pages/player-detail";
-import Seasons from "@/pages/seasons";
+import Seasons      from "@/pages/seasons";
 import SeasonDetail from "@/pages/season-detail";
 import Achievements from "@/pages/achievements";
-import Broadcast from "@/pages/broadcast";
-import Admin from "@/pages/admin";
+import Admin        from "@/pages/admin";
 
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-    },
-  },
+  defaultOptions: { queries: { refetchOnWindowFocus: false } },
 });
 
 function AppRoutes() {
-  const [location] = useLocation();
-  const isBroadcast = location === "/broadcast";
-
-  if (isBroadcast) {
-    return <Broadcast />;
-  }
-
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/leaderboard" component={Leaderboard} />
-        <Route path="/submit" component={SubmitMatch} />
-        <Route path="/players" component={Players} />
-        <Route path="/players/:id" component={PlayerDetail} />
-        <Route path="/seasons" component={Seasons} />
-        <Route path="/seasons/:id" component={SeasonDetail} />
-        <Route path="/achievements" component={Achievements} />
-        <Route path="/admin" component={Admin} />
+        <Route path="/"              component={Dashboard}   />
+        <Route path="/leaderboard"   component={Leaderboard} />
+        <Route path="/submit"        component={SubmitMatch} />
+        <Route path="/players"       component={Players}     />
+        <Route path="/players/:id"   component={PlayerDetail}/>
+        <Route path="/seasons"       component={Seasons}     />
+        <Route path="/seasons/:id"   component={SeasonDetail}/>
+        <Route path="/achievements"  component={Achievements}/>
+        <Route path="/admin"         component={Admin}       />
         <Route component={NotFound} />
       </Switch>
     </Layout>
   );
 }
 
-function App() {
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -62,5 +50,3 @@ function App() {
     </QueryClientProvider>
   );
 }
-
-export default App;
