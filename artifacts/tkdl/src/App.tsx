@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -24,27 +24,29 @@ const queryClient = new QueryClient({
   },
 });
 
-function Router() {
+function AppRoutes() {
+  const [location] = useLocation();
+  const isBroadcast = location === "/broadcast";
+
+  if (isBroadcast) {
+    return <Broadcast />;
+  }
+
   return (
-    <Switch>
-      <Route path="/broadcast" component={Broadcast} />
-      <Route path="/:rest*">
-        <Layout>
-          <Switch>
-            <Route path="/" component={Dashboard} />
-            <Route path="/leaderboard" component={Leaderboard} />
-            <Route path="/submit" component={SubmitMatch} />
-            <Route path="/players" component={Players} />
-            <Route path="/players/:id" component={PlayerDetail} />
-            <Route path="/seasons" component={Seasons} />
-            <Route path="/seasons/:id" component={SeasonDetail} />
-            <Route path="/achievements" component={Achievements} />
-            <Route path="/admin" component={Admin} />
-            <Route component={NotFound} />
-          </Switch>
-        </Layout>
-      </Route>
-    </Switch>
+    <Layout>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/leaderboard" component={Leaderboard} />
+        <Route path="/submit" component={SubmitMatch} />
+        <Route path="/players" component={Players} />
+        <Route path="/players/:id" component={PlayerDetail} />
+        <Route path="/seasons" component={Seasons} />
+        <Route path="/seasons/:id" component={SeasonDetail} />
+        <Route path="/achievements" component={Achievements} />
+        <Route path="/admin" component={Admin} />
+        <Route component={NotFound} />
+      </Switch>
+    </Layout>
   );
 }
 
@@ -53,7 +55,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
+          <AppRoutes />
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
