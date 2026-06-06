@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import path from "path";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -24,6 +25,16 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/api", router);
+
+// In production, serve the built frontend and handle client-side routing
+if (process.env.NODE_ENV === "production") {
+  const frontendDist = process.env.FRONTEND_DIST
+    ?? path.resolve(process.cwd(), "artifacts/tkdl/dist");
+  app.use(express.static(frontendDist));
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
 
 async function seedRealData() {
   const [{ c }] = await db.select({ c: count() }).from(playersTable);
