@@ -134,7 +134,7 @@ function SeasonRow({ entry, idx, maxElo }: { entry: any; idx: number; maxElo: nu
         <div className="hidden sm:flex shrink-0"><TierBadge tier={entry.tier} /></div>
 
         {/* Record */}
-        <div className="hidden md:block font-mono text-sm text-center shrink-0" style={{ minWidth: "4rem" }}>
+        <div className="hidden sm:block font-mono text-sm text-center shrink-0" style={{ minWidth: "4rem" }}>
           <span style={{ color: "#22c55e" }}>{entry.wins}</span>
           <span style={{ color: "rgba(255,255,255,0.18)" }}>-</span>
           <span style={{ color: "#ff005c" }}>{entry.losses}</span>
@@ -200,13 +200,13 @@ function CareerRow({ entry, idx, maxElo, sortKey }: { entry: any; idx: number; m
           )}
         </div>
 
-        <div className="hidden md:block font-mono text-sm text-center shrink-0" style={{ minWidth: "4.5rem" }}>
+        <div className="hidden sm:block font-mono text-sm text-center shrink-0" style={{ minWidth: "4.5rem" }}>
           <span style={{ color: "#22c55e" }}>{entry.careerWins}</span>
           <span style={{ color: "rgba(255,255,255,0.18)" }}>-</span>
           <span style={{ color: "#ff005c" }}>{entry.careerLosses}</span>
         </div>
 
-        <div className="hidden md:block text-sm font-bold tabular-nums text-right shrink-0" style={{ minWidth: "3.5rem", color: entry.winRate >= 60 ? "#22c55e" : entry.winRate >= 45 ? "rgba(255,255,255,0.55)" : "#ff005c" }}>
+        <div className="hidden sm:block text-sm font-bold tabular-nums text-right shrink-0" style={{ minWidth: "3.5rem", color: entry.winRate >= 60 ? "#22c55e" : entry.winRate >= 45 ? "rgba(255,255,255,0.55)" : "#ff005c" }}>
           {entry.winRate}%
         </div>
 
@@ -297,7 +297,7 @@ export default function Leaderboard() {
           <div className="w-8 text-center">#</div>
           <div className="flex-1">Player</div>
           <div className="hidden sm:block" style={{ minWidth: "3.5rem" }}>Tier</div>
-          <div className="hidden md:block text-center" style={{ minWidth: "4rem" }}>W-L</div>
+          <div className="hidden sm:block text-center" style={{ minWidth: "4rem" }}>W-L</div>
           <div className="hidden sm:block" style={{ minWidth: "7rem" }}>ELO</div>
           <div className="text-right" style={{ minWidth: "3.5rem" }}>Pts</div>
         </div>
@@ -307,8 +307,8 @@ export default function Leaderboard() {
           style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.18)", letterSpacing: "0.12em" }}>
           <div className="w-8 text-center">#</div>
           <div className="flex-1">Player</div>
-          <div className="hidden md:block text-center" style={{ minWidth: "4.5rem" }}>W-L</div>
-          <div className="hidden md:block text-right" style={{ minWidth: "3.5rem" }}>Win%</div>
+          <div className="hidden sm:block text-center" style={{ minWidth: "4.5rem" }}>W-L</div>
+          <div className="hidden sm:block text-right" style={{ minWidth: "3.5rem" }}>Win%</div>
           <div className="hidden sm:block" style={{ minWidth: "7rem" }}>ELO</div>
           <div className="hidden md:block text-right" style={{ minWidth: "3.5rem" }}>Peak</div>
           <div className="text-right" style={{ minWidth: "4rem" }}>{careerSort === "points" ? "Net Pts" : "Titles"}</div>
