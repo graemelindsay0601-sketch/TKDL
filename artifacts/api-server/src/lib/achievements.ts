@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { achievementsTable, playerAchievementsTable, playersTable, matchesTable, seasonStandingsTable } from "@workspace/db";
-import { eq, and, count, sql } from "drizzle-orm";
+import { eq, and, count, sql, or } from "drizzle-orm";
 import { logger } from "./logger";
 
 export type AchievementDef = {
@@ -117,7 +117,208 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { key: "GENIUS",            name: "💡 Genius",            description: "Win 3 times as underdog (lower points)",      icon: "💡", rarity: "Epic",      category: "Hidden",    hidden: true,  priority: 60, criteriaType: "UPSET_WIN",        criteriaValue: 3,   engineType: "MATCH_EVENT" },
   { key: "COLD_SNAP",         name: "❄ Cold Snap",          description: "Lose 7 in a row",                             icon: "❄",  rarity: "Rare",      category: "Hidden",    hidden: true,  priority: 40, criteriaType: "LOSS_STREAK",      criteriaValue: 7,   engineType: "MATCH_EVENT",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 20 },
   { key: "MYSTIC",            name: "🪬 Mystic",            description: "Unlock every hidden achievement",             icon: "🪬", rarity: "Mythic",    category: "Hidden",    hidden: true,  priority: 90, criteriaType: "ALL_HIDDEN_UNLOCKED", criteriaValue: 1, engineType: "STAT_BASED" },
+  // === FORMAT MASTERY ===
+  { key: "CRICKET_KING",       name: "🦗 Cricket King",         description: "Win 5 Cricket matches",                              icon: "🦗", rarity: "Rare",      category: "Format",  hidden: false, priority: 40, criteriaType: "CRICKET_WINS",             criteriaValue: 5,  engineType: "STAT_BASED" },
+  { key: "THREE_O_ONE",        name: "🎯 301 Certified",         description: "Win 10 matches at 301",                              icon: "🎯", rarity: "Rare",      category: "Format",  hidden: false, priority: 40, criteriaType: "WINS_301",                 criteriaValue: 10, engineType: "STAT_BASED" },
+  { key: "FIVE_O_ONE",         name: "⚡ 501 Specialist",        description: "Win 5 matches at 501",                               icon: "⚡", rarity: "Rare",      category: "Format",  hidden: false, priority: 40, criteriaType: "WINS_501",                 criteriaValue: 5,  engineType: "STAT_BASED" },
+  { key: "TREBLE_MASTER",      name: "⚔️ Treble Master",        description: "Win 3 Treble matches",                               icon: "⚔️", rarity: "Rare",     category: "Format",  hidden: false, priority: 40, criteriaType: "TREBLE_WINS",              criteriaValue: 3,  engineType: "STAT_BASED" },
+  { key: "WORLD_TOUR",         name: "🌍 World Tour",            description: "Win matches in 4 different game formats",            icon: "🌍", rarity: "Epic",      category: "Format",  hidden: false, priority: 60, criteriaType: "UNIQUE_FORMATS_WON",       criteriaValue: 4,  engineType: "STAT_BASED" },
+  { key: "JACK_OF_ALL",        name: "🃏 Jack of All Darts",     description: "Win matches in 6 different game formats",            icon: "🃏", rarity: "Legendary", category: "Format",  hidden: true,  priority: 80, criteriaType: "UNIQUE_FORMATS_WON",       criteriaValue: 6,  engineType: "STAT_BASED" },
+  // === RIVALRY ===
+  { key: "RIVALRY_DEFINED",    name: "🔥 Rivalry Defined",       description: "Play 10 matches against the same opponent",         icon: "🔥", rarity: "Common",    category: "Rivalry", hidden: false, priority: 20, criteriaType: "RIVALRY_MATCH_COUNT",      criteriaValue: 10, engineType: "STAT_BASED" },
+  { key: "THE_HUNTER",         name: "🏹 The Hunter",            description: "Beat 6 different opponents",                        icon: "🏹", rarity: "Rare",      category: "Rivalry", hidden: false, priority: 40, criteriaType: "UNIQUE_OPPONENTS_BEATEN",  criteriaValue: 6,  engineType: "STAT_BASED" },
+  { key: "CONQUISTADOR",       name: "🗺️ Conquistador",          description: "Beat 10 different opponents — own the whole league", icon: "🗺️", rarity: "Legendary", category: "Rivalry", hidden: false, priority: 80, criteriaType: "UNIQUE_OPPONENTS_BEATEN",  criteriaValue: 10, engineType: "STAT_BASED" },
+  // === TKDL LEGACY ===
+  { key: "TKDL_ORIGINAL",      name: "🏛️ TKDL Original",        description: "Competed in the very first TKDL season (Feb 2026)", icon: "🏛️", rarity: "Rare",     category: "Legacy",  hidden: false, priority: 40, criteriaType: "SEASON_1_PLAYED",          criteriaValue: 1,  engineType: "STAT_BASED" },
+  { key: "JUNE_WARRIOR",       name: "☀️ June Warrior",          description: "Win 3 matches in the June 2026 season",             icon: "☀️", rarity: "Common",    category: "Legacy",  hidden: false, priority: 20, criteriaType: "SEASON_WINS_JUNE",         criteriaValue: 3,  engineType: "STAT_BASED" },
+  { key: "BACK_TO_BACK_TITLE", name: "🔁 Back-to-Back",          description: "Win 2 consecutive season championships",             icon: "🔁", rarity: "Legendary", category: "Legacy",  hidden: false, priority: 80, criteriaType: "CONSECUTIVE_TITLES",       criteriaValue: 1,  engineType: "SEASON_EVENT" },
+  { key: "PERFECT_SEASON",     name: "💎 Flawless",              description: "Complete an entire season without a single loss",   icon: "💎", rarity: "Mythic",    category: "Legacy",  hidden: true,  priority: 90, criteriaType: "SEASON_UNBEATEN_COUNT",    criteriaValue: 1,  engineType: "SEASON_EVENT" },
+  { key: "CONSISTENT_ELITE",   name: "👑 Consistent Elite",      description: "Finish in the top 3 in 2 or more seasons",         icon: "👑", rarity: "Legendary", category: "Legacy",  hidden: false, priority: 80, criteriaType: "TOP3_SEASON_FINISHES",     criteriaValue: 2,  engineType: "SEASON_EVENT" },
+  // === STAKES & DRAMA ===
+  { key: "ALL_IN_WIN",         name: "🃏 All In",                description: "Win a match staking 20 or more points",             icon: "🎲", rarity: "Rare",      category: "Stakes",  hidden: false, priority: 40, criteriaType: "ALL_IN_WINS",              criteriaValue: 1,  engineType: "MATCH_EVENT" },
+  { key: "HIGH_STAKES_LIFE",   name: "🎰 High Stakes Life",      description: "Play 20 matches with 10+ points wagered",          icon: "🎰", rarity: "Epic",      category: "Stakes",  hidden: false, priority: 60, criteriaType: "HIGH_STAKES_MATCHES",      criteriaValue: 20, engineType: "MATCH_EVENT" },
+  { key: "DOUBLED_DOWN",       name: "💰 Doubled Down",          description: "Win two consecutive 10+ point stake matches",       icon: "💰", rarity: "Epic",      category: "Stakes",  hidden: true,  priority: 60, criteriaType: "CONSECUTIVE_HIGH_STAKE_WINS", criteriaValue: 2, engineType: "MATCH_EVENT" },
+  // === CAREER MILESTONES ===
+  { key: "CENTURY_POINTS",     name: "💯 Century",               description: "Win 100 career points total",                      icon: "💯", rarity: "Common",    category: "Career",  hidden: false, priority: 20, criteriaType: "CAREER_POINTS",            criteriaValue: 100, engineType: "STAT_BASED" },
+  { key: "TWO_HUNDRED",        name: "🌟 Double Century",        description: "Win 200 career points total",                      icon: "🌟", rarity: "Rare",      category: "Career",  hidden: false, priority: 40, criteriaType: "CAREER_POINTS",            criteriaValue: 200, engineType: "STAT_BASED" },
+  { key: "NINE_TO_FIVE_SURVIVOR", name: "🏢 9-to-5 Survivor",   description: "Play 50+ career matches and never be eliminated",   icon: "🏢", rarity: "Epic",      category: "Career",  hidden: false, priority: 60, criteriaType: "CAREER_GAMES",             criteriaValue: 50,  engineType: "STAT_BASED", secondaryCriteria: "NEVER_ELIMINATED", secondaryValue: 1 },
+  { key: "POINTS_EMPIRE",      name: "💸 Points Empire",         description: "Accumulate 300 career points won",                 icon: "💸", rarity: "Epic",      category: "Career",  hidden: false, priority: 60, criteriaType: "CAREER_POINTS",            criteriaValue: 300, engineType: "STAT_BASED" },
+  // === TESCO HIDDEN ===
+  { key: "LUNCH_LEGEND",       name: "🥪 Lunch Break Legend",    description: "Win 3 or more matches in a single day",            icon: "🥪", rarity: "Rare",      category: "Hidden",  hidden: true,  priority: 40, criteriaType: "SAME_DAY_WINS",            criteriaValue: 3,  engineType: "MATCH_EVENT" },
+  { key: "KILBIRNIE_LION",     name: "🦁 Kilbirnie Lion",        description: "Win 5 or more matches in a single week",           icon: "🦁", rarity: "Epic",      category: "Hidden",  hidden: true,  priority: 60, criteriaType: "SAME_WEEK_WINS",           criteriaValue: 5,  engineType: "MATCH_EVENT" },
+  { key: "FIRST_BLOOD_SEASON", name: "🩸 Season Opener",         description: "Score the very first win of a new season",         icon: "🩸", rarity: "Rare",      category: "Hidden",  hidden: true,  priority: 40, criteriaType: "FIRST_MATCH_SEASON_WIN",   criteriaValue: 1,  engineType: "MATCH_EVENT" },
 ];
+
+function normGT(gt: string): string {
+  const g = (gt ?? "").toLowerCase();
+  if (g.includes("cricket"))                                                              return "Cricket";
+  if (g.includes("around the world") || g.includes("round the world"))                  return "Around the World";
+  if (g.includes("killer"))                                                              return "Killer";
+  if (g.includes("shanghai"))                                                            return "Shanghai";
+  if (g.includes("bull finish") || g.includes("closest to bull"))                       return "Bull Finish";
+  if (g.includes("treble"))                                                              return "Treble";
+  if (g.includes("1001"))                                                                return "1001";
+  if (g.includes("501"))                                                                 return "501";
+  if (g.includes("301") || g.includes("no black") || g.includes("no point black")
+    || g.includes("pick a double") || g.includes("double or nothing"))                  return "301";
+  return gt.length < 20 ? gt : "Other";
+}
+
+export async function retroactiveSweep(): Promise<{ granted: number; playersChecked: number }> {
+  const players = await db.select().from(playersTable);
+  let totalGranted = 0;
+
+  for (const player of players) {
+    const pid    = player.id;
+    const before = (await db.select({ id: playerAchievementsTable.id }).from(playerAchievementsTable).where(eq(playerAchievementsTable.playerId, pid))).length;
+
+    // ── 1. Stat-based sweep ─────────────────────────────────────────────────────
+    await checkStatAchievements(pid);
+
+    // ── 2. Full match history ───────────────────────────────────────────────────
+    const allMatches = await db.select().from(matchesTable)
+      .where(or(eq(matchesTable.winnerId, pid), eq(matchesTable.loserId, pid)));
+    const wins = [...allMatches]
+      .filter(m => m.winnerId === pid)
+      .sort((a, b) => new Date(a.playedAt).getTime() - new Date(b.playedAt).getTime());
+
+    // Win streaks (from stored longest)
+    if (player.longestWinStreak >= 3)  await grantIfNotHas(pid, "HEAT_CHECK");
+    if (player.longestWinStreak >= 5)  await grantIfNotHas(pid, "HOT_STREAK");
+    if (player.longestWinStreak >= 7)  await grantIfNotHas(pid, "RED_HOT");
+    if (player.longestWinStreak >= 10) { await grantIfNotHas(pid, "INFERNO"); await grantIfNotHas(pid, "PERFECT_RUN"); }
+    if (player.longestWinStreak >= 15) await grantIfNotHas(pid, "WARPATH");
+
+    // Stake-based wins
+    const hw10W   = wins.filter(m => (m.stake ?? 0) >= 10);
+    const hw20W   = wins.filter(m => (m.stake ?? 0) >= 20);
+    const hw25W   = wins.filter(m => (m.stake ?? 0) >= 25);
+    const hs10All = allMatches.filter(m => (m.stake ?? 0) >= 10);
+    if (hw10W.length >= 1)    await grantIfNotHas(pid, "PAY_DAY");
+    if (hw25W.length >= 1)    await grantIfNotHas(pid, "HIGH_ROLLER");
+    if (hw20W.length >= 1)    await grantIfNotHas(pid, "ALL_IN_WIN");
+    if (hw10W.length >= 5)    await grantIfNotHas(pid, "RISK_TAKER");
+    if (hw10W.length >= 10)   await grantIfNotHas(pid, "GAMBLER");
+    if (hs10All.length >= 20) await grantIfNotHas(pid, "HIGH_STAKES_LIFE");
+
+    // Doubled Down — two consecutive 10+ stake wins
+    let consHigh = 0;
+    for (const m of wins) {
+      if ((m.stake ?? 0) >= 10) { consHigh++; if (consHigh >= 2) { await grantIfNotHas(pid, "DOUBLED_DOWN"); break; } }
+      else consHigh = 0;
+    }
+
+    // Same opponent wins + rivalry match count
+    const oppWins  = new Map<number, number>();
+    const oppGames = new Map<number, number>();
+    for (const m of wins) oppWins.set(m.loserId, (oppWins.get(m.loserId) ?? 0) + 1);
+    for (const m of allMatches) {
+      const opp = m.winnerId === pid ? m.loserId : m.winnerId;
+      oppGames.set(opp, (oppGames.get(opp) ?? 0) + 1);
+    }
+    const maxSameOpp = Math.max(0, ...[...oppWins.values()]);
+    const maxRivalry = Math.max(0, ...[...oppGames.values()]);
+    if (maxSameOpp >= 3)  await grantIfNotHas(pid, "TARGET_LOCKED");
+    if (maxSameOpp >= 5)  await grantIfNotHas(pid, "SNAKE");
+    if (maxRivalry >= 10) await grantIfNotHas(pid, "RIVALRY_DEFINED");
+
+    // Unique opponents beaten
+    const uniqueOpp = new Set(wins.map(m => m.loserId)).size;
+    if (uniqueOpp >= 6)  await grantIfNotHas(pid, "THE_HUNTER");
+    if (uniqueOpp >= 10) await grantIfNotHas(pid, "CONQUISTADOR");
+
+    // Eliminations
+    if (player.eliminationsCount >= 1)  await grantIfNotHas(pid, "ELIMINATOR");
+    if (player.eliminationsCount >= 10) await grantIfNotHas(pid, "NIGHTMARE");
+
+    // Format mastery
+    const fmtCounts: Record<string, number> = {};
+    for (const m of wins) { const t = normGT(m.gameType); fmtCounts[t] = (fmtCounts[t] ?? 0) + 1; }
+    const uniqueFmts = Object.keys(fmtCounts).length;
+    if ((fmtCounts["Cricket"] ?? 0) >= 5)  await grantIfNotHas(pid, "CRICKET_KING");
+    if ((fmtCounts["301"]     ?? 0) >= 10) await grantIfNotHas(pid, "THREE_O_ONE");
+    if ((fmtCounts["501"]     ?? 0) >= 5)  await grantIfNotHas(pid, "FIVE_O_ONE");
+    if ((fmtCounts["Treble"]  ?? 0) >= 3)  await grantIfNotHas(pid, "TREBLE_MASTER");
+    if (uniqueFmts >= 4) await grantIfNotHas(pid, "WORLD_TOUR");
+    if (uniqueFmts >= 6) await grantIfNotHas(pid, "JACK_OF_ALL");
+
+    // TKDL legacy
+    const seasonIds = new Set(allMatches.map(m => m.seasonId));
+    if (seasonIds.has(1)) await grantIfNotHas(pid, "TKDL_ORIGINAL");
+    const juneWins = wins.filter(m => m.seasonId === 3).length;
+    if (juneWins >= 3) await grantIfNotHas(pid, "JUNE_WARRIOR");
+
+    // Same-day wins
+    const winsByDay: Record<string, number> = {};
+    for (const m of wins) {
+      const day = new Date(m.playedAt).toISOString().split("T")[0];
+      winsByDay[day] = (winsByDay[day] ?? 0) + 1;
+    }
+    if (Object.values(winsByDay).some(c => c >= 3)) await grantIfNotHas(pid, "LUNCH_LEGEND");
+
+    // Same-week wins (Monday-based)
+    const winsByWeek: Record<string, number> = {};
+    for (const m of wins) {
+      const d = new Date(m.playedAt);
+      const mon = new Date(d);
+      mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      const wk = mon.toISOString().split("T")[0];
+      winsByWeek[wk] = (winsByWeek[wk] ?? 0) + 1;
+    }
+    if (Object.values(winsByWeek).some(c => c >= 5)) await grantIfNotHas(pid, "KILBIRNIE_LION");
+
+    // First win of a new season
+    for (const sid of [...seasonIds]) {
+      const first = await db.select().from(matchesTable)
+        .where(eq(matchesTable.seasonId, sid))
+        .orderBy(matchesTable.playedAt)
+        .limit(1);
+      if (first[0]?.winnerId === pid) { await grantIfNotHas(pid, "FIRST_BLOOD_SEASON"); break; }
+    }
+
+    // ── 3. Season standings ──────────────────────────────────────────────────────
+    const standings = await db.select().from(seasonStandingsTable).where(eq(seasonStandingsTable.playerId, pid));
+    const sortedS   = [...standings].sort((a, b) => a.seasonId - b.seasonId);
+
+    for (const s of standings) {
+      const games = s.wins + s.losses;
+      if (s.wins >= 15)   await grantIfNotHas(pid, "LONE_WOLF");
+      if (s.wins >= 20)   await grantIfNotHas(pid, "STORM_BRINGER");
+      if (s.points >= 75)  await grantIfNotHas(pid, "CLIMBER");
+      if (s.points >= 100) await grantIfNotHas(pid, "SHOCKWAVE");
+      if (s.points >= 200) await grantIfNotHas(pid, "POINT_THIEF");
+      if (s.position <= 3) await grantIfNotHas(pid, "UNBREAKABLE");
+      if (games >= 20) await grantIfNotHas(pid, "SURVIVOR_ACH");
+      if (games >= 50) await grantIfNotHas(pid, "MOST_ACTIVE");
+      if (s.points > 0 && games >= 10) await grantIfNotHas(pid, "ROCK_SOLID");
+      if (s.points > 0 && games >= 15) await grantIfNotHas(pid, "IRON_WALL");
+      if (s.points > 0 && games >= 20) await grantIfNotHas(pid, "FORTRESS");
+      if (s.status === "ELIMINATED")   await grantIfNotHas(pid, "FROZEN_OUT");
+    }
+
+    const champSeasons = standings.filter(s => s.isChampion);
+    if (champSeasons.length >= 1) { await grantIfNotHas(pid, "CROWNED"); await grantIfNotHas(pid, "MVP"); }
+    if (champSeasons.length >= 3)  await grantIfNotHas(pid, "DYNASTY");
+
+    // Back-to-back titles
+    for (let i = 1; i < sortedS.length; i++) {
+      if (sortedS[i - 1].isChampion && sortedS[i].isChampion) { await grantIfNotHas(pid, "BACK_TO_BACK_TITLE"); break; }
+    }
+    if (standings.filter(s => s.position <= 3).length >= 2) await grantIfNotHas(pid, "CONSISTENT_ELITE");
+    if (standings.some(s => s.losses === 0 && s.wins >= 5)) await grantIfNotHas(pid, "PERFECT_SEASON");
+
+    // Re-check collection achievements
+    const [{ total }] = await db.select({ total: count() }).from(playerAchievementsTable).where(eq(playerAchievementsTable.playerId, pid));
+    if (total >= 10) await grantIfNotHas(pid, "COLLECTOR");
+    if (total >= 25) await grantIfNotHas(pid, "DECORATED");
+    if (total >= 50) await grantIfNotHas(pid, "LEGEND");
+
+    const after  = (await db.select({ id: playerAchievementsTable.id }).from(playerAchievementsTable).where(eq(playerAchievementsTable.playerId, pid))).length;
+    totalGranted += after - before;
+  }
+
+  return { granted: totalGranted, playersChecked: players.length };
+}
 
 export async function seedAchievements(): Promise<void> {
   for (const def of ACHIEVEMENT_DEFINITIONS) {
@@ -183,6 +384,12 @@ export async function checkStatAchievements(playerId: number): Promise<void> {
   if (player.careerPeakElo >= 1050)    await grantIfNotHas(playerId, "ELO_1050");
   if (player.careerPeakElo >= 1200)    { await grantIfNotHas(playerId, "ELO_1200"); await grantIfNotHas(playerId, "ASCENDED"); }
   if (player.careerPeakElo >= 1300)    await grantIfNotHas(playerId, "ELO_1300");
+  // Career points milestones
+  if (player.careerPoints >= 100) await grantIfNotHas(playerId, "CENTURY_POINTS");
+  if (player.careerPoints >= 200) await grantIfNotHas(playerId, "TWO_HUNDRED");
+  if (player.careerPoints >= 300) await grantIfNotHas(playerId, "POINTS_EMPIRE");
+  // 9-to-5 Survivor — 50+ games, never eliminated
+  if (player.careerGamesPlayed >= 50 && player.eliminationsCount === 0) await grantIfNotHas(playerId, "NINE_TO_FIVE_SURVIVOR");
 
   if (player.careerGamesPlayed >= 10 && wr >= 60)  await grantIfNotHas(playerId, "BULLSEYE");
   if (player.careerGamesPlayed >= 20 && wr >= 70)  await grantIfNotHas(playerId, "PRECISION");
@@ -265,6 +472,66 @@ export async function checkMatchAchievements(
     for (const [, cnt] of opponentCounts) {
       if (cnt >= 3) await grantIfNotHas(playerId, "TARGET_LOCKED");
       if (cnt >= 5) await grantIfNotHas(playerId, "SNAKE");
+    }
+
+    // ── Format / rivalry / special achievements ──────────────────────────────
+    const playerWins = allMatches.filter(m => m.winnerId === playerId);
+
+    // Format mastery
+    const fmtCounts: Record<string, number> = {};
+    for (const m of playerWins) { const t = normGT(m.gameType); fmtCounts[t] = (fmtCounts[t] ?? 0) + 1; }
+    const uniqueFmts = Object.keys(fmtCounts).length;
+    if ((fmtCounts["Cricket"] ?? 0) >= 5)  await grantIfNotHas(playerId, "CRICKET_KING");
+    if ((fmtCounts["301"]     ?? 0) >= 10) await grantIfNotHas(playerId, "THREE_O_ONE");
+    if ((fmtCounts["501"]     ?? 0) >= 5)  await grantIfNotHas(playerId, "FIVE_O_ONE");
+    if ((fmtCounts["Treble"]  ?? 0) >= 3)  await grantIfNotHas(playerId, "TREBLE_MASTER");
+    if (uniqueFmts >= 4) await grantIfNotHas(playerId, "WORLD_TOUR");
+    if (uniqueFmts >= 6) await grantIfNotHas(playerId, "JACK_OF_ALL");
+
+    // Rivalry
+    const uniqueOppBeaten = new Set(playerWins.map(m => m.loserId)).size;
+    if (uniqueOppBeaten >= 6)  await grantIfNotHas(playerId, "THE_HUNTER");
+    if (uniqueOppBeaten >= 10) await grantIfNotHas(playerId, "CONQUISTADOR");
+    const oppGameCounts = new Map<number, number>();
+    for (const m of allMatches) {
+      if (m.winnerId === playerId || m.loserId === playerId) {
+        const opp = m.winnerId === playerId ? m.loserId : m.winnerId;
+        oppGameCounts.set(opp, (oppGameCounts.get(opp) ?? 0) + 1);
+      }
+    }
+    if (Math.max(0, ...[...oppGameCounts.values()]) >= 10) await grantIfNotHas(playerId, "RIVALRY_DEFINED");
+
+    // TKDL legacy
+    if (allMatches.some(m => (m.winnerId === playerId || m.loserId === playerId) && m.seasonId === 1)) {
+      await grantIfNotHas(playerId, "TKDL_ORIGINAL");
+    }
+    if (playerWins.filter(m => m.seasonId === 3).length >= 3) await grantIfNotHas(playerId, "JUNE_WARRIOR");
+
+    // Stakes
+    if (stake >= 20) await grantIfNotHas(playerId, "ALL_IN_WIN");
+    if (allMatches.filter(m => (m.stake ?? 0) >= 10).length >= 20) await grantIfNotHas(playerId, "HIGH_STAKES_LIFE");
+
+    // Same-day wins (Lunch Legend)
+    const wByDay: Record<string, number> = {};
+    for (const m of playerWins) { const d = new Date(m.playedAt).toISOString().split("T")[0]; wByDay[d] = (wByDay[d] ?? 0) + 1; }
+    if (Object.values(wByDay).some(c => c >= 3)) await grantIfNotHas(playerId, "LUNCH_LEGEND");
+
+    // Same-week wins (Kilbirnie Lion)
+    const wByWeek: Record<string, number> = {};
+    for (const m of playerWins) {
+      const d = new Date(m.playedAt); const mon = new Date(d);
+      mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      const wk = mon.toISOString().split("T")[0];
+      wByWeek[wk] = (wByWeek[wk] ?? 0) + 1;
+    }
+    if (Object.values(wByWeek).some(c => c >= 5)) await grantIfNotHas(playerId, "KILBIRNIE_LION");
+
+    // Doubled Down — two consecutive 10+ stake wins
+    const sortedPWins = [...playerWins].sort((a, b) => new Date(a.playedAt).getTime() - new Date(b.playedAt).getTime());
+    let cH = 0;
+    for (const m of sortedPWins) {
+      if ((m.stake ?? 0) >= 10) { cH++; if (cH >= 2) { await grantIfNotHas(playerId, "DOUBLED_DOWN"); break; } }
+      else cH = 0;
     }
   } else {
     // Loss streak

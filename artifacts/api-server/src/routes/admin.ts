@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable, playerAchievementsTable } from "@workspace/db";
+import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable } from "@workspace/db";
 import { z } from "zod";
-import { checkStatAchievements, checkMatchAchievements } from "../lib/achievements";
+import { checkStatAchievements, checkMatchAchievements, retroactiveSweep } from "../lib/achievements";
 
 const router = Router();
 
@@ -125,19 +125,9 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
 });
 
 // ── Retroactive achievement sweep ─────────────────────────────────────────────
-router.post("/admin/sweep-achievements", async (_req, res): Promise<void> => {
-  const players = await db.select().from(playersTable).where(eq(playersTable.isActive, true));
-  let totalGranted = 0;
-
-  for (const player of players) {
-    // Count achievements before
-    const before = await db.select().from(playerAchievementsTable).where(eq(playerAchievementsTable.playerId, player.id));
-    await checkStatAchievements(player.id);
-    const after = await db.select().from(playerAchievementsTable).where(eq(playerAchievementsTable.playerId, player.id));
-    totalGranted += after.length - before.length;
-  }
-
-  res.json({ ok: true, totalGranted, playersChecked: players.length });
+router.post("/admin/achievement-sweep", async (_req, res): Promise<void> => {
+  const result = await retroactiveSweep();
+  res.json({ ok: true, ...result });
 });
 
 // ── Get all seasons with standings for admin ──────────────────────────────────

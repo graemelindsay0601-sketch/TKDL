@@ -189,6 +189,61 @@ router.get("/players/:id/achievement-progress", async (req, res): Promise<void> 
   for (const m of wins) oppWins.set(m.loserId, (oppWins.get(m.loserId) ?? 0) + 1);
   const maxSameOppWins = Math.max(0, ...[...oppWins.values()]);
 
+  // Format wins
+  const fmtWinCounts: Record<string, number> = {};
+  for (const m of wins) {
+    const t = normalizeGameType(m.gameType);
+    fmtWinCounts[t] = (fmtWinCounts[t] ?? 0) + 1;
+  }
+  const cricketWins      = fmtWinCounts["Cricket"] ?? 0;
+  const wins301          = fmtWinCounts["301"] ?? 0;
+  const wins501          = fmtWinCounts["501"] ?? 0;
+  const trebleWins       = fmtWinCounts["Treble"] ?? 0;
+  const uniqueFormatsWon = Object.keys(fmtWinCounts).length;
+  const uniqueOppBeaten  = new Set(wins.map(m => m.loserId)).size;
+  const allInWins        = wins.filter(m => (m.stake ?? 0) >= 20).length;
+  const juneWins         = wins.filter(m => m.seasonId === 3).length;
+  const playedSeason1    = allMatches.some(m => m.seasonId === 1) ? 1 : 0;
+
+  // Rivalry match count (max vs single opponent)
+  const oppGamesAll = new Map<number, number>();
+  for (const m of allMatches) {
+    const opp = m.winnerId === id ? m.loserId : m.winnerId;
+    oppGamesAll.set(opp, (oppGamesAll.get(opp) ?? 0) + 1);
+  }
+  const maxRivalryMatches = Math.max(0, ...[...oppGamesAll.values()]);
+
+  // Same-day and same-week max wins
+  const wByDay: Record<string, number> = {};
+  const wByWeek: Record<string, number> = {};
+  for (const m of wins) {
+    const day = new Date(m.playedAt).toISOString().split("T")[0];
+    wByDay[day] = (wByDay[day] ?? 0) + 1;
+    const d = new Date(m.playedAt); const mon = new Date(d);
+    mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const wk = mon.toISOString().split("T")[0];
+    wByWeek[wk] = (wByWeek[wk] ?? 0) + 1;
+  }
+  const maxSameDayWins  = Math.max(0, ...Object.values(wByDay));
+  const maxSameWeekWins = Math.max(0, ...Object.values(wByWeek));
+
+  // Consecutive high-stake wins
+  const sortedWins = [...wins].sort((a, b) => new Date(a.playedAt).getTime() - new Date(b.playedAt).getTime());
+  let maxConsecHigh = 0; let curConsecHigh = 0;
+  for (const m of sortedWins) {
+    if ((m.stake ?? 0) >= 10) { curConsecHigh++; maxConsecHigh = Math.max(maxConsecHigh, curConsecHigh); }
+    else curConsecHigh = 0;
+  }
+
+  // Season-based new stats
+  const top3Finishes    = standings.filter(s => s.position <= 3).length;
+  const unbeatenSeasons = standings.filter(s => s.losses === 0 && s.wins >= 5).length;
+  const sortedS         = [...standings].sort((a, b) => a.seasonId - b.seasonId);
+  let consecTitles = 0;
+  for (let i = 1; i < sortedS.length; i++) {
+    if (sortedS[i - 1].isChampion && sortedS[i].isChampion) { consecTitles = 1; break; }
+  }
+
   const totalGames = player.careerGamesPlayed;
   const winRate = totalGames > 0 ? (player.careerWins / totalGames) * 100 : 0;
 
@@ -211,8 +266,25 @@ router.get("/players/:id/achievement-progress", async (req, res): Promise<void> 
       case "SEASON_POINTS":        return maxSeasonPoints;
       case "MULTI_SEASON_PLAYS":   return seasonsPlayed;
       case "SEASON_CHAMPION_COUNT":return seasonsWon;
-      case "SEASON_POINTS_LEADER": return seasonsWon > 0 ? 1 : 0;
-      default:                     return 0;
+      case "SEASON_POINTS_LEADER":          return seasonsWon > 0 ? 1 : 0;
+      case "CRICKET_WINS":                  return cricketWins;
+      case "WINS_301":                      return wins301;
+      case "WINS_501":                      return wins501;
+      case "TREBLE_WINS":                   return trebleWins;
+      case "UNIQUE_FORMATS_WON":            return uniqueFormatsWon;
+      case "UNIQUE_OPPONENTS_BEATEN":       return uniqueOppBeaten;
+      case "RIVALRY_MATCH_COUNT":           return maxRivalryMatches;
+      case "SEASON_WINS_JUNE":              return juneWins;
+      case "ALL_IN_WINS":                   return allInWins;
+      case "TOP3_SEASON_FINISHES":          return top3Finishes;
+      case "SEASON_UNBEATEN_COUNT":         return unbeatenSeasons;
+      case "CONSECUTIVE_TITLES":            return consecTitles;
+      case "SEASON_1_PLAYED":               return playedSeason1;
+      case "SAME_DAY_WINS":                 return maxSameDayWins;
+      case "SAME_WEEK_WINS":                return maxSameWeekWins;
+      case "CONSECUTIVE_HIGH_STAKE_WINS":   return maxConsecHigh;
+      case "FIRST_MATCH_SEASON_WIN":        return 0;
+      default:                              return 0;
     }
   }
 
