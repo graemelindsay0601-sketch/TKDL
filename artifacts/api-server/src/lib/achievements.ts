@@ -297,7 +297,6 @@ export async function retroactiveSweep(): Promise<{ granted: number; playersChec
       if (s.points > 0 && games >= 10) await grantIfNotHas(pid, "ROCK_SOLID");
       if (s.points > 0 && games >= 15) await grantIfNotHas(pid, "IRON_WALL");
       if (s.points > 0 && games >= 20) await grantIfNotHas(pid, "FORTRESS");
-      if (s.status === "ELIMINATED")   await grantIfNotHas(pid, "FROZEN_OUT");
     }
 
     const champSeasons = standings.filter(s => s.isChampion);
