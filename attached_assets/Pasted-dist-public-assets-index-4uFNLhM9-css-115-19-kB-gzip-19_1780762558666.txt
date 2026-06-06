@@ -1,0 +1,63 @@
+dist/public/assets/index-4uFNLhM9.css  115.19 kB │ gzip:  19.77 kB
+dist/public/assets/index-oCEJA_jq.js   638.55 kB │ gzip: 186.19 kB
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 4.76s
+> @workspace/api-server@0.0.0 build /opt/render/project/src/artifacts/api-server
+> node ./build.mjs
+  dist/index.mjs                       2.3mb ⚠️
+  dist/pino-worker.mjs               153.4kb
+  dist/pino-file.mjs                 142.1kb
+  dist/pino-pretty.mjs               114.6kb
+  dist/thread-stream-worker.mjs        7.3kb
+  dist/index.mjs.map                   3.9mb
+  dist/pino-worker.mjs.map           256.9kb
+  dist/pino-file.mjs.map             229.0kb
+  dist/pino-pretty.mjs.map           204.0kb
+  dist/thread-stream-worker.mjs.map   12.0kb
+⚡ Done in 411ms
+==> Uploading build...
+==> Uploaded in 3.7s. Compression took 4.8s
+==> Build successful 🎉
+==> Deploying...
+==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+==> Running 'node artifacts/api-server/dist/index.mjs'
+file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:19941
+              throw new PathError(`Missing parameter name at index ${index}`, str);
+                    ^
+PathError [TypeError]: Missing parameter name at index 1: *; visit https://git.new/pathToRegexpError for info
+    at consumeUntil (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:19941:21)
+    at parse3 (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:19966:28)
+    at process2 (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:20077:58)
+    at pathToRegexp (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:20088:7)
+    at Object.match (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:20042:32)
+    at matcher (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:20271:27)
+    at new Layer (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:20278:68)
+    at Function.route (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:20703:21)
+    at Function.route (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:21012:26)
+    at app2.<computed> [as get] (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:21075:26) {
+  originalPath: '*'
+}
+Node.js v20.20.2
+==> Exited with status 1
+==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
+==> Running 'node artifacts/api-server/dist/index.mjs'
+file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:19941
+              throw new PathError(`Missing parameter name at index ${index}`, str);
+                    ^
+PathError [TypeError]: Missing parameter name at index 1: *; visit https://git.new/pathToRegexpError for info
+    at consumeUntil (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:19941:21)
+    at parse3 (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:19966:28)
+    at process2 (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:20077:58)
+    at pathToRegexp (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:20088:7)
+    at Object.match (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:20042:32)
+    at matcher (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:20271:27)
+    at new Layer (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:20278:68)
+    at Function.route (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:20703:21)
+    at Function.route (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:21012:26)
+    at app2.<computed> [as get] (file:///opt/render/project/src/artifacts/api-server/dist/index.mjs:21075:26) {
+  originalPath: '*'
+}
+Node.js v20.20.2
