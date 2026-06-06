@@ -29,7 +29,7 @@ app.use("/api", router);
 // In production, serve the built frontend and handle client-side routing
 if (process.env.NODE_ENV === "production") {
   const frontendDist = process.env.FRONTEND_DIST
-    ?? path.resolve(process.cwd(), "artifacts/tkdl/dist");
+    ?? path.resolve(process.cwd(), "artifacts/tkdl/dist/public");
   app.use(express.static(frontendDist));
   app.get("*", (_req, res) => {
     res.sendFile(path.join(frontendDist, "index.html"));
