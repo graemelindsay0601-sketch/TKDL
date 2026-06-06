@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard } from "lucide-react";
-import { ReactNode } from "react";
-import { useGetStatsSummary } from "@workspace/api-client-react";
+import { ReactNode, useEffect, useState } from "react";
+import { useGetStatsSummary, useGetRecentActivity, useGetLeaderboard } from "@workspace/api-client-react";
 
 const navItems = [
   { href: "/",             label: "Dashboard",    icon: LayoutDashboard },
@@ -12,6 +12,66 @@ const navItems = [
   { href: "/achievements", label: "Achievements", icon: Medal           },
   { href: "/admin",        label: "Admin",        icon: Shield          },
 ];
+
+type TickerEntry = { text: string; cls?: string };
+
+function LiveTicker() {
+  const { data: summary }     = useGetStatsSummary();
+  const { data: leaderboard } = useGetLeaderboard();
+  const { data: recent }      = useGetRecentActivity();
+  const [items, setItems]     = useState<TickerEntry[]>([]);
+
+  useEffect(() => {
+    const entries: TickerEntry[] = [];
+
+    if (summary?.currentSeasonName) {
+      entries.push({ text: `⚡ ${summary.currentSeasonName.toUpperCase()}`, cls: "accent-red" });
+      entries.push({ text: `● SEASON LIVE`, cls: "accent-red" });
+    }
+
+    const top3 = leaderboard?.filter(e => e.status !== "ELIMINATED").slice(0, 3) ?? [];
+    const medals = ["🥇", "🥈", "🥉"];
+    top3.forEach((p, i) => {
+      entries.push({ text: `${medals[i]} ${p.playerName.toUpperCase()} · ${p.points}pts`, cls: i === 0 ? "accent-gold" : undefined });
+    });
+
+    if (summary?.activePlayers) {
+      entries.push({ text: `${summary.activePlayers} ACTIVE PLAYERS`, cls: "accent-blue" });
+    }
+
+    recent?.slice(0, 10).forEach((m: any) => {
+      const stake = m.stake ? ` ±${m.stake}pts` : "";
+      entries.push({ text: `${m.winnerName.toUpperCase()} def. ${m.loserName}${stake}` });
+    });
+
+    if (entries.length > 0) setItems(entries);
+  }, [summary, leaderboard, recent]);
+
+  if (items.length === 0) return null;
+
+  // Double for seamless infinite loop
+  const doubled = [...items, ...items];
+  const duration = Math.max(30, items.length * 4);
+
+  return (
+    <div className="ticker-bar">
+      <div className="ticker-label">LIVE</div>
+      <div className="ticker-scroll-wrap">
+        <div
+          className="ticker-track"
+          style={{ "--ticker-duration": `${duration}s` } as React.CSSProperties}
+        >
+          {doubled.map((item, i) => (
+            <span key={i} className={`ticker-item ${item.cls ?? ""}`}>
+              {item.text}
+              <span className="ticker-sep">◆</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
@@ -143,12 +203,15 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto" style={{ position: "relative", zIndex: 1 }}>
+      {/* Main content — pb-10 to clear the ticker */}
+      <main className="flex-1 overflow-y-auto pb-10" style={{ position: "relative", zIndex: 1 }}>
         <div className="max-w-5xl mx-auto p-6 lg:p-8">
           {children}
         </div>
       </main>
+
+      {/* Live scrolling ticker */}
+      <LiveTicker />
     </div>
   );
 }
