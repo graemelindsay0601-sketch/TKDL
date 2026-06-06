@@ -281,9 +281,6 @@ async function seedGameTypes() {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
-  const existing = await db.select().from(gameTypesTable);
-  if (existing.length > 0) return;
-
   type GT = typeof gameTypesTable.$inferInsert;
   const defaults: GT[] = [
     // ── Competitive — X01 ──────────────────────────────────────────────────
@@ -312,10 +309,35 @@ async function seedGameTypes() {
     { key: "nearest_bull",         name: "Nearest the Bull",         engine: "NearestBull", category: "party",       description: "Each player throws 3 darts. Closest to bull wins the round.",             config: JSON.stringify({ dartsEach: 3, rounds: 1 }),                                                              enabled: true, sortOrder: 21 },
     { key: "pick_a_double",        name: "Pick a Double",            engine: "Custom",      category: "party",       description: "TKDL custom: must call your double before throwing.",                      config: JSON.stringify({ callDouble: true }),                                                                     enabled: true, sortOrder: 22 },
     { key: "double_or_nothing",    name: "Double or Nothing",        engine: "X01",         category: "party",       description: "Play 301. If you miss your out-shot, the stake doubles.",                  config: JSON.stringify({ startingScore: 301, doubleOut: true, stakeDoubles: true }),                             enabled: true, sortOrder: 23 },
+
+    // ── Competitive — Legs formats ───────────────────────────────────────────
+    { key: "501_bo3",              name: "501 – Best of 3 Legs",     engine: "X01",         category: "competitive", description: "First to win 2 legs. PDC World Championship format.",                      config: JSON.stringify({ startingScore: 501, doubleIn: false, doubleOut: true, legs: 3 }),                       enabled: true, sortOrder: 24 },
+    { key: "501_bo5",              name: "501 – Best of 5 Legs",     engine: "X01",         category: "competitive", description: "First to win 3 legs. Grand Prix / Matchplay format.",                      config: JSON.stringify({ startingScore: 501, doubleIn: false, doubleOut: true, legs: 5 }),                       enabled: true, sortOrder: 25 },
+    { key: "501_bo7",              name: "501 – Best of 7 Legs",     engine: "X01",         category: "competitive", description: "First to win 4 legs. Players Championship format.",                        config: JSON.stringify({ startingScore: 501, doubleIn: false, doubleOut: true, legs: 7 }),                       enabled: true, sortOrder: 26 },
+    { key: "301_bo3",              name: "301 – Best of 3 Legs",     engine: "X01",         category: "competitive", description: "Shorter game, first to 2 legs, double out.",                               config: JSON.stringify({ startingScore: 301, doubleIn: false, doubleOut: true, legs: 3 }),                       enabled: true, sortOrder: 27 },
+    { key: "701_double_out",       name: "701 – Double Out",         engine: "X01",         category: "competitive", description: "Marathon singles format. Must finish on a double.",                         config: JSON.stringify({ startingScore: 701, doubleIn: false, doubleOut: true }),                               enabled: true, sortOrder: 28 },
+
+    // ── Practice ─────────────────────────────────────────────────────────────
+    { key: "bobs_27",              name: "Bob's 27",                 engine: "HalveIt",     category: "practice",    description: "Start with 27 points. Hit each double in order (1–20). Miss = subtract that double's value. Highest score wins.", config: JSON.stringify({ startingScore: 27, targets: "doubles", sequence: "1-20" }),                             enabled: true, sortOrder: 29 },
+    { key: "bermuda_triangle",     name: "Bermuda Triangle",         engine: "Sequence",    category: "practice",    description: "Hit 12, 13, 14, Double Bull, 15, 16, 17, Triple Bull, 18, 19, 20, Bull in order. Miss costs you all darts that round.", config: JSON.stringify({ sequence: [12,13,14,"DB",15,16,17,"TB",18,19,20,"Bull"] }),                              enabled: true, sortOrder: 30 },
+    { key: "round_the_board",      name: "Round the Board",          engine: "Sequence",    category: "practice",    description: "Hit 1 through 20 in order, then back from 20 to 1. First to finish wins.",  config: JSON.stringify({ sequence: "1-20-1", direction: "both" }),                                               enabled: true, sortOrder: 31 },
+    { key: "high_score",           name: "High Score",               engine: "CountUp",     category: "practice",    description: "Each player throws 3 rounds of 3 darts. Most cumulative points wins.",      config: JSON.stringify({ rounds: 3, dartsPerRound: 3 }),                                                          enabled: true, sortOrder: 32 },
+    { key: "doubles_challenge",    name: "Doubles Challenge",        engine: "Sequence",    category: "practice",    description: "Hit all 20 doubles in order then finish on double bull. Times each player.", config: JSON.stringify({ sequence: "doubles1-20+bull" }),                                                        enabled: true, sortOrder: 33 },
+
+    // ── Party / Fun ─────────────────────────────────────────────────────────
+    { key: "baseball",             name: "Baseball",                 engine: "Custom",      category: "party",       description: "9 innings. Each inning hit that inning's number — singles=1 run, doubles=2, trebles=3. Most runs wins.", config: JSON.stringify({ innings: 9, scoreDoubles: 2, scoreTrebles: 3 }),                                         enabled: true, sortOrder: 34 },
+    { key: "scram",                name: "Scram",                    engine: "Custom",      category: "party",       description: "Two phases: Stopper closes numbers 20 down to 1. Scorer scores on open numbers. Swap halfway. Highest scorer wins.", config: JSON.stringify({ numbers: "20-1", phases: 2 }),                                                        enabled: true, sortOrder: 35 },
+    { key: "legs",                 name: "Legs",                     engine: "Custom",      category: "party",       description: "Winner of each leg picks the starting score for the next leg (101–501). First to 3 legs wins.",  config: JSON.stringify({ minScore: 101, maxScore: 501, legsToWin: 3 }),                                          enabled: true, sortOrder: 36 },
+    { key: "sudden_death",         name: "Sudden Death 501",         engine: "X01",         category: "party",       description: "Standard 501. Bust and you're reset to 50. No second chances.",             config: JSON.stringify({ startingScore: 501, doubleOut: false, bustResetTo: 50 }),                               enabled: true, sortOrder: 37 },
+    { key: "football_darts",       name: "Football Darts",           engine: "Custom",      category: "party",       description: "TKDL custom: score 'goals' by hitting doubles. First to 5 goals wins. Hit a single = possession.", config: JSON.stringify({ goalsToWin: 5, goalZone: "doubles", possession: "singles" }),                            enabled: true, sortOrder: 38 },
+    { key: "pairs_501",            name: "Pairs 501 (Teams)",        engine: "X01",         category: "party",       description: "2v2 team format. Teammates alternate throws. Double out. First team to 0 wins.", config: JSON.stringify({ startingScore: 501, doubleOut: true, teams: 2, playersPerTeam: 2 }),                   enabled: true, sortOrder: 39 },
+    { key: "shanghai",             name: "Shanghai (Sudden Death)",  engine: "Custom",      category: "party",       description: "7 rounds hitting 1 through 7. Hit a Shanghai (single+double+treble in one round) and you instantly win.", config: JSON.stringify({ rounds: 7, shanghaiWin: true }),                                                        enabled: true, sortOrder: 40 },
   ];
 
-  await db.insert(gameTypesTable).values(defaults);
-  logger.info(`Seeded ${defaults.length} default game types`);
+  await db.insert(gameTypesTable)
+    .values(defaults)
+    .onConflictDoNothing();
+  logger.info(`Seeded game types (${defaults.length} total, skipping existing)`);
 }
 
 async function init() {
