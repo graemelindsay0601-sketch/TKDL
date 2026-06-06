@@ -13,15 +13,162 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { TierBadge } from "@/components/tier-badge";
 import { Link } from "wouter";
-import { Plus, Skull, Flame } from "lucide-react";
+import { Plus, Skull, Flame, Target } from "lucide-react";
 import { useState } from "react";
 
 const formSchema = z.object({
   name:     z.string().min(1, "Name is required"),
   nickname: z.string().optional(),
 });
+
+function tierConfig(tier: string) {
+  if (tier === "Diamond")  return { gradient: "linear-gradient(135deg, #0a1628 0%, #0d2a5e 50%, #0066ff 100%)", glow: "rgba(0,102,255,0.6)",  ring: "#0066ff", color: "#4da6ff" };
+  if (tier === "Platinum") return { gradient: "linear-gradient(135deg, #1a1a2e 0%, #2d2d5e 50%, #7b68ee 100%)", glow: "rgba(123,104,238,0.6)", ring: "#7b68ee", color: "#b8a9ff" };
+  if (tier === "Gold")     return { gradient: "linear-gradient(135deg, #1a1200 0%, #3d2e00 50%, #ff9900 100%)", glow: "rgba(255,210,74,0.7)",  ring: "#ffd24a", color: "#ffd24a" };
+  if (tier === "Silver")   return { gradient: "linear-gradient(135deg, #0d0d14 0%, #1a1a2e 50%, #2a3a5e 100%)", glow: "rgba(192,200,216,0.5)", ring: "#c0c8d8", color: "#c0c8d8" };
+  return                           { gradient: "linear-gradient(135deg, #1a0800 0%, #2e1500 50%, #7a3b00 100%)", glow: "rgba(205,127,50,0.5)",  ring: "#cd7f32", color: "#e8a050" };
+}
+
+function PlayerCard({ player }: { player: any }) {
+  const isElim = player.status === "ELIMINATED";
+  const tier   = (player as any).tier || (player.elo >= 1250 ? "Diamond" : player.elo >= 1100 ? "Gold" : player.elo >= 980 ? "Silver" : "Bronze");
+  const cfg    = tierConfig(tier);
+  const streak = player.currentWinStreak ?? 0;
+  const pts    = isElim ? 0 : (player.points ?? 25);
+
+  return (
+    <Link href={`/players/${player.id}`}>
+      <div
+        className="group relative overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1"
+        style={{
+          borderRadius: "6px",
+          border: isElim ? "1px solid rgba(255,0,92,0.25)" : `1px solid ${cfg.ring}33`,
+          boxShadow: isElim
+            ? "0 0 20px rgba(255,0,92,0.12)"
+            : `0 0 0 transparent`,
+          background: "#0c0c14",
+        }}
+      >
+        {/* Hover glow overlay */}
+        <div
+          className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+          style={{ boxShadow: `inset 0 0 30px ${isElim ? "rgba(255,0,92,0.1)" : cfg.glow + "22"}`, borderRadius: "6px" }}
+        />
+
+        {/* Header banner */}
+        <div
+          className="relative flex items-center justify-between px-4 py-3"
+          style={{
+            background: isElim
+              ? "linear-gradient(135deg, #1a0000 0%, #2d0010 50%, #4a0020 100%)"
+              : cfg.gradient,
+            borderBottom: `1px solid ${isElim ? "rgba(255,0,92,0.2)" : cfg.ring + "44"}`,
+          }}
+        >
+          {/* Large initials */}
+          <div
+            className="text-3xl font-black uppercase tracking-tighter leading-none"
+            style={{
+              fontFamily: "Oswald, sans-serif",
+              color: isElim ? "rgba(255,0,92,0.7)" : cfg.color,
+              textShadow: `0 0 20px ${isElim ? "rgba(255,0,92,0.6)" : cfg.glow}`,
+              letterSpacing: "-0.04em",
+            }}
+          >
+            {isElim ? "☠" : player.name.substring(0, 2).toUpperCase()}
+          </div>
+
+          {/* Tier badge */}
+          <div
+            className="text-xs font-bold uppercase tracking-widest px-2 py-1"
+            style={{
+              fontFamily: "Oswald, sans-serif",
+              color: isElim ? "#ff005c" : cfg.color,
+              background: isElim ? "rgba(255,0,92,0.15)" : `${cfg.ring}22`,
+              border: `1px solid ${isElim ? "rgba(255,0,92,0.3)" : cfg.ring + "55"}`,
+              borderRadius: "2px",
+              fontSize: "0.6rem",
+              letterSpacing: "0.14em",
+            }}
+          >
+            {isElim ? "ELIMINATED" : tier.toUpperCase()}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="px-4 py-3">
+          {/* Name */}
+          <div
+            className="font-bold text-lg uppercase leading-tight mb-0.5"
+            style={{
+              fontFamily: "Oswald, sans-serif",
+              color: isElim ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.92)",
+              letterSpacing: "0.04em",
+            }}
+          >
+            {player.name}
+          </div>
+          {(player as any).nickname && (
+            <div className="text-xs mb-2.5" style={{ color: isElim ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.32)", fontStyle: "italic" }}>
+              "{(player as any).nickname}"
+            </div>
+          )}
+
+          {/* Points – big number */}
+          {!isElim && (
+            <div className="flex items-baseline gap-1.5 mb-3 mt-1">
+              <span
+                className="text-3xl font-black leading-none tabular-nums"
+                style={{
+                  fontFamily: "Oswald, sans-serif",
+                  color: cfg.color,
+                  textShadow: `0 0 16px ${cfg.glow}`,
+                }}
+              >
+                {pts}
+              </span>
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>pts</span>
+            </div>
+          )}
+
+          {/* Divider */}
+          <div style={{ height: "1px", background: isElim ? "rgba(255,0,92,0.1)" : "rgba(255,255,255,0.06)", marginBottom: "10px" }} />
+
+          {/* Stats row */}
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-3">
+              <span style={{ color: "#22c55e", fontFamily: "Oswald, sans-serif", fontWeight: 700 }}>
+                {player.seasonWins ?? 0}W
+              </span>
+              <span style={{ color: "rgba(255,255,255,0.15)" }}>·</span>
+              <span style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif", fontWeight: 700 }}>
+                {player.seasonLosses ?? 0}L
+              </span>
+            </div>
+            <span className="font-mono font-bold tabular-nums" style={{ color: "#0066ff", fontSize: "0.7rem" }}>
+              {player.elo} Elo
+            </span>
+          </div>
+
+          {/* Streak */}
+          {streak >= 3 && (
+            <div className="flex items-center gap-1.5 mt-2.5 text-xs font-bold" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+              <Flame className="w-3 h-3 streak-fire" />
+              {streak}W STREAK
+            </div>
+          )}
+        </div>
+
+        {/* Left edge accent */}
+        <div
+          className="absolute left-0 top-0 bottom-0 w-0.5"
+          style={{ background: isElim ? "rgba(255,0,92,0.5)" : cfg.ring, opacity: 0.7 }}
+        />
+      </div>
+    </Link>
+  );
+}
 
 export default function Players() {
   const { data: players, isLoading } = useListPlayers();
@@ -66,7 +213,9 @@ export default function Players() {
             Player Registry
           </h1>
           <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
-            {active.length} active · {eliminated.length > 0 ? `${eliminated.length} eliminated · ` : ""}{inactive.length} inactive
+            {active.length} active
+            {eliminated.length > 0 ? ` · ${eliminated.length} eliminated` : ""}
+            {inactive.length > 0 ? ` · ${inactive.length} inactive` : ""}
           </p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -79,9 +228,7 @@ export default function Players() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Register New Player</DialogTitle>
-              <DialogDescription>
-                New players start with 25 points and Silver Elo (1000).
-              </DialogDescription>
+              <DialogDescription>New players start with 25 points and Silver Elo (1000).</DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -114,80 +261,28 @@ export default function Players() {
           <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {/* Active players */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {active.map(player => (
-              <Link key={player.id} href={`/players/${player.id}`}>
-                <div className="pdc-card p-4 cursor-pointer transition-all hover:border-white/15 hover:-translate-y-0.5">
-                  {/* Avatar + tier */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div
-                      className="w-10 h-10 rounded flex items-center justify-center text-lg font-black uppercase"
-                      style={{ background: "rgba(255,0,92,0.1)", color: "#ff005c", fontFamily: "Oswald, sans-serif" }}
-                    >
-                      {player.name.substring(0, 2)}
-                    </div>
-                    <TierBadge tier={(player as any).tier || (player.elo >= 1100 ? "Gold" : player.elo >= 980 ? "Silver" : "Bronze")} />
-                  </div>
-
-                  {/* Name */}
-                  <div className="font-bold text-base leading-tight mb-0.5" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)" }}>
-                    {player.name}
-                  </div>
-                  {(player as any).nickname && (
-                    <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontStyle: "italic" }}>
-                      "{(player as any).nickname}"
-                    </div>
-                  )}
-
-                  {/* Stats row */}
-                  <div className="grid grid-cols-3 gap-2 mt-3">
-                    <div className="text-center">
-                      <div className="text-xs uppercase tracking-wider mb-0.5" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem", fontFamily: "Oswald, sans-serif" }}>Pts</div>
-                      <div className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c" }}>{player.points}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs uppercase tracking-wider mb-0.5" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem", fontFamily: "Oswald, sans-serif" }}>Elo</div>
-                      <div className="font-bold text-sm font-mono" style={{ color: "#0066ff" }}>{player.elo}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs uppercase tracking-wider mb-0.5" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem", fontFamily: "Oswald, sans-serif" }}>W-L</div>
-                      <div className="font-bold text-sm font-mono" style={{ color: "rgba(255,255,255,0.6)" }}>
-                        <span style={{ color: "#22c55e" }}>{player.seasonWins ?? 0}</span>
-                        <span style={{ color: "rgba(255,255,255,0.2)" }}>-</span>
-                        <span style={{ color: "#ff005c" }}>{player.seasonLosses ?? 0}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {(player.currentWinStreak ?? 0) >= 3 && (
-                    <div className="flex items-center gap-1 mt-2 text-xs font-bold" style={{ color: "#ff005c" }}>
-                      <Flame className="w-3 h-3" /> {player.currentWinStreak}W streak
-                    </div>
-                  )}
-                </div>
-              </Link>
+            {active.map((player, i) => (
+              <div key={player.id} className="fade-in-up" style={{ animationDelay: `${i * 40}ms` }}>
+                <PlayerCard player={player} />
+              </div>
             ))}
           </div>
 
           {/* Eliminated */}
           {eliminated.length > 0 && (
             <div>
-              <h2 className="text-xs uppercase tracking-widest mb-3 flex items-center gap-2 font-bold" style={{ color: "rgba(255,0,92,0.6)", fontFamily: "Oswald, sans-serif" }}>
-                <Skull className="w-3 h-3" /> Eliminated
+              <h2 className="text-xs uppercase tracking-widest mb-3 flex items-center gap-2 font-bold" style={{ color: "rgba(255,0,92,0.7)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.15em" }}>
+                <Skull className="w-3 h-3" style={{ filter: "drop-shadow(0 0 4px rgba(255,0,92,0.6))" }} />
+                Eliminated
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {eliminated.map(player => (
-                  <Link key={player.id} href={`/players/${player.id}`}>
-                    <div className="pdc-card p-3 cursor-pointer opacity-50 hover:opacity-70 transition-opacity" style={{ borderColor: "rgba(255,0,92,0.1)" }}>
-                      <div className="flex items-center gap-2">
-                        <span style={{ color: "#ff005c" }}>☠</span>
-                        <div className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>{player.name}</div>
-                      </div>
-                      <div className="text-xs mt-1" style={{ color: "rgba(255,0,92,0.5)" }}>0 pts · Eliminated</div>
-                    </div>
-                  </Link>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
+                {eliminated.map((player, i) => (
+                  <div key={player.id} className="fade-in-up" style={{ animationDelay: `${i * 30}ms` }}>
+                    <PlayerCard player={player} />
+                  </div>
                 ))}
               </div>
             </div>
@@ -197,13 +292,14 @@ export default function Players() {
           {inactive.length > 0 && (
             <div>
               <h2 className="text-xs uppercase tracking-widest mb-3 font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
+                <Target className="w-3 h-3 inline mr-2 opacity-50" />
                 Inactive / Departed
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {inactive.map(player => (
                   <Link key={player.id} href={`/players/${player.id}`}>
-                    <div className="pdc-card p-3 cursor-pointer opacity-35 hover:opacity-50 transition-opacity">
-                      <div className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.6)" }}>{player.name}</div>
+                    <div className="pdc-card p-3 cursor-pointer opacity-30 hover:opacity-50 transition-opacity">
+                      <div className="font-bold text-sm uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.6)" }}>{player.name}</div>
                       <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>Inactive</div>
                     </div>
                   </Link>
