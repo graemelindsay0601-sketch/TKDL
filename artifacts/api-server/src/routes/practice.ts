@@ -84,9 +84,53 @@ router.get("/players/:id/practice-stats", async (req, res): Promise<void> => {
       LIMIT 1
     `)).rows;
 
+    // Visit-level stats from dart logs (X01 sessions only)
+    // Groups every 3 darts into a visit and buckets the visit score
+    const [visitStats] = (await db.execute(sql`
+      WITH session_darts AS (
+        SELECT
+          ps.id                                           AS session_id,
+          (dart->>'val')::int                             AS val,
+          dart->>'phase'                                  AS phase,
+          ordinality                                      AS dart_pos
+        FROM practice_sessions ps,
+             jsonb_array_elements(ps.session_data->'dartLog') WITH ORDINALITY AS t(dart, ordinality)
+        WHERE ps.player1_id = ${playerId}
+          AND ps.session_data ? 'dartLog'
+          AND ps.game_type_key LIKE 'x01%'
+      ),
+      visit_scores AS (
+        SELECT
+          session_id,
+          CEIL(dart_pos::numeric / 3)::int   AS visit_num,
+          SUM(val)                            AS visit_score
+        FROM session_darts
+        WHERE phase = 'scoring'
+        GROUP BY session_id, CEIL(dart_pos::numeric / 3)::int
+      ),
+      first9 AS (
+        SELECT ROUND(AVG(visit_score)::numeric, 1) AS first9_avg
+        FROM visit_scores
+        WHERE visit_num <= 3
+      )
+      SELECT
+        COUNT(CASE WHEN vs.visit_score = 180 THEN 1 END)::int                      AS v180,
+        COUNT(CASE WHEN vs.visit_score >= 140 AND vs.visit_score < 180 THEN 1 END)::int AS v140,
+        COUNT(CASE WHEN vs.visit_score >= 100 AND vs.visit_score < 140 THEN 1 END)::int AS v100,
+        COUNT(CASE WHEN vs.visit_score >= 60  AND vs.visit_score < 100 THEN 1 END)::int AS v60,
+        COUNT(CASE WHEN vs.visit_score >= 40  AND vs.visit_score < 60  THEN 1 END)::int AS v40,
+        COUNT(CASE WHEN vs.visit_score >= 1   AND vs.visit_score < 40  THEN 1 END)::int AS v_low,
+        COUNT(CASE WHEN vs.visit_score = 0 THEN 1 END)::int                        AS v_zero,
+        MAX(vs.visit_score)::int                                                    AS best_visit,
+        COUNT(*)::int                                                               AS total_visits,
+        MAX(f.first9_avg)                                                           AS first9_avg
+      FROM visit_scores vs, first9 f
+    `)).rows;
+
     res.json({
       ...agg,
       best_session_avg: best?.session_avg ?? null,
+      visit_stats: visitStats ?? null,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get player practice stats");

@@ -574,25 +574,92 @@ export default function PlayerDetail() {
         {/* Aggregate summary */}
         {practiceAgg && Number(practiceAgg.total_sessions) > 0 ? (
           <>
-            <div className="grid grid-cols-4 divide-x divide-white/[0.07]" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+            {/* ── Row 1: core averages ── */}
+            <div className="grid grid-cols-3 divide-x divide-white/[0.07]" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
               {[
-                { label: "Sessions", value: practiceAgg.total_sessions ?? 0, color: "rgba(255,255,255,0.7)", fmt: (v: number) => String(v) },
-                { label: "3-Dart Avg", value: practiceAgg.avg_three_dart, color: "#a78bfa", fmt: (v: number | null) => v != null ? Number(v).toFixed(1) : "—" },
-                { label: "180s", value: practiceAgg.total_180s ?? 0, color: "#ffd24a", fmt: (v: number) => String(v) },
-                { label: "Checkout %", value: (practiceAgg.total_co_attempts > 0 ? Math.round((practiceAgg.total_co_hits / practiceAgg.total_co_attempts) * 100) : null), color: "#22c55e", fmt: (v: number | null) => v != null ? `${v}%` : "—" },
+                { label: "3-Dart Avg",  value: practiceAgg.avg_three_dart,   color: "#a78bfa", fmt: (v: number|null) => v != null ? Number(v).toFixed(1) : "—" },
+                { label: "Best Session Avg", value: practiceAgg.best_session_avg, color: "#c4b5fd", fmt: (v: number|null) => v != null ? Number(v).toFixed(1) : "—" },
+                { label: "First 9 Avg", value: practiceAgg.visit_stats?.first9_avg, color: "#818cf8", fmt: (v: number|null) => v != null ? Number(v).toFixed(1) : "—" },
               ].map(({ label, value, color, fmt }) => (
-                <div key={label} className="px-3 py-4 text-center" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-                  <div className="text-xl font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color }}>
+                <div key={label} className="px-3 py-3 text-center">
+                  <div className="text-2xl font-black tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", color }}>
                     {fmt(value as any)}
                   </div>
-                  <div className="text-xs mt-0.5 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem" }}>
+                  <div className="text-xs mt-1 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "0.52rem" }}>
                     {label}
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Recent sessions list */}
+            {/* ── Row 2: key counts ── */}
+            <div className="grid grid-cols-5 divide-x divide-white/[0.07]" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+              {[
+                { label: "Sessions",     value: practiceAgg.total_sessions ?? 0,   color: "rgba(255,255,255,0.6)", fmt: (v: number) => String(v) },
+                { label: "180s",         value: practiceAgg.total_180s ?? 0,        color: "#ffd24a",              fmt: (v: number) => String(v) },
+                { label: "140+",         value: practiceAgg.visit_stats?.v140 ?? 0, color: "#f97316",              fmt: (v: number) => String(v) },
+                { label: "100+",         value: practiceAgg.visit_stats?.v100 ?? 0, color: "#fb923c",              fmt: (v: number) => String(v) },
+                { label: "Checkout %",   value: practiceAgg.total_co_attempts > 0 ? Math.round((practiceAgg.total_co_hits / practiceAgg.total_co_attempts) * 100) : null, color: "#22c55e", fmt: (v: number|null) => v != null ? `${v}%` : "—" },
+              ].map(({ label, value, color, fmt }) => (
+                <div key={label} className="px-2 py-3 text-center">
+                  <div className="text-lg font-black tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", color }}>
+                    {fmt(value as any)}
+                  </div>
+                  <div className="text-xs mt-1 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "0.5rem" }}>
+                    {label}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Visit Score Distribution ── */}
+            {practiceAgg.visit_stats && Number(practiceAgg.visit_stats.total_visits) > 0 && (() => {
+              const vs = practiceAgg.visit_stats;
+              const total = Number(vs.total_visits);
+              const buckets = [
+                { label: "180",    val: Number(vs.v180 ?? 0),  color: "#ffd24a" },
+                { label: "140–179",val: Number(vs.v140 ?? 0),  color: "#f97316" },
+                { label: "100–139",val: Number(vs.v100 ?? 0),  color: "#fb923c" },
+                { label: "60–99",  val: Number(vs.v60  ?? 0),  color: "#a78bfa" },
+                { label: "40–59",  val: Number(vs.v40  ?? 0),  color: "rgba(167,139,250,0.45)" },
+                { label: "1–39",   val: Number(vs.v_low ?? 0), color: "rgba(255,255,255,0.2)" },
+                { label: "0",      val: Number(vs.v_zero ?? 0),color: "rgba(255,0,92,0.3)" },
+              ];
+              const maxVal = Math.max(...buckets.map(b => b.val), 1);
+              return (
+                <div className="border-t px-4 py-3" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", fontSize: "0.52rem" }}>
+                      Visit Score Distribution
+                    </span>
+                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>
+                      {total} visits · best {vs.best_visit ?? "—"}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {buckets.map(b => {
+                      const pct = total > 0 ? Math.round((b.val / total) * 100) : 0;
+                      const barW = Math.round((b.val / maxVal) * 100);
+                      return (
+                        <div key={b.label} className="flex items-center gap-2">
+                          <span className="text-xs font-bold shrink-0 text-right" style={{ width: 52, fontFamily: "Oswald, sans-serif", color: b.color, fontSize: "0.62rem" }}>
+                            {b.label}
+                          </span>
+                          <div className="flex-1 h-4 rounded overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
+                            <div className="h-full rounded transition-all" style={{ width: `${barW}%`, background: b.color, opacity: 0.85 }} />
+                          </div>
+                          <div className="shrink-0 flex gap-1.5 items-center" style={{ width: 52 }}>
+                            <span className="text-xs font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color: b.color, fontSize: "0.65rem" }}>{b.val}</span>
+                            <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>{pct}%</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* ── Dart Profile ────────────────────────────────────────────── */}
             {dartProfile && (dartProfile.hasEnoughData || (dartProfile.totalDarts > 0 && !dartProfile.hasEnoughData)) && (
               <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
