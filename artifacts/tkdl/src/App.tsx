@@ -14,6 +14,7 @@ import Seasons      from "@/pages/seasons";
 import SeasonDetail from "@/pages/season-detail";
 import Achievements from "@/pages/achievements";
 import Admin        from "@/pages/admin";
+import Rules        from "@/pages/rules";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -31,6 +32,7 @@ function AppRoutes() {
         <Route path="/seasons"       component={Seasons}     />
         <Route path="/seasons/:id"   component={SeasonDetail}/>
         <Route path="/achievements"  component={Achievements}/>
+        <Route path="/rules"         component={Rules}       />
         <Route path="/admin"         component={Admin}       />
         <Route component={NotFound} />
       </Switch>

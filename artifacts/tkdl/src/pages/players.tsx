@@ -14,8 +14,9 @@ import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Plus, Skull, Flame } from "lucide-react";
+import { Plus, Skull, Flame, Target } from "lucide-react";
 import { useState } from "react";
+import { TierBadge } from "@/components/tier-badge";
 
 const formSchema = z.object({
   name:     z.string().min(1, "Name is required"),
@@ -40,109 +41,102 @@ function PlayerCard({ player, leaderboardRank }: { player: any; leaderboardRank?
     : rank === 4 ? "pc-rank-5"
     : "";
 
-  const accentColor = isElim ? "#ff005c" : (RANK_COLORS[rank] ?? "rgba(255,255,255,0.6)");
+  const accentColor = isElim ? "#ff005c" : (RANK_COLORS[rank] ?? "rgba(255,255,255,0.55)");
+  const nameRepeat  = `${player.name.toUpperCase()}  ·  `.repeat(8);
 
   return (
     <Link href={`/players/${player.id}`}>
-      <div className={`player-glass-card ${rankCls} p-5`} style={{ minHeight: "200px" }}>
-        {/* Big background initial */}
-        <div
-          aria-hidden
-          style={{
+      <div className={`player-glass-card ${rankCls} p-5`} style={{ minHeight: "210px" }}>
+
+        {/* Scrolling name watermark */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none select-none" style={{ zIndex: 0 }}>
+          <div style={{
             position: "absolute",
-            right: "-8px",
-            bottom: "-32px",
+            top: "28%",
+            whiteSpace: "nowrap",
             fontFamily: "Oswald, sans-serif",
-            fontSize: "140px",
-            fontWeight: 800,
+            fontSize: "3rem",
+            fontWeight: 900,
+            color: accentColor,
+            letterSpacing: "0.08em",
+            opacity: isElim ? 0.04 : 0.06,
             lineHeight: 1,
-            color: "rgba(255,255,255,0.04)",
-            letterSpacing: "-4px",
-            pointerEvents: "none",
-            userSelect: "none",
-            zIndex: 0,
-          }}
-        >
-          {player.name.substring(0, 2).toUpperCase()}
+            animation: "player-name-scroll 18s linear infinite",
+            willChange: "transform",
+          }}>
+            {nameRepeat}
+          </div>
         </div>
 
-        {/* Rank badge */}
-        {rank < 5 && !isElim && (
-          <div
-            className="absolute top-4 right-4 text-xs font-black uppercase tracking-widest px-2 py-1"
-            style={{
-              fontFamily: "Oswald, sans-serif",
-              color: accentColor,
-              background: `${accentColor}18`,
-              border: `1px solid ${accentColor}44`,
-              borderRadius: "6px",
-              fontSize: "0.62rem",
-              letterSpacing: "0.14em",
-              zIndex: 2,
-            }}
-          >
-            #{rank + 1}
+        {/* Rank badge top-right */}
+        {!isElim && rank < 99 && (
+          <div className="absolute top-4 right-4 z-10">
+            <div className="flex items-center justify-center w-8 h-8 rounded-full font-black text-sm"
+              style={{
+                fontFamily: "Oswald, sans-serif",
+                background: `${accentColor}18`,
+                border: `1.5px solid ${accentColor}55`,
+                color: accentColor,
+                textShadow: `0 0 8px ${accentColor}88`,
+                fontSize: rank === 0 ? "0.9rem" : "0.8rem",
+              }}>
+              #{rank + 1}
+            </div>
           </div>
         )}
 
-        {/* Content */}
+        {/* Content layer */}
         <div style={{ position: "relative", zIndex: 2 }}>
-          {/* Initials avatar */}
-          <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black uppercase mb-3"
-            style={{
-              fontFamily: "Oswald, sans-serif",
-              background: isElim ? "rgba(255,0,92,0.12)" : `${accentColor}18`,
-              color: accentColor,
-              textShadow: `0 0 14px ${accentColor}`,
-              border: `1px solid ${accentColor}33`,
-            }}
-          >
-            {isElim ? "☠" : player.name.substring(0, 2).toUpperCase()}
+          {/* Target icon row */}
+          <div className="flex items-center gap-2 mb-3">
+            {isElim ? (
+              <span className="text-xl">☠</span>
+            ) : (
+              <div className="relative">
+                <Target className="w-5 h-5" style={{ color: accentColor, filter: `drop-shadow(0 0 6px ${accentColor}88)` }} />
+              </div>
+            )}
+            {streak >= 3 && !isElim && (
+              <div className="flex items-center gap-1 text-xs font-black" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+                <Flame className="w-3 h-3 streak-fire" />{streak}W
+              </div>
+            )}
           </div>
 
           {/* Name */}
-          <div
-            className="font-black uppercase leading-tight mb-0.5"
+          <div className="font-black uppercase leading-tight mb-0.5"
             style={{
-              fontFamily: "Oswald, sans-serif",
-              fontSize: "1.3rem",
-              letterSpacing: "0.04em",
-              color: isElim ? "rgba(255,100,100,0.7)" : "rgba(255,255,255,0.95)",
-              textShadow: isElim ? undefined : "0 0 12px rgba(255,255,255,0.12)",
-            }}
-          >
+              fontFamily: "Oswald, sans-serif", fontSize: "1.4rem", letterSpacing: "0.03em",
+              color: isElim ? "rgba(255,100,100,0.7)" : "rgba(255,255,255,0.96)",
+              textShadow: isElim ? undefined : `0 0 20px ${accentColor}33`,
+            }}>
             {player.name}
           </div>
+
           {(player as any).nickname && (
-            <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontStyle: "italic" }}>
+            <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.28)", fontStyle: "italic" }}>
               "{(player as any).nickname}"
             </div>
           )}
 
-          {/* Points */}
+          {/* Points + tier */}
           {!isElim && (
-            <div className="flex items-baseline gap-1.5 mt-2 mb-3">
-              <span
-                className="font-black tabular-nums"
-                style={{
-                  fontFamily: "Oswald, sans-serif",
-                  fontSize: "2.2rem",
-                  color: accentColor,
-                  textShadow: `0 0 20px ${accentColor}99`,
-                  lineHeight: 1,
-                }}
-              >
-                {pts}
-              </span>
-              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)" }}>pts</span>
+            <div className="flex items-end justify-between mt-2 mb-3">
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-black tabular-nums leading-none"
+                  style={{ fontFamily: "Oswald, sans-serif", fontSize: "2.4rem", color: accentColor, textShadow: `0 0 22px ${accentColor}88`, lineHeight: 1 }}>
+                  {pts}
+                </span>
+                <span className="text-xs font-bold uppercase tracking-widest mb-0.5" style={{ color: "rgba(255,255,255,0.22)" }}>pts</span>
+              </div>
+              <TierBadge tier={player.tier} />
             </div>
           )}
 
           {/* Divider */}
-          <div style={{ height: "1px", background: "rgba(255,255,255,0.07)", margin: "8px 0" }} />
+          <div style={{ height: "1px", background: `${accentColor}22`, margin: "8px 0" }} />
 
-          {/* Stats */}
+          {/* Stats row */}
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-3">
               <span style={{ color: "#22c55e", fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.8rem" }}>
@@ -153,18 +147,11 @@ function PlayerCard({ player, leaderboardRank }: { player: any; leaderboardRank?
                 {player.seasonLosses ?? 0}L
               </span>
             </div>
-            <span className="font-mono font-bold tabular-nums" style={{ color: "#0066ff", fontSize: "0.72rem", textShadow: "0 0 8px rgba(0,102,255,0.5)" }}>
+            <span className="font-mono font-bold tabular-nums"
+              style={{ color: "#0066ff", fontSize: "0.72rem", textShadow: "0 0 8px rgba(0,102,255,0.5)" }}>
               {player.elo} Elo
             </span>
           </div>
-
-          {/* Streak */}
-          {streak >= 3 && (
-            <div className="flex items-center gap-1.5 mt-2.5 text-xs font-black" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
-              <Flame className="w-3 h-3 streak-fire" />
-              {streak}W STREAK
-            </div>
-          )}
         </div>
       </div>
     </Link>
@@ -184,28 +171,24 @@ export default function Players() {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    createPlayerMutation.mutate(
-      { data: values },
-      {
-        onSuccess: (data: any) => {
-          toast({ title: "Player Registered", description: `${data.name} has joined the league.` });
-          form.reset();
-          setIsOpen(false);
-          queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
-        },
-        onError: (error: any) => {
-          toast({ title: "Error", description: error.message ?? "Failed.", variant: "destructive" });
-        },
-      }
-    );
+    createPlayerMutation.mutate({ data: values }, {
+      onSuccess: (data: any) => {
+        toast({ title: "Player Registered", description: `${data.name} has joined the league.` });
+        form.reset();
+        setIsOpen(false);
+        queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
+      },
+      onError: (error: any) => {
+        toast({ title: "Error", description: error.message ?? "Failed.", variant: "destructive" });
+      },
+    });
   }
 
   const active     = players?.filter(p => p.isActive && p.status !== "ELIMINATED") ?? [];
   const eliminated = players?.filter(p => p.isActive && p.status === "ELIMINATED") ?? [];
   const inactive   = players?.filter(p => !p.isActive) ?? [];
 
-  // Sort active by points descending for rank
   const activeSorted = [...active].sort((a, b) => (b.points ?? 25) - (a.points ?? 25));
   const rankMap = new Map(activeSorted.map((p, i) => [p.id, i]));
 
@@ -214,29 +197,24 @@ export default function Players() {
       <div className="pdc-divider" />
       <div className="flex items-end justify-between">
         <div>
-          <h1
-            className="uppercase font-black"
-            style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", letterSpacing: "0.04em", textShadow: "0 0 30px rgba(255,0,92,0.25)" }}
-          >
+          <h1 className="uppercase font-black"
+            style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", letterSpacing: "0.04em", textShadow: "0 0 30px rgba(255,0,92,0.2)" }}>
             Player Registry
           </h1>
           <p className="text-sm mt-1.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-            {active.length} active
-            {eliminated.length > 0 ? ` · ${eliminated.length} eliminated` : ""}
-            {inactive.length > 0 ? ` · ${inactive.length} inactive` : ""}
+            {active.length} active{eliminated.length > 0 ? ` · ${eliminated.length} eliminated` : ""}{inactive.length > 0 ? ` · ${inactive.length} inactive` : ""}
           </p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2 rounded-xl" style={{ background: "#ff005c", border: "none", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
-              <Plus className="h-4 w-4" />
-              Add Player
+              <Plus className="h-4 w-4" /> Add Player
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Register New Player</DialogTitle>
-              <DialogDescription>New players start with 25 points and Silver Elo (1000).</DialogDescription>
+              <DialogDescription>New players start with 25 points and Silver ELO (1000).</DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -266,20 +244,18 @@ export default function Players() {
 
       {isLoading ? (
         <div className="flex justify-center py-20">
-          <div className="w-10 h-10 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c", boxShadow: "0 0 20px rgba(255,0,92,0.3)" }} />
+          <div className="w-10 h-10 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
         </div>
       ) : (
         <div className="space-y-10">
-          {/* Active players grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {active.map((player, i) => (
+            {activeSorted.map((player, i) => (
               <div key={player.id} className="fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
                 <PlayerCard player={player} leaderboardRank={rankMap.get(player.id)} />
               </div>
             ))}
           </div>
 
-          {/* Eliminated */}
           {eliminated.length > 0 && (
             <div>
               <h2 className="text-sm uppercase tracking-widest mb-4 flex items-center gap-2 font-black"
@@ -297,7 +273,6 @@ export default function Players() {
             </div>
           )}
 
-          {/* Inactive */}
           {inactive.length > 0 && (
             <div>
               <h2 className="text-xs uppercase tracking-widest mb-3 font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
