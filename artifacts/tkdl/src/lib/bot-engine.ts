@@ -6,12 +6,29 @@ import type { Dart } from "./dartboard";
 
 export type BotLevel = "beginner" | "amateur" | "club" | "county" | "pro" | "elite";
 
+/** Per-dart profile computed from a real player's practice dart log. Once enough darts
+ *  are recorded (250+ combined practice + league), this unlocks a "Shadow" bot that
+ *  throws exactly like the real player — same primary target, same miss distribution,
+ *  same preferred doubles. Profile updates live as more sessions are played. */
+export type ShadowProfile = {
+  playerId: number;
+  playerName: string;
+  primarySeg: number;       // segment they aim at most in scoring phase (e.g. 20)
+  treblePct: number;        // fraction of throws at primary that land treble (0–1)
+  singlePct: number;        // fraction that land single at primary (0–1)
+  checkoutSegs: number[];   // preferred doubles in priority order (e.g. [16, 8, 4])
+  doubleHitPct: number;     // real double checkout hit rate from practice data (0–1)
+  computedAvg: number;      // 3-dart average computed from all practice sessions
+  totalDarts: number;       // total darts profiled (practice + estimated league)
+};
+
 /** Raw stats that drive every visit function. */
 export type BotConfig = {
   avg: number;
   sd: number;
   checkoutPct: number;
   hitAcc: number;
+  shadowProfile?: ShadowProfile; // when set, uses real player targeting instead of gaussian
 };
 
 export const BOT_LEVELS: Record<BotLevel, BotConfig & { label: string; color: string }> = {
@@ -356,6 +373,14 @@ function makeDart(seg: number, mult: 1 | 2 | 3): Dart {
 
 export const BOT_MISS: Dart = { segment: 0, multiplier: 1, value: 0, label: "Miss" };
 
+// Clockwise dartboard segment order — used to derive adjacent miss targets
+export const BOARD_ORDER = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+export function getAdjacentSegs(seg: number): [number, number] {
+  const i = BOARD_ORDER.indexOf(seg);
+  if (i === -1) return [5, 1];
+  return [BOARD_ORDER[(i - 1 + 20) % 20], BOARD_ORDER[(i + 1) % 20]];
+}
+
 function dartForValue(v: number): Dart {
   if (v === 0)  return BOT_MISS;
   if (v === 50) return makeDart(25, 2);
@@ -402,12 +427,60 @@ function checkoutDarts(remaining: number): [Dart, Dart, Dart] | null {
   return null;
 }
 
+// ── Shadow bot helpers ─────────────────────────────────────────────────────────
+function shadowScoringDart(p: ShadowProfile): Dart {
+  const r = Math.random();
+  if (r < p.treblePct) return makeDart(p.primarySeg, 3);
+  if (r < p.treblePct + p.singlePct) return makeDart(p.primarySeg, 1);
+  const [l, ri] = getAdjacentSegs(p.primarySeg);
+  return makeDart(Math.random() < 0.5 ? l : ri, 1);
+}
+
+function shadowDoubleDart(seg: number, p: ShadowProfile): Dart {
+  if (Math.random() < p.doubleHitPct) return makeDart(seg, 2);
+  return Math.random() < 0.75 ? makeDart(seg, 1) : BOT_MISS;
+}
+
+/** Simulate a 3-dart visit using real player targeting data. */
+export function botShadowX01Visit(remaining: number, doubleOut: boolean, p: ShadowProfile): [Dart, Dart, Dart] {
+  if (remaining <= 170) {
+    const co = checkoutDarts(remaining);
+    if (co) {
+      return co.map(d => {
+        if (d.value === 0) return BOT_MISS;
+        if (d.multiplier === 2) return shadowDoubleDart(d.segment, p);
+        if (d.multiplier === 3) {
+          const isSame = d.segment === p.primarySeg;
+          const tp = isSame ? p.treblePct : Math.min(p.treblePct, 0.35);
+          const sp = isSame ? p.singlePct : 0.45;
+          const r = Math.random();
+          if (r < tp) return d;
+          if (r < tp + sp) return makeDart(d.segment, 1);
+          const [l, ri] = getAdjacentSegs(d.segment);
+          return makeDart(Math.random() < 0.5 ? l : ri, 1);
+        }
+        return d;
+      }) as [Dart, Dart, Dart];
+    }
+  }
+  const minLeft = doubleOut ? 2 : 0;
+  let rem = remaining;
+  const result: Dart[] = [];
+  for (let i = 0; i < 3; i++) {
+    const d = shadowScoringDart(p);
+    if (rem - d.value < minLeft || rem - d.value < 0) result.push(BOT_MISS);
+    else { result.push(d); rem -= d.value; }
+  }
+  return result as [Dart, Dart, Dart];
+}
+
 // ── X01 visit ─────────────────────────────────────────────────────────────────
 export function botX01Visit(
   remaining: number,
   doubleOut: boolean,
   cfg: BotConfig,
 ): [Dart, Dart, Dart] {
+  if (cfg.shadowProfile) return botShadowX01Visit(remaining, doubleOut, cfg.shadowProfile);
   if (remaining <= 170 && Math.random() < cfg.checkoutPct) {
     const co = checkoutDarts(remaining);
     if (co) return co;

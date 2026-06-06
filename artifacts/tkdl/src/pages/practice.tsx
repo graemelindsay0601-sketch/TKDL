@@ -1,29 +1,40 @@
 import { useState, useEffect, useRef } from "react";
 import { useListPlayers } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users } from "lucide-react";
+import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users, Ghost } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
 import { RulesModal } from "@/components/rules-modal";
 import {
   BOT_PERSONAS, BOT_LEVELS, getBotConfig, numLevelConfig, numLevelLabel, numLevelColor,
-  type BotPersona, type BotConfig,
+  type BotPersona, type BotConfig, type ShadowProfile,
 } from "@/lib/bot-engine";
 
 type Player = { id: number; name: string; points: number; elo: number; status: string };
 
-type SoloBotMode = "level" | "pro";
+type SoloBotMode = "level" | "pro" | "shadow";
+
+type ShadowProfileData = ShadowProfile & {
+  locked?: false;
+  playerName: string;
+  primaryTarget: { seg: number; treblePct: number } | null;
+  logDartsCount: number;
+};
+type ShadowProfileLocked = { locked: true; totalDarts: number; needed: number; playerName: string };
+type ShadowProfileResult = ShadowProfileData | ShadowProfileLocked;
 
 type SetupData = {
   p1: Player;
   p2: Player | null;
   gameType: GameTypeOption;
   solo: boolean;
-  // bot display info
   botName?: string;
   botSubtitle?: string;
   botFlag?: string;
   botColor?: string;
   botConfig?: BotConfig;
+  legs?: number;
+  setsToWin?: number;
+  legsToWinSet?: number;
 };
 
 const TABS = [
@@ -152,6 +163,86 @@ function PersonaCard({ persona, selected, onSelect }: {
   );
 }
 
+// ── Shadow Player Picker ────────────────────────────────────────────────────────
+function ShadowPlayerPicker({ players, profiles, selected, onSelect }: {
+  players: Player[];
+  profiles: Record<number, ShadowProfileResult>;
+  selected: number | null;
+  onSelect: (id: number) => void;
+}) {
+  const NEEDED = 250;
+  return (
+    <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+      {players.length === 0 && (
+        <div className="text-center py-8 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>Loading players…</div>
+      )}
+      {players.map(p => {
+        const prof = profiles[p.id];
+        const loading = !prof;
+        const locked  = !prof || (prof as ShadowProfileLocked).locked === true;
+        const darts   = prof ? prof.totalDarts : 0;
+        const pct     = Math.min(100, Math.round((darts / NEEDED) * 100));
+        const unlocked = prof && !(prof as ShadowProfileLocked).locked;
+        const data    = unlocked ? (prof as ShadowProfileData) : null;
+        const isSel   = selected === p.id;
+        return (
+          <button key={p.id}
+            onClick={() => !locked && onSelect(p.id)}
+            className="w-full pdc-card p-3 text-left transition-all relative overflow-hidden"
+            style={{
+              borderColor: isSel ? "#a78bfa" : locked ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.09)",
+              background: isSel ? "rgba(167,139,250,0.1)" : locked ? "rgba(255,255,255,0.01)" : "rgba(255,255,255,0.025)",
+              cursor: locked ? "not-allowed" : "pointer",
+              opacity: loading ? 0.4 : locked ? 0.65 : 1,
+            }}>
+            {isSel && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: "#a78bfa" }} />}
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black shrink-0"
+                style={{ background: locked ? "rgba(255,255,255,0.04)" : "rgba(167,139,250,0.12)", fontFamily: "Oswald, sans-serif" }}>
+                {locked ? <span style={{ fontSize: "0.9rem" }}>🔒</span> : <Ghost className="w-4 h-4" style={{ color: "#a78bfa" }} />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: locked ? "rgba(255,255,255,0.35)" : isSel ? "#fff" : "rgba(255,255,255,0.8)" }}>
+                  Shadow {p.name}
+                </div>
+                {locked ? (
+                  loading ? (
+                    <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>Loading…</div>
+                  ) : (
+                    <div className="mt-1">
+                      <div className="h-1 rounded-full overflow-hidden mb-0.5" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: "rgba(167,139,250,0.4)" }} />
+                      </div>
+                      <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
+                        {darts}/{NEEDED} darts · {NEEDED - darts} to unlock
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ fontFamily: "Oswald, sans-serif" }}>
+                    {data?.primaryTarget && (
+                      <span style={{ color: "#a78bfa" }}>T{data.primaryTarget.seg} · {data.primaryTarget.treblePct}% treble</span>
+                    )}
+                    <span style={{ color: "rgba(255,255,255,0.25)" }}>{darts} darts</span>
+                  </div>
+                )}
+              </div>
+              {data && (
+                <div className="text-right shrink-0">
+                  <div className="text-lg font-black leading-none" style={{ color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>
+                    {Number(data.computedAvg).toFixed(0)}
+                  </div>
+                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>avg</div>
+                </div>
+              )}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Setup Screen ───────────────────────────────────────────────────────────────
 function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const { data: playersData }   = useListPlayers();
@@ -160,11 +251,16 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [botMode, setBotMode]     = useState<SoloBotMode>("level");
   const [selectedLevel, setLevel] = useState<number | null>(null);
   const [selectedPersona, setPersona] = useState<BotPersona | null>(null);
+  const [selectedShadowId, setShadowId] = useState<number | null>(null);
+  const [shadowProfiles, setShadowProfiles] = useState<Record<number, ShadowProfileResult>>({});
   const [p1Id, setP1Id]           = useState("");
   const [p2Id, setP2Id]           = useState("");
   const [selectedGame, setGame]   = useState<GameTypeOption | null>(null);
   const [tab, setTab]             = useState("practice");
   const [rulesGame, setRulesGame] = useState<GameTypeOption | null>(null);
+  const [formatMode, setFormatMode] = useState<"legs" | "sets">("legs");
+  const [selectedLegs, setSelectedLegs] = useState(1);
+  const [selectedSets, setSelectedSets] = useState({ sets: 3, legsPerSet: 3 });
 
   useEffect(() => {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
@@ -174,15 +270,46 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const p1      = players.find(p => p.id === Number(p1Id));
   const p2      = solo ? null : players.find(p => p.id === Number(p2Id));
 
-  const botReady = solo
-    ? (botMode === "level" ? selectedLevel !== null : selectedPersona !== null)
-    : true;
+  // Load shadow profiles when Player Clone tab is selected
+  useEffect(() => {
+    if (botMode !== "shadow" || !solo || players.length === 0) return;
+    const needed = players.filter(p => !(p.id in shadowProfiles));
+    if (needed.length === 0) return;
+    Promise.all(needed.map(p =>
+      fetch(`/api/players/${p.id}/shadow-profile`).then(r => r.json())
+        .then((d: ShadowProfileResult) => ({ id: p.id, data: d }))
+        .catch(() => ({ id: p.id, data: null as unknown as ShadowProfileResult }))
+    )).then(results => {
+      setShadowProfiles(prev => {
+        const next = { ...prev };
+        for (const r of results) if (r.data) next[r.id] = r.data;
+        return next;
+      });
+    });
+  }, [botMode, solo, players.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const botReady = solo ? (
+    botMode === "level" ? selectedLevel !== null :
+    botMode === "pro"   ? selectedPersona !== null :
+    /* shadow */          (selectedShadowId !== null && shadowProfiles[selectedShadowId] && !(shadowProfiles[selectedShadowId] as ShadowProfileLocked).locked)
+  ) : true;
   const canStart = !!p1 && !!selectedGame && (solo ? botReady : !!p2 && p1.id !== Number(p2Id));
 
   const tabGames = gameTypes.filter(g => g.category === tab && g.enabled !== false);
 
+  function formatProps() {
+    const isX01 = selectedGame?.key?.startsWith("x01") || selectedGame?.key?.startsWith("501") || selectedGame?.key?.startsWith("301");
+    if (!isX01) return {};
+    if (formatMode === "sets") {
+      return { legs: selectedSets.legsPerSet, setsToWin: selectedSets.sets, legsToWinSet: selectedSets.legsPerSet };
+    }
+    if (selectedLegs > 1) return { legs: selectedLegs };
+    return {};
+  }
+
   function buildSetupData(): SetupData {
-    if (!solo) return { p1: p1!, p2: p2!, gameType: selectedGame!, solo: false };
+    const fmt = formatProps();
+    if (!solo) return { p1: p1!, p2: p2!, gameType: selectedGame!, solo: false, ...fmt };
     if (botMode === "level" && selectedLevel !== null) {
       const color = numLevelColor(selectedLevel);
       return {
@@ -192,6 +319,31 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         botFlag: undefined,
         botColor: color,
         botConfig: numLevelConfig(selectedLevel),
+        ...fmt,
+      };
+    }
+    if (botMode === "shadow" && selectedShadowId !== null) {
+      const prof = shadowProfiles[selectedShadowId] as ShadowProfileData;
+      const shadowPlayer = players.find(p => p.id === selectedShadowId)!;
+      const sp: ShadowProfile = {
+        playerId: selectedShadowId,
+        playerName: shadowPlayer.name,
+        totalDarts: prof.totalDarts,
+        primarySeg: prof.primarySeg,
+        treblePct: prof.treblePct,
+        singlePct: prof.singlePct,
+        checkoutSegs: prof.checkoutSegs,
+        doubleHitPct: prof.doubleHitPct,
+        computedAvg: prof.computedAvg,
+      };
+      return {
+        p1: p1!, p2: null, gameType: selectedGame!, solo: true,
+        botName: `Shadow ${shadowPlayer.name}`,
+        botSubtitle: `Player Clone · ${Number(prof.computedAvg).toFixed(1)} avg`,
+        botFlag: "👻",
+        botColor: "#a78bfa",
+        botConfig: { ...getBotConfig("club"), shadowProfile: sp },
+        ...fmt,
       };
     }
     const persona = selectedPersona!;
@@ -203,6 +355,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       botFlag: persona.flag,
       botColor: lvl.color,
       botConfig: getBotConfig(persona.level),
+      ...fmt,
     };
   }
 
@@ -280,17 +433,18 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           <h2 className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
             Choose Your Opponent
           </h2>
-          {/* Level Bot / Play a Pro tabs */}
+          {/* Level Bot / Play a Pro / Player Clone tabs */}
           <div className="flex gap-1 p-1 rounded-xl mb-4"
             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
             {([
-              { key: "level" as SoloBotMode, label: "Level Bot", icon: <Cpu className="w-3.5 h-3.5" /> },
-              { key: "pro"   as SoloBotMode, label: "Play a Pro", icon: <Trophy className="w-3.5 h-3.5" /> },
+              { key: "level"  as SoloBotMode, label: "Level Bot",     icon: <Cpu   className="w-3.5 h-3.5" /> },
+              { key: "pro"    as SoloBotMode, label: "Play a Pro",    icon: <Trophy className="w-3.5 h-3.5" /> },
+              { key: "shadow" as SoloBotMode, label: "Player Clone",  icon: <Ghost  className="w-3.5 h-3.5" /> },
             ]).map(({ key, label, icon }) => (
               <button key={key} onClick={() => setBotMode(key)}
                 className="flex-1 py-1.5 text-xs font-bold uppercase rounded-lg transition-all flex items-center justify-center gap-1.5"
                 style={{
-                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", cursor: "pointer",
+                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em", cursor: "pointer",
                   background: botMode === key ? "rgba(167,139,250,0.15)" : "transparent",
                   color: botMode === key ? "#a78bfa" : "rgba(255,255,255,0.3)",
                   border: botMode === key ? "1px solid rgba(167,139,250,0.3)" : "1px solid transparent",
@@ -307,9 +461,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
               </p>
               <LevelBotPicker selected={selectedLevel} onSelect={setLevel} />
             </div>
-          ) : (
+          ) : botMode === "pro" ? (
             <div>
-              {/* Tier legend */}
               <div className="flex gap-2 flex-wrap mb-3">
                 {(Object.entries(BOT_LEVELS) as [string, typeof BOT_LEVELS[keyof typeof BOT_LEVELS]][])
                   .reverse()
@@ -341,6 +494,18 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                   </div>
                 </div>
               )}
+            </div>
+          ) : (
+            <div>
+              <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+                Play against a bot that mirrors how a real player actually throws — same target, same miss pattern, same preferred doubles. Unlocks at 250 combined darts.
+              </p>
+              <ShadowPlayerPicker
+                players={players}
+                profiles={shadowProfiles}
+                selected={selectedShadowId}
+                onSelect={setShadowId}
+              />
             </div>
           )}
         </div>
@@ -387,6 +552,94 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         )}
       </div>
 
+      {/* Format picker — only for X01 games */}
+      {selectedGame && (selectedGame.key?.startsWith("x01") || selectedGame.key?.startsWith("501") || selectedGame.key?.startsWith("301")) && (
+        <div>
+          <h2 className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>Format</h2>
+          <div className="flex gap-1 p-1 rounded-xl mb-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            {([
+              { key: "legs" as const, label: "Best of Legs" },
+              { key: "sets" as const, label: "Sets" },
+            ]).map(({ key, label }) => (
+              <button key={key} onClick={() => setFormatMode(key)}
+                className="flex-1 py-1.5 text-xs font-bold uppercase rounded-lg transition-all"
+                style={{
+                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", cursor: "pointer",
+                  background: formatMode === key ? "rgba(167,139,250,0.15)" : "transparent",
+                  color: formatMode === key ? "#a78bfa" : "rgba(255,255,255,0.3)",
+                  border: formatMode === key ? "1px solid rgba(167,139,250,0.3)" : "1px solid transparent",
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {formatMode === "legs" ? (
+            <div>
+              <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+                Best of how many legs?
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {[1, 3, 5, 7, 9, 11].map(n => (
+                  <button key={n} onClick={() => setSelectedLegs(n)}
+                    className="px-4 py-2 rounded-lg text-sm font-black uppercase transition-all"
+                    style={{
+                      fontFamily: "Oswald, sans-serif", cursor: "pointer",
+                      background: selectedLegs === n ? "rgba(167,139,250,0.2)" : "rgba(255,255,255,0.04)",
+                      color: selectedLegs === n ? "#a78bfa" : "rgba(255,255,255,0.4)",
+                      border: selectedLegs === n ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.07)",
+                    }}>
+                    {n === 1 ? "Single" : `BO${n}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Sets to win match</div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <button key={n} onClick={() => setSelectedSets(s => ({ ...s, sets: n }))}
+                      className="w-10 h-10 rounded-lg text-sm font-black transition-all"
+                      style={{
+                        fontFamily: "Oswald, sans-serif", cursor: "pointer",
+                        background: selectedSets.sets === n ? "rgba(167,139,250,0.2)" : "rgba(255,255,255,0.04)",
+                        color: selectedSets.sets === n ? "#a78bfa" : "rgba(255,255,255,0.4)",
+                        border: selectedSets.sets === n ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.07)",
+                      }}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Legs per set</div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {[3, 5, 7].map(n => (
+                    <button key={n} onClick={() => setSelectedSets(s => ({ ...s, legsPerSet: n }))}
+                      className="w-10 h-10 rounded-lg text-sm font-black transition-all"
+                      style={{
+                        fontFamily: "Oswald, sans-serif", cursor: "pointer",
+                        background: selectedSets.legsPerSet === n ? "rgba(167,139,250,0.2)" : "rgba(255,255,255,0.04)",
+                        color: selectedSets.legsPerSet === n ? "#a78bfa" : "rgba(255,255,255,0.4)",
+                        border: selectedSets.legsPerSet === n ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.07)",
+                      }}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="col-span-2">
+                <div className="px-3 py-2 rounded-lg text-xs" style={{ background: "rgba(167,139,250,0.05)", border: "1px solid rgba(167,139,250,0.15)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+                  Best of {selectedSets.sets} sets · {selectedSets.legsPerSet} legs/set · First to {Math.ceil(selectedSets.sets/2)} sets
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <button
         onClick={() => canStart && onStart(buildSetupData())}
         disabled={!canStart}
@@ -400,11 +653,17 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         }}>
         {canStart
           ? solo
-            ? `Start vs ${botMode === "level" ? `Level ${selectedLevel} Bot` : (selectedPersona?.name ?? "Bot")}`
+            ? botMode === "level"
+              ? `Start vs Level ${selectedLevel} Bot`
+              : botMode === "shadow"
+              ? `Start vs Shadow ${players.find(p => p.id === selectedShadowId)?.name ?? "Clone"}`
+              : `Start vs ${selectedPersona?.name ?? "Bot"}`
             : `Start Practice — ${selectedGame?.name}`
           : solo
             ? botMode === "level"
               ? "Choose player, level & game"
+              : botMode === "shadow"
+              ? "Choose player, clone & game"
               : "Choose player, opponent & game"
             : "Choose players & game"}
         {canStart && <ChevronRight className="inline ml-2 w-5 h-5" />}
@@ -556,6 +815,9 @@ export default function Practice() {
           p2Name={p2Name}
           gameType={setupData.gameType}
           botConfig={setupData.botConfig}
+          legs={setupData.legs}
+          setsToWin={setupData.setsToWin}
+          legsToWinSet={setupData.legsToWinSet}
           onWin={r => { setResult(r); setPhase("done"); }}
           onAbandon={() => setPhase("setup")}
           onPracticeStats={s => setPracticeStats(s)}

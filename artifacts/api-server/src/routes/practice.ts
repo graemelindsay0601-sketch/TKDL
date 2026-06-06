@@ -211,7 +211,7 @@ router.get("/players/:id/dart-profile", async (req, res): Promise<void> => {
     // ── Build BotConfig from profile (for future player-shadow bots) ─────────
     const primary = segTotals[0] ?? null;
     const avgPerVisit = totalScoring > 0
-      ? raw.filter(r => r.phase === "scoring").reduce((s, r) => s + Number(r.val ?? 0) * Number(r.throws), 0) / totalScoring * 3
+      ? raw.filter(r => r.phase === "scoring").reduce((s, r) => s + Number(r.seg) * Number(r.mult) * Number(r.throws), 0) / totalScoring * 3
       : null;
 
     res.json({
@@ -274,6 +274,102 @@ router.get("/admin/practice/stats", async (req, res): Promise<void> => {
   } catch (err) {
     req.log.error({ err }, "Failed to get practice stats");
     res.status(500).json({ error: "Failed to get stats" });
+  }
+});
+
+// GET /api/players/:id/shadow-profile — shadow bot profile derived from dart logs
+// Returns { locked: true, totalDarts, needed } until 250+ combined darts are logged,
+// then returns a full ShadowProfile object for use as BotConfig.shadowProfile.
+router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+    const THRESHOLD = 250;
+
+    const [practiceQ, playerQ, dartLogQ, coQ, avgQ] = await Promise.all([
+      db.execute(sql`SELECT COALESCE(SUM(p1_darts),0)::int AS practice_darts FROM practice_sessions WHERE player1_id = ${playerId}`),
+      db.execute(sql`SELECT name, career_wins, career_losses FROM players WHERE id = ${playerId}`),
+      db.execute(sql`
+        WITH dart_data AS (
+          SELECT (dart->>'seg')::int AS seg, (dart->>'mult')::int AS mult, dart->>'phase' AS phase
+          FROM practice_sessions, jsonb_array_elements(session_data->'dartLog') AS dart
+          WHERE player1_id = ${playerId} AND session_data ? 'dartLog'
+        )
+        SELECT seg, mult, phase, COUNT(*)::int AS throws
+        FROM dart_data WHERE seg IS NOT NULL AND mult IS NOT NULL
+        GROUP BY seg, mult, phase ORDER BY throws DESC
+      `),
+      db.execute(sql`
+        SELECT COALESCE(SUM(p1_checkout_hits),0)::int AS co_hits,
+               COALESCE(SUM(p1_checkout_attempts),0)::int AS co_attempts
+        FROM practice_sessions WHERE player1_id = ${playerId}
+      `),
+      db.execute(sql`
+        SELECT COALESCE(SUM(p1_score),0)::int AS total_score,
+               COALESCE(SUM(p1_darts),0)::int  AS total_darts
+        FROM practice_sessions WHERE player1_id = ${playerId}
+      `),
+    ]);
+
+    const practiceDarts = Number(practiceQ.rows[0]?.practice_darts ?? 0);
+    const player = playerQ.rows[0] as { name: string; career_wins: number; career_losses: number } | undefined;
+    const matchDarts  = (Number(player?.career_wins ?? 0) + Number(player?.career_losses ?? 0)) * 50;
+    const totalDarts  = practiceDarts + matchDarts;
+
+    if (totalDarts < THRESHOLD) {
+      res.json({ locked: true, totalDarts, needed: THRESHOLD, playerName: player?.name ?? "" });
+      return;
+    }
+
+    // Compute profile from dart logs
+    const raw = dartLogQ.rows as { seg: number; mult: number; phase: string; throws: number }[];
+    type SC = { treble: number; single: number; double: number };
+    const bySeg: Record<number, SC> = {};
+    for (const r of raw.filter(r => r.phase === "scoring")) {
+      const seg = Number(r.seg); const mult = Number(r.mult); const n = Number(r.throws);
+      if (!bySeg[seg]) bySeg[seg] = { treble: 0, single: 0, double: 0 };
+      if (mult === 3) bySeg[seg].treble += n;
+      else if (mult === 1) bySeg[seg].single += n;
+      else if (mult === 2) bySeg[seg].double += n;
+    }
+    const segTotals = Object.entries(bySeg)
+      .map(([s, c]) => { const seg = Number(s); const total = c.treble + c.single + c.double; return { seg, total, treble: c.treble, single: c.single }; })
+      .sort((a, b) => b.total - a.total);
+
+    const primary    = segTotals[0];
+    const primarySeg = primary?.seg ?? 20;
+    const treblePct  = primary && primary.total > 0 ? Math.round((primary.treble / primary.total) * 100) / 100 : 0.25;
+    const singlePct  = primary && primary.total > 0 ? Math.round((primary.single / primary.total) * 100) / 100 : 0.50;
+
+    const coDarts     = raw.filter(r => r.phase === "checkout" && Number(r.mult) === 2);
+    const checkoutSegs = coDarts.length > 0 ? coDarts.slice(0, 6).map(r => Number(r.seg)) : [16, 8, 4, 2];
+
+    const coHits     = Number(coQ.rows[0]?.co_hits ?? 0);
+    const coAttempts = Number(coQ.rows[0]?.co_attempts ?? 0);
+    const doubleHitPct = coAttempts > 0 ? Math.round((coHits / coAttempts) * 100) / 100 : 0.22;
+
+    const totalScore       = Number(avgQ.rows[0]?.total_score ?? 0);
+    const totalPracticeDarts = Number(avgQ.rows[0]?.total_darts ?? 0);
+    const computedAvg      = totalPracticeDarts > 0 ? Math.round((totalScore / totalPracticeDarts) * 3 * 10) / 10 : 45;
+
+    res.json({
+      locked: false,
+      totalDarts,
+      needed: THRESHOLD,
+      playerName: player?.name ?? "",
+      playerId,
+      primarySeg,
+      treblePct,
+      singlePct,
+      checkoutSegs,
+      doubleHitPct,
+      computedAvg,
+      primaryTarget: primary ? { seg: primarySeg, treblePct: Math.round(treblePct * 100) } : null,
+      logDartsCount: raw.reduce((s, r) => s + Number(r.throws), 0),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get shadow profile");
+    res.status(500).json({ error: "Failed to get shadow profile" });
   }
 });
 

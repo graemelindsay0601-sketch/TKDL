@@ -29,6 +29,7 @@ function safeParse(s: string | null | undefined): Record<string, unknown> {
 
 export function GameScorer({
   p1Name, p2Name, gameType, botConfig, onWin, onAbandon, onPracticeStats,
+  legs, setsToWin, legsToWinSet,
 }: {
   p1Name: string; p2Name: string;
   gameType: GameTypeOption;
@@ -36,13 +37,16 @@ export function GameScorer({
   onWin: (result: GameResult) => void;
   onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  legs?: number;
+  setsToWin?: number;
+  legsToWinSet?: number;
 }) {
   const cfg = safeParse(gameType.config);
   const win = (idx: 0 | 1, detail?: string) => onWin({ winnerIdx: idx, detail });
 
   switch (gameType.engine) {
     case "X01":
-      return <X01Scorer p1Name={p1Name} p2Name={p2Name} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+      return <X01Scorer p1Name={p1Name} p2Name={p2Name} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} legs={legs} setsToWin={setsToWin} legsToWinSet={legsToWinSet} />;
 
     case "Cricket":
       return <CricketScorer p1Name={p1Name} p2Name={p2Name} cutThroat={!!cfg.cutThroat} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;

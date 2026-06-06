@@ -71,18 +71,24 @@ function SectionCard({ children }: { children: React.ReactNode }) {
 }
 
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
-export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3 }: {
   p1Name: string; p2Name: string;
   config: { startingScore: number; doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; legs?: number; bustResetTo?: number };
   botConfig?: BotConfig;
   onWin: (w: 0 | 1, detail?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  legs?: number;
+  setsToWin?: number;
+  legsToWinSet?: number;
 }) {
-  const { startingScore = 501, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, legs, bustResetTo } = config;
-  const legsNeeded = legs ? Math.ceil(legs / 2) : 0;
+  const { startingScore = 501, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, legs: configLegs, bustResetTo } = config;
+  const legs = legsProp ?? configLegs;
+  const setsNeeded  = setsToWin > 0 ? Math.ceil(setsToWin / 2) : 0;
+  const legsNeeded  = setsToWin > 0 ? Math.ceil(legsToWinSet / 2) : (legs ? Math.ceil(legs / 2) : 0);
 
   const [scores, setScores]         = useState<[number, number]>([startingScore, startingScore]);
   const [legWins, setLegWins]       = useState<[number, number]>([0, 0]);
+  const [setWins, setSetWins]       = useState<[number, number]>([0, 0]);
   const [started, setStarted]       = useState<[boolean, boolean]>([!doubleIn, !doubleIn]);
   const [turn, setTurn]             = useState<0 | 1>(0);
   const [legStarter, setLegStarter] = useState<0 | 1>(0);
@@ -114,34 +120,62 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
   const handleWin = useCallback((winnerIdx: 0|1, darts: Dart[]) => {
     setVisitDarts(darts);
-    if (legs && legs > 1) {
+    const getStats = () => ({ p1Darts: p1StatsRef.current.darts, p1Score: p1StatsRef.current.score, p1_180s: p1StatsRef.current.s180s, p1CheckoutAttempts: p1StatsRef.current.coAttempts, p1CheckoutHits: p1StatsRef.current.coHits, dartLog: [...p1StatsRef.current.dartLog] });
+    const resetForLeg = (delay: number, newLegState: [number,number]) => {
+      setTimeout(() => {
+        const ns: 0|1 = legStarter === 0 ? 1 : 0;
+        setLegStarter(ns); setScores([startingScore, startingScore]);
+        setStarted([!doubleIn, !doubleIn]); setVisitDarts([]);
+        setTurn(ns); setLegWins(newLegState);
+      }, delay);
+    };
+
+    if (setsToWin > 0) {
+      setLegWins(prev => {
+        const n: [number,number] = [...prev] as [number,number];
+        n[winnerIdx]++;
+        if (n[winnerIdx] >= legsNeeded) {
+          const ns: [number,number] = [setWins[0], setWins[1]];
+          ns[winnerIdx]++;
+          if (ns[winnerIdx] >= setsNeeded) {
+            setTimeout(() => {
+              setSetWins(ns);
+              onWin(winnerIdx, `${ns[winnerIdx]}–${ns[winnerIdx===0?1:0]} sets`);
+              onPracticeStats?.(getStats());
+            }, 800);
+          } else {
+            setTimeout(() => {
+              setSetWins(ns);
+              resetForLeg(0, [0, 0]);
+            }, 1500);
+          }
+          return [0, 0];
+        } else {
+          resetForLeg(1200, n);
+          return prev;
+        }
+      });
+    } else if (legs && legs > 1) {
       setLegWins(prev => {
         const n: [number,number] = [...prev] as [number,number];
         n[winnerIdx]++;
         if (n[winnerIdx] >= legsNeeded) {
           setTimeout(() => {
             onWin(winnerIdx, `${n[winnerIdx]}–${n[winnerIdx===0?1:0]} legs`);
-            onPracticeStats?.({ p1Darts: p1StatsRef.current.darts, p1Score: p1StatsRef.current.score, p1_180s: p1StatsRef.current.s180s, p1CheckoutAttempts: p1StatsRef.current.coAttempts, p1CheckoutHits: p1StatsRef.current.coHits, dartLog: [...p1StatsRef.current.dartLog] });
+            onPracticeStats?.(getStats());
           }, 200);
         } else {
-          setTimeout(() => {
-            const ns: 0|1 = legStarter === 0 ? 1 : 0;
-            setLegStarter(ns);
-            setScores([startingScore, startingScore]);
-            setStarted([!doubleIn, !doubleIn]);
-            setVisitDarts([]);
-            setTurn(ns);
-          }, 1500);
+          resetForLeg(1500, n);
         }
         return n;
       });
     } else {
       setTimeout(() => {
         onWin(winnerIdx);
-        onPracticeStats?.({ p1Darts: p1StatsRef.current.darts, p1Score: p1StatsRef.current.score, p1_180s: p1StatsRef.current.s180s, p1CheckoutAttempts: p1StatsRef.current.coAttempts, p1CheckoutHits: p1StatsRef.current.coHits, dartLog: [...p1StatsRef.current.dartLog] });
+        onPracticeStats?.(getStats());
       }, 200);
     }
-  }, [legs, legsNeeded, legStarter, startingScore, doubleIn, onWin, onPracticeStats]);
+  }, [legs, legsNeeded, setsNeeded, setsToWin, legStarter, startingScore, doubleIn, onWin, onPracticeStats, setWins]);
 
   const handleDart = useCallback((dart: Dart) => {
     if (bust || visitDarts.length >= 3) return;
@@ -228,16 +262,46 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
-      {/* Leg indicators */}
-      {legs && legs > 1 && (
+      {/* Leg / Set score indicators */}
+      {(setsToWin > 0 || (legs && legs > 1)) && (
         <div className="flex items-center justify-center gap-6 text-sm" style={{ fontFamily: "Oswald, sans-serif" }}>
-          {[0,1].map(i => (
-            <div key={i} className="flex items-center gap-1.5">
-              <span style={{ color: P_COLOR(i) }}>{names[i]}</span>
-              <span style={{ color: "#ffd24a", fontSize: "1.2rem", fontWeight: 900 }}>{legWins[i]}</span>
-              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.7rem" }}>/{legsNeeded}</span>
+          {setsToWin > 0 ? (
+            <div className="flex items-center gap-8">
+              <div className="text-center">
+                <div style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.5rem", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 4 }}>SETS</div>
+                <div className="flex items-center gap-6">
+                  {[0,1].map(i => (
+                    <div key={i} className="text-center">
+                      <div style={{ color: P_COLOR(i), fontSize: "0.65rem" }}>{names[i].split(" ")[0]}</div>
+                      <div style={{ color: "#ffd24a", fontSize: "1.4rem", fontWeight: 900 }}>{setWins[i]}</div>
+                      <div style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.6rem" }}>/{setsNeeded}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="text-center">
+                <div style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.5rem", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 4 }}>LEGS</div>
+                <div className="flex items-center gap-6">
+                  {[0,1].map(i => (
+                    <div key={i} className="text-center">
+                      <div style={{ color: P_COLOR(i), fontSize: "0.65rem" }}>{names[i].split(" ")[0]}</div>
+                      <div style={{ color: "rgba(255,255,255,0.55)", fontSize: "1.1rem", fontWeight: 900 }}>
+                        {legWins[i]}<span style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.65rem" }}>/{legsNeeded}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          ))}
+          ) : (
+            [0,1].map(i => (
+              <div key={i} className="flex items-center gap-1.5">
+                <span style={{ color: P_COLOR(i) }}>{names[i]}</span>
+                <span style={{ color: "#ffd24a", fontSize: "1.2rem", fontWeight: 900 }}>{legWins[i]}</span>
+                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.7rem" }}>/{legsNeeded}</span>
+              </div>
+            ))
+          )}
         </div>
       )}
       {/* Scoreboard */}
