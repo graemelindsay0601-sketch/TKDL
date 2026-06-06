@@ -51,7 +51,8 @@ async function seedRealData() {
     startDate: "2026-02-01",
     endDate:   "2026-02-28",
     isActive:  false,
-    championName: "Robert",
+    championName: "Sean",
+    format: "301",
     totalMatches: 22,
   }).returning();
 
@@ -60,7 +61,7 @@ async function seedRealData() {
     startDate: "2026-05-01",
     endDate:   "2026-05-31",
     isActive:  false,
-    championName: "Sean",
+    championName: "Richard",
     totalMatches: 35,
   }).returning();
 
@@ -98,12 +99,18 @@ async function seedRealData() {
     }))
   ).returning();
 
-  const byName = new Map(insertedPlayers.map(p => [p.name, p]));
+  const byName  = new Map(insertedPlayers.map(p => [p.name, p]));
   const sean    = byName.get("Sean")!;
   const richard = byName.get("Richard")!;
   const ryan    = byName.get("Ryan")!;
   const graeme  = byName.get("Graeme")!;
   const robert  = byName.get("Robert")!;
+  const kyle    = byName.get("Kyle")!;
+  const cameron = byName.get("Cameron")!;
+  const ronald  = byName.get("Ronald Augustine")!;
+  const jamie   = byName.get("Jamie")!;
+  const cavan   = byName.get("Cavan")!;
+  const scott   = byName.get("Scott")!;
 
   // ── JUNE_2026 matches (5 real matches) ─────────────────────────────────────
   const juneMatches = [
@@ -130,18 +137,20 @@ async function seedRealData() {
     });
   }
 
-  // ── FEB_2026 season standings snapshot ─────────────────────────────────────
+  // ── FEB_2026 season standings snapshot (301 round-robin, Sean won playoff) ──
+  // Graeme 9W-2L in league, Sean won via playoff (beat Graeme 3-2, Robert 3-1)
   const febStandings = [
-    { player: "Robert",   pos: 1,  wins: 9,  losses: 2,  points: 37, elo: 1017, champ: true  },
-    { player: "Graeme",   pos: 2,  wins: 8,  losses: 3,  points: 32, elo: 1010, champ: false },
-    { player: "Richard",  pos: 3,  wins: 7,  losses: 4,  points: 29, elo: 1000, champ: false },
-    { player: "Scott",    pos: 4,  wins: 3,  losses: 2,  points: 26, elo: 1000, champ: false },
-    { player: "Aiden",    pos: 5,  wins: 4,  losses: 0,  points: 29, elo: 1000, champ: false },
-    { player: "Cavan",    pos: 6,  wins: 5,  losses: 4,  points: 24, elo:  998, champ: false },
-    { player: "Kyle",     pos: 7,  wins: 1,  losses: 5,  points: 22, elo:  990, champ: false },
-    { player: "Joanna",   pos: 8,  wins: 0,  losses: 5,  points: 20, elo:  980, champ: false },
-    { player: "Roddie",   pos: 9,  wins: 0,  losses: 5,  points: 20, elo:  982, champ: false },
-    { player: "Brodie",   pos: 10, wins: 0,  losses: 4,  points: 21, elo:  985, champ: false },
+    { player: "Sean",    pos: 1,  wins: 9,  losses: 1,  points: 0, elo: 1050, champ: true  },
+    { player: "Graeme",  pos: 2,  wins: 9,  losses: 2,  points: 0, elo: 1017, champ: false },
+    { player: "Robert",  pos: 3,  wins: 8,  losses: 3,  points: 0, elo: 1010, champ: false },
+    { player: "Richard", pos: 4,  wins: 7,  losses: 4,  points: 0, elo: 1000, champ: false },
+    { player: "Scott",   pos: 5,  wins: 3,  losses: 2,  points: 0, elo: 1000, champ: false },
+    { player: "Aiden",   pos: 6,  wins: 4,  losses: 0,  points: 0, elo: 1008, champ: false },
+    { player: "Cavan",   pos: 7,  wins: 5,  losses: 4,  points: 0, elo:  998, champ: false },
+    { player: "Kyle",    pos: 8,  wins: 1,  losses: 5,  points: 0, elo:  990, champ: false },
+    { player: "Joanna",  pos: 9,  wins: 0,  losses: 5,  points: 0, elo:  980, champ: false },
+    { player: "Roddie",  pos: 10, wins: 0,  losses: 5,  points: 0, elo:  982, champ: false },
+    { player: "Brodie",  pos: 11, wins: 0,  losses: 4,  points: 0, elo:  985, champ: false },
   ];
   for (const s of febStandings) {
     const p = byName.get(s.player);
@@ -152,22 +161,22 @@ async function seedRealData() {
       points: s.points, elo: s.elo, isChampion: s.champ,
     });
   }
-  // Update FEB champion
-  await db.update(seasonsTable).set({ championId: robert.id, championName: "Robert" }).where(eq(seasonsTable.id, feb.id));
+  await db.update(seasonsTable).set({ championId: sean.id, championName: "Sean" }).where(eq(seasonsTable.id, feb.id));
 
-  // ── MAY_2026 season standings snapshot ─────────────────────────────────────
+  // ── MAY_2026 season standings snapshot (wager-based, Richard champion) ──────
+  // Standings from CSV: players start at 25pts, winner gains stake, loser loses stake
   const mayStandings = [
-    { player: "Sean",             pos: 1,  wins: 12, losses: 2,  points: 61, elo: 1088, champ: true  },
-    { player: "Graeme",           pos: 2,  wins: 8,  losses: 4,  points: 44, elo: 1017, champ: false },
-    { player: "Robert",           pos: 3,  wins: 7,  losses: 3,  points: 42, elo: 1008, champ: false },
-    { player: "Richard",          pos: 4,  wins: 7,  losses: 5,  points: 38, elo: 1040, champ: false },
-    { player: "Cavan",            pos: 5,  wins: 4,  losses: 2,  points: 30, elo: 1000, champ: false },
-    { player: "Ryan",             pos: 6,  wins: 4,  losses: 8,  points: 20, elo:  992, champ: false },
-    { player: "Cameron",          pos: 7,  wins: 0,  losses: 2,  points: 23, elo:  985, champ: false },
-    { player: "Jamie",            pos: 8,  wins: 0,  losses: 2,  points: 23, elo:  985, champ: false },
-    { player: "Ronald Augustine", pos: 9,  wins: 3,  losses: 6,  points: 22, elo:  988, champ: false },
-    { player: "Kyle",             pos: 10, wins: 1,  losses: 5,  points: 21, elo:  992, champ: false },
-    { player: "Scott",            pos: 11, wins: 0,  losses: 0,  points: 25, elo: 1000, champ: false },
+    { player: "Richard",          pos: 1,  wins: 10, losses: 5,  points: 81, elo: 1087, champ: true  },
+    { player: "Graeme",           pos: 2,  wins:  8, losses: 6,  points: 71, elo: 1017, champ: false },
+    { player: "Sean",             pos: 3,  wins:  8, losses: 1,  points: 69, elo: 1036, champ: false },
+    { player: "Scott",            pos: 4,  wins:  0, losses: 0,  points: 25, elo: 1000, champ: false },
+    { player: "Robert",           pos: 5,  wins:  2, losses: 2,  points: 15, elo:  992, champ: false },
+    { player: "Cavan",            pos: 6,  wins:  2, losses: 3,  points: 11, elo:  990, champ: false },
+    { player: "Ryan",             pos: 7,  wins:  3, losses: 6,  points:  0, elo:  978, champ: false },
+    { player: "Kyle",             pos: 8,  wins:  2, losses: 5,  points:  0, elo:  982, champ: false },
+    { player: "Cameron",          pos: 9,  wins:  0, losses: 3,  points:  0, elo:  985, champ: false },
+    { player: "Ronald Augustine", pos: 10, wins:  0, losses: 1,  points:  0, elo:  988, champ: false },
+    { player: "Jamie",            pos: 11, wins:  0, losses: 2,  points:  0, elo:  985, champ: false },
   ];
   for (const s of mayStandings) {
     const p = byName.get(s.player);
@@ -178,7 +187,7 @@ async function seedRealData() {
       points: s.points, elo: s.elo, isChampion: s.champ,
     });
   }
-  await db.update(seasonsTable).set({ championId: sean.id, championName: "Sean" }).where(eq(seasonsTable.id, may.id));
+  await db.update(seasonsTable).set({ championId: richard.id, championName: "Richard" }).where(eq(seasonsTable.id, may.id));
 
   logger.info("Real TKDL data seeded successfully");
 }

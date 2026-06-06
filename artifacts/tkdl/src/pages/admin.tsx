@@ -47,6 +47,7 @@ function PinScreen({ onUnlock }: { onUnlock: () => void }) {
         const data = await res.json();
         if (data.ok) {
           sessionStorage.setItem(ADMIN_PIN_KEY, "1");
+          sessionStorage.setItem("tkdl_admin_pin", pin);
           onUnlock();
         } else {
           setShake(true);

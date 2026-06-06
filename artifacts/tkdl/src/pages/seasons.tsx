@@ -53,12 +53,14 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
   const [settingWinner, setSettingWinner] = useState<number | null>(null);
   const isAdmin = sessionStorage.getItem("tkdl_admin_unlocked") === "1";
 
+  const adminPin = () => sessionStorage.getItem("tkdl_admin_pin") ?? "";
+
   const addMatch = async () => {
     if (!form.player1Id || !form.player2Id || form.player1Id === form.player2Id) return;
     setSubmitting(true);
     await fetch(`/api/seasons/${seasonId}/playoff`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Admin-Pin": adminPin() },
       body: JSON.stringify({ player1Id: parseInt(form.player1Id), player2Id: parseInt(form.player2Id), round: form.round, gameType: form.gameType }),
     });
     setSubmitting(false);
@@ -71,7 +73,7 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
     setSettingWinner(matchId);
     await fetch(`/api/seasons/${seasonId}/playoff/${matchId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Admin-Pin": adminPin() },
       body: JSON.stringify({ winnerId }),
     });
     setSettingWinner(null);
@@ -80,7 +82,10 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
   };
 
   const deleteMatch = async (matchId: number) => {
-    await fetch(`/api/seasons/${seasonId}/playoff/${matchId}`, { method: "DELETE" });
+    await fetch(`/api/seasons/${seasonId}/playoff/${matchId}`, {
+      method: "DELETE",
+      headers: { "X-Admin-Pin": adminPin() },
+    });
     refresh();
   };
 
@@ -198,7 +203,7 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
         <div className="text-center py-6" style={{ color: "rgba(255,255,255,0.2)" }}>Loading...</div>
       ) : matches.length === 0 ? (
         <div className="text-center py-6 text-sm" style={{ color: "rgba(255,255,255,0.2)" }}>
-          No playoff matches yet. Add the first match above.
+          {isAdmin ? "No playoff matches yet. Add one above." : "No playoff matches scheduled yet."}
         </div>
       ) : (
         <div className="space-y-2">
