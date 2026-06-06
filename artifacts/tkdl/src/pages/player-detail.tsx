@@ -226,6 +226,7 @@ export default function PlayerDetail() {
 
   const [practiceAgg, setPracticeAgg] = useState<any>(null);
   const [practiceSessions, setPracticeSessions] = useState<any[]>([]);
+  const [dartProfile, setDartProfile] = useState<any>(null);
   useEffect(() => {
     if (!playerId) return;
     fetch(`/api/players/${playerId}/practice-stats`)
@@ -233,6 +234,9 @@ export default function PlayerDetail() {
       .catch(() => {});
     fetch(`/api/players/${playerId}/practice-sessions`)
       .then(r => r.json()).then(d => setPracticeSessions(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    fetch(`/api/players/${playerId}/dart-profile`)
+      .then(r => r.json()).then(d => setDartProfile(d))
       .catch(() => {});
   }, [playerId]);
 
@@ -589,6 +593,95 @@ export default function PlayerDetail() {
             </div>
 
             {/* Recent sessions list */}
+            {/* ── Dart Profile ────────────────────────────────────────────── */}
+            {dartProfile && (dartProfile.hasEnoughData || (dartProfile.totalDarts > 0 && !dartProfile.hasEnoughData)) && (
+              <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                  <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", fontSize: "0.55rem" }}>
+                    🎯 Dart Profile
+                  </span>
+                  {!dartProfile.hasEnoughData && (
+                    <span className="text-xs" style={{ color: "rgba(167,139,250,0.4)", fontSize: "0.6rem" }}>
+                      {dartProfile.totalDarts}/{dartProfile.minRequired} darts to unlock
+                    </span>
+                  )}
+                </div>
+
+                {dartProfile.hasEnoughData ? (
+                  <div className="px-4 py-3 space-y-4">
+                    {/* Primary target + summary row */}
+                    <div className="flex items-start gap-4">
+                      {dartProfile.primaryTarget && (
+                        <div className="shrink-0 text-center">
+                          <div className="text-2xl font-black leading-none" style={{ fontFamily: "Oswald, sans-serif", color: "#a78bfa" }}>
+                            T{dartProfile.primaryTarget.seg === 25 ? "Bull" : dartProfile.primaryTarget.seg}
+                          </div>
+                          <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.6rem" }}>PRIMARY</div>
+                        </div>
+                      )}
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center justify-between text-xs" style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.65rem" }}>
+                          <span>Treble accuracy</span>
+                          <span style={{ color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>{dartProfile.primaryTarget?.treblePct ?? 0}%</span>
+                        </div>
+                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                          <div className="h-full rounded-full transition-all" style={{ width: `${dartProfile.primaryTarget?.treblePct ?? 0}%`, background: "linear-gradient(90deg,#7c3aed,#a78bfa)" }} />
+                        </div>
+                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>{dartProfile.totalDarts.toLocaleString()} darts profiled</div>
+                      </div>
+                    </div>
+
+                    {/* Scoring distribution */}
+                    {dartProfile.scoringDistribution?.length > 0 && (
+                      <div>
+                        <div className="text-xs mb-1.5 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.55rem", fontFamily: "Oswald, sans-serif" }}>Scoring targets</div>
+                        <div className="space-y-1">
+                          {dartProfile.scoringDistribution.slice(0, 5).map((seg: any) => (
+                            <div key={seg.seg} className="flex items-center gap-2">
+                              <span className="text-xs font-bold w-8 text-right shrink-0" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.5)", fontSize: "0.65rem" }}>{seg.label}</span>
+                              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                                <div className="h-full rounded-full" style={{ width: `${seg.pct}%`, background: seg === dartProfile.scoringDistribution[0] ? "#a78bfa" : "rgba(167,139,250,0.35)" }} />
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0 w-24">
+                                <span className="text-xs font-mono" style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.6rem" }}>{seg.pct}%</span>
+                                {seg.treble > 0 && <span className="text-xs font-mono" style={{ color: "#a78bfa", fontSize: "0.58rem" }}>{seg.treblePct}%T</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Checkout preferences */}
+                    {dartProfile.checkoutPrefs?.length > 0 && (
+                      <div>
+                        <div className="text-xs mb-1.5 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.55rem", fontFamily: "Oswald, sans-serif" }}>Preferred doubles</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {dartProfile.checkoutPrefs.map((co: any, i: number) => (
+                            <div key={co.seg} className="flex items-center gap-1 px-2 py-0.5 rounded-full"
+                              style={{ background: i === 0 ? "rgba(167,139,250,0.18)" : "rgba(255,255,255,0.05)", border: `1px solid ${i === 0 ? "rgba(167,139,250,0.35)" : "rgba(255,255,255,0.06)"}` }}>
+                              <span className="text-xs font-bold" style={{ fontFamily: "Oswald, sans-serif", color: i === 0 ? "#a78bfa" : "rgba(255,255,255,0.4)", fontSize: "0.65rem" }}>{co.label}</span>
+                              <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.58rem" }}>{co.pct}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Progress towards unlocking */
+                  <div className="px-4 py-3">
+                    <div className="h-1.5 rounded-full overflow-hidden mb-1" style={{ background: "rgba(255,255,255,0.06)" }}>
+                      <div className="h-full rounded-full transition-all" style={{ width: `${Math.round((dartProfile.totalDarts / dartProfile.minRequired) * 100)}%`, background: "rgba(167,139,250,0.4)" }} />
+                    </div>
+                    <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.62rem" }}>
+                      Keep practising — profile unlocks at {dartProfile.minRequired} darts
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {practiceSessions.length > 0 && (
               <div>
                 <div className="px-4 py-2 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>

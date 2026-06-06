@@ -6,7 +6,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair } from "lucide-react";
 import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit } from "./bot-engine";
-import { type PracticeStats } from "./stats-types";
+import { type PracticeStats, type DartThrow } from "./stats-types";
 
 // ── Shared chrome ─────────────────────────────────────────────────────────────
 const P_COLOR = (i: number) => i === 0 ? "#22c55e" : "#ee0a78";
@@ -94,7 +94,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const names = [p1Name, p2Name];
 
   // Practice stat accumulators (refs = no re-render, always fresh in callbacks)
-  const p1StatsRef = useRef({ darts: 0, score: 0, s180s: 0, coAttempts: 0, coHits: 0 });
+  const p1StatsRef = useRef({ darts: 0, score: 0, s180s: 0, coAttempts: 0, coHits: 0, dartLog: [] as DartThrow[] });
 
   const isValidOut = (dart: Dart): boolean => {
     if (bullFinish) return dart.segment === 25 && dart.value === 50;
@@ -121,7 +121,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         if (n[winnerIdx] >= legsNeeded) {
           setTimeout(() => {
             onWin(winnerIdx, `${n[winnerIdx]}–${n[winnerIdx===0?1:0]} legs`);
-            onPracticeStats?.({ p1Darts: p1StatsRef.current.darts, p1Score: p1StatsRef.current.score, p1_180s: p1StatsRef.current.s180s, p1CheckoutAttempts: p1StatsRef.current.coAttempts, p1CheckoutHits: p1StatsRef.current.coHits });
+            onPracticeStats?.({ p1Darts: p1StatsRef.current.darts, p1Score: p1StatsRef.current.score, p1_180s: p1StatsRef.current.s180s, p1CheckoutAttempts: p1StatsRef.current.coAttempts, p1CheckoutHits: p1StatsRef.current.coHits, dartLog: [...p1StatsRef.current.dartLog] });
           }, 200);
         } else {
           setTimeout(() => {
@@ -138,7 +138,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     } else {
       setTimeout(() => {
         onWin(winnerIdx);
-        onPracticeStats?.({ p1Darts: p1StatsRef.current.darts, p1Score: p1StatsRef.current.score, p1_180s: p1StatsRef.current.s180s, p1CheckoutAttempts: p1StatsRef.current.coAttempts, p1CheckoutHits: p1StatsRef.current.coHits });
+        onPracticeStats?.({ p1Darts: p1StatsRef.current.darts, p1Score: p1StatsRef.current.score, p1_180s: p1StatsRef.current.s180s, p1CheckoutAttempts: p1StatsRef.current.coAttempts, p1CheckoutHits: p1StatsRef.current.coHits, dartLog: [...p1StatsRef.current.dartLog] });
       }, 200);
     }
   }, [legs, legsNeeded, legStarter, startingScore, doubleIn, onWin, onPracticeStats]);
@@ -159,6 +159,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     // Track P1 checkout opportunities (≤170 remaining at start of visit)
     if (turn === 0 && visitDarts.length === 0) {
       if (scores[0] <= 170) p1StatsRef.current.coAttempts++;
+    }
+
+    // Record every P1 dart for player profile building
+    if (turn === 0) {
+      const phase: "scoring" | "checkout" = scores[0] > 170 ? "scoring" : "checkout";
+      p1StatsRef.current.dartLog.push({ seg: dart.segment, mult: dart.multiplier, val: dart.value, phase });
     }
 
     const nv = [...visitDarts, dart];

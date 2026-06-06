@@ -131,6 +131,104 @@ router.get("/players/:id/practice-sessions", async (req, res): Promise<void> => 
   }
 });
 
+// GET /api/players/:id/dart-profile — computed dart pattern profile from all dart logs
+router.get("/players/:id/dart-profile", async (req, res): Promise<void> => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+
+    const MIN_DARTS = 100;
+
+    // Unpack all darts from JSONB dart logs stored in session_data
+    const raw = (await db.execute(sql`
+      WITH dart_data AS (
+        SELECT
+          (dart->>'seg')::int   AS seg,
+          (dart->>'mult')::int  AS mult,
+          (dart->>'val')::int   AS val,
+          dart->>'phase'        AS phase
+        FROM practice_sessions,
+          jsonb_array_elements(session_data->'dartLog') AS dart
+        WHERE player1_id = ${playerId}
+          AND session_data ? 'dartLog'
+      )
+      SELECT seg, mult, phase, COUNT(*)::int AS throws
+      FROM dart_data
+      WHERE seg IS NOT NULL AND mult IS NOT NULL
+      GROUP BY seg, mult, phase
+      ORDER BY throws DESC
+    `)).rows as { seg: number; mult: number; phase: string; throws: number }[];
+
+    const totalDarts = raw.reduce((s, r) => s + Number(r.throws), 0);
+
+    if (totalDarts < MIN_DARTS) {
+      res.json({ totalDarts, hasEnoughData: false, minRequired: MIN_DARTS });
+      return;
+    }
+
+    // ── Scoring phase distribution ───────────────────────────────────────────
+    const scoring = raw.filter(r => r.phase === "scoring");
+    const totalScoring = scoring.reduce((s, r) => s + Number(r.throws), 0);
+
+    // Group by segment
+    type SegCounts = { treble: number; single: number; double: number };
+    const bySeg: Record<number, SegCounts> = {};
+    for (const r of scoring) {
+      const seg = Number(r.seg); const mult = Number(r.mult); const n = Number(r.throws);
+      if (!bySeg[seg]) bySeg[seg] = { treble: 0, single: 0, double: 0 };
+      if (mult === 3) bySeg[seg].treble += n;
+      else if (mult === 1) bySeg[seg].single += n;
+      else if (mult === 2) bySeg[seg].double += n;
+    }
+
+    const segTotals = Object.entries(bySeg)
+      .map(([s, c]) => {
+        const seg = Number(s);
+        const total = c.treble + c.single + c.double;
+        return {
+          seg,
+          label: seg === 25 ? "Bull" : String(seg),
+          total,
+          treble: c.treble,
+          single: c.single,
+          double: c.double,
+          treblePct: total > 0 ? Math.round((c.treble / total) * 100) : 0,
+          pct: totalScoring > 0 ? Math.round((total / totalScoring) * 100) : 0,
+        };
+      })
+      .sort((a, b) => b.total - a.total);
+
+    // ── Checkout phase ───────────────────────────────────────────────────────
+    const coDoubles = raw.filter(r => r.phase === "checkout" && Number(r.mult) === 2);
+    const totalCoDoubles = coDoubles.reduce((s, r) => s + Number(r.throws), 0);
+    const checkoutPrefs = coDoubles.slice(0, 6).map(r => ({
+      seg: Number(r.seg),
+      label: `D${r.seg}`,
+      throws: Number(r.throws),
+      pct: totalCoDoubles > 0 ? Math.round((Number(r.throws) / totalCoDoubles) * 100) : 0,
+    }));
+
+    // ── Build BotConfig from profile (for future player-shadow bots) ─────────
+    const primary = segTotals[0] ?? null;
+    const avgPerVisit = totalScoring > 0
+      ? raw.filter(r => r.phase === "scoring").reduce((s, r) => s + Number(r.val ?? 0) * Number(r.throws), 0) / totalScoring * 3
+      : null;
+
+    res.json({
+      totalDarts,
+      hasEnoughData: true,
+      minRequired: MIN_DARTS,
+      primaryTarget: primary ? { seg: primary.seg, label: primary.label, treblePct: primary.treblePct } : null,
+      scoringDistribution: segTotals.slice(0, 7),
+      checkoutPrefs,
+      computedAvg: avgPerVisit != null ? Math.round(avgPerVisit * 10) / 10 : null,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to compute dart profile");
+    res.status(500).json({ error: "Failed to compute dart profile" });
+  }
+});
+
 // GET /api/admin/practice/stats — analytics for admin
 router.get("/admin/practice/stats", async (req, res): Promise<void> => {
   try {

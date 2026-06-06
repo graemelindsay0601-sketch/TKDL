@@ -440,6 +440,9 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
       body.p1_180s            = stats.p1_180s;
       body.p1CheckoutAttempts = stats.p1CheckoutAttempts;
       body.p1CheckoutHits     = stats.p1CheckoutHits;
+      if (stats.dartLog?.length) {
+        body.sessionData = { dartLog: stats.dartLog };
+      }
     }
     fetch("/api/practice/sessions", {
       method: "POST",
