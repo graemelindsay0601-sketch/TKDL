@@ -7,7 +7,7 @@ import {
   HalveItScorer, CountUpScorer, GotchaScorer, BaseballScorer,
   ScramScorer, FootballScorer, GolfScorer, NearestBullScorer, ManualScorer,
 } from "@/lib/scorers";
-import { type BotLevel } from "@/lib/bot-engine";
+import { type BotConfig } from "@/lib/bot-engine";
 
 export type GameTypeOption = {
   id: number; key: string; name: string; engine: string;
@@ -26,11 +26,11 @@ function safeParse(s: string | null | undefined): Record<string, unknown> {
 }
 
 export function GameScorer({
-  p1Name, p2Name, gameType, botLevel, onWin, onAbandon,
+  p1Name, p2Name, gameType, botConfig, onWin, onAbandon,
 }: {
   p1Name: string; p2Name: string;
   gameType: GameTypeOption;
-  botLevel?: BotLevel;
+  botConfig?: BotConfig;
   onWin: (result: GameResult) => void;
   onAbandon: () => void;
 }) {
@@ -39,22 +39,22 @@ export function GameScorer({
 
   switch (gameType.engine) {
     case "X01":
-      return <X01Scorer p1Name={p1Name} p2Name={p2Name} config={cfg as any} botLevel={botLevel} onWin={win} onAbandon={onAbandon} />;
+      return <X01Scorer p1Name={p1Name} p2Name={p2Name} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;
 
     case "Cricket":
-      return <CricketScorer p1Name={p1Name} p2Name={p2Name} cutThroat={!!cfg.cutThroat} botLevel={botLevel} onWin={win} onAbandon={onAbandon} />;
+      return <CricketScorer p1Name={p1Name} p2Name={p2Name} cutThroat={!!cfg.cutThroat} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;
 
     case "Killer":
       return <KillerScorer p1Name={p1Name} p2Name={p2Name} lives={(cfg.lives as number) ?? 3} onWin={win} onAbandon={onAbandon} />;
 
     case "Sequence":
-      return <SequenceScorer p1Name={p1Name} p2Name={p2Name} config={cfg} gameKey={gameType.key} botLevel={botLevel} onWin={win} onAbandon={onAbandon} />;
+      return <SequenceScorer p1Name={p1Name} p2Name={p2Name} config={cfg} gameKey={gameType.key} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;
 
     case "HalveIt":
-      return <HalveItScorer p1Name={p1Name} p2Name={p2Name} gameKey={gameType.key} botLevel={botLevel} onWin={win} onAbandon={onAbandon} />;
+      return <HalveItScorer p1Name={p1Name} p2Name={p2Name} gameKey={gameType.key} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;
 
     case "CountUp":
-      return <CountUpScorer p1Name={p1Name} p2Name={p2Name} config={cfg as any} botLevel={botLevel} onWin={win} onAbandon={onAbandon} />;
+      return <CountUpScorer p1Name={p1Name} p2Name={p2Name} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;
 
     case "Gotcha":
       return <GotchaScorer p1Name={p1Name} p2Name={p2Name} target={(cfg.target as number) ?? 301} onWin={win} onAbandon={onAbandon} />;

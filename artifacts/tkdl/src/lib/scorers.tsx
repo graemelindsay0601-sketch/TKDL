@@ -5,7 +5,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair } from "lucide-react";
-import { type BotLevel, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit } from "./bot-engine";
+import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit } from "./bot-engine";
 
 // ── Shared chrome ─────────────────────────────────────────────────────────────
 const P_COLOR = (i: number) => i === 0 ? "#22c55e" : "#ee0a78";
@@ -70,10 +70,10 @@ function SectionCard({ children }: { children: React.ReactNode }) {
 }
 
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
-export function X01Scorer({ p1Name, p2Name, config, botLevel, onWin, onAbandon }: {
+export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon }: {
   p1Name: string; p2Name: string;
   config: { startingScore: number; doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; legs?: number; bustResetTo?: number };
-  botLevel?: BotLevel;
+  botConfig?: BotConfig;
   onWin: (w: 0 | 1, detail?: string) => void; onAbandon: () => void;
 }) {
   const { startingScore = 501, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, legs, bustResetTo } = config;
@@ -170,15 +170,15 @@ export function X01Scorer({ p1Name, p2Name, config, botLevel, onWin, onAbandon }
 
   const handleDartRef = useRef(handleDart);
   useEffect(() => { handleDartRef.current = handleDart; });
-  const isBotTurnX01 = !!botLevel && turn === 1;
+  const isBotTurnX01 = !!botConfig && turn === 1;
   useEffect(() => {
-    if (!botLevel || turn !== 1) return;
-    const [d1, d2, d3] = botX01Visit(scores[1], !!doubleOut, botLevel);
+    if (!botConfig || turn !== 1) return;
+    const [d1, d2, d3] = botX01Visit(scores[1], !!doubleOut, botConfig);
     const t1 = setTimeout(() => handleDartRef.current(d1), 700);
     const t2 = setTimeout(() => handleDartRef.current(d2), 1400);
     const t3 = setTimeout(() => handleDartRef.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [turn, botLevel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cum = visitDarts.reduce((s,d) => s+d.value, 0);
   const projected = scores[turn] - cum;
@@ -240,8 +240,8 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
 const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
 
-export function CricketScorer({ p1Name, p2Name, cutThroat = false, botLevel, onWin, onAbandon }: {
-  p1Name: string; p2Name: string; cutThroat?: boolean; botLevel?: BotLevel;
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, botConfig, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; cutThroat?: boolean; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
   const [marks, setMarks]       = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
@@ -322,15 +322,15 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, botLevel, onW
 
   const handleDartRefCri = useRef(handleDart);
   useEffect(() => { handleDartRefCri.current = handleDart; });
-  const isBotTurnCri = !!botLevel && turn === 1;
+  const isBotTurnCri = !!botConfig && turn === 1;
   useEffect(() => {
-    if (!botLevel || turn !== 1) return;
-    const [d1, d2, d3] = botCricketVisit([...marks[1]], botLevel);
+    if (!botConfig || turn !== 1) return;
+    const [d1, d2, d3] = botCricketVisit([...marks[1]], botConfig);
     const t1 = setTimeout(() => handleDartRefCri.current(d1), 700);
     const t2 = setTimeout(() => handleDartRefCri.current(d2), 1400);
     const t3 = setTimeout(() => handleDartRefCri.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [turn, botLevel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -529,8 +529,8 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, onWin, onAbandon }: {
 }
 
 // ── Sequence Scorer (Around the World, Round the Clock, Shanghai, etc.) ────────
-export function SequenceScorer({ p1Name, p2Name, config, gameKey, botLevel, onWin, onAbandon }: {
-  p1Name: string; p2Name: string; config: any; gameKey: string; botLevel?: BotLevel;
+export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; config: any; gameKey: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
   const names = [p1Name, p2Name];
@@ -673,15 +673,15 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botLevel, onWi
 
   const handleDartRefSeq = useRef(handleDart);
   useEffect(() => { handleDartRefSeq.current = handleDart; });
-  const isBotTurnSeq = !!botLevel && turn === 1;
+  const isBotTurnSeq = !!botConfig && turn === 1;
   useEffect(() => {
-    if (!botLevel || turn !== 1 || !botSeqTarget) return;
-    const [d1, d2, d3] = botSequenceVisit(botSeqTarget.seg, (botSeqTarget.mult ?? 1) as 1|2|3, botLevel);
+    if (!botConfig || turn !== 1 || !botSeqTarget) return;
+    const [d1, d2, d3] = botSequenceVisit(botSeqTarget.seg, (botSeqTarget.mult ?? 1) as 1|2|3, botConfig);
     const t1 = setTimeout(() => handleDartRefSeq.current(d1), 700);
     const t2 = setTimeout(() => handleDartRefSeq.current(d2), 1400);
     const t3 = setTimeout(() => handleDartRefSeq.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [turn, botLevel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -720,8 +720,8 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botLevel, onWi
 const HALVEIT_TARGETS = [20,16,"D",17,"Bull",18,19,"T"];
 const HALVEIT_LABELS  = ["20","16","Any Double","17","Bull","18","19","Any Treble"];
 
-export function HalveItScorer({ p1Name, p2Name, gameKey, botLevel, onWin, onAbandon }: {
-  p1Name: string; p2Name: string; gameKey: string; botLevel?: BotLevel;
+export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; gameKey: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
   const isBobs = gameKey === "bobs_27";
@@ -803,9 +803,9 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botLevel, onWin, onAban
 
   const handleDartRefHalve = useRef(handleDart);
   useEffect(() => { handleDartRefHalve.current = handleDart; });
-  const isBotTurnHalve = !!botLevel && turn === 1;
+  const isBotTurnHalve = !!botConfig && turn === 1;
   useEffect(() => {
-    if (!botLevel || turn !== 1) return;
+    if (!botConfig || turn !== 1) return;
     const ct = targets[round];
     let tSeg = 20, tMult: 1|2|3 = 1;
     if (isBobs) { tSeg = ct as number; tMult = 2; }
@@ -813,12 +813,12 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botLevel, onWin, onAban
     else if (ct === "T") { tSeg = 20; tMult = 3; }
     else if (ct === "Bull") { tSeg = 25; tMult = 1; }
     else { tSeg = ct as number; tMult = 1; }
-    const [d1, d2, d3] = botHalveItVisit(tSeg, tMult, botLevel);
+    const [d1, d2, d3] = botHalveItVisit(tSeg, tMult, botConfig);
     const t1 = setTimeout(() => handleDartRefHalve.current(d1), 700);
     const t2 = setTimeout(() => handleDartRefHalve.current(d2), 1400);
     const t3 = setTimeout(() => handleDartRefHalve.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [turn, botLevel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -863,8 +863,8 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botLevel, onWin, onAban
 }
 
 // ── Count Up Scorer ────────────────────────────────────────────────────────────
-export function CountUpScorer({ p1Name, p2Name, config, botLevel, onWin, onAbandon }: {
-  p1Name: string; p2Name: string; config: { target?: number; rounds?: number }; botLevel?: BotLevel;
+export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; config: { target?: number; rounds?: number }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
   const target = config.target ?? 501;
@@ -911,15 +911,15 @@ export function CountUpScorer({ p1Name, p2Name, config, botLevel, onWin, onAband
 
   const handleDartRefCU = useRef(handleDart);
   useEffect(() => { handleDartRefCU.current = handleDart; });
-  const isBotTurnCU = !!botLevel && turn === 1;
+  const isBotTurnCU = !!botConfig && turn === 1;
   useEffect(() => {
-    if (!botLevel || turn !== 1) return;
-    const [d1, d2, d3] = botCountUpVisit(botLevel);
+    if (!botConfig || turn !== 1) return;
+    const [d1, d2, d3] = botCountUpVisit(botConfig);
     const t1 = setTimeout(() => handleDartRefCU.current(d1), 700);
     const t2 = setTimeout(() => handleDartRefCU.current(d2), 1400);
     const t3 = setTimeout(() => handleDartRefCU.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [turn, botLevel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
