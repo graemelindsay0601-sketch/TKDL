@@ -1,12 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import { useListPlayers } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, AlertCircle, BarChart3 } from "lucide-react";
+import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult } from "@/components/game-scorer";
 import { RulesModal } from "@/components/rules-modal";
+import { BOT_PERSONAS, BOT_LEVELS, type BotPersona, type BotLevel } from "@/lib/bot-engine";
 
 type Player = { id: number; name: string; points: number; elo: number; status: string };
-type SetupData = { p1: Player; p2: Player | null; gameType: GameTypeOption; solo: boolean };
+type SetupData = {
+  p1: Player;
+  p2: Player | null;
+  gameType: GameTypeOption;
+  solo: boolean;
+  botPersona?: BotPersona;
+};
 
 const TABS = [
   { key: "competitive", label: "Competitive" },
@@ -44,16 +51,57 @@ function GameCard({ gt, selected, onSelect, onRules }: {
   );
 }
 
+// ── Persona card ────────────────────────────────────────────────────────────────
+function PersonaCard({ persona, selected, onSelect }: {
+  persona: BotPersona; selected: boolean; onSelect: () => void;
+}) {
+  const lvl = BOT_LEVELS[persona.level];
+  return (
+    <button onClick={onSelect} className="pdc-card p-3 text-left w-full transition-all relative overflow-hidden"
+      style={{
+        borderColor: selected ? lvl.color : "rgba(255,255,255,0.07)",
+        background: selected ? `${lvl.color}14` : "rgba(255,255,255,0.02)",
+        cursor: "pointer",
+      }}>
+      {selected && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: lvl.color }} />}
+      <div className="flex items-center gap-3">
+        <span className="text-2xl leading-none">{persona.flag}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: selected ? "#fff" : "rgba(255,255,255,0.85)" }}>
+              {persona.name}
+            </span>
+            <span className="text-xs px-1.5 py-0.5 rounded-md shrink-0"
+              style={{ background: `${lvl.color}22`, color: lvl.color, fontFamily: "Oswald, sans-serif", fontWeight: 700, letterSpacing: "0.05em" }}>
+              {persona.nickname}
+            </span>
+          </div>
+          <div className="text-xs mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
+            {persona.tagline}
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <div className="text-xl font-black leading-none" style={{ fontFamily: "Oswald, sans-serif", color: lvl.color }}>
+            {persona.avg}
+          </div>
+          <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>avg</div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 // ── Setup Screen ───────────────────────────────────────────────────────────────
 function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const { data: playersData } = useListPlayers();
-  const [gameTypes, setGameTypes] = useState<GameTypeOption[]>([]);
-  const [solo, setSolo]           = useState(false);
-  const [p1Id, setP1Id]           = useState("");
-  const [p2Id, setP2Id]           = useState("");
-  const [selectedGame, setGame]   = useState<GameTypeOption | null>(null);
-  const [tab, setTab]             = useState("practice");
-  const [rulesGame, setRulesGame] = useState<GameTypeOption | null>(null);
+  const [gameTypes, setGameTypes]       = useState<GameTypeOption[]>([]);
+  const [solo, setSolo]                 = useState(false);
+  const [p1Id, setP1Id]                 = useState("");
+  const [p2Id, setP2Id]                 = useState("");
+  const [selectedGame, setGame]         = useState<GameTypeOption | null>(null);
+  const [tab, setTab]                   = useState("practice");
+  const [rulesGame, setRulesGame]       = useState<GameTypeOption | null>(null);
+  const [selectedPersona, setPersona]   = useState<BotPersona | null>(null);
 
   useEffect(() => {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
@@ -62,7 +110,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const players  = (playersData as Player[] | undefined)?.filter(p => p.status === "ACTIVE") ?? [];
   const p1       = players.find(p => p.id === Number(p1Id));
   const p2       = solo ? null : players.find(p => p.id === Number(p2Id));
-  const canStart = !!p1 && (solo || !!p2) && (solo || p1.id !== Number(p2Id)) && !!selectedGame;
+  const canStart = !!p1 && !!selectedGame && (solo ? !!selectedPersona : !!p2 && p1.id !== Number(p2Id));
 
   const tabGames = gameTypes.filter(g => g.category === tab && g.enabled !== false);
 
@@ -82,7 +130,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
 
       {/* Solo / 2-player toggle */}
       <div className="flex gap-2">
-        {[{v:false,l:"2 Players"},{v:true,l:"Solo Practice"}].map(({v,l}) => (
+        {[{v:false,l:"2 Players"},{v:true,l:"Solo vs CPU"}].map(({v,l}) => (
           <button key={String(v)} onClick={() => setSolo(v)}
             className="flex-1 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all"
             style={{
@@ -119,20 +167,57 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                 }}
                 className="w-full rounded-lg px-3 py-2 text-sm"
                 style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: val ? "#fff" : "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-                <option value="">Select…</option>
+                <option value="" style={{ color: "#111" }}>Select…</option>
                 {players.filter(p => p.id !== Number(other as string)).map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id} style={{ color: "#111" }}>{p.name}</option>
                 ))}
               </select>
             </div>
           ))}
         </div>
-        {solo && (
-          <div className="mt-2 px-3 py-2 rounded-lg text-xs" style={{ background: "rgba(167,139,250,0.05)", color: "rgba(255,255,255,0.3)" }}>
-            Solo mode: play against yourself to warm up, track averages, or learn a new game format.
-          </div>
-        )}
       </div>
+
+      {/* CPU Opponent picker (solo mode) */}
+      {solo && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Bot className="w-4 h-4" style={{ color: "#a78bfa" }} />
+            <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
+              Choose Your Opponent
+            </h2>
+          </div>
+          {/* Level legend */}
+          <div className="flex gap-2 flex-wrap mb-3">
+            {(Object.entries(BOT_LEVELS) as [BotLevel, typeof BOT_LEVELS[BotLevel]][])
+              .slice().reverse()
+              .map(([key, lvl]) => (
+                <span key={key} className="text-xs px-2 py-0.5 rounded-full font-bold"
+                  style={{ background: `${lvl.color}18`, color: lvl.color, fontFamily: "Oswald, sans-serif", border: `1px solid ${lvl.color}44` }}>
+                  {lvl.label} · {lvl.avg}+ avg
+                </span>
+              ))}
+          </div>
+          <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+            {BOT_PERSONAS.map(p => (
+              <PersonaCard key={p.id} persona={p} selected={selectedPersona?.id === p.id} onSelect={() => setPersona(p)} />
+            ))}
+          </div>
+          {selectedPersona && (
+            <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg"
+              style={{ background: `${BOT_LEVELS[selectedPersona.level].color}0e`, border: `1px solid ${BOT_LEVELS[selectedPersona.level].color}33` }}>
+              <span className="text-lg">{selectedPersona.flag}</span>
+              <div>
+                <span className="text-xs font-bold" style={{ color: BOT_LEVELS[selectedPersona.level].color, fontFamily: "Oswald, sans-serif" }}>
+                  {selectedPersona.name}
+                </span>
+                <span className="text-xs ml-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+                  {BOT_LEVELS[selectedPersona.level].label} · {selectedPersona.avg} avg
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Game type */}
       <div>
@@ -176,7 +261,13 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       </div>
 
       <button
-        onClick={() => canStart && onStart({ p1: p1!, p2: solo ? null : p2!, gameType: selectedGame!, solo })}
+        onClick={() => canStart && onStart({
+          p1: p1!,
+          p2: solo ? null : p2!,
+          gameType: selectedGame!,
+          solo,
+          botPersona: solo ? selectedPersona! : undefined,
+        })}
         disabled={!canStart}
         className="w-full py-4 text-base font-black uppercase tracking-widest rounded-xl transition-all"
         style={{
@@ -186,7 +277,13 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           fontFamily: "Oswald, sans-serif", cursor: canStart ? "pointer" : "not-allowed",
           boxShadow: canStart ? "0 8px 32px rgba(124,58,237,0.3)" : undefined,
         }}>
-        {canStart ? `Start Practice — ${selectedGame?.name}` : "Choose player & game"}
+        {canStart
+          ? solo
+            ? `Start vs ${selectedPersona?.name ?? "Bot"}`
+            : `Start Practice — ${selectedGame?.name}`
+          : solo
+            ? "Choose player, opponent & game"
+            : "Choose players & game"}
         {canStart && <ChevronRight className="inline ml-2 w-5 h-5" />}
       </button>
 
@@ -200,9 +297,9 @@ function PracticeOverScreen({ result, data, onBack }: {
   result: GameResult; data: SetupData; onBack: () => void;
 }) {
   const { toast } = useToast();
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState("");
-  const startRef = useRef(Date.now());
+  const [saved, setSaved]   = useState(false);
+  const [error, setError]   = useState("");
+  const startRef            = useRef(Date.now());
 
   useEffect(() => {
     const duration = Math.round((Date.now() - startRef.current) / 1000);
@@ -210,12 +307,12 @@ function PracticeOverScreen({ result, data, onBack }: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        player1Id:   data.p1.id,
-        player2Id:   data.p2?.id ?? null,
-        gameTypeKey:  data.gameType.key,
-        gameTypeName: data.gameType.name,
-        winnerIdx:    result.winnerIdx,
-        detail:       result.detail,
+        player1Id:       data.p1.id,
+        player2Id:       data.p2?.id ?? null,
+        gameTypeKey:     data.gameType.key,
+        gameTypeName:    data.gameType.name,
+        winnerIdx:       result.winnerIdx,
+        detail:          result.detail,
         durationSeconds: duration,
       }),
     })
@@ -223,8 +320,9 @@ function PracticeOverScreen({ result, data, onBack }: {
       .catch(() => setError("Network error — session not saved"));
   }, []);
 
-  const winner = result.winnerIdx === 0 ? data.p1 : data.p2 ?? data.p1;
-  const loser  = result.winnerIdx === 0 ? (data.p2 ?? null) : data.p1;
+  const persona = data.botPersona;
+  const p2Label = persona ? persona.name : data.p2?.name ?? null;
+  const winner  = result.winnerIdx === 0 ? data.p1.name : (p2Label ?? data.p1.name);
 
   return (
     <div className="max-w-lg mx-auto space-y-6 text-center">
@@ -236,7 +334,7 @@ function PracticeOverScreen({ result, data, onBack }: {
         </div>
         <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Practice Complete</div>
         <div className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.08em" }}>
-          {data.solo ? "Session Done!" : `${winner.name} Wins!`}
+          {data.solo ? (result.winnerIdx === 0 ? "You Win!" : `${persona?.name ?? "CPU"} Wins!`) : `${winner} Wins!`}
         </div>
         {result.detail && <div className="text-sm mt-1" style={{ color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>{result.detail}</div>}
       </div>
@@ -245,8 +343,12 @@ function PracticeOverScreen({ result, data, onBack }: {
         <div className="text-xs uppercase tracking-widest mb-2 font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>Session Summary</div>
         {[
           ["Game", data.gameType.name],
-          ["Mode", data.solo ? "Solo" : "2 Players"],
-          ...(!data.solo && loser ? [["Winner", winner.name], ["Loser", loser.name]] as const : []),
+          ["Mode", data.solo ? "Solo vs CPU" : "2 Players"],
+          ...(data.solo && persona ? [
+            ["Opponent", persona.name],
+            ["Level", `${BOT_LEVELS[persona.level].label} · ${persona.avg} avg`],
+          ] as const : []),
+          ...(!data.solo && p2Label ? [["vs", p2Label]] as const : []),
         ].map(([k, v]) => (
           <div key={k} className="flex justify-between text-sm">
             <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>{k}</span>
@@ -289,20 +391,44 @@ export default function Practice() {
   }
 
   if (phase === "playing" && setupData) {
-    const p2Name = setupData.p2?.name ?? "CPU";
+    const persona  = setupData.botPersona;
+    const p2Name   = persona ? persona.name : setupData.p2?.name ?? "CPU";
+    const botLevel = persona?.level as BotLevel | undefined;
     return (
       <div className="max-w-lg mx-auto">
         <div className="flex items-center gap-2 mb-4">
           <div className="w-2 h-2 rounded-full" style={{ background: "#a78bfa" }} />
           <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
             PRACTICE · {setupData.gameType.name}
-            {setupData.solo ? " · SOLO" : ` · ${setupData.p1.name} vs ${p2Name}`}
+            {setupData.solo && persona
+              ? ` · vs ${persona.name} (${BOT_LEVELS[persona.level].label})`
+              : !setupData.solo ? ` · ${setupData.p1.name} vs ${p2Name}` : " · SOLO"
+            }
           </span>
         </div>
+        {/* Bot info banner */}
+        {persona && (
+          <div className="mb-3 flex items-center gap-3 px-3 py-2 rounded-lg"
+            style={{ background: `${BOT_LEVELS[persona.level].color}0e`, border: `1px solid ${BOT_LEVELS[persona.level].color}33` }}>
+            <span className="text-xl leading-none">{persona.flag}</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-bold" style={{ color: BOT_LEVELS[persona.level].color, fontFamily: "Oswald, sans-serif" }}>
+                {persona.name} · <span style={{ color: "rgba(255,255,255,0.4)" }}>{persona.nickname}</span>
+              </div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
+                {BOT_LEVELS[persona.level].label} difficulty · {persona.avg} avg · CPU auto-plays
+              </div>
+            </div>
+            <div className="text-xl font-black" style={{ color: BOT_LEVELS[persona.level].color, fontFamily: "Oswald, sans-serif" }}>
+              {persona.avg}
+            </div>
+          </div>
+        )}
         <GameScorer
           p1Name={setupData.p1.name}
           p2Name={p2Name}
           gameType={setupData.gameType}
+          botLevel={botLevel}
           onWin={r => { setResult(r); setPhase("done"); }}
           onAbandon={() => setPhase("setup")}
         />
@@ -311,7 +437,13 @@ export default function Practice() {
   }
 
   if (phase === "done" && gameResult && setupData) {
-    return <PracticeOverScreen result={gameResult} data={setupData} onBack={() => { setPhase("setup"); setResult(null); setSetupData(null); }} />;
+    return (
+      <PracticeOverScreen
+        result={gameResult}
+        data={setupData}
+        onBack={() => { setPhase("setup"); setResult(null); setSetupData(null); }}
+      />
+    );
   }
 
   return null;

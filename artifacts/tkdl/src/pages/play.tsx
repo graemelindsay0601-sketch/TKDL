@@ -94,9 +94,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         onChange={e => select(e.target.value, which)}
         className="w-full rounded-lg px-3 py-2 text-sm"
         style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: val ? "#fff" : "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-        <option value="">Select player…</option>
+        <option value="" style={{ color: "#111" }}>Select player…</option>
         {players.filter(p => p.id !== Number(other)).map(p => (
-          <option key={p.id} value={p.id}>{p.name} ({p.points}pts)</option>
+          <option key={p.id} value={p.id} style={{ color: "#111" }}>{p.name} ({p.points}pts)</option>
         ))}
       </select>
       {val && players.find(p => p.id === Number(val)) && (
