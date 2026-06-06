@@ -128,16 +128,16 @@ export default function Players() {
                     >
                       {player.name.substring(0, 2)}
                     </div>
-                    <TierBadge tier={player.tier} />
+                    <TierBadge tier={(player as any).tier || (player.elo >= 1100 ? "Gold" : player.elo >= 980 ? "Silver" : "Bronze")} />
                   </div>
 
                   {/* Name */}
                   <div className="font-bold text-base leading-tight mb-0.5" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)" }}>
                     {player.name}
                   </div>
-                  {player.nickname && (
+                  {(player as any).nickname && (
                     <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontStyle: "italic" }}>
-                      "{player.nickname}"
+                      "{(player as any).nickname}"
                     </div>
                   )}
 
@@ -161,7 +161,7 @@ export default function Players() {
                     </div>
                   </div>
 
-                  {player.currentWinStreak && player.currentWinStreak >= 3 && (
+                  {(player.currentWinStreak ?? 0) >= 3 && (
                     <div className="flex items-center gap-1 mt-2 text-xs font-bold" style={{ color: "#ff005c" }}>
                       <Flame className="w-3 h-3" /> {player.currentWinStreak}W streak
                     </div>

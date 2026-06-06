@@ -1,0 +1,1 @@
+- [TKDL Architecture](tkdl-architecture.md) — points-wager system, identity/narrative engine, 91 achievements, PDC aesthetic decisions

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, seasonsTable, playersTable, seasonStandingsTable } from "@workspace/db";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { performSeasonReset } from "../lib/seasonReset";
 import { calcTier } from "../lib/elo";
 import { computeIdentity } from "../lib/identity";

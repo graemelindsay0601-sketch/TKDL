@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable } from "@workspace/db";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { applyEloChange, calcTier } from "../lib/elo";
 import { validateStake, applyWager } from "../lib/wager";
 import { checkMatchAchievements, checkStatAchievements } from "../lib/achievements";

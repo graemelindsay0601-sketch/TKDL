@@ -159,10 +159,10 @@ export default function Achievements() {
                 </div>
 
                 {/* Threshold */}
-                {!isHidden && achievement.threshold !== undefined && achievement.threshold !== null && (
+                {!isHidden && (achievement as any).threshold != null && (
                   <div className="pt-2 mt-auto border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
                     <span className="text-xs font-mono" style={{ color: "rgba(255,255,255,0.3)" }}>
-                      Req: {achievement.threshold}
+                      Req: {(achievement as any).threshold}
                     </span>
                   </div>
                 )}
