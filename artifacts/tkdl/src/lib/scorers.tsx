@@ -35,6 +35,45 @@ function PlayerCard({ name, score, scoreSuffix = "", turn, active, sub }: {
   );
 }
 
+function dartChipStyle(dart: string): React.CSSProperties {
+  if (dart === "DB")                       return { background: "rgba(255,0,92,0.18)",  color: "#ff005c", border: "1px solid rgba(255,0,92,0.4)" };
+  if (dart === "Bull")                     return { background: "rgba(255,0,92,0.12)",  color: "#ff6b9d", border: "1px solid rgba(255,0,92,0.3)" };
+  if (dart.startsWith("T"))               return { background: "rgba(0,210,150,0.14)", color: "#00d296", border: "1px solid rgba(0,210,150,0.35)" };
+  if (dart.startsWith("D"))               return { background: "rgba(255,210,74,0.14)",color: "#ffd24a", border: "1px solid rgba(255,210,74,0.35)" };
+  return                                       { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.12)" };
+}
+
+function CheckoutBar({ checkout, playerName, playerIdx }: { checkout: string; playerName: string; playerIdx: 0|1 }) {
+  const darts = checkout.split(" ");
+  const accent = P_COLOR(playerIdx);
+  return (
+    <div className="rounded-xl px-4 py-3 flex items-center gap-3"
+      style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${accent}33` }}>
+      <div className="shrink-0">
+        <div className="text-xs font-black uppercase tracking-widest" style={{ color: accent, fontFamily: "Oswald, sans-serif", fontSize: "0.55rem" }}>
+          {playerName} CHECKOUT
+        </div>
+      </div>
+      <div className="flex items-center gap-2 flex-1 justify-center flex-wrap">
+        {darts.map((d, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <span className="px-3 py-1 rounded-lg text-sm font-black"
+              style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em", ...dartChipStyle(d) }}>
+              {d}
+            </span>
+            {i < darts.length - 1 && (
+              <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.7rem" }}>→</span>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="shrink-0 text-xs font-black" style={{ color: "rgba(255,255,255,0.15)", fontFamily: "Oswald, sans-serif" }}>
+        {darts.length}🎯
+      </div>
+    </div>
+  );
+}
+
 function TurnBanner({ name, turn, msg }: { name: string; turn: 0 | 1; msg?: string }) {
   return (
     <div className="flex items-center justify-center gap-2 text-sm"
@@ -309,9 +348,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         {[0,1].map(i => (
           <PlayerCard key={i} name={names[i]} score={scores[i]}
             turn={i===0} active={turn===i && !bust}
-            sub={i===turn && checkout ? `↳ ${checkout}` : doubleIn && !started[i] ? "double in required" : undefined} />
+            sub={doubleIn && !started[i] ? "double in required" : undefined} />
         ))}
       </div>
+      {/* Checkout bar — shown for both players when in range */}
+      {[0,1].map(i => {
+        const co = (scores[i] <= 170 && scores[i] >= 2 && (!doubleIn || started[i])) ? CHECKOUTS[scores[i]] : undefined;
+        if (!co) return null;
+        return <CheckoutBar key={i} checkout={co} playerName={names[i]} playerIdx={i as 0|1} />;
+      })}
       {bust ? <BustBanner msg={bustMsg} /> : isBotTurnX01 ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={doubleIn && !started[turn] ? "— hit a double to start" : undefined} />}
       <SectionCard>
         <VisitDarts darts={visitDarts} />
