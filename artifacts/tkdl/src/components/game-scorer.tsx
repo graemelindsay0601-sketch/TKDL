@@ -8,6 +8,8 @@ import {
   ScramScorer, FootballScorer, GolfScorer, NearestBullScorer, ManualScorer,
 } from "@/lib/scorers";
 import { type BotConfig } from "@/lib/bot-engine";
+import { type PracticeStats } from "@/lib/stats-types";
+export type { PracticeStats };
 
 export type GameTypeOption = {
   id: number; key: string; name: string; engine: string;
@@ -26,20 +28,21 @@ function safeParse(s: string | null | undefined): Record<string, unknown> {
 }
 
 export function GameScorer({
-  p1Name, p2Name, gameType, botConfig, onWin, onAbandon,
+  p1Name, p2Name, gameType, botConfig, onWin, onAbandon, onPracticeStats,
 }: {
   p1Name: string; p2Name: string;
   gameType: GameTypeOption;
   botConfig?: BotConfig;
   onWin: (result: GameResult) => void;
   onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
 }) {
   const cfg = safeParse(gameType.config);
   const win = (idx: 0 | 1, detail?: string) => onWin({ winnerIdx: idx, detail });
 
   switch (gameType.engine) {
     case "X01":
-      return <X01Scorer p1Name={p1Name} p2Name={p2Name} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;
+      return <X01Scorer p1Name={p1Name} p2Name={p2Name} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
 
     case "Cricket":
       return <CricketScorer p1Name={p1Name} p2Name={p2Name} cutThroat={!!cfg.cutThroat} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;

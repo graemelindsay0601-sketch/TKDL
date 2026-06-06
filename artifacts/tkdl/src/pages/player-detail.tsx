@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useState, useEffect, useRef } from "react";
-import { Trophy, Skull, Flame, ArrowLeft, CheckCircle, ChevronDown, Zap } from "lucide-react";
+import { Trophy, Skull, Flame, ArrowLeft, CheckCircle, ChevronDown, Zap, Dumbbell } from "lucide-react";
 
 function useCountUp(target: number, duration = 900) {
   const [value, setValue] = useState(0);
@@ -202,7 +202,7 @@ export default function PlayerDetail() {
   const playerId = parseInt(params.id || "0", 10);
   const [achFilter, setAchFilter] = useState<"all" | "unlocked" | "locked" | "close">("all");
   const [showAllAch, setShowAllAch] = useState(false);
-  const [profileTab, setProfileTab] = useState<"matches" | "h2h">("matches");
+  const [profileTab, setProfileTab] = useState<"matches" | "h2h" | "practice">("matches");
 
   const { data: stats, isLoading } = useGetPlayerStats(playerId, {
     query: { enabled: !!playerId, queryKey: getGetPlayerStatsQueryKey(playerId) },
@@ -221,6 +221,18 @@ export default function PlayerDetail() {
     if (!playerId) return;
     fetch(`/api/players/${playerId}/game-types`)
       .then(r => r.json()).then(d => setGameTypes(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, [playerId]);
+
+  const [practiceAgg, setPracticeAgg] = useState<any>(null);
+  const [practiceSessions, setPracticeSessions] = useState<any[]>([]);
+  useEffect(() => {
+    if (!playerId) return;
+    fetch(`/api/players/${playerId}/practice-stats`)
+      .then(r => r.json()).then(d => setPracticeAgg(d))
+      .catch(() => {});
+    fetch(`/api/players/${playerId}/practice-sessions`)
+      .then(r => r.json()).then(d => setPracticeSessions(Array.isArray(d) ? d : []))
       .catch(() => {});
   }, [playerId]);
 
@@ -425,19 +437,21 @@ export default function PlayerDetail() {
 
       {/* Mobile tab switcher */}
       <div className="lg:hidden flex rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
-        {(["matches", "h2h"] as const).map(tab => (
-          <button key={tab} onClick={() => setProfileTab(tab)}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest transition-all"
+        {([
+          { key: "matches",  label: "Matches",  Icon: Zap,      activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"      },
+          { key: "h2h",      label: "H2H",      Icon: Trophy,   activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"      },
+          { key: "practice", label: "Practice", Icon: Dumbbell, activeColor: "#a78bfa", activeBg: "rgba(167,139,250,0.12)"   },
+        ] as const).map(({ key, label, Icon, activeColor, activeBg }) => (
+          <button key={key} onClick={() => setProfileTab(key)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-black uppercase tracking-widest transition-all"
             style={{
               fontFamily: "Oswald, sans-serif",
-              letterSpacing: "0.12em",
-              background: profileTab === tab ? "rgba(255,0,92,0.12)" : "rgba(255,255,255,0.02)",
-              color: profileTab === tab ? "#ff005c" : "rgba(255,255,255,0.35)",
-              borderBottom: profileTab === tab ? "2px solid #ff005c" : "2px solid transparent",
+              letterSpacing: "0.1em",
+              background: profileTab === key ? activeBg : "rgba(255,255,255,0.02)",
+              color: profileTab === key ? activeColor : "rgba(255,255,255,0.35)",
+              borderBottom: profileTab === key ? `2px solid ${activeColor}` : "2px solid transparent",
             }}>
-            {tab === "matches"
-              ? <><Zap className="w-3.5 h-3.5" /> Matches</>
-              : <><Trophy className="w-3.5 h-3.5" /> Head-to-Head</>}
+            <Icon className="w-3.5 h-3.5" />{label}
           </button>
         ))}
       </div>
@@ -541,6 +555,91 @@ export default function PlayerDetail() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* ══ PRACTICE STATS ══ */}
+      <div className={`pdc-card overflow-hidden ${profileTab !== "practice" ? "hidden lg:block" : ""}`}>
+        <div className="px-4 py-3 border-b flex items-center justify-between"
+          style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+          <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+            Practice Stats
+          </h2>
+          <Dumbbell className="w-3.5 h-3.5" style={{ color: "rgba(167,139,250,0.5)" }} />
+        </div>
+
+        {/* Aggregate summary */}
+        {practiceAgg && Number(practiceAgg.total_sessions) > 0 ? (
+          <>
+            <div className="grid grid-cols-4 divide-x divide-white/[0.07]" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+              {[
+                { label: "Sessions", value: practiceAgg.total_sessions ?? 0, color: "rgba(255,255,255,0.7)", fmt: (v: number) => String(v) },
+                { label: "3-Dart Avg", value: practiceAgg.avg_three_dart, color: "#a78bfa", fmt: (v: number | null) => v != null ? Number(v).toFixed(1) : "—" },
+                { label: "180s", value: practiceAgg.total_180s ?? 0, color: "#ffd24a", fmt: (v: number) => String(v) },
+                { label: "Checkout %", value: (practiceAgg.total_co_attempts > 0 ? Math.round((practiceAgg.total_co_hits / practiceAgg.total_co_attempts) * 100) : null), color: "#22c55e", fmt: (v: number | null) => v != null ? `${v}%` : "—" },
+              ].map(({ label, value, color, fmt }) => (
+                <div key={label} className="px-3 py-4 text-center" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                  <div className="text-xl font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color }}>
+                    {fmt(value as any)}
+                  </div>
+                  <div className="text-xs mt-0.5 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem" }}>
+                    {label}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Recent sessions list */}
+            {practiceSessions.length > 0 && (
+              <div>
+                <div className="px-4 py-2 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                  <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", fontSize: "0.55rem" }}>
+                    Recent Sessions
+                  </span>
+                </div>
+                {practiceSessions.slice(0, 10).map((s: any) => {
+                  const avg    = s.p1_avg != null ? Number(s.p1_avg).toFixed(1) : null;
+                  const won    = s.winner_idx === 0;
+                  const coHits = Number(s.p1_checkout_hits ?? 0);
+                  const coAtt  = Number(s.p1_checkout_attempts ?? 0);
+                  const coPct  = coAtt > 0 ? Math.round((coHits / coAtt) * 100) : null;
+                  return (
+                    <div key={s.id} className="px-4 py-2.5 flex items-center gap-3 border-b hover:bg-white/[0.02] transition-colors"
+                      style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                      <div className="w-1 h-7 rounded-full shrink-0"
+                        style={{ background: s.winner_idx === null ? "rgba(255,255,255,0.15)" : won ? "#22c55e" : "#ff005c" }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.75)" }}>
+                            {s.game_type_name}
+                          </span>
+                          {s.winner_idx !== null && (
+                            <span className="text-xs font-black" style={{ fontFamily: "Oswald, sans-serif", color: won ? "#22c55e" : "#ff005c", fontSize: "0.62rem" }}>
+                              {won ? "WIN" : "LOSS"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          {avg && <span className="text-xs font-mono" style={{ color: "#a78bfa" }}>{avg} avg</span>}
+                          {Number(s.p1_180s) > 0 && <span className="text-xs font-mono" style={{ color: "#ffd24a" }}>{s.p1_180s}×180</span>}
+                          {coPct !== null && <span className="text-xs font-mono" style={{ color: "#22c55e" }}>{coPct}% co</span>}
+                        </div>
+                      </div>
+                      <div className="text-xs shrink-0 text-right" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
+                        {format(new Date(s.created_at), "d MMM")}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="px-4 py-10 text-center">
+            <Dumbbell className="w-8 h-8 mx-auto mb-3 opacity-10" style={{ color: "#a78bfa" }} />
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.2)" }}>No practice sessions yet</p>
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.1)" }}>Play some X01 practice matches to start tracking stats</p>
+          </div>
+        )}
       </div>
 
       {/* ══ FORMAT STATS ══ */}

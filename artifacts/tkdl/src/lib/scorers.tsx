@@ -6,6 +6,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair } from "lucide-react";
 import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit } from "./bot-engine";
+import { type PracticeStats } from "./stats-types";
 
 // ── Shared chrome ─────────────────────────────────────────────────────────────
 const P_COLOR = (i: number) => i === 0 ? "#22c55e" : "#ee0a78";
@@ -70,11 +71,12 @@ function SectionCard({ children }: { children: React.ReactNode }) {
 }
 
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
-export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon }: {
+export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
   p1Name: string; p2Name: string;
   config: { startingScore: number; doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; legs?: number; bustResetTo?: number };
   botConfig?: BotConfig;
   onWin: (w: 0 | 1, detail?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
 }) {
   const { startingScore = 501, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, legs, bustResetTo } = config;
   const legsNeeded = legs ? Math.ceil(legs / 2) : 0;
@@ -90,6 +92,9 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon 
   const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number }[]>([]);
 
   const names = [p1Name, p2Name];
+
+  // Practice stat accumulators (refs = no re-render, always fresh in callbacks)
+  const p1StatsRef = useRef({ darts: 0, score: 0, s180s: 0, coAttempts: 0, coHits: 0 });
 
   const isValidOut = (dart: Dart): boolean => {
     if (bullFinish) return dart.segment === 25 && dart.value === 50;
@@ -114,7 +119,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon 
         const n: [number,number] = [...prev] as [number,number];
         n[winnerIdx]++;
         if (n[winnerIdx] >= legsNeeded) {
-          setTimeout(() => onWin(winnerIdx, `${n[winnerIdx]}–${n[winnerIdx===0?1:0]} legs`), 200);
+          setTimeout(() => {
+            onWin(winnerIdx, `${n[winnerIdx]}–${n[winnerIdx===0?1:0]} legs`);
+            onPracticeStats?.({ p1Darts: p1StatsRef.current.darts, p1Score: p1StatsRef.current.score, p1_180s: p1StatsRef.current.s180s, p1CheckoutAttempts: p1StatsRef.current.coAttempts, p1CheckoutHits: p1StatsRef.current.coHits });
+          }, 200);
         } else {
           setTimeout(() => {
             const ns: 0|1 = legStarter === 0 ? 1 : 0;
@@ -128,9 +136,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon 
         return n;
       });
     } else {
-      setTimeout(() => onWin(winnerIdx), 200);
+      setTimeout(() => {
+        onWin(winnerIdx);
+        onPracticeStats?.({ p1Darts: p1StatsRef.current.darts, p1Score: p1StatsRef.current.score, p1_180s: p1StatsRef.current.s180s, p1CheckoutAttempts: p1StatsRef.current.coAttempts, p1CheckoutHits: p1StatsRef.current.coHits });
+      }, 200);
     }
-  }, [legs, legsNeeded, legStarter, startingScore, doubleIn, onWin]);
+  }, [legs, legsNeeded, legStarter, startingScore, doubleIn, onWin, onPracticeStats]);
 
   const handleDart = useCallback((dart: Dart) => {
     if (bust || visitDarts.length >= 3) return;
@@ -145,19 +156,43 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon 
       return;
     }
 
+    // Track P1 checkout opportunities (≤170 remaining at start of visit)
+    if (turn === 0 && visitDarts.length === 0) {
+      if (scores[0] <= 170) p1StatsRef.current.coAttempts++;
+    }
+
     const nv = [...visitDarts, dart];
     const cum = nv.reduce((s, d) => s + d.value, 0);
     const rem = scores[turn] - cum;
 
-    if (rem < 0) { triggerBust(nv, bustResetTo !== undefined ? `BUST — score reset to ${bustResetTo}` : "BUST — overshot!"); return; }
+    if (rem < 0) {
+      if (turn === 0) p1StatsRef.current.darts += nv.length;
+      triggerBust(nv, bustResetTo !== undefined ? `BUST — score reset to ${bustResetTo}` : "BUST — overshot!");
+      return;
+    }
     if (rem === 0) {
-      if (isValidOut(dart)) { handleWin(turn, nv); }
-      else { triggerBust(nv, bullFinish ? "BUST — must finish on Bull's-eye (50)!" : doubleOut ? "BUST — must finish on a double!" : trebleOut ? "BUST — treble required!" : "BUST!"); }
+      if (isValidOut(dart)) {
+        if (turn === 0) {
+          p1StatsRef.current.darts += nv.length;
+          p1StatsRef.current.score += cum;
+          if (cum === 180) p1StatsRef.current.s180s++;
+          p1StatsRef.current.coHits++;
+        }
+        handleWin(turn, nv);
+      } else {
+        if (turn === 0) p1StatsRef.current.darts += nv.length;
+        triggerBust(nv, bullFinish ? "BUST — must finish on Bull's-eye (50)!" : doubleOut ? "BUST — must finish on a double!" : trebleOut ? "BUST — treble required!" : "BUST!");
+      }
       return;
     }
 
     setVisitDarts(nv);
     if (nv.length === 3) {
+      if (turn === 0) {
+        p1StatsRef.current.darts += 3;
+        p1StatsRef.current.score += cum;
+        if (cum === 180) p1StatsRef.current.s180s++;
+      }
       setScores(prev => { const n=[...prev] as [number,number]; n[turn] -= cum; return n; });
       setHistory(h => [...h, { turn, score: cum, left: rem }]);
       setVisitDarts([]);

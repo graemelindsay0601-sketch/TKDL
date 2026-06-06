@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useListPlayers } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users } from "lucide-react";
-import { GameScorer, type GameTypeOption, type GameResult } from "@/components/game-scorer";
+import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
 import { RulesModal } from "@/components/rules-modal";
 import {
   BOT_PERSONAS, BOT_LEVELS, getBotConfig, numLevelConfig, numLevelLabel, numLevelColor,
@@ -416,8 +416,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
 }
 
 // ── Practice Over Screen ───────────────────────────────────────────────────────
-function PracticeOverScreen({ result, data, onBack }: {
-  result: GameResult; data: SetupData; onBack: () => void;
+function PracticeOverScreen({ result, data, stats, onBack }: {
+  result: GameResult; data: SetupData; stats: PracticeStats | null; onBack: () => void;
 }) {
   const [saved, setSaved]   = useState(false);
   const [error, setError]   = useState("");
@@ -425,18 +425,26 @@ function PracticeOverScreen({ result, data, onBack }: {
 
   useEffect(() => {
     const duration = Math.round((Date.now() - startRef.current) / 1000);
+    const body: Record<string, unknown> = {
+      player1Id:       data.p1.id,
+      player2Id:       data.p2?.id ?? null,
+      gameTypeKey:     data.gameType.key,
+      gameTypeName:    data.gameType.name,
+      winnerIdx:       result.winnerIdx,
+      detail:          result.detail,
+      durationSeconds: duration,
+    };
+    if (stats) {
+      body.p1Darts            = stats.p1Darts;
+      body.p1Score            = stats.p1Score;
+      body.p1_180s            = stats.p1_180s;
+      body.p1CheckoutAttempts = stats.p1CheckoutAttempts;
+      body.p1CheckoutHits     = stats.p1CheckoutHits;
+    }
     fetch("/api/practice/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        player1Id:       data.p1.id,
-        player2Id:       data.p2?.id ?? null,
-        gameTypeKey:     data.gameType.key,
-        gameTypeName:    data.gameType.name,
-        winnerIdx:       result.winnerIdx,
-        detail:          result.detail,
-        durationSeconds: duration,
-      }),
+      body: JSON.stringify(body),
     })
       .then(r => r.ok ? setSaved(true) : setError("Could not save session"))
       .catch(() => setError("Network error — session not saved"));
@@ -503,9 +511,10 @@ function PracticeOverScreen({ result, data, onBack }: {
 
 // ── Main Practice Page ─────────────────────────────────────────────────────────
 export default function Practice() {
-  const [phase, setPhase]         = useState<"setup" | "playing" | "done">("setup");
-  const [setupData, setSetupData] = useState<SetupData | null>(null);
-  const [gameResult, setResult]   = useState<GameResult | null>(null);
+  const [phase, setPhase]             = useState<"setup" | "playing" | "done">("setup");
+  const [setupData, setSetupData]     = useState<SetupData | null>(null);
+  const [gameResult, setResult]       = useState<GameResult | null>(null);
+  const [practiceStats, setPracticeStats] = useState<PracticeStats | null>(null);
 
   if (phase === "setup") {
     return <SetupScreen onStart={d => { setSetupData(d); setPhase("playing"); }} />;
@@ -546,6 +555,7 @@ export default function Practice() {
           botConfig={setupData.botConfig}
           onWin={r => { setResult(r); setPhase("done"); }}
           onAbandon={() => setPhase("setup")}
+          onPracticeStats={s => setPracticeStats(s)}
         />
       </div>
     );
@@ -556,7 +566,8 @@ export default function Practice() {
       <PracticeOverScreen
         result={gameResult}
         data={setupData}
-        onBack={() => { setPhase("setup"); setResult(null); setSetupData(null); }}
+        stats={practiceStats}
+        onBack={() => { setPhase("setup"); setResult(null); setSetupData(null); setPracticeStats(null); }}
       />
     );
   }
