@@ -107,10 +107,10 @@ export default function Rules() {
         {/* Season structure */}
         <RuleSection icon={<RefreshCw className="w-5 h-5" />} title="Season Structure" accent="#22c55e">
           <Rule>Seasons run <Highlight>monthly</Highlight>. The server automatically opens a new season each month.</Rule>
-          <Rule>When a season ends, the <Gold>top 2 players</Gold> by points enter a <Highlight>playoff</Highlight>. The playoff winner is crowned <Gold>Season Champion</Gold>.</Rule>
+          <Rule>The player with the <Gold>most points</Gold> at season end is crowned <Gold>Season Champion</Gold> — no playoff needed.</Rule>
+          <Rule>If two or more players are <Highlight>tied on points</Highlight>, a single one-off tiebreaker match is played to decide the champion. No stake — just a straight game.</Rule>
           <Rule>Season standings are <Highlight>snapshotted</Highlight> permanently — you can view them in the Season Archive.</Rule>
           <Rule>At season reset, <Highlight>everyone</Highlight> starts fresh with 25 points. Only <Blue>ELO</Blue> carries over.</Rule>
-          <Rule>The playoff must be played <Highlight>before</Highlight> the next match is submitted. Playoffs follow the same wager rules.</Rule>
         </RuleSection>
 
         {/* Achievements */}

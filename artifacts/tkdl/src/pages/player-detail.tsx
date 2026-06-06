@@ -3,37 +3,105 @@ import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useState, useEffect, useRef } from "react";
-import { Trophy, Target, Skull, Flame, ArrowLeft, Lock, CheckCircle, ChevronDown, ChevronUp, Star } from "lucide-react";
+import { Trophy, Skull, Flame, ArrowLeft, CheckCircle, ChevronDown, Zap } from "lucide-react";
 
-// Animated counter hook
-function useCountUp(target: number, duration = 800) {
+function useCountUp(target: number, duration = 900) {
   const [value, setValue] = useState(0);
-  const rafRef = useRef<number>(0);
+  const raf = useRef<number>(0);
   useEffect(() => {
     const start = performance.now();
-    const step = (now: number) => {
-      const pct = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - pct, 3);
-      setValue(Math.round(eased * target));
-      if (pct < 1) rafRef.current = requestAnimationFrame(step);
+    const tick = (now: number) => {
+      const p = Math.min((now - start) / duration, 1);
+      const e = 1 - Math.pow(1 - p, 3);
+      setValue(Math.round(e * target));
+      if (p < 1) raf.current = requestAnimationFrame(tick);
     };
-    rafRef.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(rafRef.current);
+    raf.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf.current);
   }, [target, duration]);
   return value;
 }
 
-function AnimatedStat({ value, label, accent, suffix = "" }: { value: number; label: string; accent?: string; suffix?: string }) {
-  const animated = useCountUp(value);
+function FormStrip({ matches, playerId }: { matches: any[]; playerId: number }) {
+  if (!matches?.length) return null;
+  const last10 = [...matches].slice(0, 10).reverse();
   return (
-    <div className="pdc-card p-4 text-center group hover:scale-105 transition-transform cursor-default"
-      style={{ borderColor: accent ? `${accent}33` : undefined }}>
-      <div className="text-xs uppercase tracking-widest mb-2 font-bold"
-        style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.15em" }}>
-        {label}
+    <div className="flex items-center gap-1 flex-wrap">
+      {last10.map((m: any, i: number) => {
+        const isWin = m.winnerId === playerId;
+        return (
+          <div key={i}
+            className="w-6 h-6 rounded flex items-center justify-center font-black"
+            style={{
+              background: isWin ? "rgba(34,197,94,0.18)" : "rgba(255,0,92,0.18)",
+              border: `1px solid ${isWin ? "rgba(34,197,94,0.45)" : "rgba(255,0,92,0.45)"}`,
+              color: isWin ? "#22c55e" : "#ff005c",
+              fontFamily: "Oswald, sans-serif", fontSize: "0.6rem",
+            }}>
+            {isWin ? "W" : "L"}
+          </div>
+        );
+      })}
+      <span className="text-xs ml-1" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
+        FORM
+      </span>
+    </div>
+  );
+}
+
+function EloSparkline({ currentElo, matches, playerId }: { currentElo: number; matches: any[]; playerId: number }) {
+  if (!matches || matches.length < 2) return null;
+
+  const pts: number[] = [currentElo];
+  let elo = currentElo;
+  for (const m of [...matches].slice(0, 15)) {
+    const isWin = m.winnerId === playerId;
+    elo = isWin ? elo - (m.eloChange ?? 16) : Math.min(elo + (m.eloChange ?? 16), 1600);
+    elo = Math.max(800, elo);
+    pts.unshift(elo);
+  }
+
+  const W = 300; const H = 56;
+  const lo = Math.min(...pts) - 8;
+  const hi = Math.max(...pts) + 8;
+  const rng = hi - lo || 80;
+
+  const coords = pts.map((v, i) => ({
+    x: (i / (pts.length - 1)) * W,
+    y: H - ((v - lo) / rng) * H,
+  }));
+
+  const path = coords.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+  const area = `${path} L ${W} ${H} L 0 ${H} Z`;
+  const last = coords[coords.length - 1];
+  const trending = pts[pts.length - 1] >= pts[0];
+  const color = trending ? "#22c55e" : "#ff005c";
+  const uid = `sg-${playerId}`;
+
+  return (
+    <div className="relative">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>
+          ELO Journey
+        </span>
+        <span className="font-mono text-xs font-bold" style={{ color }}>
+          {trending ? "↑" : "↓"} {currentElo}
+        </span>
       </div>
-      <div className="text-2xl font-bold leading-none" style={{ fontFamily: "Oswald, sans-serif", color: accent ?? "rgba(255,255,255,0.85)" }}>
-        {animated}{suffix}
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: "100%", height: 56, display: "block" }}>
+        <defs>
+          <linearGradient id={uid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill={`url(#${uid})`} />
+        <path d={path} stroke={color} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx={last.x} cy={last.y} r="3.5" fill={color} style={{ filter: `drop-shadow(0 0 4px ${color})` }} />
+      </svg>
+      <div className="flex justify-between mt-0.5">
+        <span className="font-mono text-xs" style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.58rem" }}>{pts[0]}</span>
+        <span className="font-mono text-xs" style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.58rem" }}>{pts[pts.length - 1]}</span>
       </div>
     </div>
   );
@@ -47,103 +115,104 @@ const RARITY_COLORS: Record<string, { color: string; glow: string; bg: string }>
   Mythic:    { color: "#ff005c", glow: "rgba(255,0,92,0.4)",    bg: "rgba(255,0,92,0.08)"   },
 };
 
-function AchievementCard({ a, small = false }: { a: any; small?: boolean }) {
-  const [hovered, setHovered] = useState(false);
+function AchievementCard({ a }: { a: any }) {
   const rc = RARITY_COLORS[a.rarity] ?? RARITY_COLORS.Common;
   const isHidden = a.hidden && !a.isUnlocked;
   const pct = Math.min(100, a.progressPct ?? 0);
   const isClose = pct >= 60 && !a.isUnlocked;
-
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="relative rounded overflow-hidden transition-all duration-200 cursor-default"
+    <div className="relative rounded-lg overflow-hidden transition-all duration-200 cursor-default hover:-translate-y-0.5"
       style={{
-        background: a.isUnlocked ? rc.bg : isHidden ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.025)",
+        background: a.isUnlocked ? rc.bg : "rgba(255,255,255,0.025)",
         border: `1px solid ${a.isUnlocked ? rc.color + "55" : isClose ? rc.color + "33" : "rgba(255,255,255,0.07)"}`,
-        boxShadow: hovered && a.isUnlocked ? `0 0 16px ${rc.glow}` : undefined,
-        transform: hovered ? "translateY(-2px)" : undefined,
-        padding: small ? "0.5rem" : "0.75rem",
-      }}
-    >
-      {/* Rarity top bar */}
+        padding: "0.625rem",
+      }}>
       <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: a.isUnlocked ? rc.color : "transparent" }} />
-
-      {/* Content */}
-      <div className={`flex ${small ? "flex-col items-center text-center gap-1" : "items-start gap-3"}`}>
-        <div className={`${small ? "text-2xl" : "text-3xl"} leading-none shrink-0 ${isHidden ? "grayscale opacity-30" : ""}`}>
-          {isHidden ? "🔒" : a.icon}
-        </div>
+      <div className="flex items-start gap-2.5">
+        <div className={`text-2xl leading-none shrink-0 ${isHidden ? "grayscale opacity-30" : ""}`}>{isHidden ? "🔒" : a.icon}</div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-1 mb-0.5">
-            <div className={`font-bold leading-tight truncate ${small ? "text-xs" : "text-xs"}`}
-              style={{ fontFamily: "Oswald, sans-serif", color: a.isUnlocked ? rc.color : isHidden ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.55)", fontSize: small ? "0.6rem" : "0.75rem" }}>
+            <div className="font-bold leading-tight" style={{ fontFamily: "Oswald, sans-serif", color: a.isUnlocked ? rc.color : isHidden ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.55)", fontSize: "0.7rem" }}>
               {isHidden ? "???" : a.name.replace(/^[^\s]+\s/, "")}
             </div>
-            {a.isUnlocked && !small && <CheckCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: rc.color }} />}
+            {a.isUnlocked && <CheckCircle className="w-3 h-3 shrink-0 mt-0.5" style={{ color: rc.color }} />}
           </div>
-          {!small && !isHidden && (
-            <div className="text-xs leading-tight mb-1.5" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.65rem" }}>
-              {a.description}
-            </div>
+          {!isHidden && (
+            <div className="text-xs leading-tight mb-1" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.62rem" }}>{a.description}</div>
           )}
-          {/* Progress bar */}
-          {!a.isUnlocked && !isHidden && !small && (
+          {!a.isUnlocked && !isHidden && (
             <div>
               <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
-                <div className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${pct}%`, background: isClose ? rc.color : "rgba(255,255,255,0.25)" }} />
+                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: isClose ? rc.color : "rgba(255,255,255,0.25)" }} />
               </div>
-              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.6rem" }}>
+              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>
                 {a.currentProgress ?? 0} / {a.criteriaValue}
               </div>
             </div>
           )}
-          {!a.isUnlocked && !isHidden && small && pct > 0 && (
-            <div className="h-0.5 rounded-full overflow-hidden mt-1" style={{ background: "rgba(255,255,255,0.08)" }}>
-              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: isClose ? rc.color : "rgba(255,255,255,0.2)" }} />
-            </div>
-          )}
-          {a.isUnlocked && a.unlockedAt && !small && (
-            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.6rem" }}>
-              Unlocked {format(new Date(a.unlockedAt), "MMM d, yyyy")}
+          {a.isUnlocked && a.unlockedAt && (
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>
+              {format(new Date(a.unlockedAt), "MMM d, yyyy")}
             </div>
           )}
         </div>
       </div>
-
-      {/* Rarity badge (small mode) */}
-      {small && (
-        <div className="text-center mt-1">
-          <span style={{ fontSize: "0.5rem", color: rc.color, fontFamily: "Oswald, sans-serif", letterSpacing: "0.05em" }}>{a.rarity.toUpperCase()}</span>
-        </div>
-      )}
     </div>
   );
 }
+
+function BigStat({ value, label, color, suffix = "" }: { value: number; label: string; color: string; suffix?: string }) {
+  const animated = useCountUp(value);
+  return (
+    <div className="flex flex-col items-center">
+      <div className="font-black leading-none tabular-nums" style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.8rem)", color, textShadow: `0 0 24px ${color}50` }}>
+        {animated}{suffix}
+      </div>
+      <div className="text-xs font-bold uppercase tracking-widest mt-1" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.25)", fontSize: "0.58rem", letterSpacing: "0.15em" }}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function SmallStat({ value, label, accent, suffix = "" }: { value: number; label: string; accent?: string; suffix?: string }) {
+  const animated = useCountUp(value);
+  return (
+    <div className="pdc-card p-3.5 text-center">
+      <div className="text-xs uppercase tracking-widest mb-1.5 font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.22)", fontSize: "0.58rem", letterSpacing: "0.15em" }}>
+        {label}
+      </div>
+      <div className="text-xl font-bold leading-none" style={{ fontFamily: "Oswald, sans-serif", color: accent ?? "rgba(255,255,255,0.85)" }}>
+        {animated}{suffix}
+      </div>
+    </div>
+  );
+}
+
+const TIER_GLOW: Record<string, string> = {
+  Diamond:  "#00d4ff",
+  Platinum: "#e879f9",
+  Gold:     "#ffd24a",
+  Silver:   "#c0c8d8",
+  Bronze:   "#cd7f32",
+};
 
 export default function PlayerDetail() {
   const params = useParams();
   const playerId = parseInt(params.id || "0", 10);
   const [achFilter, setAchFilter] = useState<"all" | "unlocked" | "locked" | "close">("all");
-  const [achRarity, setAchRarity] = useState<string>("all");
   const [showAllAch, setShowAllAch] = useState(false);
 
   const { data: stats, isLoading } = useGetPlayerStats(playerId, {
     query: { enabled: !!playerId, queryKey: getGetPlayerStatsQueryKey(playerId) },
   });
 
-  // Fetch achievement progress separately
   const [achProgress, setAchProgress] = useState<any[]>([]);
-  const [achLoading, setAchLoading] = useState(true);
   useEffect(() => {
     if (!playerId) return;
-    setAchLoading(true);
     fetch(`/api/players/${playerId}/achievement-progress`)
-      .then(r => r.json())
-      .then(d => { setAchProgress(Array.isArray(d) ? d : []); setAchLoading(false); })
-      .catch(() => setAchLoading(false));
+      .then(r => r.json()).then(d => setAchProgress(Array.isArray(d) ? d : []))
+      .catch(() => {});
   }, [playerId]);
 
   if (isLoading) {
@@ -153,204 +222,236 @@ export default function PlayerDetail() {
       </div>
     );
   }
-  if (!stats) {
-    return <div className="text-center py-20" style={{ color: "rgba(255,255,255,0.3)" }}>Player not found.</div>;
-  }
+  if (!stats) return <div className="text-center py-20" style={{ color: "rgba(255,255,255,0.3)" }}>Player not found.</div>;
 
   const { player, seasonHistory, recentMatches } = stats;
   const identity = (stats as any).identity ?? {};
+  const headToHead = (stats as any).headToHead ?? [];
   const isEliminated = player.status === "ELIMINATED";
-  const derivedTier = player.elo >= 1100 ? "Gold" : player.elo >= 980 ? "Silver" : "Bronze";
+  const derivedTier = player.elo >= 1400 ? "Diamond" : player.elo >= 1250 ? "Platinum" : player.elo >= 1100 ? "Gold" : player.elo >= 950 ? "Silver" : "Bronze";
   const tier = (player as any).tier || derivedTier;
+  const tierColor = TIER_GLOW[tier] ?? "#ff005c";
 
   const totalGames = player.careerGamesPlayed ?? 0;
   const winRate = totalGames > 0 ? Math.round(((player.careerWins ?? 0) / totalGames) * 100) : 0;
+  const unlockedCount = achProgress.filter(a => a.isUnlocked).length;
+  const closeCount = achProgress.filter(a => !a.isUnlocked && (a.progressPct ?? 0) >= 50).length;
 
-  // Filter achievements
   const filteredAch = achProgress.filter(a => {
-    if (achRarity !== "all" && a.rarity !== achRarity) return false;
     if (achFilter === "unlocked") return a.isUnlocked;
     if (achFilter === "locked") return !a.isUnlocked && !a.hidden;
     if (achFilter === "close") return !a.isUnlocked && (a.progressPct ?? 0) >= 50;
     return true;
   });
-  const displayedAch = showAllAch ? filteredAch : filteredAch.slice(0, 24);
-  const unlockedCount = achProgress.filter(a => a.isUnlocked).length;
-  const closeCount = achProgress.filter(a => !a.isUnlocked && (a.progressPct ?? 0) >= 50).length;
+  const displayedAch = showAllAch ? filteredAch : filteredAch.slice(0, 18);
 
-  const headToHead = (stats as any).headToHead ?? [];
+  const streak = player.currentWinStreak ?? 0;
+  const lossStreak = player.currentLossStreak ?? 0;
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-5 pb-8">
       <div className="pdc-divider" />
 
-      <Link href="/players" className="flex items-center gap-1.5 text-xs hover:underline group"
+      <Link href="/players" className="inline-flex items-center gap-1.5 text-xs hover:underline"
         style={{ color: "rgba(255,255,255,0.3)" }}>
-        <ArrowLeft className="w-3 h-3 group-hover:text-white transition-colors" /> All Players
+        <ArrowLeft className="w-3 h-3" /> All Players
       </Link>
 
-      {/* ── HERO ── */}
-      <div className="pdc-card p-6 relative overflow-hidden"
+      {/* ══ CINEMATIC HERO ══ */}
+      <div className="relative overflow-hidden rounded-2xl"
         style={{
-          borderColor: isEliminated ? "rgba(255,0,92,0.3)" : "rgba(255,255,255,0.1)",
           background: isEliminated
-            ? "linear-gradient(135deg, rgba(255,0,92,0.06) 0%, rgba(255,255,255,0.01) 100%)"
-            : "linear-gradient(135deg, rgba(255,0,92,0.03) 0%, rgba(0,102,255,0.03) 100%)",
-        }}
-      >
-        {/* Watermark */}
-        <div className="absolute right-0 bottom-0 opacity-[0.03] pointer-events-none select-none"
-          style={{ fontSize: "12rem", fontFamily: "Oswald, sans-serif", lineHeight: 1, color: "#ff005c" }}>
-          {player.name.substring(0, 2).toUpperCase()}
-        </div>
+            ? "linear-gradient(135deg, rgba(255,0,92,0.1) 0%, rgba(9,9,15,0.98) 60%)"
+            : `linear-gradient(135deg, ${tierColor}12 0%, rgba(9,9,15,0.98) 55%, rgba(0,102,255,0.05) 100%)`,
+          border: `1px solid ${isEliminated ? "rgba(255,0,92,0.25)" : `${tierColor}28`}`,
+          boxShadow: `0 0 60px ${isEliminated ? "rgba(255,0,92,0.08)" : `${tierColor}08`}`,
+        }}>
 
-        <div className="relative flex flex-col sm:flex-row items-start gap-6">
-          {/* Avatar */}
-          <div className="w-24 h-24 rounded flex items-center justify-center text-4xl font-black uppercase shrink-0 relative"
-            style={{
-              background: isEliminated ? "rgba(255,0,92,0.08)" : "rgba(255,0,92,0.06)",
-              border: isEliminated ? "2px solid rgba(255,0,92,0.4)" : "2px solid rgba(255,0,92,0.2)",
-              fontFamily: "Oswald, sans-serif",
-              color: "#ff005c",
-              boxShadow: isEliminated ? "0 0 30px rgba(255,0,92,0.2)" : "0 0 20px rgba(255,0,92,0.1)",
-            }}>
-            {isEliminated ? "☠" : player.name.substring(0, 2)}
-            {(player.currentWinStreak ?? 0) >= 3 && (
-              <div className="absolute -top-2 -right-2 text-lg animate-bounce">🔥</div>
+        {/* Large rank watermark */}
+        {(stats as any).rank && (
+          <div className="absolute right-[-1.5rem] bottom-[-1rem] font-black pointer-events-none select-none leading-none"
+            style={{ fontFamily: "Oswald, sans-serif", fontSize: "min(20vw, 14rem)", color: `${tierColor}07`, zIndex: 0 }}>
+            #{(stats as any).rank}
+          </div>
+        )}
+
+        {/* Tier glow orb */}
+        <div className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
+          style={{ background: `radial-gradient(circle at 80% 20%, ${tierColor}10, transparent 65%)`, zIndex: 0 }} />
+
+        <div className="relative p-5 md:p-7" style={{ zIndex: 1 }}>
+          {/* Row 1: badges */}
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <TierBadge tier={tier} />
+            {identity.archetype && (
+              <span className="aura-badge text-xs" style={{ color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.1)" }}>
+                {identity.archetype}
+              </span>
+            )}
+            {identity.aura && (
+              <span className="aura-badge text-xs" style={{ color: "#0066ff", borderColor: "rgba(0,102,255,0.3)", background: "rgba(0,102,255,0.06)" }}>
+                {identity.aura}
+              </span>
+            )}
+            {isEliminated && (
+              <span className="aura-badge animate-pulse" style={{ color: "#ff005c", borderColor: "rgba(255,0,92,0.4)", background: "rgba(255,0,92,0.1)" }}>
+                <Skull className="w-3 h-3 inline mr-1" />ELIMINATED
+              </span>
             )}
           </div>
 
-          {/* Name block */}
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-3 mb-1">
-              <h1 className="text-5xl font-black uppercase leading-none"
-                style={{ fontFamily: "Oswald, sans-serif", color: isEliminated ? "#ff005c" : "#fff", textShadow: isEliminated ? "0 0 30px rgba(255,0,92,0.5)" : undefined }}>
+          {/* Row 2: name + key stats */}
+          <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-8">
+            <div className="flex-1 min-w-0">
+              {identity.title && (
+                <div className="text-sm mb-1" style={{ color: "rgba(255,210,74,0.7)", fontStyle: "italic" }}>
+                  "{identity.title}"
+                </div>
+              )}
+              <h1 className="font-black uppercase leading-none mb-2"
+                style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(2.2rem, 7vw, 4.5rem)", letterSpacing: "0.03em",
+                  color: isEliminated ? "#ff005c" : "#fff",
+                  textShadow: isEliminated ? "0 0 40px rgba(255,0,92,0.5)" : `0 0 40px ${tierColor}20` }}>
                 {player.name}
+                {streak >= 3 && <span className="ml-3 text-3xl animate-bounce inline-block">🔥</span>}
               </h1>
-              <TierBadge tier={tier} />
-              {isEliminated && (
-                <span className="aura-badge animate-pulse" style={{ color: "#ff005c", borderColor: "rgba(255,0,92,0.4)", background: "rgba(255,0,92,0.1)" }}>
-                  <Skull className="w-3 h-3 inline mr-1" />ELIMINATED
-                </span>
-              )}
-            </div>
 
-            {identity.title && (
-              <div className="text-base mb-2" style={{ color: "rgba(255,210,74,0.8)", fontStyle: "italic" }}>
-                "{identity.title}"
-              </div>
-            )}
+              {/* Form strip */}
+              <FormStrip matches={recentMatches ?? []} playerId={player.id} />
 
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              {identity.archetype && (
-                <span className="aura-badge" style={{ color: "rgba(255,255,255,0.5)", borderColor: "rgba(255,255,255,0.1)" }}>
-                  {identity.archetype}
-                </span>
-              )}
-              {identity.aura && (
-                <span className="aura-badge" style={{ color: "#0066ff", borderColor: "rgba(0,102,255,0.3)", background: "rgba(0,102,255,0.06)" }}>
-                  {identity.aura}
-                </span>
-              )}
+              {/* Prestige */}
               {identity.prestige && (
-                <span className="aura-badge" style={{ color: "#ffd24a", borderColor: "rgba(255,210,74,0.3)", background: "rgba(255,210,74,0.06)" }}>
-                  ★ {identity.prestige}
-                </span>
+                <div className="mt-2">
+                  <span className="aura-badge text-xs" style={{ color: "#ffd24a", borderColor: "rgba(255,210,74,0.3)", background: "rgba(255,210,74,0.06)" }}>
+                    ★ {identity.prestige}
+                  </span>
+                </div>
               )}
-              {unlockedCount > 0 && (
-                <span className="aura-badge" style={{ color: "#a855f7", borderColor: "rgba(168,85,247,0.3)", background: "rgba(168,85,247,0.06)" }}>
-                  🏆 {unlockedCount} achievements
-                </span>
-              )}
+            </div>
+
+            {/* Key 3 stats */}
+            <div className="flex items-center gap-4 sm:gap-6 shrink-0 py-2">
+              <BigStat value={player.points} label="Points" color={isEliminated ? "#ff005c" : "#ff005c"} />
+              <div className="w-px h-12 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />
+              <BigStat value={player.elo} label="ELO" color="#0066ff" />
+              <div className="w-px h-12 rounded-full hidden sm:block" style={{ background: "rgba(255,255,255,0.08)" }} />
+              <div className="hidden sm:flex flex-col items-center">
+                <div className="font-black leading-none" style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(1.4rem, 3vw, 2rem)" }}>
+                  <span style={{ color: "#22c55e" }}>{player.seasonWins ?? 0}</span>
+                  <span style={{ color: "rgba(255,255,255,0.18)" }}>-</span>
+                  <span style={{ color: "#ff005c" }}>{player.seasonLosses ?? 0}</span>
+                </div>
+                <div className="text-xs font-bold uppercase tracking-widest mt-1" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.25)", fontSize: "0.58rem" }}>
+                  Season
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Points balance */}
-          <div className="text-right shrink-0">
-            <div className="text-xs uppercase font-bold mb-1"
-              style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.25)", fontSize: "0.6rem", letterSpacing: "0.15em" }}>
-              Balance
+          {/* Streak alerts */}
+          {(streak >= 3 || lossStreak >= 3) && (
+            <div className="flex gap-2 mt-4 flex-wrap">
+              {streak >= 3 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold"
+                  style={{ background: "rgba(255,0,92,0.12)", border: "1px solid rgba(255,0,92,0.3)", color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+                  <Flame className="w-4 h-4 streak-fire" />{streak}W STREAK — ON FIRE
+                </div>
+              )}
+              {lossStreak >= 3 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold"
+                  style={{ background: "rgba(255,0,92,0.06)", border: "1px solid rgba(255,0,92,0.15)", color: "rgba(255,0,92,0.7)", fontFamily: "Oswald, sans-serif" }}>
+                  <Skull className="w-3.5 h-3.5" />{lossStreak}L STREAK — COLD RUN
+                </div>
+              )}
             </div>
-            <div className="text-6xl font-black leading-none"
-              style={{ fontFamily: "Oswald, sans-serif", color: isEliminated ? "#ff005c" : "#ff005c", textShadow: "0 0 40px rgba(255,0,92,0.4)" }}>
-              {player.points}
-            </div>
-            <div className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.25)" }}>pts</div>
-            <div className="mt-2 text-sm font-mono" style={{ color: "#0066ff" }}>{player.elo} Elo</div>
-            <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.2)" }}>
-              Peak: {player.peakPoints ?? player.points}pts
-            </div>
-          </div>
+          )}
         </div>
+
+        {/* Bottom glow line */}
+        <div className="absolute bottom-0 left-0 right-0 h-px"
+          style={{ background: `linear-gradient(90deg, transparent, ${tierColor}40, transparent)` }} />
       </div>
 
-      {/* ── STAT GRID ── */}
+      {/* ══ ELO JOURNEY ══ */}
+      {recentMatches && recentMatches.length >= 2 && (
+        <div className="pdc-card p-4">
+          <EloSparkline currentElo={player.elo} matches={recentMatches} playerId={player.id} />
+        </div>
+      )}
+
+      {/* ══ SEASON STATS ══ */}
       <div>
-        <div className="text-xs uppercase font-bold mb-3"
-          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.25)", letterSpacing: "0.15em" }}>
+        <div className="text-xs uppercase font-bold mb-2.5"
+          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.22)", letterSpacing: "0.15em" }}>
           Current Season
         </div>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-          <AnimatedStat label="Wins"     value={player.seasonWins ?? 0}         accent="#22c55e" />
-          <AnimatedStat label="Losses"   value={player.seasonLosses ?? 0}       accent="#ff005c" />
-          <AnimatedStat label="Played"   value={player.seasonGamesPlayed ?? 0} />
-          <AnimatedStat label="Win %"    value={(player.seasonGamesPlayed ?? 0) > 0 ? Math.round(((player.seasonWins ?? 0) / (player.seasonGamesPlayed ?? 1)) * 100) : 0} suffix="%" />
-          <AnimatedStat label="W-Streak" value={player.currentWinStreak ?? 0}  accent={(player.currentWinStreak ?? 0) >= 3 ? "#ff005c" : undefined} />
-          <AnimatedStat label="L-Streak" value={player.currentLossStreak ?? 0} accent={(player.currentLossStreak ?? 0) >= 3 ? "#ff005c" : undefined} />
+          <SmallStat label="Wins"     value={player.seasonWins ?? 0}         accent="#22c55e" />
+          <SmallStat label="Losses"   value={player.seasonLosses ?? 0}       accent="#ff005c" />
+          <SmallStat label="Played"   value={player.seasonGamesPlayed ?? 0} />
+          <SmallStat label="Win %"    value={(player.seasonGamesPlayed ?? 0) > 0 ? Math.round(((player.seasonWins ?? 0) / Math.max(1, player.seasonGamesPlayed ?? 1)) * 100) : 0} suffix="%" />
+          <SmallStat label="W-Streak" value={streak}  accent={streak >= 3 ? "#ff005c" : undefined} />
+          <SmallStat label="L-Streak" value={lossStreak} accent={lossStreak >= 3 ? "#ff005c" : undefined} />
         </div>
       </div>
 
+      {/* ══ CAREER STATS ══ */}
       <div>
-        <div className="text-xs uppercase font-bold mb-3"
-          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.25)", letterSpacing: "0.15em" }}>
+        <div className="text-xs uppercase font-bold mb-2.5"
+          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.22)", letterSpacing: "0.15em" }}>
           Career
         </div>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-          <AnimatedStat label="Wins"      value={player.careerWins ?? 0}         accent="#22c55e" />
-          <AnimatedStat label="Losses"    value={player.careerLosses ?? 0}       accent="#ff005c" />
-          <AnimatedStat label="Played"    value={player.careerGamesPlayed ?? 0} />
-          <AnimatedStat label="Win %"     value={winRate}                         suffix="%" accent={winRate >= 60 ? "#ffd24a" : undefined} />
-          <AnimatedStat label="Peak Elo"  value={player.careerPeakElo ?? player.elo} accent="#0066ff" />
-          <AnimatedStat label="Best Pts"  value={player.peakPoints ?? player.points}  accent="#ffd24a" />
+          <SmallStat label="Wins"      value={player.careerWins ?? 0}     accent="#22c55e" />
+          <SmallStat label="Losses"    value={player.careerLosses ?? 0}   accent="#ff005c" />
+          <SmallStat label="Played"    value={totalGames} />
+          <SmallStat label="Win %"     value={winRate}                     suffix="%" accent={winRate >= 60 ? "#ffd24a" : undefined} />
+          <SmallStat label="Peak ELO"  value={player.careerPeakElo ?? player.elo} accent="#0066ff" />
+          <SmallStat label="Career Pts" value={player.careerPoints ?? 0}
+            accent={(player.careerPoints ?? 0) >= 0 ? "#22c55e" : "#ff005c"} />
         </div>
       </div>
 
-      {/* ── MATCHES + H2H ── */}
+      {/* ══ RECENT MATCHES + H2H ══ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Recent matches */}
         <div className="pdc-card overflow-hidden">
-          <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+          <div className="px-4 py-3 border-b flex items-center justify-between"
+            style={{ borderColor: "rgba(255,255,255,0.07)" }}>
             <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
               Recent Matches
             </h2>
+            <Zap className="w-3.5 h-3.5" style={{ color: "rgba(0,102,255,0.5)" }} />
           </div>
           <div>
             {recentMatches?.slice(0, 8).map((m: any) => {
               const isWin = m.winnerId === player.id;
               return (
-                <div key={m.id} className="px-4 py-3 flex items-center justify-between border-b hover:bg-white/[0.025] transition-colors group"
+                <div key={m.id} className="px-4 py-3 flex items-center justify-between border-b hover:bg-white/[0.02] transition-colors"
                   style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-wider mb-0.5"
-                      style={{ fontFamily: "Oswald, sans-serif", color: isWin ? "#22c55e" : "#ff005c" }}>
-                      {isWin ? "✓ WIN" : "✗ LOSS"}
-                    </div>
-                    <div className="text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>
-                      vs {isWin ? m.loserName : m.winnerName}
-                    </div>
-                    <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
-                      {format(new Date(m.playedAt), "MMM d, yyyy")}
-                      {m.gameType && <span className="ml-2 opacity-60">· {m.gameType}</span>}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-1 h-8 rounded-full shrink-0" style={{ background: isWin ? "#22c55e" : "#ff005c" }} />
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-wider"
+                        style={{ fontFamily: "Oswald, sans-serif", color: isWin ? "#22c55e" : "#ff005c", fontSize: "0.65rem" }}>
+                        {isWin ? "WIN" : "LOSS"}
+                      </div>
+                      <div className="text-sm font-bold truncate" style={{ color: "rgba(255,255,255,0.7)" }}>
+                        vs {isWin ? m.loserName : m.winnerName}
+                      </div>
+                      <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
+                        {format(new Date(m.playedAt), "d MMM yy")}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     {m.stake > 0 && (
                       <div className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: isWin ? "#22c55e" : "#ff005c" }}>
                         {isWin ? "+" : "-"}{m.stake}pts
                       </div>
                     )}
-                    <div className="text-xs font-mono" style={{ color: "rgba(0,102,255,0.6)" }}>
-                      {isWin ? "+" : "-"}{m.eloChange} Elo
+                    <div className="text-xs font-mono" style={{ color: "rgba(0,102,255,0.55)" }}>
+                      {isWin ? "+" : "-"}{m.eloChange} ELO
                     </div>
                   </div>
                 </div>
@@ -364,36 +465,38 @@ export default function PlayerDetail() {
 
         {/* Head-to-head */}
         <div className="pdc-card overflow-hidden">
-          <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+          <div className="px-4 py-3 border-b flex items-center justify-between"
+            style={{ borderColor: "rgba(255,255,255,0.07)" }}>
             <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
               Head-to-Head
             </h2>
+            <Trophy className="w-3.5 h-3.5" style={{ color: "rgba(255,210,74,0.5)" }} />
           </div>
           <div>
             {headToHead.slice(0, 8).map((h: any) => {
               const total = h.wins + h.losses;
               const winPct = total > 0 ? Math.round((h.wins / total) * 100) : 0;
-              const dominant = winPct >= 70;
-              const struggling = winPct <= 30;
+              const dominant = winPct >= 65;
+              const struggling = winPct <= 35;
               return (
                 <div key={h.opponentId}
-                  className="px-4 py-3 flex items-center gap-3 border-b hover:bg-white/[0.025] transition-colors"
+                  className="px-4 py-3 flex items-center gap-3 border-b hover:bg-white/[0.02] transition-colors"
                   style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-                  <Link href={`/players/${h.opponentId}`} className="text-sm font-bold hover:underline w-24 shrink-0"
-                    style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+                  <Link href={`/players/${h.opponentId}`} className="text-sm font-bold hover:underline shrink-0 w-20 truncate"
+                    style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.65)" }}>
                     {h.opponentName}
                   </Link>
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-mono" style={{ color: "#22c55e", minWidth: "1.5rem", textAlign: "right" }}>{h.wins}W</span>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-xs font-mono w-5 text-right" style={{ color: "#22c55e" }}>{h.wins}W</span>
                       <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
                         <div className="h-full rounded-full" style={{ width: `${winPct}%`, background: dominant ? "#22c55e" : struggling ? "#ff005c" : "#0066ff" }} />
                       </div>
-                      <span className="text-xs font-mono" style={{ color: "#ff005c", minWidth: "1.5rem" }}>{h.losses}L</span>
+                      <span className="text-xs font-mono w-5" style={{ color: "#ff005c" }}>{h.losses}L</span>
                     </div>
                   </div>
-                  <div className="text-xs font-bold w-10 text-right shrink-0"
-                    style={{ fontFamily: "Oswald, sans-serif", color: dominant ? "#22c55e" : struggling ? "#ff005c" : "rgba(255,255,255,0.4)" }}>
+                  <div className="text-xs font-bold w-8 text-right shrink-0"
+                    style={{ fontFamily: "Oswald, sans-serif", color: dominant ? "#22c55e" : struggling ? "#ff005c" : "rgba(255,255,255,0.35)" }}>
                     {winPct}%
                   </div>
                 </div>
@@ -406,7 +509,7 @@ export default function PlayerDetail() {
         </div>
       </div>
 
-      {/* ── SEASON HISTORY ── */}
+      {/* ══ SEASON HISTORY ══ */}
       {seasonHistory && seasonHistory.length > 0 && (
         <div className="pdc-card overflow-hidden">
           <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
@@ -415,16 +518,12 @@ export default function PlayerDetail() {
             </h2>
           </div>
           <div className="grid text-xs uppercase font-bold px-4 py-2 border-b"
-            style={{ gridTemplateColumns: "1fr 4rem 5rem 4rem 5rem", borderColor: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
-            <div>Season</div>
-            <div className="text-center">Pos</div>
-            <div className="text-center">W-L</div>
-            <div className="text-right">Elo</div>
-            <div className="text-right">Pts</div>
+            style={{ gridTemplateColumns: "1fr 4rem 5rem 4rem 5rem", borderColor: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.22)", fontFamily: "Oswald, sans-serif" }}>
+            <div>Season</div><div className="text-center">Pos</div><div className="text-center">W-L</div><div className="text-right">ELO</div><div className="text-right">Pts</div>
           </div>
           {seasonHistory.map((s: any) => (
             <div key={s.seasonId}
-              className="grid px-4 py-3 border-b items-center hover:bg-white/[0.025] transition-colors"
+              className="grid px-4 py-3 border-b items-center hover:bg-white/[0.02] transition-colors"
               style={{ gridTemplateColumns: "1fr 4rem 5rem 4rem 5rem", borderColor: "rgba(255,255,255,0.04)" }}>
               <div>
                 <Link href={`/seasons/${s.seasonId}`} className="text-sm font-semibold hover:underline"
@@ -434,7 +533,7 @@ export default function PlayerDetail() {
                 {s.isChampion && <span className="ml-2 text-xs" style={{ color: "#ffd24a" }}>👑 Champion</span>}
               </div>
               <div className="text-center text-sm font-bold"
-                style={{ fontFamily: "Oswald, sans-serif", color: s.position === 1 ? "#ffd24a" : s.position <= 3 ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.35)" }}>
+                style={{ fontFamily: "Oswald, sans-serif", color: s.position === 1 ? "#ffd24a" : s.position <= 3 ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.3)" }}>
                 #{s.position}
               </div>
               <div className="text-center text-sm font-mono">
@@ -449,77 +548,49 @@ export default function PlayerDetail() {
         </div>
       )}
 
-      {/* ── ACHIEVEMENT CATALOGUE ── */}
+      {/* ══ ACHIEVEMENTS ══ */}
       <div>
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div>
-            <h2 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
-              Achievements
-            </h2>
+            <h2 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Achievements</h2>
             <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
               <span style={{ color: "#ffd24a" }}>{unlockedCount}</span> unlocked ·{" "}
-              <span style={{ color: "#a855f7" }}>{closeCount}</span> within reach · 91 total
+              <span style={{ color: "#a855f7" }}>{closeCount}</span> within reach
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Status filter */}
-            <div className="flex rounded overflow-hidden border" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-              {(["all", "unlocked", "close", "locked"] as const).map(f => (
-                <button key={f} onClick={() => setAchFilter(f)}
-                  className="px-2.5 py-1.5 text-xs font-bold uppercase transition-all"
-                  style={{
-                    fontFamily: "Oswald, sans-serif",
-                    letterSpacing: "0.05em",
-                    background: achFilter === f ? "#ff005c" : "transparent",
-                    color: achFilter === f ? "#fff" : "rgba(255,255,255,0.35)",
-                  }}>
-                  {f === "close" ? "≥50%" : f}
-                </button>
-              ))}
-            </div>
-            {/* Rarity filter */}
-            <div className="flex rounded overflow-hidden border" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-              {["all", "Common", "Rare", "Epic", "Legendary", "Mythic"].map(r => {
-                const rc = RARITY_COLORS[r];
-                return (
-                  <button key={r} onClick={() => setAchRarity(r)}
-                    className="px-2.5 py-1.5 text-xs font-bold uppercase transition-all"
-                    style={{
-                      fontFamily: "Oswald, sans-serif",
-                      letterSpacing: "0.05em",
-                      background: achRarity === r ? (rc?.color ?? "#ff005c") : "transparent",
-                      color: achRarity === r ? "#fff" : (rc?.color ?? "rgba(255,255,255,0.35)"),
-                    }}>
-                    {r === "all" ? "All" : r.substring(0, 3)}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {(["all","unlocked","close","locked"] as const).map(f => (
+              <button key={f} onClick={() => setAchFilter(f)}
+                className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase transition-all"
+                style={{
+                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.07em",
+                  background: achFilter === f ? "rgba(255,0,92,0.18)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${achFilter === f ? "rgba(255,0,92,0.45)" : "rgba(255,255,255,0.07)"}`,
+                  color: achFilter === f ? "#ff005c" : "rgba(255,255,255,0.3)",
+                }}>
+                {f === "all" ? "All" : f === "unlocked" ? "✓ Done" : f === "close" ? "⚡ Close" : "🔒 Locked"}
+              </button>
+            ))}
           </div>
         </div>
 
-        {achLoading ? (
-          <div className="flex justify-center py-12">
-            <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {displayedAch.map((a: any) => <AchievementCard key={a.id} a={a} />)}
+        </div>
+
+        {filteredAch.length === 0 && (
+          <div className="pdc-card px-6 py-10 text-center text-sm" style={{ color: "rgba(255,255,255,0.25)" }}>
+            No achievements in this category yet.
           </div>
-        ) : filteredAch.length === 0 ? (
-          <div className="text-center py-12" style={{ color: "rgba(255,255,255,0.2)" }}>No achievements match this filter</div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {displayedAch.map((a: any) => (
-                <AchievementCard key={a.id} a={a} />
-              ))}
-            </div>
-            {filteredAch.length > 24 && (
-              <button
-                onClick={() => setShowAllAch(s => !s)}
-                className="w-full mt-4 py-3 text-xs font-bold uppercase tracking-wider transition-all hover:bg-white/5 rounded flex items-center justify-center gap-2"
-                style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                {showAllAch ? <><ChevronUp className="w-4 h-4" /> Show Less</> : <><ChevronDown className="w-4 h-4" /> Show All {filteredAch.length} Achievements</>}
-              </button>
-            )}
-          </>
+        )}
+
+        {filteredAch.length > 18 && (
+          <button onClick={() => setShowAllAch(v => !v)}
+            className="w-full mt-3 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold uppercase transition-all hover:bg-white/[0.04]"
+            style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", color: "rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <ChevronDown className="w-4 h-4" style={{ transform: showAllAch ? "rotate(180deg)" : undefined, transition: "transform 0.2s" }} />
+            {showAllAch ? "Show Less" : `Show ${filteredAch.length - 18} More`}
+          </button>
         )}
       </div>
     </div>
