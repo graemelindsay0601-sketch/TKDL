@@ -14,7 +14,7 @@ import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Plus, Skull, Flame, Target } from "lucide-react";
+import { Plus, Skull, Flame } from "lucide-react";
 import { useState } from "react";
 
 const formSchema = z.object({
@@ -22,149 +22,150 @@ const formSchema = z.object({
   nickname: z.string().optional(),
 });
 
-function tierConfig(tier: string) {
-  if (tier === "Diamond")  return { gradient: "linear-gradient(135deg, #0a1628 0%, #0d2a5e 50%, #0066ff 100%)", glow: "rgba(0,102,255,0.6)",  ring: "#0066ff", color: "#4da6ff" };
-  if (tier === "Platinum") return { gradient: "linear-gradient(135deg, #1a1a2e 0%, #2d2d5e 50%, #7b68ee 100%)", glow: "rgba(123,104,238,0.6)", ring: "#7b68ee", color: "#b8a9ff" };
-  if (tier === "Gold")     return { gradient: "linear-gradient(135deg, #1a1200 0%, #3d2e00 50%, #ff9900 100%)", glow: "rgba(255,210,74,0.7)",  ring: "#ffd24a", color: "#ffd24a" };
-  if (tier === "Silver")   return { gradient: "linear-gradient(135deg, #0d0d14 0%, #1a1a2e 50%, #2a3a5e 100%)", glow: "rgba(192,200,216,0.5)", ring: "#c0c8d8", color: "#c0c8d8" };
-  return                           { gradient: "linear-gradient(135deg, #1a0800 0%, #2e1500 50%, #7a3b00 100%)", glow: "rgba(205,127,50,0.5)",  ring: "#cd7f32", color: "#e8a050" };
-}
+const RANK_COLORS: Record<number, string> = {
+  0: "#ffd24a", 1: "#ff008c", 2: "#00aaff", 3: "#ff5050", 4: "#00ffaa",
+};
 
-function PlayerCard({ player }: { player: any }) {
+function PlayerCard({ player, leaderboardRank }: { player: any; leaderboardRank?: number }) {
   const isElim = player.status === "ELIMINATED";
-  const tier   = (player as any).tier || (player.elo >= 1250 ? "Diamond" : player.elo >= 1100 ? "Gold" : player.elo >= 980 ? "Silver" : "Bronze");
-  const cfg    = tierConfig(tier);
-  const streak = player.currentWinStreak ?? 0;
   const pts    = isElim ? 0 : (player.points ?? 25);
+  const streak = player.currentWinStreak ?? 0;
+  const rank   = leaderboardRank ?? 99;
+
+  const rankCls = isElim ? "pc-eliminated"
+    : rank === 0 ? "pc-rank-1"
+    : rank === 1 ? "pc-rank-2"
+    : rank === 2 ? "pc-rank-3"
+    : rank === 3 ? "pc-rank-4"
+    : rank === 4 ? "pc-rank-5"
+    : "";
+
+  const accentColor = isElim ? "#ff005c" : (RANK_COLORS[rank] ?? "rgba(255,255,255,0.6)");
 
   return (
     <Link href={`/players/${player.id}`}>
-      <div
-        className="group relative overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1"
-        style={{
-          borderRadius: "6px",
-          border: isElim ? "1px solid rgba(255,0,92,0.25)" : `1px solid ${cfg.ring}33`,
-          boxShadow: isElim
-            ? "0 0 20px rgba(255,0,92,0.12)"
-            : `0 0 0 transparent`,
-          background: "#0c0c14",
-        }}
-      >
-        {/* Hover glow overlay */}
+      <div className={`player-glass-card ${rankCls} p-5`} style={{ minHeight: "200px" }}>
+        {/* Big background initial */}
         <div
-          className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-          style={{ boxShadow: `inset 0 0 30px ${isElim ? "rgba(255,0,92,0.1)" : cfg.glow + "22"}`, borderRadius: "6px" }}
-        />
-
-        {/* Header banner */}
-        <div
-          className="relative flex items-center justify-between px-4 py-3"
+          aria-hidden
           style={{
-            background: isElim
-              ? "linear-gradient(135deg, #1a0000 0%, #2d0010 50%, #4a0020 100%)"
-              : cfg.gradient,
-            borderBottom: `1px solid ${isElim ? "rgba(255,0,92,0.2)" : cfg.ring + "44"}`,
+            position: "absolute",
+            right: "-8px",
+            bottom: "-32px",
+            fontFamily: "Oswald, sans-serif",
+            fontSize: "140px",
+            fontWeight: 800,
+            lineHeight: 1,
+            color: "rgba(255,255,255,0.04)",
+            letterSpacing: "-4px",
+            pointerEvents: "none",
+            userSelect: "none",
+            zIndex: 0,
           }}
         >
-          {/* Large initials */}
+          {player.name.substring(0, 2).toUpperCase()}
+        </div>
+
+        {/* Rank badge */}
+        {rank < 5 && !isElim && (
           <div
-            className="text-3xl font-black uppercase tracking-tighter leading-none"
+            className="absolute top-4 right-4 text-xs font-black uppercase tracking-widest px-2 py-1"
             style={{
               fontFamily: "Oswald, sans-serif",
-              color: isElim ? "rgba(255,0,92,0.7)" : cfg.color,
-              textShadow: `0 0 20px ${isElim ? "rgba(255,0,92,0.6)" : cfg.glow}`,
-              letterSpacing: "-0.04em",
+              color: accentColor,
+              background: `${accentColor}18`,
+              border: `1px solid ${accentColor}44`,
+              borderRadius: "6px",
+              fontSize: "0.62rem",
+              letterSpacing: "0.14em",
+              zIndex: 2,
+            }}
+          >
+            #{rank + 1}
+          </div>
+        )}
+
+        {/* Content */}
+        <div style={{ position: "relative", zIndex: 2 }}>
+          {/* Initials avatar */}
+          <div
+            className="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black uppercase mb-3"
+            style={{
+              fontFamily: "Oswald, sans-serif",
+              background: isElim ? "rgba(255,0,92,0.12)" : `${accentColor}18`,
+              color: accentColor,
+              textShadow: `0 0 14px ${accentColor}`,
+              border: `1px solid ${accentColor}33`,
             }}
           >
             {isElim ? "☠" : player.name.substring(0, 2).toUpperCase()}
           </div>
 
-          {/* Tier badge */}
-          <div
-            className="text-xs font-bold uppercase tracking-widest px-2 py-1"
-            style={{
-              fontFamily: "Oswald, sans-serif",
-              color: isElim ? "#ff005c" : cfg.color,
-              background: isElim ? "rgba(255,0,92,0.15)" : `${cfg.ring}22`,
-              border: `1px solid ${isElim ? "rgba(255,0,92,0.3)" : cfg.ring + "55"}`,
-              borderRadius: "2px",
-              fontSize: "0.6rem",
-              letterSpacing: "0.14em",
-            }}
-          >
-            {isElim ? "ELIMINATED" : tier.toUpperCase()}
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="px-4 py-3">
           {/* Name */}
           <div
-            className="font-bold text-lg uppercase leading-tight mb-0.5"
+            className="font-black uppercase leading-tight mb-0.5"
             style={{
               fontFamily: "Oswald, sans-serif",
-              color: isElim ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.92)",
+              fontSize: "1.3rem",
               letterSpacing: "0.04em",
+              color: isElim ? "rgba(255,100,100,0.7)" : "rgba(255,255,255,0.95)",
+              textShadow: isElim ? undefined : "0 0 12px rgba(255,255,255,0.12)",
             }}
           >
             {player.name}
           </div>
           {(player as any).nickname && (
-            <div className="text-xs mb-2.5" style={{ color: isElim ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.32)", fontStyle: "italic" }}>
+            <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontStyle: "italic" }}>
               "{(player as any).nickname}"
             </div>
           )}
 
-          {/* Points – big number */}
+          {/* Points */}
           {!isElim && (
-            <div className="flex items-baseline gap-1.5 mb-3 mt-1">
+            <div className="flex items-baseline gap-1.5 mt-2 mb-3">
               <span
-                className="text-3xl font-black leading-none tabular-nums"
+                className="font-black tabular-nums"
                 style={{
                   fontFamily: "Oswald, sans-serif",
-                  color: cfg.color,
-                  textShadow: `0 0 16px ${cfg.glow}`,
+                  fontSize: "2.2rem",
+                  color: accentColor,
+                  textShadow: `0 0 20px ${accentColor}99`,
+                  lineHeight: 1,
                 }}
               >
                 {pts}
               </span>
-              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>pts</span>
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)" }}>pts</span>
             </div>
           )}
 
           {/* Divider */}
-          <div style={{ height: "1px", background: isElim ? "rgba(255,0,92,0.1)" : "rgba(255,255,255,0.06)", marginBottom: "10px" }} />
+          <div style={{ height: "1px", background: "rgba(255,255,255,0.07)", margin: "8px 0" }} />
 
-          {/* Stats row */}
+          {/* Stats */}
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-3">
-              <span style={{ color: "#22c55e", fontFamily: "Oswald, sans-serif", fontWeight: 700 }}>
+              <span style={{ color: "#22c55e", fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.8rem" }}>
                 {player.seasonWins ?? 0}W
               </span>
               <span style={{ color: "rgba(255,255,255,0.15)" }}>·</span>
-              <span style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif", fontWeight: 700 }}>
+              <span style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.8rem" }}>
                 {player.seasonLosses ?? 0}L
               </span>
             </div>
-            <span className="font-mono font-bold tabular-nums" style={{ color: "#0066ff", fontSize: "0.7rem" }}>
+            <span className="font-mono font-bold tabular-nums" style={{ color: "#0066ff", fontSize: "0.72rem", textShadow: "0 0 8px rgba(0,102,255,0.5)" }}>
               {player.elo} Elo
             </span>
           </div>
 
           {/* Streak */}
           {streak >= 3 && (
-            <div className="flex items-center gap-1.5 mt-2.5 text-xs font-bold" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+            <div className="flex items-center gap-1.5 mt-2.5 text-xs font-black" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
               <Flame className="w-3 h-3 streak-fire" />
               {streak}W STREAK
             </div>
           )}
         </div>
-
-        {/* Left edge accent */}
-        <div
-          className="absolute left-0 top-0 bottom-0 w-0.5"
-          style={{ background: isElim ? "rgba(255,0,92,0.5)" : cfg.ring, opacity: 0.7 }}
-        />
       </div>
     </Link>
   );
@@ -204,15 +205,22 @@ export default function Players() {
   const eliminated = players?.filter(p => p.isActive && p.status === "ELIMINATED") ?? [];
   const inactive   = players?.filter(p => !p.isActive) ?? [];
 
+  // Sort active by points descending for rank
+  const activeSorted = [...active].sort((a, b) => (b.points ?? 25) - (a.points ?? 25));
+  const rankMap = new Map(activeSorted.map((p, i) => [p.id, i]));
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="pdc-divider" />
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
+          <h1
+            className="uppercase font-black"
+            style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", letterSpacing: "0.04em", textShadow: "0 0 30px rgba(255,0,92,0.25)" }}
+          >
             Player Registry
           </h1>
-          <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
+          <p className="text-sm mt-1.5" style={{ color: "rgba(255,255,255,0.35)" }}>
             {active.length} active
             {eliminated.length > 0 ? ` · ${eliminated.length} eliminated` : ""}
             {inactive.length > 0 ? ` · ${inactive.length} inactive` : ""}
@@ -220,7 +228,7 @@ export default function Players() {
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2" style={{ background: "#ff005c", border: "none" }}>
+            <Button className="gap-2 rounded-xl" style={{ background: "#ff005c", border: "none", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
               <Plus className="h-4 w-4" />
               Add Player
             </Button>
@@ -246,7 +254,7 @@ export default function Players() {
                     <FormMessage />
                   </FormItem>
                 )} />
-                <Button type="submit" className="w-full" disabled={createPlayerMutation.isPending}
+                <Button type="submit" className="w-full rounded-xl" disabled={createPlayerMutation.isPending}
                   style={{ background: "#ff005c", border: "none" }}>
                   {createPlayerMutation.isPending ? "Registering…" : "Register Player"}
                 </Button>
@@ -257,16 +265,16 @@ export default function Players() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-16">
-          <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
+        <div className="flex justify-center py-20">
+          <div className="w-10 h-10 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c", boxShadow: "0 0 20px rgba(255,0,92,0.3)" }} />
         </div>
       ) : (
-        <div className="space-y-8">
-          {/* Active players */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        <div className="space-y-10">
+          {/* Active players grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {active.map((player, i) => (
-              <div key={player.id} className="fade-in-up" style={{ animationDelay: `${i * 40}ms` }}>
-                <PlayerCard player={player} />
+              <div key={player.id} className="fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
+                <PlayerCard player={player} leaderboardRank={rankMap.get(player.id)} />
               </div>
             ))}
           </div>
@@ -274,11 +282,12 @@ export default function Players() {
           {/* Eliminated */}
           {eliminated.length > 0 && (
             <div>
-              <h2 className="text-xs uppercase tracking-widest mb-3 flex items-center gap-2 font-bold" style={{ color: "rgba(255,0,92,0.7)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.15em" }}>
-                <Skull className="w-3 h-3" style={{ filter: "drop-shadow(0 0 4px rgba(255,0,92,0.6))" }} />
+              <h2 className="text-sm uppercase tracking-widest mb-4 flex items-center gap-2 font-black"
+                style={{ color: "rgba(255,0,92,0.75)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.18em" }}>
+                <Skull className="w-4 h-4" style={{ filter: "drop-shadow(0 0 5px rgba(255,0,92,0.7))" }} />
                 Eliminated
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {eliminated.map((player, i) => (
                   <div key={player.id} className="fade-in-up" style={{ animationDelay: `${i * 30}ms` }}>
                     <PlayerCard player={player} />
@@ -292,7 +301,6 @@ export default function Players() {
           {inactive.length > 0 && (
             <div>
               <h2 className="text-xs uppercase tracking-widest mb-3 font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
-                <Target className="w-3 h-3 inline mr-2 opacity-50" />
                 Inactive / Departed
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">

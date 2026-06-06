@@ -2,3 +2,4 @@
 - [May 2026 standings](season-data.md) — correct from CSV: Richard 81pts(10W-5L) champion, Graeme 71pts(8W-6L), Sean 69pts(8W-1L); Ryan/Kyle/Cameron/Ronald/Jamie all 0pts eliminated
 - [Playoff system](playoff-system.md) — playoff_matches table created directly via psql (not in Drizzle schema), routes in seasons.ts, UI in seasons.tsx with expand/collapse per card
 - [Achievement progress endpoint](achievement-progress.md) — GET /api/players/:id/achievement-progress, computes progress from player fields + queries for match/season criteria; used on player-detail page
+- [Seasons list endpoint champion fix](seasons-champion-fix.md) — GET /seasons must join players table to return championName; raw select() from seasonsTable only returns championId not the name

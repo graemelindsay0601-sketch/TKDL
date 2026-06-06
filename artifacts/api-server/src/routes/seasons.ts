@@ -13,7 +13,13 @@ const router = Router();
 
 router.get("/seasons", async (_req, res): Promise<void> => {
   const seasons = await db.select().from(seasonsTable).orderBy(desc(seasonsTable.id));
-  res.json(seasons);
+  const allPlayers = await db.select({ id: playersTable.id, name: playersTable.name }).from(playersTable);
+  const playerMap = new Map(allPlayers.map(p => [p.id, p.name]));
+  const enriched = seasons.map(s => ({
+    ...s,
+    championName: s.championId ? (playerMap.get(s.championId) ?? null) : null,
+  }));
+  res.json(enriched);
 });
 
 router.get("/seasons/current", async (_req, res): Promise<void> => {

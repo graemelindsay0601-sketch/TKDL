@@ -1,179 +1,200 @@
 import { useListAchievements } from "@workspace/api-client-react";
 import { useState } from "react";
-import { Trophy, Lock } from "lucide-react";
+import { Lock, Star } from "lucide-react";
 
-const RARITIES = ["All", "Common", "Rare", "Epic", "Legendary", "Mythic"] as const;
+const RARITIES = ["All", "Mythic", "Legendary", "Epic", "Rare", "Common"] as const;
 const CATEGORIES = ["All", "Career", "Seasonal", "Tier", "Hidden"] as const;
 
-function rarityClass(rarity: string) {
-  switch (rarity.toLowerCase()) {
-    case "common":    return "rarity-common";
-    case "rare":      return "rarity-rare";
-    case "epic":      return "rarity-epic";
-    case "legendary": return "rarity-legendary";
-    case "mythic":    return "rarity-mythic";
-    case "hidden":    return "rarity-hidden";
-    default:          return "rarity-common";
-  }
+const RARITY_META: Record<string, { color: string; glow: string; bg: string; border: string; order: number }> = {
+  Mythic:    { color: "#ff005c", glow: "0 0 28px rgba(255,0,92,0.25)",     bg: "rgba(255,0,92,0.06)",    border: "rgba(255,0,92,0.35)",    order: 0 },
+  Legendary: { color: "#ffd24a", glow: "0 0 24px rgba(255,210,74,0.2)",   bg: "rgba(255,210,74,0.05)",  border: "rgba(255,210,74,0.3)",   order: 1 },
+  Epic:      { color: "#a855f7", glow: "0 0 20px rgba(168,85,247,0.18)",  bg: "rgba(168,85,247,0.05)",  border: "rgba(168,85,247,0.28)",  order: 2 },
+  Rare:      { color: "#0066ff", glow: "0 0 16px rgba(0,102,255,0.15)",   bg: "rgba(0,102,255,0.04)",   border: "rgba(0,102,255,0.25)",   order: 3 },
+  Common:    { color: "#9ca3af", glow: "none",                             bg: "rgba(255,255,255,0.025)", border: "rgba(255,255,255,0.08)", order: 4 },
+  Hidden:    { color: "#444466", glow: "none",                             bg: "rgba(255,255,255,0.015)", border: "rgba(255,255,255,0.05)", order: 5 },
+};
+
+function getRarityMeta(rarity: string, isHidden: boolean) {
+  if (isHidden) return RARITY_META.Hidden;
+  return RARITY_META[rarity] ?? RARITY_META.Common;
 }
 
-function rarityGlow(rarity: string): string {
-  switch (rarity.toLowerCase()) {
-    case "legendary": return "0 0 20px rgba(255,210,74,0.12)";
-    case "mythic":    return "0 0 20px rgba(255,0,92,0.15)";
-    case "epic":      return "0 0 16px rgba(192,132,252,0.1)";
-    default:          return "none";
-  }
+function AchCard({ a, hovered, onHover }: { a: any; hovered: boolean; onHover: (v: boolean) => void }) {
+  const isHidden = !!(a as any).hidden;
+  const rm = getRarityMeta(a.rarity, isHidden);
+
+  return (
+    <div
+      onMouseEnter={() => onHover(true)}
+      onMouseLeave={() => onHover(false)}
+      className="relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200 cursor-default"
+      style={{
+        background: rm.bg,
+        border: `1px solid ${rm.border}`,
+        boxShadow: hovered ? rm.glow : "none",
+        transform: hovered ? "translateY(-3px) scale(1.01)" : undefined,
+      }}
+    >
+      {/* Rarity top stripe */}
+      <div className="h-1 w-full" style={{ background: rm.color, opacity: isHidden ? 0.3 : 1 }} />
+
+      <div className="p-4 flex flex-col gap-2 flex-1">
+        {/* Rarity badge + lock */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-black uppercase tracking-widest"
+            style={{ fontFamily: "Oswald, sans-serif", color: rm.color, fontSize: "0.55rem", letterSpacing: "0.18em", opacity: isHidden ? 0.5 : 1 }}>
+            {a.rarity}
+          </span>
+          {isHidden && <Lock className="w-3 h-3" style={{ color: "rgba(255,255,255,0.2)" }} />}
+        </div>
+
+        {/* Icon */}
+        <div className="text-4xl leading-none my-1 select-none" style={{ filter: isHidden ? "grayscale(1) brightness(0.4)" : undefined }}>
+          {isHidden ? "🔒" : (a.icon || "🎯")}
+        </div>
+
+        {/* Name */}
+        <div className="font-black text-sm leading-tight"
+          style={{ fontFamily: "Oswald, sans-serif", color: isHidden ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.9)", letterSpacing: "0.02em" }}>
+          {isHidden ? "???" : a.name.replace(/^[^\s]+\s/, "")}
+        </div>
+
+        {/* Description */}
+        <div className="text-xs leading-relaxed flex-1" style={{ color: isHidden ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.45)" }}>
+          {isHidden ? "Complete a hidden objective to reveal this achievement." : a.description}
+        </div>
+
+        {/* Category tag */}
+        {!isHidden && (a as any).category && (
+          <div className="mt-auto pt-2 border-t" style={{ borderColor: `${rm.border}` }}>
+            <span className="text-xs font-bold uppercase" style={{ color: rm.color, fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.12em", opacity: 0.7 }}>
+              {(a as any).category}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function Achievements() {
   const { data: achievements, isLoading } = useListAchievements();
   const [rarityFilter, setRarityFilter] = useState<string>("All");
-  const [catFilter, setCatFilter] = useState<string>("All");
+  const [catFilter, setCatFilter]       = useState<string>("All");
+  const [hoveredId, setHoveredId]       = useState<number | null>(null);
 
-  const filtered = achievements?.filter(a => {
-    const rMatch = rarityFilter === "All" || a.rarity.toLowerCase() === rarityFilter.toLowerCase();
-    const cMatch = catFilter === "All" || (a as any).category?.toLowerCase() === catFilter.toLowerCase();
+  const sorted = [...(achievements ?? [])].sort((a, b) => {
+    const ao = RARITY_META[(a as any).hidden ? "Hidden" : a.rarity]?.order ?? 99;
+    const bo = RARITY_META[(b as any).hidden ? "Hidden" : b.rarity]?.order ?? 99;
+    if (ao !== bo) return ao - bo;
+    return (a.name ?? "").localeCompare(b.name ?? "");
+  });
+
+  const filtered = sorted.filter(a => {
+    const isHidden = !!(a as any).hidden;
+    const effectiveRarity = isHidden ? "Hidden" : a.rarity;
+    const rMatch = rarityFilter === "All" || effectiveRarity === rarityFilter;
+    const cMatch = catFilter === "All" || (a as any).category === catFilter;
     return rMatch && cMatch;
-  }) ?? [];
+  });
 
   const counts = achievements ? {
-    common:    achievements.filter(a => a.rarity === "Common").length,
-    rare:      achievements.filter(a => a.rarity === "Rare").length,
-    epic:      achievements.filter(a => a.rarity === "Epic").length,
-    legendary: achievements.filter(a => a.rarity === "Legendary").length,
-    mythic:    achievements.filter(a => a.rarity === "Mythic").length,
+    Mythic:    achievements.filter(a => a.rarity === "Mythic" && !(a as any).hidden).length,
+    Legendary: achievements.filter(a => a.rarity === "Legendary" && !(a as any).hidden).length,
+    Epic:      achievements.filter(a => a.rarity === "Epic" && !(a as any).hidden).length,
+    Rare:      achievements.filter(a => a.rarity === "Rare" && !(a as any).hidden).length,
+    Common:    achievements.filter(a => a.rarity === "Common" && !(a as any).hidden).length,
+    Hidden:    achievements.filter(a => !!(a as any).hidden).length,
   } : null;
 
   return (
     <div className="space-y-6">
       <div className="pdc-divider" />
+
+      {/* Header */}
       <div>
-        <h1 className="text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
+        <h1 className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
           Achievement Catalogue
         </h1>
         <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
-          {achievements?.length ?? 0} achievements · Earn them all
+          {achievements?.length ?? 0} achievements · {counts?.Hidden ?? 0} hidden · Earn them all
         </p>
       </div>
 
-      {/* Rarity counts */}
+      {/* Rarity count pills */}
       {counts && (
         <div className="flex flex-wrap gap-2">
-          {[
-            { label: "Common",    count: counts.common,    cls: "rarity-common"    },
-            { label: "Rare",      count: counts.rare,      cls: "rarity-rare"      },
-            { label: "Epic",      count: counts.epic,      cls: "rarity-epic"      },
-            { label: "Legendary", count: counts.legendary, cls: "rarity-legendary" },
-            { label: "Mythic",    count: counts.mythic,    cls: "rarity-mythic"    },
-          ].map(r => (
-            <div key={r.label} className={`aura-badge ${r.cls}`}>
-              {r.label} ×{r.count}
-            </div>
-          ))}
+          {(["Mythic", "Legendary", "Epic", "Rare", "Common", "Hidden"] as const).map(r => {
+            const rm = RARITY_META[r];
+            const n = counts[r];
+            return (
+              <div key={r}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase"
+                style={{ background: `${rm.color}14`, border: `1px solid ${rm.color}44`, color: rm.color, fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", fontSize: "0.6rem" }}>
+                {r === "Mythic" && <Star className="w-2.5 h-2.5" />}
+                {r} ×{n}
+              </div>
+            );
+          })}
         </div>
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2">
-        {RARITIES.map(r => (
-          <button
-            key={r}
-            onClick={() => setRarityFilter(r)}
-            className="px-3 py-1 rounded text-xs font-bold uppercase tracking-wider transition-all"
-            style={{
-              fontFamily: "Oswald, sans-serif",
-              letterSpacing: "0.1em",
-              background: rarityFilter === r ? "rgba(255,0,92,0.15)" : "rgba(255,255,255,0.04)",
-              borderColor: rarityFilter === r ? "#ff005c" : "rgba(255,255,255,0.1)",
-              border: "1px solid",
-              color: rarityFilter === r ? "#ff005c" : "rgba(255,255,255,0.4)",
-            }}
-          >
-            {r}
-          </button>
-        ))}
-        <div className="w-px bg-white/10 mx-1" />
-        {CATEGORIES.map(c => (
-          <button
-            key={c}
-            onClick={() => setCatFilter(c)}
-            className="px-3 py-1 rounded text-xs font-bold uppercase tracking-wider transition-all"
-            style={{
-              fontFamily: "Oswald, sans-serif",
-              letterSpacing: "0.1em",
-              background: catFilter === c ? "rgba(0,102,255,0.15)" : "rgba(255,255,255,0.04)",
-              borderColor: catFilter === c ? "#0066ff" : "rgba(255,255,255,0.1)",
-              border: "1px solid",
-              color: catFilter === c ? "#0066ff" : "rgba(255,255,255,0.4)",
-            }}
-          >
-            {c}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex gap-1 flex-wrap">
+          {RARITIES.map(r => {
+            const rm = RARITY_META[r === "All" ? "Common" : r];
+            const active = rarityFilter === r;
+            return (
+              <button key={r} onClick={() => setRarityFilter(r)}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all"
+                style={{
+                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em",
+                  background: active ? (r === "All" ? "#ff005c" : rm.color) + "22" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${active ? (r === "All" ? "#ff005c" : rm.color) + "88" : "rgba(255,255,255,0.08)"}`,
+                  color: active ? (r === "All" ? "#ff005c" : rm.color) : "rgba(255,255,255,0.35)",
+                }}>
+                {r}
+              </button>
+            );
+          })}
+        </div>
+        <div className="w-px h-5 bg-white/10" />
+        <div className="flex gap-1 flex-wrap">
+          {CATEGORIES.map(c => (
+            <button key={c} onClick={() => setCatFilter(c)}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all"
+              style={{
+                fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em",
+                background: catFilter === c ? "rgba(0,102,255,0.18)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${catFilter === c ? "rgba(0,102,255,0.5)" : "rgba(255,255,255,0.08)"}`,
+                color: catFilter === c ? "#0066ff" : "rgba(255,255,255,0.35)",
+              }}>
+              {c}
+            </button>
+          ))}
+        </div>
       </div>
 
+      {/* Grid */}
       {isLoading ? (
         <div className="flex justify-center py-16">
           <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-sm" style={{ color: "rgba(255,255,255,0.25)" }}>
+          No achievements match this filter.
+        </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          {filtered.map(achievement => {
-            const isHidden = achievement.rarity === "Hidden" || (achievement as any).hidden;
-            return (
-              <div
-                key={achievement.id}
-                className="pdc-card p-4 flex flex-col gap-2 transition-all hover:-translate-y-0.5"
-                style={{
-                  boxShadow: rarityGlow(achievement.rarity),
-                  borderColor: achievement.rarity === "Legendary"
-                    ? "rgba(255,210,74,0.2)"
-                    : achievement.rarity === "Mythic"
-                    ? "rgba(255,0,92,0.2)"
-                    : undefined,
-                  opacity: isHidden ? 0.75 : 1,
-                }}
-              >
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                  <span className={`aura-badge ${rarityClass(achievement.rarity)}`}>
-                    {achievement.rarity}
-                  </span>
-                  {isHidden && <Lock className="w-3 h-3" style={{ color: "rgba(255,255,255,0.25)" }} />}
-                </div>
-
-                {/* Icon */}
-                <div className="text-3xl leading-none my-1">
-                  {isHidden ? "❓" : (achievement.icon || <Trophy className="w-7 h-7 opacity-40" />)}
-                </div>
-
-                {/* Name */}
-                <div className="font-bold text-sm leading-snug" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)", letterSpacing: "0.02em" }}>
-                  {isHidden ? "???" : achievement.name}
-                </div>
-
-                {/* Description */}
-                <div className="text-xs leading-relaxed flex-1" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  {isHidden ? "Complete hidden objective to unlock." : achievement.description}
-                </div>
-
-                {/* Threshold */}
-                {!isHidden && (achievement as any).threshold != null && (
-                  <div className="pt-2 mt-auto border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-                    <span className="text-xs font-mono" style={{ color: "rgba(255,255,255,0.3)" }}>
-                      Req: {(achievement as any).threshold}
-                    </span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {filtered.length === 0 && (
-            <div className="col-span-full text-center py-12 text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
-              No achievements match this filter.
-            </div>
-          )}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {filtered.map(a => (
+            <AchCard
+              key={a.id}
+              a={a}
+              hovered={hoveredId === a.id}
+              onHover={v => setHoveredId(v ? a.id : null)}
+            />
+          ))}
         </div>
       )}
     </div>
