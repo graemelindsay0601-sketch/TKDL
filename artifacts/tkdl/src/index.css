@@ -474,17 +474,32 @@
   from { transform: translateX(-200%); }
   to   { transform: translateX(400%); }
 }
+@keyframes tkdl-pulse {
+  0%, 100% { text-shadow: 0 0 24px rgba(255,0,60,0.8), 0 0 48px rgba(255,0,60,0.4), 0 0 80px rgba(255,0,60,0.2); }
+  50%       { text-shadow: 0 0 44px rgba(255,0,60,1),   0 0 88px rgba(255,0,60,0.7), 0 0 140px rgba(255,0,60,0.4); }
+}
+.tkdl-logo { animation: tkdl-pulse 3s ease-in-out infinite; }
+
+@keyframes target-spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.target-icon-wrap:hover .target-icon { animation: target-spin 1.2s ease-in-out; }
+
 .ticker-bar {
   position: fixed;
   bottom: 0; left: 0; right: 0;
   height: 38px;
   z-index: 100;
-  display: flex;
+  display: none;
   align-items: center;
   overflow: hidden;
   background: rgba(4,4,10,0.97);
   border-top: 1px solid rgba(255,0,92,0.35);
   backdrop-filter: blur(20px);
+}
+@media (min-width: 768px) {
+  .ticker-bar { display: flex; }
 }
 .ticker-bar::after {
   content: "";

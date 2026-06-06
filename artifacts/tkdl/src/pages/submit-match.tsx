@@ -24,6 +24,7 @@ const formSchema = z.object({
   winnerId: z.coerce.number().min(1, "Select a winner"),
   loserId:  z.coerce.number().min(1, "Select a loser"),
   stake:    z.coerce.number().min(1, "Stake must be at least 1").max(25),
+  gameType: z.string().optional(),
   notes:    z.string().optional(),
 }).refine(d => d.winnerId !== d.loserId, {
   message: "A player cannot play against themselves",
@@ -43,7 +44,7 @@ export default function SubmitMatch() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { winnerId: 0, loserId: 0, stake: 5, notes: "" },
+    defaultValues: { winnerId: 0, loserId: 0, stake: 5, gameType: "", notes: "" },
   });
 
   const winnerId = form.watch("winnerId");
@@ -65,14 +66,14 @@ export default function SubmitMatch() {
 
   function onSubmit(values: FormValues) {
     submitMutation.mutate(
-      { data: { winnerId: values.winnerId, loserId: values.loserId, stake: values.stake, notes: values.notes } },
+      { data: { winnerId: values.winnerId, loserId: values.loserId, stake: values.stake, gameType: values.gameType || undefined, notes: values.notes } },
       {
         onSuccess: (data: any) => {
           toast({
             title: "Match Recorded ✓",
             description: `${data.winnerName} def. ${data.loserName} — ±${values.stake} pts`,
           });
-          form.reset({ winnerId: 0, loserId: 0, stake: 5, notes: "" });
+          form.reset({ winnerId: 0, loserId: 0, stake: 5, gameType: "", notes: "" });
           queryClient.invalidateQueries({ queryKey: getGetLeaderboardQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetRecentActivityQueryKey() });
@@ -254,22 +255,25 @@ export default function SubmitMatch() {
               </div>
             )}
 
-            {/* Notes */}
+            {/* Game Type */}
             <FormField
               control={form.control}
-              name="notes"
+              name="gameType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-                    Notes (optional)
+                  <FormLabel className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif" }}>
+                    Game Type
                   </FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="e.g. 180 thrown, close finish…"
+                      placeholder="e.g. 501, 301, Cricket, Around the World, Killer…"
                       {...field}
                       style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.1)" }}
                     />
                   </FormControl>
+                  <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.2)" }}>
+                    Used for format achievements and stats tracking
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

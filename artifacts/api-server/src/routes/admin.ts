@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable } from "@workspace/db";
+import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable, achievementsTable, playerAchievementsTable } from "@workspace/db";
 import { z } from "zod";
 import { checkStatAchievements, checkMatchAchievements, retroactiveSweep } from "../lib/achievements";
 
@@ -145,6 +145,25 @@ router.get("/admin/seasons", async (_req, res): Promise<void> => {
     result.push({ ...season, standings: standingsWithNames });
   }
   res.json(result);
+});
+
+// ── Full data export (JSON backup) ────────────────────────────────────────────
+router.get("/admin/export", async (_req, res): Promise<void> => {
+  const [players, matches, seasons, standings, achievements, playerAchievements] = await Promise.all([
+    db.select().from(playersTable),
+    db.select().from(matchesTable),
+    db.select().from(seasonsTable),
+    db.select().from(seasonStandingsTable),
+    db.select().from(achievementsTable),
+    db.select().from(playerAchievementsTable),
+  ]);
+  const filename = `tkdl-backup-${new Date().toISOString().split("T")[0]}.json`;
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.json({
+    exportedAt: new Date().toISOString(),
+    version: "1.0",
+    data: { players, matches, seasons, standings, achievements, playerAchievements },
+  });
 });
 
 export default router;

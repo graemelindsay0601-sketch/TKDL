@@ -60,7 +60,7 @@ function LiveTicker() {
   const duration = Math.max(30, items.length * 4);
 
   return (
-    <div className="ticker-bar hidden md:flex">
+    <div className="ticker-bar">
       <div className="ticker-label">LIVE</div>
       <div className="ticker-scroll-wrap">
         <div className="ticker-track" style={{ "--ticker-duration": `${duration}s` } as React.CSSProperties}>
@@ -150,14 +150,16 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="absolute top-0 left-0 right-0 h-0.5"
           style={{ background: "linear-gradient(90deg, #ff005c 0%, rgba(255,0,92,0.5) 55%, transparent 100%)" }} />
         <div className="flex items-center gap-2.5 mb-0.5">
-          <div className="relative shrink-0">
-            <div className="absolute" style={{ inset: -4, background: "rgba(255,0,92,0.5)", filter: "blur(10px)", borderRadius: "50%" }} />
-            <Target className="h-5 w-5 relative z-10" style={{ color: "#ff005c", filter: "drop-shadow(0 0 3px rgba(255,0,92,0.9))" }} />
+          <div className="relative shrink-0 target-icon-wrap cursor-default">
+            <div className="absolute" style={{ inset: -6, background: "rgba(255,0,92,0.55)", filter: "blur(12px)", borderRadius: "50%" }} />
+            <div className="absolute" style={{ inset: -2, background: "rgba(255,0,92,0.2)", filter: "blur(4px)", borderRadius: "50%" }} />
+            <Target className="h-6 w-6 relative z-10 target-icon" style={{ color: "#ff005c", filter: "drop-shadow(0 0 4px rgba(255,0,92,1))" }} />
           </div>
-          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "2.1rem", fontWeight: 900, letterSpacing: "0.22em", color: "#fff",
-            textShadow: "0 0 24px rgba(255,0,60,0.8), 0 0 48px rgba(255,0,60,0.4), 0 0 80px rgba(255,0,60,0.2)", lineHeight: 1 }}>
-            TKDL
-          </span>
+          <div className="flex flex-col" style={{ lineHeight: 1 }}>
+            <span className="tkdl-logo" style={{ fontFamily: "Oswald, sans-serif", fontSize: "2.2rem", fontWeight: 900, letterSpacing: "0.25em", color: "#fff" }}>
+              TKDL
+            </span>
+          </div>
         </div>
         <p style={{ color: "rgba(255,255,255,0.18)", letterSpacing: "0.15em", fontSize: "0.47rem", fontFamily: "Oswald, sans-serif", textTransform: "uppercase", paddingLeft: "1.85rem", marginBottom: "0.8rem" }}>
           Tesco Kilbirnie Darts League

@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { achievementsTable, playerAchievementsTable, playersTable, matchesTable, seasonStandingsTable } from "@workspace/db";
+import { achievementsTable, playerAchievementsTable, playersTable, matchesTable, seasonStandingsTable, seasonsTable } from "@workspace/db";
 import { eq, and, count, sql, or } from "drizzle-orm";
 import { logger } from "./logger";
 
@@ -131,6 +131,7 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   // === TKDL LEGACY ===
   { key: "TKDL_ORIGINAL",      name: "🏛️ TKDL Original",        description: "Competed in the very first TKDL season (Feb 2026)", icon: "🏛️", rarity: "Rare",     category: "Legacy",  hidden: false, priority: 40, criteriaType: "SEASON_1_PLAYED",          criteriaValue: 1,  engineType: "STAT_BASED" },
   { key: "JUNE_WARRIOR",       name: "☀️ June Warrior",          description: "Win 3 matches in the June 2026 season",             icon: "☀️", rarity: "Common",    category: "Legacy",  hidden: false, priority: 20, criteriaType: "SEASON_WINS_JUNE",         criteriaValue: 3,  engineType: "STAT_BASED" },
+  { key: "SEASON_STARTER",     name: "🚀 Season Starter",         description: "Win 3+ matches in any single season",                icon: "🚀", rarity: "Common",    category: "Career",  hidden: false, priority: 20, criteriaType: "SEASON_WINS",              criteriaValue: 3,  engineType: "SEASON_EVENT" },
   { key: "BACK_TO_BACK_TITLE", name: "🔁 Back-to-Back",          description: "Win 2 consecutive season championships",             icon: "🔁", rarity: "Legendary", category: "Legacy",  hidden: false, priority: 80, criteriaType: "CONSECUTIVE_TITLES",       criteriaValue: 1,  engineType: "SEASON_EVENT" },
   { key: "PERFECT_SEASON",     name: "💎 Flawless",              description: "Complete an entire season without a single loss",   icon: "💎", rarity: "Mythic",    category: "Legacy",  hidden: true,  priority: 90, criteriaType: "SEASON_UNBEATEN_COUNT",    criteriaValue: 1,  engineType: "SEASON_EVENT" },
   { key: "CONSISTENT_ELITE",   name: "👑 Consistent Elite",      description: "Finish in the top 3 in 2 or more seasons",         icon: "👑", rarity: "Legendary", category: "Legacy",  hidden: false, priority: 80, criteriaType: "TOP3_SEASON_FINISHES",     criteriaValue: 2,  engineType: "SEASON_EVENT" },
@@ -247,6 +248,9 @@ export async function retroactiveSweep(): Promise<{ granted: number; playersChec
     if (seasonIds.has(1)) await grantIfNotHas(pid, "TKDL_ORIGINAL");
     const juneWins = wins.filter(m => m.seasonId === 3).length;
     if (juneWins >= 3) await grantIfNotHas(pid, "JUNE_WARRIOR");
+    const seasonWinCounts: Record<number, number> = {};
+    for (const m of wins) { seasonWinCounts[m.seasonId] = (seasonWinCounts[m.seasonId] ?? 0) + 1; }
+    if (Object.values(seasonWinCounts).some(c => c >= 3)) await grantIfNotHas(pid, "SEASON_STARTER");
 
     // Same-day wins
     const winsByDay: Record<string, number> = {};
@@ -506,6 +510,9 @@ export async function checkMatchAchievements(
       await grantIfNotHas(playerId, "TKDL_ORIGINAL");
     }
     if (playerWins.filter(m => m.seasonId === 3).length >= 3) await grantIfNotHas(playerId, "JUNE_WARRIOR");
+    const swc: Record<number, number> = {};
+    for (const m of playerWins) { swc[m.seasonId] = (swc[m.seasonId] ?? 0) + 1; }
+    if (Object.values(swc).some(c => c >= 3)) await grantIfNotHas(playerId, "SEASON_STARTER");
 
     // Stakes
     if (stake >= 20) await grantIfNotHas(playerId, "ALL_IN_WIN");
@@ -580,6 +587,7 @@ export async function checkSeasonAchievements(
     if (p.seasonGamesPlayed >= 50) await grantIfNotHas(p.id, "MOST_ACTIVE");
 
     // Season wins
+    if (p.seasonWins >= 3)  await grantIfNotHas(p.id, "SEASON_STARTER");
     if (p.seasonWins >= 15) await grantIfNotHas(p.id, "LONE_WOLF");
     if (p.seasonWins >= 20) await grantIfNotHas(p.id, "STORM_BRINGER");
 
