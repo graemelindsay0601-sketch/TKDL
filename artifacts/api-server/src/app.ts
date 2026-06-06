@@ -7,8 +7,8 @@ import { logger } from "./lib/logger";
 import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetSeason } from "./lib/seasonReset";
 import { db } from "@workspace/db";
-import { playersTable, seasonsTable, matchesTable, seasonStandingsTable } from "@workspace/db";
-import { eq, count } from "drizzle-orm";
+import { playersTable, seasonsTable, matchesTable, seasonStandingsTable, settingsTable, gameTypesTable } from "@workspace/db";
+import { eq, count, sql } from "drizzle-orm";
 
 const app: Express = express();
 
@@ -250,8 +250,78 @@ async function seedRealData() {
   logger.info("Real TKDL data seeded successfully");
 }
 
+async function seedSettings() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  const existing = await db.select().from(settingsTable);
+  if (existing.length === 0) {
+    await db.insert(settingsTable).values([{ key: "live_scorer_enabled", value: "false" }]);
+    logger.info("Settings seeded with defaults");
+  }
+}
+
+async function seedGameTypes() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS game_types (
+      id SERIAL PRIMARY KEY,
+      key TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      engine TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'competitive',
+      description TEXT DEFAULT '',
+      config TEXT NOT NULL DEFAULT '{}',
+      enabled BOOLEAN NOT NULL DEFAULT true,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  const existing = await db.select().from(gameTypesTable);
+  if (existing.length > 0) return;
+
+  type GT = typeof gameTypesTable.$inferInsert;
+  const defaults: GT[] = [
+    // ── Competitive — X01 ──────────────────────────────────────────────────
+    { key: "501_double_out",       name: "501 – Double Out",         engine: "X01",         category: "competitive", description: "Standard PDC format. Must finish on a double.",                           config: JSON.stringify({ startingScore: 501,  doubleIn: false, doubleOut: true,  trebleOut: false }),              enabled: true, sortOrder: 1  },
+    { key: "501_straight_out",     name: "501 – Straight Out",       engine: "X01",         category: "competitive", description: "No double required to finish.",                                           config: JSON.stringify({ startingScore: 501,  doubleIn: false, doubleOut: false, trebleOut: false }),              enabled: true, sortOrder: 2  },
+    { key: "501_double_in",        name: "501 – Double In/Out",      engine: "X01",         category: "competitive", description: "Must start AND finish on a double.",                                      config: JSON.stringify({ startingScore: 501,  doubleIn: true,  doubleOut: true,  trebleOut: false }),              enabled: true, sortOrder: 3  },
+    { key: "501_treble_out",       name: "501 – Treble Out",         engine: "X01",         category: "competitive", description: "Must finish on a treble. No bull finish.",                                config: JSON.stringify({ startingScore: 501,  doubleIn: false, doubleOut: false, trebleOut: true  }),              enabled: true, sortOrder: 4  },
+    { key: "501_master_out",       name: "501 – Master Out",         engine: "X01",         category: "competitive", description: "Finish on any double or treble.",                                         config: JSON.stringify({ startingScore: 501,  doubleIn: false, masterOut: true                    }),              enabled: true, sortOrder: 5  },
+    { key: "301_double_out",       name: "301 – Double Out",         engine: "X01",         category: "competitive", description: "Shorter format, double to finish.",                                       config: JSON.stringify({ startingScore: 301,  doubleIn: false, doubleOut: true,  trebleOut: false }),              enabled: true, sortOrder: 6  },
+    { key: "301_double_in",        name: "301 – Double In/Out",      engine: "X01",         category: "competitive", description: "Must start AND finish on a double.",                                      config: JSON.stringify({ startingScore: 301,  doubleIn: true,  doubleOut: true,  trebleOut: false }),              enabled: true, sortOrder: 7  },
+    { key: "1001_double_out",      name: "1001 – Double Out",        engine: "X01",         category: "competitive", description: "Endurance format. Double to finish.",                                     config: JSON.stringify({ startingScore: 1001, doubleIn: false, doubleOut: true                   }),              enabled: true, sortOrder: 8  },
+    { key: "cricket",              name: "Cricket",                  engine: "Cricket",     category: "competitive", description: "Close 15–20 and bull. Score when opponent hasn't closed.",                config: JSON.stringify({ cutThroat: false, includesBull: true }),                                                 enabled: true, sortOrder: 9  },
+    { key: "cutthroat_cricket",    name: "Cut-Throat Cricket",       engine: "Cricket",     category: "competitive", description: "Scoring points hurts opponents instead of helping you.",                  config: JSON.stringify({ cutThroat: true,  includesBull: true }),                                                 enabled: true, sortOrder: 10 },
+    // ── Practice — skill games ──────────────────────────────────────────────
+    { key: "around_the_world",     name: "Around the World",         engine: "Sequence",    category: "practice",    description: "Hit 1–20 in order, then bull to win.",                                    config: JSON.stringify({ type: "sequential", maxNumber: 20, includeBull: true  }),                               enabled: true, sortOrder: 11 },
+    { key: "around_world_trebles", name: "Round the World (Trebles)",engine: "Sequence",    category: "practice",    description: "As above, but must hit the treble of each number.",                       config: JSON.stringify({ type: "sequential", maxNumber: 20, treblesOnly: true  }),                               enabled: true, sortOrder: 12 },
+    { key: "round_the_clock",      name: "Round the Clock",          engine: "Sequence",    category: "practice",    description: "Hit 1–20 in order. No bull required.",                                    config: JSON.stringify({ type: "sequential", maxNumber: 20, includeBull: false }),                               enabled: true, sortOrder: 13 },
+    { key: "shanghai",             name: "Shanghai",                 engine: "Sequence",    category: "practice",    description: "Rounds 1–7. Hit single, double, and treble of the round number to win.", config: JSON.stringify({ type: "shanghai", rounds: 7 }),                                                          enabled: true, sortOrder: 14 },
+    { key: "halve_it",             name: "Halve-It",                 engine: "HalveIt",     category: "practice",    description: "Hit each target. Miss = your score halves. Highest score wins.",           config: JSON.stringify({ targets: [20, 16, "double", 17, "bull", 18, 19, "treble"] }),                            enabled: true, sortOrder: 15 },
+    { key: "count_up",             name: "Count Up",                 engine: "CountUp",     category: "practice",    description: "Score as many points as possible. First to 501 wins.",                    config: JSON.stringify({ target: 501 }),                                                                          enabled: true, sortOrder: 16 },
+    // ── Party / Fun ─────────────────────────────────────────────────────────
+    { key: "killer",               name: "Killer",                   engine: "Killer",      category: "party",       description: "Hit your own double to become a Killer, then eliminate others.",           config: JSON.stringify({ lives: 3 }),                                                                             enabled: true, sortOrder: 17 },
+    { key: "gotcha",               name: "Gotcha",                   engine: "Gotcha",      category: "party",       description: "Race to exactly 301. Hit opponent's score to reset them to zero.",         config: JSON.stringify({ target: 301 }),                                                                          enabled: true, sortOrder: 18 },
+    { key: "no_black",             name: "No Black",                 engine: "Custom",      category: "party",       description: "TKDL special: any dart in the outer bull scores zero for that throw.",    config: JSON.stringify({ noOuterBull: true }),                                                                    enabled: true, sortOrder: 19 },
+    { key: "bull_finish",          name: "Bull Finish",              engine: "X01",         category: "party",       description: "501 where you must finish on the bullseye (50) only.",                    config: JSON.stringify({ startingScore: 501, bullFinish: true }),                                                 enabled: true, sortOrder: 20 },
+    { key: "nearest_bull",         name: "Nearest the Bull",         engine: "NearestBull", category: "party",       description: "Each player throws 3 darts. Closest to bull wins the round.",             config: JSON.stringify({ dartsEach: 3, rounds: 1 }),                                                              enabled: true, sortOrder: 21 },
+    { key: "pick_a_double",        name: "Pick a Double",            engine: "Custom",      category: "party",       description: "TKDL custom: must call your double before throwing.",                      config: JSON.stringify({ callDouble: true }),                                                                     enabled: true, sortOrder: 22 },
+    { key: "double_or_nothing",    name: "Double or Nothing",        engine: "X01",         category: "party",       description: "Play 301. If you miss your out-shot, the stake doubles.",                  config: JSON.stringify({ startingScore: 301, doubleOut: true, stakeDoubles: true }),                             enabled: true, sortOrder: 23 },
+  ];
+
+  await db.insert(gameTypesTable).values(defaults);
+  logger.info(`Seeded ${defaults.length} default game types`);
+}
+
 async function init() {
   try {
+    await seedSettings();
+    await seedGameTypes();
     await seedAchievements();
     await seedRealData();
     await maybeAutoResetSeason();

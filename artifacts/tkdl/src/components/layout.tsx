@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 import { useGetStatsSummary, useGetRecentActivity, useGetLeaderboard } from "@workspace/api-client-react";
 
@@ -90,7 +90,18 @@ export function Layout({ children }: { children: ReactNode }) {
 
   useEffect(() => { setDrawerOpen(false); }, [location]);
 
+  const [liveScorer, setLiveScorer] = useState(false);
+  useEffect(() => {
+    fetch("/api/settings")
+      .then(r => r.ok ? r.json() : {})
+      .then((s: Record<string, unknown>) => { if (s.live_scorer_enabled === true) setLiveScorer(true); })
+      .catch(() => {});
+  }, []);
+
   type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> };
+  const dynamicMainNav: NavItem[] = liveScorer
+    ? [...mainNav, { href: "/play", label: "Live Scorer", icon: Swords }]
+    : mainNav;
 
   function NavLink({ item }: { item: NavItem }) {
     const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
@@ -204,7 +215,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-3">
-        <NavSection label="Main"   items={mainNav}   />
+        <NavSection label="Main"   items={dynamicMainNav}   />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
         <NavSection label="League" items={leagueNav} />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
