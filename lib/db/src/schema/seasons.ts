@@ -11,6 +11,9 @@ export const seasonsTable = pgTable("seasons", {
   championId: integer("champion_id"),
   championName: text("champion_name"),
   totalMatches: integer("total_matches").notNull().default(0),
+  format: text("format").notNull().default("wager"),
+  playoffPending: boolean("playoff_pending").notNull().default(false),
+  notes: text("notes"),
 });
 
 export const insertSeasonSchema = createInsertSchema(seasonsTable).omit({ id: true, totalMatches: true });

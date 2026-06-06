@@ -6,6 +6,7 @@ import seasonsRouter      from "./seasons";
 import leaderboardRouter  from "./leaderboard";
 import achievementsRouter from "./achievements";
 import statsRouter        from "./stats";
+import adminRouter        from "./admin";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(seasonsRouter);
 router.use(leaderboardRouter);
 router.use(achievementsRouter);
 router.use(statsRouter);
+router.use(adminRouter);
 
 export default router;

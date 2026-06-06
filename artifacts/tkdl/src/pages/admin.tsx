@@ -20,26 +20,294 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users } from "lucide-react";
+import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap } from "lucide-react";
 import { useState } from "react";
 import { format } from "date-fns";
 
+const ADMIN_PIN_KEY = "tkdl_admin_unlocked";
+
+function PinScreen({ onUnlock }: { onUnlock: () => void }) {
+  const [digits, setDigits] = useState<string[]>([]);
+  const [error, setError]   = useState(false);
+  const [shake, setShake]   = useState(false);
+  const { toast } = useToast();
+
+  const handleDigit = async (d: string) => {
+    if (digits.length >= 4) return;
+    const next = [...digits, d];
+    setDigits(next);
+    if (next.length === 4) {
+      const pin = next.join("");
+      try {
+        const res = await fetch("/api/admin/verify-pin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          sessionStorage.setItem(ADMIN_PIN_KEY, "1");
+          onUnlock();
+        } else {
+          setShake(true);
+          setError(true);
+          setTimeout(() => { setDigits([]); setError(false); setShake(false); }, 900);
+        }
+      } catch {
+        toast({ title: "Error", description: "Could not verify PIN", variant: "destructive" });
+        setDigits([]);
+      }
+    }
+  };
+
+  const handleBack = () => setDigits(prev => prev.slice(0, -1));
+
+  const keys = ["1","2","3","4","5","6","7","8","9","","0","←"];
+
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className={`pdc-card p-8 w-80 flex flex-col items-center gap-6 ${shake ? "animate-[shake_0.4s_ease-in-out]" : ""}`}
+        style={{ borderColor: error ? "rgba(255,0,92,0.5)" : "rgba(255,255,255,0.08)", transition: "border-color 0.3s" }}>
+
+        {/* Icon */}
+        <div className="relative">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: "rgba(255,0,92,0.12)", border: "1px solid rgba(255,0,92,0.3)" }}>
+            <Lock className="w-6 h-6" style={{ color: "#ff005c", filter: "drop-shadow(0 0 6px rgba(255,0,92,0.6))" }} />
+          </div>
+        </div>
+
+        {/* Title */}
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>Admin Access</h2>
+          <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Enter PIN to continue</p>
+        </div>
+
+        {/* PIN dots */}
+        <div className="flex items-center gap-4">
+          {[0,1,2,3].map(i => (
+            <div key={i} className={`pin-dot ${i < digits.length ? "filled" : ""} ${error ? "!border-red-500 !bg-red-500" : ""}`} />
+          ))}
+        </div>
+
+        {/* Keypad */}
+        <div className="grid grid-cols-3 gap-2 w-full">
+          {keys.map((key, i) => (
+            <button
+              key={i}
+              onClick={() => key === "←" ? handleBack() : key ? handleDigit(key) : undefined}
+              disabled={!key}
+              className={`h-12 rounded font-bold text-lg transition-all ${key ? "hover:bg-white/10 active:scale-95" : "opacity-0 cursor-default"}`}
+              style={{
+                fontFamily: "Oswald, sans-serif",
+                color: key === "←" ? "rgba(255,255,255,0.4)" : "#fff",
+                background: key ? "rgba(255,255,255,0.06)" : "transparent",
+                border: key ? "1px solid rgba(255,255,255,0.08)" : "none",
+              }}
+            >
+              {key}
+            </button>
+          ))}
+        </div>
+
+        {error && (
+          <p className="text-xs font-bold" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>INCORRECT PIN</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SeasonEditor() {
+  const [seasons, setSeasons]   = useState<any[]>([]);
+  const [loading, setLoading]   = useState(false);
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [editing, setEditing]   = useState<Record<string, any>>({});
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/seasons");
+      setSeasons(await res.json());
+    } catch { toast({ title: "Error loading seasons", variant: "destructive" }); }
+    setLoading(false);
+  };
+
+  const patchSeason = async (id: number, data: any) => {
+    await fetch(`/api/admin/seasons/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    queryClient.invalidateQueries({ queryKey: getListSeasonsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
+    load();
+    toast({ title: "Season updated" });
+  };
+
+  const patchStanding = async (seasonId: number, playerId: number, data: any) => {
+    await fetch(`/api/admin/seasons/${seasonId}/standings/${playerId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    load();
+    toast({ title: "Standing updated" });
+  };
+
+  const setChampion = async (seasonId: number, playerId: number, playerName: string) => {
+    await patchSeason(seasonId, { championId: playerId, championName: playerName, playoffPending: false });
+    await patchStanding(seasonId, playerId, { isChampion: true });
+  };
+
+  useState(() => { load(); });
+
+  if (loading && seasons.length === 0) {
+    return <div className="flex justify-center py-8"><div className="w-6 h-6 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} /></div>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {seasons.map(season => (
+        <div key={season.id} className="pdc-card overflow-hidden">
+          {/* Season header */}
+          <button
+            onClick={() => setExpanded(expanded === season.id ? null : season.id)}
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.03] transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div>
+                <div className="font-bold text-sm text-left flex items-center gap-2" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)" }}>
+                  {season.name}
+                  {season.isActive && (
+                    <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(255,0,92,0.15)", color: "#ff005c", border: "1px solid rgba(255,0,92,0.3)" }}>
+                      <span className="live-dot" style={{ width: 5, height: 5 }} />LIVE
+                    </span>
+                  )}
+                  {season.playoffPending && (
+                    <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(255,210,74,0.12)", color: "#ffd24a", border: "1px solid rgba(255,210,74,0.3)" }}>
+                      PLAYOFF PENDING
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-left mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  {season.format === "301" ? "301 Format" : "Wager Format"} · {season.totalMatches} matches
+                  {season.championName && ` · Champion: ${season.championName}`}
+                </div>
+              </div>
+            </div>
+            {expanded === season.id ? <ChevronUp className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} /> : <ChevronDown className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}
+          </button>
+
+          {expanded === season.id && (
+            <div className="border-t px-4 py-4 space-y-4" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+              {/* Season meta */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs uppercase tracking-wider mb-1 block" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>Format</label>
+                  <select
+                    value={editing[`${season.id}-format`] ?? season.format ?? "wager"}
+                    onChange={e => setEditing(p => ({ ...p, [`${season.id}-format`]: e.target.value }))}
+                    className="w-full px-3 py-2 rounded text-sm"
+                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}
+                  >
+                    <option value="wager">Wager Format</option>
+                    <option value="301">301 Format</option>
+                    <option value="501">501 Format</option>
+                  </select>
+                </div>
+                <div className="flex items-end gap-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>Playoff Pending</label>
+                    <Switch
+                      checked={editing[`${season.id}-playoff`] ?? season.playoffPending ?? false}
+                      onCheckedChange={v => setEditing(p => ({ ...p, [`${season.id}-playoff`]: v }))}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-wider mb-1 block" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>Notes</label>
+                <Input
+                  placeholder="Season notes..."
+                  value={editing[`${season.id}-notes`] ?? season.notes ?? ""}
+                  onChange={e => setEditing(p => ({ ...p, [`${season.id}-notes`]: e.target.value }))}
+                  style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.1)" }}
+                />
+              </div>
+              <Button
+                size="sm"
+                onClick={() => patchSeason(season.id, {
+                  format: editing[`${season.id}-format`] ?? season.format,
+                  playoffPending: editing[`${season.id}-playoff`] ?? season.playoffPending,
+                  notes: editing[`${season.id}-notes`] ?? season.notes,
+                })}
+                style={{ background: "#0066ff", border: "none", fontFamily: "Oswald, sans-serif" }}
+              >
+                Save Season Info
+              </Button>
+
+              {/* Standings table */}
+              {season.standings && season.standings.length > 0 && (
+                <div>
+                  <div className="text-xs uppercase tracking-wider mb-2 font-bold" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
+                    Standings — click champion trophy to crown a player
+                  </div>
+                  <div className="space-y-1">
+                    {season.standings.map((s: any) => (
+                      <div key={s.playerId} className="grid items-center gap-2 px-3 py-2 rounded" style={{ gridTemplateColumns: "1.5rem 7rem 3.5rem 3.5rem 3.5rem 3.5rem auto", background: s.isChampion ? "rgba(255,210,74,0.06)" : "rgba(255,255,255,0.03)", border: s.isChampion ? "1px solid rgba(255,210,74,0.2)" : "1px solid rgba(255,255,255,0.06)" }}>
+                        <span className="text-xs font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)" }}>{s.position}</span>
+                        <span className="text-xs font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: s.isChampion ? "#ffd24a" : "rgba(255,255,255,0.8)" }}>
+                          {s.playerName}
+                          {s.isChampion && " 🏆"}
+                        </span>
+                        <input type="number" defaultValue={s.wins}   className="w-full px-1 py-0.5 rounded text-xs text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#22c55e" }} onBlur={e => patchStanding(season.id, s.playerId, { ...s, wins: Number(e.target.value) })} />
+                        <input type="number" defaultValue={s.losses} className="w-full px-1 py-0.5 rounded text-xs text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#ff005c" }} onBlur={e => patchStanding(season.id, s.playerId, { ...s, losses: Number(e.target.value) })} />
+                        <input type="number" defaultValue={s.points} className="w-full px-1 py-0.5 rounded text-xs text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#ffd24a" }} onBlur={e => patchStanding(season.id, s.playerId, { ...s, points: Number(e.target.value) })} />
+                        <input type="number" defaultValue={s.elo}    className="w-full px-1 py-0.5 rounded text-xs text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#0066ff" }} onBlur={e => patchStanding(season.id, s.playerId, { ...s, elo: Number(e.target.value) })} />
+                        <button
+                          onClick={() => setChampion(season.id, s.playerId, s.playerName)}
+                          className="p-1 rounded hover:bg-yellow-400/10 transition-colors"
+                          title="Crown as champion"
+                        >
+                          <Trophy className="w-3.5 h-3.5" style={{ color: s.isChampion ? "#ffd24a" : "rgba(255,255,255,0.2)" }} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Admin() {
   const { data: players, isLoading: isLoadingPlayers } = useListPlayers();
-  const { data: matches, isLoading: isLoadingMatches } = useListMatches({ limit: 20 });
+  const { data: matches, isLoading: isLoadingMatches } = useListMatches({ limit: 30 });
   const updatePlayerMutation = useUpdatePlayer();
   const resetSeasonMutation  = useResetSeason();
   const deleteMatchMutation  = useDeleteMatch();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [seasonName, setSeasonName] = useState("");
+  const [isSweeping, setIsSweeping] = useState(false);
+
+  // PIN lock
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(ADMIN_PIN_KEY) === "1");
+
+  if (!unlocked) return <PinScreen onUnlock={() => setUnlocked(true)} />;
 
   const handleToggleActive = (id: number, current: boolean) => {
     updatePlayerMutation.mutate(
       { id, data: { isActive: !current } },
       {
         onSuccess: () => {
-          toast({ title: "Player Updated", description: "Status changed." });
+          toast({ title: "Player Updated" });
           queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
         },
         onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -52,7 +320,7 @@ export default function Admin() {
       { data: { name: seasonName || undefined } },
       {
         onSuccess: (data: any) => {
-          toast({ title: "Season Reset", description: `New season "${data.name}" has started!` });
+          toast({ title: "Season Reset", description: `"${data.name}" has started!` });
           setSeasonName("");
           queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetCurrentSeasonQueryKey() });
@@ -85,50 +353,74 @@ export default function Admin() {
     );
   };
 
+  const handleSweepAchievements = async () => {
+    setIsSweeping(true);
+    try {
+      const res = await fetch("/api/admin/sweep-achievements", { method: "POST" });
+      const data = await res.json();
+      toast({ title: "Achievement Sweep Complete", description: `${data.totalGranted} achievements granted across ${data.playersChecked} players.` });
+    } catch (e: any) {
+      toast({ title: "Sweep failed", description: e.message, variant: "destructive" });
+    }
+    setIsSweeping(false);
+  };
+
   return (
     <div className="space-y-8">
       <div className="pdc-divider" />
-      <div className="flex items-center gap-3">
-        <ShieldAlert className="w-6 h-6" style={{ color: "#ff005c" }} />
-        <div>
-          <h1 className="text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c" }}>
-            Admin Panel
-          </h1>
-          <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>
-            League management · Dangerous operations
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <ShieldAlert className="w-6 h-6" style={{ color: "#ff005c", filter: "drop-shadow(0 0 6px rgba(255,0,92,0.6))" }} />
+          <div>
+            <h1 className="text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c", textShadow: "0 0 20px rgba(255,0,92,0.4)" }}>
+              Admin Panel
+            </h1>
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+              League management · Dangerous operations
+            </p>
+          </div>
         </div>
+        <button
+          onClick={() => { sessionStorage.removeItem(ADMIN_PIN_KEY); setUnlocked(false); }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold hover:bg-white/5 transition-colors"
+          style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          <Lock className="w-3 h-3" /> Lock
+        </button>
       </div>
 
-      {/* Season reset */}
+      {/* Season Management — full editor */}
+      <div className="pdc-card p-5" style={{ borderColor: "rgba(255,210,74,0.15)", background: "rgba(255,210,74,0.02)" }}>
+        <div className="flex items-center gap-2 mb-4">
+          <Trophy className="w-4 h-4" style={{ color: "#ffd24a" }} />
+          <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a" }}>
+            Season Manager
+          </h2>
+        </div>
+        <SeasonEditor />
+      </div>
+
+      {/* Season Reset */}
       <div className="pdc-card p-5" style={{ borderColor: "rgba(255,0,92,0.2)", background: "rgba(255,0,92,0.03)" }}>
         <div className="flex items-center gap-2 mb-2">
           <RotateCcw className="w-4 h-4" style={{ color: "#ff005c" }} />
           <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c" }}>
-            Season Management
+            Start New Season
           </h2>
         </div>
         <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
-          End the current season and start a new one. All players reset to 25 pts. ELO and career stats are preserved.
+          End the current season and start a new one. All players reset to 25 pts. Elo and career stats preserved.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 items-start">
           <div className="flex-1">
-            <Input
-              placeholder="Custom season name (optional)"
-              value={seasonName}
-              onChange={e => setSeasonName(e.target.value)}
-              style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,0,92,0.2)" }}
-            />
-            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.25)" }}>Leave blank for auto-generated name</p>
+            <Input placeholder="Custom season name (optional)" value={seasonName} onChange={e => setSeasonName(e.target.value)}
+              style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,0,92,0.2)" }} />
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.22)" }}>Leave blank for auto-generated name</p>
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button
-                className="gap-2 font-bold uppercase tracking-wider whitespace-nowrap"
-                style={{ background: "#ff005c", border: "none", fontFamily: "Oswald, sans-serif" }}
-              >
-                <AlertTriangle className="w-4 h-4" />
-                Reset Season
+              <Button className="gap-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ background: "#ff005c", border: "none", fontFamily: "Oswald, sans-serif" }}>
+                <AlertTriangle className="w-4 h-4" /> Reset Season
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(255,0,92,0.3)" }}>
@@ -137,16 +429,12 @@ export default function Admin() {
                   <AlertTriangle className="w-5 h-5" /> Are you absolutely sure?
                 </AlertDialogTitle>
                 <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
-                  This will end the current active season, crown the champion, and reset all players to 25 pts.
-                  This action cannot be undone.
+                  This will end the current active season, crown the champion, and reset all players to 25 pts. This cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleResetSeason}
-                  style={{ background: "#ff005c", color: "#fff", border: "none" }}
-                >
+                <AlertDialogAction onClick={handleResetSeason} style={{ background: "#ff005c", color: "#fff", border: "none" }}>
                   Yes, End Season
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -155,13 +443,38 @@ export default function Admin() {
         </div>
       </div>
 
+      {/* Achievement sweep */}
+      <div className="pdc-card p-5" style={{ borderColor: "rgba(0,102,255,0.2)", background: "rgba(0,102,255,0.02)" }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4" style={{ color: "#0066ff" }} />
+            <div>
+              <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#0066ff" }}>Achievement Sweep</h2>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Retroactively check and grant all earned achievements based on current career stats</p>
+            </div>
+          </div>
+          <Button
+            onClick={handleSweepAchievements}
+            disabled={isSweeping}
+            className="gap-2 font-bold uppercase tracking-wider"
+            style={{ background: "#0066ff", border: "none", fontFamily: "Oswald, sans-serif", minWidth: 120 }}
+          >
+            {isSweeping ? (
+              <><div className="w-3.5 h-3.5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#fff" }} /> Sweeping...</>
+            ) : (
+              <><Zap className="w-4 h-4" /> Run Sweep</>
+            )}
+          </Button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Player roster */}
         <div className="pdc-card overflow-hidden">
-          <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+          <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.015)" }}>
             <Users className="w-4 h-4" style={{ color: "#0066ff" }} />
             <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-              Roster Management
+              Roster
             </h2>
           </div>
           {isLoadingPlayers ? (
@@ -169,33 +482,20 @@ export default function Admin() {
               <div className="w-6 h-6 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
             </div>
           ) : (
-            <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+            <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
               {players?.map(player => (
-                <div
-                  key={player.id}
-                  className="flex items-center justify-between px-4 py-3 transition-colors hover:bg-white/[0.02]"
-                  style={{ opacity: !player.isActive ? 0.45 : 1 }}
-                >
+                <div key={player.id} className="flex items-center justify-between px-4 py-2.5 transition-colors hover:bg-white/[0.02]" style={{ opacity: !player.isActive ? 0.4 : 1 }}>
                   <div>
                     <div className="font-semibold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>
                       {player.name}
-                      {(player as any).nickname && (
-                        <span className="ml-1 font-normal" style={{ color: "rgba(255,255,255,0.3)", fontStyle: "italic" }}>
-                          "{(player as any).nickname}"
-                        </span>
-                      )}
                     </div>
-                    <div className="text-xs font-mono" style={{ color: "#0066ff" }}>{player.elo} Elo</div>
+                    <div className="text-xs font-mono" style={{ color: "#0066ff" }}>{player.elo} Elo · {player.points}pts</div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold uppercase" style={{ color: player.isActive ? "#22c55e" : "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-                      {player.isActive ? "Active" : "Inactive"}
+                    <span className="text-xs font-bold uppercase" style={{ color: player.isActive ? "#22c55e" : "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
+                      {player.isActive ? "Active" : "Off"}
                     </span>
-                    <Switch
-                      checked={player.isActive}
-                      onCheckedChange={() => handleToggleActive(player.id, player.isActive)}
-                      disabled={updatePlayerMutation.isPending}
-                    />
+                    <Switch checked={player.isActive} onCheckedChange={() => handleToggleActive(player.id, player.isActive)} disabled={updatePlayerMutation.isPending} />
                   </div>
                 </div>
               ))}
@@ -205,7 +505,7 @@ export default function Admin() {
 
         {/* Match management */}
         <div className="pdc-card overflow-hidden">
-          <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+          <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.015)" }}>
             <Swords className="w-4 h-4" style={{ color: "#ff005c" }} />
             <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
               Recent Matches
@@ -216,42 +516,36 @@ export default function Admin() {
               <div className="w-6 h-6 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
             </div>
           ) : (
-            <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+            <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
               {matches?.map((match: any) => (
-                <div key={match.id} className="flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-colors">
+                <div key={match.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
                   <div>
                     <div className="text-sm font-semibold">
                       <span style={{ color: "#22c55e" }}>{match.winnerName}</span>
-                      <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 6px" }}>def.</span>
+                      <span style={{ color: "rgba(255,255,255,0.25)", margin: "0 6px" }}>def.</span>
                       <span style={{ color: "#ff005c" }}>{match.loserName}</span>
-                      {match.stake && (
-                        <span className="ml-2 text-xs font-mono" style={{ color: "#ffd24a" }}>±{match.stake}pts</span>
-                      )}
+                      {match.stake && <span className="ml-2 text-xs font-mono" style={{ color: "#ffd24a" }}>±{match.stake}pts</span>}
                     </div>
-                    <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
+                    <div className="text-xs" style={{ color: "rgba(255,255,255,0.22)" }}>
                       {format(new Date(match.playedAt), "MMM d, HH:mm")}
                     </div>
                   </div>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/10 hover:text-red-400">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/10">
                         <Trash2 className="h-3.5 w-3.5" style={{ color: "#ff005c" }} />
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(255,0,92,0.3)" }}>
                       <AlertDialogHeader>
-                        <AlertDialogTitle style={{ fontFamily: "Oswald, sans-serif" }}>Delete Match Record?</AlertDialogTitle>
+                        <AlertDialogTitle style={{ fontFamily: "Oswald, sans-serif" }}>Delete Match?</AlertDialogTitle>
                         <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
-                          Delete {match.winnerName} vs {match.loserName} from{" "}
-                          {format(new Date(match.playedAt), "MMM d, yyyy")}? Points and Elo will be reverted.
+                          Delete {match.winnerName} vs {match.loserName} from {format(new Date(match.playedAt), "MMM d, yyyy")}? Points and Elo will be reverted.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDeleteMatch(match.id, match.winnerId, match.loserId)}
-                          style={{ background: "#ff005c", color: "#fff", border: "none" }}
-                        >
+                        <AlertDialogAction onClick={() => handleDeleteMatch(match.id, match.winnerId, match.loserId)} style={{ background: "#ff005c", color: "#fff", border: "none" }}>
                           Delete Match
                         </AlertDialogAction>
                       </AlertDialogFooter>
@@ -260,9 +554,7 @@ export default function Admin() {
                 </div>
               ))}
               {(!matches || matches.length === 0) && (
-                <div className="px-4 py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
-                  No matches found.
-                </div>
+                <div className="px-4 py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No matches found.</div>
               )}
             </div>
           )}
