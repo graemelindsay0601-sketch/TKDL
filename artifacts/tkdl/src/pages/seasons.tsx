@@ -304,6 +304,7 @@ function SeasonCard({ season, idx }: { season: any; idx: number }) {
   const format301   = (season as any).format === "301";
   const notes       = (season as any).notes;
   const showPlayoff = playoffPend || hasChampion;
+  const isAdmin     = sessionStorage.getItem("tkdl_admin_unlocked") === "1";
 
   return (
     <div
@@ -446,8 +447,8 @@ function SeasonCard({ season, idx }: { season: any; idx: number }) {
             </div>
           )}
 
-          {/* Playoff section */}
-          {showPlayoff && detail?.standings && (
+          {/* Playoff section — admin only */}
+          {isAdmin && showPlayoff && detail?.standings && (
             <PlayoffSection seasonId={season.id} standings={detail.standings} />
           )}
         </div>
