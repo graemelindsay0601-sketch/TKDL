@@ -1,11 +1,12 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 import { useGetStatsSummary, useGetRecentActivity, useGetLeaderboard } from "@workspace/api-client-react";
 
 const mainNav = [
   { href: "/",             label: "Dashboard",    icon: LayoutDashboard },
   { href: "/submit",       label: "Submit Match", icon: Plus            },
+  { href: "/practice",     label: "Practice",     icon: Dumbbell        },
 ];
 const leagueNav = [
   { href: "/leaderboard",  label: "Leaderboard",  icon: Trophy          },
@@ -21,9 +22,9 @@ const configNav = [
 const mobileNavItems = [
   { href: "/",             label: "Home",      icon: LayoutDashboard },
   { href: "/leaderboard",  label: "Standings", icon: Trophy          },
+  { href: "/practice",     label: "Practice",  icon: Dumbbell        },
   { href: "/submit",       label: "Submit",    icon: Plus            },
   { href: "/players",      label: "Players",   icon: Users           },
-  { href: "/achievements", label: "Awards",    icon: Medal           },
 ];
 
 type TickerEntry = { text: string; cls?: string };

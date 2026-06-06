@@ -1,0 +1,1314 @@
+/**
+ * Game engine scorer components — each handles its own state + dart input.
+ * All scorers receive: p1Name, p2Name, config (parsed from game_type), onWin(0|1, detail?), onAbandon
+ */
+import { useState, useCallback } from "react";
+import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
+import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair } from "lucide-react";
+
+// ── Shared chrome ─────────────────────────────────────────────────────────────
+const P_COLOR = (i: number) => i === 0 ? "#22c55e" : "#ee0a78";
+
+function PlayerCard({ name, score, scoreSuffix = "", turn, active, sub }: {
+  name: string; score: string | number; scoreSuffix?: string;
+  turn: boolean; active: boolean; sub?: string;
+}) {
+  return (
+    <div className="pdc-card p-4 text-center relative overflow-hidden transition-all duration-200"
+      style={{
+        borderColor: active ? P_COLOR(turn ? 1 : 0) : "rgba(255,255,255,0.06)",
+        boxShadow: active ? `0 0 20px ${P_COLOR(turn ? 1 : 0)}22` : undefined,
+      }}>
+      {active && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: P_COLOR(turn ? 1 : 0) }} />}
+      <div className="text-xs font-bold uppercase tracking-widest mb-1"
+        style={{ fontFamily: "Oswald, sans-serif", color: P_COLOR(turn ? 1 : 0), opacity: active ? 1 : 0.4 }}>
+        {name}
+      </div>
+      <div className="font-black leading-none"
+        style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", color: active ? "#fff" : "rgba(255,255,255,0.3)" }}>
+        {score}{scoreSuffix}
+      </div>
+      {sub && <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>{sub}</div>}
+    </div>
+  );
+}
+
+function TurnBanner({ name, turn, msg }: { name: string; turn: 0 | 1; msg?: string }) {
+  return (
+    <div className="flex items-center justify-center gap-2 text-sm"
+      style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
+      <Zap className="w-3.5 h-3.5" style={{ color: P_COLOR(turn) }} />
+      <span style={{ color: P_COLOR(turn), fontWeight: 700 }}>{name}</span>
+      <span className="uppercase tracking-wider text-xs">{msg ?? "— enter your score"}</span>
+    </div>
+  );
+}
+
+function BustBanner({ msg }: { msg: string }) {
+  return (
+    <div className="flex items-center justify-center gap-2 text-sm font-bold uppercase"
+      style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+      <AlertTriangle className="w-4 h-4" /> {msg}
+    </div>
+  );
+}
+
+function AbandonBtn({ onAbandon }: { onAbandon: () => void }) {
+  return (
+    <button onClick={onAbandon} className="w-full text-xs py-2 rounded-lg uppercase tracking-widest"
+      style={{ color: "rgba(255,255,255,0.2)", background: "transparent", border: "1px solid rgba(255,255,255,0.06)", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
+      Abandon Match
+    </button>
+  );
+}
+
+function SectionCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="pdc-card p-3" style={{ borderColor: "rgba(255,255,255,0.07)" }}>{children}</div>
+  );
+}
+
+// ── X01 Scorer ─────────────────────────────────────────────────────────────────
+export function X01Scorer({ p1Name, p2Name, config, onWin, onAbandon }: {
+  p1Name: string; p2Name: string;
+  config: { startingScore: number; doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; legs?: number; bustResetTo?: number };
+  onWin: (w: 0 | 1, detail?: string) => void; onAbandon: () => void;
+}) {
+  const { startingScore = 501, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, legs, bustResetTo } = config;
+  const legsNeeded = legs ? Math.ceil(legs / 2) : 0;
+
+  const [scores, setScores]         = useState<[number, number]>([startingScore, startingScore]);
+  const [legWins, setLegWins]       = useState<[number, number]>([0, 0]);
+  const [started, setStarted]       = useState<[boolean, boolean]>([!doubleIn, !doubleIn]);
+  const [turn, setTurn]             = useState<0 | 1>(0);
+  const [legStarter, setLegStarter] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [bust, setBust]             = useState(false);
+  const [bustMsg, setBustMsg]       = useState("");
+  const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number }[]>([]);
+
+  const names = [p1Name, p2Name];
+
+  const isValidOut = (dart: Dart): boolean => {
+    if (bullFinish) return dart.segment === 25 && dart.value === 50;
+    if (doubleOut)  return dart.multiplier === 2 || (dart.segment === 25 && dart.value === 50);
+    if (trebleOut)  return dart.multiplier === 3;
+    if (masterOut)  return dart.multiplier >= 2 || (dart.segment === 25 && dart.value === 50);
+    return true;
+  };
+
+  const triggerBust = useCallback((darts: Dart[], msg: string) => {
+    setBust(true); setBustMsg(msg); setVisitDarts(darts);
+    if (bustResetTo !== undefined) {
+      setScores(prev => { const n = [...prev] as [number, number]; n[turn] = bustResetTo; return n; });
+    }
+    setTimeout(() => { setBust(false); setBustMsg(""); setVisitDarts([]); setTurn(t => t === 0 ? 1 : 0); }, 1500);
+  }, [turn, bustResetTo]);
+
+  const handleWin = useCallback((winnerIdx: 0|1, darts: Dart[]) => {
+    setVisitDarts(darts);
+    if (legs && legs > 1) {
+      setLegWins(prev => {
+        const n: [number,number] = [...prev] as [number,number];
+        n[winnerIdx]++;
+        if (n[winnerIdx] >= legsNeeded) {
+          setTimeout(() => onWin(winnerIdx, `${n[winnerIdx]}–${n[winnerIdx===0?1:0]} legs`), 200);
+        } else {
+          setTimeout(() => {
+            const ns: 0|1 = legStarter === 0 ? 1 : 0;
+            setLegStarter(ns);
+            setScores([startingScore, startingScore]);
+            setStarted([!doubleIn, !doubleIn]);
+            setVisitDarts([]);
+            setTurn(ns);
+          }, 1500);
+        }
+        return n;
+      });
+    } else {
+      setTimeout(() => onWin(winnerIdx), 200);
+    }
+  }, [legs, legsNeeded, legStarter, startingScore, doubleIn, onWin]);
+
+  const handleDart = useCallback((dart: Dart) => {
+    if (bust || visitDarts.length >= 3) return;
+
+    // Double-in: before started, only doubles open the scoring
+    if (doubleIn && !started[turn]) {
+      const isDouble = dart.multiplier === 2 || (dart.segment === 25 && dart.value === 50);
+      const nv: Dart[] = [...visitDarts, { ...dart, value: 0 }];
+      if (isDouble) { setStarted(prev => { const n=[...prev] as [boolean,boolean]; n[turn]=true; return n; }); }
+      setVisitDarts(nv);
+      if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); }
+      return;
+    }
+
+    const nv = [...visitDarts, dart];
+    const cum = nv.reduce((s, d) => s + d.value, 0);
+    const rem = scores[turn] - cum;
+
+    if (rem < 0) { triggerBust(nv, bustResetTo !== undefined ? `BUST — score reset to ${bustResetTo}` : "BUST — overshot!"); return; }
+    if (rem === 0) {
+      if (isValidOut(dart)) { handleWin(turn, nv); }
+      else { triggerBust(nv, bullFinish ? "BUST — must finish on Bull's-eye (50)!" : doubleOut ? "BUST — must finish on a double!" : trebleOut ? "BUST — treble required!" : "BUST!"); }
+      return;
+    }
+
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      setScores(prev => { const n=[...prev] as [number,number]; n[turn] -= cum; return n; });
+      setHistory(h => [...h, { turn, score: cum, left: rem }]);
+      setVisitDarts([]);
+      setTurn(t => t===0?1:0);
+    }
+  }, [bust, visitDarts, turn, started, doubleIn, scores, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut]);
+
+  const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
+  const handleUndo = () => { if (!bust && visitDarts.length > 0) setVisitDarts(prev => prev.slice(0,-1)); };
+
+  const cum = visitDarts.reduce((s,d) => s+d.value, 0);
+  const projected = scores[turn] - cum;
+  const checkout = (scores[turn] <= 170 && (!doubleIn || started[turn])) ? CHECKOUTS[scores[turn]] : undefined;
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      {/* Leg indicators */}
+      {legs && legs > 1 && (
+        <div className="flex items-center justify-center gap-6 text-sm" style={{ fontFamily: "Oswald, sans-serif" }}>
+          {[0,1].map(i => (
+            <div key={i} className="flex items-center gap-1.5">
+              <span style={{ color: P_COLOR(i) }}>{names[i]}</span>
+              <span style={{ color: "#ffd24a", fontSize: "1.2rem", fontWeight: 900 }}>{legWins[i]}</span>
+              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.7rem" }}>/{legsNeeded}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Scoreboard */}
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => (
+          <PlayerCard key={i} name={names[i]} score={scores[i]}
+            turn={i===0} active={turn===i && !bust}
+            sub={i===turn && checkout ? `↳ ${checkout}` : doubleIn && !started[i] ? "double in required" : undefined} />
+        ))}
+      </div>
+      {bust ? <BustBanner msg={bustMsg} /> : <TurnBanner name={names[turn]} turn={turn} msg={doubleIn && !started[turn] ? "— hit a double to start" : undefined} />}
+      <SectionCard>
+        <VisitDarts darts={visitDarts} />
+        {visitDarts.length > 0 && (
+          <div className="text-center text-xs mt-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+            {cum} scored → leaves {projected >= 0 ? projected : "BUST"}
+          </div>
+        )}
+      </SectionCard>
+      <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust} />
+      {/* Recent history */}
+      {history.length > 0 && (
+        <SectionCard>
+          <div className="text-xs uppercase tracking-widest mb-2 font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>Recent Visits</div>
+          {[...history].reverse().slice(0,5).map((h,i) => (
+            <div key={i} className="flex justify-between text-xs py-0.5">
+              <span style={{ color: P_COLOR(h.turn), fontFamily: "Oswald, sans-serif" }}>{names[h.turn]}</span>
+              <span style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>+{h.score}</span>
+              <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "mono" }}>{h.left} left</span>
+            </div>
+          ))}
+        </SectionCard>
+      )}
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Cricket Scorer ─────────────────────────────────────────────────────────────
+const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
+const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
+const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
+
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; cutThroat?: boolean;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const [marks, setMarks]       = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+  const [scores, setScores]     = useState<[number,number]>([0,0]);
+  const [turn, setTurn]         = useState<0|1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [lastHit, setLastHit]   = useState<string>("");
+
+  const names = [p1Name, p2Name];
+
+  const checkWin = (m: typeof marks, sc: [number,number]): 0|1|null => {
+    for (const p of [0,1] as const) {
+      const closed = m[p].every(x => x >= 3);
+      if (!closed) continue;
+      const opp: 0|1 = p === 0 ? 1 : 0;
+      if (!cutThroat && sc[p] >= sc[opp]) return p;
+      if (cutThroat && sc[p] <= sc[opp]) return p;
+    }
+    return null;
+  };
+
+  const handleDart = useCallback((dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const numIdx = CRICKET_NUMS.indexOf(dart.segment);
+    const nv = [...visitDarts, dart];
+
+    if (numIdx >= 0) {
+      const hits = dart.multiplier;
+      setMarks(prev => {
+        const nm: typeof marks = [[ ...prev[0] ] as any, [ ...prev[1] ] as any];
+        const toClose = Math.max(0, 3 - nm[turn][numIdx]);
+        const absorbed = Math.min(hits, toClose);
+        const extra = hits - absorbed;
+        nm[turn][numIdx] = Math.min(3, nm[turn][numIdx] + absorbed + extra);
+        // Score extra
+        if (extra > 0) {
+          const opp: 0|1 = turn === 0 ? 1 : 0;
+          if (nm[opp][numIdx] < 3) {
+            setScores(ps => {
+              const ns: [number,number] = [...ps] as [number,number];
+              const val = CRICKET_NUMS[numIdx];
+              if (cutThroat) ns[opp] += extra * val;
+              else ns[turn] += extra * val;
+              return ns;
+            });
+          }
+        }
+        return nm;
+      });
+      const lbl = dart.multiplier === 1 ? `${dart.segment}` : dart.multiplier === 2 ? `D${dart.segment}` : `T${dart.segment}`;
+      setLastHit(lbl);
+    } else {
+      setLastHit("Miss");
+    }
+
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      setVisitDarts([]);
+      setTurn(t => t===0?1:0);
+      setLastHit("");
+    }
+
+    // Check win after state settles
+    setTimeout(() => {
+      setMarks(m => {
+        setScores(sc => {
+          const w = checkWin(m, sc);
+          if (w !== null) setTimeout(() => onWin(w, cutThroat ? `Cut-Throat — lowest score wins` : undefined), 300);
+          return sc;
+        });
+        return m;
+      });
+    }, 50);
+  }, [visitDarts, turn, cutThroat, onWin]);
+
+  const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
+  const handleUndo = () => { if (visitDarts.length > 0) setVisitDarts(prev => prev.slice(0,-1)); };
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
+          {cutThroat ? "Cut-Throat Cricket" : "Cricket"}
+        </h2>
+        {cutThroat && <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Lowest score wins · Hitting closed numbers gives OPPONENT points</p>}
+      </div>
+      {/* Scores */}
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => (
+          <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} />
+        ))}
+      </div>
+      {/* Cricket scorecard */}
+      <SectionCard>
+        <div className="grid" style={{ gridTemplateColumns: "1fr auto 1fr", gap: "0.15rem" }}>
+          {/* Header */}
+          <div className="text-center text-xs font-bold pb-1" style={{ color: P_COLOR(0), fontFamily: "Oswald, sans-serif" }}>{p1Name.toUpperCase()}</div>
+          <div className="text-center text-xs font-bold pb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>NUM</div>
+          <div className="text-center text-xs font-bold pb-1" style={{ color: P_COLOR(1), fontFamily: "Oswald, sans-serif" }}>{p2Name.toUpperCase()}</div>
+
+          {CRICKET_NUMS.map((num, idx) => (
+            <div key={num} style={{ display: "contents" }}>
+              <div className="text-center py-2 text-lg font-bold" style={{
+                fontFamily: "Oswald, sans-serif",
+                color: marks[0][idx] >= 3 ? P_COLOR(0) : "rgba(255,255,255,0.7)",
+              }}>
+                {markSymbol(marks[0][idx])}
+              </div>
+              <div className="text-center py-2 text-sm font-bold" style={{
+                fontFamily: "Oswald, sans-serif",
+                color: "rgba(255,255,255,0.4)",
+                borderLeft: "1px solid rgba(255,255,255,0.06)",
+                borderRight: "1px solid rgba(255,255,255,0.06)",
+              }}>
+                {CRICKET_LABELS[idx]}
+              </div>
+              <div className="text-center py-2 text-lg font-bold" style={{
+                fontFamily: "Oswald, sans-serif",
+                color: marks[1][idx] >= 3 ? P_COLOR(1) : "rgba(255,255,255,0.7)",
+              }}>
+                {markSymbol(marks[1][idx])}
+              </div>
+            </div>
+          ))}
+        </div>
+        {lastHit && (
+          <div className="text-center text-xs mt-2 font-bold" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
+            Hit: {lastHit}
+          </div>
+        )}
+      </SectionCard>
+      <TurnBanner name={names[turn]} turn={turn} msg="— hit 15–20 or Bull" />
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard
+        onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        activeSegments={CRICKET_NUMS} highlightSegments={CRICKET_NUMS}
+      />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Killer Scorer ──────────────────────────────────────────────────────────────
+export function KillerScorer({ p1Name, p2Name, lives = 3, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; lives?: number;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const [phase, setPhase]           = useState<"assign"|"play">("assign");
+  const [assigning, setAssigning]   = useState<0|1>(0);
+  const [killerNums, setKillerNums] = useState<[number|null, number|null]>([null, null]);
+  const [isKiller, setIsKiller]     = useState<[boolean, boolean]>([false, false]);
+  const [playerLives, setLives]     = useState<[number, number]>([lives, lives]);
+  const [turn, setTurn]             = useState<0|1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [msg, setMsg]               = useState("");
+  const names = [p1Name, p2Name];
+
+  const assignNumber = (n: number) => {
+    if (killerNums[0] === n || killerNums[1] === n) return; // taken
+    setKillerNums(prev => { const k: [number|null,number|null] = [...prev] as any; k[assigning] = n; return k; });
+    if (assigning === 0) setAssigning(1);
+    else setPhase("play");
+  };
+
+  const handleDart = useCallback((dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+
+    const myNum = killerNums[turn];
+    const oppNum = killerNums[turn === 0 ? 1 : 0];
+    const opp: 0|1 = turn === 0 ? 1 : 0;
+    const isDouble = dart.multiplier === 2 && dart.segment === myNum;
+    const hitsOppDouble = dart.multiplier === 2 && dart.segment === oppNum;
+
+    if (!isKiller[turn] && isDouble) {
+      setIsKiller(prev => { const n=[...prev] as [boolean,boolean]; n[turn]=true; return n; });
+      setMsg(`${names[turn]} is now a KILLER!`);
+      setTimeout(() => setMsg(""), 2000);
+    } else if (isKiller[turn] && hitsOppDouble) {
+      setLives(prev => {
+        const n = [...prev] as [number,number];
+        n[opp]--;
+        if (n[opp] <= 0) {
+          setTimeout(() => onWin(turn, `${names[opp]} eliminated!`), 300);
+        }
+        return n;
+      });
+      setMsg(`${names[opp]} loses a life!`);
+      setTimeout(() => setMsg(""), 2000);
+    }
+
+    if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); }
+  }, [visitDarts, turn, killerNums, isKiller, names, onWin]);
+
+  const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
+  const handleUndo = () => { if (visitDarts.length > 0) setVisitDarts(prev => prev.slice(0,-1)); };
+
+  if (phase === "assign") {
+    return (
+      <div className="max-w-lg mx-auto space-y-4">
+        <div className="pdc-divider" />
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Killer — Pick Numbers</h2>
+          <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+            <span style={{ color: P_COLOR(assigning) }}>{names[assigning]}</span> — tap your number (1-20)
+          </p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "0.5rem" }}>
+          {Array.from({length:20},(_,i)=>i+1).map(n => {
+            const taken = killerNums.includes(n);
+            return (
+              <button key={n} onClick={() => !taken && assignNumber(n)}
+                style={{
+                  padding: "1rem 0", borderRadius: "0.5rem", fontFamily: "Oswald, sans-serif",
+                  fontWeight: 700, fontSize: "1.1rem", cursor: taken ? "not-allowed" : "pointer",
+                  background: killerNums[0]===n ? `${P_COLOR(0)}33` : killerNums[1]===n ? `${P_COLOR(1)}33` : "rgba(255,255,255,0.05)",
+                  border: killerNums[0]===n ? `1.5px solid ${P_COLOR(0)}` : killerNums[1]===n ? `1.5px solid ${P_COLOR(1)}` : "1px solid rgba(255,255,255,0.1)",
+                  color: taken ? (killerNums[0]===n ? P_COLOR(0) : P_COLOR(1)) : "rgba(255,255,255,0.8)",
+                }}>
+                D{n}
+              </button>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i => (
+            <div key={i} className="pdc-card p-3 text-center" style={{ borderColor: killerNums[i] !== null ? P_COLOR(i) : "rgba(255,255,255,0.06)" }}>
+              <div className="text-xs" style={{ color: P_COLOR(i), fontFamily: "Oswald, sans-serif" }}>{names[i]}</div>
+              <div className="text-xl font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>
+                {killerNums[i] !== null ? `D${killerNums[i]}` : "—"}
+              </div>
+            </div>
+          ))}
+        </div>
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <h2 className="text-2xl font-bold uppercase text-center" style={{ fontFamily: "Oswald, sans-serif" }}>Killer</h2>
+      {/* Player status */}
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => (
+          <div key={i} className="pdc-card p-4 text-center" style={{ borderColor: turn===i ? P_COLOR(i) : "rgba(255,255,255,0.06)" }}>
+            <div className="text-xs font-bold uppercase" style={{ color: P_COLOR(i), fontFamily: "Oswald, sans-serif" }}>{names[i]}</div>
+            <div className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif" }}>D{killerNums[i]}</div>
+            <div className="text-lg font-bold" style={{ fontFamily: "Oswald, sans-serif", color: isKiller[i] ? "#ffd24a" : "rgba(255,255,255,0.3)" }}>
+              {isKiller[i] ? "☠ KILLER" : "○ Not yet"}
+            </div>
+            <div className="flex justify-center gap-1 mt-2">
+              {Array.from({length:lives}).map((_,li)=>(
+                <span key={li} style={{ fontSize: "1.1rem", opacity: li < playerLives[i] ? 1 : 0.15 }}>❤</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {msg && <div className="text-center font-bold text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{msg}</div>}
+      <TurnBanner name={names[turn]} turn={turn}
+        msg={!isKiller[turn] ? `— hit D${killerNums[turn]} to become Killer` : `— hit D${killerNums[turn===0?1:0]} to take a life`} />
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        highlightSegments={killerNums.filter((n): n is number => n !== null)} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Sequence Scorer (Around the World, Round the Clock, Shanghai, etc.) ────────
+export function SequenceScorer({ p1Name, p2Name, config, gameKey, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; config: any; gameKey: string;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const names = [p1Name, p2Name];
+
+  // Build the target sequence
+  const buildSequence = () => {
+    if (gameKey === "doubles_challenge") {
+      return Array.from({length:20},(_,i)=>({seg:i+1,mult:2,label:`D${i+1}`})).concat([{seg:25,mult:2,label:"DB"}]);
+    }
+    if (gameKey === "around_world_trebles" || gameKey === "around_the_world_trebles") {
+      return Array.from({length:20},(_,i)=>({seg:i+1,mult:3,label:`T${i+1}`}));
+    }
+    if (gameKey === "round_the_board") {
+      const fwd = Array.from({length:20},(_,i)=>({seg:i+1,mult:1,label:`${i+1}`}));
+      const bck = Array.from({length:19},(_,i)=>({seg:19-i,mult:1,label:`${19-i}`}));
+      return [...fwd, ...bck];
+    }
+    if (gameKey === "around_the_world" || gameKey === "atw") {
+      return [...Array.from({length:20},(_,i)=>({seg:i+1,mult:1,label:`${i+1}`})), {seg:25,mult:1,label:"Bull"}];
+    }
+    if (gameKey === "round_the_clock" || gameKey === "round_the_clock_darts") {
+      return Array.from({length:20},(_,i)=>({seg:i+1,mult:1,label:`${i+1}`}));
+    }
+    // Bermuda triangle
+    if (gameKey === "bermuda_triangle") {
+      return [12,13,14,"DB",15,16,17,"Bull",18,19,20,"DB"].map((v,i) => {
+        if (v === "DB") return {seg:25,mult:2,label:"DB"};
+        if (v === "Bull") return {seg:25,mult:1,label:"Bull"};
+        return {seg:v as number,mult:1,label:`${v}`};
+      });
+    }
+    // Shanghai (7 rounds scoring)
+    return [];
+  };
+
+  const isShanghai = gameKey === "shanghai" || config?.type === "shanghai";
+  const sequence = buildSequence();
+
+  // Shanghai state
+  const [shanghaiRound, setShanghaiRound]   = useState(1);
+  const [shanghaiTurn, setShanghaiTurn]     = useState<0|1>(0);
+  const [shanghaiScores, setShanghaiScores] = useState<[number,number]>([0,0]);
+  const [shanghaiDarts, setShanghaiDarts]   = useState<Dart[]>([]);
+  const [shanghaiHits, setShanghaiHits]     = useState<{s:boolean;d:boolean;t:boolean}>({s:false,d:false,t:false});
+
+  // Sequence state
+  const [positions, setPositions]   = useState<[number,number]>([0,0]);
+  const [turn, setTurn]             = useState<0|1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+
+  const maxRounds = config?.rounds ?? 7;
+
+  if (isShanghai) {
+    const handleShDart = (dart: Dart) => {
+      if (shanghaiDarts.length >= 3) return;
+      const nd = [...shanghaiDarts, dart];
+      setShanghaiDarts(nd);
+      const n = shanghaiRound;
+      if (dart.segment === n) {
+        const pts = dart.value; // n×mult
+        setShanghaiScores(prev => { const s: [number,number] = [...prev] as [number,number]; s[shanghaiTurn] += pts; return s; });
+        setShanghaiHits(prev => ({
+          s: prev.s || dart.multiplier === 1,
+          d: prev.d || dart.multiplier === 2,
+          t: prev.t || dart.multiplier === 3,
+        }));
+        // Check shanghai (all 3 in one visit)
+        const nh = { s: shanghaiHits.s || dart.multiplier===1, d: shanghaiHits.d || dart.multiplier===2, t: shanghaiHits.t || dart.multiplier===3 };
+        if (nh.s && nh.d && nh.t) {
+          setTimeout(() => onWin(shanghaiTurn, `SHANGHAI on ${n}!`), 300);
+          return;
+        }
+      }
+      if (nd.length === 3) {
+        setShanghaiDarts([]);
+        setShanghaiHits({s:false,d:false,t:false});
+        if (shanghaiTurn === 1) {
+          if (shanghaiRound >= maxRounds) {
+            setTimeout(() => {
+              const [s0,s1] = shanghaiScores;
+              onWin(s0 >= s1 ? 0 : 1, `${s0} vs ${s1} after ${maxRounds} rounds`);
+            }, 300);
+          } else {
+            setShanghaiRound(r => r+1);
+            setShanghaiTurn(0);
+          }
+        } else {
+          setShanghaiTurn(1);
+        }
+      }
+    };
+    return (
+      <div className="max-w-lg mx-auto space-y-4">
+        <div className="pdc-divider" />
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Shanghai</h2>
+          <p className="text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>Round {shanghaiRound} of {maxRounds} — Target: {shanghaiRound}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={shanghaiScores[i]} turn={i===0} active={shanghaiTurn===i} />)}
+        </div>
+        <div className="pdc-card p-3 text-center" style={{ borderColor: "rgba(255,210,74,0.2)" }}>
+          <p className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>This visit</p>
+          <div className="flex justify-center gap-4 text-sm" style={{ fontFamily: "Oswald, sans-serif" }}>
+            {[["S",shanghaiHits.s],["D",shanghaiHits.d],["T",shanghaiHits.t]].map(([l,h]) => (
+              <span key={l as string} style={{ color: h ? "#22c55e" : "rgba(255,255,255,0.2)" }}>{l} {h ? "✓" : "○"}</span>
+            ))}
+            <span style={{ color: shanghaiHits.s&&shanghaiHits.d&&shanghaiHits.t ? "#ffd24a" : "rgba(255,255,255,0.2)" }}>SHANGHAI</span>
+          </div>
+        </div>
+        <TurnBanner name={names[shanghaiTurn]} turn={shanghaiTurn} msg={`— aim at ${shanghaiRound}`} />
+        <VisitDarts darts={shanghaiDarts} />
+        <DartInputBoard onDart={handleShDart} onMiss={() => handleShDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+          onUndo={() => shanghaiDarts.length > 0 && setShanghaiDarts(p=>p.slice(0,-1))}
+          highlightSegments={[shanghaiRound]} />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>
+    );
+  }
+
+  // Standard sequence (race)
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    const target = sequence[positions[turn]];
+    if (target && dart.segment === target.seg && dart.multiplier >= target.mult) {
+      let pos = positions[turn] + 1;
+      // Allow extra advances from treble/double on single-required targets
+      if (target.mult === 1) pos += (dart.multiplier - 1); // T1 → skip 2 extra? No, each dart advances once. Let extra multiplier advance once.
+      const newPos = Math.min(pos, sequence.length);
+      setPositions(prev => { const n:[number,number]=[...prev] as [number,number]; n[turn]=newPos; return n; });
+      if (newPos >= sequence.length) { setTimeout(() => onWin(turn, `Finished the sequence!`), 200); return; }
+    }
+    setVisitDarts(nv);
+    if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); }
+  };
+
+  const curTarget = sequence[positions[turn]];
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      {/* Progress bars */}
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => (
+          <div key={i} className="pdc-card p-3 text-center" style={{ borderColor: turn===i ? P_COLOR(i) : "rgba(255,255,255,0.06)" }}>
+            <div className="text-xs font-bold uppercase mb-1" style={{ color: P_COLOR(i), fontFamily: "Oswald, sans-serif" }}>{names[i]}</div>
+            <div className="text-xl font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>
+              {positions[i]}/{sequence.length}
+            </div>
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+              Next: {sequence[positions[i]]?.label ?? "DONE"}
+            </div>
+            <div className="mt-2 h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
+              <div className="h-full rounded-full transition-all" style={{ background: P_COLOR(i), width: `${(positions[i]/sequence.length)*100}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <TurnBanner name={names[turn]} turn={turn} msg={curTarget ? `— aim at ${curTarget.label}` : ""} />
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        highlightSegments={curTarget ? [curTarget.seg] : []}
+      />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Halve-It Scorer (+ Bob's 27, Bermuda Triangle) ─────────────────────────────
+const HALVEIT_TARGETS = [20,16,"D",17,"Bull",18,19,"T"];
+const HALVEIT_LABELS  = ["20","16","Any Double","17","Bull","18","19","Any Treble"];
+
+export function HalveItScorer({ p1Name, p2Name, gameKey, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; gameKey: string;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const isBobs = gameKey === "bobs_27";
+  const targets = isBobs
+    ? Array.from({length:20},(_,i)=>i+1)  // doubles 1-20
+    : HALVEIT_TARGETS;
+  const targetLabels = isBobs
+    ? targets.map(n=>`D${n}`)
+    : HALVEIT_LABELS;
+
+  const [round, setRound]           = useState(0);
+  const [turnInRound, setTIR]       = useState<0|1>(0);
+  const [scores, setScores]         = useState<[number,number]>(isBobs ? [27,27] : [0,0]);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [roundScore, setRoundScore] = useState(0);
+  const [hit, setHit]               = useState(false);
+  const [turn, setTurn]             = useState<0|1>(0);
+
+  const names = [p1Name, p2Name];
+  const curTarget = targets[round];
+
+  const dartHitsTarget = (dart: Dart): boolean => {
+    if (isBobs) {
+      // Must hit exact double
+      const n = targets[round] as number;
+      return dart.segment === n && dart.multiplier === 2;
+    }
+    if (curTarget === "D") return dart.multiplier === 2;
+    if (curTarget === "T") return dart.multiplier === 3;
+    if (curTarget === "Bull") return dart.segment === 25;
+    return dart.segment === curTarget;
+  };
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (dartHitsTarget(dart)) {
+      setHit(true);
+      setRoundScore(prev => prev + dart.value);
+    }
+    if (nv.length === 3) {
+      // End of this player's visit for this round
+      const hitTarget = hit || dartHitsTarget(dart);
+      const rs = roundScore + (dartHitsTarget(dart) ? dart.value : 0);
+      setScores(prev => {
+        const ns: [number,number] = [...prev] as [number,number];
+        if (hitTarget || rs > 0) ns[turn] += rs;
+        else {
+          if (isBobs) {
+            // Miss: subtract double value
+            ns[turn] -= (targets[round] as number) * 2;
+          } else {
+            // Miss: halve score
+            ns[turn] = Math.floor(ns[turn] / 2);
+          }
+        }
+        return ns;
+      });
+      setVisitDarts([]); setRoundScore(0); setHit(false);
+      if (turnInRound === 1) {
+        // Both players done this round
+        if (round + 1 >= targets.length) {
+          setTimeout(() => {
+            setScores(sc => {
+              const w: 0|1 = sc[0] >= sc[1] ? 0 : 1;
+              onWin(w, `${sc[0]} vs ${sc[1]}`);
+              return sc;
+            });
+          }, 300);
+        } else {
+          setRound(r => r+1); setTIR(0); setTurn(0);
+        }
+      } else {
+        setTIR(1); setTurn(1);
+      }
+    }
+  };
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{isBobs ? "Bob's 27" : "Halve-It"}</h2>
+        <p className="text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
+          Round {round+1}/{targets.length} — Target: {targetLabels[round]}
+        </p>
+        {!isBobs && <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Miss a target = score halved</p>}
+        {isBobs && <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Hit double = +score · Miss = -value</p>}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} />)}
+      </div>
+      {/* Round targets progress */}
+      <div className="flex gap-1 flex-wrap justify-center">
+        {targets.map((t,i) => (
+          <div key={i} style={{
+            width:"2rem", height:"2rem", borderRadius:"50%", display:"flex",
+            alignItems:"center", justifyContent:"center", fontSize:"0.6rem",
+            fontFamily:"Oswald, sans-serif",
+            background: i < round ? "rgba(34,197,94,0.2)" : i===round ? "rgba(255,210,74,0.2)" : "rgba(255,255,255,0.05)",
+            border: i===round ? "1.5px solid #ffd24a" : i < round ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(255,255,255,0.08)",
+            color: i < round ? "#22c55e" : i===round ? "#ffd24a" : "rgba(255,255,255,0.3)",
+          }}>
+            {typeof t === "number" ? (isBobs ? `D${t}` : `${t}`) : t}
+          </div>
+        ))}
+      </div>
+      <TurnBanner name={names[turn]} turn={turn} msg={`— hit ${targetLabels[round]}`} />
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        highlightSegments={typeof curTarget === "number" ? [curTarget] : curTarget==="Bull" ? [25] : undefined}
+      />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Count Up Scorer ────────────────────────────────────────────────────────────
+export function CountUpScorer({ p1Name, p2Name, config, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; config: { target?: number; rounds?: number };
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const target = config.target ?? 501;
+  const maxRounds = config.rounds ?? 0; // 0 = race to target
+  const [scores, setScores]         = useState<[number,number]>([0,0]);
+  const [rounds, setRounds]         = useState<[number,number]>([0,0]);
+  const [turn, setTurn]             = useState<0|1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const names = [p1Name, p2Name];
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      const cum = nv.reduce((s,d) => s+d.value, 0);
+      setScores(prev => {
+        const ns: [number,number] = [...prev] as [number,number];
+        ns[turn] += cum;
+        if (maxRounds === 0 && ns[turn] >= target) {
+          setTimeout(() => onWin(turn, `Reached ${target} pts!`), 300);
+        }
+        return ns;
+      });
+      setRounds(prev => {
+        const nr: [number,number] = [...prev] as [number,number];
+        nr[turn]++;
+        if (maxRounds > 0 && nr[0] >= maxRounds && nr[1] >= maxRounds) {
+          setTimeout(() => {
+            setScores(sc => {
+              onWin(sc[0] >= sc[1] ? 0 : 1, `${sc[0]} vs ${sc[1]}`);
+              return sc;
+            });
+          }, 300);
+        }
+        return nr;
+      });
+      setVisitDarts([]);
+      setTurn(t => t===0?1:0);
+    }
+  };
+
+  const sub = (i: number) => maxRounds > 0 ? `Round ${rounds[i]}/${maxRounds}` : `Target: ${target}`;
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
+          {maxRounds > 0 ? `High Score — ${maxRounds} Rounds` : `Count Up — Race to ${target}`}
+        </h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Score as many points as possible</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} sub={sub(i)} />)}
+      </div>
+      <TurnBanner name={names[turn]} turn={turn} msg="— score as many as you can" />
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Gotcha Scorer ──────────────────────────────────────────────────────────────
+export function GotchaScorer({ p1Name, p2Name, target = 301, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; target?: number;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const [scores, setScores]         = useState<[number,number]>([0,0]);
+  const [turn, setTurn]             = useState<0|1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [msg, setMsg]               = useState("");
+  const names = [p1Name, p2Name];
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      const cum = nv.reduce((s,d) => s+d.value, 0);
+      setScores(prev => {
+        const ns: [number,number] = [...prev] as [number,number];
+        const opp: 0|1 = turn===0?1:0;
+        const projected = ns[turn] + cum;
+        if (projected > target) {
+          // Bust — revert
+          setMsg("BUST! Back to " + ns[turn]);
+          setTimeout(() => setMsg(""), 1500);
+        } else if (projected === target) {
+          setTimeout(() => onWin(turn, `Reached exactly ${target}!`), 200);
+          ns[turn] = projected;
+        } else {
+          ns[turn] = projected;
+          if (ns[turn] === ns[opp]) {
+            // GOTCHA — reset opponent!
+            ns[opp] = 0;
+            setMsg(`GOTCHA! ${names[opp]} reset to 0!`);
+            setTimeout(() => setMsg(""), 2000);
+          }
+        }
+        return ns;
+      });
+      setVisitDarts([]);
+      setTurn(t => t===0?1:0);
+    }
+  };
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Gotcha!</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Race to exactly {target}. Match opponent's score = GOTCHA — they reset to 0!</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} scoreSuffix={`/${target}`} turn={i===0} active={turn===i} />)}
+      </div>
+      {msg && <div className="text-center font-bold" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{msg}</div>}
+      <TurnBanner name={names[turn]} turn={turn} />
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Baseball Scorer ────────────────────────────────────────────────────────────
+export function BaseballScorer({ p1Name, p2Name, innings = 9, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; innings?: number;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const [inning, setInning]         = useState(1);
+  const [half, setHalf]             = useState<0|1>(0); // 0=bottom(P1), 1=top(P2)
+  const [runs, setRuns]             = useState<[number,number]>([0,0]);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const names = [p1Name, p2Name];
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      const r = nv.reduce((s,d) => s + (d.segment===inning ? d.multiplier : 0), 0);
+      setRuns(prev => { const n:[number,number]=[...prev] as [number,number]; n[half]+=r; return n; });
+      setVisitDarts([]);
+      if (half === 1) {
+        if (inning >= innings) {
+          setTimeout(() => {
+            setRuns(sc => { onWin(sc[0]>=sc[1]?0:1, `${sc[0]}–${sc[1]} runs`); return sc; });
+          }, 300);
+        } else { setInning(i=>i+1); setHalf(0); }
+      } else { setHalf(1); }
+    }
+  };
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Baseball</h2>
+        <p style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>Inning {inning}/{innings} — Target: {inning}</p>
+        <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Single=1 run · Double=2 · Treble=3</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={runs[i]} scoreSuffix=" runs" turn={i===0} active={half===i} />)}
+      </div>
+      <TurnBanner name={names[half]} turn={half} msg={`— aim at ${inning}`} />
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        highlightSegments={[inning]} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Scram Scorer ───────────────────────────────────────────────────────────────
+const SCRAM_NUMS = [20,19,18,17,16,15,25];
+
+export function ScramScorer({ p1Name, p2Name, onWin, onAbandon }: {
+  p1Name: string; p2Name: string;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const [phase, setPhase]             = useState<1|2>(1);
+  const [stopper, setStopper]         = useState<0|1>(0);   // who is stopper this phase
+  const [closed, setClosed]           = useState<boolean[]>([false,false,false,false,false,false,false]);
+  const [phaseScores, setPhaseScores] = useState<[number,number]>([0,0]); // scorer's total each phase
+  const [turn, setTurn]               = useState<0|1>(0);
+  const [visitDarts, setVisitDarts]   = useState<Dart[]>([]);
+  const names = [p1Name, p2Name];
+  const scorer: 0|1 = stopper === 0 ? 1 : 0;
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    const numIdx = SCRAM_NUMS.indexOf(dart.segment);
+    if (numIdx >= 0) {
+      if (turn === stopper && !closed[numIdx]) {
+        setClosed(prev => { const n=[...prev]; n[numIdx]=true; return n; });
+      } else if (turn === scorer && !closed[numIdx]) {
+        setPhaseScores(prev => {
+          const n:[number,number]=[...prev] as [number,number];
+          n[scorer] += dart.value;
+          return n;
+        });
+      }
+    }
+    if (nv.length === 3) {
+      setVisitDarts([]);
+      // Check if all closed (stopper wins phase)
+      setClosed(cl => {
+        if (cl.every(Boolean)) {
+          if (phase === 1) {
+            // Start phase 2
+            setTimeout(() => {
+              setPhase(2);
+              setStopper(scorer); // swap roles
+              setClosed([false,false,false,false,false,false,false]);
+              setTurn(0);
+            }, 800);
+          } else {
+            // Both phases done — compare scorer scores
+            setTimeout(() => {
+              setPhaseScores(ps => {
+                onWin(ps[0] >= ps[1] ? 0 : 1, `Phase scores: ${ps[0]} vs ${ps[1]}`);
+                return ps;
+              });
+            }, 300);
+          }
+        }
+        return cl;
+      });
+      setTurn(t => t===0?1:0);
+    }
+  };
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Scram — Phase {phase}/2</h2>
+        <div className="grid grid-cols-2 gap-3 mt-2 text-xs" style={{ fontFamily: "Oswald, sans-serif" }}>
+          <div style={{ color: P_COLOR(stopper) }}>{names[stopper]}: 🔒 Stopper</div>
+          <div style={{ color: P_COLOR(scorer) }}>{names[scorer]}: 💰 Scorer — {phaseScores[scorer]}pts</div>
+        </div>
+      </div>
+      {/* Number grid */}
+      <SectionCard>
+        <div className="grid grid-cols-7 gap-1">
+          {SCRAM_NUMS.map((n,i) => (
+            <div key={n} className="text-center py-2" style={{
+              fontFamily: "Oswald, sans-serif", fontSize: "0.85rem", fontWeight: 700,
+              borderRadius: "0.4rem",
+              background: closed[i] ? "rgba(255,0,92,0.15)" : "rgba(34,197,94,0.08)",
+              border: closed[i] ? "1px solid rgba(255,0,92,0.4)" : "1px solid rgba(34,197,94,0.3)",
+              color: closed[i] ? "#ff005c" : "#22c55e",
+              textDecoration: closed[i] ? "line-through" : undefined,
+            }}>
+              {n===25?"Bull":n}
+            </div>
+          ))}
+        </div>
+        <div className="text-xs text-center mt-2" style={{ color: "rgba(255,255,255,0.3)" }}>
+          {closed.filter(Boolean).length}/7 closed
+        </div>
+      </SectionCard>
+      <TurnBanner name={names[turn]} turn={turn}
+        msg={turn===stopper ? "— close numbers!" : "— score on open numbers!"} />
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        activeSegments={SCRAM_NUMS} highlightSegments={SCRAM_NUMS.filter((_,i)=>!closed[i])} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Football Darts Scorer ──────────────────────────────────────────────────────
+export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; goalsToWin?: number;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const [goals, setGoals]           = useState<[number,number]>([0,0]);
+  const [turn, setTurn]             = useState<0|1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [hasPossession, setPoss]    = useState(true); // keep possession if scored a goal
+  const names = [p1Name, p2Name];
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    let scored = false;
+    if (dart.multiplier === 2 && dart.segment !== 25) {
+      scored = true;
+      setGoals(prev => {
+        const n:[number,number]=[...prev] as [number,number];
+        n[turn]++;
+        if (n[turn] >= goalsToWin) setTimeout(() => onWin(turn, `${n[turn]} goals!`), 200);
+        return n;
+      });
+    }
+    if (nv.length === 3) {
+      const cumGoals = nv.filter(d=>d.multiplier===2&&d.segment!==25).length;
+      setVisitDarts([]);
+      if (cumGoals === 0) setTurn(t => t===0?1:0); // no goals = lose possession
+      // else keep possession (don't switch turn)
+    }
+  };
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Football Darts</h2>
+        <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Hit a DOUBLE to score a goal. No goals = lose possession. First to {goalsToWin} wins.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={goals[i]} scoreSuffix=" ⚽" turn={i===0} active={turn===i} sub={`${goalsToWin - goals[i]} to win`} />)}
+      </div>
+      <TurnBanner name={names[turn]} turn={turn} msg="— hit any DOUBLE for a goal" />
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Golf Darts Scorer ──────────────────────────────────────────────────────────
+export function GolfScorer({ p1Name, p2Name, holes = 9, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; holes?: number;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const [hole, setHole]             = useState(1);
+  const [half, setHalf]             = useState<0|1>(0);
+  const [totalScores, setTotal]     = useState<[number,number]>([0,0]);
+  const [holeScores, setHole2]      = useState<number[][]>([[],[]]);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const names = [p1Name, p2Name];
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    // Hit the hole target?
+    if (dart.segment === hole) {
+      // Score = darts used (1, 2, or 3) — fewer is better
+      const dartNo = nv.length;
+      setTotal(prev => { const n:[number,number]=[...prev] as [number,number]; n[half]+=dartNo; return n; });
+      setVisitDarts([]);
+      nextHalf(dartNo);
+      return;
+    }
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      // Missed all 3 — score 4 (penalty)
+      setTotal(prev => { const n:[number,number]=[...prev] as [number,number]; n[half]+=4; return n; });
+      setVisitDarts([]);
+      nextHalf(4);
+    }
+  };
+
+  const nextHalf = (score: number) => {
+    if (half === 1) {
+      if (hole >= holes) {
+        setTimeout(() => {
+          setTotal(t => { onWin(t[0]<=t[1]?0:1, `${t[0]} vs ${t[1]} strokes (lower wins)`); return t; });
+        }, 300);
+      } else { setHole(h=>h+1); setHalf(0); }
+    } else { setHalf(1); }
+  };
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Golf Darts</h2>
+        <p style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>Hole {hole}/{holes} — Target: {hole}</p>
+        <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Hit target in fewest darts. Miss all 3 = 4 strokes. LOWEST score wins.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={totalScores[i]} scoreSuffix=" ⛳" turn={i===0} active={half===i} />)}
+      </div>
+      <TurnBanner name={names[half]} turn={half} msg={`— hit ${hole} (fewer darts = better score)`} />
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        highlightSegments={[hole]} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Nearest Bull Scorer ────────────────────────────────────────────────────────
+export function NearestBullScorer({ p1Name, p2Name, onWin, onAbandon }: {
+  p1Name: string; p2Name: string;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const [phase, setPhase]           = useState<"throwing"|"declare">("throwing");
+  const [thrower, setThrower]       = useState<0|1>(0);
+  const [thrown, setThrown]         = useState<[boolean,boolean]>([false,false]);
+  const names = [p1Name, p2Name];
+
+  return (
+    <div className="max-w-lg mx-auto space-y-5">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <Target className="w-12 h-12 mx-auto mb-2" style={{ color: "#ffd24a" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Nearest the Bull</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>
+          Each player throws 3 darts. Closest dart to Bull wins.
+        </p>
+      </div>
+      {phase === "throwing" ? (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            {[0,1].map(i => (
+              <button key={i}
+                onClick={() => { if (!thrown[i]) { setThrown(p=>{const n=[...p] as [boolean,boolean]; n[i]=true; return n;}); } }}
+                style={{
+                  padding:"2rem 1rem", borderRadius:"0.75rem", cursor: thrown[i] ? "default" : "pointer",
+                  background: thrown[i] ? `${P_COLOR(i)}22` : "rgba(255,255,255,0.04)",
+                  border: thrown[i] ? `2px solid ${P_COLOR(i)}` : "1px solid rgba(255,255,255,0.1)",
+                  color: P_COLOR(i), fontFamily: "Oswald, sans-serif",
+                }}>
+                <div className="font-bold text-lg">{names[i]}</div>
+                <div className="text-xs mt-1 opacity-70">{thrown[i] ? "✓ Thrown" : "Tap when thrown"}</div>
+              </button>
+            ))}
+          </div>
+          {thrown[0] && thrown[1] && (
+            <button onClick={() => setPhase("declare")}
+              className="w-full h-12 font-bold uppercase tracking-widest rounded-xl"
+              style={{ background: "#ff005c", color: "#fff", border: "none", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
+              Declare Winner →
+            </button>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="text-center text-sm" style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif" }}>
+            Look at the board — who is closest to the bull?
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            {[0,1].map(i => (
+              <button key={i} onClick={() => onWin(i as 0|1, "Nearest the Bull")}
+                style={{
+                  padding:"2.5rem 1rem", borderRadius:"0.75rem", cursor:"pointer",
+                  background:`${P_COLOR(i)}18`, border:`2px solid ${P_COLOR(i)}44`,
+                  color: P_COLOR(i), fontFamily: "Oswald, sans-serif",
+                }}>
+                <Trophy className="w-8 h-8 mx-auto mb-2" />
+                <div className="font-bold text-xl">{names[i]}</div>
+                <div className="text-xs mt-1 opacity-60">Tap — they were closest</div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Manual Scorer ──────────────────────────────────────────────────────────────
+export function ManualScorer({ p1Name, p2Name, gameName, rules, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; gameName: string; rules?: string;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  return (
+    <div className="max-w-lg mx-auto space-y-5">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <Crosshair className="w-10 h-10 mx-auto mb-2" style={{ color: "#a78bfa" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{gameName}</h2>
+        {rules && <p className="text-xs mt-2 px-4" style={{ color: "rgba(255,255,255,0.35)", lineHeight: 1.6 }}>{rules}</p>}
+        <p className="text-sm mt-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
+          Play your game — declare the winner when done
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        {[0,1].map(i => (
+          <button key={i} onClick={() => onWin(i as 0|1)}
+            style={{
+              padding:"3rem 1rem", borderRadius:"0.75rem", cursor:"pointer",
+              background:`${P_COLOR(i)}12`, border:`2px solid ${P_COLOR(i)}40`,
+              color: P_COLOR(i), fontFamily: "Oswald, sans-serif",
+            }}>
+            <Trophy className="w-8 h-8 mx-auto mb-2" />
+            <div className="font-bold text-xl">{i===0?p1Name:p2Name}</div>
+            <div className="text-xs mt-1 opacity-60">Tap — they won</div>
+          </button>
+        ))}
+      </div>
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}

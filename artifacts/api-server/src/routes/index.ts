@@ -9,6 +9,7 @@ import statsRouter        from "./stats";
 import adminRouter        from "./admin";
 import settingsRouter     from "./settings";
 import gameTypesRouter    from "./game-types";
+import practiceRouter     from "./practice";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(statsRouter);
 router.use(adminRouter);
 router.use(settingsRouter);
 router.use(gameTypesRouter);
+router.use(practiceRouter);
 
 export default router;

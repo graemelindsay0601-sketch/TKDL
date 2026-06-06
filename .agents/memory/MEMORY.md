@@ -3,3 +3,4 @@
 - [Playoff system](playoff-system.md) — playoff_matches table created directly via psql (not in Drizzle schema), routes in seasons.ts, UI in seasons.tsx with expand/collapse per card
 - [Achievement progress endpoint](achievement-progress.md) — GET /api/players/:id/achievement-progress, computes progress from player fields + queries for match/season criteria; used on player-detail page
 - [Seasons list endpoint champion fix](seasons-champion-fix.md) — GET /seasons must join players table to return championName; raw select() from seasonsTable only returns championId not the name
+- [Scorer platform architecture](scorer-platform.md) — GameScorer orchestrator in game-scorer.tsx, 62 game types in DB, practice_sessions raw SQL table, rules_text via ALTER TABLE

@@ -334,15 +334,63 @@ async function seedGameTypes() {
     { key: "shanghai",             name: "Shanghai (Sudden Death)",  engine: "Custom",      category: "party",       description: "7 rounds hitting 1 through 7. Hit a Shanghai (single+double+treble in one round) and you instantly win.", config: JSON.stringify({ rounds: 7, shanghaiWin: true }),                                                        enabled: true, sortOrder: 40 },
   ];
 
-  await db.insert(gameTypesTable)
-    .values(defaults)
-    .onConflictDoNothing();
-  logger.info(`Seeded game types (${defaults.length} total, skipping existing)`);
+  // ── 22 new games — total 62 ───────────────────────────────────────────────
+  const extra: GT[] = [
+    { key: "golf_darts",           name: "Golf Darts (9 Holes)",      engine: "Custom",   category: "mini-games",  description: "9 holes targeting 1–9. Fewest darts to hit each target wins. Lowest total strokes wins.",          config: JSON.stringify({ holes: 9  }),                                                                            enabled: true, sortOrder: 41 },
+    { key: "golf_darts_18",        name: "Golf Darts (18 Holes)",     engine: "Custom",   category: "mini-games",  description: "18-hole golf darts — targets 1–18. Longest format for serious players.",                          config: JSON.stringify({ holes: 18 }),                                                                            enabled: true, sortOrder: 42 },
+    { key: "chase_the_dragon",     name: "Chase the Dragon",           engine: "Sequence", category: "practice",    description: "Hit T10→T11→...→T20, then D20→D19→...→D10, then finish on double bull.",                        config: JSON.stringify({ sequence: "chase_dragon" }),                                                             enabled: true, sortOrder: 43 },
+    { key: "snooker_darts",        name: "Snooker Darts",             engine: "Custom",   category: "mini-games",  description: "Score like snooker: pot a red (15–20), then a colour (1–6). Reds=1pt, colours 2–7. 15 reds.",   config: JSON.stringify({ reds: 15, colours: [2,3,4,5,6,7] }),                                                     enabled: true, sortOrder: 44 },
+    { key: "noughts_crosses",      name: "Noughts & Crosses",         engine: "Custom",   category: "mini-games",  description: "Claim numbers 1–9 in a 3×3 grid by hitting them. Three in a row wins — darts tic-tac-toe!",    config: JSON.stringify({ grid: [[1,2,3],[4,5,6],[7,8,9]] }),                                                      enabled: true, sortOrder: 45 },
+    { key: "three_in_a_bed",       name: "Three-in-a-Bed",            engine: "Custom",   category: "mini-games",  description: "Call a treble segment, throw all 3 darts. All 3 in same treble bed = win. First to 5 rounds.",  config: JSON.stringify({ winsNeeded: 5 }),                                                                        enabled: true, sortOrder: 46 },
+    { key: "bull_rush",            name: "Bull Rush",                 engine: "CountUp",  category: "mini-games",  description: "Race to 5 bull hits. Inner bull (50) or outer bull (25) both count. First to 5 wins.",          config: JSON.stringify({ target: 5, bullsOnly: true }),                                                           enabled: true, sortOrder: 47 },
+    { key: "checkout_challenge",   name: "Checkout Challenge",        engine: "Custom",   category: "practice",    description: "Start at 170 (max checkout). Throw 3 darts — check out in one visit to win. Honour the double!", config: JSON.stringify({ startScore: 170, doubleOut: true }),                                                     enabled: true, sortOrder: 48 },
+    { key: "fives",                name: "Fives",                     engine: "Custom",   category: "party",       description: "Each visit must score a multiple of 5 or score zero. Race to 51 points. Changes target strategy.", config: JSON.stringify({ target: 51, multiplier: 5 }),                                                           enabled: true, sortOrder: 49 },
+    { key: "shanghai_20",          name: "Shanghai – 20 Rounds",      engine: "Sequence", category: "practice",    description: "20 rounds hitting numbers 1–20. Hit single+double+treble in one round for an instant win.",       config: JSON.stringify({ type: "shanghai", rounds: 20 }),                                                         enabled: true, sortOrder: 50 },
+    { key: "round_clock_doubles",  name: "Round the Clock (Doubles)", engine: "Sequence", category: "practice",    description: "Hit the DOUBLE of each number 1–20 in order. Only the outer double ring counts. First to D20.",  config: JSON.stringify({ sequence: "doubles1-20" }),                                                              enabled: true, sortOrder: 51 },
+    { key: "around_clock_quick",   name: "Around the Clock (Quick)",  engine: "Sequence", category: "practice",    description: "Race 1–20. A treble/double advances 2 numbers instead of 1. Fastest Around-the-World format.",   config: JSON.stringify({ type: "atw", quick: true }),                                                             enabled: true, sortOrder: 52 },
+    { key: "killer_1_life",        name: "Sudden Death Killer",       engine: "Killer",   category: "party",       description: "Killer with 1 life only. Hit opponent's double ONCE and they're instantly eliminated. No mercy!", config: JSON.stringify({ lives: 1 }),                                                                             enabled: true, sortOrder: 53 },
+    { key: "501_no_trebles",       name: "501 – No Treble Ring",      engine: "X01",      category: "party",       description: "501 Double Out but trebles don't count — darts landing in the treble ring score as singles only.", config: JSON.stringify({ startingScore: 501, doubleOut: true, noTrebles: true }),                                enabled: true, sortOrder: 54 },
+    { key: "tactics",              name: "Tactics (Mickey Mouse)",    engine: "Cricket",  category: "competitive", description: "Cricket on numbers 10–20 and Bull — wider range adds more tactical depth.",                      config: JSON.stringify({ cutThroat: false, includesBull: true }),                                                 enabled: true, sortOrder: 55 },
+    { key: "cricket_no_bull",      name: "Cricket – No Bull",         engine: "Cricket",  category: "competitive", description: "Standard Cricket but the bull is removed. Only 15–20 in play — six targets not seven.",          config: JSON.stringify({ cutThroat: false, includesBull: false }),                                               enabled: true, sortOrder: 56 },
+    { key: "2001_double_out",      name: "2001 – Double Out",         engine: "X01",      category: "competitive", description: "Ultra-endurance: 2001 to start, double out to finish. The ultimate long-session challenge.",     config: JSON.stringify({ startingScore: 2001, doubleIn: false, doubleOut: true }),                                 enabled: true, sortOrder: 57 },
+    { key: "701_bo3",              name: "701 – Best of 3 Legs",      engine: "X01",      category: "competitive", description: "Marathon best of 3 legs at 701 Double Out. Serious endurance test.",                            config: JSON.stringify({ startingScore: 701, doubleIn: false, doubleOut: true, legs: 3 }),                        enabled: true, sortOrder: 58 },
+    { key: "accumulator",          name: "Accumulator",               engine: "CountUp",  category: "practice",    description: "Each visit must score MORE than the previous — or your total is halved. Forces consistent rounds.", config: JSON.stringify({ accumulate: true }),                                                                     enabled: true, sortOrder: 59 },
+    { key: "high_score_9",         name: "Best of 9 Darts",           engine: "CountUp",  category: "practice",    description: "Exactly 9 darts each (3 visits). Highest total from those 9 darts wins. Pure scoring challenge.", config: JSON.stringify({ maxVisits: 3, dartsPerRound: 3 }),                                                       enabled: true, sortOrder: 60 },
+    { key: "oche_roulette",        name: "Oche Roulette",             engine: "Custom",   category: "party",       description: "Random target called each round. Both must hit it in 3 darts. Miss = 0. Most pts after 9 rounds.", config: JSON.stringify({ rounds: 9, randomTarget: true }),                                                       enabled: true, sortOrder: 61 },
+    { key: "one_eighty_challenge", name: "180 Challenge",             engine: "Custom",   category: "mini-games",  description: "Race to hit a perfect 180 (T20 T20 T20). First player to land one wins. 10 attempts each.",     config: JSON.stringify({ attempts: 10 }),                                                                         enabled: true, sortOrder: 62 },
+  ];
+
+  await db.insert(gameTypesTable).values([...defaults, ...extra]).onConflictDoNothing();
+
+  // Add rules_text column if not present (safe to run every boot)
+  await db.execute(sql`ALTER TABLE game_types ADD COLUMN IF NOT EXISTS rules_text TEXT`);
+
+  logger.info(`Game types seeded (${defaults.length + extra.length} declared, skipping existing)`);
+}
+
+async function seedPractice() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS practice_sessions (
+      id               SERIAL PRIMARY KEY,
+      player1_id       INTEGER REFERENCES players(id) ON DELETE SET NULL,
+      player2_id       INTEGER REFERENCES players(id) ON DELETE SET NULL,
+      game_type_key    TEXT NOT NULL,
+      game_type_name   TEXT NOT NULL,
+      winner_idx       INTEGER,
+      detail           TEXT,
+      darts_thrown     INTEGER,
+      duration_seconds INTEGER,
+      session_data     JSONB,
+      created_at       TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  logger.info("Practice sessions table ready");
 }
 
 async function init() {
   try {
     await seedSettings();
+    await seedPractice();
     await seedGameTypes();
     await seedAchievements();
     await seedRealData();

@@ -16,6 +16,7 @@ import Achievements from "@/pages/achievements";
 import Admin        from "@/pages/admin";
 import Rules        from "@/pages/rules";
 import Play         from "@/pages/play";
+import Practice     from "@/pages/practice";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -36,6 +37,7 @@ function AppRoutes() {
         <Route path="/rules"         component={Rules}       />
         <Route path="/admin"         component={Admin}       />
         <Route path="/play"          component={Play}        />
+        <Route path="/practice"      component={Practice}    />
         <Route component={NotFound} />
       </Switch>
     </Layout>
