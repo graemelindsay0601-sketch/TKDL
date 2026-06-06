@@ -232,4 +232,57 @@ router.get("/players/:id/achievement-progress", async (req, res): Promise<void> 
   res.json(result);
 });
 
+function normalizeGameType(gt: string): string {
+  const g = gt.toLowerCase();
+  if (g.includes("cricket"))                                                          return "Cricket";
+  if (g.includes("around the world") || g.includes("round the world"))               return "Around the World";
+  if (g.includes("killer"))                                                           return "Killer";
+  if (g.includes("shanghai"))                                                         return "Shanghai";
+  if (g.includes("bull finish") || g.includes("closest to bull"))                    return "Bull Finish";
+  if (g.includes("treble") || g.includes("treble out"))                              return "Treble";
+  if (g.includes("1001"))                                                             return "1001";
+  if (g.includes("501"))                                                              return "501";
+  if (g.includes("301") || g.includes("no black") || g.includes("no point black")
+      || g.includes("pick a double") || g.includes("double or nothing"))             return "301";
+  return gt.length < 20 ? gt : "Other";
+}
+
+router.get("/players/:id/game-types", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const id = params.data.id;
+
+  const allMatches = await db.select().from(matchesTable)
+    .where(or(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, id)));
+
+  const byType: Record<string, { wins: number; losses: number; pointsWon: number; pointsLost: number }> = {};
+  for (const m of allMatches) {
+    const type = normalizeGameType(m.gameType);
+    if (!byType[type]) byType[type] = { wins: 0, losses: 0, pointsWon: 0, pointsLost: 0 };
+    if (m.winnerId === id) {
+      byType[type].wins++;
+      byType[type].pointsWon += m.stake;
+    } else {
+      byType[type].losses++;
+      byType[type].pointsLost += m.stake;
+    }
+  }
+
+  const result = Object.entries(byType)
+    .map(([gameType, s]) => ({
+      gameType,
+      wins: s.wins,
+      losses: s.losses,
+      total: s.wins + s.losses,
+      winRate: s.wins + s.losses > 0 ? Math.round((s.wins / (s.wins + s.losses)) * 100) : 0,
+      pointsWon: s.pointsWon,
+      pointsLost: s.pointsLost,
+      netPoints: s.pointsWon - s.pointsLost,
+    }))
+    .filter(g => g.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  res.json(result);
+});
+
 export default router;

@@ -215,6 +215,14 @@ export default function PlayerDetail() {
       .catch(() => {});
   }, [playerId]);
 
+  const [gameTypes, setGameTypes] = useState<any[]>([]);
+  useEffect(() => {
+    if (!playerId) return;
+    fetch(`/api/players/${playerId}/game-types`)
+      .then(r => r.json()).then(d => setGameTypes(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, [playerId]);
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -508,6 +516,90 @@ export default function PlayerDetail() {
           </div>
         </div>
       </div>
+
+      {/* ══ FORMAT STATS ══ */}
+      {gameTypes.length > 0 && (() => {
+        const FORMAT_ICONS: Record<string, string> = {
+          Cricket: "🦗", "301": "🎯", "501": "⚡", "Around the World": "🌍",
+          Killer: "💀", Shanghai: "🐉", "Bull Finish": "🎪", Treble: "⚔️", "1001": "🌠",
+        };
+        const best = [...gameTypes].sort((a, b) => b.wins - a.wins || b.winRate - a.winRate)[0];
+        const worst = [...gameTypes].filter(g => g.losses > g.wins).sort((a, b) => a.winRate - b.winRate)[0];
+        return (
+          <div className="pdc-card overflow-hidden">
+            <div className="px-4 py-3 border-b flex items-center justify-between"
+              style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+              <h2 className="font-bold uppercase text-sm tracking-wider"
+                style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+                Format Stats
+              </h2>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                style={{ background: "rgba(255,210,74,0.1)", color: "rgba(255,210,74,0.7)", border: "1px solid rgba(255,210,74,0.2)" }}>
+                {gameTypes.length} formats
+              </span>
+            </div>
+            <div>
+              {gameTypes.map((g: any) => {
+                const isBest  = best  && g.gameType === best.gameType;
+                const isWorst = worst && g.gameType === worst.gameType;
+                const barColor = g.winRate >= 60 ? "#22c55e" : g.winRate >= 40 ? "#0066ff" : "#ff005c";
+                return (
+                  <div key={g.gameType}
+                    className="px-4 py-2.5 flex items-center gap-3 border-b hover:bg-white/[0.015] transition-colors"
+                    style={{ borderColor: "rgba(255,255,255,0.04)", background: isBest ? "rgba(255,210,74,0.02)" : undefined }}>
+                    <span className="text-base shrink-0 w-5 text-center leading-none">
+                      {FORMAT_ICONS[g.gameType] ?? "🎯"}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-sm font-bold truncate"
+                          style={{ fontFamily: "Oswald, sans-serif", color: isBest ? "#ffd24a" : isWorst ? "rgba(255,0,92,0.7)" : "rgba(255,255,255,0.75)" }}>
+                          {g.gameType}
+                        </span>
+                        {isBest && (
+                          <span className="px-1.5 py-0.5 rounded font-black"
+                            style={{ background: "rgba(255,210,74,0.15)", color: "#ffd24a", fontSize: "0.52rem", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                            BEST
+                          </span>
+                        )}
+                        {isWorst && (
+                          <span className="px-1.5 py-0.5 rounded font-black"
+                            style={{ background: "rgba(255,0,92,0.1)", color: "rgba(255,0,92,0.6)", fontSize: "0.52rem", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                            NEMESIS
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)", maxWidth: 100 }}>
+                          <div className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${g.winRate}%`, background: barColor }} />
+                        </div>
+                        <span className="text-xs font-mono tabular-nums"
+                          style={{ color: barColor === "#22c55e" ? "rgba(34,197,94,0.7)" : barColor === "#ff005c" ? "rgba(255,0,92,0.7)" : "rgba(0,102,255,0.7)", fontSize: "0.6rem" }}>
+                          {g.winRate}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-mono text-sm font-bold">
+                        <span style={{ color: "#22c55e" }}>{g.wins}</span>
+                        <span style={{ color: "rgba(255,255,255,0.18)" }}>–</span>
+                        <span style={{ color: "#ff005c" }}>{g.losses}</span>
+                      </div>
+                      {g.netPoints !== 0 && (
+                        <div className="text-xs font-bold tabular-nums"
+                          style={{ color: g.netPoints > 0 ? "rgba(34,197,94,0.55)" : "rgba(255,0,92,0.55)", fontSize: "0.62rem" }}>
+                          {g.netPoints > 0 ? "+" : ""}{g.netPoints}pts
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ══ SEASON HISTORY ══ */}
       {seasonHistory && seasonHistory.length > 0 && (

@@ -7,7 +7,7 @@ import {
 import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
 import { Link } from "wouter";
-import { Trophy, Swords, Flame, Skull, Zap, Target } from "lucide-react";
+import { Trophy, Swords, Flame, Skull, Zap, Target, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 
 function NarrativeCard({ card, idx }: { card: { type: string; headline: string; body: string; tag?: string }; idx: number }) {
@@ -167,6 +167,66 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* ── DANGER ZONE ── */}
+      {(() => {
+        const atRisk = active.filter(e => e.points > 0 && e.points < 20);
+        if (!atRisk.length) return null;
+        return (
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle className="w-3.5 h-3.5 animate-pulse" style={{ color: "#ff005c" }} />
+              <span className="text-xs font-black uppercase tracking-widest"
+                style={{ color: "rgba(255,0,92,0.85)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.18em" }}>
+                Danger Zone
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {atRisk.map(e => {
+                const isCritical = e.points <= 8;
+                const isWarning  = e.points > 8 && e.points <= 14;
+                const accent     = isCritical ? "#ff005c" : isWarning ? "#f97316" : "#ffd24a";
+                const label      = isCritical ? "CRITICAL" : isWarning ? "AT RISK" : "WATCH";
+                const maxSafe    = e.points - 1;
+                return (
+                  <Link key={e.playerId} href={`/players/${e.playerId}`}>
+                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all hover:-translate-y-0.5"
+                      style={{
+                        background: `rgba(${isCritical ? "255,0,92" : isWarning ? "249,115,22" : "255,210,74"},0.06)`,
+                        border: `1px solid rgba(${isCritical ? "255,0,92" : isWarning ? "249,115,22" : "255,210,74"},0.25)`,
+                      }}>
+                      <div className="shrink-0">
+                        {isCritical
+                          ? <Skull className="w-4 h-4 animate-pulse" style={{ color: accent }} />
+                          : <AlertTriangle className="w-4 h-4" style={{ color: accent }} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-black text-sm uppercase truncate"
+                          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>
+                          {e.playerName}
+                        </div>
+                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+                          1 loss of {maxSafe}+ pts → eliminated
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-black text-lg leading-none"
+                          style={{ fontFamily: "Oswald, sans-serif", color: accent, textShadow: `0 0 12px ${accent}66` }}>
+                          {e.points}
+                        </div>
+                        <div className="text-xs font-bold uppercase"
+                          style={{ color: accent, opacity: 0.7, fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.1em" }}>
+                          {label}
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── LEADERBOARD + RECENT ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
