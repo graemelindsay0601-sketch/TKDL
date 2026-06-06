@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   useGetStatsSummary,
   useGetLeaderboard,
@@ -26,7 +27,7 @@ function NarrativeCard({ card, idx }: { card: { type: string; headline: string; 
     STREAK_WATCH:      <Zap className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />,
   };
   return (
-    <div className={`pdc-card p-4 fade-in-up ${clsMap[card.type] ?? "narrative-hot"}`}
+    <div className={`pdc-card p-4 fade-in-up h-full ${clsMap[card.type] ?? "narrative-hot"}`}
       style={{ animationDelay: `${idx * 80}ms` }}>
       <div className="flex items-center gap-2 mb-1.5">
         {iconMap[card.type] ?? <Target className="w-3.5 h-3.5" style={{ color: "#ff005c" }} />}
@@ -61,6 +62,8 @@ function MiniStat({ label, value, accent }: { label: string; value: string | num
 }
 
 export default function Dashboard() {
+  const [activeTab, setActiveTab] = useState<"leaderboard" | "recent">("leaderboard");
+
   const { data: summary }     = useGetStatsSummary();
   const { data: leaderboard } = useGetLeaderboard();
   const { data: recent }      = useGetRecentActivity();
@@ -73,15 +76,15 @@ export default function Dashboard() {
   const posColors  = ["#ffd24a", "#c0c8d8", "#cd7f32"];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="pdc-divider" />
 
       {/* ── COMPACT LEADER SPOTLIGHT ── */}
       {leader && (
         <div className="spotlight-strip fade-in-up">
           {/* Left: identity */}
-          <div className="flex items-center gap-4 relative z-10">
-            <div>
+          <div className="flex items-center gap-4 relative z-10 min-w-0">
+            <div className="min-w-0">
               <div className="flex items-center gap-1.5 mb-1">
                 <span className="live-dot" style={{ width: 5, height: 5 }} />
                 <span className="text-xs font-black uppercase tracking-widest"
@@ -89,9 +92,9 @@ export default function Dashboard() {
                   Season Leader
                 </span>
               </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="font-black uppercase shimmer-gold"
-                  style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.9rem", letterSpacing: "0.04em", lineHeight: 1 }}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-black uppercase shimmer-gold truncate"
+                  style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.7rem", letterSpacing: "0.04em", lineHeight: 1 }}>
                   {leader.playerName}
                 </span>
                 <TierBadge tier={leader.tier} />
@@ -101,7 +104,7 @@ export default function Dashboard() {
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="hidden sm:flex items-center gap-2 mt-0.5">
                 {(leader as any).title && (
                   <span className="text-xs italic" style={{ color: "rgba(255,210,74,0.7)" }}>"{(leader as any).title}"</span>
                 )}
@@ -115,24 +118,26 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Right: stats */}
-          <div className="flex items-center gap-6 relative z-10">
+          {/* Right: stats — ELO hidden on mobile */}
+          <div className="flex items-center gap-4 md:gap-6 relative z-10 shrink-0">
             <MiniStat label="Points" value={leader.points} accent="#ff005c" />
+            <div className="hidden md:block w-px h-8 bg-white/10" />
+            <div className="hidden md:block">
+              <MiniStat label="ELO" value={leader.elo ?? 0} accent="#0066ff" />
+            </div>
             <div className="w-px h-8 bg-white/10" />
-            <MiniStat label="ELO" value={leader.elo ?? 0} accent="#0066ff" />
-            <div className="w-px h-8 bg-white/10" />
-            <MiniStat label="Record" value={`${leader.wins}–${leader.losses}`} />
+            <MiniStat label="W–L" value={`${leader.wins}–${leader.losses}`} />
           </div>
         </div>
       )}
 
-      {/* ── QUICK STATS ── */}
-      <div className="grid grid-cols-4 gap-3">
+      {/* ── QUICK STATS — 2×2 on mobile, 4-col on sm+ ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Active", value: summary?.activePlayers ?? summary?.totalPlayers ?? 0, accent: "#0066ff", cls: "stat-box-blue" },
-          { label: "Eliminated", value: eliminated, accent: eliminated > 0 ? "#ff005c" : undefined, cls: eliminated > 0 ? "stat-box-red" : "" },
-          { label: "Matches", value: summary?.currentSeasonMatches ?? 0, accent: "#ffd24a", cls: "stat-box-gold" },
-          { label: "Top ELO", value: summary?.topEloPlayer?.elo ?? 0, accent: "#0066ff", cls: "stat-box-blue" },
+          { label: "Active",     value: summary?.activePlayers ?? summary?.totalPlayers ?? 0, accent: "#0066ff",                   cls: "stat-box-blue" },
+          { label: "Eliminated", value: eliminated,                                            accent: eliminated > 0 ? "#ff005c" : undefined, cls: eliminated > 0 ? "stat-box-red" : "" },
+          { label: "Matches",    value: summary?.currentSeasonMatches ?? 0,                   accent: "#ffd24a",                   cls: "stat-box-gold" },
+          { label: "Top ELO",    value: summary?.topEloPlayer?.elo ?? 0,                      accent: "#0066ff",                   cls: "stat-box-blue" },
         ].map(s => (
           <div key={s.label} className={`pdc-card px-4 py-3 ${s.cls}`}>
             <div className="text-xs uppercase tracking-widest mb-1.5"
@@ -150,7 +155,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* ── LIVE STORYLINES ── */}
+      {/* ── LIVE STORYLINES — horizontal scroll on mobile, grid on md+ ── */}
       {narrative && narrative.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-3">
@@ -160,7 +165,19 @@ export default function Dashboard() {
               Live Storylines
             </span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+
+          {/* Mobile: snap carousel */}
+          <div className="md:hidden flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+            {narrative.map((card: any, i: number) => (
+              <div key={i} className="shrink-0 snap-start" style={{ width: "82vw" }}>
+                <NarrativeCard card={card} idx={i} />
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop: grid */}
+          <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-3">
             {narrative.map((card: any, i: number) => (
               <NarrativeCard key={i} card={card} idx={i} />
             ))}
@@ -228,10 +245,30 @@ export default function Dashboard() {
         );
       })()}
 
-      {/* ── LEADERBOARD + RECENT ── */}
+      {/* ── LEADERBOARD + RECENT — tabs on mobile, side-by-side on lg+ ── */}
+
+      {/* Mobile tab switcher */}
+      <div className="lg:hidden flex rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+        {(["leaderboard", "recent"] as const).map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest transition-all"
+            style={{
+              fontFamily: "Oswald, sans-serif",
+              letterSpacing: "0.12em",
+              background: activeTab === tab ? "rgba(255,0,92,0.12)" : "rgba(255,255,255,0.02)",
+              color: activeTab === tab ? "#ff005c" : "rgba(255,255,255,0.35)",
+              borderBottom: activeTab === tab ? "2px solid #ff005c" : "2px solid transparent",
+            }}>
+            {tab === "leaderboard"
+              ? <><Trophy className="w-3.5 h-3.5" /> Standings</>
+              : <><Swords className="w-3.5 h-3.5" /> Matches</>}
+          </button>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Top 5 */}
-        <div className="section-card">
+        {/* Top 5 leaderboard */}
+        <div className={`section-card ${activeTab !== "leaderboard" ? "hidden lg:block" : ""}`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-black uppercase flex items-center gap-2 text-sm"
               style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
@@ -280,7 +317,7 @@ export default function Dashboard() {
         </div>
 
         {/* Recent matches */}
-        <div className="section-card">
+        <div className={`section-card ${activeTab !== "recent" ? "hidden lg:block" : ""}`}>
           <h2 className="font-black uppercase flex items-center gap-2 text-sm mb-4"
             style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
             <Swords className="w-3.5 h-3.5" style={{ color: "#ff005c" }} />

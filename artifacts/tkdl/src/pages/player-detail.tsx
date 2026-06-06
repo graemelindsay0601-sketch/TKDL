@@ -202,6 +202,7 @@ export default function PlayerDetail() {
   const playerId = parseInt(params.id || "0", 10);
   const [achFilter, setAchFilter] = useState<"all" | "unlocked" | "locked" | "close">("all");
   const [showAllAch, setShowAllAch] = useState(false);
+  const [profileTab, setProfileTab] = useState<"matches" | "h2h">("matches");
 
   const { data: stats, isLoading } = useGetPlayerStats(playerId, {
     query: { enabled: !!playerId, queryKey: getGetPlayerStatsQueryKey(playerId) },
@@ -421,9 +422,29 @@ export default function PlayerDetail() {
       </div>
 
       {/* ══ RECENT MATCHES + H2H ══ */}
+
+      {/* Mobile tab switcher */}
+      <div className="lg:hidden flex rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+        {(["matches", "h2h"] as const).map(tab => (
+          <button key={tab} onClick={() => setProfileTab(tab)}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest transition-all"
+            style={{
+              fontFamily: "Oswald, sans-serif",
+              letterSpacing: "0.12em",
+              background: profileTab === tab ? "rgba(255,0,92,0.12)" : "rgba(255,255,255,0.02)",
+              color: profileTab === tab ? "#ff005c" : "rgba(255,255,255,0.35)",
+              borderBottom: profileTab === tab ? "2px solid #ff005c" : "2px solid transparent",
+            }}>
+            {tab === "matches"
+              ? <><Zap className="w-3.5 h-3.5" /> Matches</>
+              : <><Trophy className="w-3.5 h-3.5" /> Head-to-Head</>}
+          </button>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Recent matches */}
-        <div className="pdc-card overflow-hidden">
+        <div className={`pdc-card overflow-hidden ${profileTab !== "matches" ? "hidden lg:block" : ""}`}>
           <div className="px-4 py-3 border-b flex items-center justify-between"
             style={{ borderColor: "rgba(255,255,255,0.07)" }}>
             <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
@@ -472,7 +493,7 @@ export default function PlayerDetail() {
         </div>
 
         {/* Head-to-head */}
-        <div className="pdc-card overflow-hidden">
+        <div className={`pdc-card overflow-hidden ${profileTab !== "h2h" ? "hidden lg:block" : ""}`}>
           <div className="px-4 py-3 border-b flex items-center justify-between"
             style={{ borderColor: "rgba(255,255,255,0.07)" }}>
             <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
