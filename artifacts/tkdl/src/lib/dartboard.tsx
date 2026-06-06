@@ -102,24 +102,24 @@ export function DartInputBoard({
         title={label}
         style={{
           flex: 1,
-          padding: "0.3rem 0",
+          padding: "0.5rem 0",
           border: "none",
-          borderRadius: "0.25rem",
+          borderRadius: "0.3rem",
           background: active ? bg : "transparent",
           color: active ? color : "rgba(255,255,255,0.1)",
           fontFamily: "Oswald, sans-serif",
           fontWeight: 800,
-          fontSize: "0.72rem",
+          fontSize: "0.85rem",
           cursor: active ? "pointer" : "default",
           lineHeight: 1,
           display: "flex",
           flexDirection: "column" as const,
           alignItems: "center",
-          gap: "1px",
+          gap: "2px",
           transition: "background 0.1s",
           minWidth: 0,
         }}>
-        <span style={{ fontSize: "0.5rem", opacity: 0.55, fontWeight: 600, letterSpacing: "0.05em" }}>
+        <span style={{ fontSize: "0.58rem", opacity: 0.6, fontWeight: 700, letterSpacing: "0.05em" }}>
           {mult === 1 ? "S" : mult === 2 ? "D" : "T"}
         </span>
         <span>{val}</span>
@@ -130,24 +130,24 @@ export function DartInputBoard({
       <div key={n} style={{
         background: cellBg,
         border: cellBorder,
-        borderRadius: "0.45rem",
+        borderRadius: "0.5rem",
         overflow: "hidden",
         opacity: active ? 1 : 0.3,
       }}>
         {/* Number label */}
         <div style={{
           textAlign: "center",
-          fontSize: "0.5rem",
+          fontSize: "0.6rem",
           fontWeight: 700,
           fontFamily: "Oswald, sans-serif",
           color: hi ? "#ffd24a" : active ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.2)",
-          padding: "0.2rem 0 0.1rem",
+          padding: "0.25rem 0 0.1rem",
           letterSpacing: "0.05em",
         }}>
           {n}
         </div>
         {/* S | D | T buttons */}
-        <div style={{ display: "flex", gap: "1px", padding: "0 2px 2px" }}>
+        <div style={{ display: "flex", gap: "1px", padding: "0 2px 3px" }}>
           {subBtn(1, n,    `${n}`,   "rgba(255,255,255,0.85)", "rgba(255,255,255,0.06)")}
           {subBtn(2, n*2, `D${n}`,  "#38bdf8",               "rgba(56,189,248,0.10)")}
           {subBtn(3, n*3, `T${n}`,  "#ff6b9d",               "rgba(255,107,157,0.10)")}
@@ -185,7 +185,7 @@ export function DartInputBoard({
         <button
           onClick={() => hit(25, 1)}
           style={{
-            padding: "0.6rem 0",
+            padding: "0.75rem 0",
             borderRadius: "0.5rem",
             fontFamily: "Oswald, sans-serif",
             fontWeight: 800,
@@ -193,20 +193,20 @@ export function DartInputBoard({
             border: isHigh(25) ? "1.5px solid #ffd24a" : "1px solid rgba(34,197,94,0.35)",
             background: isHigh(25) ? "rgba(255,210,74,0.15)" : "rgba(34,197,94,0.10)",
             color: isHigh(25) ? "#ffd24a" : "#22c55e",
-            fontSize: "0.82rem",
+            fontSize: "0.9rem",
             lineHeight: 1,
             display: "flex",
             flexDirection: "column" as const,
             alignItems: "center",
-            gap: "2px",
+            gap: "3px",
           }}>
-          <span style={{ fontSize: "0.55rem", opacity: 0.65, fontWeight: 600 }}>SINGLE</span>
+          <span style={{ fontSize: "0.6rem", opacity: 0.65, fontWeight: 600 }}>SINGLE</span>
           <span>BULL · 25</span>
         </button>
         <button
           onClick={() => hit(25, 2)}
           style={{
-            padding: "0.6rem 0",
+            padding: "0.75rem 0",
             borderRadius: "0.5rem",
             fontFamily: "Oswald, sans-serif",
             fontWeight: 800,
@@ -214,14 +214,14 @@ export function DartInputBoard({
             border: "1px solid rgba(56,189,248,0.35)",
             background: "rgba(56,189,248,0.10)",
             color: "#38bdf8",
-            fontSize: "0.82rem",
+            fontSize: "0.9rem",
             lineHeight: 1,
             display: "flex",
             flexDirection: "column" as const,
             alignItems: "center",
-            gap: "2px",
+            gap: "3px",
           }}>
-          <span style={{ fontSize: "0.55rem", opacity: 0.65, fontWeight: 600 }}>DOUBLE</span>
+          <span style={{ fontSize: "0.6rem", opacity: 0.65, fontWeight: 600 }}>DOUBLE</span>
           <span>BULL'S-EYE · 50</span>
         </button>
       </div>

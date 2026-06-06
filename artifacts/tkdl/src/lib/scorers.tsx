@@ -4,9 +4,29 @@
  */
 import { useState, useCallback, useRef, useEffect } from "react";
 import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
-import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair } from "lucide-react";
+import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize } from "lucide-react";
 import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit } from "./bot-engine";
 import { type PracticeStats, type DartThrow } from "./stats-types";
+
+function useFullscreen() {
+  const [fs, setFs] = useState(false);
+  useEffect(() => {
+    const onChange = () => setFs(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    document.addEventListener("webkitfullscreenchange", onChange);
+    return () => { document.removeEventListener("fullscreenchange", onChange); document.removeEventListener("webkitfullscreenchange", onChange); };
+  }, []);
+  const enter = () => {
+    const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+    (el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.())?.catch(() => {});
+  };
+  const exit = () => {
+    const doc = document as Document & { webkitExitFullscreen?: () => void };
+    (document.exitFullscreen?.() ?? doc.webkitExitFullscreen?.() as unknown as Promise<void>)?.catch?.(() => {});
+  };
+  const toggle = () => (fs ? exit() : enter());
+  return { fs, toggle, enter };
+}
 
 // ── Shared chrome ─────────────────────────────────────────────────────────────
 const P_COLOR = (i: number) => i === 0 ? "#22c55e" : "#ee0a78";
@@ -296,10 +316,36 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
   const cum = visitDarts.reduce((s,d) => s+d.value, 0);
   const projected = scores[turn] - cum;
-  const checkout = (scores[turn] <= 170 && (!doubleIn || started[turn])) ? CHECKOUTS[scores[turn]] : undefined;
+  const { fs, toggle: toggleFs } = useFullscreen();
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
+      {/* Fullscreen toggle — always shown on mobile, hover-visible on desktop */}
+      <div className="flex justify-end">
+        <button
+          onClick={toggleFs}
+          title={fs ? "Exit fullscreen" : "Go fullscreen"}
+          className={isMobile ? "" : "opacity-30 hover:opacity-100 transition-opacity"}
+          style={{
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: "0.5rem",
+            padding: "0.4rem 0.75rem",
+            color: "rgba(255,255,255,0.7)",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.4rem",
+            fontSize: "0.7rem",
+            fontFamily: "Oswald, sans-serif",
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            cursor: "pointer",
+          }}>
+          {fs ? <Minimize size={13} /> : <Maximize size={13} />}
+          {fs ? "EXIT FULL" : "FULLSCREEN"}
+        </button>
+      </div>
       <div className="pdc-divider" />
       {/* Leg / Set score indicators */}
       {(setsToWin > 0 || (legs && legs > 1)) && (
