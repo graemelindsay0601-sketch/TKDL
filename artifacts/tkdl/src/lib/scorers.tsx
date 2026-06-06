@@ -160,6 +160,9 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
   // Practice stat accumulators (refs = no re-render, always fresh in callbacks)
   const p1StatsRef = useRef({ darts: 0, score: 0, s180s: 0, coAttempts: 0, coHits: 0, dartLog: [] as DartThrow[] });
+  // P2 stats — only meaningful in human-vs-human (no bot) sessions
+  const p2StatsRef = useRef({ darts: 0, score: 0, s180s: 0, coAttempts: 0, coHits: 0, dartLog: [] as DartThrow[] });
+  const isHumanVsHuman = !botConfig;
 
   const isValidOut = (dart: Dart): boolean => {
     if (bullFinish) return dart.segment === 25 && dart.value === 50;
@@ -179,7 +182,16 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
   const handleWin = useCallback((winnerIdx: 0|1, darts: Dart[]) => {
     setVisitDarts(darts);
-    const getStats = () => ({ p1Darts: p1StatsRef.current.darts, p1Score: p1StatsRef.current.score, p1_180s: p1StatsRef.current.s180s, p1CheckoutAttempts: p1StatsRef.current.coAttempts, p1CheckoutHits: p1StatsRef.current.coHits, dartLog: [...p1StatsRef.current.dartLog] });
+    const getStats = () => ({
+      p1Darts: p1StatsRef.current.darts, p1Score: p1StatsRef.current.score,
+      p1_180s: p1StatsRef.current.s180s, p1CheckoutAttempts: p1StatsRef.current.coAttempts,
+      p1CheckoutHits: p1StatsRef.current.coHits, dartLog: [...p1StatsRef.current.dartLog],
+      ...(isHumanVsHuman ? {
+        p2Darts: p2StatsRef.current.darts, p2Score: p2StatsRef.current.score,
+        p2_180s: p2StatsRef.current.s180s, p2CheckoutAttempts: p2StatsRef.current.coAttempts,
+        p2CheckoutHits: p2StatsRef.current.coHits, p2DartLog: [...p2StatsRef.current.dartLog],
+      } : {}),
+    });
     const resetForLeg = (delay: number, newLegState: [number,number]) => {
       setTimeout(() => {
         const ns: 0|1 = legStarter === 0 ? 1 : 0;
@@ -249,15 +261,20 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       return;
     }
 
-    // Track P1 checkout opportunities (≤170 remaining at start of visit)
-    if (turn === 0 && visitDarts.length === 0) {
-      if (scores[0] <= 170) p1StatsRef.current.coAttempts++;
+    // Track checkout opportunities (≤170 remaining at start of visit)
+    if (visitDarts.length === 0) {
+      if (turn === 0 && scores[0] <= 170) p1StatsRef.current.coAttempts++;
+      if (turn === 1 && isHumanVsHuman && scores[1] <= 170) p2StatsRef.current.coAttempts++;
     }
 
-    // Record every P1 dart for player profile building
+    // Record every dart for player profile building
     if (turn === 0) {
       const phase: "scoring" | "checkout" = scores[0] > 170 ? "scoring" : "checkout";
       p1StatsRef.current.dartLog.push({ seg: dart.segment, mult: dart.multiplier, val: dart.value, phase });
+    }
+    if (turn === 1 && isHumanVsHuman) {
+      const phase: "scoring" | "checkout" = scores[1] > 170 ? "scoring" : "checkout";
+      p2StatsRef.current.dartLog.push({ seg: dart.segment, mult: dart.multiplier, val: dart.value, phase });
     }
 
     const nv = [...visitDarts, dart];
@@ -266,6 +283,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
     if (rem < 0) {
       if (turn === 0) p1StatsRef.current.darts += nv.length;
+      if (turn === 1 && isHumanVsHuman) p2StatsRef.current.darts += nv.length;
       triggerBust(nv, bustResetTo !== undefined ? `BUST — score reset to ${bustResetTo}` : "BUST — overshot!");
       return;
     }
@@ -277,9 +295,16 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           if (cum === 180) p1StatsRef.current.s180s++;
           p1StatsRef.current.coHits++;
         }
+        if (turn === 1 && isHumanVsHuman) {
+          p2StatsRef.current.darts += nv.length;
+          p2StatsRef.current.score += cum;
+          if (cum === 180) p2StatsRef.current.s180s++;
+          p2StatsRef.current.coHits++;
+        }
         handleWin(turn, nv);
       } else {
         if (turn === 0) p1StatsRef.current.darts += nv.length;
+        if (turn === 1 && isHumanVsHuman) p2StatsRef.current.darts += nv.length;
         triggerBust(nv, bullFinish ? "BUST — must finish on Bull's-eye (50)!" : doubleOut ? "BUST — must finish on a double!" : trebleOut ? "BUST — treble required!" : "BUST!");
       }
       return;
@@ -291,6 +316,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         p1StatsRef.current.darts += 3;
         p1StatsRef.current.score += cum;
         if (cum === 180) p1StatsRef.current.s180s++;
+      }
+      if (turn === 1 && isHumanVsHuman) {
+        p2StatsRef.current.darts += 3;
+        p2StatsRef.current.score += cum;
+        if (cum === 180) p2StatsRef.current.s180s++;
       }
       setScores(prev => { const n=[...prev] as [number,number]; n[turn] -= cum; return n; });
       setHistory(h => [...h, { turn, score: cum, left: rem }]);

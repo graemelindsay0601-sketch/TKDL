@@ -14,4 +14,11 @@ export type PracticeStats = {
   p1CheckoutAttempts: number;
   p1CheckoutHits: number;
   dartLog: DartThrow[];
+  // P2 stats — only populated in human-vs-human sessions (no bot)
+  p2Darts?: number;
+  p2Score?: number;
+  p2_180s?: number;
+  p2CheckoutAttempts?: number;
+  p2CheckoutHits?: number;
+  p2DartLog?: DartThrow[];
 };

@@ -699,9 +699,19 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
       body.p1_180s            = stats.p1_180s;
       body.p1CheckoutAttempts = stats.p1CheckoutAttempts;
       body.p1CheckoutHits     = stats.p1CheckoutHits;
-      if (stats.dartLog?.length) {
-        body.sessionData = { dartLog: stats.dartLog };
+      // P2 stats — present only in human-vs-human sessions
+      if (stats.p2Darts !== undefined) {
+        body.p2Darts            = stats.p2Darts;
+        body.p2Score            = stats.p2Score;
+        body.p2_180s            = stats.p2_180s;
+        body.p2CheckoutAttempts = stats.p2CheckoutAttempts;
+        body.p2CheckoutHits     = stats.p2CheckoutHits;
       }
+      // Store dart logs in session_data JSONB
+      const sd: Record<string, unknown> = {};
+      if (stats.dartLog?.length)   sd.dartLog   = stats.dartLog;
+      if (stats.p2DartLog?.length) sd.p2DartLog = stats.p2DartLog;
+      if (Object.keys(sd).length)  body.sessionData = sd;
     }
     fetch("/api/practice/sessions", {
       method: "POST",

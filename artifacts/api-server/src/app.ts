@@ -390,6 +390,12 @@ async function seedPractice() {
   await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p1_180s              INTEGER DEFAULT 0`);
   await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p1_checkout_attempts  INTEGER DEFAULT 0`);
   await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p1_checkout_hits      INTEGER DEFAULT 0`);
+  // P2 stat columns — populated in human-vs-human sessions tracked via the live scorer
+  await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p2_darts              INTEGER`);
+  await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p2_score              INTEGER`);
+  await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p2_180s              INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p2_checkout_attempts  INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p2_checkout_hits      INTEGER DEFAULT 0`);
   logger.info("Practice sessions table ready");
 }
 
