@@ -98,7 +98,12 @@ router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
 
 router.get("/stats/narrative", async (_req, res): Promise<void> => {
   const players = await db.select().from(playersTable).where(eq(playersTable.isActive, true));
-  const recentMatches = await db.select().from(matchesTable).orderBy(desc(matchesTable.playedAt)).limit(10);
+  const [currentSeason] = await db.select().from(seasonsTable).where(eq(seasonsTable.isActive, true)).limit(1);
+  const recentMatches = currentSeason
+    ? await db.select().from(matchesTable)
+        .where(eq(matchesTable.seasonId, currentSeason.id))
+        .orderBy(desc(matchesTable.playedAt)).limit(10)
+    : [];
   const cards = buildNarrativeCards(players, recentMatches);
   res.json(cards);
 });

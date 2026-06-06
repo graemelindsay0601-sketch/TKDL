@@ -51,6 +51,7 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
   const [form, setForm] = useState({ player1Id: "", player2Id: "", round: "final", gameType: "Best of 3" });
   const [submitting, setSubmitting] = useState(false);
   const [settingWinner, setSettingWinner] = useState<number | null>(null);
+  const isAdmin = sessionStorage.getItem("tkdl_admin_unlocked") === "1";
 
   const addMatch = async () => {
     if (!form.player1Id || !form.player2Id || form.player1Id === form.player2Id) return;
@@ -96,11 +97,13 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
             Playoff Bracket
           </h3>
         </div>
-        <button onClick={() => setAdding(a => !a)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition-all hover:opacity-80"
-          style={{ background: "rgba(255,210,74,0.12)", border: "1px solid rgba(255,210,74,0.3)", color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
-          <Plus className="w-3 h-3" /> Add Match
-        </button>
+        {isAdmin && (
+          <button onClick={() => setAdding(a => !a)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition-all hover:opacity-80"
+            style={{ background: "rgba(255,210,74,0.12)", border: "1px solid rgba(255,210,74,0.3)", color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
+            <Plus className="w-3 h-3" /> Add Match
+          </button>
+        )}
       </div>
 
       {/* Top 4 from league */}
@@ -126,8 +129,8 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
         </div>
       )}
 
-      {/* Add match form */}
-      {adding && (
+      {/* Add match form — admin only */}
+      {isAdmin && adding && (
         <div className="mb-4 p-4 rounded" style={{ background: "rgba(255,210,74,0.04)", border: "1px solid rgba(255,210,74,0.2)" }}>
           <div className="text-xs uppercase font-bold mb-3" style={{ color: "rgba(255,210,74,0.6)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
             Schedule Playoff Match
@@ -209,9 +212,11 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.6rem" }}>{m.game_type}</span>
-                  <button onClick={() => deleteMatch(m.id)} className="text-xs opacity-30 hover:opacity-70 transition-opacity" style={{ color: "#ff005c" }}>
-                    <X className="w-3 h-3" />
-                  </button>
+                  {isAdmin && (
+                    <button onClick={() => deleteMatch(m.id)} className="text-xs opacity-30 hover:opacity-70 transition-opacity" style={{ color: "#ff005c" }}>
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               </div>
               {/* Players */}
@@ -220,13 +225,20 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     {!m.winner_id ? (
-                      <button onClick={() => setWinner(m.id, m.player1_id)}
-                        disabled={settingWinner === m.id}
-                        className="flex-1 py-2 px-3 rounded text-sm font-bold uppercase text-left transition-all hover:bg-white/10"
-                        style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                        {m.player1_name}
-                        <span className="ml-2 text-xs font-normal opacity-50">tap to win</span>
-                      </button>
+                      isAdmin ? (
+                        <button onClick={() => setWinner(m.id, m.player1_id)}
+                          disabled={settingWinner === m.id}
+                          className="flex-1 py-2 px-3 rounded text-sm font-bold uppercase text-left transition-all hover:bg-white/10"
+                          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                          {m.player1_name}
+                          <span className="ml-2 text-xs font-normal opacity-50">tap to win</span>
+                        </button>
+                      ) : (
+                        <div className="flex-1 py-2 px-3 rounded text-sm font-bold uppercase"
+                          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                          {m.player1_name}
+                        </div>
+                      )
                     ) : (
                       <div className="flex-1 py-2 px-3 rounded text-sm font-bold uppercase"
                         style={{ fontFamily: "Oswald, sans-serif", color: m.winner_id === m.player1_id ? "#ffd24a" : "rgba(255,255,255,0.3)", background: m.winner_id === m.player1_id ? "rgba(255,210,74,0.08)" : "transparent", border: `1px solid ${m.winner_id === m.player1_id ? "rgba(255,210,74,0.3)" : "rgba(255,255,255,0.04)"}` }}>
@@ -239,13 +251,20 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
                 {/* P2 */}
                 <div className="flex-1">
                   {!m.winner_id ? (
-                    <button onClick={() => setWinner(m.id, m.player2_id)}
-                      disabled={settingWinner === m.id}
-                      className="flex-1 w-full py-2 px-3 rounded text-sm font-bold uppercase text-left transition-all hover:bg-white/10"
-                      style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                      {m.player2_name}
-                      <span className="ml-2 text-xs font-normal opacity-50">tap to win</span>
-                    </button>
+                    isAdmin ? (
+                      <button onClick={() => setWinner(m.id, m.player2_id)}
+                        disabled={settingWinner === m.id}
+                        className="flex-1 w-full py-2 px-3 rounded text-sm font-bold uppercase text-left transition-all hover:bg-white/10"
+                        style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                        {m.player2_name}
+                        <span className="ml-2 text-xs font-normal opacity-50">tap to win</span>
+                      </button>
+                    ) : (
+                      <div className="flex-1 py-2 px-3 rounded text-sm font-bold uppercase"
+                        style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                        {m.player2_name}
+                      </div>
+                    )
                   ) : (
                     <div className="flex-1 py-2 px-3 rounded text-sm font-bold uppercase"
                       style={{ fontFamily: "Oswald, sans-serif", color: m.winner_id === m.player2_id ? "#ffd24a" : "rgba(255,255,255,0.3)", background: m.winner_id === m.player2_id ? "rgba(255,210,74,0.08)" : "transparent", border: `1px solid ${m.winner_id === m.player2_id ? "rgba(255,210,74,0.3)" : "rgba(255,255,255,0.04)"}` }}>

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, or } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable } from "@workspace/db";
 import { z } from "zod";
 import { applyEloChange, calcTier } from "../lib/elo";
@@ -155,8 +155,74 @@ router.get("/matches/:id", async (req, res): Promise<void> => {
 router.delete("/matches/:id", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
-  const [match] = await db.delete(matchesTable).where(eq(matchesTable.id, id)).returning();
+
+  // Fetch match before deleting so we can revert stats
+  const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, id));
   if (!match) { res.status(404).json({ error: "Match not found" }); return; }
+
+  const [winner] = await db.select().from(playersTable).where(eq(playersTable.id, match.winnerId));
+  const [loser]  = await db.select().from(playersTable).where(eq(playersTable.id, match.loserId));
+  if (!winner || !loser) { res.status(404).json({ error: "Player not found" }); return; }
+
+  // Delete the record first
+  await db.delete(matchesTable).where(eq(matchesTable.id, id));
+
+  // Recalculate current streaks from remaining matches for a player
+  const calcStreak = async (pid: number) => {
+    const remaining = await db.select().from(matchesTable)
+      .where(or(eq(matchesTable.winnerId, pid), eq(matchesTable.loserId, pid)))
+      .orderBy(desc(matchesTable.playedAt));
+    if (!remaining.length) return { winStreak: 0, lossStreak: 0 };
+    const firstWon = remaining[0].winnerId === pid;
+    let count = 0;
+    for (const m of remaining) {
+      if ((m.winnerId === pid) !== firstWon) break;
+      count++;
+    }
+    return firstWon ? { winStreak: count, lossStreak: 0 } : { winStreak: 0, lossStreak: count };
+  };
+
+  const [wStreak, lStreak] = await Promise.all([calcStreak(match.winnerId), calcStreak(match.loserId)]);
+
+  // Did this match cause the loser's elimination?
+  const restoredLoserPoints = loser.points + match.stake;
+  const loserWasEliminated  = loser.status === "ELIMINATED" && restoredLoserPoints > 0;
+
+  // Revert winner
+  await db.update(playersTable).set({
+    elo:               Math.max(800, winner.elo - match.eloChange),
+    points:            Math.max(0, winner.points - match.stake),
+    seasonWins:        Math.max(0, winner.seasonWins - 1),
+    seasonGamesPlayed: Math.max(0, winner.seasonGamesPlayed - 1),
+    careerWins:        Math.max(0, winner.careerWins - 1),
+    careerGamesPlayed: Math.max(0, winner.careerGamesPlayed - 1),
+    careerPoints:      winner.careerPoints - match.stake,
+    currentWinStreak:  wStreak.winStreak,
+    currentLossStreak: wStreak.lossStreak,
+    ...(loserWasEliminated ? { eliminationsCount: Math.max(0, winner.eliminationsCount - 1) } : {}),
+  }).where(eq(playersTable.id, match.winnerId));
+
+  // Revert loser
+  await db.update(playersTable).set({
+    elo:               loser.elo + match.eloChange,
+    points:            restoredLoserPoints,
+    seasonLosses:      Math.max(0, loser.seasonLosses - 1),
+    seasonGamesPlayed: Math.max(0, loser.seasonGamesPlayed - 1),
+    careerLosses:      Math.max(0, loser.careerLosses - 1),
+    careerGamesPlayed: Math.max(0, loser.careerGamesPlayed - 1),
+    currentWinStreak:  lStreak.winStreak,
+    currentLossStreak: lStreak.lossStreak,
+    ...(loserWasEliminated ? { status: "ACTIVE" } : {}),
+  }).where(eq(playersTable.id, match.loserId));
+
+  // Decrement season match count
+  const [season] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, match.seasonId));
+  if (season) {
+    await db.update(seasonsTable).set({
+      totalMatches: Math.max(0, season.totalMatches - 1),
+    }).where(eq(seasonsTable.id, match.seasonId));
+  }
+
   res.sendStatus(204);
 });
 
