@@ -384,6 +384,12 @@ async function seedPractice() {
       created_at       TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  // Add columns introduced after initial table creation (safe to run every boot)
+  await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p1_darts              INTEGER`);
+  await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p1_score              INTEGER`);
+  await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p1_180s              INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p1_checkout_attempts  INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p1_checkout_hits      INTEGER DEFAULT 0`);
   logger.info("Practice sessions table ready");
 }
 
