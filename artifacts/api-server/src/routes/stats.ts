@@ -85,13 +85,16 @@ router.get("/stats/career-leaders", async (_req, res): Promise<void> => {
 router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
   const matches = await db.select().from(matchesTable).orderBy(desc(matchesTable.playedAt)).limit(15);
   const activity = matches.map(m => ({
-    matchId: m.id,
+    matchId:    m.id,
+    winnerId:   m.winnerId,
+    loserId:    m.loserId,
     winnerName: m.winnerName,
-    loserName: m.loserName,
-    stake: m.stake,
-    eloChange: m.eloChange,
-    playedAt: m.playedAt,
-    seasonId: m.seasonId,
+    loserName:  m.loserName,
+    stake:      m.stake,
+    eloChange:  m.eloChange,
+    gameType:   m.gameType,
+    playedAt:   m.playedAt,
+    seasonId:   m.seasonId,
   }));
   res.json(activity);
 });

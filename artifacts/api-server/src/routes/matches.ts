@@ -114,6 +114,7 @@ router.post("/matches", async (req, res): Promise<void> => {
     seasonGamesPlayed: loser.seasonGamesPlayed + 1,
     careerLosses:     loser.careerLosses + 1,
     careerGamesPlayed: loser.careerGamesPlayed + 1,
+    careerPoints:     loser.careerPoints - stake,
     currentWinStreak: 0,
     currentLossStreak: loser.currentLossStreak + 1,
     status:           loserEliminated ? "ELIMINATED" : loser.status,

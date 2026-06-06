@@ -337,6 +337,11 @@ export default function Dashboard() {
                   <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>
                     {format(new Date(m.playedAt), "MMM d, h:mm a")}
                   </div>
+                  {m.gameType && (
+                    <div className="text-xs mt-0.5 italic truncate" style={{ color: "rgba(255,255,255,0.18)", maxWidth: "13rem" }}>
+                      {m.gameType}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right shrink-0 ml-3">
                   {m.stake > 0 && (

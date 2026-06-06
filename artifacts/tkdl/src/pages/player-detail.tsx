@@ -471,6 +471,11 @@ export default function PlayerDetail() {
                       <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
                         {format(new Date(m.playedAt), "d MMM yy")}
                       </div>
+                      {m.gameType && (
+                        <div className="text-xs italic truncate" style={{ color: "rgba(255,255,255,0.18)", maxWidth: "10rem" }}>
+                          {m.gameType}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
