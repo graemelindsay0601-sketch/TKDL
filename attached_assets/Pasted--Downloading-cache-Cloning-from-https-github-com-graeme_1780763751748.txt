@@ -1,0 +1,41 @@
+==> Downloading cache...
+==> Cloning from https://github.com/graemelindsay0601-sketch/TKDL
+==> Checking out commit f9a7631c24adb8ef3540845bd9f55561d8a41310 in branch main
+==> Downloaded 154MB in 2s. Extraction took 13s.
+==> Requesting Node.js version 20
+==> Using Node.js version 20.20.2 via /opt/render/project/src/.nvmrc
+==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+==> Installing Node.js version 20.20.2...
+Deploy cancelled
+==> Running build command 'npx --yes pnpm@10.26.1 install --frozen-lockfile && npx pnpm@10.26.1 --filter @workspace/tkdl run build && npx pnpm@10.26.1 --filter @workspace/api-server run build'...
+> @workspace/tkdl@0.0.0 build /opt/render/project/src/artifacts/tkdl
+> vite build --config vite.config.ts
+vite v7.3.3 building client environment for production...
+transforming...
+src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/select.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/label.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+✓ 2156 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/public/index.html                   1.52 kB │ gzip:   0.57 kB
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+dist/public/assets/index-4uFNLhM9.css  115.19 kB │ gzip:  19.77 kB
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+dist/public/assets/index-oCEJA_jq.js   638.55 kB │ gzip: 186.19 kB
+✓ built in 4.75s
+> @workspace/api-server@0.0.0 build /opt/render/project/src/artifacts/api-server
+> node ./build.mjs
+  dist/index.mjs                       2.3mb ⚠️
+  dist/pino-worker.mjs               153.4kb
+  dist/pino-file.mjs                 142.1kb
+  dist/pino-pretty.mjs               114.6kb
+  dist/thread-stream-worker.mjs        7.3kb
+  dist/index.mjs.map                   3.9mb
+  dist/pino-worker.mjs.map           256.9kb
+  dist/pino-file.mjs.map             229.0kb
+  dist/pino-pretty.mjs.map           204.0kb
+  dist/thread-stream-worker.mjs.map   12.0kb
+⚡ Done in 418ms
