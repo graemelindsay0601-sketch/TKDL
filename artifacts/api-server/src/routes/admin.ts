@@ -6,8 +6,8 @@ import { checkStatAchievements, checkMatchAchievements, retroactiveSweep } from 
 
 const router = Router();
 
-// ── PIN verification (stateless — PIN set via env var ADMIN_PIN, default 1234) ──
-const ADMIN_PIN = process.env.ADMIN_PIN ?? "1234";
+// ── PIN verification (stateless — PIN set via env var ADMIN_PIN, default 0601) ──
+const ADMIN_PIN = process.env.ADMIN_PIN ?? "0601";
 
 router.post("/admin/verify-pin", (req, res): void => {
   const { pin } = req.body ?? {};
