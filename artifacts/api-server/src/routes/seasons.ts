@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { db, seasonsTable, playersTable, seasonStandingsTable } from "@workspace/db";
 import { z } from "zod";
 import { performSeasonReset } from "../lib/seasonReset";
@@ -84,6 +84,98 @@ router.get("/seasons/:id", async (req, res): Promise<void> => {
   }
 
   res.json({ season, standings });
+});
+
+// ── Playoff endpoints ──────────────────────────────────────────────────────────
+
+const PlayoffMatchBody = z.object({
+  player1Id: z.number().int().positive(),
+  player2Id: z.number().int().positive(),
+  winnerId:  z.number().int().positive().optional(),
+  round:     z.string().default("final"),
+  gameType:  z.string().default("Best of 3"),
+  notes:     z.string().optional(),
+});
+
+router.get("/seasons/:id/playoff", async (req, res): Promise<void> => {
+  const params = GetSeasonParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const rows = await db.execute(
+    sql`SELECT pm.*, 
+        p1.name as player1_name, p2.name as player2_name, 
+        pw.name as winner_name
+        FROM playoff_matches pm
+        JOIN players p1 ON p1.id = pm.player1_id
+        JOIN players p2 ON p2.id = pm.player2_id
+        LEFT JOIN players pw ON pw.id = pm.winner_id
+        WHERE pm.season_id = ${params.data.id}
+        ORDER BY pm.played_at ASC`
+  );
+  res.json(rows.rows);
+});
+
+router.post("/seasons/:id/playoff", async (req, res): Promise<void> => {
+  const params = GetSeasonParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const parsed = PlayoffMatchBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const { player1Id, player2Id, winnerId, round, gameType, notes } = parsed.data;
+  const [row] = await db.execute(
+    sql`INSERT INTO playoff_matches (season_id, player1_id, player2_id, winner_id, round, game_type, notes)
+        VALUES (${params.data.id}, ${player1Id}, ${player2Id}, ${winnerId ?? null}, ${round}, ${gameType}, ${notes ?? null})
+        RETURNING *`
+  ) as any;
+
+  // If we have a winner and this is the final, crown them as season champion
+  if (winnerId && round === "final") {
+    await db.update(seasonsTable)
+      .set({ championId: winnerId, playoffPending: false } as any)
+      .where(eq(seasonsTable.id, params.data.id));
+    // Update standings isChampion
+    await db.execute(sql`UPDATE season_standings SET is_champion = false WHERE season_id = ${params.data.id}`);
+    await db.execute(sql`UPDATE season_standings SET is_champion = true WHERE season_id = ${params.data.id} AND player_id = ${winnerId}`);
+  }
+
+  res.status(201).json(row);
+});
+
+router.patch("/seasons/:id/playoff/:matchId", async (req, res): Promise<void> => {
+  const params = GetSeasonParams.safeParse(req.params);
+  const matchId = parseInt((req.params as any).matchId, 10);
+  if (!params.success || isNaN(matchId)) { res.status(400).json({ error: "Invalid params" }); return; }
+  const parsed = PlayoffMatchBody.partial().safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const sets: string[] = [];
+  const vals: any[] = [];
+  if (parsed.data.winnerId !== undefined) { sets.push(`winner_id = $${sets.length+1}`); vals.push(parsed.data.winnerId); }
+  if (parsed.data.notes !== undefined) { sets.push(`notes = $${sets.length+1}`); vals.push(parsed.data.notes); }
+  if (parsed.data.round !== undefined) { sets.push(`round = $${sets.length+1}`); vals.push(parsed.data.round); }
+  if (sets.length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
+
+  await db.execute(sql`UPDATE playoff_matches SET winner_id = ${parsed.data.winnerId ?? null} WHERE id = ${matchId} AND season_id = ${params.data.id}`);
+
+  // Crown champion if final match has winner
+  if (parsed.data.winnerId && (parsed.data.round === "final" || !parsed.data.round)) {
+    const [match] = (await db.execute(sql`SELECT round FROM playoff_matches WHERE id = ${matchId}`)).rows as any[];
+    if (match?.round === "final") {
+      await db.update(seasonsTable).set({ championId: parsed.data.winnerId, playoffPending: false } as any).where(eq(seasonsTable.id, params.data.id));
+      await db.execute(sql`UPDATE season_standings SET is_champion = false WHERE season_id = ${params.data.id}`);
+      await db.execute(sql`UPDATE season_standings SET is_champion = true WHERE season_id = ${params.data.id} AND player_id = ${parsed.data.winnerId}`);
+    }
+  }
+
+  res.json({ ok: true });
+});
+
+router.delete("/seasons/:id/playoff/:matchId", async (req, res): Promise<void> => {
+  const params = GetSeasonParams.safeParse(req.params);
+  const matchId = parseInt((req.params as any).matchId, 10);
+  if (!params.success || isNaN(matchId)) { res.status(400).json({ error: "Invalid params" }); return; }
+  await db.execute(sql`DELETE FROM playoff_matches WHERE id = ${matchId} AND season_id = ${params.data.id}`);
+  res.json({ ok: true });
 });
 
 export default router;

@@ -156,4 +156,80 @@ router.get("/players/:id/achievements", async (req, res): Promise<void> => {
   res.json(playerAchievements);
 });
 
+router.get("/players/:id/achievement-progress", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const id = params.data.id;
+
+  const [player] = await db.select().from(playersTable).where(eq(playersTable.id, id));
+  if (!player) { res.status(404).json({ error: "Player not found" }); return; }
+
+  const allAchievements = await db.select().from(achievementsTable).orderBy(achievementsTable.priority, achievementsTable.id);
+  const unlocked = await db.select({ achievementId: playerAchievementsTable.achievementId, unlockedAt: playerAchievementsTable.unlockedAt })
+    .from(playerAchievementsTable).where(eq(playerAchievementsTable.playerId, id));
+  const unlockedMap = new Map(unlocked.map(u => [u.achievementId, u.unlockedAt]));
+
+  // Load season standings for season-based progress
+  const standings = await db.select().from(seasonStandingsTable).where(eq(seasonStandingsTable.playerId, id));
+  const maxSeasonWins   = standings.reduce((m, s) => Math.max(m, s.wins), 0);
+  const maxSeasonPoints = standings.reduce((m, s) => Math.max(m, s.points), 0);
+  const seasonsPlayed   = standings.length;
+  const seasonsWon      = standings.filter(s => s.isChampion).length;
+
+  // Load matches for match-based progress
+  const allMatches = await db.select().from(matchesTable)
+    .where(or(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, id)));
+  const wins = allMatches.filter(m => m.winnerId === id);
+  const highStakeWins25 = wins.filter(m => (m.stake ?? 0) >= 25).length;
+  const highStakeWins10 = wins.filter(m => (m.stake ?? 0) >= 10).length;
+  const highStakeMatches10 = allMatches.filter(m => (m.stake ?? 0) >= 10).length;
+
+  // Max wins vs same opponent
+  const oppWins = new Map<number, number>();
+  for (const m of wins) oppWins.set(m.loserId, (oppWins.get(m.loserId) ?? 0) + 1);
+  const maxSameOppWins = Math.max(0, ...[...oppWins.values()]);
+
+  const totalGames = player.careerGamesPlayed;
+  const winRate = totalGames > 0 ? (player.careerWins / totalGames) * 100 : 0;
+
+  function getProgress(criteriaType: string, criteriaValue: number, secondaryCriteria: string | null, secondaryValue: number | null): number {
+    switch (criteriaType) {
+      case "CAREER_WINS":          return player.careerWins;
+      case "CAREER_GAMES":         return player.careerGamesPlayed;
+      case "WIN_STREAK":           return player.longestWinStreak;
+      case "PEAK_ELO":             return player.careerPeakElo;
+      case "WIN_RATE":             return Math.round(winRate);
+      case "CAREER_POINTS":        return player.careerPoints;
+      case "ELIMINATIONS":         return player.eliminationsCount;
+      case "TOTAL_ACHIEVEMENTS":   return unlocked.length;
+      case "NEVER_ELIMINATED":     return player.eliminationsCount === 0 ? 1 : 0;
+      case "HIGH_STAKE_WIN":       return criteriaValue >= 25 ? highStakeWins25 : highStakeWins10;
+      case "HIGH_STAKES_TOTAL":    return highStakeMatches10;
+      case "HIGH_STAKES_MATCHES":  return highStakeMatches10;
+      case "SAME_OPPONENT_WINS":   return maxSameOppWins;
+      case "SEASON_WINS":          return maxSeasonWins;
+      case "SEASON_POINTS":        return maxSeasonPoints;
+      case "MULTI_SEASON_PLAYS":   return seasonsPlayed;
+      case "SEASON_CHAMPION_COUNT":return seasonsWon;
+      case "SEASON_POINTS_LEADER": return seasonsWon > 0 ? 1 : 0;
+      default:                     return 0;
+    }
+  }
+
+  const result = allAchievements.map(a => {
+    const isUnlocked = unlockedMap.has(a.id);
+    const currentProgress = getProgress(a.criteriaType, a.criteriaValue, a.secondaryCriteria ?? null, a.secondaryValue ?? null);
+    const pct = Math.min(100, Math.round((currentProgress / a.criteriaValue) * 100));
+    return {
+      ...a,
+      isUnlocked,
+      unlockedAt: isUnlocked ? unlockedMap.get(a.id) : null,
+      currentProgress,
+      progressPct: pct,
+    };
+  });
+
+  res.json(result);
+});
+
 export default router;
