@@ -2,10 +2,10 @@ import { useState } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export type Dart = {
-  segment: number;   // 1-20, 25 for bull/db, 0 for miss
+  segment: number;
   multiplier: 1 | 2 | 3;
-  value: number;     // actual score
-  label: string;     // "T20", "D5", "Bull", "DB", "Miss"
+  value: number;
+  label: string;
 };
 
 // ── Checkout table ─────────────────────────────────────────────────────────────
@@ -46,9 +46,10 @@ export const CHECKOUTS: Record<number, string> = {
   9:"S1 D4",8:"D4",7:"S3 D2",6:"D3",5:"S1 D2",4:"D2",3:"S1 D1",2:"D1",
 };
 
+// Numbers arranged high-to-low, 5 per row (20 down to 1)
+const GRID_NUMS = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+
 // ── DartInputBoard ─────────────────────────────────────────────────────────────
-// highlightSegments: these numbers glow (e.g. current sequence target)
-// activeSegments: only these are clickable (others dimmed). undefined = all active
 export function DartInputBoard({
   onDart, onMiss, onUndo,
   activeSegments,
@@ -62,150 +63,173 @@ export function DartInputBoard({
   highlightSegments?: number[];
   disabled?: boolean;
 }) {
-  const [mode, setMode] = useState<1 | 2 | 3>(1);
-
-  const hit = (seg: number, forceMult?: 1 | 2 | 3) => {
+  const hit = (seg: number, mult: 1 | 2 | 3) => {
     if (disabled) return;
-    const m = forceMult ?? (seg === 25 && mode === 3 ? 1 : mode);
     let val: number;
     let label: string;
-    if (seg === 0) { val = 0; label = "Miss"; }
-    else if (seg === 25) {
-      val = m === 2 ? 50 : 25;
-      label = m === 2 ? "DB" : "Bull";
+    if (seg === 25) {
+      val = mult === 2 ? 50 : 25;
+      label = mult === 2 ? "DB" : "Bull";
     } else {
-      val = seg * m;
-      label = m === 1 ? `${seg}` : m === 2 ? `D${seg}` : `T${seg}`;
+      val = seg * mult;
+      label = mult === 1 ? `${seg}` : mult === 2 ? `D${seg}` : `T${seg}`;
     }
-    onDart({ segment: seg, multiplier: m as 1 | 2 | 3, value: val, label });
-    setMode(1);
+    onDart({ segment: seg, multiplier: mult, value: val, label });
   };
 
-  const nums = Array.from({ length: 20 }, (_, i) => i + 1);
   const isActive  = (n: number) => !activeSegments || activeSegments.includes(n);
   const isHigh    = (n: number) => !!highlightSegments?.includes(n);
 
-  const numLabel  = (n: number) =>
-    mode === 1 ? `${n}` : mode === 2 ? `D${n}` : `T${n}`;
-  const numValue  = (n: number) => mode === 1 ? n : mode === 2 ? n*2 : n*3;
-
-  const modeBtn = (m: 1|2|3, label: string, color: string) => (
-    <button
-      key={m}
-      onClick={() => setMode(m)}
-      style={{
-        flex: 1,
-        padding: "0.6rem 0",
-        borderRadius: "0.5rem",
-        fontFamily: "Oswald, sans-serif",
-        fontWeight: 700,
-        fontSize: "0.85rem",
-        letterSpacing: "0.1em",
-        cursor: "pointer",
-        border: mode === m ? `1.5px solid ${color}` : "1px solid rgba(255,255,255,0.08)",
-        background: mode === m ? `${color}22` : "rgba(255,255,255,0.03)",
-        color: mode === m ? color : "rgba(255,255,255,0.3)",
-        transition: "all 0.12s",
-      }}>
-      {label}
-    </button>
-  );
-
-  const numBtnStyle = (n: number): React.CSSProperties => {
+  // Each number cell with single/double/treble as adjacent tap zones
+  const renderCell = (n: number) => {
     const active = isActive(n);
     const hi = isHigh(n);
-    return {
-      padding: "0.55rem 0",
-      borderRadius: "0.45rem",
-      fontFamily: "Oswald, sans-serif",
-      fontWeight: hi ? 900 : 700,
-      fontSize: "0.78rem",
-      cursor: active ? "pointer" : "not-allowed",
-      border: hi
-        ? "1.5px solid #ffd24a"
-        : active
-        ? "1px solid rgba(255,255,255,0.1)"
-        : "1px solid rgba(255,255,255,0.04)",
-      background: hi
-        ? "rgba(255,210,74,0.15)"
-        : active
-        ? mode === 2 ? "rgba(56,189,248,0.08)" : mode === 3 ? "rgba(255,0,92,0.08)" : "rgba(255,255,255,0.05)"
-        : "rgba(255,255,255,0.015)",
-      color: hi
-        ? "#ffd24a"
-        : active
-        ? mode === 2 ? "#38bdf8" : mode === 3 ? "#ff6b9d" : "rgba(255,255,255,0.85)"
-        : "rgba(255,255,255,0.15)",
-      transition: "all 0.1s",
-    };
+    const cellBg = hi
+      ? "rgba(255,210,74,0.10)"
+      : active
+      ? "rgba(255,255,255,0.03)"
+      : "rgba(255,255,255,0.01)";
+    const cellBorder = hi
+      ? "1px solid rgba(255,210,74,0.4)"
+      : active
+      ? "1px solid rgba(255,255,255,0.08)"
+      : "1px solid rgba(255,255,255,0.03)";
+
+    const subBtn = (mult: 1|2|3, val: number, label: string, color: string, bg: string) => (
+      <button
+        key={mult}
+        onClick={() => active && hit(n, mult)}
+        title={label}
+        style={{
+          flex: 1,
+          padding: "0.3rem 0",
+          border: "none",
+          borderRadius: "0.25rem",
+          background: active ? bg : "transparent",
+          color: active ? color : "rgba(255,255,255,0.1)",
+          fontFamily: "Oswald, sans-serif",
+          fontWeight: 800,
+          fontSize: "0.72rem",
+          cursor: active ? "pointer" : "default",
+          lineHeight: 1,
+          display: "flex",
+          flexDirection: "column" as const,
+          alignItems: "center",
+          gap: "1px",
+          transition: "background 0.1s",
+          minWidth: 0,
+        }}>
+        <span style={{ fontSize: "0.5rem", opacity: 0.55, fontWeight: 600, letterSpacing: "0.05em" }}>
+          {mult === 1 ? "S" : mult === 2 ? "D" : "T"}
+        </span>
+        <span>{val}</span>
+      </button>
+    );
+
+    return (
+      <div key={n} style={{
+        background: cellBg,
+        border: cellBorder,
+        borderRadius: "0.45rem",
+        overflow: "hidden",
+        opacity: active ? 1 : 0.3,
+      }}>
+        {/* Number label */}
+        <div style={{
+          textAlign: "center",
+          fontSize: "0.5rem",
+          fontWeight: 700,
+          fontFamily: "Oswald, sans-serif",
+          color: hi ? "#ffd24a" : active ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.2)",
+          padding: "0.2rem 0 0.1rem",
+          letterSpacing: "0.05em",
+        }}>
+          {n}
+        </div>
+        {/* S | D | T buttons */}
+        <div style={{ display: "flex", gap: "1px", padding: "0 2px 2px" }}>
+          {subBtn(1, n,    `${n}`,   "rgba(255,255,255,0.85)", "rgba(255,255,255,0.06)")}
+          {subBtn(2, n*2, `D${n}`,  "#38bdf8",               "rgba(56,189,248,0.10)")}
+          {subBtn(3, n*3, `T${n}`,  "#ff6b9d",               "rgba(255,107,157,0.10)")}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div style={{ opacity: disabled ? 0.45 : 1, pointerEvents: disabled ? "none" : undefined }}>
-      {/* Modifier row */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.6rem" }}>
-        {modeBtn(1, "SINGLE", "rgba(255,255,255,0.7)")}
-        {modeBtn(2, "DOUBLE", "#38bdf8")}
-        {modeBtn(3, "TREBLE", "#ff6b9d")}
+    <div style={{ opacity: disabled ? 0.45 : 1, pointerEvents: disabled ? "none" : undefined, userSelect: "none" }}>
+
+      {/* Multiplier legend */}
+      <div style={{
+        display: "flex",
+        gap: "0.75rem",
+        justifyContent: "center",
+        marginBottom: "0.4rem",
+        fontSize: "0.6rem",
+        fontFamily: "Oswald, sans-serif",
+        color: "rgba(255,255,255,0.3)",
+        letterSpacing: "0.08em",
+      }}>
+        <span style={{ color: "rgba(255,255,255,0.55)" }}>S = Single</span>
+        <span style={{ color: "#38bdf8" }}>D = Double</span>
+        <span style={{ color: "#ff6b9d" }}>T = Treble</span>
       </div>
 
-      {/* Numbers 1-10 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(10,1fr)", gap: "0.3rem", marginBottom: "0.3rem" }}>
-        {nums.slice(0,10).map(n => (
-          <button key={n} onClick={() => isActive(n) && hit(n)} style={numBtnStyle(n)}>
-            <div style={{ fontSize: "0.65rem", opacity: 0.5 }}>{numLabel(n)}</div>
-            <div>{numValue(n)}</div>
-          </button>
-        ))}
-      </div>
-
-      {/* Numbers 11-20 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(10,1fr)", gap: "0.3rem", marginBottom: "0.5rem" }}>
-        {nums.slice(10,20).map(n => (
-          <button key={n} onClick={() => isActive(n) && hit(n)} style={numBtnStyle(n)}>
-            <div style={{ fontSize: "0.65rem", opacity: 0.5 }}>{numLabel(n)}</div>
-            <div>{numValue(n)}</div>
-          </button>
-        ))}
+      {/* 5-column number grid, 20 down to 1 */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "0.25rem", marginBottom: "0.35rem" }}>
+        {GRID_NUMS.map(renderCell)}
       </div>
 
       {/* Bull row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.35rem", marginBottom: "0.35rem" }}>
         <button
           onClick={() => hit(25, 1)}
           style={{
-            padding: "0.65rem",
+            padding: "0.6rem 0",
             borderRadius: "0.5rem",
             fontFamily: "Oswald, sans-serif",
-            fontWeight: 700,
+            fontWeight: 800,
             cursor: "pointer",
-            border: isHigh(25) ? "1.5px solid #ffd24a" : "1px solid rgba(34,197,94,0.3)",
-            background: isHigh(25) ? "rgba(255,210,74,0.15)" : "rgba(34,197,94,0.08)",
+            border: isHigh(25) ? "1.5px solid #ffd24a" : "1px solid rgba(34,197,94,0.35)",
+            background: isHigh(25) ? "rgba(255,210,74,0.15)" : "rgba(34,197,94,0.10)",
             color: isHigh(25) ? "#ffd24a" : "#22c55e",
-            fontSize: "0.85rem",
+            fontSize: "0.82rem",
+            lineHeight: 1,
+            display: "flex",
+            flexDirection: "column" as const,
+            alignItems: "center",
+            gap: "2px",
           }}>
-          BULL · 25
+          <span style={{ fontSize: "0.55rem", opacity: 0.65, fontWeight: 600 }}>SINGLE</span>
+          <span>BULL · 25</span>
         </button>
         <button
           onClick={() => hit(25, 2)}
           style={{
-            padding: "0.65rem",
+            padding: "0.6rem 0",
             borderRadius: "0.5rem",
             fontFamily: "Oswald, sans-serif",
-            fontWeight: 700,
+            fontWeight: 800,
             cursor: "pointer",
-            border: "1px solid rgba(56,189,248,0.3)",
-            background: "rgba(56,189,248,0.08)",
+            border: "1px solid rgba(56,189,248,0.35)",
+            background: "rgba(56,189,248,0.10)",
             color: "#38bdf8",
-            fontSize: "0.85rem",
+            fontSize: "0.82rem",
+            lineHeight: 1,
+            display: "flex",
+            flexDirection: "column" as const,
+            alignItems: "center",
+            gap: "2px",
           }}>
-          BULL'S-EYE · 50
+          <span style={{ fontSize: "0.55rem", opacity: 0.65, fontWeight: 600 }}>DOUBLE</span>
+          <span>BULL'S-EYE · 50</span>
         </button>
       </div>
 
       {/* Miss + Undo */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-        <button onClick={onMiss}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.35rem" }}>
+        <button
+          onClick={onMiss}
           style={{
             padding: "0.65rem",
             borderRadius: "0.5rem",
@@ -213,13 +237,14 @@ export function DartInputBoard({
             fontWeight: 700,
             cursor: "pointer",
             border: "1px solid rgba(255,0,92,0.25)",
-            background: "rgba(255,0,92,0.06)",
-            color: "rgba(255,0,92,0.7)",
+            background: "rgba(255,0,92,0.07)",
+            color: "rgba(255,0,92,0.8)",
             fontSize: "0.85rem",
           }}>
           MISS
         </button>
-        <button onClick={onUndo}
+        <button
+          onClick={onUndo}
           style={{
             padding: "0.65rem",
             borderRadius: "0.5rem",
@@ -228,7 +253,7 @@ export function DartInputBoard({
             cursor: "pointer",
             border: "1px solid rgba(255,255,255,0.08)",
             background: "rgba(255,255,255,0.03)",
-            color: "rgba(255,255,255,0.35)",
+            color: "rgba(255,255,255,0.4)",
             fontSize: "0.85rem",
           }}>
           ← UNDO
@@ -242,6 +267,12 @@ export function DartInputBoard({
 export function VisitDarts({ darts, max = 3 }: { darts: Dart[]; max?: number }) {
   const slots = Array.from({ length: max }, (_, i) => darts[i]);
   const total = darts.reduce((s, d) => s + d.value, 0);
+  const dartColor = (d: Dart) => {
+    if (d.value === 0) return "#ff005c";
+    if (d.multiplier === 3) return "#ff6b9d";
+    if (d.multiplier === 2) return "#38bdf8";
+    return "#fff";
+  };
   return (
     <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
       {slots.map((d, i) => (
@@ -250,25 +281,25 @@ export function VisitDarts({ darts, max = 3 }: { darts: Dart[]; max?: number }) 
           textAlign: "center",
           padding: "0.45rem",
           borderRadius: "0.5rem",
-          border: d ? "1px solid rgba(255,255,255,0.15)" : "1px dashed rgba(255,255,255,0.08)",
-          background: d ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.02)",
+          border: d ? `1px solid ${d.value === 0 ? "rgba(255,0,92,0.3)" : d.multiplier === 3 ? "rgba(255,107,157,0.3)" : d.multiplier === 2 ? "rgba(56,189,248,0.3)" : "rgba(255,255,255,0.15)"}` : "1px dashed rgba(255,255,255,0.08)",
+          background: d ? (d.value === 0 ? "rgba(255,0,92,0.06)" : d.multiplier === 3 ? "rgba(255,107,157,0.06)" : d.multiplier === 2 ? "rgba(56,189,248,0.06)" : "rgba(255,255,255,0.06)") : "rgba(255,255,255,0.02)",
           fontFamily: "Oswald, sans-serif",
         }}>
           {d ? (
             <>
-              <div style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.35)" }}>D{i+1}</div>
-              <div style={{ fontSize: "0.95rem", fontWeight: 700, color: d.value === 0 ? "#ff005c" : "#fff" }}>{d.label}</div>
-              <div style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.4)" }}>{d.value}pts</div>
+              <div style={{ fontSize: "0.55rem", color: "rgba(255,255,255,0.3)" }}>D{i+1}</div>
+              <div style={{ fontSize: "1rem", fontWeight: 800, color: dartColor(d) }}>{d.label}</div>
+              <div style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.35)" }}>{d.value}pts</div>
             </>
           ) : (
-            <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.15)" }}>–</div>
+            <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.12)" }}>–</div>
           )}
         </div>
       ))}
       {darts.length > 0 && (
-        <div style={{ textAlign: "right", paddingLeft: "0.3rem" }}>
-          <div style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>TOTAL</div>
-          <div style={{ fontSize: "1.4rem", fontWeight: 900, fontFamily: "Oswald, sans-serif", color: "#ffd24a" }}>{total}</div>
+        <div style={{ textAlign: "right", paddingLeft: "0.3rem", minWidth: "2.5rem" }}>
+          <div style={{ fontSize: "0.55rem", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>TOTAL</div>
+          <div style={{ fontSize: "1.5rem", fontWeight: 900, fontFamily: "Oswald, sans-serif", color: "#ffd24a", lineHeight: 1 }}>{total}</div>
         </div>
       )}
     </div>
