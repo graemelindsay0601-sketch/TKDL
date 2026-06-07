@@ -300,6 +300,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       triggerBust(nv, bustResetTo !== undefined ? `BUST — score reset to ${bustResetTo}` : "BUST — overshot!");
       return;
     }
+    // Score of 1 is unreachable in double-out (minimum finish is D1 = 2) — bust immediately
+    if (rem === 1 && doubleOut) {
+      if (turn === 0) p1StatsRef.current.darts += nv.length;
+      if (turn === 1 && isHumanVsHuman) p2StatsRef.current.darts += nv.length;
+      triggerBust(nv, "BUST — can't leave 1!");
+      return;
+    }
     if (rem === 0) {
       if (isValidOut(dart)) {
         if (turn === 0) {

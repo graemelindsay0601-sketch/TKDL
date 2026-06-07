@@ -226,6 +226,23 @@ export default function PlayerDetail() {
 
   const [practiceAgg, setPracticeAgg] = useState<any>(null);
   const [practiceSessions, setPracticeSessions] = useState<any[]>([]);
+  const [expandedGame, setExpandedGame] = useState<string | null>(null);
+  const [gameSessionsCache, setGameSessionsCache] = useState<Record<string, any[]>>({});
+  const [gameSessionsLoading, setGameSessionsLoading] = useState<Record<string, boolean>>({});
+
+  const toggleGame = (key: string) => {
+    if (expandedGame === key) { setExpandedGame(null); return; }
+    setExpandedGame(key);
+    if (gameSessionsCache[key]) return;
+    setGameSessionsLoading(prev => ({ ...prev, [key]: true }));
+    fetch(`/api/players/${playerId}/practice-sessions?gameTypeKey=${encodeURIComponent(key)}`)
+      .then(r => r.json())
+      .then(d => {
+        setGameSessionsCache(prev => ({ ...prev, [key]: Array.isArray(d) ? d : [] }));
+        setGameSessionsLoading(prev => ({ ...prev, [key]: false }));
+      })
+      .catch(() => setGameSessionsLoading(prev => ({ ...prev, [key]: false })));
+  };
   const [dartProfile, setDartProfile] = useState<any>(null);
   useEffect(() => {
     if (!playerId) return;
@@ -780,55 +797,129 @@ export default function PlayerDetail() {
                       {practiceAgg.byGame.length} mode{practiceAgg.byGame.length !== 1 ? "s" : ""}
                     </span>
                   </div>
-                  <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                  <div>
                     {practiceAgg.byGame.map((g: any) => {
                       const wins    = Number(g.wins ?? 0);
                       const losses  = Number(g.losses ?? 0);
                       const total   = Number(g.sessions ?? 0);
                       const hasWL   = wins + losses > 0;
                       const avg     = g.avg_three_dart != null ? Number(g.avg_three_dart).toFixed(1) : null;
+                      const bestAvg = g.best_session_avg != null ? Number(g.best_session_avg).toFixed(1) : null;
                       const s180s   = Number(g.total_180s ?? 0);
+                      const coAtt   = Number(g.total_co_att ?? 0);
+                      const coHits  = Number(g.total_co_hits ?? 0);
+                      const coPct   = coAtt > 0 ? Math.round((coHits / coAtt) * 100) : null;
                       const lastPlayed = g.last_played ? format(new Date(g.last_played), "d MMM") : null;
                       const winRate = hasWL ? Math.round((wins / (wins + losses)) * 100) : null;
+                      const isOpen  = expandedGame === g.game_type_key;
+                      const sessions = gameSessionsCache[g.game_type_key] ?? [];
+                      const loading  = gameSessionsLoading[g.game_type_key] ?? false;
                       return (
-                        <div key={g.game_type_key} className="px-4 py-2.5 flex items-center gap-3 hover:bg-white/[0.02] transition-colors">
-                          <span className="text-base shrink-0 w-6 text-center">{icon(g.game_type_key)}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.8)" }}>
-                                {g.game_type_name}
-                              </span>
-                              {avg && (
-                                <span className="text-xs font-mono" style={{ color: "#a78bfa" }}>{avg} avg</span>
-                              )}
-                              {s180s > 0 && (
-                                <span className="text-xs font-bold" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>{s180s}×180</span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3 mt-0.5">
-                              <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", fontSize: "0.62rem" }}>
-                                {total} session{total !== 1 ? "s" : ""}
-                              </span>
-                              {hasWL && (
-                                <span className="text-xs font-bold" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", color: winRate! >= 50 ? "#22c55e" : "#ff005c" }}>
-                                  {wins}W–{losses}L · {winRate}%
+                        <div key={g.game_type_key} className="border-b" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                          {/* Header row — clickable */}
+                          <button
+                            onClick={() => toggleGame(g.game_type_key)}
+                            className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-white/[0.02] transition-colors text-left">
+                            <span className="text-base shrink-0 w-6 text-center">{icon(g.game_type_key)}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.8)" }}>
+                                  {g.game_type_name}
                                 </span>
-                              )}
-                            </div>
-                          </div>
-                          {/* Win rate bar */}
-                          {hasWL && (
-                            <div className="shrink-0 w-16">
-                              <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                                <div className="h-full rounded-full transition-all"
-                                  style={{ width: `${winRate}%`, background: winRate! >= 50 ? "#22c55e" : "#ff005c" }} />
+                                {avg && (
+                                  <span className="text-xs font-mono" style={{ color: "#a78bfa" }}>{avg} avg</span>
+                                )}
+                                {s180s > 0 && (
+                                  <span className="text-xs font-bold" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>{s180s}×180</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 mt-0.5">
+                                <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", fontSize: "0.62rem" }}>
+                                  {total} session{total !== 1 ? "s" : ""}
+                                </span>
+                                {hasWL && (
+                                  <span className="text-xs font-bold" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", color: winRate! >= 50 ? "#22c55e" : "#ff005c" }}>
+                                    {wins}W–{losses}L · {winRate}%
+                                  </span>
+                                )}
                               </div>
                             </div>
-                          )}
-                          {lastPlayed && (
-                            <span className="text-xs shrink-0" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", fontSize: "0.58rem" }}>
-                              {lastPlayed}
-                            </span>
+                            {hasWL && (
+                              <div className="shrink-0 w-14">
+                                <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                                  <div className="h-full rounded-full transition-all"
+                                    style={{ width: `${winRate}%`, background: winRate! >= 50 ? "#22c55e" : "#ff005c" }} />
+                                </div>
+                              </div>
+                            )}
+                            {lastPlayed && !isOpen && (
+                              <span className="text-xs shrink-0" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", fontSize: "0.58rem" }}>
+                                {lastPlayed}
+                              </span>
+                            )}
+                            <ChevronDown className="w-3.5 h-3.5 shrink-0 transition-transform" style={{ color: "rgba(255,255,255,0.2)", transform: isOpen ? "rotate(180deg)" : undefined }} />
+                          </button>
+
+                          {/* Expanded detail */}
+                          {isOpen && (
+                            <div style={{ background: "rgba(0,0,0,0.25)", borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                              {/* Stats bar */}
+                              <div className="px-4 py-2 flex items-center gap-4 flex-wrap" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                                {bestAvg && (
+                                  <div className="text-xs">
+                                    <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>BEST </span>
+                                    <span className="font-mono font-bold" style={{ color: "#a78bfa" }}>{bestAvg} avg</span>
+                                  </div>
+                                )}
+                                {coPct !== null && (
+                                  <div className="text-xs">
+                                    <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>CHECKOUT </span>
+                                    <span className="font-mono font-bold" style={{ color: "#22c55e" }}>{coPct}%</span>
+                                    <span style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.6rem" }}> ({coHits}/{coAtt})</span>
+                                  </div>
+                                )}
+                                {s180s > 0 && (
+                                  <div className="text-xs">
+                                    <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>180s </span>
+                                    <span className="font-mono font-bold" style={{ color: "#ffd24a" }}>{s180s}</span>
+                                  </div>
+                                )}
+                              </div>
+                              {/* Per-session list */}
+                              {loading ? (
+                                <div className="px-4 py-4 text-center">
+                                  <div className="w-4 h-4 rounded-full border border-transparent animate-spin mx-auto" style={{ borderTopColor: "#a78bfa" }} />
+                                </div>
+                              ) : sessions.length === 0 ? (
+                                <div className="px-4 py-3 text-xs text-center" style={{ color: "rgba(255,255,255,0.2)" }}>No sessions recorded</div>
+                              ) : (
+                                <div>
+                                  {sessions.slice(0, 15).map((s: any) => {
+                                    const sAvg   = s.p1_avg != null ? Number(s.p1_avg).toFixed(1) : null;
+                                    const won    = s.winner_idx === 0;
+                                    const coH    = Number(s.p1_checkout_hits ?? 0);
+                                    const coA    = Number(s.p1_checkout_attempts ?? 0);
+                                    const sCo    = coA > 0 ? Math.round((coH / coA) * 100) : null;
+                                    return (
+                                      <div key={s.id} className="px-4 py-1.5 flex items-center gap-2 border-b" style={{ borderColor: "rgba(255,255,255,0.03)" }}>
+                                        <div className="w-1 h-5 rounded-full shrink-0"
+                                          style={{ background: s.winner_idx === null ? "rgba(255,255,255,0.12)" : won ? "#22c55e" : "#ff005c" }} />
+                                        <span className="text-xs font-bold w-8 shrink-0" style={{ fontFamily: "Oswald, sans-serif", color: s.winner_idx === null ? "rgba(255,255,255,0.3)" : won ? "#22c55e" : "#ff005c", fontSize: "0.62rem" }}>
+                                          {s.winner_idx === null ? "DNF" : won ? "WIN" : "LOSS"}
+                                        </span>
+                                        {sAvg && <span className="text-xs font-mono" style={{ color: "#a78bfa" }}>{sAvg} avg</span>}
+                                        {Number(s.p1_180s) > 0 && <span className="text-xs font-mono" style={{ color: "#ffd24a" }}>{s.p1_180s}×180</span>}
+                                        {sCo !== null && <span className="text-xs font-mono" style={{ color: "#22c55e" }}>{sCo}%co</span>}
+                                        <span className="flex-1" />
+                                        <span className="text-xs shrink-0" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", fontSize: "0.58rem" }}>
+                                          {format(new Date(s.created_at), "d MMM")}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
                       );
@@ -837,6 +928,42 @@ export default function PlayerDetail() {
                 </div>
               );
             })()}
+
+            {/* ── Favourite Doubles ─────────────────────────────────────── */}
+            {Array.isArray(practiceAgg.fav_doubles) && practiceAgg.fav_doubles.length > 0 && (
+              <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                  <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", fontSize: "0.55rem" }}>
+                    Favourite Doubles
+                  </span>
+                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.12)", fontSize: "0.58rem" }}>
+                    by checkout attempts
+                  </span>
+                </div>
+                <div className="px-4 py-3 grid grid-cols-3 gap-2">
+                  {practiceAgg.fav_doubles.slice(0, 6).map((d: any) => {
+                    const seg   = Number(d.seg);
+                    const att   = Number(d.attempts ?? 0);
+                    const hits  = Number(d.hits ?? 0);
+                    const pct   = att > 0 ? Math.round((hits / att) * 100) : 0;
+                    return (
+                      <div key={seg} className="rounded-lg py-2.5 px-2 text-center"
+                        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                        <div className="font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1rem", color: "#38bdf8" }}>
+                          {d.label}
+                        </div>
+                        <div className="mt-0.5" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1rem", color: pct >= 50 ? "#22c55e" : pct >= 30 ? "#ffd24a" : "#ff005c", fontWeight: 800 }}>
+                          {pct}%
+                        </div>
+                        <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>
+                          {hits}/{att}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {practiceSessions.length > 0 && (
               <div>

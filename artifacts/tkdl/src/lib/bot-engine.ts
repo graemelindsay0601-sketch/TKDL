@@ -413,7 +413,7 @@ function checkoutDarts(remaining: number): [Dart, Dart, Dart] | null {
     const rest = remaining - 57;
     if (rest <= 40 && rest % 2 === 0) return [makeDart(19, 3), BOT_MISS, makeDart(rest / 2, 2)];
   }
-  if (remaining % 2 === 1 && remaining <= 41)
+  if (remaining % 2 === 1 && remaining >= 3 && remaining <= 41)
     return [makeDart(1, 1), BOT_MISS, makeDart((remaining - 1) / 2, 2)];
   if (remaining > 100 && remaining <= 170) {
     const r2 = remaining - 120;
@@ -443,27 +443,44 @@ function shadowDoubleDart(seg: number, p: ShadowProfile): Dart {
 
 /** Simulate a 3-dart visit using real player targeting data. */
 export function botShadowX01Visit(remaining: number, doubleOut: boolean, p: ShadowProfile): [Dart, Dart, Dart] {
+  const minLeft = doubleOut ? 2 : 0;
+
   if (remaining <= 170) {
     const co = checkoutDarts(remaining);
     if (co) {
-      return co.map(d => {
-        if (d.value === 0) return BOT_MISS;
-        if (d.multiplier === 2) return shadowDoubleDart(d.segment, p);
-        if (d.multiplier === 3) {
+      // Apply shadow probabilities dart by dart, validating each result so we never
+      // leave an unreachable score (rem < 0, or rem === 1 in double-out).
+      let runRem = remaining;
+      const result = co.map(d => {
+        let chosen: Dart;
+        if (d.value === 0) {
+          chosen = BOT_MISS;
+        } else if (d.multiplier === 2) {
+          chosen = shadowDoubleDart(d.segment, p);
+        } else if (d.multiplier === 3) {
           const isSame = d.segment === p.primarySeg;
           const tp = isSame ? p.treblePct : Math.min(p.treblePct, 0.35);
           const sp = isSame ? p.singlePct : 0.45;
           const r = Math.random();
-          if (r < tp) return d;
-          if (r < tp + sp) return makeDart(d.segment, 1);
-          const [l, ri] = getAdjacentSegs(d.segment);
-          return makeDart(Math.random() < 0.5 ? l : ri, 1);
+          if (r < tp) chosen = d;
+          else if (r < tp + sp) chosen = makeDart(d.segment, 1);
+          else {
+            const [l, ri] = getAdjacentSegs(d.segment);
+            chosen = makeDart(Math.random() < 0.5 ? l : ri, 1);
+          }
+        } else {
+          chosen = d;
         }
-        return d;
-      }) as [Dart, Dart, Dart];
+        const afterRem = runRem - chosen.value;
+        // Guard: don't overshoot, don't land on 1 (impossible in double-out)
+        if (afterRem < 0 || (afterRem === 1 && doubleOut)) return BOT_MISS;
+        runRem = afterRem;
+        return chosen;
+      });
+      return result as [Dart, Dart, Dart];
     }
   }
-  const minLeft = doubleOut ? 2 : 0;
+
   let rem = remaining;
   const result: Dart[] = [];
   for (let i = 0; i < 3; i++) {

@@ -104,83 +104,123 @@ router.get("/players/:id/practice-stats", async (req, res): Promise<void> => {
     `)).rows;
 
     // Visit-level stats from dart logs — union P1 dartLog + P2 p2DartLog keys
+    // Visit-level stats: use ROW_NUMBER on scoring-only darts for correct visit grouping.
+    // Filter X01 games via engine lookup (actual keys are e.g. "501_double_out", not "x01_*").
     const [visitStats] = (await db.execute(sql`
-      WITH session_darts AS (
-        -- P1 dart logs
-        SELECT
-          ps.id AS session_id,
-          (dart->>'val')::int AS val,
-          dart->>'phase'      AS phase,
-          ordinality          AS dart_pos
+      WITH raw_darts AS (
+        SELECT ps.id AS session_id, ordinality, dart
         FROM practice_sessions ps,
              jsonb_array_elements(ps.session_data->'dartLog') WITH ORDINALITY AS t(dart, ordinality)
         WHERE ps.player1_id = ${playerId}
           AND ps.session_data ? 'dartLog'
-          AND ps.game_type_key LIKE 'x01%'
+          AND ps.game_type_key IN (SELECT key FROM game_types WHERE engine = 'X01')
         UNION ALL
-        -- P2 dart logs (stored under p2DartLog key)
-        SELECT
-          ps.id AS session_id,
-          (dart->>'val')::int AS val,
-          dart->>'phase'      AS phase,
-          ordinality          AS dart_pos
+        SELECT ps.id AS session_id, ordinality, dart
         FROM practice_sessions ps,
              jsonb_array_elements(ps.session_data->'p2DartLog') WITH ORDINALITY AS t(dart, ordinality)
         WHERE ps.player2_id = ${playerId}
           AND ps.session_data ? 'p2DartLog'
-          AND ps.game_type_key LIKE 'x01%'
+          AND ps.game_type_key IN (SELECT key FROM game_types WHERE engine = 'X01')
+      ),
+      scoring_darts AS (
+        SELECT
+          session_id,
+          (dart->>'val')::int AS val,
+          ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY ordinality) AS rn
+        FROM raw_darts
+        WHERE dart->>'phase' = 'scoring'
       ),
       visit_scores AS (
         SELECT
           session_id,
-          CEIL(dart_pos::numeric / 3)::int AS visit_num,
-          SUM(val)                          AS visit_score
-        FROM session_darts
-        WHERE phase = 'scoring'
-        GROUP BY session_id, CEIL(dart_pos::numeric / 3)::int
+          CEIL(rn::numeric / 3)::int AS visit_num,
+          SUM(val)                   AS visit_score
+        FROM scoring_darts
+        GROUP BY session_id, CEIL(rn::numeric / 3)::int
       ),
       first9 AS (
         SELECT ROUND(AVG(visit_score)::numeric, 1) AS first9_avg
         FROM visit_scores WHERE visit_num <= 3
       )
       SELECT
-        COUNT(CASE WHEN vs.visit_score = 180 THEN 1 END)::int                       AS v180,
+        COUNT(CASE WHEN vs.visit_score = 180 THEN 1 END)::int                          AS v180,
         COUNT(CASE WHEN vs.visit_score >= 140 AND vs.visit_score < 180 THEN 1 END)::int AS v140,
         COUNT(CASE WHEN vs.visit_score >= 100 AND vs.visit_score < 140 THEN 1 END)::int AS v100,
         COUNT(CASE WHEN vs.visit_score >= 60  AND vs.visit_score < 100 THEN 1 END)::int AS v60,
         COUNT(CASE WHEN vs.visit_score >= 40  AND vs.visit_score < 60  THEN 1 END)::int AS v40,
         COUNT(CASE WHEN vs.visit_score >= 1   AND vs.visit_score < 40  THEN 1 END)::int AS v_low,
-        COUNT(CASE WHEN vs.visit_score = 0 THEN 1 END)::int                         AS v_zero,
-        MAX(vs.visit_score)::int                                                     AS best_visit,
-        COUNT(*)::int                                                                AS total_visits,
-        MAX(f.first9_avg)                                                            AS first9_avg
+        COUNT(CASE WHEN vs.visit_score = 0 THEN 1 END)::int                            AS v_zero,
+        MAX(vs.visit_score)::int                                                        AS best_visit,
+        COUNT(*)::int                                                                   AS total_visits,
+        MAX(f.first9_avg)                                                               AS first9_avg
       FROM visit_scores vs, first9 f
+    `)).rows;
+
+    // Favourite doubles & checkout analysis — most-attempted doubles during checkout phase
+    const favDoubles = (await db.execute(sql`
+      WITH co_darts AS (
+        SELECT (dart->>'seg')::int AS seg, (dart->>'mult')::int AS mult
+        FROM practice_sessions ps,
+             jsonb_array_elements(ps.session_data->'dartLog') AS t(dart)
+        WHERE ps.player1_id = ${playerId}
+          AND ps.session_data ? 'dartLog'
+          AND dart->>'phase' = 'checkout'
+        UNION ALL
+        SELECT (dart->>'seg')::int AS seg, (dart->>'mult')::int AS mult
+        FROM practice_sessions ps,
+             jsonb_array_elements(ps.session_data->'p2DartLog') AS t(dart)
+        WHERE ps.player2_id = ${playerId}
+          AND ps.session_data ? 'p2DartLog'
+          AND dart->>'phase' = 'checkout'
+      )
+      SELECT
+        seg,
+        CASE WHEN seg = 25 THEN 'Bull' ELSE 'D' || seg::text END AS label,
+        COUNT(*)::int                                              AS attempts,
+        COUNT(CASE WHEN mult = 2 THEN 1 END)::int                 AS hits
+      FROM co_darts
+      WHERE seg IS NOT NULL AND seg > 0
+      GROUP BY seg
+      ORDER BY COUNT(*) DESC
+      LIMIT 6
     `)).rows;
 
     // Per-game-mode breakdown — union P1 and P2 perspectives
     const byGame = (await db.execute(sql`
       WITH all_sessions AS (
-        SELECT game_type_key, game_type_name,
+        SELECT id, game_type_key, game_type_name,
           CASE WHEN winner_idx IS NOT NULL THEN (winner_idx = 0) ELSE NULL END AS won,
-          p1_darts AS darts, p1_score AS score, p1_180s AS s180s, created_at
+          p1_darts AS darts, p1_score AS score, p1_180s AS s180s, created_at,
+          p1_checkout_attempts AS co_att, p1_checkout_hits AS co_hits
         FROM practice_sessions WHERE player1_id = ${playerId}
         UNION ALL
-        SELECT game_type_key, game_type_name,
+        SELECT id, game_type_key, game_type_name,
           CASE WHEN winner_idx IS NOT NULL THEN (winner_idx = 1) ELSE NULL END AS won,
-          p2_darts AS darts, p2_score AS score, p2_180s AS s180s, created_at
+          p2_darts AS darts, p2_score AS score, p2_180s AS s180s, created_at,
+          p2_checkout_attempts AS co_att, p2_checkout_hits AS co_hits
         FROM practice_sessions WHERE player2_id = ${playerId} AND p2_darts IS NOT NULL
       )
       SELECT
         game_type_key,
         game_type_name,
-        COUNT(*)::int                                                            AS sessions,
-        COUNT(CASE WHEN won = true  THEN 1 END)::int                           AS wins,
-        COUNT(CASE WHEN won = false THEN 1 END)::int                           AS losses,
+        COUNT(*)::int                                                                     AS sessions,
+        COUNT(CASE WHEN won = true  THEN 1 END)::int                                    AS wins,
+        COUNT(CASE WHEN won = false THEN 1 END)::int                                    AS losses,
         CASE WHEN SUM(darts) > 0
           THEN ROUND(CAST(SUM(score) AS NUMERIC) * 3.0 / SUM(darts), 1)
-          ELSE NULL END                                                          AS avg_three_dart,
-        COALESCE(SUM(s180s), 0)::int                                            AS total_180s,
-        MAX(created_at)                                                          AS last_played
+          ELSE NULL END                                                                   AS avg_three_dart,
+        CASE WHEN SUM(darts) > 0
+          THEN (
+            SELECT ROUND(CAST(sub.score AS NUMERIC) * 3.0 / sub.darts, 1)
+            FROM all_sessions sub
+            WHERE sub.game_type_key = all_sessions.game_type_key AND sub.darts > 0
+            ORDER BY CAST(sub.score AS NUMERIC) * 3.0 / sub.darts DESC
+            LIMIT 1
+          ) ELSE NULL END                                                                 AS best_session_avg,
+        COALESCE(SUM(s180s), 0)::int                                                    AS total_180s,
+        COALESCE(SUM(co_att), 0)::int                                                   AS total_co_att,
+        COALESCE(SUM(co_hits), 0)::int                                                  AS total_co_hits,
+        MAX(created_at)                                                                  AS last_played
       FROM all_sessions
       GROUP BY game_type_key, game_type_name
       ORDER BY sessions DESC
@@ -190,6 +230,7 @@ router.get("/players/:id/practice-stats", async (req, res): Promise<void> => {
       ...agg,
       best_session_avg: best?.session_avg ?? null,
       visit_stats: visitStats ?? null,
+      fav_doubles: favDoubles,
       byGame,
     });
   } catch (err) {
@@ -199,34 +240,63 @@ router.get("/players/:id/practice-stats", async (req, res): Promise<void> => {
 });
 
 // GET /api/players/:id/practice-sessions — recent practice sessions for a player
+// Optional query param: ?gameTypeKey=501_double_out  (filter by game type)
 router.get("/players/:id/practice-sessions", async (req, res): Promise<void> => {
   try {
     const playerId = parseInt(req.params.id, 10);
     if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+    const gameTypeKey = typeof req.query.gameTypeKey === "string" ? req.query.gameTypeKey : null;
 
-    const rows = (await db.execute(sql`
-      SELECT
-        id,
-        game_type_key,
-        game_type_name,
-        winner_idx,
-        p1_darts,
-        p1_score,
-        p1_180s,
-        p1_checkout_attempts,
-        p1_checkout_hits,
-        duration_seconds,
-        created_at,
-        CASE
-          WHEN p1_darts IS NOT NULL AND p1_darts > 0
-          THEN ROUND(CAST(p1_score AS NUMERIC) * 3.0 / p1_darts, 1)
-          ELSE NULL
-        END AS p1_avg
-      FROM practice_sessions
-      WHERE player1_id = ${playerId}
-      ORDER BY created_at DESC
-      LIMIT 25
-    `)).rows;
+    const rows = (await db.execute(
+      gameTypeKey
+        ? sql`
+          SELECT
+            id,
+            game_type_key,
+            game_type_name,
+            winner_idx,
+            p1_darts,
+            p1_score,
+            p1_180s,
+            p1_checkout_attempts,
+            p1_checkout_hits,
+            duration_seconds,
+            created_at,
+            CASE
+              WHEN p1_darts IS NOT NULL AND p1_darts > 0
+              THEN ROUND(CAST(p1_score AS NUMERIC) * 3.0 / p1_darts, 1)
+              ELSE NULL
+            END AS p1_avg
+          FROM practice_sessions
+          WHERE player1_id = ${playerId}
+            AND game_type_key = ${gameTypeKey}
+          ORDER BY created_at DESC
+          LIMIT 50
+        `
+        : sql`
+          SELECT
+            id,
+            game_type_key,
+            game_type_name,
+            winner_idx,
+            p1_darts,
+            p1_score,
+            p1_180s,
+            p1_checkout_attempts,
+            p1_checkout_hits,
+            duration_seconds,
+            created_at,
+            CASE
+              WHEN p1_darts IS NOT NULL AND p1_darts > 0
+              THEN ROUND(CAST(p1_score AS NUMERIC) * 3.0 / p1_darts, 1)
+              ELSE NULL
+            END AS p1_avg
+          FROM practice_sessions
+          WHERE player1_id = ${playerId}
+          ORDER BY created_at DESC
+          LIMIT 50
+        `
+    )).rows;
 
     res.json(rows);
   } catch (err) {
@@ -402,7 +472,7 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
 
     const [practiceQ, playerQ, dartLogQ, coQ, avgQ] = await Promise.all([
       db.execute(sql`SELECT COALESCE(SUM(p1_darts),0)::int AS practice_darts FROM practice_sessions WHERE player1_id = ${playerId}`),
-      db.execute(sql`SELECT name, career_wins, career_losses FROM players WHERE id = ${playerId}`),
+      db.execute(sql`SELECT name, career_wins, career_losses, elo_rating FROM players WHERE id = ${playerId}`),
       db.execute(sql`
         WITH dart_data AS (
           SELECT (dart->>'seg')::int AS seg, (dart->>'mult')::int AS mult, dart->>'phase' AS phase
@@ -426,7 +496,7 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
     ]);
 
     const practiceDarts = Number(practiceQ.rows[0]?.practice_darts ?? 0);
-    const player = playerQ.rows[0] as { name: string; career_wins: number; career_losses: number } | undefined;
+    const player = playerQ.rows[0] as { name: string; career_wins: number; career_losses: number; elo_rating: number } | undefined;
     const matchDarts  = (Number(player?.career_wins ?? 0) + Number(player?.career_losses ?? 0)) * 50;
     const totalDarts  = practiceDarts + matchDarts;
 
@@ -463,9 +533,21 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
     const rawDoubleHitPct = coAttempts > 0 ? Math.round((coHits / coAttempts) * 100) / 100 : 0.22;
     const doubleHitPct = Math.max(0.08, rawDoubleHitPct);
 
-    const totalScore       = Number(avgQ.rows[0]?.total_score ?? 0);
+    const totalScore         = Number(avgQ.rows[0]?.total_score ?? 0);
     const totalPracticeDarts = Number(avgQ.rows[0]?.total_darts ?? 0);
-    const computedAvg      = totalPracticeDarts > 0 ? Math.round((totalScore / totalPracticeDarts) * 3 * 10) / 10 : 45;
+    const practiceAvg        = totalPracticeDarts > 0 ? (totalScore / totalPracticeDarts) * 3 : null;
+
+    // Elo → estimated 3-dart avg. Calibrated to league tiers:
+    //   800 Elo ≈ 20 avg, 1000 ≈ 40, 1100 ≈ 55, 1250 ≈ 70, 1400 ≈ 88, 1500+ ≈ 100+
+    const elo = Number(player?.elo_rating ?? 1000);
+    const eloAvg = Math.max(18, Math.min(110, 20 + (elo - 800) * 0.12));
+
+    // Blend: weight practice data by how much we have (saturates at 300 darts).
+    // Below that threshold the Elo estimate anchors the avg; above it practice wins.
+    const practiceWeight = Math.min(1, totalPracticeDarts / 300);
+    const computedAvg    = Math.round(
+      ((practiceAvg ?? eloAvg) * practiceWeight + eloAvg * (1 - practiceWeight)) * 10
+    ) / 10;
 
     res.json({
       locked: false,
