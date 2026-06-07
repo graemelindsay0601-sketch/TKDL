@@ -8,12 +8,13 @@ export type DartThrow = {
 };
 
 export type PracticeStats = {
-  p1Darts: number;
-  p1Score: number;
-  p1_180s: number;
-  p1CheckoutAttempts: number;
-  p1CheckoutHits: number;
-  dartLog: DartThrow[];
+  // X01-specific (all optional — not all modes have these concepts)
+  p1Darts?: number;
+  p1Score?: number;
+  p1_180s?: number;
+  p1CheckoutAttempts?: number;
+  p1CheckoutHits?: number;
+  dartLog?: DartThrow[];
   // P2 stats — only populated in human-vs-human sessions (no bot)
   p2Darts?: number;
   p2Score?: number;
@@ -21,4 +22,6 @@ export type PracticeStats = {
   p2CheckoutAttempts?: number;
   p2CheckoutHits?: number;
   p2DartLog?: DartThrow[];
+  // Mode-specific stats stored as JSON — e.g. Cricket marks, Golf strokes, etc.
+  sessionData?: Record<string, unknown>;
 };

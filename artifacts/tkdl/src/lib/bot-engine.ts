@@ -541,3 +541,41 @@ export function botCountUpVisit(cfg: BotConfig, max = 180): [Dart, Dart, Dart] {
   const total = Math.max(0, Math.min(max, Math.round(gauss(cfg.avg, cfg.sd))));
   return split3(total);
 }
+
+// ── Football visit ─────────────────────────────────────────────────────────────
+// hasPossession=false → aim at 25/Bull to gain possession
+// hasPossession=true  → aim at doubles to score a goal
+export function botFootballVisit(hasPossession: boolean, cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () => {
+    if (!hasPossession) {
+      if (Math.random() < cfg.hitAcc * 0.55) return Math.random() < 0.35 ? makeDart(25, 2) : makeDart(25, 1);
+      return BOT_MISS;
+    } else {
+      if (Math.random() < cfg.hitAcc * 0.6) return makeDart(Math.ceil(Math.random() * 20), 2);
+      return BOT_MISS;
+    }
+  }) as [Dart, Dart, Dart];
+}
+
+// ── Golf visit ─────────────────────────────────────────────────────────────────
+export function botGolfVisit(hole: number, cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () =>
+    Math.random() < cfg.hitAcc ? makeDart(hole, 1) : BOT_MISS
+  ) as [Dart, Dart, Dart];
+}
+
+// ── Killer visit ───────────────────────────────────────────────────────────────
+// isKiller=false → aim at own double to become Killer
+// isKiller=true  → aim at opponent's double to take a life
+export function botKillerVisit(
+  myNum: number | null,
+  oppNum: number | null,
+  isKiller: boolean,
+  cfg: BotConfig,
+): [Dart, Dart, Dart] {
+  const target = isKiller ? oppNum : myNum;
+  if (!target) return [BOT_MISS, BOT_MISS, BOT_MISS];
+  return Array.from({ length: 3 }, () =>
+    Math.random() < cfg.hitAcc * 0.7 ? makeDart(target, 2) : BOT_MISS
+  ) as [Dart, Dart, Dart];
+}

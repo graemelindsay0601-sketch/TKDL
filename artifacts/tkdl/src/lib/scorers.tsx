@@ -5,7 +5,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize } from "lucide-react";
-import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit } from "./bot-engine";
+import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit } from "./bot-engine";
 import { type PracticeStats, type DartThrow } from "./stats-types";
 
 function useFullscreen() {
@@ -126,6 +126,19 @@ function AbandonBtn({ onAbandon }: { onAbandon: () => void }) {
 function SectionCard({ children }: { children: React.ReactNode }) {
   return (
     <div className="pdc-card p-3" style={{ borderColor: "rgba(255,255,255,0.07)" }}>{children}</div>
+  );
+}
+
+/** Full-height no-scroll layout: scrollable top section + sticky bottom (DartInputBoard) */
+function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode }) {
+  return (
+    <div style={{
+      height: "100dvh", display: "flex", flexDirection: "column",
+      maxWidth: "512px", margin: "0 auto", overflow: "hidden", padding: "0 0.5rem",
+    }}>
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0, paddingTop: "0.5rem" }}>{top}</div>
+      <div style={{ flexShrink: 0, paddingBottom: "0.5rem" }}>{bot}</div>
+    </div>
   );
 }
 
@@ -350,9 +363,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
   return (
-    <div className="max-w-lg mx-auto space-y-4">
-      {/* Fullscreen toggle — always shown on mobile, hover-visible on desktop */}
-      <div className="flex justify-end">
+    <ScorerLayout
+      top={<div className="space-y-3">
+        {/* Fullscreen toggle — always shown on mobile, hover-visible on desktop */}
+        <div className="flex justify-end">
         <button
           onClick={toggleFs}
           title={fs ? "Exit fullscreen" : "Go fullscreen"}
@@ -442,7 +456,6 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           </div>
         )}
       </SectionCard>
-      <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust || isBotTurnX01} />
       {/* Recent history */}
       {history.length > 0 && (
         <SectionCard>
@@ -456,8 +469,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           ))}
         </SectionCard>
       )}
-      <AbandonBtn onAbandon={onAbandon} />
-    </div>
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust || isBotTurnX01} />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
+    />
   );
 }
 
@@ -466,9 +483,10 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
 const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
 
-export function CricketScorer({ p1Name, p2Name, cutThroat = false, botConfig, onWin, onAbandon }: {
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, botConfig, onWin, onAbandon, onPracticeStats }: {
   p1Name: string; p2Name: string; cutThroat?: boolean; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
 }) {
   const [marks, setMarks]       = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
   const [scores, setScores]     = useState<[number,number]>([0,0]);
@@ -535,7 +553,10 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, botConfig, on
       setMarks(m => {
         setScores(sc => {
           const w = checkWin(m, sc);
-          if (w !== null) setTimeout(() => onWin(w, cutThroat ? `Cut-Throat — lowest score wins` : undefined), 300);
+          if (w !== null) setTimeout(() => {
+            onPracticeStats?.({ sessionData: { mode: "cricket" } });
+            onWin(w, cutThroat ? `Cut-Throat — lowest score wins` : undefined);
+          }, 300);
           return sc;
         });
         return m;
@@ -559,14 +580,15 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, botConfig, on
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="max-w-lg mx-auto space-y-4">
-      <div className="pdc-divider" />
-      <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
-          {cutThroat ? "Cut-Throat Cricket" : "Cricket"}
-        </h2>
-        {cutThroat && <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Lowest score wins · Hitting closed numbers gives OPPONENT points</p>}
-      </div>
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider" />
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
+            {cutThroat ? "Cut-Throat Cricket" : "Cricket"}
+          </h2>
+          {cutThroat && <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Lowest score wins · Hitting closed numbers gives OPPONENT points</p>}
+        </div>
       {/* Scores */}
       <div className="grid grid-cols-2 gap-3">
         {[0,1].map(i => (
@@ -614,20 +636,24 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, botConfig, on
       </SectionCard>
       {isBotTurnCri ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg="— hit 15–20 or Bull" />}
       <VisitDarts darts={visitDarts} />
-      <DartInputBoard
-        onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
-        activeSegments={CRICKET_NUMS} highlightSegments={CRICKET_NUMS}
-        disabled={isBotTurnCri}
-      />
-      <AbandonBtn onAbandon={onAbandon} />
-    </div>
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard
+          onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+          activeSegments={CRICKET_NUMS} highlightSegments={CRICKET_NUMS}
+          disabled={isBotTurnCri}
+        />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
+    />
   );
 }
 
 // ── Killer Scorer ──────────────────────────────────────────────────────────────
-export function KillerScorer({ p1Name, p2Name, lives = 3, onWin, onAbandon }: {
-  p1Name: string; p2Name: string; lives?: number;
+export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string; lives?: number; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
 }) {
   const [phase, setPhase]           = useState<"assign"|"play">("assign");
   const [assigning, setAssigning]   = useState<0|1>(0);
@@ -639,8 +665,20 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, onWin, onAbandon }: {
   const [msg, setMsg]               = useState("");
   const names = [p1Name, p2Name];
 
+  // Bot auto-picks a number during assign phase
+  useEffect(() => {
+    if (!botConfig || assigning !== 1 || killerNums[1] !== null) return;
+    const available = Array.from({length:20},(_,i)=>i+1).filter(n => n !== killerNums[0]);
+    const pick = available[Math.floor(Math.random() * available.length)];
+    const t = setTimeout(() => {
+      setKillerNums(prev => [prev[0], pick]);
+      setTimeout(() => setPhase("play"), 400);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [assigning, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const assignNumber = (n: number) => {
-    if (killerNums[0] === n || killerNums[1] === n) return; // taken
+    if (killerNums[0] === n || killerNums[1] === n) return;
     setKillerNums(prev => { const k: [number|null,number|null] = [...prev] as any; k[assigning] = n; return k; });
     if (assigning === 0) setAssigning(1);
     else setPhase("play");
@@ -666,7 +704,7 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, onWin, onAbandon }: {
         const n = [...prev] as [number,number];
         n[opp]--;
         if (n[opp] <= 0) {
-          setTimeout(() => onWin(turn, `${names[opp]} eliminated!`), 300);
+          setTimeout(() => { onPracticeStats?.({ sessionData: { mode:"killer" } }); onWin(turn, `${names[opp]} eliminated!`); }, 300);
         }
         return n;
       });
@@ -680,84 +718,104 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, onWin, onAbandon }: {
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => { if (visitDarts.length > 0) setVisitDarts(prev => prev.slice(0,-1)); };
 
+  const handleDartRefKill = useRef(handleDart);
+  useEffect(() => { handleDartRefKill.current = handleDart; });
+  const isBotTurnKill = !!botConfig && turn === 1 && phase === "play";
+  useEffect(() => {
+    if (!botConfig || turn !== 1 || phase !== "play") return;
+    const myNum = killerNums[1] ?? 0;
+    const oppNum = killerNums[0] ?? 0;
+    const [d1, d2, d3] = botKillerVisit(myNum, oppNum, isKiller[1], botConfig);
+    const t1 = setTimeout(() => handleDartRefKill.current(d1), 700);
+    const t2 = setTimeout(() => handleDartRefKill.current(d2), 1400);
+    const t3 = setTimeout(() => handleDartRefKill.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig, phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (phase === "assign") {
     return (
-      <div className="max-w-lg mx-auto space-y-4">
+      <div style={{ maxWidth:"512px", margin:"0 auto", padding:"1rem 0.5rem" }}>
         <div className="pdc-divider" />
-        <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Killer — Pick Numbers</h2>
-          <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-            <span style={{ color: P_COLOR(assigning) }}>{names[assigning]}</span> — tap your number (1-20)
+        <div className="text-center mb-4">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>Killer — Pick Numbers</h2>
+          <p className="text-sm mt-1" style={{ color:"rgba(255,255,255,0.4)" }}>
+            <span style={{ color:P_COLOR(assigning) }}>{names[assigning]}</span>
+            {assigning === 1 && botConfig ? " — CPU choosing…" : " — tap your number (1–20)"}
           </p>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "0.5rem" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"0.5rem" }}>
           {Array.from({length:20},(_,i)=>i+1).map(n => {
             const taken = killerNums.includes(n);
+            const disabled = taken || (assigning === 1 && !!botConfig);
             return (
-              <button key={n} onClick={() => !taken && assignNumber(n)}
+              <button key={n} onClick={() => !disabled && assignNumber(n)}
                 style={{
-                  padding: "1rem 0", borderRadius: "0.5rem", fontFamily: "Oswald, sans-serif",
-                  fontWeight: 700, fontSize: "1.1rem", cursor: taken ? "not-allowed" : "pointer",
-                  background: killerNums[0]===n ? `${P_COLOR(0)}33` : killerNums[1]===n ? `${P_COLOR(1)}33` : "rgba(255,255,255,0.05)",
-                  border: killerNums[0]===n ? `1.5px solid ${P_COLOR(0)}` : killerNums[1]===n ? `1.5px solid ${P_COLOR(1)}` : "1px solid rgba(255,255,255,0.1)",
-                  color: taken ? (killerNums[0]===n ? P_COLOR(0) : P_COLOR(1)) : "rgba(255,255,255,0.8)",
-                }}>
-                D{n}
+                  padding:"1rem 0", borderRadius:"0.5rem", fontFamily:"Oswald,sans-serif",
+                  fontWeight:700, fontSize:"1.1rem", cursor:disabled?"not-allowed":"pointer",
+                  background: killerNums[0]===n?`${P_COLOR(0)}33`:killerNums[1]===n?`${P_COLOR(1)}33`:"rgba(255,255,255,0.05)",
+                  border: killerNums[0]===n?`1.5px solid ${P_COLOR(0)}`:killerNums[1]===n?`1.5px solid ${P_COLOR(1)}`:"1px solid rgba(255,255,255,0.1)",
+                  color: taken?(killerNums[0]===n?P_COLOR(0):P_COLOR(1)):"rgba(255,255,255,0.8)",
+                }}>D{n}
               </button>
             );
           })}
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          {[0,1].map(i => (
-            <div key={i} className="pdc-card p-3 text-center" style={{ borderColor: killerNums[i] !== null ? P_COLOR(i) : "rgba(255,255,255,0.06)" }}>
-              <div className="text-xs" style={{ color: P_COLOR(i), fontFamily: "Oswald, sans-serif" }}>{names[i]}</div>
-              <div className="text-xl font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>
-                {killerNums[i] !== null ? `D${killerNums[i]}` : "—"}
-              </div>
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          {[0,1].map(i=>(
+            <div key={i} className="pdc-card p-3 text-center" style={{ borderColor:killerNums[i]!==null?P_COLOR(i):"rgba(255,255,255,0.06)" }}>
+              <div className="text-xs" style={{ color:P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>{names[i]}</div>
+              <div className="text-xl font-bold" style={{ fontFamily:"Oswald,sans-serif", color:"#fff" }}>{killerNums[i]!==null?`D${killerNums[i]}`:"—"}</div>
             </div>
           ))}
         </div>
-        <AbandonBtn onAbandon={onAbandon} />
+        <div className="mt-4"><AbandonBtn onAbandon={onAbandon} /></div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-lg mx-auto space-y-4">
-      <div className="pdc-divider" />
-      <h2 className="text-2xl font-bold uppercase text-center" style={{ fontFamily: "Oswald, sans-serif" }}>Killer</h2>
-      {/* Player status */}
-      <div className="grid grid-cols-2 gap-3">
-        {[0,1].map(i => (
-          <div key={i} className="pdc-card p-4 text-center" style={{ borderColor: turn===i ? P_COLOR(i) : "rgba(255,255,255,0.06)" }}>
-            <div className="text-xs font-bold uppercase" style={{ color: P_COLOR(i), fontFamily: "Oswald, sans-serif" }}>{names[i]}</div>
-            <div className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif" }}>D{killerNums[i]}</div>
-            <div className="text-lg font-bold" style={{ fontFamily: "Oswald, sans-serif", color: isKiller[i] ? "#ffd24a" : "rgba(255,255,255,0.3)" }}>
-              {isKiller[i] ? "☠ KILLER" : "○ Not yet"}
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider" />
+        <h2 className="text-2xl font-bold uppercase text-center" style={{ fontFamily:"Oswald,sans-serif" }}>Killer</h2>
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i=>(
+            <div key={i} className="pdc-card p-4 text-center" style={{ borderColor:turn===i?P_COLOR(i):"rgba(255,255,255,0.06)" }}>
+              <div className="text-xs font-bold uppercase" style={{ color:P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>{names[i]}</div>
+              <div className="text-sm mt-1" style={{ color:"rgba(255,255,255,0.5)", fontFamily:"Oswald,sans-serif" }}>D{killerNums[i]}</div>
+              <div className="text-lg font-bold" style={{ fontFamily:"Oswald,sans-serif", color:isKiller[i]?"#ffd24a":"rgba(255,255,255,0.3)" }}>
+                {isKiller[i]?"☠ KILLER":"○ Not yet"}
+              </div>
+              <div className="flex justify-center gap-1 mt-2">
+                {Array.from({length:lives}).map((_,li)=>(
+                  <span key={li} style={{ fontSize:"1.1rem", opacity:li<playerLives[i]?1:0.15 }}>❤</span>
+                ))}
+              </div>
             </div>
-            <div className="flex justify-center gap-1 mt-2">
-              {Array.from({length:lives}).map((_,li)=>(
-                <span key={li} style={{ fontSize: "1.1rem", opacity: li < playerLives[i] ? 1 : 0.15 }}>❤</span>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-      {msg && <div className="text-center font-bold text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{msg}</div>}
-      <TurnBanner name={names[turn]} turn={turn}
-        msg={!isKiller[turn] ? `— hit D${killerNums[turn]} to become Killer` : `— hit D${killerNums[turn===0?1:0]} to take a life`} />
-      <VisitDarts darts={visitDarts} />
-      <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
-        highlightSegments={killerNums.filter((n): n is number => n !== null)} />
-      <AbandonBtn onAbandon={onAbandon} />
-    </div>
+          ))}
+        </div>
+        {msg&&<div className="text-center font-bold text-sm" style={{ color:"#ffd24a", fontFamily:"Oswald,sans-serif" }}>{msg}</div>}
+        {isBotTurnKill
+          ?<TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+          :<TurnBanner name={names[turn]} turn={turn}
+            msg={!isKiller[turn]?`— hit D${killerNums[turn]} to become Killer`:`— hit D${killerNums[turn===0?1:0]} to take a life`} />}
+        <VisitDarts darts={visitDarts} />
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+          highlightSegments={killerNums.filter((n):n is number=>n!==null)}
+          disabled={isBotTurnKill} />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
+    />
   );
 }
 
 // ── Sequence Scorer (Around the World, Round the Clock, Shanghai, etc.) ────────
-export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onWin, onAbandon }: {
+export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onWin, onAbandon, onPracticeStats }: {
   p1Name: string; p2Name: string; config: any; gameKey: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
 }) {
   const names = [p1Name, p2Name];
 
@@ -888,7 +946,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
       if (target.mult === 1) pos += (dart.multiplier - 1); // T1 → skip 2 extra? No, each dart advances once. Let extra multiplier advance once.
       const newPos = Math.min(pos, sequence.length);
       setPositions(prev => { const n:[number,number]=[...prev] as [number,number]; n[turn]=newPos; return n; });
-      if (newPos >= sequence.length) { setTimeout(() => onWin(turn, `Finished the sequence!`), 200); return; }
+      if (newPos >= sequence.length) { setTimeout(() => { onPracticeStats?.({ sessionData:{mode:"sequence"} }); onWin(turn, `Finished the sequence!`); }, 200); return; }
     }
     setVisitDarts(nv);
     if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); }
@@ -910,12 +968,13 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="max-w-lg mx-auto space-y-4">
-      <div className="pdc-divider" />
-      {/* Progress bars */}
-      <div className="grid grid-cols-2 gap-3">
-        {[0,1].map(i => (
-          <div key={i} className="pdc-card p-3 text-center" style={{ borderColor: turn===i ? P_COLOR(i) : "rgba(255,255,255,0.06)" }}>
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider" />
+        {/* Progress bars */}
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i => (
+            <div key={i} className="pdc-card p-3 text-center" style={{ borderColor: turn===i ? P_COLOR(i) : "rgba(255,255,255,0.06)" }}>
             <div className="text-xs font-bold uppercase mb-1" style={{ color: P_COLOR(i), fontFamily: "Oswald, sans-serif" }}>{names[i]}</div>
             <div className="text-xl font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>
               {positions[i]}/{sequence.length}
@@ -930,15 +989,18 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
         ))}
       </div>
       {isBotTurnSeq ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={curTarget ? `— aim at ${curTarget.label}` : ""} />}
-      <VisitDarts darts={visitDarts} />
-      <DartInputBoard onDart={handleDart}
-        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
-        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
-        highlightSegments={curTarget ? [curTarget.seg] : []}
-        disabled={isBotTurnSeq}
-      />
-      <AbandonBtn onAbandon={onAbandon} />
-    </div>
+        <VisitDarts darts={visitDarts} />
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart}
+          onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+          onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+          highlightSegments={curTarget ? [curTarget.seg] : []}
+          disabled={isBotTurnSeq}
+        />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
+    />
   );
 }
 
@@ -946,9 +1008,10 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
 const HALVEIT_TARGETS = [20,16,"D",17,"Bull",18,19,"T"];
 const HALVEIT_LABELS  = ["20","16","Any Double","17","Bull","18","19","Any Treble"];
 
-export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAbandon }: {
+export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAbandon, onPracticeStats }: {
   p1Name: string; p2Name: string; gameKey: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
 }) {
   const isBobs = gameKey === "bobs_27";
   const targets = isBobs
@@ -1014,6 +1077,7 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
           setTimeout(() => {
             setScores(sc => {
               const w: 0|1 = sc[0] >= sc[1] ? 0 : 1;
+              onPracticeStats?.({ sessionData: { mode:"halveit", p1Score:sc[0], p2Score:sc[1] } });
               onWin(w, `${sc[0]} vs ${sc[1]}`);
               return sc;
             });
@@ -1047,10 +1111,11 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="max-w-lg mx-auto space-y-4">
-      <div className="pdc-divider" />
-      <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{isBobs ? "Bob's 27" : "Halve-It"}</h2>
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider" />
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{isBobs ? "Bob's 27" : "Halve-It"}</h2>
         <p className="text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
           Round {round+1}/{targets.length} — Target: {targetLabels[round]}
         </p>
@@ -1077,21 +1142,25 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
       </div>
       {isBotTurnHalve ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={`— hit ${targetLabels[round]}`} />}
       <VisitDarts darts={visitDarts} />
-      <DartInputBoard onDart={handleDart}
-        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
-        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
-        highlightSegments={typeof curTarget === "number" ? [curTarget] : curTarget==="Bull" ? [25] : undefined}
-        disabled={isBotTurnHalve}
-      />
-      <AbandonBtn onAbandon={onAbandon} />
-    </div>
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart}
+          onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+          onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+          highlightSegments={typeof curTarget === "number" ? [curTarget] : curTarget==="Bull" ? [25] : undefined}
+          disabled={isBotTurnHalve}
+        />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
+    />
   );
 }
 
 // ── Count Up Scorer ────────────────────────────────────────────────────────────
-export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon }: {
+export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
   p1Name: string; p2Name: string; config: { target?: number; rounds?: number }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
 }) {
   const target = config.target ?? 501;
   const maxRounds = config.rounds ?? 0; // 0 = race to target
@@ -1111,7 +1180,7 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
         const ns: [number,number] = [...prev] as [number,number];
         ns[turn] += cum;
         if (maxRounds === 0 && ns[turn] >= target) {
-          setTimeout(() => onWin(turn, `Reached ${target} pts!`), 300);
+          setTimeout(() => { onPracticeStats?.({ sessionData:{mode:"countup"} }); onWin(turn, `Reached ${target} pts!`); }, 300);
         }
         return ns;
       });
@@ -1121,7 +1190,8 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
         if (maxRounds > 0 && nr[0] >= maxRounds && nr[1] >= maxRounds) {
           setTimeout(() => {
             setScores(sc => {
-              onWin(sc[0] >= sc[1] ? 0 : 1, `${sc[0]} vs ${sc[1]}`);
+              onPracticeStats?.({ sessionData:{mode:"countup", p1Score:sc[0], p2Score:sc[1]} });
+            onWin(sc[0] >= sc[1] ? 0 : 1, `${sc[0]} vs ${sc[1]}`);
               return sc;
             });
           }, 300);
@@ -1148,25 +1218,29 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="max-w-lg mx-auto space-y-4">
-      <div className="pdc-divider" />
-      <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
-          {maxRounds > 0 ? `High Score — ${maxRounds} Rounds` : `Count Up — Race to ${target}`}
-        </h2>
-        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Score as many points as possible</p>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} sub={sub(i)} />)}
-      </div>
-      {isBotTurnCU ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg="— score as many as you can" />}
-      <VisitDarts darts={visitDarts} />
-      <DartInputBoard onDart={handleDart}
-        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
-        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
-        disabled={isBotTurnCU} />
-      <AbandonBtn onAbandon={onAbandon} />
-    </div>
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider" />
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>
+            {maxRounds > 0 ? `High Score — ${maxRounds} Rounds` : `Count Up — Race to ${target}`}
+          </h2>
+          <p className="text-xs mt-1" style={{ color:"rgba(255,255,255,0.3)" }}>Score as many points as possible</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} sub={sub(i)} />)}
+        </div>
+        {isBotTurnCU ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg="— score as many as you can" />}
+        <VisitDarts darts={visitDarts} />
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart}
+          onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+          onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+          disabled={isBotTurnCU} />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
+    />
   );
 }
 
@@ -1390,120 +1464,199 @@ export function ScramScorer({ p1Name, p2Name, onWin, onAbandon }: {
 }
 
 // ── Football Darts Scorer ──────────────────────────────────────────────────────
-export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, onWin, onAbandon }: {
+export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWin, onAbandon, onPracticeStats }: {
   p1Name: string; p2Name: string; goalsToWin?: number;
+  botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
 }) {
   const [goals, setGoals]           = useState<[number,number]>([0,0]);
+  const [possession, setPossession] = useState<0|1>(0);
   const [turn, setTurn]             = useState<0|1>(0);
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [hasPossession, setPoss]    = useState(true); // keep possession if scored a goal
+  const [msg, setMsg]               = useState("");
   const names = [p1Name, p2Name];
 
-  const handleDart = (dart: Dart) => {
+  const handleDart = useCallback((dart: Dart) => {
     if (visitDarts.length >= 3) return;
-    const nv = [...visitDarts, dart];
-    setVisitDarts(nv);
-    let scored = false;
-    if (dart.multiplier === 2 && dart.segment !== 25) {
-      scored = true;
-      setGoals(prev => {
-        const n:[number,number]=[...prev] as [number,number];
-        n[turn]++;
-        if (n[turn] >= goalsToWin) setTimeout(() => onWin(turn, `${n[turn]} goals!`), 200);
-        return n;
-      });
-    }
-    if (nv.length === 3) {
-      const cumGoals = nv.filter(d=>d.multiplier===2&&d.segment!==25).length;
+    const nd = [...visitDarts, dart];
+    setVisitDarts(nd);
+
+    if (nd.length === 3) {
+      const hasBall = possession === turn;
+      if (hasBall) {
+        const goalsScored = nd.filter(d => d.multiplier === 2).length;
+        if (goalsScored > 0) {
+          setGoals(prev => {
+            const ng: [number,number] = [...prev] as [number,number];
+            ng[turn] += goalsScored;
+            if (ng[turn] >= goalsToWin) {
+              setTimeout(() => {
+                onPracticeStats?.({ sessionData: { mode:"football", goals: ng } });
+                onWin(turn, `${ng[turn]} goals!`);
+              }, 200);
+            }
+            return ng;
+          });
+          setMsg(`${names[turn]} scores ${goalsScored === 1 ? "a goal" : `${goalsScored} goals`}! ⚽`);
+          setTimeout(() => setMsg(""), 1800);
+        } else {
+          setPossession(p => p === 0 ? 1 : 0);
+          setMsg(`${names[turn]} misses! ${names[turn === 0 ? 1 : 0]} wins possession`);
+          setTimeout(() => setMsg(""), 1800);
+        }
+      } else {
+        const stole = nd.some(d => d.segment === 25);
+        if (stole) {
+          setPossession(turn);
+          setMsg(`${names[turn]} wins possession! 🏈`);
+          setTimeout(() => setMsg(""), 1800);
+        } else {
+          setMsg(`${names[turn]} — can't steal…`);
+          setTimeout(() => setMsg(""), 1200);
+        }
+      }
       setVisitDarts([]);
-      if (cumGoals === 0) setTurn(t => t===0?1:0); // no goals = lose possession
-      // else keep possession (don't switch turn)
+      setTurn(t => t === 0 ? 1 : 0);
     }
-  };
+  }, [visitDarts, turn, possession, goalsToWin, names, onWin, onPracticeStats]);
+
+  const handleMiss = () => handleDart({ segment:0, multiplier:1, value:0, label:"Miss" });
+  const handleUndo = () => visitDarts.length > 0 && setVisitDarts(p => p.slice(0,-1));
+
+  const handleDartRefFB = useRef(handleDart);
+  useEffect(() => { handleDartRefFB.current = handleDart; });
+  const isBotTurnFB = !!botConfig && turn === 1;
+  useEffect(() => {
+    if (!botConfig || turn !== 1) return;
+    const hasBall = possession === 1;
+    const [d1, d2, d3] = botFootballVisit(hasBall, botConfig);
+    const t1 = setTimeout(() => handleDartRefFB.current(d1), 700);
+    const t2 = setTimeout(() => handleDartRefFB.current(d2), 1400);
+    const t3 = setTimeout(() => handleDartRefFB.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="max-w-lg mx-auto space-y-4">
-      <div className="pdc-divider" />
-      <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Football Darts</h2>
-        <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Hit a DOUBLE to score a goal. No goals = lose possession. First to {goalsToWin} wins.</p>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={goals[i]} scoreSuffix=" ⚽" turn={i===0} active={turn===i} sub={`${goalsToWin - goals[i]} to win`} />)}
-      </div>
-      <TurnBanner name={names[turn]} turn={turn} msg="— hit any DOUBLE for a goal" />
-      <VisitDarts darts={visitDarts} />
-      <DartInputBoard onDart={handleDart}
-        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
-        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))} />
-      <AbandonBtn onAbandon={onAbandon} />
-    </div>
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider" />
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>Football Darts</h2>
+          <p className="text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>
+            25/Bull = win possession · Any double = goal · Miss all = lose possession · First to {goalsToWin} wins
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i => (
+            <PlayerCard key={i} name={names[i]} score={goals[i]} scoreSuffix=" ⚽" turn={i===0} active={turn===i}
+              sub={possession === i ? "⚽ BALL" : undefined} />
+          ))}
+        </div>
+        {msg && <div className="text-center font-bold text-sm" style={{ color:"#ffd24a", fontFamily:"Oswald,sans-serif" }}>{msg}</div>}
+        {isBotTurnFB
+          ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+          : <TurnBanner name={names[turn]} turn={turn}
+              msg={possession === turn ? "— hit any DOUBLE to score!" : "— hit 25 or Bull to steal possession"} />}
+        <VisitDarts darts={visitDarts} />
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={isBotTurnFB} />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
+    />
   );
 }
 
 // ── Golf Darts Scorer ──────────────────────────────────────────────────────────
-export function GolfScorer({ p1Name, p2Name, holes = 9, onWin, onAbandon }: {
+export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAbandon, onPracticeStats }: {
   p1Name: string; p2Name: string; holes?: number;
+  botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
 }) {
   const [hole, setHole]             = useState(1);
   const [half, setHalf]             = useState<0|1>(0);
   const [totalScores, setTotal]     = useState<[number,number]>([0,0]);
-  const [holeScores, setHole2]      = useState<number[][]>([[],[]]);
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
   const names = [p1Name, p2Name];
 
-  const handleDart = (dart: Dart) => {
+  const nextHalf = useCallback((addedScore: number) => {
+    setTotal(prev => {
+      const n: [number,number] = [...prev] as [number,number];
+      n[half] += addedScore;
+      if (half === 1) {
+        setHole(h => {
+          if (h >= holes) {
+            setTimeout(() => {
+              onPracticeStats?.({ sessionData: { mode:"golf", strokes:[...n] } });
+              onWin(n[0] <= n[1] ? 0 : 1, `${n[0]} vs ${n[1]} strokes`);
+            }, 300);
+            return h;
+          }
+          return h + 1;
+        });
+        setHalf(0);
+      } else {
+        setHalf(1);
+      }
+      return n;
+    });
+  }, [half, holes, onWin, onPracticeStats]);
+
+  const handleDart = useCallback((dart: Dart) => {
     if (visitDarts.length >= 3) return;
     const nv = [...visitDarts, dart];
-    // Hit the hole target?
     if (dart.segment === hole) {
-      // Score = darts used (1, 2, or 3) — fewer is better
-      const dartNo = nv.length;
-      setTotal(prev => { const n:[number,number]=[...prev] as [number,number]; n[half]+=dartNo; return n; });
       setVisitDarts([]);
-      nextHalf(dartNo);
+      nextHalf(nv.length);
       return;
     }
     setVisitDarts(nv);
     if (nv.length === 3) {
-      // Missed all 3 — score 4 (penalty)
-      setTotal(prev => { const n:[number,number]=[...prev] as [number,number]; n[half]+=4; return n; });
       setVisitDarts([]);
       nextHalf(4);
     }
-  };
+  }, [visitDarts, hole, nextHalf]);
 
-  const nextHalf = (score: number) => {
-    if (half === 1) {
-      if (hole >= holes) {
-        setTimeout(() => {
-          setTotal(t => { onWin(t[0]<=t[1]?0:1, `${t[0]} vs ${t[1]} strokes (lower wins)`); return t; });
-        }, 300);
-      } else { setHole(h=>h+1); setHalf(0); }
-    } else { setHalf(1); }
-  };
+  const handleDartRefGolf = useRef(handleDart);
+  useEffect(() => { handleDartRefGolf.current = handleDart; });
+  const isBotTurnGolf = !!botConfig && half === 1;
+  useEffect(() => {
+    if (!botConfig || half !== 1) return;
+    const [d1, d2, d3] = botGolfVisit(hole, botConfig);
+    const t1 = setTimeout(() => handleDartRefGolf.current(d1), 700);
+    const t2 = setTimeout(() => handleDartRefGolf.current(d2), 1400);
+    const t3 = setTimeout(() => handleDartRefGolf.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [half, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="max-w-lg mx-auto space-y-4">
-      <div className="pdc-divider" />
-      <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Golf Darts</h2>
-        <p style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>Hole {hole}/{holes} — Target: {hole}</p>
-        <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Hit target in fewest darts. Miss all 3 = 4 strokes. LOWEST score wins.</p>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={totalScores[i]} scoreSuffix=" ⛳" turn={i===0} active={half===i} />)}
-      </div>
-      <TurnBanner name={names[half]} turn={half} msg={`— hit ${hole} (fewer darts = better score)`} />
-      <VisitDarts darts={visitDarts} />
-      <DartInputBoard onDart={handleDart}
-        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
-        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
-        highlightSegments={[hole]} />
-      <AbandonBtn onAbandon={onAbandon} />
-    </div>
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider" />
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>Golf Darts</h2>
+          <p style={{ color:"#ffd24a", fontFamily:"Oswald,sans-serif" }}>Hole {hole}/{holes} — Target: {hole}</p>
+          <p className="text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>Hit target in fewest darts. Miss all 3 = 4 strokes. LOWEST score wins.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={totalScores[i]} scoreSuffix=" ⛳" turn={i===0} active={half===i} />)}
+        </div>
+        {isBotTurnGolf
+          ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+          : <TurnBanner name={names[half]} turn={half} msg={`— hit ${hole} (fewer darts = better)`} />}
+        <VisitDarts darts={visitDarts} />
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart}
+          onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+          onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+          highlightSegments={[hole]}
+          disabled={isBotTurnGolf} />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
+    />
   );
 }
 
@@ -1610,5 +1763,294 @@ export function ManualScorer({ p1Name, p2Name, gameName, rules, onWin, onAbandon
       </div>
       <AbandonBtn onAbandon={onAbandon} />
     </div>
+  );
+}
+
+// ── JDC Challenge 41 ──────────────────────────────────────────────────────────
+export function JDCChallenge41Scorer({ p1Name, p2Name, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+}) {
+  const SH1 = [10,11,12,13,14,15];
+  const DBL = [...Array.from({length:20},(_,i)=>i+1), 25];
+  const SH2 = [15,16,17,18,19,20];
+  const [phase, setPhase]           = useState<"sh1"|"dbl"|"sh2">("sh1");
+  const [scores, setScores]         = useState<[number,number]>([0,0]);
+  const [turn, setTurn]             = useState<0|1>(0);
+  const [idx, setIdx]               = useState(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [shHits, setShHits]         = useState({s:false,d:false,t:false});
+  const [msg, setMsg]               = useState("");
+  const names = [p1Name, p2Name];
+  const phaseArr = phase==="sh1"?SH1:phase==="dbl"?DBL:SH2;
+  const target   = phaseArr[idx];
+
+  const advance = useCallback((pts: number) => {
+    setScores(prev => {
+      const ns:[number,number]=[...prev] as [number,number];
+      ns[turn] += pts;
+      const nextTurn: 0|1 = turn===0?1:0;
+      if (turn===1) {
+        const nextIdx = idx+1;
+        if (nextIdx >= phaseArr.length) {
+          if (phase==="sh1") { setPhase("dbl"); setIdx(0); }
+          else if (phase==="dbl") { setPhase("sh2"); setIdx(0); }
+          else {
+            setTimeout(()=>{ onPracticeStats?.({sessionData:{mode:"jdc41"}}); onWin(ns[0]>=ns[1]?0:1,`${ns[0]} vs ${ns[1]} pts`); },300);
+          }
+        } else setIdx(nextIdx);
+        setTurn(0);
+      } else setTurn(nextTurn);
+      setVisitDarts([]); setShHits({s:false,d:false,t:false});
+      return ns;
+    });
+  }, [turn, idx, phase, phaseArr, onWin, onPracticeStats]);
+
+  const handleDart = useCallback((dart: Dart) => {
+    if (visitDarts.length>=3) return;
+    const nv=[...visitDarts,dart];
+    if (phase==="dbl") {
+      if (dart.segment===target&&dart.multiplier===2) { setMsg(`D${target}! ✓`); setTimeout(()=>setMsg(""),1500); advance(target*2); return; }
+      setVisitDarts(nv);
+      if (nv.length===3) { setMsg("Missed!"); setTimeout(()=>setMsg(""),1200); advance(0); }
+      return;
+    }
+    const nh={s:shHits.s||(dart.segment===target&&dart.multiplier===1),d:shHits.d||(dart.segment===target&&dart.multiplier===2),t:shHits.t||(dart.segment===target&&dart.multiplier===3)};
+    const pts=dart.segment===target?dart.value:0;
+    if(pts>0)setShHits(nh);
+    if(nh.s&&nh.d&&nh.t){setMsg(`SHANGHAI ${target}! 🎯`);setTimeout(()=>setMsg(""),2000);advance(nv.reduce((a,d)=>a+(d.segment===target?d.value:0),0)+50);return;}
+    setVisitDarts(nv);
+    if(nv.length===3){advance(nv.reduce((a,d)=>a+(d.segment===target?d.value:0),0));}
+  },[visitDarts,phase,target,shHits,turn,advance]);
+
+  const label=phase==="sh1"?`Phase 1 — Shanghai ${SH1[0]}–${SH1.at(-1)}`
+    :phase==="dbl"?`Phase 2 — Doubles ${DBL[0]}–D${DBL.at(-1)}`
+    :`Phase 3 — Shanghai ${SH2[0]}–${SH2.at(-1)}`;
+
+  return (
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider"/>
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>JDC Challenge 41</h2>
+          <p className="text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>{label}</p>
+          <p className="text-sm mt-1" style={{color:"rgba(255,255,255,0.5)",fontFamily:"Oswald,sans-serif"}}>
+            Target: <strong style={{color:"#fff"}}>{phase==="dbl"?`D${target}`:target}</strong>
+            {phase!=="dbl"&&<span className="ml-3 text-xs" style={{color:"rgba(255,255,255,0.3)"}}>S:{shHits.s?"✓":"○"} D:{shHits.d?"✓":"○"} T:{shHits.t?"✓":"○"}</span>}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">{[0,1].map(i=><PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i}/>)}</div>
+        {msg&&<div className="text-center font-bold text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>{msg}</div>}
+        <TurnBanner name={names[turn]} turn={turn} msg={phase==="dbl"?`— hit D${target}!`:`— aim at ${target}`}/>
+        <VisitDarts darts={visitDarts}/>
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+          onUndo={()=>visitDarts.length>0&&setVisitDarts(p=>p.slice(0,-1))} highlightSegments={[target]}/>
+        <AbandonBtn onAbandon={onAbandon}/>
+      </div>}
+    />
+  );
+}
+
+// ── Exponential Bundle ─────────────────────────────────────────────────────────
+export function ExponentialBundleScorer({ p1Name, p2Name, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+}) {
+  const TARGETS=[7,8,9,10,11,12];
+  const [tIdx,setTIdx]             = useState(0);
+  const [half,setHalf]             = useState<0|1>(0);
+  const [scores,setScores]         = useState<[number,number]>([0,0]);
+  const [visitDarts,setVisitDarts] = useState<Dart[]>([]);
+  const names=[p1Name,p2Name];
+  const target=TARGETS[tIdx];
+
+  const handleDart=useCallback((dart:Dart)=>{
+    if(visitDarts.length>=3)return;
+    const nv=[...visitDarts,dart];
+    setVisitDarts(nv);
+    if(nv.length===3){
+      const pts=nv.reduce((sum,d)=>d.segment!==target?sum:sum+Math.pow(target,d.multiplier),0);
+      setScores(prev=>{
+        const ns:[number,number]=[...prev] as [number,number];
+        ns[half]+=Math.round(pts);
+        if(half===1){
+          if(tIdx+1>=TARGETS.length){
+            setTimeout(()=>{onPracticeStats?.({sessionData:{mode:"exponential_bundle"}});onWin(ns[0]>=ns[1]?0:1,`${ns[0].toLocaleString()} vs ${ns[1].toLocaleString()}`);},300);
+          } else {setTIdx(t=>t+1);setHalf(0);}
+        } else setHalf(1);
+        return ns;
+      });
+      setVisitDarts([]);
+    }
+  },[visitDarts,target,half,tIdx,onWin,onPracticeStats]);
+
+  return (
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider"/>
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Exponential Bundle</h2>
+          <p className="text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>Round {tIdx+1}/6 — Target: <strong>{target}</strong></p>
+          <p className="text-xs" style={{color:"rgba(255,255,255,0.3)"}}>S={target} · D={target}²={target*target} · T={target}³={target*target*target} per dart</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">{[0,1].map(i=><PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={half===i}/>)}</div>
+        <TurnBanner name={names[half]} turn={half} msg={`— aim at ${target} (doubles & trebles score BIG)`}/>
+        <VisitDarts darts={visitDarts}/>
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+          onUndo={()=>visitDarts.length>0&&setVisitDarts(p=>p.slice(0,-1))} highlightSegments={[target]}/>
+        <AbandonBtn onAbandon={onAbandon}/>
+      </div>}
+    />
+  );
+}
+
+// ── Shooting Gallery ───────────────────────────────────────────────────────────
+export function ShootingGalleryScorer({ p1Name, p2Name, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+}) {
+  const ROUNDS=5;
+  const rng=()=>Math.floor(Math.random()*10)+121;
+  const [round,setRound]             = useState(0);
+  const [half,setHalf]               = useState<0|1>(0);
+  const [scores,setScores]           = useState<[number,number]>([0,0]);
+  const [dartCount,setDartCount]     = useState(0);
+  const [roundTarget,setRoundTarget] = useState(rng);
+  const [remain,setRemain]           = useState(()=>roundTarget);
+  const [msg,setMsg]                 = useState("");
+  const names=[p1Name,p2Name];
+
+  const nextPlayer=useCallback((dartsUsed:number)=>{
+    setScores(prev=>{
+      const ns:[number,number]=[...prev] as [number,number];
+      ns[half]+=dartsUsed;
+      if(half===1){
+        if(round+1>=ROUNDS){
+          setTimeout(()=>{onPracticeStats?.({sessionData:{mode:"shooting_gallery"}});onWin(ns[0]<=ns[1]?0:1,`${ns[0]} vs ${ns[1]} darts`);},300);
+        } else {
+          const next=rng();
+          setRound(r=>r+1);setRoundTarget(next);setRemain(next);setHalf(0);
+        }
+      } else {setRemain(roundTarget);setHalf(1);}
+      setDartCount(0);
+      return ns;
+    });
+  },[half,round,roundTarget,onWin,onPracticeStats]);
+
+  const handleDart=useCallback((dart:Dart)=>{
+    const dc=dartCount+1;
+    const nr=remain-dart.value;
+    if(nr===0&&dart.multiplier===2){setMsg(`Checkout in ${dc}! 🎯`);setTimeout(()=>setMsg(""),2000);nextPlayer(dc);return;}
+    if(nr<0||nr===1){setMsg("Bust! +10");setTimeout(()=>setMsg(""),1500);nextPlayer(10);return;}
+    setRemain(nr);setDartCount(dc);
+    if(dc>=9){nextPlayer(10);}
+  },[dartCount,remain,nextPlayer]);
+
+  return (
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider"/>
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Shooting Gallery</h2>
+          <p className="text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>Round {round+1}/{ROUNDS} — Target: <strong>{roundTarget}</strong></p>
+          <p className="text-xs" style={{color:"rgba(255,255,255,0.3)"}}>Checkout in fewest darts. Bust or 9+ darts = +10. LOWEST score wins.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">{[0,1].map(i=><PlayerCard key={i} name={names[i]} score={scores[i]} scoreSuffix=" darts" turn={i===0} active={half===i}/>)}</div>
+        <div className="pdc-card p-3 text-center">
+          <div className="text-4xl font-black" style={{fontFamily:"Oswald,sans-serif",color:"#ffd24a"}}>{remain}</div>
+          <div className="text-xs" style={{color:"rgba(255,255,255,0.3)"}}>remaining · dart {dartCount+1}</div>
+        </div>
+        {msg&&<div className="text-center font-bold text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>{msg}</div>}
+        <TurnBanner name={names[half]} turn={half} msg="— checkout on a double!"/>
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={()=>{}}/>
+        <AbandonBtn onAbandon={onAbandon}/>
+      </div>}
+    />
+  );
+}
+
+// ── Dead Centre ────────────────────────────────────────────────────────────────
+export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string; target?: number; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+}) {
+  const [scores,setScores]         = useState<[number,number]>([0,0]);
+  const [turn,setTurn]             = useState<0|1>(0);
+  const [visitDarts,setVisitDarts] = useState<Dart[]>([]);
+  const [visitPts,setVisitPts]     = useState(0);
+  const [busted,setBusted]         = useState(false);
+  const [msg,setMsg]               = useState("");
+  const names=[p1Name,p2Name];
+
+  const handleDart=useCallback((dart:Dart)=>{
+    if(visitDarts.length>=3)return;
+    const isBull=dart.segment===25;
+    const nv=[...visitDarts,dart];
+    setVisitDarts(nv);
+    const nowBusted=busted||!isBull;
+    if(!isBull){setBusted(true);setMsg(`${names[turn]} BUSTED — reset!`);setTimeout(()=>setMsg(""),2000);}
+    else setVisitPts(p=>p+dart.value);
+    if(nv.length===3){
+      setScores(prev=>{
+        const ns:[number,number]=[...prev] as [number,number];
+        if(nowBusted){ns[turn]=0;}
+        else{
+          ns[turn]+=visitPts+(isBull?dart.value:0);
+          if(ns[turn]>=target){setTimeout(()=>{onPracticeStats?.({sessionData:{mode:"dead_centre"}});onWin(turn,`${ns[turn]} pts!`);},200);}
+        }
+        return ns;
+      });
+      setVisitDarts([]);setVisitPts(0);setBusted(false);setTurn(t=>t===0?1:0);
+    }
+  },[visitDarts,visitPts,busted,turn,target,names,onWin,onPracticeStats]);
+
+  const handleDartRefDC=useRef(handleDart);
+  useEffect(()=>{handleDartRefDC.current=handleDart;});
+  const isBotTurnDC=!!botConfig&&turn===1;
+  useEffect(()=>{
+    if(!botConfig||turn!==1)return;
+    const acc=botConfig.hitAcc*0.65; // bull is harder than average target
+    const mk=():Dart=>{
+      if(Math.random()>acc)return{segment:0,multiplier:1,value:0,label:"Miss"};
+      return Math.random()<0.4?{segment:25,multiplier:2,value:50,label:"DB"}:{segment:25,multiplier:1,value:25,label:"Bull"};
+    };
+    const t1=setTimeout(()=>handleDartRefDC.current(mk()),700);
+    const t2=setTimeout(()=>handleDartRefDC.current(mk()),1400);
+    const t3=setTimeout(()=>handleDartRefDC.current(mk()),2100);
+    return()=>{clearTimeout(t1);clearTimeout(t2);clearTimeout(t3);};
+  },[turn,botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider"/>
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Dead Centre</h2>
+          <p className="text-xs" style={{color:"rgba(255,255,255,0.3)"}}>Hit Bull (25 or 50) every dart or score RESETS to 0. Race to {target}.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i=><PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} sub={`${target-scores[i]} to go`}/>)}
+        </div>
+        {msg&&<div className="text-center font-bold text-sm" style={{color:"#ff005c",fontFamily:"Oswald,sans-serif"}}>{msg}</div>}
+        {isBotTurnDC?<TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…"/>:<TurnBanner name={names[turn]} turn={turn} msg="— aim at Bull only!"/>}
+        {visitDarts.length>0&&<div className="text-center text-sm" style={{color:"rgba(255,255,255,0.4)",fontFamily:"Oswald,sans-serif"}}>This visit: +{visitPts}{busted?" 💥 BUSTED":""}</div>}
+        <VisitDarts darts={visitDarts}/>
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+          onUndo={()=>visitDarts.length>0&&setVisitDarts(p=>p.slice(0,-1))} highlightSegments={[25]} disabled={isBotTurnDC}/>
+        <AbandonBtn onAbandon={onAbandon}/>
+      </div>}
+    />
   );
 }

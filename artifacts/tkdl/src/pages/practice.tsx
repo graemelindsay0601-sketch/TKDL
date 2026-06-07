@@ -707,8 +707,8 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
         body.p2CheckoutAttempts = stats.p2CheckoutAttempts;
         body.p2CheckoutHits     = stats.p2CheckoutHits;
       }
-      // Store dart logs in session_data JSONB
-      const sd: Record<string, unknown> = {};
+      // Store dart logs + game-specific session data in session_data JSONB
+      const sd: Record<string, unknown> = { ...stats.sessionData };
       if (stats.dartLog?.length)   sd.dartLog   = stats.dartLog;
       if (stats.p2DartLog?.length) sd.p2DartLog = stats.p2DartLog;
       if (Object.keys(sd).length)  body.sessionData = sd;
