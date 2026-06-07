@@ -793,33 +793,9 @@ export default function Practice() {
   }
 
   if (phase === "playing" && setupData) {
-    const botColor = setupData.botColor ?? "#a78bfa";
-    const p2Name   = setupData.botName ?? setupData.p2?.name ?? "CPU";
+    const p2Name = setupData.botName ?? setupData.p2?.name ?? "CPU";
     return (
-      <div className="max-w-lg mx-auto">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-2 h-2 rounded-full" style={{ background: "#a78bfa" }} />
-          <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
-            PRACTICE · {setupData.gameType.name}
-          </span>
-        </div>
-        {/* Bot info banner */}
-        {setupData.solo && setupData.botName && (
-          <div className="mb-3 flex items-center gap-3 px-3 py-2 rounded-lg"
-            style={{ background: `${botColor}0e`, border: `1px solid ${botColor}33` }}>
-            {setupData.botFlag
-              ? <span className="text-xl leading-none">{setupData.botFlag}</span>
-              : <Cpu className="w-5 h-5 shrink-0" style={{ color: botColor }} />}
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold" style={{ color: botColor, fontFamily: "Oswald, sans-serif" }}>
-                {setupData.botName}
-              </div>
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
-                {setupData.botSubtitle} · CPU auto-plays
-              </div>
-            </div>
-          </div>
-        )}
+      <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "#04040a" }}>
         <GameScorer
           p1Name={setupData.p1.name}
           p2Name={p2Name}

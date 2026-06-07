@@ -7,7 +7,7 @@ const router = Router();
 
 const SessionBody = z.object({
   player1Id:             z.number().int().positive().optional(),
-  player2Id:             z.number().int().positive().optional(),
+  player2Id:             z.number().int().positive().nullish(),
   gameTypeKey:           z.string(),
   gameTypeName:          z.string(),
   winnerIdx:             z.number().int().min(0).max(1).nullable().optional(),
@@ -460,7 +460,8 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
 
     const coHits     = Number(coQ.rows[0]?.co_hits ?? 0);
     const coAttempts = Number(coQ.rows[0]?.co_attempts ?? 0);
-    const doubleHitPct = coAttempts > 0 ? Math.round((coHits / coAttempts) * 100) / 100 : 0.22;
+    const rawDoubleHitPct = coAttempts > 0 ? Math.round((coHits / coAttempts) * 100) / 100 : 0.22;
+    const doubleHitPct = Math.max(0.08, rawDoubleHitPct);
 
     const totalScore       = Number(avgQ.rows[0]?.total_score ?? 0);
     const totalPracticeDarts = Number(avgQ.rows[0]?.total_darts ?? 0);
