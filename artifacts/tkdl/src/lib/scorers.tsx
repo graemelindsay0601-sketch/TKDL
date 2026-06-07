@@ -134,7 +134,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
   return (
     <div style={{
       height: "100dvh", display: "flex", flexDirection: "column",
-      overflow: "hidden", padding: "0 0.5rem",
+      maxWidth: "480px", margin: "0 auto", overflow: "hidden", padding: "0 0.5rem",
     }}>
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0, paddingTop: "0.5rem" }}>{top}</div>
       <div style={{ flexShrink: 0, paddingBottom: "0.5rem" }}>{bot}</div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useListPlayers } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users, Ghost } from "lucide-react";
@@ -794,8 +795,8 @@ export default function Practice() {
 
   if (phase === "playing" && setupData) {
     const p2Name = setupData.botName ?? setupData.p2?.name ?? "CPU";
-    return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "#04040a" }}>
+    return createPortal(
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#04040a" }}>
         <GameScorer
           p1Name={setupData.p1.name}
           p2Name={p2Name}
@@ -808,7 +809,8 @@ export default function Practice() {
           onAbandon={() => setPhase("setup")}
           onPracticeStats={s => setPracticeStats(s)}
         />
-      </div>
+      </div>,
+      document.body
     );
   }
 

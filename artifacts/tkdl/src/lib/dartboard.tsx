@@ -102,7 +102,7 @@ export function DartInputBoard({
         title={label}
         style={{
           flex: 1,
-          padding: "0.5rem 0",
+          padding: "0.65rem 0",
           border: "none",
           borderRadius: "0.3rem",
           background: active ? bg : "transparent",
@@ -158,22 +158,6 @@ export function DartInputBoard({
 
   return (
     <div style={{ opacity: disabled ? 0.45 : 1, pointerEvents: disabled ? "none" : undefined, userSelect: "none" }}>
-
-      {/* Multiplier legend */}
-      <div style={{
-        display: "flex",
-        gap: "0.75rem",
-        justifyContent: "center",
-        marginBottom: "0.4rem",
-        fontSize: "0.6rem",
-        fontFamily: "Oswald, sans-serif",
-        color: "rgba(255,255,255,0.3)",
-        letterSpacing: "0.08em",
-      }}>
-        <span style={{ color: "rgba(255,255,255,0.55)" }}>S = Single</span>
-        <span style={{ color: "#38bdf8" }}>D = Double</span>
-        <span style={{ color: "#ff6b9d" }}>T = Treble</span>
-      </div>
 
       {/* 5-column number grid, 20 down to 1 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "0.25rem", marginBottom: "0.35rem" }}>
