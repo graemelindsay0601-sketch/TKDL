@@ -749,6 +749,95 @@ export default function PlayerDetail() {
               </div>
             )}
 
+            {/* ── By Game Mode ─────────────────────────────────────────── */}
+            {Array.isArray(practiceAgg.byGame) && practiceAgg.byGame.length > 0 && (() => {
+              const GAME_ICONS: Record<string, string> = {
+                x01: "⚡", "501": "⚡", "301": "🎯", "1001": "🌠", "2001": "🌌",
+                cricket: "🦗", killer: "💀", golf_darts: "⛳", golf: "⛳",
+                football_darts: "⚽", football: "⚽", sequence: "🔢",
+                halve_it: "✂️", count_up: "📈", around_the_world: "🌍",
+                shanghai: "🐉", bull_finish: "🎪", bob_27: "🎳",
+                chase_the_dragon: "🐲", snooker_darts: "🎱", baseball: "⚾",
+                scram: "💨", three_in_a_bed: "🛏️", nearest_the_bull: "🎯",
+                jdc_challenge_41: "🏆", exponential_bundle: "🔥",
+                shooting_gallery: "🎠", dead_centre: "💀",
+                checkout_challenge: "✅", fives: "5️⃣",
+              };
+              const icon = (key: string) => {
+                const lower = key.toLowerCase();
+                for (const [k, v] of Object.entries(GAME_ICONS)) {
+                  if (lower.includes(k)) return v;
+                }
+                return "🎯";
+              };
+              return (
+                <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                  <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                    <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", fontSize: "0.55rem" }}>
+                      By Game Mode
+                    </span>
+                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.58rem" }}>
+                      {practiceAgg.byGame.length} mode{practiceAgg.byGame.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                    {practiceAgg.byGame.map((g: any) => {
+                      const wins    = Number(g.wins ?? 0);
+                      const losses  = Number(g.losses ?? 0);
+                      const total   = Number(g.sessions ?? 0);
+                      const hasWL   = wins + losses > 0;
+                      const avg     = g.avg_three_dart != null ? Number(g.avg_three_dart).toFixed(1) : null;
+                      const s180s   = Number(g.total_180s ?? 0);
+                      const lastPlayed = g.last_played ? format(new Date(g.last_played), "d MMM") : null;
+                      const winRate = hasWL ? Math.round((wins / (wins + losses)) * 100) : null;
+                      return (
+                        <div key={g.game_type_key} className="px-4 py-2.5 flex items-center gap-3 hover:bg-white/[0.02] transition-colors">
+                          <span className="text-base shrink-0 w-6 text-center">{icon(g.game_type_key)}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.8)" }}>
+                                {g.game_type_name}
+                              </span>
+                              {avg && (
+                                <span className="text-xs font-mono" style={{ color: "#a78bfa" }}>{avg} avg</span>
+                              )}
+                              {s180s > 0 && (
+                                <span className="text-xs font-bold" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>{s180s}×180</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 mt-0.5">
+                              <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", fontSize: "0.62rem" }}>
+                                {total} session{total !== 1 ? "s" : ""}
+                              </span>
+                              {hasWL && (
+                                <span className="text-xs font-bold" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", color: winRate! >= 50 ? "#22c55e" : "#ff005c" }}>
+                                  {wins}W–{losses}L · {winRate}%
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {/* Win rate bar */}
+                          {hasWL && (
+                            <div className="shrink-0 w-16">
+                              <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                                <div className="h-full rounded-full transition-all"
+                                  style={{ width: `${winRate}%`, background: winRate! >= 50 ? "#22c55e" : "#ff005c" }} />
+                              </div>
+                            </div>
+                          )}
+                          {lastPlayed && (
+                            <span className="text-xs shrink-0" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", fontSize: "0.58rem" }}>
+                              {lastPlayed}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             {practiceSessions.length > 0 && (
               <div>
                 <div className="px-4 py-2 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
@@ -797,7 +886,7 @@ export default function PlayerDetail() {
           <div className="px-4 py-10 text-center">
             <Dumbbell className="w-8 h-8 mx-auto mb-3 opacity-10" style={{ color: "#a78bfa" }} />
             <p className="text-sm" style={{ color: "rgba(255,255,255,0.2)" }}>No practice sessions yet</p>
-            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.1)" }}>Play some X01 practice matches to start tracking stats</p>
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.1)" }}>Complete a practice game to start tracking stats</p>
           </div>
         )}
       </div>

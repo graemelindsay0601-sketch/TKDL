@@ -157,10 +157,40 @@ router.get("/players/:id/practice-stats", async (req, res): Promise<void> => {
       FROM visit_scores vs, first9 f
     `)).rows;
 
+    // Per-game-mode breakdown — union P1 and P2 perspectives
+    const byGame = (await db.execute(sql`
+      WITH all_sessions AS (
+        SELECT game_type_key, game_type_name,
+          CASE WHEN winner_idx IS NOT NULL THEN (winner_idx = 0) ELSE NULL END AS won,
+          p1_darts AS darts, p1_score AS score, p1_180s AS s180s, created_at
+        FROM practice_sessions WHERE player1_id = ${playerId}
+        UNION ALL
+        SELECT game_type_key, game_type_name,
+          CASE WHEN winner_idx IS NOT NULL THEN (winner_idx = 1) ELSE NULL END AS won,
+          p2_darts AS darts, p2_score AS score, p2_180s AS s180s, created_at
+        FROM practice_sessions WHERE player2_id = ${playerId} AND p2_darts IS NOT NULL
+      )
+      SELECT
+        game_type_key,
+        game_type_name,
+        COUNT(*)::int                                                            AS sessions,
+        COUNT(CASE WHEN won = true  THEN 1 END)::int                           AS wins,
+        COUNT(CASE WHEN won = false THEN 1 END)::int                           AS losses,
+        CASE WHEN SUM(darts) > 0
+          THEN ROUND(CAST(SUM(score) AS NUMERIC) * 3.0 / SUM(darts), 1)
+          ELSE NULL END                                                          AS avg_three_dart,
+        COALESCE(SUM(s180s), 0)::int                                            AS total_180s,
+        MAX(created_at)                                                          AS last_played
+      FROM all_sessions
+      GROUP BY game_type_key, game_type_name
+      ORDER BY sessions DESC
+    `)).rows;
+
     res.json({
       ...agg,
       best_session_avg: best?.session_avg ?? null,
       visit_stats: visitStats ?? null,
+      byGame,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get player practice stats");
