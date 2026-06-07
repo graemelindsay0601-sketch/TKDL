@@ -796,7 +796,13 @@ export default function Practice() {
   if (phase === "playing" && setupData) {
     const p2Name = setupData.botName ?? setupData.p2?.name ?? "CPU";
     return createPortal(
-      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#04040a" }}>
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "#04040a",
+        backgroundImage: "radial-gradient(circle at top right, rgba(255,0,60,0.07), transparent 35%), radial-gradient(circle at bottom left, rgba(0,102,255,0.07), transparent 35%)",
+      }}>
+        <div className="ambient-blob-red" />
+        <div className="ambient-blob-blue" />
         <GameScorer
           p1Name={setupData.p1.name}
           p2Name={p2Name}

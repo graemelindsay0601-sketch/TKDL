@@ -10,6 +10,7 @@ export const gameTypesTable = pgTable("game_types", {
   config:      text("config").notNull().default("{}"),
   enabled:     boolean("enabled").notNull().default(true),
   sortOrder:   integer("sort_order").notNull().default(0),
+  rulesText:   text("rules_text"),
   createdAt:   timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt:   timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
