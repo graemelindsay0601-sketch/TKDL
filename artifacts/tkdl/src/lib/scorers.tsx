@@ -28,6 +28,19 @@ function useFullscreen() {
   return { fs, toggle, enter };
 }
 
+function useOrientation() {
+  const [landscape, setLandscape] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(orientation: landscape)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(orientation: landscape)");
+    const handler = (e: MediaQueryListEvent) => setLandscape(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return landscape;
+}
+
 // ── Shared chrome ─────────────────────────────────────────────────────────────
 const P_COLOR = (i: number) => i === 0 ? "#22c55e" : "#ee0a78";
 
@@ -129,8 +142,32 @@ function SectionCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Full-height no-scroll layout: scrollable top section + sticky bottom (DartInputBoard) */
+/** Full-height layout: portrait = top/bottom stack; landscape = left/right split */
 function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode }) {
+  const landscape = useOrientation();
+
+  if (landscape) {
+    return (
+      <div style={{
+        height: "100dvh", display: "flex", flexDirection: "row", overflow: "hidden",
+      }}>
+        {/* Left: scores / info — scrollable */}
+        <div style={{
+          flex: "0 0 44%", overflowY: "auto", padding: "0.5rem 0.75rem",
+          borderRight: "1px solid rgba(255,255,255,0.06)",
+        }}>
+          {top}
+        </div>
+        {/* Right: input board — scrollable so nothing is clipped on short screens */}
+        <div style={{
+          flex: 1, overflowY: "auto", padding: "0.5rem 0.75rem",
+        }}>
+          {bot}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       height: "100dvh", display: "flex", flexDirection: "column",
@@ -167,7 +204,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
   const [bust, setBust]             = useState(false);
   const [bustMsg, setBustMsg]       = useState("");
-  const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number }[]>([]);
+  const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number; darts: Dart[] }[]>([]);
 
   const names = [p1Name, p2Name];
 
@@ -343,14 +380,29 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         if (cum === 180) p2StatsRef.current.s180s++;
       }
       setScores(prev => { const n=[...prev] as [number,number]; n[turn] -= cum; return n; });
-      setHistory(h => [...h, { turn, score: cum, left: rem }]);
+      setHistory(h => [...h, { turn, score: cum, left: rem, darts: nv }]);
       setVisitDarts([]);
       setTurn(t => t===0?1:0);
     }
   }, [bust, visitDarts, turn, started, doubleIn, scores, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
-  const handleUndo = () => { if (!bust && visitDarts.length > 0) setVisitDarts(prev => prev.slice(0,-1)); };
+  const handleUndo = () => {
+    if (bust) return;
+    if (visitDarts.length > 0) {
+      setVisitDarts(prev => prev.slice(0, -1));
+    } else if (history.length > 0) {
+      const last = history[history.length - 1];
+      setHistory(prev => prev.slice(0, -1));
+      setScores(prev => {
+        const n = [...prev] as [number, number];
+        n[last.turn] = last.left + last.score;
+        return n;
+      });
+      setTurn(last.turn);
+      setVisitDarts(last.darts);
+    }
+  };
 
   const handleDartRef = useRef(handleDart);
   useEffect(() => { handleDartRef.current = handleDart; });
