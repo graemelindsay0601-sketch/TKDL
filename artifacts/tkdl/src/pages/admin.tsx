@@ -771,31 +771,63 @@ function GameTypesManager() {
   );
 }
 
-function TourDataWipe({ players }: { players: { id: number; name: string; isActive: boolean }[] }) {
-  const [selectedId, setSelectedId] = useState<string>("");
-  const [isWiping, setIsWiping]     = useState(false);
+function TourDataManager({ players }: { players: { id: number; name: string; isActive: boolean }[] }) {
+  const [selectedId, setSelectedId]   = useState<string>("");
+  const [runs, setRuns]               = useState<any[]>([]);
+  const [trophies, setTrophies]       = useState<any[]>([]);
+  const [loading, setLoading]         = useState(false);
+  const [deletingId, setDeletingId]   = useState<string | null>(null);
   const { toast } = useToast();
 
-  const activePlayers = players.filter(p => p.isActive);
-  const selectedName  = activePlayers.find(p => String(p.id) === selectedId)?.name ?? "";
+  useEffect(() => {
+    if (!selectedId) { setRuns([]); setTrophies([]); return; }
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/tour/runs/${selectedId}`).then(r => r.json()),
+      fetch(`/api/tour/trophies/${selectedId}`).then(r => r.json()),
+    ]).then(([runsData, trophiesData]) => {
+      setRuns(Array.isArray(runsData) ? runsData : []);
+      setTrophies(Array.isArray(trophiesData) ? trophiesData : []);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [selectedId]);
 
-  const handleWipe = async () => {
-    if (!selectedId) return;
-    setIsWiping(true);
+  const deleteRun = async (runId: number) => {
+    const key = `run-${runId}`;
+    setDeletingId(key);
     try {
-      const res  = await fetch(`/api/tour/player/${selectedId}`, { method: "DELETE" });
+      const res = await fetch(`/api/tour/runs/${runId}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Delete failed");
-      toast({
-        title: "Tour Data Wiped",
-        description: `${selectedName}: ${data.runsDeleted} runs, ${data.trophiesDeleted} trophies, ${data.achievementsDeleted} achievements removed.`,
-      });
-      setSelectedId("");
+      setRuns(prev => prev.filter(r => r.id !== runId));
+      toast({ title: "Run deleted" });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
-      setIsWiping(false);
+      setDeletingId(null);
     }
+  };
+
+  const deleteTrophy = async (trophyId: number) => {
+    const key = `trophy-${trophyId}`;
+    setDeletingId(key);
+    try {
+      const res = await fetch(`/api/tour/trophies/${trophyId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Delete failed");
+      setTrophies(prev => prev.filter(t => t.id !== trophyId));
+      toast({ title: "Trophy removed" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const statusColor: Record<string, string> = {
+    active:     "#ffd24a",
+    completed:  "#22c55e",
+    eliminated: "#ff005c",
+    abandoned:  "rgba(255,255,255,0.3)",
   };
 
   return (
@@ -803,52 +835,129 @@ function TourDataWipe({ players }: { players: { id: number; name: string; isActi
       <div className="flex items-center gap-2 mb-3">
         <Star className="w-4 h-4" style={{ color: "#c084fc" }} />
         <div>
-          <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#c084fc" }}>Clear Tour Data</h2>
-          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Permanently wipes all tour runs, trophies, and achievements for a player</p>
+          <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#c084fc" }}>Tour Data</h2>
+          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Delete individual tour runs or trophies for a player</p>
         </div>
       </div>
-      <div className="flex flex-col sm:flex-row gap-3 items-start">
-        <select
-          value={selectedId}
-          onChange={e => setSelectedId(e.target.value)}
-          className="flex-1 h-9 rounded px-3 text-sm"
-          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(192,132,252,0.2)", color: selectedId ? "#fff" : "rgba(255,255,255,0.35)", fontFamily: "inherit" }}
-        >
-          <option value="">Select a player…</option>
-          {activePlayers.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
-        </select>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              disabled={!selectedId || isWiping}
-              className="gap-2 font-bold uppercase tracking-wider whitespace-nowrap"
-              style={{ background: "rgba(192,132,252,0.15)", border: "1px solid rgba(192,132,252,0.3)", color: "#c084fc", fontFamily: "Oswald, sans-serif" }}
-            >
-              <Trash2 className="w-4 h-4" />
-              {isWiping ? "Wiping…" : "Clear Data"}
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(192,132,252,0.3)" }}>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2" style={{ color: "#c084fc", fontFamily: "Oswald, sans-serif" }}>
-                <AlertTriangle className="w-5 h-5" /> Wipe Tour Data?
-              </AlertDialogTitle>
-              <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
-                This will permanently delete all tour runs, trophies, and tour achievements for <strong style={{ color: "#fff" }}>{selectedName}</strong>. This cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleWipe}
-                style={{ background: "#c084fc", color: "#000", border: "none", fontWeight: "bold" }}
-              >
-                Yes, Wipe All
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
+
+      <select
+        value={selectedId}
+        onChange={e => setSelectedId(e.target.value)}
+        className="w-full h-9 rounded px-3 text-sm mb-4"
+        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(192,132,252,0.2)", color: selectedId ? "#fff" : "rgba(255,255,255,0.35)", fontFamily: "inherit" }}
+      >
+        <option value="">Select a player…</option>
+        {players.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+      </select>
+
+      {loading && <p className="text-xs text-center py-4" style={{ color: "rgba(255,255,255,0.3)" }}>Loading…</p>}
+
+      {!loading && selectedId && (
+        <div className="space-y-4">
+          {/* Runs */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "rgba(192,132,252,0.6)", fontFamily: "Oswald, sans-serif" }}>
+              Tour Runs ({runs.length})
+            </p>
+            {runs.length === 0
+              ? <p className="text-xs py-2" style={{ color: "rgba(255,255,255,0.25)" }}>No runs found</p>
+              : <div className="space-y-1">
+                  {runs.map(r => (
+                    <div key={r.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-base leading-none">{r.emoji ?? "🎯"}</span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold truncate" style={{ color: "#fff" }}>{r.tour_name}</p>
+                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{r.difficulty} · {r.format}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs font-bold uppercase" style={{ color: statusColor[r.status] ?? "rgba(255,255,255,0.4)" }}>{r.status}</span>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <button
+                              disabled={deletingId === `run-${r.id}`}
+                              className="p-1 rounded hover:bg-red-900/30 transition-colors"
+                              style={{ color: "rgba(255,0,92,0.6)" }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(255,0,92,0.3)" }}>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle className="flex items-center gap-2" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+                                <AlertTriangle className="w-5 h-5" /> Delete Run?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
+                                Delete the <strong style={{ color: "#fff" }}>{r.difficulty}</strong> run for <strong style={{ color: "#fff" }}>{r.tour_name}</strong>? This cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteRun(r.id)} style={{ background: "#ff005c", color: "#fff", border: "none", fontWeight: "bold" }}>
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+            }
+          </div>
+
+          {/* Trophies */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "rgba(192,132,252,0.6)", fontFamily: "Oswald, sans-serif" }}>
+              Trophies ({trophies.length})
+            </p>
+            {trophies.length === 0
+              ? <p className="text-xs py-2" style={{ color: "rgba(255,255,255,0.25)" }}>No trophies found</p>
+              : <div className="space-y-1">
+                  {trophies.map(t => (
+                    <div key={t.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-base leading-none">{t.emoji ?? "🏆"}</span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold truncate" style={{ color: "#fff" }}>{t.tour_name}</p>
+                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{t.difficulty} · {t.gamerscore}G</p>
+                        </div>
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button
+                            disabled={deletingId === `trophy-${t.id}`}
+                            className="p-1 rounded hover:bg-red-900/30 transition-colors"
+                            style={{ color: "rgba(255,0,92,0.6)" }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(255,0,92,0.3)" }}>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="flex items-center gap-2" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+                              <AlertTriangle className="w-5 h-5" /> Remove Trophy?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
+                              Remove the <strong style={{ color: "#fff" }}>{t.difficulty}</strong> trophy for <strong style={{ color: "#fff" }}>{t.tour_name}</strong>? This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteTrophy(t.id)} style={{ background: "#ff005c", color: "#fff", border: "none", fontWeight: "bold" }}>
+                              Remove
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  ))}
+                </div>
+            }
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1013,8 +1122,8 @@ export default function Admin() {
         </div>
       </div>
 
-      {/* Tour data wipe */}
-      <TourDataWipe players={players ?? []} />
+      {/* Tour data manager */}
+      <TourDataManager players={players ?? []} />
 
       {/* Achievement sweep */}
       <div className="pdc-card p-5" style={{ borderColor: "rgba(0,102,255,0.2)", background: "rgba(0,102,255,0.02)" }}>
