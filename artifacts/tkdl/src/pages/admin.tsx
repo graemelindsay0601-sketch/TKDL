@@ -841,7 +841,7 @@ export default function Admin() {
   const handleSweepAchievements = async () => {
     setIsSweeping(true);
     try {
-      const res = await fetch("/api/admin/sweep-achievements", { method: "POST" });
+      const res = await fetch("/api/admin/achievement-sweep", { method: "POST" });
       const data = await res.json();
       toast({ title: "Achievement Sweep Complete", description: `${data.totalGranted} achievements granted across ${data.playersChecked} players.` });
     } catch (e: any) {

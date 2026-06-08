@@ -265,7 +265,6 @@ export default function PlayerDetail() {
   const [gameSessionsLoading, setGameSessionsLoading] = useState<Record<string, boolean>>({});
   const [gamerscore, setGamerscore] = useState<{ total: number; league: number; shadowBot: number; tourTrophies: number; tourAchievements: number } | null>(null);
   const [shadowAchs, setShadowAchs] = useState<any[]>([]);
-  const [shadowAchsLoaded, setShadowAchsLoaded] = useState(false);
   const [tourTrophies, setTourTrophies] = useState<any[]>([]);
 
   const toggleGame = (key: string) => {
@@ -302,12 +301,11 @@ export default function PlayerDetail() {
   }, [playerId]);
 
   useEffect(() => {
-    if (profileTab !== "shadowbot" || shadowAchsLoaded || !playerId) return;
-    setShadowAchsLoaded(true);
+    if (!playerId) return;
     fetch(`/api/players/${playerId}/shadow-achievements`)
       .then(r => r.json()).then(d => setShadowAchs(Array.isArray(d) ? d : []))
       .catch(() => {});
-  }, [profileTab, shadowAchsLoaded, playerId]);
+  }, [playerId]);
 
   if (isLoading) {
     return (
@@ -328,10 +326,20 @@ export default function PlayerDetail() {
 
   const totalGames = player.careerGamesPlayed ?? 0;
   const winRate = totalGames > 0 ? Math.round(((player.careerWins ?? 0) / totalGames) * 100) : 0;
-  const unlockedCount = achProgress.filter(a => a.isUnlocked).length;
-  const closeCount = achProgress.filter(a => !a.isUnlocked && (a.progressPct ?? 0) >= 50).length;
+  const normalizedBotAchs = shadowAchs.map((a: any) => ({
+    ...a,
+    id: `bot_${a.key}`,
+    isUnlocked: a.unlocked,
+    currentProgress: a.currentValue,
+    hidden: false,
+    category: "Shadow Bot",
+  }));
+  const allAchievements = [...achProgress, ...normalizedBotAchs];
 
-  const filteredAch = achProgress.filter(a => {
+  const unlockedCount = allAchievements.filter(a => a.isUnlocked).length;
+  const closeCount = allAchievements.filter(a => !a.isUnlocked && (a.progressPct ?? 0) >= 50).length;
+
+  const filteredAch = allAchievements.filter(a => {
     if (achFilter === "unlocked") return a.isUnlocked;
     if (achFilter === "locked") return !a.isUnlocked && !a.hidden;
     if (achFilter === "close") return !a.isUnlocked && (a.progressPct ?? 0) >= 50;

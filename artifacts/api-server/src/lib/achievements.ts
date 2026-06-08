@@ -4,6 +4,7 @@ import { eq, and, count, sql, or } from "drizzle-orm";
 import { logger } from "./logger";
 import { PRACTICE_ACHIEVEMENT_DEFINITIONS, checkPracticeAchievements } from "./practice-achievements";
 import { FORMAT_AND_MEME_ACHIEVEMENT_DEFINITIONS } from "./format-and-meme-achievements";
+import { checkAndAwardShadowBotAchievements } from "./shadow-bot-achievements";
 
 export type AchievementDef = {
   key: string;
@@ -322,6 +323,12 @@ export async function retroactiveSweep(): Promise<{ granted: number; playersChec
 
     const after  = (await db.select({ id: playerAchievementsTable.id }).from(playerAchievementsTable).where(eq(playerAchievementsTable.playerId, pid))).length;
     totalGranted += after - before;
+
+    // ── 4. Shadow bot achievements (practice-based) ──────────────────────────
+    const botBefore = (await db.execute(sql`SELECT id FROM shadow_bot_achievements WHERE player_id = ${pid}`)).rows.length;
+    await checkAndAwardShadowBotAchievements(pid);
+    const botAfter  = (await db.execute(sql`SELECT id FROM shadow_bot_achievements WHERE player_id = ${pid}`)).rows.length;
+    totalGranted += botAfter - botBefore;
   }
 
   return { granted: totalGranted, playersChecked: players.length };
