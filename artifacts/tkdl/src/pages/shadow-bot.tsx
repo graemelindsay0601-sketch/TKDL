@@ -141,16 +141,19 @@ export default function ShadowBot() {
           </div>
 
           <p className="text-sm leading-relaxed mb-6 max-w-xl" style={{ color: "rgba(255,255,255,0.45)" }}>
-            Every dart you throw in practice trains your personal AI alter-ego. It learns your accuracy, your favourite
-            targets, how you finish — and levels up as you improve. Max it out, earn exclusive gamerscore, and prove
-            your Shadow Bot is the best in the league.
+            Your Shadow Bot is a{" "}
+            <span style={{ color: "rgba(255,255,255,0.78)", fontWeight: 600 }}>live estimate of your current form</span>
+            {" "}— not a career average and not a permanent rank. Recent sessions are weighted
+            far more heavily than old ones, so the form band genuinely rises when you're playing
+            well <span style={{ color: "rgba(255,255,255,0.6)" }}>and drops when you're not.</span>{" "}
+            Log darts regularly to keep the reading sharp.
           </p>
 
-          {/* Level progression strip */}
+          {/* Form band strip */}
           <div className="mb-6">
             <div className="text-xs font-black uppercase tracking-widest mb-3"
               style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.18)", letterSpacing: "0.15em" }}>
-              Level Progression — activate at 250 darts
+              Live Form Bands — 250 darts to activate · moves up and down with recent play
             </div>
             <div className="flex items-start gap-0">
               {LEVEL_STEPS.map((step, i) => (
@@ -185,7 +188,7 @@ export default function ShadowBot() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               { icon: Dumbbell,   color: "#a78bfa", title: "Log Darts",      desc: "Play any practice game to feed your bot data"       },
-              { icon: TrendingUp, color: "#22c55e", title: "Level Up",        desc: "Hit 45+ avg to activate, then grind to Elite"      },
+              { icon: TrendingUp, color: "#22c55e", title: "Live Form Band",   desc: "Rises when you play well, drops when you don't — no permanent ranks" },
               { icon: Star,       color: "#ffd24a", title: `${TOTAL_BOT_GAMERSCORE}G Available`, desc: "17 exclusive bot achievements to unlock"  },
               { icon: Trophy,     color: "#ff005c", title: "Compete",         desc: "Compare your bot rank against the whole league"    },
             ].map(({ icon: Icon, color, title, desc }) => (
