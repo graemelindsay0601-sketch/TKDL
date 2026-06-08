@@ -518,7 +518,7 @@ components:
 
     HeadToHead:
       type: object
-      required: [opponentId, opponentName, wins, losses]
+      required: [opponentId, opponentName, wins, losses, matches]
       properties:
         opponentId:
           type: integer
@@ -528,6 +528,28 @@ components:
           type: integer
         losses:
           type: integer
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/H2HMatch"
+
+    H2HMatch:
+      type: object
+      required: [id, playedAt, isWin, eloChange, stake, gameType]
+      properties:
+        id:
+          type: integer
+        playedAt:
+          type: string
+          format: date-time
+        isWin:
+          type: boolean
+        eloChange:
+          type: integer
+        stake:
+          type: integer
+        gameType:
+          type: string
 
     PlayerIdentity:
       type: object

@@ -5,10 +5,12 @@
  * TKDL – Tesco Kilbirnie Darts League API
  * OpenAPI spec version: 0.2.0
  */
+import type { H2HMatch } from './h2HMatch';
 
 export interface HeadToHead {
   opponentId: number;
   opponentName: string;
   wins: number;
   losses: number;
+  matches: H2HMatch[];
 }

@@ -9,6 +9,7 @@
 export * from './achievement';
 export * from './activityItem';
 export * from './careerLeader';
+export * from './h2HMatch';
 export * from './headToHead';
 export * from './healthStatus';
 export * from './leaderboardEntry';

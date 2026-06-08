@@ -236,6 +236,7 @@ export default function PlayerDetail() {
   const [openPractice, setOpenPractice] = useState(false);
   const [openSeasonHistory, setOpenSeasonHistory] = useState(true);
   const [openAchievements, setOpenAchievements] = useState(true);
+  const [expandedH2H, setExpandedH2H] = useState<number | null>(null);
 
   const { data: stats, isLoading } = useGetPlayerStats(playerId, {
     query: { enabled: !!playerId, queryKey: getGetPlayerStatsQueryKey(playerId) },
@@ -580,27 +581,92 @@ export default function PlayerDetail() {
               const winPct = total > 0 ? Math.round((h.wins / total) * 100) : 0;
               const dominant = winPct >= 65;
               const struggling = winPct <= 35;
+              const isExpanded = expandedH2H === h.opponentId;
+              const barColor = dominant ? "#22c55e" : struggling ? "#ff005c" : "#0066ff";
               return (
-                <div key={h.opponentId}
-                  className="px-4 py-3 flex items-center gap-3 border-b hover:bg-white/[0.02] transition-colors"
-                  style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-                  <Link href={`/players/${h.opponentId}`} className="text-sm font-bold hover:underline shrink-0 w-20 truncate"
-                    style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.65)" }}>
-                    {h.opponentName}
-                  </Link>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-xs font-mono w-5 text-right" style={{ color: "#22c55e" }}>{h.wins}W</span>
-                      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                        <div className="h-full rounded-full" style={{ width: `${winPct}%`, background: dominant ? "#22c55e" : struggling ? "#ff005c" : "#0066ff" }} />
+                <div key={h.opponentId} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  {/* Summary row — clickable */}
+                  <button
+                    onClick={() => setExpandedH2H(isExpanded ? null : h.opponentId)}
+                    className="w-full px-4 py-3 flex items-center gap-3 hover:bg-white/[0.02] transition-colors text-left"
+                    style={{ background: isExpanded ? "rgba(255,255,255,0.025)" : undefined }}>
+                    <span className="text-sm font-bold shrink-0 w-20 truncate"
+                      style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.65)" }}>
+                      {h.opponentName}
+                    </span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono w-5 text-right" style={{ color: "#22c55e" }}>{h.wins}W</span>
+                        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                          <div className="h-full rounded-full transition-all" style={{ width: `${winPct}%`, background: barColor }} />
+                        </div>
+                        <span className="text-xs font-mono w-5" style={{ color: "#ff005c" }}>{h.losses}L</span>
                       </div>
-                      <span className="text-xs font-mono w-5" style={{ color: "#ff005c" }}>{h.losses}L</span>
                     </div>
-                  </div>
-                  <div className="text-xs font-bold w-8 text-right shrink-0"
-                    style={{ fontFamily: "Oswald, sans-serif", color: dominant ? "#22c55e" : struggling ? "#ff005c" : "rgba(255,255,255,0.35)" }}>
-                    {winPct}%
-                  </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs font-bold w-8 text-right"
+                        style={{ fontFamily: "Oswald, sans-serif", color: dominant ? "#22c55e" : struggling ? "#ff005c" : "rgba(255,255,255,0.35)" }}>
+                        {winPct}%
+                      </span>
+                      <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200"
+                        style={{ color: "rgba(255,255,255,0.2)", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }} />
+                    </div>
+                  </button>
+
+                  {/* Expanded match timeline */}
+                  {isExpanded && (
+                    <div style={{ background: "rgba(255,255,255,0.015)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                      {/* Rival header */}
+                      <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+                        <Link href={`/players/${h.opponentId}`}
+                          className="text-xs font-bold uppercase tracking-widest hover:underline"
+                          style={{ fontFamily: "Oswald, sans-serif", color: barColor, letterSpacing: "0.1em" }}
+                          onClick={e => e.stopPropagation()}>
+                          vs {h.opponentName} →
+                        </Link>
+                        <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
+                          {total} match{total !== 1 ? "es" : ""}
+                        </span>
+                      </div>
+                      {/* Match rows */}
+                      {h.matches.slice(0, 10).map((m: any) => (
+                        <div key={m.id}
+                          className="px-4 py-2 flex items-center gap-3 border-t"
+                          style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                          <div className="w-1 h-6 rounded-full shrink-0" style={{ background: m.isWin ? "#22c55e" : "#ff005c" }} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black uppercase"
+                                style={{ fontFamily: "Oswald, sans-serif", color: m.isWin ? "#22c55e" : "#ff005c", fontSize: "0.6rem" }}>
+                                {m.isWin ? "WIN" : "LOSS"}
+                              </span>
+                              <span className="text-xs truncate" style={{ color: "rgba(255,255,255,0.35)", fontStyle: "italic" }}>
+                                {m.gameType}
+                              </span>
+                            </div>
+                            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>
+                              {format(new Date(m.playedAt), "d MMM yy")}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            {m.stake > 0 && (
+                              <div className="text-xs font-bold" style={{ fontFamily: "Oswald, sans-serif", color: m.isWin ? "#22c55e" : "#ff005c" }}>
+                                {m.isWin ? "+" : "-"}{m.stake}pts
+                              </div>
+                            )}
+                            <div className="text-xs font-mono" style={{ color: "rgba(0,102,255,0.6)" }}>
+                              {m.isWin ? "+" : "-"}{m.eloChange} ELO
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {h.matches.length > 10 && (
+                        <div className="px-4 py-2 text-xs text-center" style={{ color: "rgba(255,255,255,0.15)" }}>
+                          + {h.matches.length - 10} older matches
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

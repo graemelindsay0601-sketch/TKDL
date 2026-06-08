@@ -101,11 +101,21 @@ export interface PlayerAchievement {
   unlockedAt: string;
 }
 
+export interface H2HMatch {
+  id: number;
+  playedAt: string;
+  isWin: boolean;
+  eloChange: number;
+  stake: number;
+  gameType: string;
+}
+
 export interface HeadToHead {
   opponentId: number;
   opponentName: string;
   wins: number;
   losses: number;
+  matches: H2HMatch[];
 }
 
 export interface PlayerIdentity {

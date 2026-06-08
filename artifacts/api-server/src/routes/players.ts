@@ -107,24 +107,36 @@ router.get("/players/:id/stats", async (req, res): Promise<void> => {
 
   // Head-to-head stats
   const allMatches = await db.select().from(matchesTable)
-    .where(or(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, id)));
-  const h2h = new Map<number, { wins: number; losses: number; name: string }>();
+    .where(or(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, id)))
+    .orderBy(matchesTable.playedAt);
+  const h2h = new Map<number, {
+    wins: number; losses: number; name: string;
+    matches: Array<{ id: number; playedAt: Date; isWin: boolean; eloChange: number; stake: number; gameType: string }>;
+  }>();
   const allPlayers = await db.select({ id: playersTable.id, name: playersTable.name }).from(playersTable);
   const nameMap = new Map(allPlayers.map(p => [p.id, p.name]));
 
   for (const m of allMatches) {
     if (m.winnerId === id) {
-      const entry = h2h.get(m.loserId) ?? { wins: 0, losses: 0, name: nameMap.get(m.loserId) ?? "Unknown" };
+      const entry = h2h.get(m.loserId) ?? { wins: 0, losses: 0, name: nameMap.get(m.loserId) ?? "Unknown", matches: [] };
       entry.wins++;
+      entry.matches.push({ id: m.id, playedAt: m.playedAt, isWin: true, eloChange: m.eloChange, stake: m.stake, gameType: m.gameType });
       h2h.set(m.loserId, entry);
     } else {
-      const entry = h2h.get(m.winnerId) ?? { wins: 0, losses: 0, name: nameMap.get(m.winnerId) ?? "Unknown" };
+      const entry = h2h.get(m.winnerId) ?? { wins: 0, losses: 0, name: nameMap.get(m.winnerId) ?? "Unknown", matches: [] };
       entry.losses++;
+      entry.matches.push({ id: m.id, playedAt: m.playedAt, isWin: false, eloChange: m.eloChange, stake: m.stake, gameType: m.gameType });
       h2h.set(m.winnerId, entry);
     }
   }
   const headToHead = [...h2h.entries()]
-    .map(([opponentId, v]) => ({ opponentId, opponentName: v.name, wins: v.wins, losses: v.losses }))
+    .map(([opponentId, v]) => ({
+      opponentId,
+      opponentName: v.name,
+      wins: v.wins,
+      losses: v.losses,
+      matches: [...v.matches].reverse(),
+    }))
     .sort((a, b) => (b.wins + b.losses) - (a.wins + a.losses));
 
   // Identity

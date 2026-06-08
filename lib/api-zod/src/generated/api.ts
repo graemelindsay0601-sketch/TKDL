@@ -215,7 +215,15 @@ export const GetPlayerStatsResponse = zod.object({
   "opponentId": zod.number(),
   "opponentName": zod.string(),
   "wins": zod.number(),
-  "losses": zod.number()
+  "losses": zod.number(),
+  "matches": zod.array(zod.object({
+  "id": zod.number(),
+  "playedAt": zod.coerce.date(),
+  "isWin": zod.boolean(),
+  "eloChange": zod.number(),
+  "stake": zod.number(),
+  "gameType": zod.string()
+}))
 })).optional(),
   "identity": zod.object({
   "archetype": zod.string(),
