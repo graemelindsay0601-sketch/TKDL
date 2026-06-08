@@ -8,7 +8,7 @@ import {
 import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
 import { Link } from "wouter";
-import { Trophy, Swords, Flame, Skull, Zap, Target, AlertTriangle } from "lucide-react";
+import { Trophy, Swords, Flame, Skull, Zap, Target, AlertTriangle, Star, Medal, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 
 function NarrativeCard({ card, idx }: { card: { type: string; headline: string; body: string; tag?: string }; idx: number }) {
@@ -153,6 +153,85 @@ export default function Dashboard() {
             )}
           </div>
         ))}
+      </div>
+
+      {/* ── TOUR MODE + ACHIEVEMENTS TEASERS ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Tour Mode */}
+        <Link href="/tour" style={{ textDecoration: "none" }}>
+          <div className="pdc-card p-4 relative overflow-hidden group transition-all hover:-translate-y-0.5 cursor-pointer h-full"
+            style={{ borderColor: "rgba(255,0,92,0.22)", background: "rgba(255,0,92,0.04)" }}>
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              <div style={{ position: "absolute", top: -50, right: -50, width: 180, height: 180, background: "radial-gradient(circle, rgba(255,0,92,0.2) 0%, transparent 65%)" }} />
+            </div>
+            <div className="relative">
+              <div className="flex items-center gap-2.5 mb-2.5">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(255,0,92,0.15)", border: "1px solid rgba(255,0,92,0.3)" }}>
+                  <Star className="w-4 h-4 fill-current" style={{ color: "#ff005c" }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-black uppercase text-sm leading-tight" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.1em" }}>Tour Mode</div>
+                  <div className="text-xs" style={{ color: "rgba(255,0,92,0.7)", fontFamily: "Oswald, sans-serif" }}>Build Your Legacy</div>
+                </div>
+                <ChevronRight className="w-4 h-4 shrink-0 group-hover:translate-x-1 transition-transform" style={{ color: "rgba(255,0,92,0.5)" }} />
+              </div>
+              <p className="text-xs mb-2.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+                61 events · 6 tiers · 305 trophies · From pub amateur to PDC Major champion.
+              </p>
+              <div className="flex gap-1.5 flex-wrap">
+                {[
+                  { label: "61 Tours",      bg: "rgba(255,0,92,0.1)",   color: "#ff005c" },
+                  { label: "5 Difficulties",bg: "rgba(255,210,74,0.1)", color: "#ffd24a" },
+                  { label: "305 Trophies",  bg: "rgba(192,132,252,0.1)",color: "#c084fc" },
+                ].map(pill => (
+                  <span key={pill.label} className="text-xs px-2 py-0.5 rounded-full font-bold"
+                    style={{ background: pill.bg, color: pill.color, fontFamily: "Oswald, sans-serif" }}>
+                    {pill.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Link>
+
+        {/* Achievements */}
+        <Link href="/achievements" style={{ textDecoration: "none" }}>
+          <div className="pdc-card p-4 relative overflow-hidden group transition-all hover:-translate-y-0.5 cursor-pointer h-full"
+            style={{ borderColor: "rgba(255,210,74,0.18)", background: "rgba(255,210,74,0.03)" }}>
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              <div style={{ position: "absolute", top: -50, right: -50, width: 180, height: 180, background: "radial-gradient(circle, rgba(255,210,74,0.16) 0%, transparent 65%)" }} />
+            </div>
+            <div className="relative">
+              <div className="flex items-center gap-2.5 mb-2.5">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(255,210,74,0.12)", border: "1px solid rgba(255,210,74,0.25)" }}>
+                  <Medal className="w-4 h-4" style={{ color: "#ffd24a" }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-black uppercase text-sm leading-tight" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.1em" }}>Achievements</div>
+                  <div className="text-xs" style={{ color: "rgba(255,210,74,0.7)", fontFamily: "Oswald, sans-serif" }}>Gamerscore System</div>
+                </div>
+                <ChevronRight className="w-4 h-4 shrink-0 group-hover:translate-x-1 transition-transform" style={{ color: "rgba(255,210,74,0.5)" }} />
+              </div>
+              <p className="text-xs mb-2.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+                91 achievements across League, Tour, Shadow Bot &amp; Practice. Every win counts.
+              </p>
+              <div className="flex gap-1.5 flex-wrap">
+                {[
+                  { label: "League",     bg: "rgba(255,0,92,0.1)",   color: "#ff005c" },
+                  { label: "Tour",       bg: "rgba(56,189,248,0.1)", color: "#38bdf8" },
+                  { label: "Shadow Bot", bg: "rgba(167,139,250,0.1)",color: "#a78bfa" },
+                ].map(pill => (
+                  <span key={pill.label} className="text-xs px-2 py-0.5 rounded-full font-bold"
+                    style={{ background: pill.bg, color: pill.color, fontFamily: "Oswald, sans-serif" }}>
+                    {pill.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Link>
       </div>
 
       {/* ── LIVE STORYLINES — horizontal scroll on mobile, grid on md+ ── */}

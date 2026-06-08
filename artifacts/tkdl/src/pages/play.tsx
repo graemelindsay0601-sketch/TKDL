@@ -353,31 +353,26 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
             ))}
           </div>
         )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
-          {tabGames.length === 0 && (
-            <div className="col-span-2 text-center py-8 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
-              {format === "killer-ffa" ? `No Killer game found for ${ffaCount} players` : "No games in this category"}
-            </div>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
-            {tabGames.length === 0
-              ? <div className="col-span-2 text-center py-6 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>No games in this category</div>
-              : tabGames.map(gt => (
-                  <GameCard key={gt.key} gt={gt} selected={selectedGame?.key === gt.key}
-                    onSelect={() => setGame(gt)} onRules={() => setRulesGame(gt)} />
-                ))
-            }
-          </div>
-          {selectedGame && (
-            <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "rgba(255,0,92,0.06)", border: "1px solid rgba(255,0,92,0.2)" }}>
-              <Zap className="w-3.5 h-3.5 shrink-0" style={{ color: "#ff005c" }} />
-              <span className="text-xs font-bold" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>{selectedGame.name}</span>
-              <button onClick={() => setRulesGame(selectedGame)} className="ml-auto" style={{ color: "rgba(255,255,255,0.3)", cursor: "pointer" }}>
-                <Info className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
+          {tabGames.length === 0
+            ? <div className="col-span-2 text-center py-8 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
+                {format === "killer-ffa" ? `No Killer game found for ${ffaCount} players` : "No games in this category"}
+              </div>
+            : tabGames.map(gt => (
+                <GameCard key={gt.key} gt={gt} selected={selectedGame?.key === gt.key}
+                  onSelect={() => setGame(gt)} onRules={() => setRulesGame(gt)} />
+              ))
+          }
         </div>
+        {selectedGame && (
+          <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "rgba(255,0,92,0.06)", border: "1px solid rgba(255,0,92,0.2)" }}>
+            <Zap className="w-3.5 h-3.5 shrink-0" style={{ color: "#ff005c" }} />
+            <span className="text-xs font-bold" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>{selectedGame.name}</span>
+            <button onClick={() => setRulesGame(selectedGame)} className="ml-auto" style={{ color: "rgba(255,255,255,0.3)", cursor: "pointer" }}>
+              <Info className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Start button */}

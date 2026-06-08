@@ -180,7 +180,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 }
 
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
-export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3 }: {
+export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false }: {
   p1Name: string; p2Name: string;
   config: { startingScore: number; doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; noTrebles?: boolean; legs?: number; bustResetTo?: number };
   botConfig?: BotConfig;
@@ -188,7 +188,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   onPracticeStats?: (s: PracticeStats) => void;
   legs?: number;
   setsToWin?: number;
-  legsToWinSet?: number;
+  legsToWinSet?: number; soloMode?: boolean;
 }) {
   const { startingScore = 501, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo } = config;
   const legs = legsProp ?? configLegs;
@@ -227,7 +227,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (bustResetTo !== undefined) {
       setScores(prev => { const n = [...prev] as [number, number]; n[turn] = bustResetTo; return n; });
     }
-    setTimeout(() => { setBust(false); setBustMsg(""); setVisitDarts([]); setTurn(t => t === 0 ? 1 : 0); }, 1500);
+    setTimeout(() => { setBust(false); setBustMsg(""); setVisitDarts([]); setTurn(t => soloMode ? 0 : (t === 0 ? 1 : 0)); }, 1500);
   }, [turn, bustResetTo]);
 
   const handleWin = useCallback((winnerIdx: 0|1, darts: Dart[]) => {
@@ -247,7 +247,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         const ns: 0|1 = legStarter === 0 ? 1 : 0;
         setLegStarter(ns); setScores([startingScore, startingScore]);
         setStarted([!doubleIn, !doubleIn]); setVisitDarts([]);
-        setTurn(ns); setLegWins(newLegState);
+        setTurn(soloMode ? 0 : ns); setLegWins(newLegState);
       }, delay);
     };
 
@@ -312,7 +312,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       const nv: Dart[] = [...visitDarts, { ...dart, value: 0 }];
       if (isDouble) { setStarted(prev => { const n=[...prev] as [boolean,boolean]; n[turn]=true; return n; }); }
       setVisitDarts(nv);
-      if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); }
+      if (nv.length === 3) { setVisitDarts([]); setTurn(t => soloMode ? 0 : (t===0?1:0)); }
       return;
     }
 
@@ -387,7 +387,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       setScores(prev => { const n=[...prev] as [number,number]; n[turn] -= cum; return n; });
       setHistory(h => [...h, { turn, score: cum, left: rem, darts: nv }]);
       setVisitDarts([]);
-      setTurn(t => t===0?1:0);
+      setTurn(t => soloMode ? 0 : (t===0?1:0));
     }
   }, [bust, visitDarts, turn, started, doubleIn, scores, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut, noTrebles]);
 
@@ -509,15 +509,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         </div>
       )}
       {/* Scoreboard */}
-      <div className="grid grid-cols-2 gap-3">
-        {[0,1].map(i => (
+      <div className={soloMode ? "grid grid-cols-1 gap-3 max-w-xs mx-auto w-full" : "grid grid-cols-2 gap-3"}>
+        {([0, ...(soloMode ? [] : [1])] as (0|1)[]).map(i => (
           <PlayerCard key={i} name={names[i]} score={scores[i]}
             turn={i===0} active={turn===i && !bust}
             sub={doubleIn && !started[i] ? "double in required" : undefined} />
         ))}
       </div>
-      {/* Checkout bar — shown for both players when in range */}
-      {[0,1].map(i => {
+      {/* Checkout bar */}
+      {([0, ...(soloMode ? [] : [1])] as (0|1)[]).map(i => {
         const co = (scores[i] <= 170 && scores[i] >= 2 && (!doubleIn || started[i])) ? CHECKOUTS[scores[i]] : undefined;
         if (!co) return null;
         return <CheckoutBar key={i} checkout={co} playerName={names[i]} playerIdx={i as 0|1} />;

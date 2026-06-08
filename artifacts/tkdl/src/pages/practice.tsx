@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useListPlayers } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users, Ghost } from "lucide-react";
+import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users, Ghost, User } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
 import { RulesModal } from "@/components/rules-modal";
 import { MatchStatsCard } from "@/components/match-stats-card";
@@ -29,6 +29,7 @@ type SetupData = {
   p2: Player | null;
   gameType: GameTypeOption;
   solo: boolean;
+  soloPlay?: boolean;
   botName?: string;
   botSubtitle?: string;
   botFlag?: string;
@@ -249,7 +250,7 @@ function ShadowPlayerPicker({ players, profiles, selected, onSelect }: {
 function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const { data: playersData }   = useListPlayers();
   const [gameTypes, setGameTypes] = useState<GameTypeOption[]>([]);
-  const [solo, setSolo]           = useState(false);
+  const [mode, setMode]           = useState<"2p" | "bot" | "solo">("2p");
   const [botMode, setBotMode]     = useState<SoloBotMode>("level");
   const [selectedLevel, setLevel] = useState<number | null>(null);
   const [selectedPersona, setPersona] = useState<BotPersona | null>(null);
@@ -270,11 +271,11 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
 
   const players = (playersData as Player[] | undefined)?.filter(p => p.status === "ACTIVE") ?? [];
   const p1      = players.find(p => p.id === Number(p1Id));
-  const p2      = solo ? null : players.find(p => p.id === Number(p2Id));
+  const p2      = mode === "2p" ? (players.find(p => p.id === Number(p2Id)) ?? null) : null;
 
   // Load shadow profiles when Player Clone tab is selected
   useEffect(() => {
-    if (botMode !== "shadow" || !solo || players.length === 0) return;
+    if (botMode !== "shadow" || mode !== "bot" || players.length === 0) return;
     const needed = players.filter(p => !(p.id in shadowProfiles));
     if (needed.length === 0) return;
     Promise.all(needed.map(p =>
@@ -288,14 +289,18 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         return next;
       });
     });
-  }, [botMode, solo, players.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [botMode, mode, players.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const botReady = solo ? (
+  const botReady = mode === "bot" ? (
     botMode === "level" ? selectedLevel !== null :
     botMode === "pro"   ? selectedPersona !== null :
     /* shadow */          (selectedShadowId !== null && shadowProfiles[selectedShadowId] && !(shadowProfiles[selectedShadowId] as ShadowProfileLocked).locked)
   ) : true;
-  const canStart = !!p1 && !!selectedGame && (solo ? botReady : !!p2 && p1.id !== Number(p2Id));
+  const canStart = !!p1 && !!selectedGame && (
+    mode === "2p" ? (!!p2 && p1.id !== Number(p2Id)) :
+    mode === "bot" ? botReady :
+    true
+  );
 
   const tabGames = gameTypes.filter(g => g.category === tab && g.enabled !== false);
 
@@ -311,7 +316,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
 
   function buildSetupData(): SetupData {
     const fmt = formatProps();
-    if (!solo) return { p1: p1!, p2: p2!, gameType: selectedGame!, solo: false, ...fmt };
+    if (mode === "2p") return { p1: p1!, p2: p2!, gameType: selectedGame!, solo: false, ...fmt };
+    if (mode === "solo") return { p1: p1!, p2: null, gameType: selectedGame!, solo: true, soloPlay: true, ...fmt };
     if (botMode === "level" && selectedLevel !== null) {
       const color = numLevelColor(selectedLevel);
       return {
@@ -378,17 +384,18 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
 
       {/* Mode toggle */}
       <div className="flex gap-2">
-        {[
-          { v: false, l: "2 Players", icon: <Users className="w-4 h-4 shrink-0" /> },
-          { v: true,  l: "Solo vs CPU", icon: <Bot className="w-4 h-4 shrink-0" /> },
-        ].map(({ v, l, icon }) => (
-          <button key={String(v)} onClick={() => setSolo(v)}
+        {([
+          { v: "2p"   as const, l: "2 Players",   icon: <Users className="w-4 h-4 shrink-0" /> },
+          { v: "bot"  as const, l: "Solo vs CPU",  icon: <Bot  className="w-4 h-4 shrink-0" /> },
+          { v: "solo" as const, l: "Solo Play",    icon: <User className="w-4 h-4 shrink-0" /> },
+        ]).map(({ v, l, icon }) => (
+          <button key={v} onClick={() => setMode(v)}
             className="flex-1 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
             style={{
               fontFamily: "Oswald, sans-serif",
-              background: solo === v ? "rgba(167,139,250,0.15)" : "rgba(255,255,255,0.03)",
-              border: solo === v ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.07)",
-              color: solo === v ? "#a78bfa" : "rgba(255,255,255,0.3)",
+              background: mode === v ? "rgba(167,139,250,0.15)" : "rgba(255,255,255,0.03)",
+              border: mode === v ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.07)",
+              color: mode === v ? "#a78bfa" : "rgba(255,255,255,0.3)",
               cursor: "pointer",
             }}>
             {icon}{l}
@@ -399,17 +406,17 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       {/* Player selection */}
       <div>
         <h2 className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
-          {solo ? "Your Name" : "Players"}
+          {mode !== "2p" ? "Your Name" : "Players"}
         </h2>
-        <div className={`grid gap-3 ${solo ? "" : "grid-cols-2"}`}>
-          {([["p1", p1Id, p2Id], ...(solo ? [] : [["p2", p2Id, p1Id]])] as [string, string, string][]).map(([which, val, other]) => (
+        <div className={`grid gap-3 ${mode === "2p" ? "grid-cols-2" : ""}`}>
+          {([["p1", p1Id, p2Id], ...(mode === "2p" ? [["p2", p2Id, p1Id]] : [])] as [string, string, string][]).map(([which, val, other]) => (
             <div key={which} className="pdc-card p-3"
               style={{ borderColor: val ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.05)" }}>
               <div className="text-xs font-bold uppercase mb-2" style={{
                 fontFamily: "Oswald, sans-serif",
                 color: which === "p1" ? "#22c55e" : "#ee0a78", letterSpacing: "0.1em",
               }}>
-                {which === "p1" ? (solo ? "Player" : "Player 1") : "Player 2"}
+                {which === "p1" ? (mode !== "2p" ? "Player" : "Player 1") : "Player 2"}
               </div>
               <select value={val}
                 onChange={e => {
@@ -429,8 +436,22 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         </div>
       </div>
 
-      {/* CPU Opponent (Solo mode) */}
-      {solo && (
+      {/* Solo Play info */}
+      {mode === "solo" && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl"
+          style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.2)" }}>
+          <User className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#a78bfa" }} />
+          <div>
+            <div className="text-xs font-black uppercase tracking-widest mb-0.5" style={{ fontFamily: "Oswald, sans-serif", color: "#a78bfa" }}>Solo Practice Mode</div>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+              No opponent. Just you and the board. Track your darts, checkout rate, and three-dart average on X01 games.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* CPU Opponent (Bot mode) */}
+      {mode === "bot" && (
         <div>
           <h2 className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
             Choose Your Opponent
@@ -654,19 +675,23 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           boxShadow: canStart ? "0 8px 32px rgba(124,58,237,0.3)" : undefined,
         }}>
         {canStart
-          ? solo
+          ? mode === "bot"
             ? botMode === "level"
               ? `Start vs Level ${selectedLevel} Bot`
               : botMode === "shadow"
               ? `Start vs Shadow ${players.find(p => p.id === selectedShadowId)?.name ?? "Clone"}`
               : `Start vs ${selectedPersona?.name ?? "Bot"}`
+            : mode === "solo"
+            ? `Solo Practice — ${selectedGame?.name}`
             : `Start Practice — ${selectedGame?.name}`
-          : solo
+          : mode === "bot"
             ? botMode === "level"
               ? "Choose player, level & game"
               : botMode === "shadow"
               ? "Choose player, clone & game"
               : "Choose player, opponent & game"
+            : mode === "solo"
+            ? "Choose player & game"
             : "Choose players & game"}
         {canStart && <ChevronRight className="inline ml-2 w-5 h-5" />}
       </button>
@@ -738,7 +763,7 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
         </div>
         <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Practice Complete</div>
         <div className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.08em" }}>
-          {data.solo ? (result.winnerIdx === 0 ? "You Win!" : `${p2Label ?? "CPU"} Wins!`) : `${winner} Wins!`}
+          {data.soloPlay ? "Practice Complete!" : data.solo ? (result.winnerIdx === 0 ? "You Win!" : `${p2Label ?? "CPU"} Wins!`) : `${winner} Wins!`}
         </div>
         {result.detail && <div className="text-sm mt-1" style={{ color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>{result.detail}</div>}
       </div>
@@ -757,7 +782,7 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
         <div className="text-xs uppercase tracking-widest mb-2 font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>Session Summary</div>
         {([
           ["Game", data.gameType.name],
-          ["Mode", data.solo ? "Solo vs CPU" : "2 Players"],
+          ["Mode", !data.solo ? "2 Players" : data.soloPlay ? "Solo Play" : "Solo vs CPU"],
           ...(data.solo && data.botName ? [["Opponent", data.botName], ["Difficulty", data.botSubtitle ?? ""]] : []),
           ...(!data.solo && p2Label ? [["vs", p2Label]] : []),
         ] as [string, string][]).map(([k, v]) => (
@@ -822,6 +847,7 @@ export default function Practice() {
           legs={setupData.legs}
           setsToWin={setupData.setsToWin}
           legsToWinSet={setupData.legsToWinSet}
+          soloMode={setupData.soloPlay}
           onWin={r => { setResult(r); setPhase("done"); }}
           onAbandon={() => setPhase("setup")}
           onPracticeStats={s => setPracticeStats(s)}

@@ -5,3 +5,4 @@
 - [Seasons list endpoint champion fix](seasons-champion-fix.md) — GET /seasons must join players table to return championName; raw select() from seasonsTable only returns championId not the name
 - [Scorer platform architecture](scorer-platform.md) — GameScorer orchestrator in game-scorer.tsx, 62 game types in DB, practice_sessions raw SQL table, rules_text via ALTER TABLE
 - [Bot persona system](bot-personas.md) — 18 named fictional pro alter-egos, 6 BotLevels (beginner→elite), bot hooks in X01/Cricket/Sequence/HalveIt/CountUp scorers via useRef+useEffect pattern
+- [Solo Play mode](solo-play-mode.md) — soloMode prop on X01Scorer/GameScorer; soloPlay?: boolean in SetupData; practice.tsx mode state is "2p"|"bot"|"solo" (not a boolean)

@@ -34,7 +34,7 @@ function safeParse(s: string | null | undefined): Record<string, unknown> {
 export function GameScorer({
   p1Name, p2Name, gameType, botConfig, onWin, onAbandon, onPracticeStats,
   legs, setsToWin, legsToWinSet,
-  teamNames, playerNames,
+  teamNames, playerNames, soloMode,
 }: {
   p1Name: string; p2Name: string;
   gameType: GameTypeOption;
@@ -49,6 +49,7 @@ export function GameScorer({
   teamNames?: [string[], string[]];
   /** Player list for MultiKiller FFA engine */
   playerNames?: string[];
+  soloMode?: boolean;
 }) {
   const cfg = safeParse(gameType.config);
   const win = (idx: number, detail?: string) => onWin({ winnerIdx: idx, detail });
@@ -69,7 +70,7 @@ export function GameScorer({
   // ── Standard 1v1 engines ─────────────────────────────────────────────────────
   switch (gameType.engine) {
     case "X01":
-      return <X01Scorer p1Name={p1Name} p2Name={p2Name} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} legs={legs} setsToWin={setsToWin} legsToWinSet={legsToWinSet} />;
+      return <X01Scorer p1Name={p1Name} p2Name={p2Name} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} legs={legs} setsToWin={setsToWin} legsToWinSet={legsToWinSet} soloMode={soloMode} />;
 
     case "Cricket":
       return <CricketScorer p1Name={p1Name} p2Name={p2Name} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
