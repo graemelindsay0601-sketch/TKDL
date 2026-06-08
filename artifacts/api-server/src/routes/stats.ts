@@ -121,7 +121,7 @@ router.get("/stats/narrative", async (_req, res): Promise<void> => {
   res.json(cards);
 });
 
-router.get("/stats/live-feed", async (_req, res): Promise<void> => {
+router.get("/stats/live-feed", async (req, res): Promise<void> => {
   try {
     type FeedItem = { type: string; text: string; accent: string; ts: number };
     const items: FeedItem[] = [];

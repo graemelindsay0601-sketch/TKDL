@@ -487,8 +487,8 @@ router.get("/players/:id/shadow-bot-stats", async (req, res): Promise<void> => {
     const THRESHOLD = 250;
     const THIN = 5;
 
-    const [playerQ, totalsQ, gameModeQ] = await Promise.all([
-      db.execute(sql`SELECT name FROM players WHERE id = ${playerId}`),
+    const [playerQ, totalsQ, gameModeQ, matchQ] = await Promise.all([
+      db.execute(sql`SELECT name, elo FROM players WHERE id = ${playerId}`),
       db.execute(sql`
         WITH ranked AS (
           SELECT p1_darts, p1_score, p1_checkout_hits, p1_checkout_attempts,
@@ -512,35 +512,68 @@ router.get("/players/:id/shadow-bot-stats", async (req, res): Promise<void> => {
         FROM practice_sessions WHERE player1_id = ${playerId}
         GROUP BY game_type_key, game_type_name ORDER BY sessions DESC
       `),
+      // Pull real league match data — checkout accuracy + 180s
+      db.execute(sql`
+        SELECT
+          COUNT(*)::int                                                    AS total_matches,
+          COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN 1 ELSE 0 END),0)::int AS wins,
+          COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN COALESCE(winner_darts,0) ELSE COALESCE(loser_darts,0) END),0)::int AS match_darts,
+          COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN COALESCE(winner_checkout_hits,0) ELSE COALESCE(loser_checkout_hits,0) END),0)::int AS match_co_hits,
+          COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN COALESCE(winner_checkout_attempts,0) ELSE COALESCE(loser_checkout_attempts,0) END),0)::int AS match_co_attempts,
+          COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN COALESCE(winner_180s,0) ELSE COALESCE(loser_180s,0) END),0)::int AS total_180s
+        FROM matches WHERE winner_id = ${playerId} OR loser_id = ${playerId}
+      `),
     ]);
 
-    const playerName = (playerQ.rows[0] as { name: string } | undefined)?.name ?? "Unknown";
+    const playerRow = playerQ.rows[0] as { name: string; elo: number } | undefined;
+    const playerName = playerRow?.name ?? "Unknown";
+    const playerElo  = Number(playerRow?.elo ?? 1000);
     const t = totalsQ.rows[0] as { total_darts: number; total_sessions: number; weighted_spd: number; co_hits: number; co_attempts: number } | undefined;
-    const totalDarts    = Number(t?.total_darts ?? 0);
-    const totalSessions = Number(t?.total_sessions ?? 0);
-    const weightedSpd   = Number(t?.weighted_spd ?? 0);
-    const coHits        = Number(t?.co_hits ?? 0);
-    const coAttempts    = Number(t?.co_attempts ?? 0);
+    const practiceDarts    = Number(t?.total_darts ?? 0);
+    const totalSessions    = Number(t?.total_sessions ?? 0);
+    const weightedSpd      = Number(t?.weighted_spd ?? 0);
+    const coHits           = Number(t?.co_hits ?? 0);
+    const coAttempts       = Number(t?.co_attempts ?? 0);
+
+    // Real match data from league games
+    const m = matchQ.rows[0] as { total_matches: number; wins: number; match_darts: number; match_co_hits: number; match_co_attempts: number; total_180s: number } | undefined;
+    const matchDarts         = Number(m?.match_darts ?? 0);
+    const totalMatches       = Number(m?.total_matches ?? 0);
+    const matchWins          = Number(m?.wins ?? 0);
+    const matchCoHits        = Number(m?.match_co_hits ?? 0);
+    const matchCoAttempts    = Number(m?.match_co_attempts ?? 0);
+    const total180s          = Number(m?.total_180s ?? 0);
+
+    // Combined dart count: practice + real match darts both count toward unlock
+    const totalDarts = practiceDarts + matchDarts;
 
     const gameModeSessions = (gameModeQ.rows as { game_type_key: string; game_type_name: string; sessions: number; darts: number }[])
       .map(r => ({ gameTypeKey: r.game_type_key, gameTypeName: r.game_type_name, sessions: Number(r.sessions), darts: Number(r.darts) }));
 
     const thinSpots = gameModeSessions.filter(g => g.sessions < THIN);
 
+    // Compute match win rate here so it's available in both locked and unlocked branches
+    const matchWinRate = totalMatches > 0 ? Math.round((matchWins / totalMatches) * 100) : null;
+
     if (totalDarts < THRESHOLD) {
       res.json({
-        playerName, locked: true, totalDarts, dartsNeeded: THRESHOLD,
+        playerName, locked: true, totalDarts, darksNeeded: THRESHOLD,
         totalSessions, accuracyLevel: null, nextLevel: null,
         progressToNext: Math.round((totalDarts / THRESHOLD) * 100),
         gameModeSessions, thinSpots,
+        practiceDarts, matchDarts, totalMatches, matchWins,
+        matchWinRate, playerElo, total180s,
       });
       return;
     }
 
-    // Recency-weighted 3-dart average: recent sessions count much more than old ones (decay 0.92/session).
-    // This means the level goes UP when recent form improves and DOWN when it drops — it is never permanent.
-    const computedAvg  = totalDarts > 0 ? Math.round(weightedSpd * 3 * 10) / 10 : 45;
-    const doubleHitPct = coAttempts > 0 ? Math.round((coHits / coAttempts) * 100) / 100 : 0;
+    // Recency-weighted 3-dart average from practice sessions (most accurate signal).
+    const computedAvg  = practiceDarts > 0 ? Math.round(weightedSpd * 3 * 10) / 10 : 45;
+
+    // Checkout %: blend practice and real-match doubles data, weighted by volume.
+    const totalCoAttempts = coAttempts + matchCoAttempts;
+    const totalCoHits     = coHits + matchCoHits;
+    const doubleHitPct    = totalCoAttempts > 0 ? Math.round((totalCoHits / totalCoAttempts) * 100) / 100 : 0;
 
     const LEVELS = [
       { level: "beginner", min: 0,   next: "amateur" as const, nextMin: 45  },
@@ -583,6 +616,8 @@ router.get("/players/:id/shadow-bot-stats", async (req, res): Promise<void> => {
       playerName, locked: false, totalDarts, dartsNeeded: THRESHOLD,
       totalSessions, computedAvg, doubleHitPct, primarySeg, checkoutSegs,
       accuracyLevel, nextLevel, progressToNext, gameModeSessions, thinSpots,
+      practiceDarts, matchDarts, totalMatches, matchWins, matchWinRate,
+      total180s, playerElo,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get shadow bot stats");

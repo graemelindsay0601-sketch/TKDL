@@ -20,6 +20,14 @@ type ShadowBotStats = {
   progressToNext: number;
   gameModeSessions: GameModeRow[];
   thinSpots: GameModeRow[];
+  // Real match data sources
+  practiceDarts?: number;
+  matchDarts?: number;
+  totalMatches?: number;
+  matchWins?: number;
+  matchWinRate?: number | null;
+  total180s?: number;
+  playerElo?: number;
 };
 
 type BotLeaderboardRow = {
@@ -486,6 +494,60 @@ export default function ShadowBot() {
                           : `linear-gradient(90deg, ${lvlColor}, ${lvlColor}70)`,
                         boxShadow: `0 0 10px ${stats.locked ? "#ff005c" : lvlColor}50`,
                       }} />
+                  </div>
+                </div>
+
+                {/* ── DATA SOURCES ── always visible ── */}
+                <div className="mb-5 rounded-xl p-3"
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="text-xs font-black uppercase mb-2.5 tracking-widest"
+                    style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.25)", letterSpacing: "0.14em" }}>
+                    Data Sources
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* Practice sessions */}
+                    <div className="rounded-lg px-2.5 py-2 flex flex-col gap-0.5"
+                      style={{ background: "rgba(167,139,250,0.07)", border: "1px solid rgba(167,139,250,0.15)" }}>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <Dumbbell className="w-3 h-3" style={{ color: "#a78bfa" }}/>
+                        <span className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#a78bfa", fontSize: "0.52rem", letterSpacing: "0.1em" }}>Practice</span>
+                      </div>
+                      <div className="font-black text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>
+                        {(stats.practiceDarts ?? 0).toLocaleString()}
+                      </div>
+                      <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem" }}>
+                        darts · {stats.totalSessions} session{stats.totalSessions !== 1 ? "s" : ""}
+                      </div>
+                    </div>
+                    {/* League matches */}
+                    <div className="rounded-lg px-2.5 py-2 flex flex-col gap-0.5"
+                      style={{ background: "rgba(255,210,74,0.07)", border: "1px solid rgba(255,210,74,0.15)" }}>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <Trophy className="w-3 h-3" style={{ color: "#ffd24a" }}/>
+                        <span className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", fontSize: "0.52rem", letterSpacing: "0.1em" }}>League</span>
+                      </div>
+                      <div className="font-black text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>
+                        {stats.matchWins ?? 0}W–{((stats.totalMatches ?? 0) - (stats.matchWins ?? 0))}L
+                      </div>
+                      <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem" }}>
+                        {stats.totalMatches ?? 0} match{(stats.totalMatches ?? 0) !== 1 ? "es" : ""}
+                        {stats.matchWinRate != null ? ` · ${stats.matchWinRate}%` : ""}
+                      </div>
+                    </div>
+                    {/* Elo */}
+                    <div className="rounded-lg px-2.5 py-2 flex flex-col gap-0.5"
+                      style={{ background: "rgba(0,210,150,0.07)", border: "1px solid rgba(0,210,150,0.15)" }}>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <Zap className="w-3 h-3" style={{ color: "#00d296" }}/>
+                        <span className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#00d296", fontSize: "0.52rem", letterSpacing: "0.1em" }}>Elo Rating</span>
+                      </div>
+                      <div className="font-black text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>
+                        {stats.playerElo ?? 1000}
+                      </div>
+                      <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem" }}>
+                        league rating
+                      </div>
+                    </div>
                   </div>
                 </div>
 

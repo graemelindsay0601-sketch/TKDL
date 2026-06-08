@@ -149,11 +149,16 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 
   const arenaBg: React.CSSProperties = {
     background: [
-      "radial-gradient(ellipse 90% 55% at 50% 0%, rgba(255,0,92,0.18) 0%, transparent 60%)",
-      "radial-gradient(ellipse 55% 55% at 8% 92%, rgba(0,210,150,0.09) 0%, transparent 55%)",
-      "radial-gradient(ellipse 55% 55% at 92% 92%, rgba(0,83,159,0.09) 0%, transparent 55%)",
-      "radial-gradient(ellipse 40% 40% at 50% 42%, rgba(255,255,255,0.025) 0%, transparent 70%)",
-      "repeating-radial-gradient(circle at 50% 28%, transparent 0, transparent 52px, rgba(255,255,255,0.018) 52px, rgba(255,255,255,0.018) 54px)",
+      // Strong top-centre red bloom (arena ceiling lights effect)
+      "radial-gradient(ellipse 85% 48% at 50% 0%, rgba(255,0,92,0.42) 0%, rgba(180,0,60,0.12) 45%, transparent 68%)",
+      // Bottom-left teal accent
+      "radial-gradient(ellipse 65% 52% at 6% 98%, rgba(0,210,150,0.22) 0%, transparent 58%)",
+      // Bottom-right blue accent
+      "radial-gradient(ellipse 65% 52% at 94% 98%, rgba(0,83,159,0.18) 0%, transparent 58%)",
+      // Soft centre fill to break up flat darkness
+      "radial-gradient(ellipse 55% 55% at 50% 52%, rgba(255,210,74,0.05) 0%, transparent 65%)",
+      // Fine grid scan-line pattern
+      "repeating-linear-gradient(0deg, transparent 0px, transparent 54px, rgba(255,255,255,0.016) 54px, rgba(255,255,255,0.016) 55px)",
       "#06040e",
     ].join(", "),
   };
@@ -186,8 +191,8 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
   return (
     <DartBoardProvider>
       <div style={{
-        height: "100dvh", display: "flex", flexDirection: "column",
-        maxWidth: "480px", margin: "0 auto", overflow: "hidden", padding: "0 0.5rem",
+        height: "100dvh", width: "100%", display: "flex", flexDirection: "column",
+        overflow: "hidden", padding: "0 0.5rem",
         position: "relative", ...arenaBg,
       }}>
         <DartboardBackground />
