@@ -15,7 +15,7 @@ const botNav = [
   { href: "/shadow-bot",   label: "Shadow Bot",   icon: CircuitBoard    },
 ];
 const leagueNav = [
-  { href: "/leaderboard",  label: "Leaderboard",  icon: Trophy          },
+  { href: "/leaderboard",  label: "Standings",    icon: Trophy          },
   { href: "/players",      label: "Players",      icon: Users           },
   { href: "/seasons",      label: "Seasons",      icon: History         },
   { href: "/achievements", label: "Achievements", icon: Medal           },

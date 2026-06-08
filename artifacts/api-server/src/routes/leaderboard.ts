@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, playersTable } from "@workspace/db";
+import { sql } from "drizzle-orm";
 import { calcTier } from "../lib/elo";
 import { computeIdentity } from "../lib/identity";
 import { seasonStandingsTable } from "@workspace/db";
@@ -113,6 +114,145 @@ router.get("/leaderboard/career", async (req, res): Promise<void> => {
   });
 
   res.json(result);
+});
+
+// ── Achievements leaderboard ────────────────────────────────────────────────
+router.get("/leaderboard/achievements", async (_req, res): Promise<void> => {
+  try {
+    const rows = (await db.execute(sql`
+      SELECT
+        p.id          AS player_id,
+        p.name        AS player_name,
+        p.status,
+
+        /* League achievements */
+        COUNT(DISTINCT pa.id)::int AS league_count,
+        COALESCE(SUM(CASE a.rarity
+          WHEN 'Common'    THEN 5
+          WHEN 'Uncommon'  THEN 10
+          WHEN 'Rare'      THEN 25
+          WHEN 'Epic'      THEN 50
+          WHEN 'Legendary' THEN 100
+          WHEN 'Mythic'    THEN 250
+          ELSE 5 END), 0)::int AS league_gs,
+
+        /* Tour achievements */
+        COUNT(DISTINCT pta.id)::int AS tour_count,
+        COALESCE(SUM(DISTINCT tad.gamerscore), 0)::int AS tour_gs
+
+      FROM players p
+      LEFT JOIN player_achievements pa    ON pa.player_id = p.id
+      LEFT JOIN achievements a            ON a.id         = pa.achievement_id
+      LEFT JOIN player_tour_achievements pta ON pta.player_id = p.id
+      LEFT JOIN tour_achievement_definitions tad ON tad.key = pta.achievement_key
+      WHERE p.is_active = true
+      GROUP BY p.id, p.name, p.status
+      ORDER BY (COALESCE(SUM(CASE a.rarity WHEN 'Common' THEN 5 WHEN 'Uncommon' THEN 10 WHEN 'Rare' THEN 25 WHEN 'Epic' THEN 50 WHEN 'Legendary' THEN 100 WHEN 'Mythic' THEN 250 ELSE 5 END),0) + COALESCE(SUM(DISTINCT tad.gamerscore),0)) DESC, COUNT(DISTINCT pa.id) DESC
+    `)).rows as any[];
+
+    res.json(rows.map((r, i) => ({
+      position:       i + 1,
+      playerId:       r.player_id,
+      playerName:     r.player_name,
+      status:         r.status,
+      leagueCount:    Number(r.league_count),
+      leagueGs:       Number(r.league_gs),
+      tourCount:      Number(r.tour_count),
+      tourGs:         Number(r.tour_gs),
+      totalCount:     Number(r.league_count) + Number(r.tour_count),
+      totalGs:        Number(r.league_gs) + Number(r.tour_gs),
+    })));
+  } catch (err) {
+    (_req as any)?.log?.error({ err }, "Failed achievements leaderboard");
+    res.status(500).json({ error: "Failed" });
+  }
+});
+
+// ── Bot / Practice leaderboard ───────────────────────────────────────────────
+router.get("/leaderboard/bot", async (_req, res): Promise<void> => {
+  try {
+    const rows = (await db.execute(sql`
+      SELECT
+        p.id                                      AS player_id,
+        p.name                                    AS player_name,
+        p.status,
+        COUNT(ps.id)::int                              AS total_sessions,
+        COALESCE(SUM(ps.p1_darts), 0)::int            AS total_darts,
+        COALESCE(SUM(ps.p1_score), 0)::int            AS total_score,
+        COALESCE(SUM(ps.p1_checkout_hits), 0)::int    AS checkout_hits,
+        COALESCE(SUM(ps.p1_180s), 0)::int             AS total_180s,
+        COUNT(DISTINCT ps.game_type_key)::int          AS unique_games,
+        COALESCE(SUM(ps.p1_checkout_attempts), 0)::int AS checkout_attempts
+      FROM players p
+      LEFT JOIN practice_sessions ps ON ps.player1_id = p.id
+      WHERE p.is_active = true
+      GROUP BY p.id, p.name, p.status
+      ORDER BY total_darts DESC, total_sessions DESC
+    `)).rows as any[];
+
+    res.json(rows.map((r, i) => ({
+      position:           i + 1,
+      playerId:           r.player_id,
+      playerName:         r.player_name,
+      status:             r.status,
+      totalSessions:      Number(r.total_sessions),
+      totalDarts:         Number(r.total_darts),
+      totalScore:         Number(r.total_score),
+      checkoutHits:       Number(r.checkout_hits),
+      total180s:          Number(r.total_180s),
+      uniqueGames:        Number(r.unique_games),
+      checkoutAttempts:   Number(r.checkout_attempts),
+    })));
+  } catch (err) {
+    (_req as any)?.log?.error({ err }, "Failed bot leaderboard");
+    res.status(500).json({ error: "Failed" });
+  }
+});
+
+// ── Tour leaderboard ─────────────────────────────────────────────────────────
+router.get("/leaderboard/tour", async (_req, res): Promise<void> => {
+  try {
+    const rows = (await db.execute(sql`
+      SELECT
+        p.id   AS player_id,
+        p.name AS player_name,
+        p.status,
+        COUNT(tt.id)::int                                       AS total_trophies,
+        COUNT(CASE WHEN td.tier = 1 THEN 1 END)::int           AS t1,
+        COUNT(CASE WHEN td.tier = 2 THEN 1 END)::int           AS t2,
+        COUNT(CASE WHEN td.tier = 3 THEN 1 END)::int           AS t3,
+        COUNT(CASE WHEN td.tier = 4 THEN 1 END)::int           AS t4,
+        COUNT(CASE WHEN td.tier = 5 THEN 1 END)::int           AS t5,
+        COUNT(CASE WHEN td.tier = 6 THEN 1 END)::int           AS t6,
+        COALESCE(MAX(td.tier), 0)::int                         AS highest_tier,
+        COUNT(CASE WHEN tt.difficulty = 'elite' THEN 1 END)::int   AS elite_wins,
+        COUNT(CASE WHEN tt.difficulty = 'pro'   THEN 1 END)::int   AS pro_wins,
+        COUNT(DISTINCT tt.tour_id)::int                        AS unique_tours
+      FROM players p
+      LEFT JOIN tour_trophies tt     ON tt.player_id = p.id
+      LEFT JOIN tour_definitions td  ON td.id        = tt.tour_id
+      WHERE p.is_active = true
+      GROUP BY p.id, p.name, p.status
+      ORDER BY total_trophies DESC, highest_tier DESC, elite_wins DESC
+    `)).rows as any[];
+
+    res.json(rows.map((r, i) => ({
+      position:     i + 1,
+      playerId:     r.player_id,
+      playerName:   r.player_name,
+      status:       r.status,
+      totalTrophies:Number(r.total_trophies),
+      t1: Number(r.t1), t2: Number(r.t2), t3: Number(r.t3),
+      t4: Number(r.t4), t5: Number(r.t5), t6: Number(r.t6),
+      highestTier:  Number(r.highest_tier),
+      eliteWins:    Number(r.elite_wins),
+      proWins:      Number(r.pro_wins),
+      uniqueTours:  Number(r.unique_tours),
+    })));
+  } catch (err) {
+    (_req as any)?.log?.error({ err }, "Failed tour leaderboard");
+    res.status(500).json({ error: "Failed" });
+  }
 });
 
 export default router;
