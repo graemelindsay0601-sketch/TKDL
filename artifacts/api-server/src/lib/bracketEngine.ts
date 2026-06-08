@@ -121,10 +121,17 @@ export function generateKOBracket(
   if (pool.length >= needed) {
     opponents = shuffle(pool).slice(0, needed);
   } else {
-    // Repeat pool if not enough personas (rare edge case)
-    const repeated = [];
-    while (repeated.length < needed) repeated.push(...pool);
-    opponents = shuffle(repeated).slice(0, needed);
+    // Pad with uniquified copies so no duplicate keys ever appear
+    const padded: TourPersona[] = [...pool];
+    let copy = 2;
+    while (padded.length < needed) {
+      for (const p of pool) {
+        if (padded.length >= needed) break;
+        padded.push({ ...p, key: `${p.key}_v${copy}` });
+      }
+      copy++;
+    }
+    opponents = shuffle(padded);
   }
 
   const player: Participant = { key: "player", name: playerName, flag: "🎯", level: difficulty, avg: 70, tagline: "That's you.", nickname: "The Challenger" };
@@ -266,9 +273,17 @@ export function generatePLBracket(
   if (pool.length >= needed) {
     opponents = shuffle(pool).slice(0, needed);
   } else {
-    const repeated = [];
-    while (repeated.length < needed) repeated.push(...pool);
-    opponents = shuffle(repeated).slice(0, needed);
+    // Pad with uniquified copies so no duplicate keys ever appear
+    const padded: TourPersona[] = [...pool];
+    let copy = 2;
+    while (padded.length < needed) {
+      for (const p of pool) {
+        if (padded.length >= needed) break;
+        padded.push({ ...p, key: `${p.key}_v${copy}` });
+      }
+      copy++;
+    }
+    opponents = shuffle(padded);
   }
 
   const player: Participant = { key: "player", name: playerName, flag: "🎯", level: difficulty, avg: 70, tagline: "That's you.", nickname: "The Challenger" };
