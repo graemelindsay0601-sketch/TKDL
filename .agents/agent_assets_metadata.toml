@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "9TONpwxDm9ydM6VJ3IGzY"
+uri = "file://attached_assets/tkdl-icon-512.png"
+type = "image"
+title = "generated_image"
