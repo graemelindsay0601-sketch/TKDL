@@ -6,3 +6,4 @@ export * from "./settings";
 export * from "./game_types";
 export * from "./practice_sessions";
 export * from "./team-matches";
+export * from "./match_participants";

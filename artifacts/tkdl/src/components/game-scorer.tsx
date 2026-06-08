@@ -8,8 +8,9 @@ import {
   HalveItScorer, CountUpScorer, GotchaScorer, BaseballScorer,
   ScramScorer, FootballScorer, GolfScorer, NearestBullScorer, ManualScorer,
   JDCChallenge41Scorer, ExponentialBundleScorer, ShootingGalleryScorer, DeadCentreScorer,
-  ThreeInABedScorer, DoublesX01Scorer, MultiKillerScorer,
-  TeamCricketScorer, TeamHalveItScorer, TeamCountUpScorer,
+  ThreeInABedScorer, DoublesX01Scorer,
+  TeamX01Scorer, TeamCricketScorer, MultiKillerScorer,
+  DoublesTeamCricketScorer, TeamHalveItScorer, TeamCountUpScorer,
 } from "@/lib/scorers";
 import { type BotConfig } from "@/lib/bot-engine";
 import { type PracticeStats } from "@/lib/stats-types";
@@ -22,7 +23,7 @@ export type GameTypeOption = {
 };
 
 export type GameResult = {
-  winnerIdx: number; // 0|1 for 2-player/team games; 0..N-1 for multi-player
+  winnerIdx: number; // 0|1 for 2-player/team games; 0..N-1 for multi-player FFA
   detail?: string;
 };
 
@@ -84,8 +85,8 @@ function GenericTeamWrapper({ team1, team2, onWin, children }: {
 export function GameScorer({
   p1Name, p2Name, gameType, botConfig, onWin, onAbandon, onPracticeStats,
   legs, setsToWin, legsToWinSet,
+  teamNames, playerNames,
   team1, team2,
-  allPlayers,
 }: {
   p1Name: string; p2Name: string;
   gameType: GameTypeOption;
@@ -96,13 +97,31 @@ export function GameScorer({
   legs?: number;
   setsToWin?: number;
   legsToWinSet?: number;
+  /** Variable-length team arrays for TeamX01/TeamCricket engines */
+  teamNames?: [string[], string[]];
+  /** Player list for MultiKiller FFA engine */
+  playerNames?: string[];
+  /** Legacy 2-player doubles via DoublesX01Scorer */
   team1?: [string, string];
   team2?: [string, string];
-  allPlayers?: string[];
 }) {
   const cfg = safeParse(gameType.config);
   const win = (idx: number, detail?: string) => onWin({ winnerIdx: idx, detail });
 
+  // ── Team engines (variable-length, 2v2 / 3v3) ────────────────────────────────
+  if (gameType.engine === "TeamX01" && teamNames) {
+    return <TeamX01Scorer teamNames={teamNames} config={cfg as any} onWin={win} onAbandon={onAbandon} />;
+  }
+
+  if (gameType.engine === "TeamCricket" && teamNames) {
+    return <TeamCricketScorer teamNames={teamNames} cutThroat={!!cfg.cutThroat} onWin={win} onAbandon={onAbandon} />;
+  }
+
+  if (gameType.engine === "MultiKiller" && playerNames) {
+    return <MultiKillerScorer playerNames={playerNames} lives={(cfg.lives as number) ?? 3} onWin={win} onAbandon={onAbandon} />;
+  }
+
+  // ── Standard 1v1 engines ─────────────────────────────────────────────────────
   switch (gameType.engine) {
     case "X01":
       if (team1 && team2) {
@@ -112,14 +131,11 @@ export function GameScorer({
 
     case "Cricket":
       if (team1 && team2) {
-        return <TeamCricketScorer team1={team1} team2={team2} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} onWin={win} onAbandon={onAbandon} />;
+        return <DoublesTeamCricketScorer team1={team1} team2={team2} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} onWin={win} onAbandon={onAbandon} />;
       }
       return <CricketScorer p1Name={p1Name} p2Name={p2Name} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
 
     case "Killer":
-      if (allPlayers && allPlayers.length >= 2) {
-        return <MultiKillerScorer players={allPlayers} lives={(cfg.lives as number) ?? 3} onWin={win} onAbandon={onAbandon} />;
-      }
       return <KillerScorer p1Name={p1Name} p2Name={p2Name} lives={(cfg.lives as number) ?? 3} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
 
     case "Sequence":

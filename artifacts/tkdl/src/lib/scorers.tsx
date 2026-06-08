@@ -2292,371 +2292,484 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, onWin, onAba
   );
 }
 
-// ── Doubles X01 Scorer ─────────────────────────────────────────────────────────
-// 2v2 team X01: players within a team alternate each visit, shared team score.
-export function DoublesX01Scorer({
-  team1, team2, config, onWin, onAbandon,
-}: {
-  team1: [string, string];
-  team2: [string, string];
-  config: { startingScore?: number; doubleIn?: boolean; doubleOut?: boolean; noTrebles?: boolean };
-  onWin: (w: 0 | 1, detail?: string) => void;
+// ── Team X01 Scorer ────────────────────────────────────────────────────────────
+const TEAM_COLORS: [string, string] = ["#22c55e", "#ee0a78"];
+
+export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
+  teamNames: [string[], string[]];
+  config: { startingScore: number; doubleOut?: boolean; doubleIn?: boolean };
+  onWin: (w: 0|1, detail?: string) => void;
   onAbandon: () => void;
 }) {
-  const { startingScore = 501, doubleIn = false, doubleOut = true, noTrebles = false } = config;
-
-  const [scores, setScores]             = useState<[number, number]>([startingScore, startingScore]);
-  const [turn, setTurn]                 = useState<0 | 1>(0);
-  const [activeThrower, setActiveThrower] = useState<[0 | 1, 0 | 1]>([0, 0]);
-  const [started, setStarted]           = useState<[boolean, boolean]>([!doubleIn, !doubleIn]);
-  const [visitDarts, setVisitDarts]     = useState<Dart[]>([]);
-  const [bust, setBust]                 = useState(false);
-  const [bustMsg, setBustMsg]           = useState("");
-
-  const teams = [team1, team2] as [[string, string], [string, string]];
-  const TC = (i: 0 | 1) => (i === 0 ? "#22c55e" : "#ee0a78");
-  const currentThrowerName = teams[turn][activeThrower[turn]];
+  const { startingScore = 501, doubleOut = true } = config;
+  const [scores, setScores]         = useState<[number, number]>([startingScore, startingScore]);
+  const [teamTurn, setTeamTurn]     = useState<0|1>(0);
+  const [playerIdx, setPlayerIdx]   = useState<[number, number]>([0, 0]);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [bust, setBust]             = useState(false);
+  const [bustMsg, setBustMsg]       = useState("");
+  const [history, setHistory]       = useState<{ team:0|1; player:number; score:number; left:number }[]>([]);
 
   const isValidOut = useCallback((dart: Dart) => {
     if (doubleOut) return dart.multiplier === 2 || (dart.segment === 25 && dart.value === 50);
     return true;
   }, [doubleOut]);
 
-  const advanceTurn = useCallback((fromTurn: 0 | 1) => {
-    setTurn(fromTurn === 0 ? 1 : 0);
-    setActiveThrower(prev => {
-      const n = [...prev] as [0 | 1, 0 | 1];
-      n[fromTurn] = n[fromTurn] === 0 ? 1 : 0;
+  const advanceTurn = useCallback((capturedTeam: 0|1) => {
+    setPlayerIdx(prev => {
+      const n: [number,number] = [...prev] as [number,number];
+      n[capturedTeam] = (n[capturedTeam] + 1) % teamNames[capturedTeam].length;
       return n;
     });
+    setTeamTurn(t => t === 0 ? 1 : 0);
     setVisitDarts([]);
-  }, []);
+    setBust(false);
+    setBustMsg("");
+  }, [teamNames]);
 
-  const handleDart = useCallback((rawDart: Dart) => {
+  const handleDart = useCallback((dart: Dart) => {
     if (bust || visitDarts.length >= 3) return;
+    const capturedTeam = teamTurn;
+    const nv = [...visitDarts, dart];
+    const cum = nv.reduce((s, d) => s + d.value, 0);
+    const rem = scores[capturedTeam] - cum;
 
-    let dart = rawDart;
-    if (noTrebles && dart.multiplier === 3) {
-      dart = { ...dart, multiplier: 1 as const, value: dart.segment, label: String(dart.segment) };
-    }
-
-    if (doubleIn && !started[turn]) {
-      const isDouble = dart.multiplier === 2 || (dart.segment === 25 && dart.value === 50);
-      const nv: Dart[] = [...visitDarts, { ...dart, value: 0 }];
-      if (isDouble) setStarted(prev => { const n = [...prev] as [boolean, boolean]; n[turn] = true; return n; });
+    if (rem < 0 || (rem === 1 && doubleOut)) {
+      setBust(true);
+      setBustMsg(rem < 0 ? "BUST — overshot!" : "BUST — can't leave 1!");
       setVisitDarts(nv);
-      if (nv.length === 3) advanceTurn(turn);
+      setTimeout(() => advanceTurn(capturedTeam), 1500);
       return;
     }
-
-    const prevScore = scores[turn];
-    const nv: Dart[] = [...visitDarts, dart];
-    const cum = nv.reduce((s, d) => s + d.value, 0);
-    const rem = prevScore - cum;
-
-    const doBust = (msg: string) => {
-      setBust(true); setBustMsg(msg);
-      setVisitDarts(nv);
-      setTimeout(() => { setBust(false); setBustMsg(""); advanceTurn(turn); }, 1500);
-    };
-
-    if (rem < 0)                      { doBust("BUST — overshot!"); return; }
-    if (rem === 1 && doubleOut)        { doBust("BUST — can't leave 1!"); return; }
-
     if (rem === 0) {
       if (isValidOut(dart)) {
         setVisitDarts(nv);
-        const label = `${teams[turn][0]} & ${teams[turn][1]} checkout!`;
-        setTimeout(() => onWin(turn, label), 300);
+        setTimeout(() => onWin(capturedTeam, `${teamNames[capturedTeam].join(" & ")} win!`), 300);
       } else {
-        doBust("BUST — must finish on a double!");
+        setBust(true);
+        setBustMsg(doubleOut ? "BUST — must finish on a double!" : "BUST!");
+        setVisitDarts(nv);
+        setTimeout(() => advanceTurn(capturedTeam), 1500);
       }
       return;
     }
-
     setVisitDarts(nv);
     if (nv.length === 3) {
-      setScores(prev => { const n = [...prev] as [number, number]; n[turn] = rem; return n; });
-      advanceTurn(turn);
+      setScores(prev => { const n: [number,number] = [...prev] as [number,number]; n[capturedTeam] -= cum; return n; });
+      setHistory(h => [...h, { team: capturedTeam, player: playerIdx[capturedTeam], score: cum, left: rem }]);
+      advanceTurn(capturedTeam);
     }
-  }, [bust, visitDarts, turn, scores, started, doubleIn, doubleOut, noTrebles, isValidOut, advanceTurn, teams, onWin]);
+  }, [bust, visitDarts, teamTurn, scores, playerIdx, doubleOut, isValidOut, advanceTurn, onWin, teamNames]);
+
+  const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
+  const handleUndo = () => { if (!bust && visitDarts.length > 0) setVisitDarts(p => p.slice(0, -1)); };
+  const cum = visitDarts.reduce((s, d) => s + d.value, 0);
+
+  const currentPlayerName = (team: 0|1) => teamNames[team][playerIdx[team]];
 
   return (
     <ScorerLayout
-      top={
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            {([0, 1] as const).map(i => (
-              <div key={i} className="pdc-card p-3 text-center relative overflow-hidden"
-                style={{
-                  borderColor: turn === i ? TC(i) : "rgba(255,255,255,0.06)",
-                  boxShadow: turn === i ? `0 0 20px ${TC(i)}22` : undefined,
-                }}>
-                {turn === i && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: TC(i) }} />}
-                <div className="text-xs font-bold uppercase mb-0.5" style={{ fontFamily: "Oswald, sans-serif", color: TC(i), opacity: turn === i ? 1 : 0.5, letterSpacing: "0.08em" }}>
-                  Team {i + 1}
-                </div>
-                <div className="font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "2.8rem", color: turn === i ? "#fff" : "rgba(255,255,255,0.3)", lineHeight: 1 }}>
-                  {scores[i]}
-                </div>
-                <div className="mt-1.5 space-y-0.5">
-                  {teams[i].map((name, j) => {
-                    const active = turn === i && activeThrower[i] === j;
-                    return (
-                      <div key={j} className="text-xs flex items-center justify-center gap-1" style={{
-                        fontFamily: "Oswald, sans-serif",
-                        color: active ? TC(i) : "rgba(255,255,255,0.3)",
-                        fontWeight: active ? 700 : 400,
-                      }}>
-                        {active && <span style={{ fontSize: "0.55rem" }}>▶</span>}
-                        {name}
-                      </div>
-                    );
-                  })}
-                </div>
+      top={<div className="space-y-3">
+        <div className="pdc-divider" />
+        <div className="grid grid-cols-2 gap-3">
+          {([0, 1] as const).map(team => (
+            <div key={team} className="pdc-card p-3 text-center relative overflow-hidden"
+              style={{
+                borderColor: teamTurn === team && !bust ? TEAM_COLORS[team] : "rgba(255,255,255,0.06)",
+                boxShadow: teamTurn === team && !bust ? `0 0 18px ${TEAM_COLORS[team]}22` : undefined,
+              }}>
+              {teamTurn === team && !bust && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: TEAM_COLORS[team] }} />}
+              <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{ fontFamily: "Oswald, sans-serif", color: TEAM_COLORS[team] }}>
+                Team {team + 1}
+              </div>
+              <div className="font-black leading-none" style={{ fontFamily: "Oswald, sans-serif", fontSize: "2.6rem", color: teamTurn === team ? "#fff" : "rgba(255,255,255,0.3)" }}>
+                {scores[team]}
+              </div>
+              <div className="mt-2 space-y-0.5">
+                {teamNames[team].map((name, i) => (
+                  <div key={i} className="text-xs px-2 py-0.5 rounded" style={{
+                    fontFamily: "Oswald, sans-serif",
+                    background: teamTurn === team && playerIdx[team] === i ? `${TEAM_COLORS[team]}22` : "transparent",
+                    color: teamTurn === team && playerIdx[team] === i ? TEAM_COLORS[team] : "rgba(255,255,255,0.3)",
+                    fontWeight: teamTurn === team && playerIdx[team] === i ? 700 : 400,
+                  }}>
+                    {teamTurn === team && playerIdx[team] === i ? "▶ " : ""}{name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        {scores[teamTurn] <= 170 && scores[teamTurn] >= 2 && CHECKOUTS[scores[teamTurn]] && (
+          <CheckoutBar checkout={CHECKOUTS[scores[teamTurn]]!} playerName={currentPlayerName(teamTurn)} playerIdx={teamTurn} />
+        )}
+        {bust
+          ? <BustBanner msg={bustMsg} />
+          : <TurnBanner name={currentPlayerName(teamTurn)} turn={teamTurn} msg="— enter your score" />}
+        <SectionCard>
+          <VisitDarts darts={visitDarts} />
+          {visitDarts.length > 0 && (
+            <div className="text-center text-xs mt-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+              {cum} scored → leaves {Math.max(0, scores[teamTurn] - cum)}
+            </div>
+          )}
+        </SectionCard>
+        {history.length > 0 && (
+          <SectionCard>
+            <div className="text-xs uppercase tracking-widest mb-2 font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>Recent Visits</div>
+            {[...history].reverse().slice(0, 5).map((h, i) => (
+              <div key={i} className="flex justify-between text-xs py-0.5">
+                <span style={{ color: TEAM_COLORS[h.team], fontFamily: "Oswald, sans-serif" }}>{teamNames[h.team][h.player]}</span>
+                <span style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>+{h.score}</span>
+                <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "mono" }}>{h.left} left</span>
               </div>
             ))}
-          </div>
-
-          <SectionCard><VisitDarts darts={visitDarts} /></SectionCard>
-
-          {bust
-            ? <BustBanner msg={bustMsg} />
-            : <TurnBanner name={currentThrowerName} turn={turn} />}
-
-          {!bust && scores[turn] <= 170 && scores[turn] > 1 && CHECKOUTS[scores[turn]] && (
-            <CheckoutBar checkout={CHECKOUTS[scores[turn]]!} playerName={currentThrowerName} playerIdx={turn} />
-          )}
-        </div>
-      }
-      bot={
-        <div className="space-y-2">
-          <DartInputBoard
-            onDart={handleDart}
-            onMiss={() => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
-            onUndo={() => { if (!bust && visitDarts.length > 0) setVisitDarts(p => p.slice(0, -1)); }}
-            disabled={bust}
-          />
-          <AbandonBtn onAbandon={onAbandon} />
-        </div>
-      }
+          </SectionCard>
+        )}
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust} />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
     />
   );
 }
 
-// ── Multi-Player Killer Scorer ──────────────────────────────────────────────────
-// N-player (2–8) Killer darts: claim a double number, become a killer, eliminate opponents.
-const MP_COLORS = ["#22c55e", "#ee0a78", "#3b82f6", "#f59e0b", "#a855f7", "#06b6d4", "#ef4444", "#84cc16"];
-
-export function MultiKillerScorer({
-  players, lives: startingLives = 3, onWin, onAbandon,
-}: {
-  players: string[];
-  lives?: number;
-  onWin: (w: number, detail?: string) => void;
+// ── Team Cricket Scorer ────────────────────────────────────────────────────────
+export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAbandon }: {
+  teamNames: [string[], string[]];
+  cutThroat?: boolean;
+  onWin: (w: 0|1, detail?: string) => void;
   onAbandon: () => void;
 }) {
-  const n = players.length;
+  const [marks, setMarks]           = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+  const [scores, setScores]         = useState<[number,number]>([0,0]);
+  const [teamTurn, setTeamTurn]     = useState<0|1>(0);
+  const [playerIdx, setPlayerIdx]   = useState<[number,number]>([0,0]);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [lastHit, setLastHit]       = useState("");
 
-  const [killerNums, setKillerNums] = useState<(number | null)[]>(() => Array(n).fill(null));
+  const checkWin = useCallback((m: typeof marks, sc: [number,number]): 0|1|null => {
+    for (const p of [0,1] as const) {
+      const closed = m[p].every(x => x >= 3);
+      if (!closed) continue;
+      const opp: 0|1 = p === 0 ? 1 : 0;
+      if (!cutThroat && sc[p] >= sc[opp]) return p;
+      if (cutThroat && sc[p] <= sc[opp]) return p;
+    }
+    return null;
+  }, [cutThroat]);
+
+  const handleDart = useCallback((dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const capturedTeam = teamTurn;
+    const numIdx = CRICKET_NUMS.indexOf(dart.segment);
+    const nv = [...visitDarts, dart];
+
+    if (numIdx >= 0) {
+      const hits = dart.multiplier;
+      setMarks(prev => {
+        const nm: typeof marks = [[...prev[0]] as any, [...prev[1]] as any];
+        const toClose = Math.max(0, 3 - nm[capturedTeam][numIdx]);
+        const extra = hits - Math.min(hits, toClose);
+        nm[capturedTeam][numIdx] = Math.min(3, nm[capturedTeam][numIdx] + hits);
+        if (extra > 0) {
+          const opp: 0|1 = capturedTeam === 0 ? 1 : 0;
+          if (nm[opp][numIdx] < 3) {
+            setScores(ps => {
+              const ns: [number,number] = [...ps] as [number,number];
+              const val = CRICKET_NUMS[numIdx];
+              if (cutThroat) ns[opp] += extra * val;
+              else ns[capturedTeam] += extra * val;
+              return ns;
+            });
+          }
+        }
+        return nm;
+      });
+      const lbl = dart.multiplier === 1 ? `${dart.segment}` : dart.multiplier === 2 ? `D${dart.segment}` : `T${dart.segment}`;
+      setLastHit(lbl);
+    } else {
+      setLastHit("Miss");
+    }
+
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      setVisitDarts([]);
+      setLastHit("");
+      setPlayerIdx(prev => {
+        const n: [number,number] = [...prev] as [number,number];
+        n[capturedTeam] = (n[capturedTeam] + 1) % teamNames[capturedTeam].length;
+        return n;
+      });
+      setTeamTurn(t => t === 0 ? 1 : 0);
+    }
+
+    setTimeout(() => {
+      setMarks(m => {
+        setScores(sc => {
+          const w = checkWin(m, sc);
+          if (w !== null) setTimeout(() => onWin(w, cutThroat ? "Cut-Throat — lowest score wins" : undefined), 300);
+          return sc;
+        });
+        return m;
+      });
+    }, 50);
+  }, [visitDarts, teamTurn, cutThroat, teamNames, onWin, checkWin]);
+
+  const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
+  const handleUndo = () => { if (visitDarts.length > 0) setVisitDarts(p => p.slice(0, -1)); };
+
+  const currentPlayer = (team: 0|1) => teamNames[team][playerIdx[team]];
+
+  return (
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider" />
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
+            Team {cutThroat ? "Cut-Throat " : ""}Cricket
+          </h2>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {([0,1] as const).map(team => (
+            <div key={team} className="pdc-card p-3 text-center"
+              style={{ borderColor: teamTurn === team ? TEAM_COLORS[team] : "rgba(255,255,255,0.06)" }}>
+              <div className="text-xs font-bold uppercase" style={{ color: TEAM_COLORS[team], fontFamily: "Oswald, sans-serif" }}>Team {team + 1}</div>
+              <div className="text-3xl font-black" style={{ fontFamily: "Oswald, sans-serif", color: teamTurn === team ? "#fff" : "rgba(255,255,255,0.3)" }}>{scores[team]}</div>
+              <div className="mt-1 space-y-0.5">
+                {teamNames[team].map((name, i) => (
+                  <div key={i} className="text-xs" style={{
+                    fontFamily: "Oswald, sans-serif",
+                    color: teamTurn === team && playerIdx[team] === i ? TEAM_COLORS[team] : "rgba(255,255,255,0.3)",
+                    fontWeight: teamTurn === team && playerIdx[team] === i ? 700 : 400,
+                  }}>
+                    {teamTurn === team && playerIdx[team] === i ? "▶ " : ""}{name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <SectionCard>
+          <div className="grid" style={{ gridTemplateColumns: "1fr auto 1fr", gap: "0.15rem" }}>
+            <div className="text-center text-xs font-bold pb-1" style={{ color: TEAM_COLORS[0], fontFamily: "Oswald, sans-serif" }}>Team 1</div>
+            <div className="text-center text-xs font-bold pb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>NUM</div>
+            <div className="text-center text-xs font-bold pb-1" style={{ color: TEAM_COLORS[1], fontFamily: "Oswald, sans-serif" }}>Team 2</div>
+            {CRICKET_NUMS.map((num, idx) => (
+              <div key={num} style={{ display: "contents" }}>
+                <div className="text-center py-1.5 text-lg font-bold" style={{ fontFamily: "Oswald, sans-serif", color: marks[0][idx] >= 3 ? TEAM_COLORS[0] : "rgba(255,255,255,0.7)" }}>
+                  {markSymbol(marks[0][idx])}
+                </div>
+                <div className="text-center py-1.5 text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)", borderLeft: "1px solid rgba(255,255,255,0.06)", borderRight: "1px solid rgba(255,255,255,0.06)" }}>
+                  {CRICKET_LABELS[idx]}
+                </div>
+                <div className="text-center py-1.5 text-lg font-bold" style={{ fontFamily: "Oswald, sans-serif", color: marks[1][idx] >= 3 ? TEAM_COLORS[1] : "rgba(255,255,255,0.7)" }}>
+                  {markSymbol(marks[1][idx])}
+                </div>
+              </div>
+            ))}
+          </div>
+          {lastHit && <div className="text-center text-xs mt-2 font-bold" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>Hit: {lastHit}</div>}
+        </SectionCard>
+        <TurnBanner name={currentPlayer(teamTurn)} turn={teamTurn} msg="— hit 15–20 or Bull" />
+        <VisitDarts darts={visitDarts} />
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+          activeSegments={CRICKET_NUMS} highlightSegments={CRICKET_NUMS} />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
+    />
+  );
+}
+
+// ── Multi-player Killer Scorer (3–6 individual players) ────────────────────────
+export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon }: {
+  playerNames: string[];
+  lives?: number;
+  onWin: (winnerIdx: number, detail?: string) => void;
+  onAbandon: () => void;
+}) {
+  const n = playerNames.length;
+  const MCOLORS = ["#22c55e","#ee0a78","#ffd24a","#38bdf8","#f97316","#a78bfa"];
+  const pColor = (i: number) => MCOLORS[i % MCOLORS.length];
+
+  const [phase, setPhase]           = useState<"assign"|"play">("assign");
+  const [assigningIdx, setAssigning] = useState(0);
+  const [killerNums, setKillerNums] = useState<(number|null)[]>(() => Array(n).fill(null));
   const [isKiller, setIsKiller]     = useState<boolean[]>(() => Array(n).fill(false));
-  const [livesLeft, setLivesLeft]   = useState<number[]>(() => Array(n).fill(startingLives));
+  const [playerLives, setPlayerLives] = useState<number[]>(() => Array(n).fill(lives));
   const [eliminated, setEliminated] = useState<boolean[]>(() => Array(n).fill(false));
   const [turn, setTurn]             = useState(0);
-  const [assignTurn, setAssignTurn] = useState(0);
-  const [phase, setPhase]           = useState<"assign" | "play">("assign");
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [flashMsg, setFlashMsg]     = useState<string | null>(null);
+  const [msg, setMsg]               = useState("");
 
-  const flash = (msg: string) => {
-    setFlashMsg(msg);
-    setTimeout(() => setFlashMsg(null), 1400);
-  };
-
-  const assignNum = (num: number) => {
-    if (killerNums.includes(num)) return;
-    const updated = [...killerNums];
-    updated[assignTurn] = num;
-    setKillerNums(updated);
-    if (assignTurn + 1 >= n) {
-      setPhase("play");
-    } else {
-      setAssignTurn(t => t + 1);
+  const nextLivingPlayer = useCallback((from: number, elim: boolean[]) => {
+    let next = (from + 1) % n;
+    for (let i = 0; i < n; i++) {
+      if (!elim[next]) return next;
+      next = (next + 1) % n;
     }
+    return from;
+  }, [n]);
+
+  const assignNumber = (num: number) => {
+    if (killerNums.includes(num)) return;
+    const newNums = [...killerNums];
+    newNums[assigningIdx] = num;
+    setKillerNums(newNums);
+    if (assigningIdx < n - 1) setAssigning(assigningIdx + 1);
+    else setPhase("play");
   };
 
-  const handlePlayDart = useCallback((dart: Dart) => {
-    if (visitDarts.length >= 3) return;
-    const newVisit = [...visitDarts, dart];
+  const handleDart = useCallback((dart: Dart) => {
+    if (visitDarts.length >= 3 || phase !== "play") return;
+    const capturedTurn = turn;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
 
-    const newIsKiller = [...isKiller];
-    const newLives    = [...livesLeft];
-    const newElim     = [...eliminated];
+    const myNum = killerNums[capturedTurn];
+    const isMyDouble = dart.multiplier === 2 && dart.segment === myNum;
 
-    const myNum = killerNums[turn];
-    if (dart.multiplier === 2 && dart.segment === myNum && !newIsKiller[turn]) {
-      newIsKiller[turn] = true;
-      flash(`${players[turn]} is now a KILLER!`);
-    } else if (newIsKiller[turn] && dart.multiplier === 2) {
-      for (let i = 0; i < n; i++) {
-        if (i !== turn && !newElim[i] && dart.segment === killerNums[i]) {
-          newLives[i]--;
-          if (newLives[i] <= 0) {
-            newElim[i] = true;
-            flash(`${players[i]} eliminated!`);
-          } else {
-            flash(`${players[i]} loses a life!`);
-          }
+    if (!isKiller[capturedTurn] && isMyDouble) {
+      setIsKiller(prev => { const n2 = [...prev]; n2[capturedTurn] = true; return n2; });
+      setMsg(`${playerNames[capturedTurn]} is now a KILLER!`);
+      setTimeout(() => setMsg(""), 2000);
+    } else if (isKiller[capturedTurn]) {
+      for (let opp = 0; opp < n; opp++) {
+        if (opp === capturedTurn || eliminated[opp]) continue;
+        if (dart.multiplier === 2 && dart.segment === killerNums[opp]) {
+          setPlayerLives(prev => {
+            const newL = [...prev];
+            newL[opp]--;
+            if (newL[opp] <= 0) {
+              setEliminated(prevElim => {
+                const newElim = [...prevElim];
+                newElim[opp] = true;
+                setMsg(`${playerNames[opp]} eliminated!`);
+                const survivors = newElim.filter(e => !e).length;
+                if (survivors === 1) {
+                  const winnerIdx = newElim.findIndex(e => !e);
+                  setTimeout(() => onWin(winnerIdx, `${playerNames[winnerIdx]} is the last survivor!`), 500);
+                } else {
+                  setTimeout(() => setMsg(""), 2000);
+                }
+                return newElim;
+              });
+            } else {
+              setMsg(`${playerNames[opp]} loses a life!`);
+              setTimeout(() => setMsg(""), 2000);
+            }
+            return newL;
+          });
           break;
         }
       }
     }
 
-    setIsKiller(newIsKiller);
-    setLivesLeft(newLives);
-    setEliminated(newElim);
-    setVisitDarts(newVisit);
-
-    if (newVisit.length >= 3) {
-      const activeCount = newElim.filter(e => !e).length;
-      if (activeCount === 1) {
-        const winner = newElim.findIndex(e => !e);
-        setTimeout(() => onWin(winner >= 0 ? winner : turn, "Last player standing!"), 500);
-        return;
-      }
-      let next = (turn + 1) % n;
-      while (newElim[next]) next = (next + 1) % n;
-      setTimeout(() => { setVisitDarts([]); setTurn(next); }, 200);
+    if (nv.length === 3) {
+      setVisitDarts([]);
+      setEliminated(elim => {
+        const next = nextLivingPlayer(capturedTurn, elim);
+        setTurn(next);
+        return elim;
+      });
     }
-  }, [visitDarts, turn, isKiller, livesLeft, eliminated, killerNums, players, n, onWin]);
+  }, [visitDarts, phase, turn, killerNums, isKiller, eliminated, playerNames, n, onWin, nextLivingPlayer]);
 
-  const highlightSegs = killerNums.filter((k): k is number => k !== null);
+  const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
+  const handleUndo = () => { if (visitDarts.length > 0) setVisitDarts(p => p.slice(0, -1)); };
 
   if (phase === "assign") {
     return (
-      <div className="space-y-4 max-w-md mx-auto px-2">
-        <div className="text-center py-2">
-          <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-            Assign Killer Numbers
-          </div>
-          <div className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: MP_COLORS[assignTurn] }}>
-            {players[assignTurn]}
-          </div>
-          <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-            Pick your double
-          </div>
+      <div style={{ maxWidth: "512px", margin: "0 auto", padding: "1rem 0.5rem" }}>
+        <div className="pdc-divider" />
+        <div className="text-center mb-4">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Killer — Pick Numbers</h2>
+          <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
+            <span style={{ color: pColor(assigningIdx) }}>{playerNames[assigningIdx]}</span> — tap your double (1–20)
+          </p>
         </div>
-
-        <div className="grid grid-cols-5 gap-1.5">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "0.5rem" }}>
           {Array.from({ length: 20 }, (_, i) => i + 1).map(num => {
-            const ownerIdx = killerNums.findIndex(k => k === num);
-            const taken = ownerIdx >= 0;
+            const ownerIdx = killerNums.indexOf(num);
+            const taken = ownerIdx !== -1;
             return (
-              <button key={num} onClick={() => assignNum(num)} disabled={taken}
-                className="py-2 rounded-lg font-black text-sm"
+              <button key={num} onClick={() => !taken && assignNumber(num)}
                 style={{
-                  fontFamily: "Oswald, sans-serif",
-                  background: taken ? `${MP_COLORS[ownerIdx]}22` : "rgba(255,255,255,0.06)",
-                  border: `1px solid ${taken ? MP_COLORS[ownerIdx] + "55" : "rgba(255,255,255,0.1)"}`,
-                  color: taken ? MP_COLORS[ownerIdx] : "rgba(255,255,255,0.8)",
-                  cursor: taken ? "not-allowed" : "pointer",
-                }}>
-                D{num}
+                  padding: "0.8rem 0", borderRadius: "0.5rem", fontFamily: "Oswald, sans-serif",
+                  fontWeight: 700, fontSize: "1rem", cursor: taken ? "not-allowed" : "pointer",
+                  background: taken ? `${pColor(ownerIdx)}22` : "rgba(255,255,255,0.05)",
+                  border: taken ? `1.5px solid ${pColor(ownerIdx)}` : "1px solid rgba(255,255,255,0.1)",
+                  color: taken ? pColor(ownerIdx) : "rgba(255,255,255,0.8)",
+                }}>D{num}
               </button>
             );
           })}
         </div>
-
-        <div className="space-y-1">
-          {players.map((name, i) => (
-            <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{
-              background: i === assignTurn ? `${MP_COLORS[i]}11` : "transparent",
-              border: `1px solid ${i === assignTurn ? MP_COLORS[i] + "33" : "rgba(255,255,255,0.04)"}`,
-            }}>
-              <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: MP_COLORS[i] }} />
-              <span className="text-sm font-bold flex-1" style={{ fontFamily: "Oswald, sans-serif", color: MP_COLORS[i] }}>{name}</span>
-              <span className="text-sm font-black" style={{ fontFamily: "Oswald, sans-serif", color: killerNums[i] !== null ? "#fff" : "rgba(255,255,255,0.2)" }}>
-                {killerNums[i] !== null ? `D${killerNums[i]}` : i < assignTurn ? "—" : "..."}
-              </span>
+        <div className="grid mt-4" style={{ gridTemplateColumns: `repeat(${Math.min(n, 3)},1fr)`, gap: "0.5rem" }}>
+          {playerNames.map((name, i) => (
+            <div key={i} className="pdc-card p-2 text-center" style={{ borderColor: killerNums[i] !== null ? pColor(i) : "rgba(255,255,255,0.06)" }}>
+              <div className="text-xs" style={{ color: pColor(i), fontFamily: "Oswald, sans-serif" }}>{name}</div>
+              <div className="text-lg font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>
+                {killerNums[i] !== null ? `D${killerNums[i]}` : "—"}
+              </div>
             </div>
           ))}
         </div>
-
-        <AbandonBtn onAbandon={onAbandon} />
+        <div className="mt-4"><AbandonBtn onAbandon={onAbandon} /></div>
       </div>
     );
   }
 
   return (
     <ScorerLayout
-      top={
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            {players.map((name, i) => (
-              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all"
-                style={{
-                  background: turn === i && !eliminated[i] ? `${MP_COLORS[i]}11` : "rgba(255,255,255,0.02)",
-                  border: `1px solid ${turn === i && !eliminated[i] ? MP_COLORS[i] + "44" : "rgba(255,255,255,0.05)"}`,
-                  opacity: eliminated[i] ? 0.35 : 1,
-                }}>
-                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ background: eliminated[i] ? "rgba(255,255,255,0.1)" : MP_COLORS[i] }} />
-                <span className="text-sm font-bold flex-1" style={{
-                  fontFamily: "Oswald, sans-serif", color: MP_COLORS[i],
-                  textDecoration: eliminated[i] ? "line-through" : "none",
-                }}>{name}</span>
-                <span className="text-xs font-black" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.35)" }}>
-                  {killerNums[i] !== null ? `D${killerNums[i]}` : "—"}
-                </span>
-                <div className="flex gap-0.5">
-                  {Array.from({ length: startingLives }).map((_, l) => (
-                    <div key={l} className="w-2.5 h-2.5 rounded-full" style={{
-                      background: eliminated[i] ? "rgba(255,255,255,0.08)" : l < livesLeft[i] ? "#ff005c" : "rgba(255,255,255,0.12)",
-                    }} />
-                  ))}
-                </div>
-                {isKiller[i] && !eliminated[i] && (
-                  <span className="text-xs font-black" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>⚔</span>
-                )}
+      top={<div className="space-y-3">
+        <div className="pdc-divider" />
+        <h2 className="text-2xl font-bold uppercase text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
+          Killer — {n} Players
+        </h2>
+        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(n, 3)},1fr)` }}>
+          {playerNames.map((name, i) => (
+            <div key={i} className="pdc-card p-3 text-center"
+              style={{ borderColor: turn === i && !eliminated[i] ? pColor(i) : "rgba(255,255,255,0.06)", opacity: eliminated[i] ? 0.35 : 1 }}>
+              <div className="text-xs font-bold uppercase" style={{ color: pColor(i), fontFamily: "Oswald, sans-serif" }}>{name}</div>
+              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>D{killerNums[i]}</div>
+              <div className="text-sm font-bold mt-0.5" style={{ fontFamily: "Oswald, sans-serif", color: eliminated[i] ? "rgba(255,255,255,0.2)" : isKiller[i] ? "#ffd24a" : "rgba(255,255,255,0.3)" }}>
+                {eliminated[i] ? "💀 OUT" : isKiller[i] ? "☠ KILLER" : "○"}
               </div>
-            ))}
+              <div className="flex justify-center gap-0.5 mt-1">
+                {Array.from({ length: lives }).map((_, li) => (
+                  <span key={li} style={{ fontSize: "0.75rem", opacity: li < playerLives[i] ? 1 : 0.15 }}>❤</span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        {msg && <div className="text-center font-bold text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{msg}</div>}
+        {!eliminated[turn] && (
+          <div className="flex items-center justify-center gap-2 text-sm" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
+            <Zap className="w-3.5 h-3.5" style={{ color: pColor(turn) }} />
+            <span style={{ color: pColor(turn), fontWeight: 700 }}>{playerNames[turn]}</span>
+            <span className="uppercase tracking-wider text-xs">
+              {!isKiller[turn] ? `— hit D${killerNums[turn]} to become Killer` : `— hit an opponent's double`}
+            </span>
           </div>
-
-          <SectionCard><VisitDarts darts={visitDarts} /></SectionCard>
-
-          {flashMsg
-            ? <div className="text-center text-sm font-bold uppercase tracking-widest" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{flashMsg}</div>
-            : !eliminated[turn] && (
-              <div className="flex items-center justify-center gap-2 text-sm" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
-                <Zap className="w-3.5 h-3.5" style={{ color: MP_COLORS[turn] }} />
-                <span style={{ color: MP_COLORS[turn], fontWeight: 700 }}>{players[turn]}</span>
-                <span className="uppercase tracking-wider text-xs">
-                  {!isKiller[turn]
-                    ? `— hit D${killerNums[turn]} to become Killer`
-                    : "— hit an opponent's double!"}
-                </span>
-              </div>
-            )
-          }
-        </div>
-      }
-      bot={
-        <div className="space-y-2">
-          <DartInputBoard
-            onDart={handlePlayDart}
-            onMiss={() => handlePlayDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
-            onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
-            highlightSegments={highlightSegs}
-          />
-          <AbandonBtn onAbandon={onAbandon} />
-        </div>
-      }
+        )}
+        <VisitDarts darts={visitDarts} />
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+          highlightSegments={killerNums.filter((num): num is number => num !== null)} />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
     />
   );
 }
 
-// ── Team Cricket Scorer ────────────────────────────────────────────────────────
-export function TeamCricketScorer({ team1, team2, cutThroat = false, includesBull = true, onWin, onAbandon }: {
+// ── Doubles Team Cricket Scorer (fixed 2-player-per-side variant) ─────────────
+export function DoublesTeamCricketScorer({ team1, team2, cutThroat = false, includesBull = true, onWin, onAbandon }: {
   team1: [string, string]; team2: [string, string];
   cutThroat?: boolean; includesBull?: boolean;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;

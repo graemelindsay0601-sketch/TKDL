@@ -748,7 +748,7 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
           p1Name={data.p1.name}
           p2Name={data.botName ?? data.p2?.name ?? "CPU"}
           stats={stats}
-          winnerIdx={result.winnerIdx as 0 | 1}
+          winnerIdx={result.winnerIdx as 0|1}
           accentColor="#a78bfa"
         />
       )}

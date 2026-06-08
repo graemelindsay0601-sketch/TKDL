@@ -364,12 +364,26 @@ async function seedGameTypes() {
     { key: "dead_centre",         name: "Dead Centre (Kill Bull)",   engine: "DeadCentre",         category: "practice",    description: "Every dart must hit the bull (≥25). Miss = your score resets to 0. First to 300 wins.",           config: JSON.stringify({ target: 300 }),                                                                          enabled: true, sortOrder: 66 },
   ];
 
-  await db.insert(gameTypesTable).values([...defaults, ...extra]).onConflictDoNothing();
+  // ── Team / Multi-player game types ──────────────────────────────────────────
+  const teamGames: GT[] = [
+    { key: "team_501_doubles",     name: "501 Doubles (2v2)",        engine: "TeamX01",     category: "team", description: "2v2 team 501. Teammates share a score and alternate throws. Double out.", config: JSON.stringify({ startingScore: 501, doubleOut: true,  teamSize: 2 }), enabled: true, sortOrder: 70 },
+    { key: "team_301_doubles",     name: "301 Doubles (2v2)",        engine: "TeamX01",     category: "team", description: "2v2 team 301. Double out. Shorter team format.",                         config: JSON.stringify({ startingScore: 301, doubleOut: true,  teamSize: 2 }), enabled: true, sortOrder: 71 },
+    { key: "team_501_triples",     name: "501 Triples (3v3)",        engine: "TeamX01",     category: "team", description: "3v3 team 501. Three-person teams share a score. Double out.",            config: JSON.stringify({ startingScore: 501, doubleOut: true,  teamSize: 3 }), enabled: true, sortOrder: 72 },
+    { key: "team_cricket_doubles", name: "Cricket Doubles (2v2)",    engine: "TeamCricket", category: "team", description: "2v2 team Cricket. Teammates share marks and score. Close 15–20 and bull.", config: JSON.stringify({ cutThroat: false, teamSize: 2 }),                   enabled: true, sortOrder: 73 },
+    { key: "team_cricket_triples", name: "Cricket Triples (3v3)",    engine: "TeamCricket", category: "team", description: "3v3 team Cricket. Three-person teams close the board together.",          config: JSON.stringify({ cutThroat: false, teamSize: 3 }),                   enabled: true, sortOrder: 74 },
+    { key: "killer_3player",       name: "Killer — 3 Players",       engine: "MultiKiller", category: "team", description: "3-player Killer. Each picks a double, become a Killer, eliminate the others. Last standing wins.", config: JSON.stringify({ lives: 3, playerCount: 3 }), enabled: true, sortOrder: 75 },
+    { key: "killer_4player",       name: "Killer — 4 Players",       engine: "MultiKiller", category: "team", description: "4-player Killer. Every player for themselves. Last standing wins.",       config: JSON.stringify({ lives: 3, playerCount: 4 }),                       enabled: true, sortOrder: 76 },
+    { key: "killer_5player",       name: "Killer — 5 Players",       engine: "MultiKiller", category: "team", description: "5-player Killer free-for-all.",                                          config: JSON.stringify({ lives: 3, playerCount: 5 }),                       enabled: true, sortOrder: 77 },
+    { key: "killer_6player",       name: "Killer — 6 Players",       engine: "MultiKiller", category: "team", description: "6-player Killer — full office mayhem.",                                  config: JSON.stringify({ lives: 3, playerCount: 6 }),                       enabled: true, sortOrder: 78 },
+    { key: "team_501_straight",    name: "501 Doubles – Straight Out",engine: "TeamX01",     category: "team", description: "2v2 team 501. No double required to finish. Great for beginners.",       config: JSON.stringify({ startingScore: 501, doubleOut: false, teamSize: 2 }), enabled: true, sortOrder: 79 },
+  ];
+
+  await db.insert(gameTypesTable).values([...defaults, ...extra, ...teamGames]).onConflictDoNothing();
 
   // Add rules_text column if not present (safe to run every boot)
   await db.execute(sql`ALTER TABLE game_types ADD COLUMN IF NOT EXISTS rules_text TEXT`);
 
-  logger.info(`Game types seeded (${defaults.length + extra.length} declared, skipping existing)`);
+  logger.info(`Game types seeded (${defaults.length + extra.length + teamGames.length} declared, skipping existing)`);
 }
 
 async function seedPractice() {
@@ -403,10 +417,26 @@ async function seedPractice() {
   logger.info("Practice sessions table ready");
 }
 
+async function seedMatchParticipants() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS match_participants (
+      id          SERIAL PRIMARY KEY,
+      match_id    INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+      player_id   INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      player_name TEXT NOT NULL,
+      team        TEXT NOT NULL,
+      position    INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_mp_match_id ON match_participants(match_id)`);
+  logger.info("match_participants table ready");
+}
+
 async function init() {
   try {
     await seedSettings();
     await seedPractice();
+    await seedMatchParticipants();
     await seedGameTypes();
     await seedAchievements();
     await seedRealData();
