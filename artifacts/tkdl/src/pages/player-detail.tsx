@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useState, useEffect, useRef } from "react";
-import { Trophy, Skull, Flame, ArrowLeft, CheckCircle, ChevronDown, Zap, Dumbbell } from "lucide-react";
+import { Trophy, Skull, Flame, ArrowLeft, CheckCircle, ChevronDown, Zap, Dumbbell, CircuitBoard } from "lucide-react";
 
 function useCountUp(target: number, duration = 900) {
   const [value, setValue] = useState(0);
@@ -232,7 +232,7 @@ export default function PlayerDetail() {
   const playerId = parseInt(params.id || "0", 10);
   const [achFilter, setAchFilter] = useState<"all" | "unlocked" | "locked" | "close">("all");
   const [showAllAch, setShowAllAch] = useState(false);
-  const [profileTab, setProfileTab] = useState<"matches" | "h2h" | "practice">("matches");
+  const [profileTab, setProfileTab] = useState<"matches" | "h2h" | "practice" | "shadowbot">("matches");
   const [openPractice, setOpenPractice] = useState(false);
   const [openSeasonHistory, setOpenSeasonHistory] = useState(true);
   const [openAchievements, setOpenAchievements] = useState(true);
@@ -263,6 +263,9 @@ export default function PlayerDetail() {
   const [expandedGame, setExpandedGame] = useState<string | null>(null);
   const [gameSessionsCache, setGameSessionsCache] = useState<Record<string, any[]>>({});
   const [gameSessionsLoading, setGameSessionsLoading] = useState<Record<string, boolean>>({});
+  const [gamerscore, setGamerscore] = useState<{ total: number; league: number; shadowBot: number } | null>(null);
+  const [shadowAchs, setShadowAchs] = useState<any[]>([]);
+  const [shadowAchsLoaded, setShadowAchsLoaded] = useState(false);
 
   const toggleGame = (key: string) => {
     if (expandedGame === key) { setExpandedGame(null); return; }
@@ -289,7 +292,18 @@ export default function PlayerDetail() {
     fetch(`/api/players/${playerId}/dart-profile`)
       .then(r => r.json()).then(d => setDartProfile(d))
       .catch(() => {});
+    fetch(`/api/players/${playerId}/gamerscore`)
+      .then(r => r.json()).then(d => setGamerscore(d))
+      .catch(() => {});
   }, [playerId]);
+
+  useEffect(() => {
+    if (profileTab !== "shadowbot" || shadowAchsLoaded || !playerId) return;
+    setShadowAchsLoaded(true);
+    fetch(`/api/players/${playerId}/shadow-achievements`)
+      .then(r => r.json()).then(d => setShadowAchs(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, [profileTab, shadowAchsLoaded, playerId]);
 
   if (isLoading) {
     return (
@@ -477,7 +491,7 @@ export default function PlayerDetail() {
           style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.22)", letterSpacing: "0.15em" }}>
           Career
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
           <SmallStat label="Wins"      value={player.careerWins ?? 0}     accent="#22c55e" />
           <SmallStat label="Losses"    value={player.careerLosses ?? 0}   accent="#ff005c" />
           <SmallStat label="Played"    value={totalGames} />
@@ -485,6 +499,7 @@ export default function PlayerDetail() {
           <SmallStat label="Peak ELO"  value={player.careerPeakElo ?? player.elo} accent="#0066ff" />
           <SmallStat label="Career Pts" value={player.careerPoints ?? 0}
             accent={(player.careerPoints ?? 0) >= 0 ? "#22c55e" : "#ff005c"} />
+          <SmallStat label="Gamerscore" value={gamerscore?.total ?? 0} suffix="G" accent="#ffd24a" />
         </div>
       </div>
 
@@ -495,7 +510,8 @@ export default function PlayerDetail() {
         {([
           { key: "matches",  label: "Matches",  Icon: Zap,      activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"      },
           { key: "h2h",      label: "H2H",      Icon: Trophy,   activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"      },
-          { key: "practice", label: "Practice", Icon: Dumbbell, activeColor: "#a78bfa", activeBg: "rgba(167,139,250,0.12)"   },
+          { key: "practice",  label: "Practice", Icon: Dumbbell,      activeColor: "#a78bfa", activeBg: "rgba(167,139,250,0.12)"  },
+          { key: "shadowbot", label: "Bot",      Icon: CircuitBoard, activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"   },
         ] as const).map(({ key, label, Icon, activeColor, activeBg }) => (
           <button key={key} onClick={() => setProfileTab(key)}
             className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-black uppercase tracking-widest transition-all"
@@ -685,24 +701,36 @@ export default function PlayerDetail() {
 
       {/* ══ PRACTICE STATS ══ */}
       <div className={`pdc-card overflow-hidden ${profileTab !== "practice" ? "hidden lg:block" : ""}`}>
-        <button
-          onClick={() => setOpenPractice(v => !v)}
-          className="w-full px-4 py-3 flex items-center gap-2 transition-colors hover:bg-white/[0.02]"
+        <div className="flex items-stretch"
           style={{ borderBottom: openPractice ? "1px solid rgba(255,255,255,0.07)" : "none" }}>
-          <Dumbbell className="w-3.5 h-3.5" style={{ color: "rgba(167,139,250,0.5)" }} />
-          <h2 className="font-bold uppercase text-sm tracking-wider flex-1 text-left"
-            style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-            Practice Stats
-          </h2>
-          {practiceAgg && Number(practiceAgg.total_sessions) > 0 && (
-            <span className="text-xs px-2 py-0.5 rounded-full font-bold mr-1"
-              style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>
-              {practiceAgg.total_sessions} sessions
+          <button
+            onClick={() => setOpenPractice(v => !v)}
+            className="flex-1 px-4 py-3 flex items-center gap-2 transition-colors hover:bg-white/[0.02] min-w-0">
+            <Dumbbell className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(167,139,250,0.5)" }} />
+            <h2 className="font-bold uppercase text-sm tracking-wider flex-1 text-left"
+              style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+              Practice Stats
+            </h2>
+            {practiceAgg && Number(practiceAgg.total_sessions) > 0 && (
+              <span className="text-xs px-2 py-0.5 rounded-full font-bold mr-1"
+                style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>
+                {practiceAgg.total_sessions} sessions
+              </span>
+            )}
+            <ChevronDown className="w-4 h-4 shrink-0 transition-transform duration-200"
+              style={{ color: "rgba(255,255,255,0.25)", transform: openPractice ? "rotate(180deg)" : "rotate(0deg)" }} />
+          </button>
+          <Link href={`/shadow-bot?player=${playerId}`}
+            className="flex items-center gap-1.5 px-3 transition-colors hover:bg-white/[0.03] shrink-0"
+            style={{ borderLeft: "1px solid rgba(255,255,255,0.06)" }}
+            title="Train My Bot">
+            <CircuitBoard className="w-3.5 h-3.5" style={{ color: "rgba(255,0,92,0.6)" }} />
+            <span className="text-xs font-black uppercase hidden md:inline"
+              style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,0,92,0.6)", letterSpacing: "0.06em" }}>
+              My Bot
             </span>
-          )}
-          <ChevronDown className="w-4 h-4 shrink-0 transition-transform duration-200"
-            style={{ color: "rgba(255,255,255,0.25)", transform: openPractice ? "rotate(180deg)" : "rotate(0deg)" }} />
-        </button>
+          </Link>
+        </div>
 
         {openPractice && <>
         {/* Aggregate summary */}
@@ -1134,6 +1162,95 @@ export default function PlayerDetail() {
           </div>
         )}
         </>}
+      </div>
+
+      {/* ══ SHADOW BOT ACHIEVEMENTS ══ */}
+      <div className={`pdc-card overflow-hidden ${profileTab !== "shadowbot" ? "hidden lg:block" : ""}`}>
+        <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex items-center gap-2">
+            <CircuitBoard className="w-3.5 h-3.5" style={{ color: "rgba(255,0,92,0.6)" }} />
+            <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+              Bot Achievements
+            </h2>
+          </div>
+          {shadowAchs.length > 0 && (
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+                {shadowAchs.filter(a => a.unlocked).length}/{shadowAchs.length}
+              </span>
+              <span className="text-xs font-black px-2 py-0.5 rounded" style={{ background: "rgba(255,210,74,0.12)", color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
+                {shadowAchs.filter(a => a.unlocked).reduce((s: number, a: any) => s + (a.gamerscore ?? 0), 0)}G
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="p-3">
+          {shadowAchs.length === 0 ? (
+            <div className="py-8 text-center">
+              <CircuitBoard className="w-8 h-8 mx-auto mb-3 opacity-10" style={{ color: "#ff005c" }} />
+              <p className="text-sm" style={{ color: "rgba(255,255,255,0.2)" }}>No data yet — log a practice session to start earning bot achievements</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {shadowAchs.map((a: any) => {
+                const RARITY_COLOR: Record<string, string> = { Mythic: "#ff005c", Legendary: "#ffd24a", Epic: "#a855f7", Rare: "#0066ff", Common: "#9ca3af" };
+                const color = RARITY_COLOR[a.rarity] ?? "#9ca3af";
+                return (
+                  <div key={a.key}
+                    className="relative rounded-xl overflow-hidden flex flex-col"
+                    style={{
+                      background: a.unlocked ? `${color}0a` : "rgba(255,255,255,0.02)",
+                      border: `1px solid ${a.unlocked ? `${color}30` : "rgba(255,255,255,0.06)"}`,
+                      opacity: a.unlocked ? 1 : 0.6,
+                    }}>
+                    <div className="h-0.5 w-full" style={{ background: a.unlocked ? color : "rgba(255,255,255,0.06)" }} />
+                    <div className="p-3 flex flex-col gap-1.5 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color, fontSize: "0.5rem", letterSpacing: "0.18em", opacity: 0.8 }}>
+                          {a.rarity}
+                        </span>
+                        <span className="font-black text-xs" style={{ fontFamily: "Oswald, sans-serif", color: a.unlocked ? "#ffd24a" : "rgba(255,255,255,0.2)" }}>
+                          {a.gamerscore}G
+                        </span>
+                      </div>
+                      <div className="text-2xl leading-none select-none" style={{ filter: a.unlocked ? undefined : "grayscale(1) brightness(0.4)" }}>
+                        {a.icon}
+                      </div>
+                      <div className="font-black text-xs leading-tight" style={{ fontFamily: "Oswald, sans-serif", color: a.unlocked ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.3)" }}>
+                        {a.name.replace(/^[^\s]+\s/, "")}
+                      </div>
+                      <div className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.65rem" }}>
+                        {a.description}
+                      </div>
+                      {!a.unlocked && (
+                        <div className="mt-auto pt-1.5">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
+                              {a.currentValue} / {a.criteriaValue}
+                            </span>
+                            <span className="text-xs font-bold" style={{ color: a.progressPct >= 80 ? "#ffd24a" : "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
+                              {a.progressPct}%
+                            </span>
+                          </div>
+                          <div className="h-0.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
+                            <div className="h-full rounded-full transition-all" style={{ width: `${a.progressPct}%`, background: a.progressPct >= 80 ? "#ffd24a" : color }} />
+                          </div>
+                        </div>
+                      )}
+                      {a.unlocked && (
+                        <div className="mt-auto pt-1.5">
+                          <span className="text-xs font-black uppercase" style={{ color, fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.1em" }}>
+                            ✓ Unlocked
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ══ FORMAT STATS ══ */}

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod/v4";
+import { checkAndAwardShadowBotAchievements, getShadowAchievementProgress } from "../lib/shadow-bot-achievements";
 
 const router = Router();
 
@@ -53,6 +54,10 @@ router.post("/practice/sessions", async (req, res): Promise<void> => {
          ${body.p2_180s ?? 0}, ${body.p2CheckoutAttempts ?? 0}, ${body.p2CheckoutHits ?? 0})
     `);
     res.json({ ok: true });
+    // Fire-and-forget shadow bot achievement check for P1
+    if (body.player1Id) {
+      checkAndAwardShadowBotAchievements(body.player1Id).catch(() => {});
+    }
   } catch (err) {
     req.log.error({ err }, "Failed to save practice session");
     res.status(500).json({ error: "Failed to save session" });
@@ -458,6 +463,120 @@ router.get("/admin/practice/stats", async (req, res): Promise<void> => {
   } catch (err) {
     req.log.error({ err }, "Failed to get practice stats");
     res.status(500).json({ error: "Failed to get stats" });
+  }
+});
+
+// GET /api/players/:id/shadow-achievements — progress on all shadow bot achievements
+router.get("/players/:id/shadow-achievements", async (req, res): Promise<void> => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+    const progress = await getShadowAchievementProgress(playerId);
+    res.json(progress);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get shadow achievements");
+    res.status(500).json({ error: "Failed to get shadow achievements" });
+  }
+});
+
+// GET /api/players/:id/shadow-bot-stats — training stats for the Build Your Bot page
+router.get("/players/:id/shadow-bot-stats", async (req, res): Promise<void> => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+    const THRESHOLD = 250;
+    const THIN = 5;
+
+    const [playerQ, totalsQ, gameModeQ] = await Promise.all([
+      db.execute(sql`SELECT name FROM players WHERE id = ${playerId}`),
+      db.execute(sql`
+        SELECT
+          COALESCE(SUM(p1_darts), 0)::int           AS total_darts,
+          COUNT(*)::int                              AS total_sessions,
+          COALESCE(SUM(p1_score), 0)::int           AS total_score,
+          COALESCE(SUM(p1_checkout_hits), 0)::int   AS co_hits,
+          COALESCE(SUM(p1_checkout_attempts), 0)::int AS co_attempts
+        FROM practice_sessions WHERE player1_id = ${playerId}
+      `),
+      db.execute(sql`
+        SELECT game_type_key, game_type_name, COUNT(*)::int AS sessions,
+               COALESCE(SUM(p1_darts), 0)::int AS darts
+        FROM practice_sessions WHERE player1_id = ${playerId}
+        GROUP BY game_type_key, game_type_name ORDER BY sessions DESC
+      `),
+    ]);
+
+    const playerName = (playerQ.rows[0] as { name: string } | undefined)?.name ?? "Unknown";
+    const t = totalsQ.rows[0] as { total_darts: number; total_sessions: number; total_score: number; co_hits: number; co_attempts: number } | undefined;
+    const totalDarts    = Number(t?.total_darts ?? 0);
+    const totalSessions = Number(t?.total_sessions ?? 0);
+    const totalScore    = Number(t?.total_score ?? 0);
+    const coHits        = Number(t?.co_hits ?? 0);
+    const coAttempts    = Number(t?.co_attempts ?? 0);
+
+    const gameModeSessions = (gameModeQ.rows as { game_type_key: string; game_type_name: string; sessions: number; darts: number }[])
+      .map(r => ({ gameTypeKey: r.game_type_key, gameTypeName: r.game_type_name, sessions: Number(r.sessions), darts: Number(r.darts) }));
+
+    const thinSpots = gameModeSessions.filter(g => g.sessions < THIN);
+
+    if (totalDarts < THRESHOLD) {
+      res.json({
+        playerName, locked: true, totalDarts, dartsNeeded: THRESHOLD,
+        totalSessions, accuracyLevel: null, nextLevel: null,
+        progressToNext: Math.round((totalDarts / THRESHOLD) * 100),
+        gameModeSessions, thinSpots,
+      });
+      return;
+    }
+
+    const computedAvg  = totalDarts > 0 ? Math.round((totalScore / totalDarts) * 3 * 10) / 10 : 45;
+    const doubleHitPct = coAttempts > 0 ? Math.round((coHits / coAttempts) * 100) / 100 : 0;
+
+    const LEVELS = [
+      { level: "beginner", min: 0,   next: "amateur" as const, nextMin: 45  },
+      { level: "amateur",  min: 45,  next: "club"    as const, nextMin: 62  },
+      { level: "club",     min: 62,  next: "county"  as const, nextMin: 80  },
+      { level: "county",   min: 80,  next: "pro"     as const, nextMin: 95  },
+      { level: "pro",      min: 95,  next: "elite"   as const, nextMin: 108 },
+      { level: "elite",    min: 108, next: null, nextMin: null },
+    ];
+    let accuracyLevel = "beginner", nextLevel: string | null = "amateur", progressToNext = 0;
+    for (const lvl of LEVELS) {
+      if (computedAvg >= lvl.min) {
+        accuracyLevel  = lvl.level;
+        nextLevel      = lvl.next;
+        progressToNext = lvl.next && lvl.nextMin
+          ? Math.min(100, Math.round(((computedAvg - lvl.min) / (lvl.nextMin - lvl.min)) * 100))
+          : 100;
+      }
+    }
+
+    const dartLogQ = await db.execute(sql`
+      WITH dart_data AS (
+        SELECT (dart->>'seg')::int AS seg, (dart->>'mult')::int AS mult, dart->>'phase' AS phase
+        FROM practice_sessions, jsonb_array_elements(session_data->'dartLog') AS dart
+        WHERE player1_id = ${playerId} AND session_data ? 'dartLog'
+      )
+      SELECT seg, mult, phase, COUNT(*)::int AS throws
+      FROM dart_data WHERE seg IS NOT NULL AND mult IS NOT NULL
+      GROUP BY seg, mult, phase ORDER BY throws DESC
+    `);
+    const raw = dartLogQ.rows as { seg: number; mult: number; phase: string; throws: number }[];
+    const segMap: Record<number, number> = {};
+    for (const d of raw.filter(r => r.phase === "scoring")) {
+      const s = Number(d.seg); segMap[s] = (segMap[s] ?? 0) + Number(d.throws);
+    }
+    const primarySeg   = Number(Object.entries(segMap).sort((a, b) => Number(b[1]) - Number(a[1]))[0]?.[0] ?? 20);
+    const checkoutSegs = raw.filter(r => r.phase === "checkout" && Number(r.mult) === 2).slice(0, 4).map(r => Number(r.seg));
+
+    res.json({
+      playerName, locked: false, totalDarts, dartsNeeded: THRESHOLD,
+      totalSessions, computedAvg, doubleHitPct, primarySeg, checkoutSegs,
+      accuracyLevel, nextLevel, progressToNext, gameModeSessions, thinSpots,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get shadow bot stats");
+    res.status(500).json({ error: "Failed to get shadow bot stats" });
   }
 });
 

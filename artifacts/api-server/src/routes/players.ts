@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { eq, or, desc, and, inArray } from "drizzle-orm";
+import { eq, or, desc, and, inArray, sql } from "drizzle-orm";
 import { db, playersTable, matchesTable, matchParticipantsTable, playerAchievementsTable, achievementsTable, seasonStandingsTable, seasonsTable } from "@workspace/db";
 import { z } from "zod";
 import { computeIdentity } from "../lib/identity";
 import { calcTier } from "../lib/elo";
+import { gamerscoreForRarity, SHADOW_BOT_ACHIEVEMENT_DEFS } from "../lib/shadow-bot-achievements";
 
 const CreatePlayerBody = z.object({
   name:     z.string().min(1),
@@ -400,6 +401,39 @@ router.get("/players/:id/game-types", async (req, res): Promise<void> => {
     .sort((a, b) => b.total - a.total);
 
   res.json(result);
+});
+
+// GET /api/players/:id/gamerscore — total gamerscore for a player
+router.get("/players/:id/gamerscore", async (req, res): Promise<void> => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+
+    const [leagueQ, shadowQ] = await Promise.all([
+      db.execute(sql`
+        SELECT a.rarity FROM player_achievements pa
+        JOIN achievements a ON a.id = pa.achievement_id
+        WHERE pa.player_id = ${playerId}
+      `),
+      db.execute(sql`
+        SELECT achievement_key FROM shadow_bot_achievements WHERE player_id = ${playerId}
+      `),
+    ]);
+
+    const leagueTotal = (leagueQ.rows as { rarity: string }[])
+      .reduce((sum, r) => sum + gamerscoreForRarity(r.rarity), 0);
+
+    const shadowTotal = (shadowQ.rows as { achievement_key: string }[])
+      .reduce((sum, r) => {
+        const def = SHADOW_BOT_ACHIEVEMENT_DEFS.find(d => d.key === r.achievement_key);
+        return sum + (def ? gamerscoreForRarity(def.rarity) : 0);
+      }, 0);
+
+    res.json({ total: leagueTotal + shadowTotal, league: leagueTotal, shadowBot: shadowTotal });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get gamerscore");
+    res.status(500).json({ error: "Failed to get gamerscore" });
+  }
 });
 
 export default router;

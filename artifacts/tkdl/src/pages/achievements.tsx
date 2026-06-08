@@ -2,6 +2,11 @@ import { useListAchievements } from "@workspace/api-client-react";
 import { useState } from "react";
 import { Lock, Star, Users } from "lucide-react";
 
+function gForRarity(rarity: string): number {
+  const map: Record<string, number> = { Common: 10, Rare: 25, Epic: 50, Legendary: 100, Mythic: 200 };
+  return map[rarity] ?? 10;
+}
+
 const RARITIES   = ["All", "Mythic", "Legendary", "Epic", "Rare", "Common"] as const;
 const CATEGORIES = ["All", "Career", "Seasonal", "Tier", "Practice", "Format", "Rivalry", "Stakes", "Legacy", "Hidden"] as const;
 const SORTS      = ["Default", "Most Unlocked", "Hardest"] as const;
@@ -48,6 +53,11 @@ function AchCard({ a, hovered, onHover }: { a: any; hovered: boolean; onHover: (
             {a.rarity}
           </span>
           <div className="flex items-center gap-1.5">
+            {!isHidden && (
+              <span className="font-black" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,210,74,0.55)", fontSize: "0.58rem" }}>
+                {gForRarity(a.rarity)}G
+              </span>
+            )}
             {!isHidden && unlocked > 0 && (
               <span className="flex items-center gap-0.5 text-xs font-bold"
                 style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>

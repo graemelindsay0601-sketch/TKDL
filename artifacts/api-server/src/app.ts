@@ -432,11 +432,26 @@ async function seedMatchParticipants() {
   logger.info("match_participants table ready");
 }
 
+async function seedShadowBotAchievements() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS shadow_bot_achievements (
+      id              SERIAL PRIMARY KEY,
+      player_id       INTEGER NOT NULL,
+      achievement_key TEXT NOT NULL,
+      unlocked_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      context         JSONB,
+      UNIQUE(player_id, achievement_key)
+    )
+  `);
+  logger.info("shadow_bot_achievements table ready");
+}
+
 async function init() {
   try {
     await seedSettings();
     await seedPractice();
     await seedMatchParticipants();
+    await seedShadowBotAchievements();
     await seedGameTypes();
     await seedAchievements();
     await seedRealData();

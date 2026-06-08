@@ -17,6 +17,7 @@ import Admin        from "@/pages/admin";
 import Rules        from "@/pages/rules";
 import Play         from "@/pages/play";
 import Practice     from "@/pages/practice";
+import ShadowBot    from "@/pages/shadow-bot";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -38,6 +39,7 @@ function AppRoutes() {
         <Route path="/admin"         component={Admin}       />
         <Route path="/play"          component={Play}        />
         <Route path="/practice"      component={Practice}    />
+        <Route path="/shadow-bot"    component={ShadowBot}   />
         <Route component={NotFound} />
       </Switch>
     </Layout>
