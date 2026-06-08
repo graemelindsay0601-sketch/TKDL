@@ -834,8 +834,7 @@ export default function Practice() {
     return createPortal(
       <div style={{
         position: "fixed", inset: 0, zIndex: 9999,
-        background: "#04040a",
-        backgroundImage: "radial-gradient(circle at top right, rgba(255,0,60,0.07), transparent 35%), radial-gradient(circle at bottom left, rgba(0,102,255,0.07), transparent 35%)",
+        background: "#06040e",
       }}>
         <div className="ambient-blob-red" />
         <div className="ambient-blob-blue" />

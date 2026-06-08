@@ -7,6 +7,7 @@ import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize } from "lucide-react";
 import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit } from "./bot-engine";
 import { type PracticeStats, type DartThrow } from "./stats-types";
+import { DartBoardProvider, DartboardBackground } from "@/components/dartboard-bg";
 
 function useFullscreen() {
   const [fs, setFs] = useState(false);
@@ -146,36 +147,54 @@ function SectionCard({ children }: { children: React.ReactNode }) {
 function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode }) {
   const landscape = useOrientation();
 
+  const arenaBg: React.CSSProperties = {
+    background: [
+      "radial-gradient(ellipse 90% 55% at 50% 0%, rgba(255,0,92,0.18) 0%, transparent 60%)",
+      "radial-gradient(ellipse 55% 55% at 8% 92%, rgba(0,210,150,0.09) 0%, transparent 55%)",
+      "radial-gradient(ellipse 55% 55% at 92% 92%, rgba(0,83,159,0.09) 0%, transparent 55%)",
+      "radial-gradient(ellipse 40% 40% at 50% 42%, rgba(255,255,255,0.025) 0%, transparent 70%)",
+      "repeating-radial-gradient(circle at 50% 28%, transparent 0, transparent 52px, rgba(255,255,255,0.018) 52px, rgba(255,255,255,0.018) 54px)",
+      "#06040e",
+    ].join(", "),
+  };
+
   if (landscape) {
     return (
-      <div style={{
-        height: "100dvh", display: "flex", flexDirection: "row", overflow: "hidden",
-      }}>
-        {/* Left: scores / info — scrollable */}
+      <DartBoardProvider>
         <div style={{
-          flex: "0 0 44%", overflowY: "auto", padding: "0.5rem 0.75rem",
-          borderRight: "1px solid rgba(255,255,255,0.06)",
+          height: "100dvh", display: "flex", flexDirection: "row", overflow: "hidden",
+          position: "relative", ...arenaBg,
         }}>
-          {top}
+          <DartboardBackground />
+          <div style={{
+            flex: "0 0 44%", overflowY: "auto", padding: "0.5rem 0.75rem",
+            borderRight: "1px solid rgba(255,255,255,0.06)", position: "relative", zIndex: 1,
+          }}>
+            {top}
+          </div>
+          <div style={{
+            flex: 1, overflowY: "auto", padding: "0.5rem 0.75rem",
+            position: "relative", zIndex: 1,
+          }}>
+            {bot}
+          </div>
         </div>
-        {/* Right: input board — scrollable so nothing is clipped on short screens */}
-        <div style={{
-          flex: 1, overflowY: "auto", padding: "0.5rem 0.75rem",
-        }}>
-          {bot}
-        </div>
-      </div>
+      </DartBoardProvider>
     );
   }
 
   return (
-    <div style={{
-      height: "100dvh", display: "flex", flexDirection: "column",
-      maxWidth: "480px", margin: "0 auto", overflow: "hidden", padding: "0 0.5rem",
-    }}>
-      <div style={{ flex: 1, overflowY: "auto", minHeight: 0, paddingTop: "0.5rem" }}>{top}</div>
-      <div style={{ flexShrink: 0, paddingBottom: "0.5rem" }}>{bot}</div>
-    </div>
+    <DartBoardProvider>
+      <div style={{
+        height: "100dvh", display: "flex", flexDirection: "column",
+        maxWidth: "480px", margin: "0 auto", overflow: "hidden", padding: "0 0.5rem",
+        position: "relative", ...arenaBg,
+      }}>
+        <DartboardBackground />
+        <div style={{ flex: 1, overflowY: "auto", minHeight: 0, paddingTop: "0.5rem", position: "relative", zIndex: 1 }}>{top}</div>
+        <div style={{ flexShrink: 0, paddingBottom: "0.5rem", position: "relative", zIndex: 1 }}>{bot}</div>
+      </div>
+    </DartBoardProvider>
   );
 }
 

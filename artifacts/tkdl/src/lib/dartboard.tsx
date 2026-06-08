@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDartHit } from "@/components/dartboard-bg";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export type Dart = {
@@ -72,6 +73,8 @@ export function DartInputBoard({
 }) {
   const [mult, setMult] = useState<1 | 2 | 3>(1);
 
+  const { hitDart } = useDartHit();
+
   const fire = (seg: number, forceMult?: 1 | 2 | 3) => {
     if (disabled) return;
     const m = forceMult ?? (seg === 25 && mult === 3 ? 2 : mult);
@@ -79,6 +82,7 @@ export function DartInputBoard({
     const label = seg === 25
       ? (m === 2 ? "DB" : "Bull")
       : m === 1 ? `${seg}` : m === 2 ? `D${seg}` : `T${seg}`;
+    hitDart(label);
     onDart({ segment: seg, multiplier: m as 1 | 2 | 3, value: val, label });
   };
 

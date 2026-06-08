@@ -396,7 +396,7 @@ export default function TourRun() {
     const playerParticipant = bracket.participants.find(p => p.key === "player");
 
     return createPortal(
-      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#04040a" }}>
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#06040e" }}>
         <GameScorer
           p1Name={playerParticipant?.name ?? "You"}
           p2Name={`${opponent.flag} ${opponent.name}`}
