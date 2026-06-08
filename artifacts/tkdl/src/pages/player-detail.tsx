@@ -197,12 +197,45 @@ const TIER_GLOW: Record<string, string> = {
   Bronze:   "#cd7f32",
 };
 
+function CollapsibleSection({ title, icon, open, onToggle, badge, children, accentColor = "rgba(255,255,255,0.5)", extraHeader }: {
+  title: string; icon: React.ReactNode; open: boolean; onToggle: () => void;
+  badge?: string; children: React.ReactNode; accentColor?: string; extraHeader?: React.ReactNode;
+}) {
+  return (
+    <div className="pdc-card overflow-hidden">
+      <button
+        onClick={onToggle}
+        className="w-full px-4 py-3 flex items-center gap-2 transition-colors hover:bg-white/[0.02]"
+        style={{ borderBottom: open ? "1px solid rgba(255,255,255,0.07)" : "none", cursor: "pointer" }}>
+        <span style={{ color: accentColor }}>{icon}</span>
+        <h2 className="font-bold uppercase text-sm tracking-wider flex-1 text-left"
+          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+          {title}
+        </h2>
+        {badge && (
+          <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+            style={{ background: `${accentColor}22`, color: accentColor, fontFamily: "Oswald, sans-serif" }}>
+            {badge}
+          </span>
+        )}
+        {extraHeader}
+        <ChevronDown className="w-4 h-4 shrink-0 transition-transform"
+          style={{ color: "rgba(255,255,255,0.25)", transform: open ? "rotate(180deg)" : "rotate(0deg)" }} />
+      </button>
+      {open && <div>{children}</div>}
+    </div>
+  );
+}
+
 export default function PlayerDetail() {
   const params = useParams();
   const playerId = parseInt(params.id || "0", 10);
   const [achFilter, setAchFilter] = useState<"all" | "unlocked" | "locked" | "close">("all");
   const [showAllAch, setShowAllAch] = useState(false);
   const [profileTab, setProfileTab] = useState<"matches" | "h2h" | "practice">("matches");
+  const [openPractice, setOpenPractice] = useState(false);
+  const [openSeasonHistory, setOpenSeasonHistory] = useState(true);
+  const [openAchievements, setOpenAchievements] = useState(true);
 
   const { data: stats, isLoading } = useGetPlayerStats(playerId, {
     query: { enabled: !!playerId, queryKey: getGetPlayerStatsQueryKey(playerId) },
@@ -580,14 +613,26 @@ export default function PlayerDetail() {
 
       {/* ══ PRACTICE STATS ══ */}
       <div className={`pdc-card overflow-hidden ${profileTab !== "practice" ? "hidden lg:block" : ""}`}>
-        <div className="px-4 py-3 border-b flex items-center justify-between"
-          style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-          <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+        <button
+          onClick={() => setOpenPractice(v => !v)}
+          className="w-full px-4 py-3 flex items-center gap-2 transition-colors hover:bg-white/[0.02]"
+          style={{ borderBottom: openPractice ? "1px solid rgba(255,255,255,0.07)" : "none" }}>
+          <Dumbbell className="w-3.5 h-3.5" style={{ color: "rgba(167,139,250,0.5)" }} />
+          <h2 className="font-bold uppercase text-sm tracking-wider flex-1 text-left"
+            style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
             Practice Stats
           </h2>
-          <Dumbbell className="w-3.5 h-3.5" style={{ color: "rgba(167,139,250,0.5)" }} />
-        </div>
+          {practiceAgg && Number(practiceAgg.total_sessions) > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full font-bold mr-1"
+              style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>
+              {practiceAgg.total_sessions} sessions
+            </span>
+          )}
+          <ChevronDown className="w-4 h-4 shrink-0 transition-transform duration-200"
+            style={{ color: "rgba(255,255,255,0.25)", transform: openPractice ? "rotate(180deg)" : "rotate(0deg)" }} />
+        </button>
 
+        {openPractice && <>
         {/* Aggregate summary */}
         {practiceAgg && Number(practiceAgg.total_sessions) > 0 ? (
           <>
@@ -1016,6 +1061,7 @@ export default function PlayerDetail() {
             <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.1)" }}>Complete a practice game to start tracking stats</p>
           </div>
         )}
+        </>}
       </div>
 
       {/* ══ FORMAT STATS ══ */}
@@ -1104,12 +1150,14 @@ export default function PlayerDetail() {
 
       {/* ══ SEASON HISTORY ══ */}
       {seasonHistory && seasonHistory.length > 0 && (
-        <div className="pdc-card overflow-hidden">
-          <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-            <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-              Season History
-            </h2>
-          </div>
+        <CollapsibleSection
+          title="Season History"
+          icon={<Trophy className="w-3.5 h-3.5" />}
+          open={openSeasonHistory}
+          onToggle={() => setOpenSeasonHistory(v => !v)}
+          accentColor="#ffd24a"
+          badge={`${seasonHistory.length} season${seasonHistory.length !== 1 ? "s" : ""}`}
+        >
           <div className="grid text-xs uppercase font-bold px-4 py-2 border-b"
             style={{ gridTemplateColumns: "1fr 4rem 5rem 4rem 5rem", borderColor: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.22)", fontFamily: "Oswald, sans-serif" }}>
             <div>Season</div><div className="text-center">Pos</div><div className="text-center">W-L</div><div className="text-right">ELO</div><div className="text-right">Pts</div>
@@ -1138,35 +1186,46 @@ export default function PlayerDetail() {
               <div className="text-right font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c" }}>{s.points}pts</div>
             </div>
           ))}
-        </div>
+        </CollapsibleSection>
       )}
 
       {/* ══ ACHIEVEMENTS ══ */}
       <div>
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <div>
-            <h2 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Achievements</h2>
-            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
-              <span style={{ color: "#ffd24a" }}>{unlockedCount}</span> unlocked ·{" "}
-              <span style={{ color: "#a855f7" }}>{closeCount}</span> within reach
-            </p>
+          <div className="flex items-center gap-2">
+            <div>
+              <h2 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Achievements</h2>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                <span style={{ color: "#ffd24a" }}>{unlockedCount}</span> unlocked ·{" "}
+                <span style={{ color: "#a855f7" }}>{closeCount}</span> within reach
+              </p>
+            </div>
+            <button
+              onClick={() => setOpenAchievements(v => !v)}
+              className="p-1.5 rounded-lg transition-colors hover:bg-white/[0.05]">
+              <ChevronDown className="w-4 h-4 transition-transform duration-200"
+                style={{ color: "rgba(255,255,255,0.3)", transform: openAchievements ? "rotate(180deg)" : "rotate(0deg)" }} />
+            </button>
           </div>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {(["all","unlocked","close","locked"] as const).map(f => (
-              <button key={f} onClick={() => setAchFilter(f)}
-                className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase transition-all"
-                style={{
-                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.07em",
-                  background: achFilter === f ? "rgba(255,0,92,0.18)" : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${achFilter === f ? "rgba(255,0,92,0.45)" : "rgba(255,255,255,0.07)"}`,
-                  color: achFilter === f ? "#ff005c" : "rgba(255,255,255,0.3)",
-                }}>
-                {f === "all" ? "All" : f === "unlocked" ? "✓ Done" : f === "close" ? "⚡ Close" : "🔒 Locked"}
-              </button>
-            ))}
-          </div>
+          {openAchievements && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(["all","unlocked","close","locked"] as const).map(f => (
+                <button key={f} onClick={() => setAchFilter(f)}
+                  className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase transition-all"
+                  style={{
+                    fontFamily: "Oswald, sans-serif", letterSpacing: "0.07em",
+                    background: achFilter === f ? "rgba(255,0,92,0.18)" : "rgba(255,255,255,0.04)",
+                    border: `1px solid ${achFilter === f ? "rgba(255,0,92,0.45)" : "rgba(255,255,255,0.07)"}`,
+                    color: achFilter === f ? "#ff005c" : "rgba(255,255,255,0.3)",
+                  }}>
+                  {f === "all" ? "All" : f === "unlocked" ? "✓ Done" : f === "close" ? "⚡ Close" : "🔒 Locked"}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
+        {openAchievements && <>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {displayedAch.map((a: any) => <AchievementCard key={a.id} a={a} />)}
         </div>
@@ -1185,6 +1244,7 @@ export default function PlayerDetail() {
             {showAllAch ? "Show Less" : `Show ${filteredAch.length - 18} More`}
           </button>
         )}
+        </>}
       </div>
     </div>
   );
