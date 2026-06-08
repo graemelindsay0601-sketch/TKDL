@@ -26,10 +26,11 @@ const configNav = [
 ];
 
 const mobileNavItems = [
-  { href: "/",             label: "Home",      icon: LayoutDashboard },
-  { href: "/leaderboard",  label: "Standings", icon: Trophy          },
-  { href: "/practice",     label: "Practice",  icon: Dumbbell        },
-  { href: "/submit",       label: "Submit",    icon: Plus            },
+  { href: "/",             label: "Hub",       icon: LayoutDashboard, color: "#0066ff"  },
+  { href: "/leaderboard",  label: "Standings", icon: Trophy,          color: "#ffd24a"  },
+  { href: "/play",         label: "Scorer",    icon: Swords,          color: "#ff005c"  },
+  { href: "/practice",     label: "Practice",  icon: Dumbbell,        color: "#00e5a0"  },
+  { href: "/tour",         label: "Tour",      icon: Star,            color: "#a855f7"  },
 ];
 
 type TickerEntry = { text: string; cls?: string };
@@ -304,15 +305,16 @@ export function Layout({ children }: { children: ReactNode }) {
         style={{ background: "rgba(4,4,10,0.97)", borderTop: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {mobileNavItems.map(item => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+          const col = item.color;
           return (
             <Link key={item.href} href={item.href}
               className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors duration-150 relative"
-              style={{ color: isActive ? "#ff005c" : "rgba(255,255,255,0.3)", WebkitTapHighlightColor: "transparent", outline: "none" }}>
+              style={{ WebkitTapHighlightColor: "transparent", outline: "none" }}>
               {isActive && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: "#ff005c", boxShadow: "0 0 8px rgba(255,0,92,0.8)" }} />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: col, boxShadow: `0 0 8px ${col}` }} />
               )}
-              <item.icon className="w-5 h-5" style={isActive ? { filter: "drop-shadow(0 0 6px rgba(255,0,92,0.8))" } : {}} />
-              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", fontWeight: isActive ? 700 : 400 }}>
+              <item.icon className="w-5 h-5" style={{ color: isActive ? col : "rgba(255,255,255,0.28)", filter: isActive ? `drop-shadow(0 0 6px ${col})` : "none", transition: "color 0.15s, filter 0.15s" }} />
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", fontWeight: isActive ? 700 : 400, color: isActive ? col : "rgba(255,255,255,0.28)", transition: "color 0.15s" }}>
                 {item.label}
               </span>
             </Link>
@@ -320,14 +322,14 @@ export function Layout({ children }: { children: ReactNode }) {
         })}
         <button
           className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors duration-150 relative"
-          style={{ color: drawerOpen ? "#ff005c" : "rgba(255,255,255,0.3)", WebkitTapHighlightColor: "transparent", outline: "none", background: "none", border: "none" }}
+          style={{ WebkitTapHighlightColor: "transparent", outline: "none", background: "none", border: "none" }}
           onClick={() => setDrawerOpen(true)}>
           {drawerOpen && (
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: "#ff005c", boxShadow: "0 0 8px rgba(255,0,92,0.8)" }} />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: "#ffffff", boxShadow: "0 0 8px rgba(255,255,255,0.6)" }} />
           )}
-          <MoreHorizontal className="w-5 h-5" style={drawerOpen ? { filter: "drop-shadow(0 0 6px rgba(255,0,92,0.8))" } : {}} />
-          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", fontWeight: drawerOpen ? 700 : 400 }}>
-            Menu
+          <Menu className="w-5 h-5" style={{ color: drawerOpen ? "#ffffff" : "rgba(255,255,255,0.28)", filter: drawerOpen ? "drop-shadow(0 0 6px rgba(255,255,255,0.7))" : "none", transition: "color 0.15s" }} />
+          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", fontWeight: drawerOpen ? 700 : 400, color: drawerOpen ? "#ffffff" : "rgba(255,255,255,0.28)", transition: "color 0.15s" }}>
+            More
           </span>
         </button>
       </nav>
