@@ -676,4 +676,90 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
   }
 });
 
+// GET /api/bots/leaderboard — all active players' bot summaries for comparison
+router.get("/bots/leaderboard", async (req, res): Promise<void> => {
+  try {
+    const result = await db.execute(sql`
+      SELECT
+        p.id   AS player_id,
+        p.name AS player_name,
+        p.status,
+        COALESCE(SUM(ps.p1_darts), 0)::int   AS total_darts,
+        COUNT(ps.id)::int                     AS total_sessions,
+        COALESCE(SUM(ps.p1_score), 0)::int   AS total_score,
+        COUNT(DISTINCT ps.game_type_key)::int AS game_modes
+      FROM players p
+      LEFT JOIN practice_sessions ps ON ps.player1_id = p.id
+      WHERE p.is_active = true AND p.status != 'ELIMINATED'
+      GROUP BY p.id, p.name, p.status
+      ORDER BY total_darts DESC NULLS LAST
+    `);
+
+    const THRESHOLD = 250;
+    const LEVEL_THRESHOLDS = [
+      { key: "elite",    min: 108, max: Infinity },
+      { key: "pro",      min: 95,  max: 108      },
+      { key: "county",   min: 80,  max: 95       },
+      { key: "club",     min: 62,  max: 80       },
+      { key: "amateur",  min: 45,  max: 62       },
+      { key: "beginner", min: 0,   max: 45       },
+    ];
+    const LEVEL_ORDER = LEVEL_THRESHOLDS.map(l => l.key);
+
+    const rows = (result.rows as any[]).map(r => {
+      const totalDarts    = Number(r.total_darts);
+      const totalScore    = Number(r.total_score);
+      const totalSessions = Number(r.total_sessions);
+      const gameModes     = Number(r.game_modes);
+      const locked        = totalDarts < THRESHOLD;
+      const computedAvg   = totalDarts > 0 ? (totalScore / totalDarts) * 3 : 0;
+
+      let accuracyLevel = "beginner";
+      let progressToNext = 0;
+      if (!locked) {
+        const lt = LEVEL_THRESHOLDS.find(l => computedAvg >= l.min) ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
+        accuracyLevel = lt.key;
+        if (lt.key === "elite") {
+          progressToNext = 100;
+        } else {
+          const nextLt = LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.indexOf(lt) - 1];
+          progressToNext = nextLt ? Math.round(((computedAvg - lt.min) / (nextLt.min - lt.min)) * 100) : 0;
+        }
+      } else {
+        progressToNext = Math.round((totalDarts / THRESHOLD) * 100);
+      }
+
+      return {
+        playerId:      Number(r.player_id),
+        playerName:    r.player_name as string,
+        status:        r.status as string,
+        totalDarts,
+        totalSessions,
+        gameModes,
+        locked,
+        computedAvg:   locked ? null : Math.round(computedAvg * 10) / 10,
+        accuracyLevel: locked ? null : accuracyLevel,
+        progressToNext,
+      };
+    });
+
+    rows.sort((a, b) => {
+      if (!a.locked && !b.locked) {
+        const ai = LEVEL_ORDER.indexOf(a.accuracyLevel ?? "beginner");
+        const bi = LEVEL_ORDER.indexOf(b.accuracyLevel ?? "beginner");
+        if (ai !== bi) return ai - bi;
+        return (b.computedAvg ?? 0) - (a.computedAvg ?? 0);
+      }
+      if (!a.locked) return -1;
+      if (!b.locked) return 1;
+      return b.totalDarts - a.totalDarts;
+    });
+
+    res.json(rows);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get bot leaderboard");
+    res.status(500).json({ error: "Failed to get bot leaderboard" });
+  }
+});
+
 export default router;

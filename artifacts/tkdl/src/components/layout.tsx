@@ -7,7 +7,9 @@ const mainNav = [
   { href: "/",             label: "Dashboard",    icon: LayoutDashboard },
   { href: "/submit",       label: "Submit Match", icon: Plus            },
   { href: "/practice",     label: "Practice",     icon: Dumbbell        },
-  { href: "/shadow-bot",   label: "My Bot",       icon: CircuitBoard    },
+];
+const botNav = [
+  { href: "/shadow-bot",   label: "Shadow Bot",   icon: CircuitBoard    },
 ];
 const leagueNav = [
   { href: "/leaderboard",  label: "Leaderboard",  icon: Trophy          },
@@ -218,6 +220,8 @@ export function Layout({ children }: { children: ReactNode }) {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-3">
         <NavSection label="Main"   items={dynamicMainNav}   />
+        <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
+        <NavSection label="Bot"    items={botNav} />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
         <NavSection label="League" items={leagueNav} />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />

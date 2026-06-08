@@ -435,6 +435,10 @@ export default function PlayerDetail() {
                   Season
                 </div>
               </div>
+              <div className="w-px h-12 rounded-full hidden sm:block" style={{ background: "rgba(255,255,255,0.08)" }} />
+              <div className="hidden sm:flex">
+                <BigStat value={gamerscore?.total ?? 0} label="Gamerscore" color="#ffd24a" suffix="G" />
+              </div>
             </div>
           </div>
 
