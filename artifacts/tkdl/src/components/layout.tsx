@@ -167,20 +167,15 @@ export function Layout({ children }: { children: ReactNode }) {
       <div className="relative px-5 pt-6 pb-4" style={{ borderBottom: "1px solid rgba(255,0,92,0.2)" }}>
         <div className="absolute top-0 left-0 right-0 h-0.5"
           style={{ background: "linear-gradient(90deg, #ff005c 0%, rgba(255,0,92,0.5) 55%, transparent 100%)" }} />
-        <div className="flex items-center gap-2.5 mb-0.5">
+        <div className="flex items-center gap-3 mb-1.5">
           <div className="relative shrink-0 cursor-default">
-            <div className="absolute" style={{ inset: -4, background: "rgba(255,0,92,0.35)", filter: "blur(10px)", borderRadius: "0.5rem" }} />
-            <img src="/icon-192.png" alt="TKDL" className="relative z-10" style={{ width: "2.6rem", height: "2.6rem", borderRadius: "0.45rem", objectFit: "cover" }} />
+            <div className="absolute" style={{ inset: -4, background: "rgba(255,0,92,0.3)", filter: "blur(12px)", borderRadius: "0.7rem" }} />
+            <img src="/icon-192.png" alt="TKDL" className="relative z-10" style={{ width: "3.2rem", height: "3.2rem", borderRadius: "0.6rem", objectFit: "cover" }} />
           </div>
-          <div className="flex flex-col" style={{ lineHeight: 1 }}>
-            <span className="tkdl-logo" style={{ fontFamily: "Oswald, sans-serif", fontSize: "2.2rem", fontWeight: 900, letterSpacing: "0.25em", color: "#fff" }}>
-              TKDL
-            </span>
-          </div>
+          <p style={{ color: "rgba(255,255,255,0.85)", letterSpacing: "0.08em", fontSize: "0.72rem", fontFamily: "Oswald, sans-serif", textTransform: "uppercase", fontWeight: 700, lineHeight: 1.25, marginBottom: 0 }}>
+            Tesco<br />Kilbirnie<br />Darts League
+          </p>
         </div>
-        <p style={{ color: "rgba(255,255,255,0.18)", letterSpacing: "0.15em", fontSize: "0.47rem", fontFamily: "Oswald, sans-serif", textTransform: "uppercase", paddingLeft: "1.85rem", marginBottom: "0.8rem" }}>
-          Tesco Kilbirnie Darts League
-        </p>
         <div className="flex items-center gap-2.5 pl-1">
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full" style={{ background: "rgba(255,0,92,0.12)", border: "1px solid rgba(255,0,92,0.25)" }}>
             <span className="live-dot" style={{ width: 5, height: 5 }} />
