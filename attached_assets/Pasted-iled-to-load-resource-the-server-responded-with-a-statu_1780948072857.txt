@@ -1,0 +1,35 @@
+iled to load resource: the server responded with a status of 500 ()Understand this error
+/api/stats/summary:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/stats/recent-activity:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/stats/narrative:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/stats/narrative:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/stats/summary:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/stats/recent-activity:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/stats/narrative:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/stats/summary:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/game-types:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/achievement-progress:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/stats:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/stats:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/stats/recent-activity:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/stats/summary:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/stats:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+8Unchecked runtime.lastError: Could not establish connection. Receiving end does not exist.Understand this error
+/api/players/18/game-types:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/stats:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/achievement-progress:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/stats:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/stats:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/stats:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/achievement-progress:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/stats:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/game-types:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/stats:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/18/stats:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/17/game-types:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/17/stats:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/17/achievement-progress:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/17/stats:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/17/stats:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+/api/players/17/stats:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+1417:1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received
