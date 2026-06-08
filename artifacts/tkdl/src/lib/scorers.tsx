@@ -896,10 +896,11 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
 }
 
 // ── Sequence Scorer (Around the World, Round the Clock, Shanghai, etc.) ────────
-export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged }: {
   p1Name: string; p2Name: string; config: any; gameKey: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  onTurnChanged?: (t: 0|1) => void;
 }) {
   const names = [p1Name, p2Name];
 
@@ -1044,7 +1045,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
       if (newPos >= sequence.length) { setTimeout(() => { onPracticeStats?.({ sessionData:{mode:"sequence"} }); onWin(turn, `Finished the sequence!`); }, 200); return; }
     }
     setVisitDarts(nv);
-    if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); }
+    if (nv.length === 3) { setVisitDarts([]); const nt: 0|1 = turn===0?1:0; setTurn(nt); onTurnChanged?.(nt); }
   };
 
   const curTarget = sequence[positions[turn]];
@@ -1374,9 +1375,10 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
 }
 
 // ── Gotcha Scorer ──────────────────────────────────────────────────────────────
-export function GotchaScorer({ p1Name, p2Name, target = 301, onWin, onAbandon }: {
+export function GotchaScorer({ p1Name, p2Name, target = 301, onWin, onAbandon, onTurnChanged }: {
   p1Name: string; p2Name: string; target?: number;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onTurnChanged?: (t: 0|1) => void;
 }) {
   const [scores, setScores]         = useState<[number,number]>([0,0]);
   const [turn, setTurn]             = useState<0|1>(0);
@@ -1413,7 +1415,7 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, onWin, onAbandon }:
         return ns;
       });
       setVisitDarts([]);
-      setTurn(t => t===0?1:0);
+      const nt: 0|1 = turn===0?1:0; setTurn(nt); onTurnChanged?.(nt);
     }
   };
 
@@ -1439,9 +1441,10 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, onWin, onAbandon }:
 }
 
 // ── Baseball Scorer ────────────────────────────────────────────────────────────
-export function BaseballScorer({ p1Name, p2Name, innings = 9, onWin, onAbandon }: {
+export function BaseballScorer({ p1Name, p2Name, innings = 9, onWin, onAbandon, onTurnChanged }: {
   p1Name: string; p2Name: string; innings?: number;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onTurnChanged?: (t: 0|1) => void;
 }) {
   const [inning, setInning]         = useState(1);
   const [half, setHalf]             = useState<0|1>(0); // 0=bottom(P1), 1=top(P2)
@@ -1462,8 +1465,8 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, onWin, onAbandon }
           setTimeout(() => {
             setRuns(sc => { onWin(sc[0]>=sc[1]?0:1, `${sc[0]}–${sc[1]} runs`); return sc; });
           }, 300);
-        } else { setInning(i=>i+1); setHalf(0); }
-      } else { setHalf(1); }
+        } else { setInning(i=>i+1); setHalf(0); onTurnChanged?.(0); }
+      } else { setHalf(1); onTurnChanged?.(1); }
     }
   };
 
@@ -1705,11 +1708,12 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
 }
 
 // ── Golf Darts Scorer ──────────────────────────────────────────────────────────
-export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged }: {
   p1Name: string; p2Name: string; holes?: number;
   botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  onTurnChanged?: (t: 0|1) => void;
 }) {
   const [hole, setHole]             = useState(1);
   const [half, setHalf]             = useState<0|1>(0);
@@ -1732,13 +1736,13 @@ export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAban
           }
           return h + 1;
         });
-        setHalf(0);
+        setHalf(0); onTurnChanged?.(0);
       } else {
-        setHalf(1);
+        setHalf(1); onTurnChanged?.(1);
       }
       return n;
     });
-  }, [half, holes, onWin, onPracticeStats]);
+  }, [half, holes, onWin, onPracticeStats, onTurnChanged]);
 
   const handleDart = useCallback((dart: Dart) => {
     if (visitDarts.length >= 3) return;
@@ -2647,6 +2651,346 @@ export function MultiKillerScorer({
           <AbandonBtn onAbandon={onAbandon} />
         </div>
       }
+    />
+  );
+}
+
+// ── Team Cricket Scorer ────────────────────────────────────────────────────────
+export function TeamCricketScorer({ team1, team2, cutThroat = false, includesBull = true, onWin, onAbandon }: {
+  team1: [string, string]; team2: [string, string];
+  cutThroat?: boolean; includesBull?: boolean;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const numCount = includesBull ? 7 : 6;
+  const [marks, setMarks]       = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+  const [scores, setScores]     = useState<[number,number]>([0,0]);
+  const [turn, setTurn]         = useState<0|1>(0);
+  const [active, setActive]     = useState<[0|1, 0|1]>([0, 0]);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [lastHit, setLastHit]   = useState<string>("");
+
+  const teams = [team1, team2] as [[string, string], [string, string]];
+  const TC = (i: 0|1) => i === 0 ? "#22c55e" : "#ee0a78";
+
+  const checkWin = (m: typeof marks, sc: [number,number]): 0|1|null => {
+    for (const p of [0,1] as const) {
+      const closed = m[p].slice(0, numCount).every(x => x >= 3);
+      if (!closed) continue;
+      const opp: 0|1 = p === 0 ? 1 : 0;
+      if (!cutThroat && sc[p] >= sc[opp]) return p;
+      if (cutThroat && sc[p] <= sc[opp]) return p;
+    }
+    return null;
+  };
+
+  const handleDart = useCallback((dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    if (!includesBull && dart.segment === 25) {
+      const nv = [...visitDarts, dart];
+      setVisitDarts(nv);
+      setLastHit("Miss (no bull)");
+      if (nv.length === 3) {
+        setVisitDarts([]); setLastHit("");
+        setActive(prev => { const n = [...prev] as [0|1, 0|1]; n[turn] = n[turn] === 0 ? 1 : 0; return n; });
+        setTurn(t => t===0?1:0);
+      }
+      return;
+    }
+    const numIdx = CRICKET_NUMS.indexOf(dart.segment);
+    const nv = [...visitDarts, dart];
+    if (numIdx >= 0) {
+      const hits = dart.multiplier;
+      setMarks(prev => {
+        const nm: typeof marks = [[...prev[0]] as any, [...prev[1]] as any];
+        const toClose = Math.max(0, 3 - nm[turn][numIdx]);
+        const absorbed = Math.min(hits, toClose);
+        const extra = hits - absorbed;
+        nm[turn][numIdx] = Math.min(3, nm[turn][numIdx] + absorbed + extra);
+        if (extra > 0) {
+          const opp: 0|1 = turn === 0 ? 1 : 0;
+          if (nm[opp][numIdx] < 3) {
+            setScores(ps => {
+              const ns: [number,number] = [...ps] as [number,number];
+              const val = CRICKET_NUMS[numIdx];
+              if (cutThroat) ns[opp] += extra * val;
+              else ns[turn] += extra * val;
+              return ns;
+            });
+          }
+        }
+        return nm;
+      });
+      const lbl = dart.multiplier === 1 ? `${dart.segment}` : dart.multiplier === 2 ? `D${dart.segment}` : `T${dart.segment}`;
+      setLastHit(lbl);
+    } else {
+      setLastHit("Miss");
+    }
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      setVisitDarts([]); setLastHit("");
+      setActive(prev => { const n = [...prev] as [0|1, 0|1]; n[turn] = n[turn] === 0 ? 1 : 0; return n; });
+      setTurn(t => t===0?1:0);
+    }
+    setTimeout(() => {
+      setMarks(m => {
+        setScores(sc => {
+          const w = checkWin(m, sc);
+          if (w !== null) setTimeout(() => onWin(w, cutThroat ? "Cut-Throat — lowest score wins" : undefined), 300);
+          return sc;
+        });
+        return m;
+      });
+    }, 50);
+  }, [visitDarts, turn, cutThroat, includesBull, numCount, onWin]);
+
+  return (
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider" />
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>{cutThroat ? "Cut-Throat Cricket" : "Cricket"} Doubles</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {([0,1] as const).map(i => (
+            <div key={i} className="pdc-card p-3 text-center relative overflow-hidden" style={{ borderColor:turn===i?TC(i):"rgba(255,255,255,0.06)", boxShadow:turn===i?`0 0 20px ${TC(i)}22`:undefined }}>
+              {turn === i && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background:TC(i) }} />}
+              <div className="text-xs font-bold uppercase mb-0.5" style={{ fontFamily:"Oswald,sans-serif", color:TC(i), opacity:turn===i?1:0.5, letterSpacing:"0.08em" }}>Team {i+1}</div>
+              <div className="font-black" style={{ fontFamily:"Oswald,sans-serif", fontSize:"2rem", color:turn===i?"#fff":"rgba(255,255,255,0.3)", lineHeight:1 }}>{scores[i]}</div>
+              <div className="mt-1.5 space-y-0.5">
+                {teams[i].map((name, j) => {
+                  const isActive = turn===i && active[i]===j;
+                  return <div key={j} className="text-xs flex items-center justify-center gap-1" style={{ fontFamily:"Oswald,sans-serif", color:isActive?TC(i):"rgba(255,255,255,0.3)", fontWeight:isActive?700:400 }}>
+                    {isActive && <span style={{ fontSize:"0.55rem" }}>▶</span>}{name}
+                  </div>;
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        <SectionCard>
+          <div className="grid" style={{ gridTemplateColumns:"1fr auto 1fr", gap:"0.15rem" }}>
+            <div className="text-center text-xs font-bold pb-1" style={{ color:TC(0), fontFamily:"Oswald,sans-serif" }}>{team1[active[0]].toUpperCase()}</div>
+            <div className="text-center text-xs font-bold pb-1" style={{ color:"rgba(255,255,255,0.3)", fontFamily:"Oswald,sans-serif" }}>NUM</div>
+            <div className="text-center text-xs font-bold pb-1" style={{ color:TC(1), fontFamily:"Oswald,sans-serif" }}>{team2[active[1]].toUpperCase()}</div>
+            {CRICKET_NUMS.slice(0, numCount).map((num, idx) => (
+              <div key={num} style={{ display:"contents" }}>
+                <div className="text-center py-2 text-lg font-bold" style={{ fontFamily:"Oswald,sans-serif", color:marks[0][idx]>=3?TC(0):"rgba(255,255,255,0.7)" }}>{markSymbol(marks[0][idx])}</div>
+                <div className="text-center py-2 text-sm font-bold" style={{ fontFamily:"Oswald,sans-serif", color:"rgba(255,255,255,0.4)", borderLeft:"1px solid rgba(255,255,255,0.06)", borderRight:"1px solid rgba(255,255,255,0.06)" }}>{CRICKET_LABELS[idx]}</div>
+                <div className="text-center py-2 text-lg font-bold" style={{ fontFamily:"Oswald,sans-serif", color:marks[1][idx]>=3?TC(1):"rgba(255,255,255,0.7)" }}>{markSymbol(marks[1][idx])}</div>
+              </div>
+            ))}
+          </div>
+          {lastHit && <div className="text-center text-xs mt-2 font-bold" style={{ color:"#ffd24a", fontFamily:"Oswald,sans-serif" }}>Hit: {lastHit}</div>}
+        </SectionCard>
+        <TurnBanner name={teams[turn][active[turn]]} turn={turn} msg={includesBull ? "— hit 15–20 or Bull" : "— hit 15–20 (no bull)"} />
+        <VisitDarts darts={visitDarts} />
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart}
+          onMiss={() => handleDart({ segment:0, multiplier:1, value:0, label:"Miss" })}
+          onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0,-1))}
+          activeSegments={CRICKET_NUMS.slice(0, numCount)} highlightSegments={CRICKET_NUMS.slice(0, numCount)}
+        />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
+    />
+  );
+}
+
+// ── Team Halve-It Scorer ───────────────────────────────────────────────────────
+export function TeamHalveItScorer({ team1, team2, gameKey, onWin, onAbandon }: {
+  team1: [string, string]; team2: [string, string]; gameKey: string;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const isBobs = gameKey === "bobs_27";
+  const targets = isBobs ? Array.from({length:20},(_,i)=>i+1) : HALVEIT_TARGETS;
+  const targetLabels = isBobs ? targets.map(n=>`D${n}`) : HALVEIT_LABELS;
+
+  const [round, setRound]           = useState(0);
+  const [turn, setTurn]             = useState<0|1>(0);
+  const [active, setActive]         = useState<[0|1, 0|1]>([0, 0]);
+  const [scores, setScores]         = useState<[number,number]>(isBobs ? [27,27] : [0,0]);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [roundScore, setRoundScore] = useState(0);
+  const [hit, setHit]               = useState(false);
+
+  const teams = [team1, team2] as [[string, string], [string, string]];
+  const TC = (i: 0|1) => i === 0 ? "#22c55e" : "#ee0a78";
+  const curTarget = targets[round];
+
+  const dartHitsTarget = (dart: Dart): boolean => {
+    if (isBobs) { const n = targets[round] as number; return dart.segment === n && dart.multiplier === 2; }
+    if (curTarget === "D") return dart.multiplier === 2;
+    if (curTarget === "T") return dart.multiplier === 3;
+    if (curTarget === "Bull") return dart.segment === 25;
+    return dart.segment === curTarget;
+  };
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (dartHitsTarget(dart)) { setHit(true); setRoundScore(prev => prev + dart.value); }
+    if (nv.length === 3) {
+      const hitTarget = hit || dartHitsTarget(dart);
+      const rs = roundScore + (dartHitsTarget(dart) ? dart.value : 0);
+      setScores(prev => {
+        const ns: [number,number] = [...prev] as [number,number];
+        if (hitTarget || rs > 0) ns[turn] += rs;
+        else if (isBobs) ns[turn] -= (targets[round] as number) * 2;
+        else ns[turn] = Math.floor(ns[turn] / 2);
+        return ns;
+      });
+      setVisitDarts([]); setRoundScore(0); setHit(false);
+      setActive(prev => { const n = [...prev] as [0|1, 0|1]; n[turn] = n[turn]===0?1:0; return n; });
+      if (turn === 1) {
+        if (round + 1 >= targets.length) {
+          setTimeout(() => { setScores(sc => { onWin(sc[0]>=sc[1]?0:1, `${sc[0]} vs ${sc[1]}`); return sc; }); }, 300);
+        } else { setRound(r => r+1); setTurn(0); }
+      } else { setTurn(1); }
+    }
+  };
+
+  return (
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider" />
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>{isBobs ? "Bob's 27" : "Halve-It"} Doubles</h2>
+          <p className="text-sm" style={{ color:"#ffd24a", fontFamily:"Oswald,sans-serif" }}>Round {round+1}/{targets.length} — Target: {targetLabels[round]}</p>
+          {!isBobs && <p className="text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>Miss = team score halved</p>}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {([0,1] as const).map(i => (
+            <div key={i} className="pdc-card p-3 text-center relative overflow-hidden" style={{ borderColor:turn===i?TC(i):"rgba(255,255,255,0.06)", boxShadow:turn===i?`0 0 20px ${TC(i)}22`:undefined }}>
+              {turn === i && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background:TC(i) }} />}
+              <div className="text-xs font-bold uppercase mb-0.5" style={{ fontFamily:"Oswald,sans-serif", color:TC(i), opacity:turn===i?1:0.5, letterSpacing:"0.08em" }}>Team {i+1}</div>
+              <div className="font-black" style={{ fontFamily:"Oswald,sans-serif", fontSize:"2.2rem", color:turn===i?"#fff":"rgba(255,255,255,0.3)", lineHeight:1 }}>{scores[i]}</div>
+              <div className="mt-1.5 space-y-0.5">
+                {teams[i].map((name, j) => {
+                  const isActive = turn===i && active[i]===j;
+                  return <div key={j} className="text-xs flex items-center justify-center gap-1" style={{ fontFamily:"Oswald,sans-serif", color:isActive?TC(i):"rgba(255,255,255,0.3)", fontWeight:isActive?700:400 }}>
+                    {isActive && <span style={{ fontSize:"0.55rem" }}>▶</span>}{name}
+                  </div>;
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-1 flex-wrap justify-center">
+          {targets.map((t, i) => (
+            <div key={i} style={{ width:"2rem",height:"2rem",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"0.6rem",fontFamily:"Oswald,sans-serif",background:i<round?"rgba(34,197,94,0.2)":i===round?"rgba(255,210,74,0.2)":"rgba(255,255,255,0.05)",border:i===round?"1.5px solid #ffd24a":i<round?"1px solid rgba(34,197,94,0.4)":"1px solid rgba(255,255,255,0.08)",color:i<round?"#22c55e":i===round?"#ffd24a":"rgba(255,255,255,0.3)" }}>
+              {typeof t === "number" ? (isBobs ? `D${t}` : `${t}`) : t}
+            </div>
+          ))}
+        </div>
+        <TurnBanner name={teams[turn][active[turn]]} turn={turn} msg={`— hit ${targetLabels[round]}`} />
+        <VisitDarts darts={visitDarts} />
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart}
+          onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+          onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+          highlightSegments={typeof curTarget==="number"?[curTarget]:curTarget==="Bull"?[25]:undefined}
+        />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
+    />
+  );
+}
+
+// ── Team Count Up Scorer ───────────────────────────────────────────────────────
+export function TeamCountUpScorer({ team1, team2, config, onWin, onAbandon }: {
+  team1: [string, string]; team2: [string, string];
+  config: { target?: number; rounds?: number; bullsOnly?: boolean };
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const target    = config.target ?? 501;
+  const maxRounds = config.rounds ?? 0;
+  const bullsOnly = config.bullsOnly ?? false;
+
+  const [scores, setScores]         = useState<[number,number]>([0,0]);
+  const [rounds, setRounds]         = useState<[number,number]>([0,0]);
+  const [turn, setTurn]             = useState<0|1>(0);
+  const [active, setActive]         = useState<[0|1, 0|1]>([0, 0]);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+
+  const teams = [team1, team2] as [[string, string], [string, string]];
+  const TC = (i: 0|1) => i === 0 ? "#22c55e" : "#ee0a78";
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      const bullHits = nv.filter(d => d.segment === 25).length;
+      const cum = bullsOnly ? bullHits : nv.reduce((s,d) => s+d.value, 0);
+      setScores(prev => {
+        const ns: [number,number] = [...prev] as [number,number];
+        ns[turn] += cum;
+        if (maxRounds === 0 && ns[turn] >= target) {
+          const label = bullsOnly ? `${ns[turn]} bulls!` : `Reached ${target} pts!`;
+          setTimeout(() => onWin(turn, label), 300);
+        }
+        return ns;
+      });
+      setRounds(prev => {
+        const nr: [number,number] = [...prev] as [number,number];
+        nr[turn]++;
+        if (maxRounds > 0 && nr[0] >= maxRounds && nr[1] >= maxRounds) {
+          setTimeout(() => { setScores(sc => { onWin(sc[0]>=sc[1]?0:1, `${sc[0]} vs ${sc[1]}`); return sc; }); }, 300);
+        }
+        return nr;
+      });
+      setVisitDarts([]);
+      setActive(prev => { const n = [...prev] as [0|1, 0|1]; n[turn] = n[turn]===0?1:0; return n; });
+      setTurn(t => t===0?1:0);
+    }
+  };
+
+  return (
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider" />
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>
+            {bullsOnly ? "Bull Rush Doubles" : maxRounds > 0 ? "High Score Doubles" : "Count Up Doubles"}
+          </h2>
+          <p className="text-xs mt-1" style={{ color:"rgba(255,255,255,0.3)" }}>
+            {bullsOnly ? "Only bull hits count" : maxRounds > 0 ? `${maxRounds} rounds each` : `Race to ${target}`}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {([0,1] as const).map(i => (
+            <div key={i} className="pdc-card p-3 text-center relative overflow-hidden" style={{ borderColor:turn===i?TC(i):"rgba(255,255,255,0.06)", boxShadow:turn===i?`0 0 20px ${TC(i)}22`:undefined }}>
+              {turn === i && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background:TC(i) }} />}
+              <div className="text-xs font-bold uppercase mb-0.5" style={{ fontFamily:"Oswald,sans-serif", color:TC(i), opacity:turn===i?1:0.5, letterSpacing:"0.08em" }}>Team {i+1}</div>
+              <div className="font-black" style={{ fontFamily:"Oswald,sans-serif", fontSize:"2.2rem", color:turn===i?"#fff":"rgba(255,255,255,0.3)", lineHeight:1 }}>{scores[i]}</div>
+              <div className="text-xs" style={{ color:"rgba(255,255,255,0.2)", fontFamily:"Oswald,sans-serif" }}>
+                {maxRounds>0?`${rounds[i]}/${maxRounds} rounds`:`Target: ${target}`}
+              </div>
+              <div className="mt-1.5 space-y-0.5">
+                {teams[i].map((name, j) => {
+                  const isActive = turn===i && active[i]===j;
+                  return <div key={j} className="text-xs flex items-center justify-center gap-1" style={{ fontFamily:"Oswald,sans-serif", color:isActive?TC(i):"rgba(255,255,255,0.3)", fontWeight:isActive?700:400 }}>
+                    {isActive && <span style={{ fontSize:"0.55rem" }}>▶</span>}{name}
+                  </div>;
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        <TurnBanner name={teams[turn][active[turn]]} turn={turn} msg={bullsOnly ? "— aim at Bull!" : "— score as many as you can"} />
+        <VisitDarts darts={visitDarts} />
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart}
+          onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+          onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+          highlightSegments={bullsOnly?[25]:undefined}
+        />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
     />
   );
 }

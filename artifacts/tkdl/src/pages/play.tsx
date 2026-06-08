@@ -140,9 +140,14 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   };
 
   const doublesIds = [t1a, t1b, t2a, t2b].filter(Boolean);
-  const tabGames = gameTypes.filter(g =>
-    g.enabled !== false && (mode === "doubles" ? g.engine === "X01" : g.category === tab)
-  );
+  const DOUBLES_ENGINES = new Set(["X01", "Cricket", "HalveIt", "CountUp", "Gotcha", "Sequence"]);
+  const DOUBLES_CUSTOM_KEYS = new Set(["baseball", "golf_darts", "golf_darts_18"]);
+  const tabGames = gameTypes.filter(g => {
+    if (!g.enabled) return false;
+    if (mode !== "doubles") return g.category === tab;
+    if (g.engine === "Custom") return DOUBLES_CUSTOM_KEYS.has(g.key);
+    return DOUBLES_ENGINES.has(g.engine);
+  });
 
   const stakeInput = (label: string, value: string, set: (v: string) => void, max: number, err: string, note?: string) => (
     <div className="pdc-card p-4" style={{ borderColor: err ? "rgba(255,0,92,0.3)" : "rgba(255,255,255,0.07)" }}>
