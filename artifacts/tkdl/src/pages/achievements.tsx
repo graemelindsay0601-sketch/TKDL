@@ -1,6 +1,6 @@
 import { useListAchievements } from "@workspace/api-client-react";
 import { useState, useEffect } from "react";
-import { Lock, Star, Users, Trophy, Medal } from "lucide-react";
+import { Lock, Star, Users, Trophy, Medal, CircuitBoard } from "lucide-react";
 import { format } from "date-fns";
 
 // ── Shared fetch hook ──────────────────────────────────────────────────────────
@@ -355,6 +355,122 @@ function TourTab() {
   );
 }
 
+// ── SHADOW BOT TAB ─────────────────────────────────────────────────────────────
+
+type BotAchDef = {
+  key: string; name: string; description: string; icon: string;
+  rarity: string; gamerscore: number; criteriaType: string; criteriaValue: number;
+  unlockedCount: number;
+};
+
+const BOT_CRITERIA_LABELS: Record<string, string> = {
+  TOTAL_DARTS:    "darts thrown",
+  TOTAL_SESSIONS: "sessions",
+  GAME_MODES:     "game modes",
+  BOT_LEVEL:      "bot level",
+};
+
+function BotTab() {
+  const { data, loading } = useFetch<BotAchDef[]>("/api/achievements/shadow-bot-definitions");
+  const [rarityFilter, setRarityFilter] = useState("All");
+
+  const RARITY_ORDER = ["Mythic", "Legendary", "Epic", "Rare", "Common"];
+  const filtered = (data ?? [])
+    .filter(d => rarityFilter === "All" || d.rarity === rarityFilter)
+    .sort((a, b) => RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity));
+
+  const totalGs = (data ?? []).reduce((s, d) => s + d.gamerscore, 0);
+  const unlockedCount = (data ?? []).filter(d => d.unlockedCount > 0).length;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>
+          {data?.length ?? 0} bot achievements · {totalGs}G available · {unlockedCount} unlocked
+        </p>
+        <a href="/shadow-bot" className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all hover:-translate-y-0.5"
+          style={{ fontFamily: "Oswald, sans-serif", background: "rgba(0,102,255,0.1)", border: "1px solid rgba(0,102,255,0.3)", color: "#0066ff", letterSpacing: "0.1em" }}>
+          Open Shadow Bot →
+        </a>
+      </div>
+
+      {/* Rarity filter */}
+      <div className="flex gap-1.5 flex-wrap">
+        {["All", ...RARITY_ORDER].map(r => {
+          const rm = RARITY_META[r] ?? { color: "rgba(255,255,255,0.35)", bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.08)" };
+          const active = rarityFilter === r;
+          return (
+            <button key={r} onClick={() => setRarityFilter(r)}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all"
+              style={{
+                fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em",
+                background: active ? rm.bg : "rgba(255,255,255,0.04)",
+                border: `1px solid ${active ? rm.color + "88" : "rgba(255,255,255,0.08)"}`,
+                color: active ? rm.color : "rgba(255,255,255,0.35)",
+              }}>
+              {r}
+            </button>
+          );
+        })}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#0066ff" }} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {filtered.map(a => {
+            const rm = getRarityMeta(a.rarity, false);
+            const isUnlocked = a.unlockedCount > 0;
+            return (
+              <div key={a.key}
+                className="relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200 cursor-default hover:-translate-y-0.5"
+                style={{ background: rm.bg, border: `1px solid ${rm.border}` }}>
+                <div className="h-1 w-full" style={{ background: rm.color }} />
+                <div className="p-4 flex flex-col gap-2 flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-widest"
+                      style={{ fontFamily: "Oswald, sans-serif", color: rm.color, fontSize: "0.55rem", letterSpacing: "0.18em" }}>
+                      {a.rarity}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-black" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,210,74,0.55)", fontSize: "0.58rem" }}>
+                        {a.gamerscore}G
+                      </span>
+                      {isUnlocked && (
+                        <span className="flex items-center gap-0.5 text-xs font-bold"
+                          style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
+                          <Users className="w-2.5 h-2.5" />{a.unlockedCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-3xl leading-none my-1 select-none">{a.icon}</div>
+
+                  <div className="font-black text-sm leading-tight"
+                    style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)", letterSpacing: "0.02em" }}>
+                    {a.name.replace(/^[^\s]+\s/, "")}
+                  </div>
+
+                  <div className="text-xs leading-relaxed flex-1" style={{ color: "rgba(255,255,255,0.45)" }}>
+                    {a.description}
+                  </div>
+
+                  <div className="text-xs font-mono mt-1" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Share Tech Mono, monospace", fontSize: "0.58rem" }}>
+                    {a.criteriaValue.toLocaleString()} {BOT_CRITERIA_LABELS[a.criteriaType] ?? ""}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── TROPHIES TAB ───────────────────────────────────────────────────────────────
 
 type TourTrophy = {
@@ -451,9 +567,10 @@ function TrophiesTab() {
 // ── MAIN PAGE ──────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { key: "league",   label: "League",            icon: <Medal className="w-3.5 h-3.5" />,  color: "#ff005c" },
-  { key: "tour",     label: "Tour Achievements",  icon: <Star className="w-3.5 h-3.5" />,   color: "#ffd24a" },
-  { key: "trophies", label: "Trophies",           icon: <Trophy className="w-3.5 h-3.5" />, color: "#a855f7" },
+  { key: "league",   label: "League",            icon: <Medal className="w-3.5 h-3.5" />,         color: "#ff005c" },
+  { key: "tour",     label: "Tour",              icon: <Star className="w-3.5 h-3.5" />,            color: "#ffd24a" },
+  { key: "bot",      label: "Shadow Bot",        icon: <CircuitBoard className="w-3.5 h-3.5" />,    color: "#0066ff" },
+  { key: "trophies", label: "Trophies",          icon: <Trophy className="w-3.5 h-3.5" />,          color: "#a855f7" },
 ] as const;
 type TabKey = typeof TABS[number]["key"];
 
@@ -471,7 +588,7 @@ export default function Achievements() {
           Achievement Centre
         </h1>
         <p className="text-xs mt-1 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.14em" }}>
-          League · Tour · Trophies
+          League · Tour · Shadow Bot · Trophies
         </p>
       </div>
 
@@ -498,6 +615,7 @@ export default function Achievements() {
 
       {tab === "league"   && <LeagueTab />}
       {tab === "tour"     && <TourTab />}
+      {tab === "bot"      && <BotTab />}
       {tab === "trophies" && <TrophiesTab />}
     </div>
   );
