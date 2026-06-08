@@ -390,8 +390,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const handleUndo = () => {
     if (bust) return;
     if (visitDarts.length > 0) {
+      // Remove the last dart within the current visit
       setVisitDarts(prev => prev.slice(0, -1));
     } else if (history.length > 0) {
+      // Undo the last committed visit — restore score and turn, clear board
       const last = history[history.length - 1];
       setHistory(prev => prev.slice(0, -1));
       setScores(prev => {
@@ -400,7 +402,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         return n;
       });
       setTurn(last.turn);
-      setVisitDarts(last.darts);
+      setVisitDarts([]);
     }
   };
 
