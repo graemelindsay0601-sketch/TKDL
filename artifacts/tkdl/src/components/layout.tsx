@@ -168,10 +168,9 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="absolute top-0 left-0 right-0 h-0.5"
           style={{ background: "linear-gradient(90deg, #ff005c 0%, rgba(255,0,92,0.5) 55%, transparent 100%)" }} />
         <div className="flex items-center gap-2.5 mb-0.5">
-          <div className="relative shrink-0 target-icon-wrap cursor-default">
-            <div className="absolute" style={{ inset: -6, background: "rgba(255,0,92,0.55)", filter: "blur(12px)", borderRadius: "50%" }} />
-            <div className="absolute" style={{ inset: -2, background: "rgba(255,0,92,0.2)", filter: "blur(4px)", borderRadius: "50%" }} />
-            <Target className="h-6 w-6 relative z-10 target-icon" style={{ color: "#ff005c", filter: "drop-shadow(0 0 4px rgba(255,0,92,1))" }} />
+          <div className="relative shrink-0 cursor-default">
+            <div className="absolute" style={{ inset: -4, background: "rgba(255,0,92,0.35)", filter: "blur(10px)", borderRadius: "0.5rem" }} />
+            <img src="/icon-192.png" alt="TKDL" className="relative z-10" style={{ width: "2.6rem", height: "2.6rem", borderRadius: "0.45rem", objectFit: "cover" }} />
           </div>
           <div className="flex flex-col" style={{ lineHeight: 1 }}>
             <span className="tkdl-logo" style={{ fontFamily: "Oswald, sans-serif", fontSize: "2.2rem", fontWeight: 900, letterSpacing: "0.25em", color: "#fff" }}>
