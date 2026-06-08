@@ -11,6 +11,7 @@ import settingsRouter     from "./settings";
 import gameTypesRouter    from "./game-types";
 import practiceRouter     from "./practice";
 import teamMatchesRouter  from "./team-matches";
+import tourRouter         from "./tour";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(adminRouter);
 router.use(settingsRouter);
 router.use(gameTypesRouter);
 router.use(practiceRouter);
+router.use(tourRouter);
 
 export default router;

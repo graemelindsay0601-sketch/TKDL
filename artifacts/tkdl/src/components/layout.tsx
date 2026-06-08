@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 import { useGetStatsSummary, useGetRecentActivity, useGetLeaderboard } from "@workspace/api-client-react";
 
@@ -9,6 +9,7 @@ const mainNav = [
   { href: "/practice",     label: "Practice",     icon: Dumbbell        },
 ];
 const botNav = [
+  { href: "/tour",         label: "Tour Mode",    icon: Star            },
   { href: "/shadow-bot",   label: "Shadow Bot",   icon: CircuitBoard    },
 ];
 const leagueNav = [

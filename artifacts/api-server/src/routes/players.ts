@@ -409,7 +409,7 @@ router.get("/players/:id/gamerscore", async (req, res): Promise<void> => {
     const playerId = parseInt(req.params.id, 10);
     if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
 
-    const [leagueQ, shadowQ] = await Promise.all([
+    const [leagueQ, shadowQ, trophyQ, tourAchievQ] = await Promise.all([
       db.execute(sql`
         SELECT a.rarity FROM player_achievements pa
         JOIN achievements a ON a.id = pa.achievement_id
@@ -418,6 +418,15 @@ router.get("/players/:id/gamerscore", async (req, res): Promise<void> => {
       db.execute(sql`
         SELECT achievement_key FROM shadow_bot_achievements WHERE player_id = ${playerId}
       `),
+      db.execute(sql`
+        SELECT COALESCE(SUM(gamerscore), 0)::int AS total FROM tour_trophies WHERE player_id = ${playerId}
+      `).catch(() => ({ rows: [{ total: 0 }] })),
+      db.execute(sql`
+        SELECT COALESCE(SUM(tad.gamerscore), 0)::int AS total
+        FROM player_tour_achievements pta
+        JOIN tour_achievement_definitions tad ON tad.key = pta.achievement_key
+        WHERE pta.player_id = ${playerId}
+      `).catch(() => ({ rows: [{ total: 0 }] })),
     ]);
 
     const leagueTotal = (leagueQ.rows as { rarity: string }[])
@@ -429,7 +438,16 @@ router.get("/players/:id/gamerscore", async (req, res): Promise<void> => {
         return sum + (def ? gamerscoreForRarity(def.rarity) : 0);
       }, 0);
 
-    res.json({ total: leagueTotal + shadowTotal, league: leagueTotal, shadowBot: shadowTotal });
+    const tourTrophyTotal = (trophyQ.rows[0] as { total: number }).total ?? 0;
+    const tourAchievTotal = (tourAchievQ.rows[0] as { total: number }).total ?? 0;
+
+    res.json({
+      total: leagueTotal + shadowTotal + tourTrophyTotal + tourAchievTotal,
+      league: leagueTotal,
+      shadowBot: shadowTotal,
+      tourTrophies: tourTrophyTotal,
+      tourAchievements: tourAchievTotal,
+    });
   } catch (err) {
     req.log.error({ err }, "Failed to get gamerscore");
     res.status(500).json({ error: "Failed to get gamerscore" });

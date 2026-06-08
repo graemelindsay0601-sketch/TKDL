@@ -266,6 +266,7 @@ export default function PlayerDetail() {
   const [gamerscore, setGamerscore] = useState<{ total: number; league: number; shadowBot: number } | null>(null);
   const [shadowAchs, setShadowAchs] = useState<any[]>([]);
   const [shadowAchsLoaded, setShadowAchsLoaded] = useState(false);
+  const [tourTrophies, setTourTrophies] = useState<any[]>([]);
 
   const toggleGame = (key: string) => {
     if (expandedGame === key) { setExpandedGame(null); return; }
@@ -294,6 +295,9 @@ export default function PlayerDetail() {
       .catch(() => {});
     fetch(`/api/players/${playerId}/gamerscore`)
       .then(r => r.json()).then(d => setGamerscore(d))
+      .catch(() => {});
+    fetch(`/api/tour/trophies/${playerId}`)
+      .then(r => r.json()).then(d => setTourTrophies(Array.isArray(d) ? d : []))
       .catch(() => {});
   }, [playerId]);
 
@@ -1439,6 +1443,82 @@ export default function PlayerDetail() {
         )}
         </>}
       </div>
+
+      {/* ── Trophy Cabinet ─────────────────────────────── */}
+      {tourTrophies.length > 0 && (() => {
+        const DIFF_COLORS: Record<string, string> = { amateur: "#94a3b8", club: "#4ade80", county: "#38bdf8", pro: "#ffd24a", elite: "#ff005c" };
+        const DIFF_ORDER = ["amateur", "club", "county", "pro", "elite"];
+        // Group by tour
+        const byTour: Record<string, any[]> = {};
+        tourTrophies.forEach((t: any) => {
+          if (!byTour[t.slug]) byTour[t.slug] = [];
+          byTour[t.slug].push(t);
+        });
+        const tourEntries = Object.entries(byTour).sort((a, b) => {
+          const ta = a[1][0]; const tb = b[1][0];
+          return (ta.tier - tb.tier) || (ta.sort_order - tb.sort_order);
+        });
+
+        return (
+          <div className="pdc-card overflow-hidden">
+            <button
+              className="w-full px-4 py-3 flex items-center gap-2 transition-colors hover:bg-white/[0.02]"
+              style={{ background: "none", border: "none", cursor: "pointer" }}>
+              <div style={{ background: "rgba(255,210,74,0.12)", borderRadius: "8px", padding: "6px" }}>
+                <Trophy className="w-4 h-4" style={{ color: "#ffd24a" }} />
+              </div>
+              <h2 className="font-bold uppercase text-sm tracking-wider flex-1 text-left"
+                style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+                Trophy Cabinet
+              </h2>
+              <span className="text-xs font-black px-2 py-0.5 rounded"
+                style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", background: "rgba(255,210,74,0.12)", color: "#ffd24a" }}>
+                {tourTrophies.length} {tourTrophies.length === 1 ? "trophy" : "trophies"}
+              </span>
+            </button>
+            <div className="px-4 pb-4 space-y-3 border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+              <div className="pt-3 space-y-2">
+                {tourEntries.map(([slug, trophyList]) => {
+                  const first = trophyList[0];
+                  const sortedDiffs = DIFF_ORDER.filter(d => trophyList.some(t => t.difficulty === d));
+                  return (
+                    <div key={slug} className="flex items-center gap-3 py-2 border-b"
+                      style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                      <span className="text-lg shrink-0">{first.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.75)" }}>
+                          {first.tour_name}
+                        </div>
+                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem" }}>
+                          Tier {first.tier}
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        {sortedDiffs.map(d => (
+                          <div key={d} className="w-5 h-5 rounded flex items-center justify-center"
+                            title={d.charAt(0).toUpperCase() + d.slice(1)}
+                            style={{ background: (DIFF_COLORS[d] ?? "#fff") + "20", border: `1px solid ${DIFF_COLORS[d] ?? "#fff"}40` }}>
+                            <Trophy className="w-2.5 h-2.5" style={{ color: DIFF_COLORS[d] ?? "#fff" }} />
+                          </div>
+                        ))}
+                      </div>
+                      <span className="text-xs font-black ml-1" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", fontSize: "0.62rem" }}>
+                        {trophyList.reduce((s: number, t: any) => s + (t.gamerscore ?? 0), 0)}G
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex justify-end">
+                <a href="/tour" className="text-xs font-bold uppercase tracking-widest transition-all hover:opacity-70"
+                  style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "#ff005c" }}>
+                  Enter Tour Mode →
+                </a>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

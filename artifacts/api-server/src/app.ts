@@ -6,6 +6,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetSeason } from "./lib/seasonReset";
+import { seedTourSystem } from "./lib/tourSeed";
 import { db } from "@workspace/db";
 import { playersTable, seasonsTable, matchesTable, seasonStandingsTable, settingsTable, gameTypesTable } from "@workspace/db";
 import { eq, count, sql } from "drizzle-orm";
@@ -452,6 +453,7 @@ async function init() {
     await seedPractice();
     await seedMatchParticipants();
     await seedShadowBotAchievements();
+    await seedTourSystem();
     await seedGameTypes();
     await seedAchievements();
     await seedRealData();
