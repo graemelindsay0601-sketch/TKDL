@@ -1,6 +1,26 @@
 import { useListAchievements } from "@workspace/api-client-react";
-import { useState } from "react";
-import { Lock, Star, Users } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Lock, Star, Users, Trophy, Medal } from "lucide-react";
+import { format } from "date-fns";
+
+// ── Shared fetch hook ──────────────────────────────────────────────────────────
+
+function useFetch<T>(url: string) {
+  const [data, setData]     = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(url)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) { setData(d); setLoading(false); } })
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [url]);
+  return { data, loading };
+}
+
+// ── League achievement helpers ─────────────────────────────────────────────────
 
 function gForRarity(rarity: string): number {
   const map: Record<string, number> = { Common: 10, Rare: 25, Epic: 50, Legendary: 100, Mythic: 200 };
@@ -10,7 +30,6 @@ function gForRarity(rarity: string): number {
 const RARITIES   = ["All", "Mythic", "Legendary", "Epic", "Rare", "Common"] as const;
 const CATEGORIES = ["All", "Career", "Seasonal", "Tier", "Practice", "Format", "Rivalry", "Stakes", "Legacy", "Hidden"] as const;
 const SORTS      = ["Default", "Most Unlocked", "Hardest"] as const;
-
 type Sort = typeof SORTS[number];
 
 const RARITY_META: Record<string, { color: string; glow: string; bg: string; border: string; order: number }> = {
@@ -93,7 +112,9 @@ function AchCard({ a, hovered, onHover }: { a: any; hovered: boolean; onHover: (
   );
 }
 
-export default function Achievements() {
+// ── LEAGUE TAB ─────────────────────────────────────────────────────────────────
+
+function LeagueTab() {
   const { data: achievements, isLoading } = useListAchievements();
   const [rarityFilter, setRarityFilter] = useState<string>("All");
   const [catFilter, setCatFilter]       = useState<string>("All");
@@ -111,13 +132,8 @@ export default function Achievements() {
   });
 
   const sorted = [...filtered].sort((a, b) => {
-    if (sort === "Most Unlocked") {
-      return ((b as any).unlockedCount ?? 0) - ((a as any).unlockedCount ?? 0);
-    }
-    if (sort === "Hardest") {
-      return ((a as any).unlockedCount ?? 0) - ((b as any).unlockedCount ?? 0);
-    }
-    // Default: rarity priority
+    if (sort === "Most Unlocked") return ((b as any).unlockedCount ?? 0) - ((a as any).unlockedCount ?? 0);
+    if (sort === "Hardest")       return ((a as any).unlockedCount ?? 0) - ((b as any).unlockedCount ?? 0);
     const ao = RARITY_META[(a as any).hidden ? "Hidden" : a.rarity]?.order ?? 99;
     const bo = RARITY_META[(b as any).hidden ? "Hidden" : b.rarity]?.order ?? 99;
     if (ao !== bo) return ao - bo;
@@ -136,19 +152,11 @@ export default function Achievements() {
   const totalUnlocked = achievements?.reduce((acc, a) => acc + ((a as any).unlockedCount ?? 0), 0) ?? 0;
 
   return (
-    <div className="space-y-6">
-      <div className="pdc-divider" />
+    <div className="space-y-5">
+      <p className="text-sm mt-1 flex items-center gap-3" style={{ color: "rgba(255,255,255,0.35)" }}>
+        {achievements?.length ?? 0} achievements · {counts?.Hidden ?? 0} hidden · {totalUnlocked} total unlocks
+      </p>
 
-      <div>
-        <h1 className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
-          Achievement Catalogue
-        </h1>
-        <p className="text-sm mt-1 flex items-center gap-3" style={{ color: "rgba(255,255,255,0.35)" }}>
-          {achievements?.length ?? 0} achievements · {counts?.Hidden ?? 0} hidden · {totalUnlocked} total unlocks
-        </p>
-      </div>
-
-      {/* Rarity pills */}
       {counts && (
         <div className="flex flex-wrap gap-2">
           {(["Mythic", "Legendary", "Epic", "Rare", "Common", "Hidden"] as const).map(r => {
@@ -164,9 +172,7 @@ export default function Achievements() {
         </div>
       )}
 
-      {/* Filters + sort */}
       <div className="flex flex-wrap gap-3 items-center">
-        {/* Rarity filter */}
         <div className="flex gap-1 flex-wrap">
           {RARITIES.map(r => {
             const rm = RARITY_META[r === "All" ? "Common" : r];
@@ -185,10 +191,7 @@ export default function Achievements() {
             );
           })}
         </div>
-
         <div className="w-px h-5 bg-white/10" />
-
-        {/* Category filter */}
         <div className="flex gap-1 flex-wrap">
           {CATEGORIES.map(c => (
             <button key={c} onClick={() => setCatFilter(c)}
@@ -203,10 +206,7 @@ export default function Achievements() {
             </button>
           ))}
         </div>
-
         <div className="w-px h-5 bg-white/10" />
-
-        {/* Sort */}
         <div className="flex gap-1 flex-wrap">
           {SORTS.map(s => (
             <button key={s} onClick={() => setSort(s)}
@@ -223,7 +223,6 @@ export default function Achievements() {
         </div>
       </div>
 
-      {/* Grid */}
       {isLoading ? (
         <div className="flex justify-center py-16">
           <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
@@ -244,6 +243,262 @@ export default function Achievements() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── TOUR ACHIEVEMENTS TAB ──────────────────────────────────────────────────────
+
+type TourAchDef = {
+  id: number; key: string; name: string; description: string;
+  gamerscore: number; category: string; unlocked_count: number;
+};
+
+const TOUR_CATEGORY_COLORS: Record<string, string> = {
+  career: "#ffd24a", format: "#38bdf8", difficulty: "#ff005c",
+  completionist: "#a855f7", milestone: "#34d399",
+};
+const TOUR_CATEGORY_ORDER = ["career", "difficulty", "format", "completionist", "milestone"];
+
+function TourTab() {
+  const { data, loading } = useFetch<TourAchDef[]>("/api/tour/achievement-definitions");
+  const [catFilter, setCatFilter] = useState("All");
+
+  const categories = Array.from(new Set((data ?? []).map(d => d.category))).sort((a, b) => {
+    const ai = TOUR_CATEGORY_ORDER.indexOf(a);
+    const bi = TOUR_CATEGORY_ORDER.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+
+  const filtered = (data ?? []).filter(d => catFilter === "All" || d.category === catFilter);
+  const totalGs = (data ?? []).reduce((s, d) => s + d.gamerscore, 0);
+  const unlockedCount = (data ?? []).reduce((s, d) => s + (d.unlocked_count > 0 ? 1 : 0), 0);
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm flex items-center gap-3" style={{ color: "rgba(255,255,255,0.35)" }}>
+        {data?.length ?? 0} tour achievements · {totalGs}G available · {unlockedCount} unlocked
+      </p>
+
+      {/* Category filter */}
+      <div className="flex gap-1.5 flex-wrap">
+        {["All", ...categories].map(c => {
+          const color = TOUR_CATEGORY_COLORS[c] ?? "#9ca3af";
+          const active = catFilter === c;
+          return (
+            <button key={c} onClick={() => setCatFilter(c)}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all capitalize"
+              style={{
+                fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em",
+                background: active ? `${color}22` : "rgba(255,255,255,0.04)",
+                border: `1px solid ${active ? `${color}88` : "rgba(255,255,255,0.08)"}`,
+                color: active ? color : "rgba(255,255,255,0.35)",
+              }}>
+              {c}
+            </button>
+          );
+        })}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ffd24a" }} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {filtered.map(a => {
+            const color  = TOUR_CATEGORY_COLORS[a.category] ?? "#9ca3af";
+            const isUnlocked = a.unlocked_count > 0;
+            return (
+              <div key={a.id} className="relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200 cursor-default hover:-translate-y-0.5"
+                style={{
+                  background: `${color}07`,
+                  border: `1px solid ${color}${isUnlocked ? "44" : "1a"}`,
+                }}>
+                <div className="h-1 w-full" style={{ background: color, opacity: isUnlocked ? 1 : 0.25 }} />
+                <div className="p-4 flex flex-col gap-2 flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-widest capitalize"
+                      style={{ fontFamily: "Oswald, sans-serif", color, fontSize: "0.55rem", letterSpacing: "0.18em" }}>
+                      {a.category}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-black" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,210,74,0.6)", fontSize: "0.58rem" }}>
+                        {a.gamerscore}G
+                      </span>
+                      {isUnlocked && (
+                        <span className="flex items-center gap-0.5 text-xs font-bold"
+                          style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
+                          <Users className="w-2.5 h-2.5" />{a.unlocked_count}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-3xl leading-none my-1 select-none">🏆</div>
+
+                  <div className="font-black text-sm leading-tight"
+                    style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)", letterSpacing: "0.02em" }}>
+                    {a.name}
+                  </div>
+
+                  <div className="text-xs leading-relaxed flex-1" style={{ color: "rgba(255,255,255,0.45)" }}>
+                    {a.description}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── TROPHIES TAB ───────────────────────────────────────────────────────────────
+
+type TourTrophy = {
+  id: number; player_name: string; tour_name: string; tier: number;
+  emoji: string; slug: string; difficulty: string; awarded_at: string;
+};
+
+const TIER_LABEL: Record<number, string> = {
+  1: "Amateur", 2: "Club", 3: "County", 4: "Regional", 5: "Pro", 6: "Elite",
+};
+const TIER_COLORS: Record<number, string> = {
+  1: "#9ca3af", 2: "#38bdf8", 3: "#34d399", 4: "#ffd24a", 5: "#f97316", 6: "#ff005c",
+};
+const DIFF_COLORS: Record<string, string> = {
+  amateur: "#9ca3af", club: "#38bdf8", county: "#34d399", pro: "#ffd24a", elite: "#ff005c",
+};
+
+function TrophiesTab() {
+  const { data, loading } = useFetch<TourTrophy[]>("/api/tour/all-trophies");
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm flex items-center gap-3" style={{ color: "rgba(255,255,255,0.35)" }}>
+        {data?.length ?? 0} trophies won{data && data.length > 0 ? ` by ${new Set(data.map(t => t.player_name)).size} player${new Set(data.map(t => t.player_name)).size === 1 ? "" : "s"}` : ""}
+      </p>
+
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ffd24a" }} />
+        </div>
+      ) : !data || data.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <div className="text-6xl">🏆</div>
+          <div className="text-center">
+            <div className="font-black uppercase text-lg" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em" }}>
+              No Trophies Yet
+            </div>
+            <div className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.2)" }}>
+              Win a tour event to claim the first trophy in league history.
+            </div>
+          </div>
+          <a href="/tour" className="px-5 py-2 rounded-xl text-xs font-black uppercase transition-all hover:-translate-y-0.5"
+            style={{ background: "rgba(255,210,74,0.12)", border: "1px solid rgba(255,210,74,0.3)", color: "#ffd24a", fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
+            Enter Tour →
+          </a>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {data.map(t => {
+            const tierColor = TIER_COLORS[t.tier] ?? "#9ca3af";
+            const diffColor = DIFF_COLORS[t.difficulty] ?? "#9ca3af";
+            return (
+              <div key={t.id} className="flex items-start gap-4 p-4 rounded-2xl"
+                style={{ background: `${tierColor}07`, border: `1px solid ${tierColor}25` }}>
+                <div className="flex flex-col items-center gap-1 shrink-0">
+                  <span className="text-4xl leading-none">{t.emoji}</span>
+                  <span className="text-xs font-black uppercase"
+                    style={{ fontFamily: "Oswald, sans-serif", color: tierColor, fontSize: "0.5rem", letterSpacing: "0.1em" }}>
+                    Tier {t.tier}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-black uppercase text-sm leading-tight"
+                    style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)", letterSpacing: "0.05em" }}>
+                    {t.player_name}
+                  </div>
+                  <div className="text-sm font-bold mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.55)" }}>
+                    {t.tour_name}
+                  </div>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <span className="text-xs font-black uppercase px-2 py-0.5 rounded-full"
+                      style={{ fontFamily: "Oswald, sans-serif", background: `${diffColor}18`, color: diffColor, border: `1px solid ${diffColor}44`, fontSize: "0.6rem", letterSpacing: "0.1em" }}>
+                      {t.difficulty}
+                    </span>
+                    <span className="text-xs font-black uppercase px-2 py-0.5 rounded-full"
+                      style={{ fontFamily: "Oswald, sans-serif", background: `${tierColor}12`, color: tierColor, border: `1px solid ${tierColor}33`, fontSize: "0.6rem", letterSpacing: "0.1em" }}>
+                      {TIER_LABEL[t.tier] ?? `Tier ${t.tier}`}
+                    </span>
+                  </div>
+                  <div className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
+                    {format(new Date(t.awarded_at), "MMM d, yyyy")}
+                  </div>
+                </div>
+                <Trophy className="w-4 h-4 shrink-0 mt-0.5" style={{ color: tierColor, opacity: 0.7 }} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── MAIN PAGE ──────────────────────────────────────────────────────────────────
+
+const TABS = [
+  { key: "league",   label: "League",            icon: <Medal className="w-3.5 h-3.5" />,  color: "#ff005c" },
+  { key: "tour",     label: "Tour Achievements",  icon: <Star className="w-3.5 h-3.5" />,   color: "#ffd24a" },
+  { key: "trophies", label: "Trophies",           icon: <Trophy className="w-3.5 h-3.5" />, color: "#a855f7" },
+] as const;
+type TabKey = typeof TABS[number]["key"];
+
+export default function Achievements() {
+  const [tab, setTab] = useState<TabKey>("league");
+
+  const active = TABS.find(t => t.key === tab)!;
+
+  return (
+    <div className="space-y-6">
+      <div className="pdc-divider" />
+
+      <div>
+        <h1 className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
+          Achievement Centre
+        </h1>
+        <p className="text-xs mt-1 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.14em" }}>
+          League · Tour · Trophies
+        </p>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-1 flex-wrap">
+        {TABS.map(t => {
+          const isActive = tab === t.key;
+          return (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase transition-all"
+              style={{
+                fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em",
+                background: isActive ? `${t.color}18` : "rgba(255,255,255,0.04)",
+                border: `1px solid ${isActive ? `${t.color}55` : "rgba(255,255,255,0.08)"}`,
+                color: isActive ? t.color : "rgba(255,255,255,0.35)",
+                borderBottom: isActive ? `2px solid ${t.color}` : undefined,
+              }}>
+              <span style={{ color: isActive ? t.color : "rgba(255,255,255,0.25)" }}>{t.icon}</span>
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {tab === "league"   && <LeagueTab />}
+      {tab === "tour"     && <TourTab />}
+      {tab === "trophies" && <TrophiesTab />}
     </div>
   );
 }

@@ -1,50 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useGetStatsSummary,
   useGetLeaderboard,
   useGetRecentActivity,
   useGetNarrativeCards,
+  useListAchievements,
 } from "@workspace/api-client-react";
 import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
 import { Link } from "wouter";
-import { Trophy, Swords, Flame, Skull, Zap, Target, AlertTriangle, Star, Medal, ChevronRight } from "lucide-react";
+import {
+  Trophy, Swords, Flame, Skull, Zap, Target, AlertTriangle,
+  Star, Medal, CircuitBoard, ChevronRight,
+} from "lucide-react";
 import { format } from "date-fns";
 
-function NarrativeCard({ card, idx }: { card: { type: string; headline: string; body: string; tag?: string }; idx: number }) {
-  const clsMap: Record<string, string> = {
-    HOTTEST_PLAYER:    "narrative-hot",
-    TITLE_RACE:        "narrative-gold",
-    ELIMINATION_WATCH: "narrative-hot",
-    RIVALRY_SPOTLIGHT: "narrative-blue",
-    STREAK_WATCH:      "narrative-gold",
-  };
-  const iconMap: Record<string, React.ReactNode> = {
-    HOTTEST_PLAYER:    <Flame className="w-3.5 h-3.5 streak-fire" style={{ color: "#ff005c" }} />,
-    TITLE_RACE:        <Trophy className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />,
-    ELIMINATION_WATCH: <Skull className="w-3.5 h-3.5" style={{ color: "#ff005c" }} />,
-    RIVALRY_SPOTLIGHT: <Swords className="w-3.5 h-3.5" style={{ color: "#0066ff" }} />,
-    STREAK_WATCH:      <Zap className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />,
-  };
-  return (
-    <div className={`pdc-card p-4 fade-in-up h-full ${clsMap[card.type] ?? "narrative-hot"}`}
-      style={{ animationDelay: `${idx * 80}ms` }}>
-      <div className="flex items-center gap-2 mb-1.5">
-        {iconMap[card.type] ?? <Target className="w-3.5 h-3.5" style={{ color: "#ff005c" }} />}
-        {card.tag && (
-          <span className="text-xs font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full"
-            style={{ fontFamily: "Oswald, sans-serif", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)", fontSize: "0.55rem" }}>
-            {card.tag}
-          </span>
-        )}
-      </div>
-      <p className="font-black text-sm leading-snug mb-1" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.02em" }}>
-        {card.headline}
-      </p>
-      <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>{card.body}</p>
-    </div>
-  );
+// ── Simple fetch hook ──────────────────────────────────────────────────────────
+
+function useFetch<T>(url: string) {
+  const [data, setData]     = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(url)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) { setData(d); setLoading(false); } })
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [url]);
+  return { data, loading };
 }
+
+// ── Shared helpers ─────────────────────────────────────────────────────────────
 
 function MiniStat({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   return (
@@ -61,28 +49,426 @@ function MiniStat({ label, value, accent }: { label: string; value: string | num
   );
 }
 
+function SectionHeader({
+  icon, label, accent, href, linkLabel = "View All →",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  accent: string;
+  href: string;
+  linkLabel?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2">
+        <span style={{ color: accent }}>{icon}</span>
+        <span className="font-black uppercase text-xs tracking-widest"
+          style={{ fontFamily: "Oswald, sans-serif", color: accent, letterSpacing: "0.16em", fontSize: "0.65rem" }}>
+          {label}
+        </span>
+      </div>
+      <Link href={href} className="text-xs font-bold uppercase tracking-widest transition-colors hover:opacity-100"
+        style={{ color: accent, opacity: 0.6, fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
+        {linkLabel}
+      </Link>
+    </div>
+  );
+}
+
+const posColors = ["#ffd24a", "#c0c8d8", "#cd7f32"];
+
+// ── LEAGUE section ─────────────────────────────────────────────────────────────
+
+function LeagueSection({
+  narrative, leaderboard,
+}: {
+  narrative: any[] | undefined;
+  leaderboard: any[] | undefined;
+}) {
+  const active  = leaderboard?.filter(e => e.status !== "ELIMINATED") ?? [];
+  const atRisk  = active.filter(e => e.points > 0 && e.points < 20).slice(0, 2);
+
+  const iconMap: Record<string, React.ReactNode> = {
+    HOTTEST_PLAYER:    <Flame className="w-3 h-3" style={{ color: "#ff005c" }} />,
+    TITLE_RACE:        <Trophy className="w-3 h-3" style={{ color: "#ffd24a" }} />,
+    ELIMINATION_WATCH: <Skull className="w-3 h-3" style={{ color: "#ff005c" }} />,
+    RIVALRY_SPOTLIGHT: <Swords className="w-3 h-3" style={{ color: "#0066ff" }} />,
+    STREAK_WATCH:      <Zap className="w-3 h-3" style={{ color: "#ffd24a" }} />,
+  };
+
+  return (
+    <div className="section-card" style={{ borderTop: "2px solid #ff005c" }}>
+      <SectionHeader
+        icon={<Trophy className="w-3.5 h-3.5" />}
+        label="League"
+        accent="#ff005c"
+        href="/leaderboard"
+      />
+
+      <div className="space-y-2">
+        {narrative?.slice(0, 3).map((card: any, i: number) => (
+          <div key={i} className="flex items-start gap-2 px-3 py-2.5 rounded-xl"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <span className="mt-0.5 shrink-0">{iconMap[card.type] ?? <Target className="w-3 h-3" style={{ color: "#ff005c" }} />}</span>
+            <div className="min-w-0">
+              <p className="font-black text-xs leading-snug truncate"
+                style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)", letterSpacing: "0.02em" }}>
+                {card.headline}
+              </p>
+              <p className="text-xs leading-relaxed line-clamp-1 mt-0.5"
+                style={{ color: "rgba(255,255,255,0.35)" }}>
+                {card.body}
+              </p>
+            </div>
+          </div>
+        ))}
+
+        {atRisk.length > 0 && (
+          <div className="border-t pt-2 mt-1" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <AlertTriangle className="w-3 h-3 animate-pulse" style={{ color: "#ff005c" }} />
+              <span className="text-xs font-black uppercase" style={{ color: "rgba(255,0,92,0.6)", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.14em" }}>Danger Zone</span>
+            </div>
+            {atRisk.map(e => {
+              const isCritical = e.points <= 8;
+              const acc = isCritical ? "#ff005c" : "#f97316";
+              return (
+                <Link key={e.playerId} href={`/players/${e.playerId}`}>
+                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg mb-1 cursor-pointer"
+                    style={{ background: `rgba(${isCritical ? "255,0,92" : "249,115,22"},0.07)`, border: `1px solid rgba(${isCritical ? "255,0,92" : "249,115,22"},0.2)` }}>
+                    <span className="font-black text-xs uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.75)" }}>
+                      {e.playerName}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-sm" style={{ fontFamily: "Oswald, sans-serif", color: acc }}>{e.points}<span className="text-xs font-normal ml-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>pts</span></span>
+                      {isCritical && <Skull className="w-3 h-3 animate-pulse" style={{ color: acc }} />}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {(!narrative || narrative.length === 0) && atRisk.length === 0 && (
+          <div className="py-6 text-center text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
+            Play matches to generate storylines
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── TOUR section ───────────────────────────────────────────────────────────────
+
+type TourSummary = { totalTrophies: number; activeRuns: number; completedRuns: number; eliminatedRuns: number };
+type TourTrophy  = { id: number; player_name: string; tour_name: string; tier: number; emoji: string; difficulty: string; awarded_at: string };
+
+const DIFF_COLORS: Record<string, string> = {
+  amateur: "#9ca3af", club: "#38bdf8", county: "#34d399", pro: "#ffd24a", elite: "#ff005c",
+};
+const TIER_LABELS: Record<number, string> = { 1: "Amateur", 2: "Club", 3: "County", 4: "Regional", 5: "Pro", 6: "Elite" };
+
+function TourSection() {
+  const { data: summary } = useFetch<TourSummary>("/api/tour/summary");
+  const { data: trophies } = useFetch<TourTrophy[]>("/api/tour/all-trophies");
+
+  return (
+    <div className="section-card" style={{ borderTop: "2px solid #ffd24a" }}>
+      <SectionHeader
+        icon={<Star className="w-3.5 h-3.5" />}
+        label="Tour Mode"
+        accent="#ffd24a"
+        href="/tour"
+        linkLabel="Enter →"
+      />
+
+      <div className="flex gap-5 mb-3 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <MiniStat label="Trophies" value={summary?.totalTrophies ?? 0} accent="#ffd24a" />
+        <MiniStat label="Active Runs" value={summary?.activeRuns ?? 0} accent="#ffd24a" />
+        <MiniStat label="Completed" value={summary?.completedRuns ?? 0} />
+      </div>
+
+      <div className="space-y-1.5">
+        {trophies && trophies.length > 0 ? (
+          trophies.slice(0, 4).map(t => (
+            <div key={t.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl"
+              style={{ background: "rgba(255,210,74,0.04)", border: "1px solid rgba(255,210,74,0.12)" }}>
+              <span className="text-lg leading-none">{t.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <div className="font-black text-xs uppercase truncate"
+                  style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)", letterSpacing: "0.04em" }}>
+                  {t.player_name}
+                </div>
+                <div className="text-xs truncate" style={{ color: "rgba(255,255,255,0.3)" }}>{t.tour_name}</div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-xs font-black uppercase"
+                  style={{ fontFamily: "Oswald, sans-serif", color: DIFF_COLORS[t.difficulty] ?? "#9ca3af", fontSize: "0.58rem", letterSpacing: "0.1em" }}>
+                  {t.difficulty}
+                </div>
+                <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>
+                  {format(new Date(t.awarded_at), "MMM d")}
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="py-4 text-center">
+            <div className="text-2xl mb-1.5">🏆</div>
+            <div className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>
+              No trophies yet
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.15)" }}>
+              Enter a tour to start your legacy
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 pt-2.5 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {[
+            { label: "61 Tours", color: "#ffd24a" },
+            { label: "6 Tiers",  color: "#ffd24a" },
+            { label: "305 Trophies available", color: "rgba(255,255,255,0.3)" },
+          ].map(p => (
+            <span key={p.label} className="text-xs font-bold uppercase"
+              style={{ fontFamily: "Oswald, sans-serif", color: p.color, fontSize: "0.6rem" }}>
+              {p.label} ·
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ACHIEVEMENTS section ───────────────────────────────────────────────────────
+
+function AchievementsSection() {
+  const { data: achievements } = useListAchievements();
+
+  const total         = achievements?.length ?? 0;
+  const totalUnlocked = achievements?.reduce((s, a) => s + ((a as any).unlockedCount ?? 0), 0) ?? 0;
+
+  const topAchs = [...(achievements ?? [])]
+    .filter(a => (a as any).unlockedCount > 0 && !(a as any).hidden)
+    .sort((a, b) => ((b as any).unlockedCount ?? 0) - ((a as any).unlockedCount ?? 0))
+    .slice(0, 4);
+
+  const RARITY_COLORS: Record<string, string> = {
+    Mythic: "#ff005c", Legendary: "#ffd24a", Epic: "#a855f7", Rare: "#0066ff", Common: "#9ca3af",
+  };
+
+  const pct = total > 0 ? Math.round((totalUnlocked / total) * 100) : 0;
+
+  return (
+    <div className="section-card" style={{ borderTop: "2px solid #a855f7" }}>
+      <SectionHeader
+        icon={<Medal className="w-3.5 h-3.5" />}
+        label="Achievements"
+        accent="#a855f7"
+        href="/achievements"
+      />
+
+      {/* Progress */}
+      <div className="mb-3 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="flex items-end justify-between mb-2">
+          <div>
+            <span className="font-black tabular-nums"
+              style={{ fontFamily: "Oswald, sans-serif", fontSize: "2rem", color: "#a855f7", textShadow: "0 0 18px rgba(168,85,247,0.45)" }}>
+              {totalUnlocked}
+            </span>
+            <span className="text-xs ml-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>/ {total} unlocked</span>
+          </div>
+          <span className="font-black text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(168,85,247,0.6)" }}>
+            {pct}%
+          </span>
+        </div>
+        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+          <div className="h-full rounded-full transition-all duration-700"
+            style={{ width: `${pct}%`, background: "linear-gradient(90deg, #a855f7, #c084fc)" }} />
+        </div>
+      </div>
+
+      {/* Top unlocked */}
+      <div className="space-y-1.5">
+        {topAchs.length > 0 ? topAchs.map(a => {
+          const color = RARITY_COLORS[a.rarity] ?? "#9ca3af";
+          return (
+            <div key={a.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl"
+              style={{ background: `${color}08`, border: `1px solid ${color}22` }}>
+              <span className="text-xl leading-none">{(a as any).icon || "🎯"}</span>
+              <div className="flex-1 min-w-0">
+                <div className="font-black text-xs uppercase truncate"
+                  style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)", letterSpacing: "0.03em" }}>
+                  {a.name.replace(/^[^\s]+\s/, "")}
+                </div>
+                <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  {(a as any).unlockedCount}× unlocked · <span style={{ color }}>{a.rarity}</span>
+                </div>
+              </div>
+            </div>
+          );
+        }) : (
+          <div className="py-4 text-center text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
+            No achievements unlocked yet
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 pt-2.5 border-t flex gap-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        {[
+          { label: "League", color: "#ff005c" },
+          { label: "Tour",   color: "#ffd24a" },
+          { label: "Bot",    color: "#0066ff" },
+        ].map(p => (
+          <span key={p.label} className="text-xs font-bold uppercase"
+            style={{ fontFamily: "Oswald, sans-serif", color: p.color, fontSize: "0.6rem", opacity: 0.6 }}>
+            {p.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── SHADOW BOT section ─────────────────────────────────────────────────────────
+
+type BotEntry = {
+  playerId: number; playerName: string; totalDarts: number; totalSessions: number;
+  accuracyLevel: string | null; locked: boolean; progressToNext: number; computedAvg: number | null;
+};
+
+const BOT_LEVEL_COLORS: Record<string, string> = {
+  elite: "#ff005c", pro: "#ffd24a", county: "#34d399", club: "#38bdf8", amateur: "#9ca3af", beginner: "rgba(255,255,255,0.3)",
+};
+
+function ShadowBotSection() {
+  const { data: bots } = useFetch<BotEntry[]>("/api/bots/leaderboard");
+
+  const activeBots    = bots?.filter(b => !b.locked && b.totalDarts > 0) ?? [];
+  const lockedBots    = bots?.filter(b => b.locked) ?? [];
+  const totalDarts    = bots?.reduce((s, b) => s + (b.totalDarts ?? 0), 0) ?? 0;
+  const totalSessions = bots?.reduce((s, b) => s + (b.totalSessions ?? 0), 0) ?? 0;
+
+  return (
+    <div className="section-card" style={{ borderTop: "2px solid #0066ff" }}>
+      <SectionHeader
+        icon={<CircuitBoard className="w-3.5 h-3.5" />}
+        label="Shadow Bot"
+        accent="#0066ff"
+        href="/shadow-bot"
+        linkLabel="Train →"
+      />
+
+      <div className="flex gap-5 mb-3 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <MiniStat label="Sessions" value={totalSessions} accent="#0066ff" />
+        <MiniStat label="Darts Thrown" value={totalDarts.toLocaleString()} />
+        <MiniStat label="Profiles Built" value={activeBots.length} />
+      </div>
+
+      <div className="space-y-1.5">
+        {activeBots.length > 0 ? (
+          activeBots.slice(0, 4).map(b => {
+            const color = BOT_LEVEL_COLORS[b.accuracyLevel ?? "beginner"] ?? "#9ca3af";
+            const avg   = b.computedAvg && b.computedAvg > 0 ? b.computedAvg.toFixed(1) : "–";
+            return (
+              <div key={b.playerId} className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl"
+                style={{ background: "rgba(0,102,255,0.04)", border: "1px solid rgba(0,102,255,0.12)" }}>
+                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
+                <div className="flex-1 min-w-0">
+                  <div className="font-black text-xs uppercase truncate"
+                    style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)", letterSpacing: "0.04em" }}>
+                    {b.playerName}
+                  </div>
+                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+                    {b.totalDarts.toLocaleString()} darts · avg {avg}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-xs font-black uppercase"
+                    style={{ fontFamily: "Oswald, sans-serif", color, fontSize: "0.58rem", letterSpacing: "0.1em" }}>
+                    {b.accuracyLevel}
+                  </div>
+                  <div className="h-1 w-12 rounded-full mt-0.5 overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+                    <div className="h-full rounded-full" style={{ width: `${b.progressToNext}%`, background: color }} />
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="py-4 text-center">
+            {lockedBots.length > 0 ? (
+              <>
+                <div className="text-2xl mb-1.5">🤖</div>
+                <div className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>
+                  No bots unlocked yet
+                </div>
+                <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.15)" }}>
+                  Throw 250 darts to unlock your bot profile
+                </div>
+              </>
+            ) : (
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>No practice sessions yet</div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── MAIN HUB PAGE ──────────────────────────────────────────────────────────────
+
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<"leaderboard" | "recent">("leaderboard");
 
-  const { data: summary }     = useGetStatsSummary();
+  const { data: summary }   = useGetStatsSummary();
   const { data: leaderboard } = useGetLeaderboard();
-  const { data: recent }      = useGetRecentActivity();
-  const { data: narrative }   = useGetNarrativeCards();
+  const { data: recent }    = useGetRecentActivity();
+  const { data: narrative } = useGetNarrativeCards();
 
   const active    = leaderboard?.filter(e => e.status !== "ELIMINATED") ?? [];
   const top5      = active.slice(0, 5);
   const leader    = active[0] ?? null;
   const eliminated = (summary as any)?.eliminatedCount ?? 0;
-  const posColors  = ["#ffd24a", "#c0c8d8", "#cd7f32"];
 
   return (
     <div className="space-y-4">
       <div className="pdc-divider" />
 
+      {/* ── HUB TITLE ── */}
+      <div className="flex items-end justify-between">
+        <div>
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="live-dot" style={{ width: 6, height: 6 }} />
+            <span className="text-xs font-black uppercase tracking-widest"
+              style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,0,92,0.75)", fontSize: "0.55rem", letterSpacing: "0.22em" }}>
+              Live
+            </span>
+          </div>
+          <h1 className="font-black uppercase leading-none"
+            style={{ fontFamily: "Oswald, sans-serif", fontSize: "2.8rem", letterSpacing: "0.06em" }}>
+            Hub
+          </h1>
+        </div>
+        {summary?.currentSeasonName && (
+          <div className="text-right pb-1">
+            <div className="font-black uppercase text-xs"
+              style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em", fontSize: "0.65rem" }}>
+              {summary.currentSeasonName}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ── COMPACT LEADER SPOTLIGHT ── */}
       {leader && (
         <div className="spotlight-strip fade-in-up">
-          {/* Left: identity */}
           <div className="flex items-center gap-4 relative z-10 min-w-0">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 mb-1">
@@ -117,8 +503,6 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-
-          {/* Right: stats — ELO hidden on mobile */}
           <div className="flex items-center gap-4 md:gap-6 relative z-10 shrink-0">
             <MiniStat label="Points" value={leader.points} accent="#ff005c" />
             <div className="hidden md:block w-px h-8 bg-white/10" />
@@ -131,7 +515,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── QUICK STATS — 2×2 on mobile, 4-col on sm+ ── */}
+      {/* ── QUICK STATS ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "Active",     value: summary?.activePlayers ?? summary?.totalPlayers ?? 0, accent: "#0066ff",                   cls: "stat-box-blue" },
@@ -155,176 +539,24 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* ── TOUR MODE + ACHIEVEMENTS TEASERS ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {/* Tour Mode */}
-        <Link href="/tour" style={{ textDecoration: "none" }}>
-          <div className="pdc-card p-4 relative overflow-hidden group transition-all hover:-translate-y-0.5 cursor-pointer h-full"
-            style={{ borderColor: "rgba(255,0,92,0.22)", background: "rgba(255,0,92,0.04)" }}>
-            <div className="absolute inset-0 pointer-events-none overflow-hidden">
-              <div style={{ position: "absolute", top: -50, right: -50, width: 180, height: 180, background: "radial-gradient(circle, rgba(255,0,92,0.2) 0%, transparent 65%)" }} />
-            </div>
-            <div className="relative">
-              <div className="flex items-center gap-2.5 mb-2.5">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                  style={{ background: "rgba(255,0,92,0.15)", border: "1px solid rgba(255,0,92,0.3)" }}>
-                  <Star className="w-4 h-4 fill-current" style={{ color: "#ff005c" }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-black uppercase text-sm leading-tight" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.1em" }}>Tour Mode</div>
-                  <div className="text-xs" style={{ color: "rgba(255,0,92,0.7)", fontFamily: "Oswald, sans-serif" }}>Build Your Legacy</div>
-                </div>
-                <ChevronRight className="w-4 h-4 shrink-0 group-hover:translate-x-1 transition-transform" style={{ color: "rgba(255,0,92,0.5)" }} />
-              </div>
-              <p className="text-xs mb-2.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-                61 events · 6 tiers · 305 trophies · From pub amateur to PDC Major champion.
-              </p>
-              <div className="flex gap-1.5 flex-wrap">
-                {[
-                  { label: "61 Tours",      bg: "rgba(255,0,92,0.1)",   color: "#ff005c" },
-                  { label: "5 Difficulties",bg: "rgba(255,210,74,0.1)", color: "#ffd24a" },
-                  { label: "305 Trophies",  bg: "rgba(192,132,252,0.1)",color: "#c084fc" },
-                ].map(pill => (
-                  <span key={pill.label} className="text-xs px-2 py-0.5 rounded-full font-bold"
-                    style={{ background: pill.bg, color: pill.color, fontFamily: "Oswald, sans-serif" }}>
-                    {pill.label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Link>
-
-        {/* Achievements */}
-        <Link href="/achievements" style={{ textDecoration: "none" }}>
-          <div className="pdc-card p-4 relative overflow-hidden group transition-all hover:-translate-y-0.5 cursor-pointer h-full"
-            style={{ borderColor: "rgba(255,210,74,0.18)", background: "rgba(255,210,74,0.03)" }}>
-            <div className="absolute inset-0 pointer-events-none overflow-hidden">
-              <div style={{ position: "absolute", top: -50, right: -50, width: 180, height: 180, background: "radial-gradient(circle, rgba(255,210,74,0.16) 0%, transparent 65%)" }} />
-            </div>
-            <div className="relative">
-              <div className="flex items-center gap-2.5 mb-2.5">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                  style={{ background: "rgba(255,210,74,0.12)", border: "1px solid rgba(255,210,74,0.25)" }}>
-                  <Medal className="w-4 h-4" style={{ color: "#ffd24a" }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-black uppercase text-sm leading-tight" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.1em" }}>Achievements</div>
-                  <div className="text-xs" style={{ color: "rgba(255,210,74,0.7)", fontFamily: "Oswald, sans-serif" }}>Gamerscore System</div>
-                </div>
-                <ChevronRight className="w-4 h-4 shrink-0 group-hover:translate-x-1 transition-transform" style={{ color: "rgba(255,210,74,0.5)" }} />
-              </div>
-              <p className="text-xs mb-2.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-                91 achievements across League, Tour, Shadow Bot &amp; Practice. Every win counts.
-              </p>
-              <div className="flex gap-1.5 flex-wrap">
-                {[
-                  { label: "League",     bg: "rgba(255,0,92,0.1)",   color: "#ff005c" },
-                  { label: "Tour",       bg: "rgba(56,189,248,0.1)", color: "#38bdf8" },
-                  { label: "Shadow Bot", bg: "rgba(167,139,250,0.1)",color: "#a78bfa" },
-                ].map(pill => (
-                  <span key={pill.label} className="text-xs px-2 py-0.5 rounded-full font-bold"
-                    style={{ background: pill.bg, color: pill.color, fontFamily: "Oswald, sans-serif" }}>
-                    {pill.label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Link>
+      {/* ── ACTIVITY WALL ── */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="live-dot" />
+          <span className="text-xs font-black uppercase tracking-widest"
+            style={{ color: "rgba(255,0,92,0.85)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.18em", fontSize: "0.65rem" }}>
+            What's Happening
+          </span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <LeagueSection narrative={narrative} leaderboard={leaderboard} />
+          <TourSection />
+          <AchievementsSection />
+          <ShadowBotSection />
+        </div>
       </div>
 
-      {/* ── LIVE STORYLINES — horizontal scroll on mobile, grid on md+ ── */}
-      {narrative && narrative.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="live-dot" />
-            <span className="text-xs font-black uppercase tracking-widest"
-              style={{ color: "rgba(255,0,92,0.85)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.18em" }}>
-              Live Storylines
-            </span>
-          </div>
-
-          {/* Mobile: snap carousel */}
-          <div className="md:hidden flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-            {narrative.map((card: any, i: number) => (
-              <div key={i} className="shrink-0 snap-start" style={{ width: "82vw" }}>
-                <NarrativeCard card={card} idx={i} />
-              </div>
-            ))}
-          </div>
-
-          {/* Desktop: grid */}
-          <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-3">
-            {narrative.map((card: any, i: number) => (
-              <NarrativeCard key={i} card={card} idx={i} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── DANGER ZONE ── */}
-      {(() => {
-        const atRisk = active.filter(e => e.points > 0 && e.points < 20);
-        if (!atRisk.length) return null;
-        return (
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className="w-3.5 h-3.5 animate-pulse" style={{ color: "#ff005c" }} />
-              <span className="text-xs font-black uppercase tracking-widest"
-                style={{ color: "rgba(255,0,92,0.85)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.18em" }}>
-                Danger Zone
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {atRisk.map(e => {
-                const isCritical = e.points <= 8;
-                const isWarning  = e.points > 8 && e.points <= 14;
-                const accent     = isCritical ? "#ff005c" : isWarning ? "#f97316" : "#ffd24a";
-                const label      = isCritical ? "CRITICAL" : isWarning ? "AT RISK" : "WATCH";
-                const maxSafe    = e.points - 1;
-                return (
-                  <Link key={e.playerId} href={`/players/${e.playerId}`}>
-                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all hover:-translate-y-0.5"
-                      style={{
-                        background: `rgba(${isCritical ? "255,0,92" : isWarning ? "249,115,22" : "255,210,74"},0.06)`,
-                        border: `1px solid rgba(${isCritical ? "255,0,92" : isWarning ? "249,115,22" : "255,210,74"},0.25)`,
-                      }}>
-                      <div className="shrink-0">
-                        {isCritical
-                          ? <Skull className="w-4 h-4 animate-pulse" style={{ color: accent }} />
-                          : <AlertTriangle className="w-4 h-4" style={{ color: accent }} />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-black text-sm uppercase truncate"
-                          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>
-                          {e.playerName}
-                        </div>
-                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
-                          1 loss of {maxSafe}+ pts → eliminated
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="font-black text-lg leading-none"
-                          style={{ fontFamily: "Oswald, sans-serif", color: accent, textShadow: `0 0 12px ${accent}66` }}>
-                          {e.points}
-                        </div>
-                        <div className="text-xs font-bold uppercase"
-                          style={{ color: accent, opacity: 0.7, fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.1em" }}>
-                          {label}
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ── LEADERBOARD + RECENT — tabs on mobile, side-by-side on lg+ ── */}
+      {/* ── LEADERBOARD + RECENT ── */}
 
       {/* Mobile tab switcher */}
       <div className="lg:hidden flex rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -332,8 +564,7 @@ export default function Dashboard() {
           <button key={tab} onClick={() => setActiveTab(tab)}
             className="flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest transition-all"
             style={{
-              fontFamily: "Oswald, sans-serif",
-              letterSpacing: "0.12em",
+              fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em",
               background: activeTab === tab ? "rgba(255,0,92,0.12)" : "rgba(255,255,255,0.02)",
               color: activeTab === tab ? "#ff005c" : "rgba(255,255,255,0.35)",
               borderBottom: activeTab === tab ? "2px solid #ff005c" : "2px solid transparent",
@@ -417,7 +648,8 @@ export default function Dashboard() {
                     <span style={{ color: "rgba(255,255,255,0.22)", fontSize: "0.7rem" }}>def.</span>
                     <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.8rem" }}>{m.loserName}</span>
                     {m.isTeamMatch && (
-                      <span className="text-xs font-black px-1.5 py-0.5 rounded" style={{ background: "rgba(0,200,150,0.12)", color: "#00c896", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.05em" }}>TEAM</span>
+                      <span className="text-xs font-black px-1.5 py-0.5 rounded"
+                        style={{ background: "rgba(0,200,150,0.12)", color: "#00c896", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.05em" }}>TEAM</span>
                     )}
                   </div>
                   <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>
@@ -430,10 +662,14 @@ export default function Dashboard() {
                   )}
                 </div>
                 <div className="text-right shrink-0 ml-3">
-                  {m.stake > 0 && (
-                    <div className="font-black text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>±{m.stake}pts</div>
-                  )}
-                  <div className="text-xs font-mono" style={{ color: "rgba(0,102,255,0.65)" }}>+{m.eloChange} Elo</div>
+                  <div className="text-xs font-black"
+                    style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)" }}>
+                    +{m.pointsAwarded ?? 0}
+                    <span className="font-normal ml-0.5" style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.2)" }}>pts</span>
+                  </div>
+                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontSize: "0.65rem" }}>
+                    {m.eloChange ? `ELO ${m.eloChange > 0 ? "+" : ""}${m.eloChange}` : ""}
+                  </div>
                 </div>
               </div>
             ))}
@@ -443,30 +679,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-
-      {/* ── ELIMINATED ── */}
-      {leaderboard && leaderboard.some(e => e.status === "ELIMINATED") && (
-        <div>
-          <h2 className="text-xs uppercase tracking-widest mb-3 font-black flex items-center gap-2"
-            style={{ color: "rgba(255,0,92,0.7)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.18em" }}>
-            <Skull className="w-3 h-3" /> Eliminated
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {leaderboard.filter(e => e.status === "ELIMINATED").map(entry => (
-              <Link key={entry.playerId} href={`/players/${entry.playerId}`}>
-                <div className="pdc-card p-3 opacity-40 hover:opacity-65 transition-opacity cursor-pointer"
-                  style={{ borderColor: "rgba(255,0,92,0.18)" }}>
-                  <div className="flex items-center gap-1.5">
-                    <span style={{ color: "#ff005c" }}>☠</span>
-                    <span className="text-sm font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>{entry.playerName}</span>
-                  </div>
-                  <div className="text-xs mt-0.5 font-bold" style={{ color: "rgba(255,0,92,0.55)", fontFamily: "Oswald, sans-serif" }}>Eliminated</div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

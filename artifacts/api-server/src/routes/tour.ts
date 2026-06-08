@@ -454,4 +454,67 @@ router.get("/tour/achievements/:playerId", async (req, res): Promise<void> => {
   }
 });
 
+// ── GET /api/tour/summary ─────────────────────────────────────────────────────
+
+router.get("/tour/summary", async (req, res): Promise<void> => {
+  try {
+    const [trophyRow, runRows] = await Promise.all([
+      db.execute(sql`SELECT COUNT(*)::int AS count FROM tour_trophies`),
+      db.execute(sql`SELECT status, COUNT(*)::int AS count FROM player_tour_runs GROUP BY status`),
+    ]);
+    const totalTrophies = Number((trophyRow.rows[0] as any)?.count ?? 0);
+    const runMap: Record<string, number> = {};
+    for (const r of runRows.rows as any[]) runMap[r.status] = Number(r.count);
+    res.json({
+      totalTrophies,
+      activeRuns: runMap["active"] ?? 0,
+      completedRuns: runMap["completed"] ?? 0,
+      eliminatedRuns: runMap["eliminated"] ?? 0,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get tour summary");
+    res.status(500).json({ error: "Failed to get tour summary" });
+  }
+});
+
+// ── GET /api/tour/all-trophies ────────────────────────────────────────────────
+
+router.get("/tour/all-trophies", async (req, res): Promise<void> => {
+  try {
+    const rows = (await db.execute(sql`
+      SELECT tt.id, tt.player_id, tt.tour_id, tt.difficulty, tt.awarded_at,
+             p.name  AS player_name,
+             td.name AS tour_name, td.tier, td.emoji, td.slug
+      FROM tour_trophies tt
+      JOIN players p         ON p.id  = tt.player_id
+      JOIN tour_definitions td ON td.id = tt.tour_id
+      ORDER BY tt.awarded_at DESC
+    `)).rows;
+    res.json(rows);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get all trophies");
+    res.status(500).json({ error: "Failed to get all trophies" });
+  }
+});
+
+// ── GET /api/tour/achievement-definitions ─────────────────────────────────────
+
+router.get("/tour/achievement-definitions", async (req, res): Promise<void> => {
+  try {
+    const rows = (await db.execute(sql`
+      SELECT tad.*,
+             COUNT(pta.id)::int AS unlocked_count
+      FROM tour_achievement_definitions tad
+      LEFT JOIN player_tour_achievements pta ON pta.achievement_key = tad.key
+      GROUP BY tad.id
+      ORDER BY tad.category, tad.gamerscore DESC
+    `)).rows;
+    res.json(rows);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get tour achievement definitions");
+    res.status(500).json({ error: "Failed to get tour achievement definitions" });
+  }
+});
+
 export default router;
+

@@ -4,7 +4,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { useGetStatsSummary, useGetRecentActivity, useGetLeaderboard } from "@workspace/api-client-react";
 
 const mainNav = [
-  { href: "/",             label: "Dashboard",    icon: LayoutDashboard },
+  { href: "/",             label: "Hub",          icon: LayoutDashboard },
   { href: "/submit",       label: "Submit Match", icon: Plus            },
   { href: "/practice",     label: "Practice",     icon: Dumbbell        },
 ];
