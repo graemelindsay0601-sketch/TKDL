@@ -173,7 +173,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <img src="/icon-192.png" alt="TKDL" className="relative z-10" style={{ width: "3.2rem", height: "3.2rem", borderRadius: "0.6rem", objectFit: "cover" }} />
           </div>
           <p style={{ fontFamily: "'Montserrat', sans-serif", textTransform: "uppercase", lineHeight: 1.2, marginBottom: 0, letterSpacing: "0.04em" }}>
-            <span style={{ display: "block", fontSize: "0.85rem", fontWeight: 900, color: "#00539F" }}>Tesco</span>
+            <span style={{ display: "block", fontSize: "1rem", fontWeight: 900, color: "#00539F", fontFamily: "'Nunito', sans-serif", letterSpacing: "-0.01em" }}>Tesco</span>
             <span style={{ display: "block", fontSize: "0.85rem", fontWeight: 900, color: "#EE1C25" }}>Kilbirnie</span>
             <span style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "rgba(255,255,255,0.9)", letterSpacing: "0.1em" }}>Darts League</span>
           </p>
