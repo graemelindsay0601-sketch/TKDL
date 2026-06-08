@@ -109,7 +109,11 @@
 }
 
 @layer base {
-  * { @apply border-border; }
+  * {
+    @apply border-border;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
   body {
     @apply font-sans antialiased text-foreground;
     background:
@@ -119,6 +123,22 @@
     background-position: center;
     background-attachment: fixed;
     min-height: 100vh;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  a, button, [role="button"] {
+    touch-action: manipulation;
+    outline: none !important;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  a:focus, button:focus, [role="button"]:focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid rgba(255,0,92,0.6) !important;
+    outline-offset: 2px;
   }
   h1, h2, h3 {
     font-family: 'Oswald', sans-serif;

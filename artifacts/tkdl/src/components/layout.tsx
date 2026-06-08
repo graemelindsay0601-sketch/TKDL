@@ -302,18 +302,20 @@ export function Layout({ children }: { children: ReactNode }) {
       <LiveTicker />
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 flex"
-        style={{ background: "rgba(4,4,10,0.97)", borderTop: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)" }}>
+        style={{ background: "rgba(4,4,10,0.97)", borderTop: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {mobileNavItems.map(item => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
           return (
             <Link key={item.href} href={item.href}
-              className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-all"
-              style={{ color: isActive ? "#ff005c" : "rgba(255,255,255,0.3)" }}>
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors duration-150 relative"
+              style={{ color: isActive ? "#ff005c" : "rgba(255,255,255,0.3)", WebkitTapHighlightColor: "transparent", outline: "none" }}>
+              {isActive && (
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: "#ff005c", boxShadow: "0 0 8px rgba(255,0,92,0.8)" }} />
+              )}
               <item.icon className="w-5 h-5" style={isActive ? { filter: "drop-shadow(0 0 6px rgba(255,0,92,0.8))" } : {}} />
               <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", fontWeight: isActive ? 700 : 400 }}>
                 {item.label}
               </span>
-              {isActive && <div className="absolute bottom-0 w-8 h-0.5 rounded-full" style={{ background: "#ff005c" }} />}
             </Link>
           );
         })}
