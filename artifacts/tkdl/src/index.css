@@ -579,9 +579,11 @@
   gap: 16px;
   white-space: nowrap;
 }
-.ticker-item.accent-red   { color: #ff005c; }
-.ticker-item.accent-gold  { color: #ffd24a; }
-.ticker-item.accent-blue  { color: #6ab0ff; }
+.ticker-item.accent-red    { color: #ff005c; }
+.ticker-item.accent-gold   { color: #ffd24a; }
+.ticker-item.accent-blue   { color: #6ab0ff; }
+.ticker-item.accent-purple { color: #c084fc; }
+.ticker-item.accent-green  { color: #22c55e; }
 .ticker-sep {
   color: rgba(255,0,92,0.45);
   font-size: 0.5rem;

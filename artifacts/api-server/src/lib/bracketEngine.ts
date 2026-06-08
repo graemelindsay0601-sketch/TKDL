@@ -207,7 +207,19 @@ export function advanceKOBracket(bracket: KOBracket, playerWon: boolean): { brac
   const playerMatchIdx = round.matches.findIndex(m => m.p1Key === "player" || m.p2Key === "player");
   const playerMatch = round.matches[playerMatchIdx];
 
-  if (!playerMatch) return { bracket: b, won: false, eliminated: true };
+  if (!playerMatch) {
+    // Player's match not found — bracket may already be in a terminal state
+    const alreadyWon = b.status === "completed";
+    const alreadyElim = b.status === "eliminated";
+    return { bracket: b, won: alreadyWon, eliminated: alreadyElim };
+  }
+
+  // Idempotency guard — if this match was already resolved, return current state unchanged
+  if (playerMatch.winnerKey !== null) {
+    const alreadyWon = b.status === "completed";
+    const alreadyElim = b.status === "eliminated";
+    return { bracket: b, won: alreadyWon, eliminated: alreadyElim };
+  }
 
   playerMatch.winnerKey = playerWon ? "player" : (playerMatch.p1Key === "player" ? playerMatch.p2Key : playerMatch.p1Key);
 

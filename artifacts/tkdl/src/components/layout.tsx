@@ -35,36 +35,58 @@ const mobileNavItems = [
 
 type TickerEntry = { text: string; cls?: string };
 
+const ACCENT_CLS: Record<string, string> = {
+  red:    "accent-red",
+  gold:   "accent-gold",
+  purple: "accent-purple",
+  blue:   "accent-blue",
+  green:  "accent-green",
+};
+
 function LiveTicker() {
   const { data: summary }     = useGetStatsSummary();
   const { data: leaderboard } = useGetLeaderboard();
-  const { data: recent }      = useGetRecentActivity();
   const [items, setItems]     = useState<TickerEntry[]>([]);
+  const [feed, setFeed]       = useState<{ text: string; accent: string }[]>([]);
+
+  // Fetch rich live-feed from the API, refresh every 60s
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      fetch("/api/stats/live-feed")
+        .then(r => r.ok ? r.json() : [])
+        .then((data: { text: string; accent: string }[]) => { if (alive) setFeed(data); })
+        .catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
 
   useEffect(() => {
     const entries: TickerEntry[] = [];
+
+    // Season header + top-3 standings
     if (summary?.currentSeasonName) {
       entries.push({ text: `⚡ ${summary.currentSeasonName.toUpperCase()}`, cls: "accent-red" });
-      entries.push({ text: `● SEASON LIVE`, cls: "accent-red" });
     }
     const top3 = leaderboard?.filter(e => e.status !== "ELIMINATED").slice(0, 3) ?? [];
     const medals = ["🥇", "🥈", "🥉"];
     top3.forEach((p, i) => {
       entries.push({ text: `${medals[i]} ${p.playerName.toUpperCase()} · ${p.points}pts`, cls: i === 0 ? "accent-gold" : undefined });
     });
-    if (summary?.activePlayers) {
-      entries.push({ text: `${summary.activePlayers} ACTIVE PLAYERS`, cls: "accent-blue" });
+
+    // Rich feed: matches, achievements, tour trophies, tour achievements
+    for (const item of feed) {
+      entries.push({ text: item.text, cls: ACCENT_CLS[item.accent] });
     }
-    recent?.slice(0, 8).forEach((m: any) => {
-      const stake = m.stake ? ` ±${m.stake}pts` : "";
-      entries.push({ text: `${m.winnerName.toUpperCase()} def. ${m.loserName}${stake}` });
-    });
+
     if (entries.length > 0) setItems(entries);
-  }, [summary, leaderboard, recent]);
+  }, [summary, leaderboard, feed]);
 
   if (items.length === 0) return null;
   const doubled  = [...items, ...items];
-  const duration = Math.max(30, items.length * 4);
+  const duration = Math.max(40, items.length * 5);
 
   return (
     <div className="ticker-bar">

@@ -121,6 +121,103 @@ router.get("/stats/narrative", async (_req, res): Promise<void> => {
   res.json(cards);
 });
 
+router.get("/stats/live-feed", async (_req, res): Promise<void> => {
+  try {
+    type FeedItem = { type: string; text: string; accent: string; ts: number };
+    const items: FeedItem[] = [];
+
+    // Recent matches — upset detection: winner current Elo < loser current Elo
+    const matchRows = (await db.execute(drizzleSql`
+      SELECT m.id, m.winner_name, m.loser_name, m.stake, m.elo_change, m.game_type, m.played_at,
+             wp.elo AS winner_elo, lp.elo AS loser_elo
+      FROM matches m
+      JOIN players wp ON wp.id = m.winner_id
+      JOIN players lp ON lp.id = m.loser_id
+      ORDER BY m.played_at DESC LIMIT 20
+    `)).rows as any[];
+
+    for (const m of matchRows) {
+      const isUpset = m.winner_elo < m.loser_elo;
+      const stake   = m.stake ? ` ±${m.stake}pts` : "";
+      const eloStr  = m.elo_change ? ` (+${m.elo_change} Elo)` : "";
+      items.push({
+        type:   "match",
+        text:   isUpset
+          ? `⚡ UPSET — ${m.winner_name.toUpperCase()} def. ${m.loser_name}${stake}${eloStr}`
+          : `🎯 ${m.winner_name.toUpperCase()} def. ${m.loser_name}${stake}`,
+        accent: isUpset ? "red" : "default",
+        ts:     new Date(m.played_at).getTime(),
+      });
+    }
+
+    // Recent league achievement unlocks
+    const achRows = (await db.execute(drizzleSql`
+      SELECT pa.unlocked_at, p.name AS player_name, a.name AS ach_name, a.icon, a.rarity
+      FROM player_achievements pa
+      JOIN players p ON p.id = pa.player_id
+      JOIN achievements a ON a.id = pa.achievement_id
+      ORDER BY pa.unlocked_at DESC LIMIT 12
+    `)).rows as any[];
+
+    for (const a of achRows) {
+      const icon = a.icon ?? "🏅";
+      items.push({
+        type:   "achievement",
+        text:   `${icon} ${a.player_name.toUpperCase()} · ${a.ach_name}`,
+        accent: a.rarity === "legendary" ? "gold" : a.rarity === "epic" ? "purple" : "blue",
+        ts:     new Date(a.unlocked_at).getTime(),
+      });
+    }
+
+    // Recent tour trophies
+    const trophyRows = (await db.execute(drizzleSql`
+      SELECT tt.awarded_at, p.name AS player_name, td.name AS tour_name, td.emoji, td.tier, tt.difficulty, tt.gamerscore
+      FROM tour_trophies tt
+      JOIN players p ON p.id = tt.player_id
+      JOIN tour_definitions td ON td.id = tt.tour_id
+      ORDER BY tt.awarded_at DESC LIMIT 10
+    `)).rows as any[];
+
+    for (const t of trophyRows) {
+      const emoji = t.emoji ?? "🏆";
+      const gs    = t.gamerscore ? ` · +${t.gamerscore}G` : "";
+      items.push({
+        type:   "tour_trophy",
+        text:   `${emoji} ${t.player_name.toUpperCase()} WON ${t.tour_name.toUpperCase()} [${t.difficulty.toUpperCase()}]${gs}`,
+        accent: t.tier >= 5 ? "gold" : "purple",
+        ts:     new Date(t.awarded_at).getTime(),
+      });
+    }
+
+    // Recent tour achievements
+    const tourAchRows = (await db.execute(drizzleSql`
+      SELECT pta.awarded_at, p.name AS player_name, tad.name AS ach_name, tad.icon, tad.gamerscore
+      FROM player_tour_achievements pta
+      JOIN players p ON p.id = pta.player_id
+      JOIN tour_achievement_definitions tad ON tad.key = pta.achievement_key
+      ORDER BY pta.awarded_at DESC LIMIT 10
+    `)).rows as any[];
+
+    for (const a of tourAchRows) {
+      const icon = a.icon ?? "🎯";
+      const gs   = a.gamerscore ? ` +${a.gamerscore}G` : "";
+      items.push({
+        type:   "tour_achievement",
+        text:   `${icon} ${a.player_name.toUpperCase()} · ${a.ach_name}${gs}`,
+        accent: "green",
+        ts:     new Date(a.awarded_at).getTime(),
+      });
+    }
+
+    // Sort by timestamp newest-first and return top 40
+    items.sort((a, b) => b.ts - a.ts);
+    res.json(items.slice(0, 40));
+  } catch (err) {
+    req.log.error({ err }, "Failed to get live feed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.get("/stats/rivalries", async (_req, res): Promise<void> => {
   const rows = await db.execute(drizzleSql`
     SELECT

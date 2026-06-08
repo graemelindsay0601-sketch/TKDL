@@ -20,7 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Download, Dumbbell, BarChart3 } from "lucide-react";
+import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Download, Dumbbell, BarChart3, Star } from "lucide-react";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 
@@ -771,6 +771,88 @@ function GameTypesManager() {
   );
 }
 
+function TourDataWipe({ players }: { players: { id: number; name: string; isActive: boolean }[] }) {
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [isWiping, setIsWiping]     = useState(false);
+  const { toast } = useToast();
+
+  const activePlayers = players.filter(p => p.isActive);
+  const selectedName  = activePlayers.find(p => String(p.id) === selectedId)?.name ?? "";
+
+  const handleWipe = async () => {
+    if (!selectedId) return;
+    setIsWiping(true);
+    try {
+      const res  = await fetch(`/api/tour/player/${selectedId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Delete failed");
+      toast({
+        title: "Tour Data Wiped",
+        description: `${selectedName}: ${data.runsDeleted} runs, ${data.trophiesDeleted} trophies, ${data.achievementsDeleted} achievements removed.`,
+      });
+      setSelectedId("");
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setIsWiping(false);
+    }
+  };
+
+  return (
+    <div className="pdc-card p-5" style={{ borderColor: "rgba(192,132,252,0.2)", background: "rgba(192,132,252,0.02)" }}>
+      <div className="flex items-center gap-2 mb-3">
+        <Star className="w-4 h-4" style={{ color: "#c084fc" }} />
+        <div>
+          <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#c084fc" }}>Clear Tour Data</h2>
+          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Permanently wipes all tour runs, trophies, and achievements for a player</p>
+        </div>
+      </div>
+      <div className="flex flex-col sm:flex-row gap-3 items-start">
+        <select
+          value={selectedId}
+          onChange={e => setSelectedId(e.target.value)}
+          className="flex-1 h-9 rounded px-3 text-sm"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(192,132,252,0.2)", color: selectedId ? "#fff" : "rgba(255,255,255,0.35)", fontFamily: "inherit" }}
+        >
+          <option value="">Select a player…</option>
+          {activePlayers.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+        </select>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              disabled={!selectedId || isWiping}
+              className="gap-2 font-bold uppercase tracking-wider whitespace-nowrap"
+              style={{ background: "rgba(192,132,252,0.15)", border: "1px solid rgba(192,132,252,0.3)", color: "#c084fc", fontFamily: "Oswald, sans-serif" }}
+            >
+              <Trash2 className="w-4 h-4" />
+              {isWiping ? "Wiping…" : "Clear Data"}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(192,132,252,0.3)" }}>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2" style={{ color: "#c084fc", fontFamily: "Oswald, sans-serif" }}>
+                <AlertTriangle className="w-5 h-5" /> Wipe Tour Data?
+              </AlertDialogTitle>
+              <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
+                This will permanently delete all tour runs, trophies, and tour achievements for <strong style={{ color: "#fff" }}>{selectedName}</strong>. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleWipe}
+                style={{ background: "#c084fc", color: "#000", border: "none", fontWeight: "bold" }}
+              >
+                Yes, Wipe All
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </div>
+  );
+}
+
 export default function Admin() {
   const { data: players, isLoading: isLoadingPlayers } = useListPlayers();
   const { data: matches, isLoading: isLoadingMatches } = useListMatches({ limit: 30 });
@@ -930,6 +1012,9 @@ export default function Admin() {
           </AlertDialog>
         </div>
       </div>
+
+      {/* Tour data wipe */}
+      <TourDataWipe players={players ?? []} />
 
       {/* Achievement sweep */}
       <div className="pdc-card p-5" style={{ borderColor: "rgba(0,102,255,0.2)", background: "rgba(0,102,255,0.02)" }}>

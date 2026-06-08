@@ -505,6 +505,30 @@ router.get("/tour/all-trophies", async (req, res): Promise<void> => {
   }
 });
 
+// ── DELETE /api/tour/player/:playerId — admin wipe all tour data for a player ──
+
+router.delete("/tour/player/:playerId", async (req, res): Promise<void> => {
+  try {
+    const playerId = parseInt(req.params.playerId, 10);
+    if (isNaN(playerId)) { res.status(400).json({ error: "Invalid player id" }); return; }
+
+    const [trophies, achievements, runs] = await Promise.all([
+      db.execute(sql`DELETE FROM tour_trophies WHERE player_id = ${playerId} RETURNING id`),
+      db.execute(sql`DELETE FROM player_tour_achievements WHERE player_id = ${playerId} RETURNING id`),
+      db.execute(sql`DELETE FROM player_tour_runs WHERE player_id = ${playerId} RETURNING id`),
+    ]);
+
+    res.json({
+      trophiesDeleted:      trophies.rows.length,
+      achievementsDeleted:  achievements.rows.length,
+      runsDeleted:          runs.rows.length,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete player tour data");
+    res.status(500).json({ error: "Failed to delete player tour data" });
+  }
+});
+
 // ── GET /api/tour/achievement-definitions ─────────────────────────────────────
 
 router.get("/tour/achievement-definitions", async (req, res): Promise<void> => {
