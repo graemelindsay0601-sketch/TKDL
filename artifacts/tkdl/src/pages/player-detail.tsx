@@ -231,7 +231,7 @@ export default function PlayerDetail() {
   const params = useParams();
   const playerId = parseInt(params.id || "0", 10);
   const [achFilter, setAchFilter] = useState<"all" | "unlocked" | "locked" | "close">("all");
-  const [achTab, setAchTab] = useState<"all" | "league" | "bot" | "tour">("all");
+  const [achTab, setAchTab] = useState<"league" | "bot" | "tour">("league");
   const [tourAchs, setTourAchs] = useState<any[]>([]);
   const [showAllAch, setShowAllAch] = useState(false);
   const [profileTab, setProfileTab] = useState<"matches" | "h2h" | "practice" | "shadowbot">("matches");
@@ -361,7 +361,7 @@ export default function PlayerDetail() {
     bot:    normalizedBotAchs,
     tour:   normalizedTourAchs,
   };
-  const activeAchs = achSourceMap[achTab] ?? achSourceMap.all;
+  const activeAchs = achSourceMap[achTab] ?? achSourceMap.league;
 
   const unlockedCount = activeAchs.filter((a: any) => a.isUnlocked).length;
   const closeCount = activeAchs.filter((a: any) => !a.isUnlocked && (a.progressPct ?? 0) >= 50).length;
@@ -1463,7 +1463,6 @@ export default function PlayerDetail() {
         {/* Source type tabs */}
         <div className="flex gap-1 mb-3 flex-wrap">
           {([
-            { key: "all",    label: "All",     color: "#ff005c" },
             { key: "league", label: "🏆 League", color: "#ffd24a" },
             { key: "bot",    label: "🤖 Bot",    color: "#ff005c" },
             { key: "tour",   label: "🎯 Tour",   color: "#22c55e" },
