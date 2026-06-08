@@ -15,6 +15,7 @@ tags:
   - name: leaderboard
   - name: achievements
   - name: stats
+  - name: team-matches
 
 paths:
   /healthz:
@@ -409,6 +410,47 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/NarrativeCard"
+
+  # ── Team Matches ─────────────────────────────────────────────────────────────
+  /team-matches:
+    get:
+      operationId: listTeamMatches
+      tags: [team-matches]
+      summary: List recent team matches
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of team matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TeamMatchResult"
+    post:
+      operationId: submitTeamMatch
+      tags: [team-matches]
+      summary: Submit a team match result (doubles / triples)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitTeamMatchInput"
+      responses:
+        "201":
+          description: Team match recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamMatchResult"
+        "400":
+          description: Validation error
 
 components:
   schemas:
@@ -848,3 +890,63 @@ components:
             type: integer
         icon:
           type: string
+
+    SubmitTeamMatchInput:
+      type: object
+      required: [winnerIds, loserIds, stakePerPerson]
+      properties:
+        winnerIds:
+          type: array
+          items:
+            type: integer
+        loserIds:
+          type: array
+          items:
+            type: integer
+        stakePerPerson:
+          type: integer
+        gameType:
+          type: string
+        notes:
+          type: string
+
+    TeamMatchParticipant:
+      type: object
+      required: [id, teamMatchId, playerId, playerName, team, eloChange, pointsChange]
+      properties:
+        id:
+          type: integer
+        teamMatchId:
+          type: integer
+        playerId:
+          type: integer
+        playerName:
+          type: string
+        team:
+          type: integer
+        eloChange:
+          type: integer
+        pointsChange:
+          type: integer
+
+    TeamMatchResult:
+      type: object
+      required: [id, seasonId, gameType, stakePerPerson, teamSize, playedAt, participants]
+      properties:
+        id:
+          type: integer
+        seasonId:
+          type: integer
+        gameType:
+          type: string
+        stakePerPerson:
+          type: integer
+        teamSize:
+          type: integer
+        playedAt:
+          type: string
+          format: date-time
+        participants:
+          type: array
+          items:
+            $ref: "#/components/schemas/TeamMatchParticipant"

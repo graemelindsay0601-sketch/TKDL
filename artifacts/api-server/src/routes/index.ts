@@ -10,12 +10,14 @@ import adminRouter        from "./admin";
 import settingsRouter     from "./settings";
 import gameTypesRouter    from "./game-types";
 import practiceRouter     from "./practice";
+import teamMatchesRouter  from "./team-matches";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(playersRouter);
 router.use(matchesRouter);
+router.use(teamMatchesRouter);
 router.use(seasonsRouter);
 router.use(leaderboardRouter);
 router.use(achievementsRouter);

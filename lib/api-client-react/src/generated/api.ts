@@ -26,6 +26,7 @@ import type {
   HealthStatus,
   LeaderboardEntry,
   ListMatchesParams,
+  ListTeamMatchesParams,
   Match,
   MatchInput,
   NarrativeCard,
@@ -37,7 +38,9 @@ import type {
   Season,
   SeasonDetail,
   SeasonResetInput,
-  StatsSummary
+  StatsSummary,
+  SubmitTeamMatchInput,
+  TeamMatchResult
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -1715,4 +1718,159 @@ export function useGetNarrativeCards<TData = Awaited<ReturnType<typeof getNarrat
 
 
 
+
+export const getListTeamMatchesUrl = (params?: ListTeamMatchesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/team-matches?${stringifiedParams}` : `/api/team-matches`
+}
+
+/**
+ * @summary List recent team matches
+ */
+export const listTeamMatches = async (params?: ListTeamMatchesParams, options?: RequestInit): Promise<TeamMatchResult[]> => {
+
+  return customFetch<TeamMatchResult[]>(getListTeamMatchesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTeamMatchesQueryKey = (params?: ListTeamMatchesParams,) => {
+    return [
+    `/api/team-matches`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListTeamMatchesQueryOptions = <TData = Awaited<ReturnType<typeof listTeamMatches>>, TError = ErrorType<unknown>>(params?: ListTeamMatchesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTeamMatches>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTeamMatchesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTeamMatches>>> = ({ signal }) => listTeamMatches(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTeamMatches>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTeamMatchesQueryResult = NonNullable<Awaited<ReturnType<typeof listTeamMatches>>>
+export type ListTeamMatchesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List recent team matches
+ */
+
+export function useListTeamMatches<TData = Awaited<ReturnType<typeof listTeamMatches>>, TError = ErrorType<unknown>>(
+ params?: ListTeamMatchesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTeamMatches>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTeamMatchesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubmitTeamMatchUrl = () => {
+
+
+
+
+  return `/api/team-matches`
+}
+
+/**
+ * @summary Submit a team match result (doubles / triples)
+ */
+export const submitTeamMatch = async (submitTeamMatchInput: SubmitTeamMatchInput, options?: RequestInit): Promise<TeamMatchResult> => {
+
+  return customFetch<TeamMatchResult>(getSubmitTeamMatchUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      submitTeamMatchInput,)
+  }
+);}
+
+
+
+
+export const getSubmitTeamMatchMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitTeamMatch>>, TError,{data: BodyType<SubmitTeamMatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitTeamMatch>>, TError,{data: BodyType<SubmitTeamMatchInput>}, TContext> => {
+
+const mutationKey = ['submitTeamMatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitTeamMatch>>, {data: BodyType<SubmitTeamMatchInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitTeamMatch(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitTeamMatchMutationResult = NonNullable<Awaited<ReturnType<typeof submitTeamMatch>>>
+    export type SubmitTeamMatchMutationBody = BodyType<SubmitTeamMatchInput>
+    export type SubmitTeamMatchMutationError = ErrorType<void>
+
+    /**
+ * @summary Submit a team match result (doubles / triples)
+ */
+export const useSubmitTeamMatch = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitTeamMatch>>, TError,{data: BodyType<SubmitTeamMatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitTeamMatch>>,
+        TError,
+        {data: BodyType<SubmitTeamMatchInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitTeamMatchMutationOptions(options));
+    }
 

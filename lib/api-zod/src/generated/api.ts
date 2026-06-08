@@ -601,3 +601,42 @@ export const GetNarrativeCardsResponseItem = zod.object({
 export const GetNarrativeCardsResponse = zod.array(GetNarrativeCardsResponseItem)
 
 
+/**
+ * @summary List recent team matches
+ */
+export const ListTeamMatchesQueryParams = zod.object({
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListTeamMatchesResponseItem = zod.object({
+  "id": zod.number(),
+  "seasonId": zod.number(),
+  "gameType": zod.string(),
+  "stakePerPerson": zod.number(),
+  "teamSize": zod.number(),
+  "playedAt": zod.coerce.date(),
+  "participants": zod.array(zod.object({
+  "id": zod.number(),
+  "teamMatchId": zod.number(),
+  "playerId": zod.number(),
+  "playerName": zod.string(),
+  "team": zod.number(),
+  "eloChange": zod.number(),
+  "pointsChange": zod.number()
+}))
+})
+export const ListTeamMatchesResponse = zod.array(ListTeamMatchesResponseItem)
+
+
+/**
+ * @summary Submit a team match result (doubles / triples)
+ */
+export const SubmitTeamMatchBody = zod.object({
+  "winnerIds": zod.array(zod.number()),
+  "loserIds": zod.array(zod.number()),
+  "stakePerPerson": zod.number(),
+  "gameType": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+

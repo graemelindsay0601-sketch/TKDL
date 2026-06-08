@@ -234,8 +234,40 @@ export interface NarrativeCard {
   icon: string;
 }
 
+export interface SubmitTeamMatchInput {
+  winnerIds: number[];
+  loserIds: number[];
+  stakePerPerson: number;
+  gameType?: string;
+  notes?: string;
+}
+
+export interface TeamMatchParticipant {
+  id: number;
+  teamMatchId: number;
+  playerId: number;
+  playerName: string;
+  team: number;
+  eloChange: number;
+  pointsChange: number;
+}
+
+export interface TeamMatchResult {
+  id: number;
+  seasonId: number;
+  gameType: string;
+  stakePerPerson: number;
+  teamSize: number;
+  playedAt: string;
+  participants: TeamMatchParticipant[];
+}
+
 export type ListMatchesParams = {
 seasonId?: number;
+limit?: number;
+};
+
+export type ListTeamMatchesParams = {
 limit?: number;
 };
 

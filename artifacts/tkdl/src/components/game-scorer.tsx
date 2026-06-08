@@ -7,7 +7,7 @@ import {
   HalveItScorer, CountUpScorer, GotchaScorer, BaseballScorer,
   ScramScorer, FootballScorer, GolfScorer, NearestBullScorer, ManualScorer,
   JDCChallenge41Scorer, ExponentialBundleScorer, ShootingGalleryScorer, DeadCentreScorer,
-  ThreeInABedScorer,
+  ThreeInABedScorer, DoublesX01Scorer, MultiKillerScorer,
 } from "@/lib/scorers";
 import { type BotConfig } from "@/lib/bot-engine";
 import { type PracticeStats } from "@/lib/stats-types";
@@ -20,7 +20,7 @@ export type GameTypeOption = {
 };
 
 export type GameResult = {
-  winnerIdx: 0 | 1;
+  winnerIdx: number; // 0|1 for 2-player/team games; 0..N-1 for multi-player
   detail?: string;
 };
 
@@ -32,6 +32,8 @@ function safeParse(s: string | null | undefined): Record<string, unknown> {
 export function GameScorer({
   p1Name, p2Name, gameType, botConfig, onWin, onAbandon, onPracticeStats,
   legs, setsToWin, legsToWinSet,
+  team1, team2,
+  allPlayers,
 }: {
   p1Name: string; p2Name: string;
   gameType: GameTypeOption;
@@ -42,18 +44,27 @@ export function GameScorer({
   legs?: number;
   setsToWin?: number;
   legsToWinSet?: number;
+  team1?: [string, string];
+  team2?: [string, string];
+  allPlayers?: string[];
 }) {
   const cfg = safeParse(gameType.config);
-  const win = (idx: 0 | 1, detail?: string) => onWin({ winnerIdx: idx, detail });
+  const win = (idx: number, detail?: string) => onWin({ winnerIdx: idx, detail });
 
   switch (gameType.engine) {
     case "X01":
+      if (team1 && team2) {
+        return <DoublesX01Scorer team1={team1} team2={team2} config={cfg as any} onWin={win} onAbandon={onAbandon} />;
+      }
       return <X01Scorer p1Name={p1Name} p2Name={p2Name} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} legs={legs} setsToWin={setsToWin} legsToWinSet={legsToWinSet} />;
 
     case "Cricket":
       return <CricketScorer p1Name={p1Name} p2Name={p2Name} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
 
     case "Killer":
+      if (allPlayers && allPlayers.length >= 2) {
+        return <MultiKillerScorer players={allPlayers} lives={(cfg.lives as number) ?? 3} onWin={win} onAbandon={onAbandon} />;
+      }
       return <KillerScorer p1Name={p1Name} p2Name={p2Name} lives={(cfg.lives as number) ?? 3} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
 
     case "Sequence":
