@@ -284,7 +284,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <Target className="h-4 w-4" style={{ color: "#ff005c" }} />
+            <img src="/icon-192.png" alt="TKDL" style={{ width: "2rem", height: "2rem", borderRadius: "0.4rem", objectFit: "cover" }} />
             <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.3rem", fontWeight: 800, letterSpacing: "0.2em", color: "#fff", textShadow: "0 0 20px rgba(255,0,60,0.5)" }}>
               TKDL
             </span>
