@@ -7,6 +7,7 @@ import {
   HalveItScorer, CountUpScorer, GotchaScorer, BaseballScorer,
   ScramScorer, FootballScorer, GolfScorer, NearestBullScorer, ManualScorer,
   JDCChallenge41Scorer, ExponentialBundleScorer, ShootingGalleryScorer, DeadCentreScorer,
+  ThreeInABedScorer,
 } from "@/lib/scorers";
 import { type BotConfig } from "@/lib/bot-engine";
 import { type PracticeStats } from "@/lib/stats-types";
@@ -50,7 +51,7 @@ export function GameScorer({
       return <X01Scorer p1Name={p1Name} p2Name={p2Name} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} legs={legs} setsToWin={setsToWin} legsToWinSet={legsToWinSet} />;
 
     case "Cricket":
-      return <CricketScorer p1Name={p1Name} p2Name={p2Name} cutThroat={!!cfg.cutThroat} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+      return <CricketScorer p1Name={p1Name} p2Name={p2Name} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
 
     case "Killer":
       return <KillerScorer p1Name={p1Name} p2Name={p2Name} lives={(cfg.lives as number) ?? 3} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
@@ -95,6 +96,8 @@ export function GameScorer({
           return <GolfScorer p1Name={p1Name} p2Name={p2Name} holes={(cfg.holes as number) ?? 9} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
         case "nearest_bull":
           return <NearestBullScorer p1Name={p1Name} p2Name={p2Name} onWin={win} onAbandon={onAbandon} />;
+        case "three_in_a_bed":
+          return <ThreeInABedScorer p1Name={p1Name} p2Name={p2Name} winsNeeded={(cfg.winsNeeded as number) ?? 5} onWin={win} onAbandon={onAbandon} />;
         default:
           return <ManualScorer p1Name={p1Name} p2Name={p2Name} gameName={gameType.name} rules={gameType.description} onWin={win} onAbandon={onAbandon} />;
       }

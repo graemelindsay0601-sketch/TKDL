@@ -182,7 +182,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
 export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3 }: {
   p1Name: string; p2Name: string;
-  config: { startingScore: number; doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; legs?: number; bustResetTo?: number };
+  config: { startingScore: number; doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; noTrebles?: boolean; legs?: number; bustResetTo?: number };
   botConfig?: BotConfig;
   onWin: (w: 0 | 1, detail?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
@@ -190,7 +190,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   setsToWin?: number;
   legsToWinSet?: number;
 }) {
-  const { startingScore = 501, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, legs: configLegs, bustResetTo } = config;
+  const { startingScore = 501, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo } = config;
   const legs = legsProp ?? configLegs;
   const setsNeeded  = setsToWin > 0 ? Math.ceil(setsToWin / 2) : 0;
   const legsNeeded  = setsToWin > 0 ? Math.ceil(legsToWinSet / 2) : (legs ? Math.ceil(legs / 2) : 0);
@@ -301,6 +301,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const handleDart = useCallback((dart: Dart) => {
     if (bust || visitDarts.length >= 3) return;
 
+    // No-trebles variant: treble ring counts as a single
+    if (noTrebles && dart.multiplier === 3) {
+      dart = { ...dart, multiplier: 1 as const, value: dart.segment, label: String(dart.segment) };
+    }
+
     // Double-in: before started, only doubles open the scoring
     if (doubleIn && !started[turn]) {
       const isDouble = dart.multiplier === 2 || (dart.segment === 25 && dart.value === 50);
@@ -384,7 +389,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       setVisitDarts([]);
       setTurn(t => t===0?1:0);
     }
-  }, [bust, visitDarts, turn, started, doubleIn, scores, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut]);
+  }, [bust, visitDarts, turn, started, doubleIn, scores, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut, noTrebles]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => {
@@ -553,11 +558,12 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
 const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
 
-export function CricketScorer({ p1Name, p2Name, cutThroat = false, botConfig, onWin, onAbandon, onPracticeStats }: {
-  p1Name: string; p2Name: string; cutThroat?: boolean; botConfig?: BotConfig;
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string; cutThroat?: boolean; includesBull?: boolean; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
+  const numCount = includesBull ? 7 : 6;
   const [marks, setMarks]       = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
   const [scores, setScores]     = useState<[number,number]>([0,0]);
   const [turn, setTurn]         = useState<0|1>(0);
@@ -568,7 +574,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, botConfig, on
 
   const checkWin = (m: typeof marks, sc: [number,number]): 0|1|null => {
     for (const p of [0,1] as const) {
-      const closed = m[p].every(x => x >= 3);
+      const closed = m[p].slice(0, numCount).every(x => x >= 3);
       if (!closed) continue;
       const opp: 0|1 = p === 0 ? 1 : 0;
       if (!cutThroat && sc[p] >= sc[opp]) return p;
@@ -579,6 +585,14 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, botConfig, on
 
   const handleDart = useCallback((dart: Dart) => {
     if (visitDarts.length >= 3) return;
+    // Cricket No Bull: bull hits are treated as misses
+    if (!includesBull && dart.segment === 25) {
+      const nv = [...visitDarts, dart];
+      setVisitDarts(nv);
+      setLastHit("Miss (no bull)");
+      if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); setLastHit(""); }
+      return;
+    }
     const numIdx = CRICKET_NUMS.indexOf(dart.segment);
     const nv = [...visitDarts, dart];
 
@@ -632,7 +646,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, botConfig, on
         return m;
       });
     }, 50);
-  }, [visitDarts, turn, cutThroat, onWin]);
+  }, [visitDarts, turn, cutThroat, includesBull, numCount, onWin]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => { if (visitDarts.length > 0) setVisitDarts(prev => prev.slice(0,-1)); };
@@ -673,7 +687,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, botConfig, on
           <div className="text-center text-xs font-bold pb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>NUM</div>
           <div className="text-center text-xs font-bold pb-1" style={{ color: P_COLOR(1), fontFamily: "Oswald, sans-serif" }}>{p2Name.toUpperCase()}</div>
 
-          {CRICKET_NUMS.map((num, idx) => (
+          {CRICKET_NUMS.slice(0, numCount).map((num, idx) => (
             <div key={num} style={{ display: "contents" }}>
               <div className="text-center py-2 text-lg font-bold" style={{
                 fontFamily: "Oswald, sans-serif",
@@ -704,13 +718,13 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, botConfig, on
           </div>
         )}
       </SectionCard>
-      {isBotTurnCri ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg="— hit 15–20 or Bull" />}
+      {isBotTurnCri ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={includesBull ? "— hit 15–20 or Bull" : "— hit 15–20 (no bull)"} />}
       <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
         <DartInputBoard
           onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
-          activeSegments={CRICKET_NUMS} highlightSegments={CRICKET_NUMS}
+          activeSegments={CRICKET_NUMS.slice(0, numCount)} highlightSegments={CRICKET_NUMS.slice(0, numCount)}
           disabled={isBotTurnCri}
         />
         <AbandonBtn onAbandon={onAbandon} />
@@ -915,6 +929,17 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
         if (v === "Bull") return {seg:25,mult:1,label:"Bull"};
         return {seg:v as number,mult:1,label:`${v}`};
       });
+    }
+    if (gameKey === "chase_the_dragon") {
+      const trebles = Array.from({length:11},(_,i)=>({seg:i+10,mult:3 as const,label:`T${i+10}`}));
+      const doubles = Array.from({length:11},(_,i)=>({seg:20-i,mult:2 as const,label:`D${20-i}`}));
+      return [...trebles, ...doubles, {seg:25,mult:2 as const,label:"DB"}];
+    }
+    if (gameKey === "around_clock_quick") {
+      return Array.from({length:20},(_,i)=>({seg:i+1,mult:1 as const,label:`${i+1}`}));
+    }
+    if (gameKey === "round_clock_doubles") {
+      return Array.from({length:20},(_,i)=>({seg:i+1,mult:2 as const,label:`D${i+1}`}));
     }
     // Shanghai (7 rounds scoring)
     return [];
@@ -1228,16 +1253,20 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
 
 // ── Count Up Scorer ────────────────────────────────────────────────────────────
 export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
-  p1Name: string; p2Name: string; config: { target?: number; rounds?: number }; botConfig?: BotConfig;
+  p1Name: string; p2Name: string; config: { target?: number; rounds?: number; bullsOnly?: boolean; accumulate?: boolean }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
   const target = config.target ?? 501;
   const maxRounds = config.rounds ?? 0; // 0 = race to target
+  const bullsOnly = config.bullsOnly ?? false;   // Bull Rush: count bull hits only
+  const accumulate = config.accumulate ?? false; // Accumulator: each visit must beat previous or score halves
   const [scores, setScores]         = useState<[number,number]>([0,0]);
   const [rounds, setRounds]         = useState<[number,number]>([0,0]);
+  const [lastVisit, setLastVisit]   = useState<[number,number]>([0,0]);
   const [turn, setTurn]             = useState<0|1>(0);
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [halvMsg, setHalvMsg]       = useState("");
   const names = [p1Name, p2Name];
 
   const handleDart = (dart: Dart) => {
@@ -1245,15 +1274,31 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
     const nv = [...visitDarts, dart];
     setVisitDarts(nv);
     if (nv.length === 3) {
-      const cum = nv.reduce((s,d) => s+d.value, 0);
+      // Bull Rush: count how many darts hit the bull (segment 25)
+      const bullHits = nv.filter(d => d.segment === 25).length;
+      // Standard: sum all dart values
+      const cum = bullsOnly ? bullHits : nv.reduce((s,d) => s+d.value, 0);
+
       setScores(prev => {
         const ns: [number,number] = [...prev] as [number,number];
-        ns[turn] += cum;
+        if (accumulate) {
+          if (cum > lastVisit[turn]) {
+            ns[turn] += cum;
+          } else {
+            ns[turn] = Math.floor(ns[turn] / 2);
+            setHalvMsg(`${names[turn]}: only ${cum} pts — HALVED to ${ns[turn]}!`);
+            setTimeout(() => setHalvMsg(""), 2200);
+          }
+        } else {
+          ns[turn] += cum;
+        }
         if (maxRounds === 0 && ns[turn] >= target) {
-          setTimeout(() => { onPracticeStats?.({ sessionData:{mode:"countup"} }); onWin(turn, `Reached ${target} pts!`); }, 300);
+          const label = bullsOnly ? `${ns[turn]} bulls!` : `Reached ${target} pts!`;
+          setTimeout(() => { onPracticeStats?.({ sessionData:{mode:"countup"} }); onWin(turn, label); }, 300);
         }
         return ns;
       });
+      setLastVisit(prev => { const n=[...prev] as [number,number]; n[turn]=cum; return n; });
       setRounds(prev => {
         const nr: [number,number] = [...prev] as [number,number];
         nr[turn]++;
@@ -1273,7 +1318,11 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
     }
   };
 
-  const sub = (i: number) => maxRounds > 0 ? `Round ${rounds[i]}/${maxRounds}` : `Target: ${target}`;
+  const sub = (i: number) => {
+    if (bullsOnly) return `${target - scores[i]} more bulls to go`;
+    if (maxRounds > 0) return `Round ${rounds[i]}/${maxRounds}`;
+    return `Target: ${target}`;
+  };
 
   const handleDartRefCU = useRef(handleDart);
   useEffect(() => { handleDartRefCU.current = handleDart; });
@@ -1293,20 +1342,30 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
         <div className="pdc-divider" />
         <div className="text-center">
           <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>
-            {maxRounds > 0 ? `High Score — ${maxRounds} Rounds` : `Count Up — Race to ${target}`}
+            {bullsOnly ? `Bull Rush — First to ${target} Bulls`
+              : accumulate ? "Accumulator"
+              : maxRounds > 0 ? `High Score — ${maxRounds} Rounds`
+              : `Count Up — Race to ${target}`}
           </h2>
-          <p className="text-xs mt-1" style={{ color:"rgba(255,255,255,0.3)" }}>Score as many points as possible</p>
+          <p className="text-xs mt-1" style={{ color:"rgba(255,255,255,0.3)" }}>
+            {bullsOnly ? "Only bull hits count · Inner (50) or outer (25) · First to 5 wins"
+              : accumulate ? "Each visit must score MORE than previous or your total is HALVED"
+              : "Score as many points as possible"}
+          </p>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} sub={sub(i)} />)}
         </div>
-        {isBotTurnCU ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg="— score as many as you can" />}
+        {halvMsg && <div className="text-center font-bold text-sm" style={{ color:"#ff005c", fontFamily:"Oswald,sans-serif" }}>{halvMsg}</div>}
+        {isBotTurnCU ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+          : <TurnBanner name={names[turn]} turn={turn} msg={bullsOnly ? "— aim at Bull!" : "— score as many as you can"} />}
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
         <DartInputBoard onDart={handleDart}
           onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
           onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+          highlightSegments={bullsOnly ? [25] : undefined}
           disabled={isBotTurnCU} />
         <AbandonBtn onAbandon={onAbandon} />
       </div>}
@@ -1540,56 +1599,51 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
+  // null = kickoff (uncontested — both need to hit bull to win possession)
   const [goals, setGoals]           = useState<[number,number]>([0,0]);
-  const [possession, setPossession] = useState<0|1>(0);
+  const [possession, setPossession] = useState<0|1|null>(null);
   const [turn, setTurn]             = useState<0|1>(0);
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [msg, setMsg]               = useState("");
+  const [msg, setMsg]               = useState("KICKOFF — hit the bull to win possession!");
   const names = [p1Name, p2Name];
 
+  // Per-dart processing: possession can change mid-visit so we handle each dart immediately
   const handleDart = useCallback((dart: Dart) => {
     if (visitDarts.length >= 3) return;
     const nd = [...visitDarts, dart];
     setVisitDarts(nd);
 
-    if (nd.length === 3) {
-      const hasBall = possession === turn;
-      if (hasBall) {
-        const goalsScored = nd.filter(d => d.multiplier === 2).length;
-        if (goalsScored > 0) {
-          setGoals(prev => {
-            const ng: [number,number] = [...prev] as [number,number];
-            ng[turn] += goalsScored;
-            if (ng[turn] >= goalsToWin) {
-              setTimeout(() => {
-                onPracticeStats?.({ sessionData: { mode:"football", goals: ng } });
-                onWin(turn, `${ng[turn]} goals!`);
-              }, 200);
-            }
-            return ng;
-          });
-          setMsg(`${names[turn]} scores ${goalsScored === 1 ? "a goal" : `${goalsScored} goals`}! ⚽`);
-          setTimeout(() => setMsg(""), 1800);
-        } else {
-          setPossession(p => p === 0 ? 1 : 0);
-          setMsg(`${names[turn]} misses! ${names[turn === 0 ? 1 : 0]} wins possession`);
-          setTimeout(() => setMsg(""), 1800);
-        }
-      } else {
-        const stole = nd.some(d => d.segment === 25);
-        if (stole) {
-          setPossession(turn);
-          setMsg(`${names[turn]} wins possession! 🏈`);
-          setTimeout(() => setMsg(""), 1800);
-        } else {
-          setMsg(`${names[turn]} — can't steal…`);
-          setTimeout(() => setMsg(""), 1200);
-        }
+    if (possession === turn) {
+      // Has possession: any double (1-20) = goal
+      if (dart.multiplier === 2 && dart.segment !== 25) {
+        setGoals(prev => {
+          const ng: [number,number] = [...prev] as [number,number];
+          ng[turn]++;
+          if (ng[turn] >= goalsToWin) {
+            setTimeout(() => {
+              onPracticeStats?.({ sessionData: { mode:"football", goals: ng } });
+              onWin(turn, `${ng[turn]} goals!`);
+            }, 200);
+          }
+          return ng;
+        });
+        setMsg(`GOAL! ${names[turn]} scores! ⚽ ${goals[turn]+1}/${goalsToWin}`);
+        setTimeout(() => setMsg(""), 2000);
       }
+    } else {
+      // No possession (kickoff) or opponent has possession: need bull to steal/win it
+      if (dart.segment === 25) {
+        setPossession(turn);
+        setMsg(`${names[turn]} wins possession! 🏈 Now aim for doubles to score!`);
+        setTimeout(() => setMsg(""), 2200);
+      }
+    }
+
+    if (nd.length === 3) {
       setVisitDarts([]);
       setTurn(t => t === 0 ? 1 : 0);
     }
-  }, [visitDarts, turn, possession, goalsToWin, names, onWin, onPracticeStats]);
+  }, [visitDarts, turn, possession, goals, goalsToWin, names, onWin, onPracticeStats]);
 
   const handleMiss = () => handleDart({ segment:0, multiplier:1, value:0, label:"Miss" });
   const handleUndo = () => visitDarts.length > 0 && setVisitDarts(p => p.slice(0,-1));
@@ -1607,6 +1661,18 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const possessionLabel = (i: number) => {
+    if (possession === i) return "⚽ IN POSSESSION";
+    if (possession === null) return "🏈 Kickoff";
+    return "Aim for Bull 🎯";
+  };
+
+  const turnMsg = () => {
+    if (possession === turn) return "— hit any DOUBLE to score!";
+    if (possession === null) return "— hit 25 or Bull to win possession";
+    return "— hit Bull to steal possession from opponent";
+  };
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
@@ -1614,24 +1680,24 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
         <div className="text-center">
           <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>Football Darts</h2>
           <p className="text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>
-            25/Bull = win possession · Any double = goal · Miss all = lose possession · First to {goalsToWin} wins
+            Hit Bull to win/steal possession · Any double = goal when in possession · Possession is kept until opponent hits Bull · First to {goalsToWin} wins
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {[0,1].map(i => (
             <PlayerCard key={i} name={names[i]} score={goals[i]} scoreSuffix=" ⚽" turn={i===0} active={turn===i}
-              sub={possession === i ? "⚽ BALL" : undefined} />
+              sub={possessionLabel(i)} />
           ))}
         </div>
         {msg && <div className="text-center font-bold text-sm" style={{ color:"#ffd24a", fontFamily:"Oswald,sans-serif" }}>{msg}</div>}
         {isBotTurnFB
           ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
-          : <TurnBanner name={names[turn]} turn={turn}
-              msg={possession === turn ? "— hit any DOUBLE to score!" : "— hit 25 or Bull to steal possession"} />}
+          : <TurnBanner name={names[turn]} turn={turn} msg={turnMsg()} />}
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={isBotTurnFB} />
+        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={isBotTurnFB}
+          highlightSegments={possession === turn ? undefined : [25]} />
         <AbandonBtn onAbandon={onAbandon} />
       </div>}
     />
@@ -2122,5 +2188,102 @@ export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin,
         <AbandonBtn onAbandon={onAbandon}/>
       </div>}
     />
+  );
+}
+
+// ── Three-in-a-Bed Scorer ──────────────────────────────────────────────────────
+export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; winsNeeded?: number;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const [roundWins, setRoundWins]   = useState<[number,number]>([0,0]);
+  const [turn, setTurn]             = useState<0|1>(0);
+  const [phase, setPhase]           = useState<"call"|"throw">("call");
+  const [target, setTarget]         = useState<number|null>(null);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [msg, setMsg]               = useState("");
+  const names = [p1Name, p2Name];
+  const NUMS = Array.from({length:20},(_,i)=>i+1);
+
+  const callTarget = (n: number) => { setTarget(n); setPhase("throw"); };
+
+  const handleDart = useCallback((dart: Dart) => {
+    if (visitDarts.length >= 3 || target === null) return;
+    const nd = [...visitDarts, dart];
+    setVisitDarts(nd);
+    if (nd.length === 3) {
+      const allInBed = nd.every(d => d.segment === target && d.multiplier === 3);
+      if (allInBed) {
+        setMsg(`🎯 THREE-IN-A-BED! T${target}!`);
+        setRoundWins(prev => {
+          const n:[number,number]=[...prev] as [number,number];
+          n[turn]++;
+          if (n[turn] >= winsNeeded) {
+            setTimeout(() => onWin(turn, `${n[turn]} three-in-a-beds!`), 600);
+          }
+          return n;
+        });
+      } else {
+        const inBedCount = nd.filter(d => d.segment === target && d.multiplier === 3).length;
+        setMsg(inBedCount === 0 ? `Miss — none in T${target}` : `${inBedCount}/3 in T${target} — not enough!`);
+      }
+      setTimeout(() => {
+        setMsg(""); setVisitDarts([]); setTarget(null); setPhase("call");
+        setTurn(t => t===0?1:0);
+      }, 1800);
+    }
+  }, [visitDarts, target, turn, winsNeeded, onWin]);
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider"/>
+      <div className="text-center">
+        <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Three-in-a-Bed</h2>
+        <p className="text-xs mt-1" style={{color:"rgba(255,255,255,0.3)"}}>
+          Call a treble, throw all 3 darts — all 3 must hit the same treble · First to {winsNeeded} rounds wins
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => (
+          <PlayerCard key={i} name={names[i]} score={roundWins[i]} scoreSuffix={`/${winsNeeded}`} turn={i===0} active={turn===i} />
+        ))}
+      </div>
+      {msg && <div className="text-center font-bold text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>{msg}</div>}
+      {phase === "call" ? (
+        <>
+          <TurnBanner name={names[turn]} turn={turn} msg="— call your treble!" />
+          <SectionCard>
+            <p className="text-xs text-center mb-3" style={{color:"rgba(255,255,255,0.4)",fontFamily:"Oswald,sans-serif"}}>Pick your target:</p>
+            <div className="grid grid-cols-5 gap-2">
+              {NUMS.map(n => (
+                <button key={n} onClick={() => callTarget(n)}
+                  className="py-3 rounded-lg font-bold text-sm"
+                  style={{
+                    fontFamily:"Oswald,sans-serif", background:"rgba(255,255,255,0.05)",
+                    border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.8)",
+                    cursor:"pointer",
+                  }}>
+                  T{n}
+                </button>
+              ))}
+            </div>
+          </SectionCard>
+        </>
+      ) : (
+        <>
+          <TurnBanner name={names[turn]} turn={turn} msg={`— all 3 in T${target}!`} />
+          <div className="text-center py-4" style={{fontFamily:"Oswald,sans-serif"}}>
+            <div className="text-5xl font-black" style={{color:"#ffd24a"}}>T{target}</div>
+            <div className="text-xs mt-1" style={{color:"rgba(255,255,255,0.3)"}}>Throw all 3 darts at treble {target}</div>
+          </div>
+          <DartInputBoard onDart={handleDart}
+            onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+            onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+            highlightSegments={target ? [target] : undefined} />
+          <VisitDarts darts={visitDarts} />
+        </>
+      )}
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
   );
 }
