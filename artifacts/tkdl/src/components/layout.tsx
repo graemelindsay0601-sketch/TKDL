@@ -172,8 +172,10 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="absolute" style={{ inset: -4, background: "rgba(255,0,92,0.3)", filter: "blur(12px)", borderRadius: "0.7rem" }} />
             <img src="/icon-192.png" alt="TKDL" className="relative z-10" style={{ width: "3.2rem", height: "3.2rem", borderRadius: "0.6rem", objectFit: "cover" }} />
           </div>
-          <p style={{ color: "rgba(255,255,255,0.85)", letterSpacing: "0.08em", fontSize: "0.72rem", fontFamily: "Oswald, sans-serif", textTransform: "uppercase", fontWeight: 700, lineHeight: 1.25, marginBottom: 0 }}>
-            Tesco<br />Kilbirnie<br />Darts League
+          <p style={{ fontFamily: "'Montserrat', sans-serif", textTransform: "uppercase", lineHeight: 1.2, marginBottom: 0, letterSpacing: "0.04em" }}>
+            <span style={{ display: "block", fontSize: "0.85rem", fontWeight: 900, color: "#00539F" }}>Tesco</span>
+            <span style={{ display: "block", fontSize: "0.85rem", fontWeight: 900, color: "#EE1C25" }}>Kilbirnie</span>
+            <span style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "rgba(255,255,255,0.9)", letterSpacing: "0.1em" }}>Darts League</span>
           </p>
         </div>
         <div className="flex items-center gap-2.5 pl-1">
