@@ -236,6 +236,8 @@ export default function PlayerDetail() {
   const [showAllAch, setShowAllAch] = useState(false);
   const [profileTab, setProfileTab] = useState<"matches" | "h2h" | "practice" | "shadowbot">("matches");
   const [openPractice, setOpenPractice] = useState(false);
+  const [openShadowBot, setOpenShadowBot] = useState(false);
+  const [openTrophy, setOpenTrophy] = useState(false);
   const [openSeasonHistory, setOpenSeasonHistory] = useState(true);
   const [openAchievements, setOpenAchievements] = useState(true);
   const [expandedH2H, setExpandedH2H] = useState<number | null>(null);
@@ -1207,25 +1209,28 @@ export default function PlayerDetail() {
 
       {/* ══ SHADOW BOT ACHIEVEMENTS ══ */}
       <div className={`pdc-card overflow-hidden ${profileTab !== "shadowbot" ? "hidden lg:block" : ""}`}>
-        <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        <button className="w-full px-4 py-3 flex items-center justify-between" style={{ borderBottom: openShadowBot ? "1px solid rgba(255,255,255,0.07)" : undefined }} onClick={() => setOpenShadowBot(v => !v)}>
           <div className="flex items-center gap-2">
             <CircuitBoard className="w-3.5 h-3.5" style={{ color: "rgba(255,0,92,0.6)" }} />
             <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
               Bot Achievements
             </h2>
           </div>
-          {shadowAchs.length > 0 && (
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-                {shadowAchs.filter(a => a.unlocked).length}/{shadowAchs.length}
-              </span>
-              <span className="text-xs font-black px-2 py-0.5 rounded" style={{ background: "rgba(255,210,74,0.12)", color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
-                {shadowAchs.filter(a => a.unlocked).reduce((s: number, a: any) => s + (a.gamerscore ?? 0), 0)}G
-              </span>
-            </div>
-          )}
-        </div>
-        <div className="p-3">
+          <div className="flex items-center gap-3">
+            {shadowAchs.length > 0 && (
+              <>
+                <span className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+                  {shadowAchs.filter(a => a.unlocked).length}/{shadowAchs.length}
+                </span>
+                <span className="text-xs font-black px-2 py-0.5 rounded" style={{ background: "rgba(255,210,74,0.12)", color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
+                  {shadowAchs.filter(a => a.unlocked).reduce((s: number, a: any) => s + (a.gamerscore ?? 0), 0)}G
+                </span>
+              </>
+            )}
+            <ChevronDown className="w-4 h-4 shrink-0 transition-transform duration-200" style={{ color: "rgba(255,255,255,0.3)", transform: openShadowBot ? "rotate(180deg)" : "rotate(0deg)" }} />
+          </div>
+        </button>
+        <div className={`p-3${openShadowBot ? "" : " hidden"}`}>
           {shadowAchs.length === 0 ? (
             <div className="py-8 text-center">
               <CircuitBoard className="w-8 h-8 mx-auto mb-3 opacity-10" style={{ color: "#ff005c" }} />
@@ -1521,7 +1526,7 @@ export default function PlayerDetail() {
 
         return (
           <div className="pdc-card overflow-hidden">
-            <div className="w-full px-4 py-3 flex items-center gap-2">
+            <button className="w-full px-4 py-3 flex items-center gap-2" style={{ borderBottom: openTrophy ? "1px solid rgba(255,255,255,0.05)" : undefined }} onClick={() => setOpenTrophy(v => !v)}>
               <div style={{ background: "rgba(255,210,74,0.12)", borderRadius: "8px", padding: "6px" }}>
                 <Trophy className="w-4 h-4" style={{ color: "#ffd24a" }} />
               </div>
@@ -1535,8 +1540,9 @@ export default function PlayerDetail() {
                   {tourTrophies.length} {tourTrophies.length === 1 ? "trophy" : "trophies"} · {totalG}G
                 </span>
               )}
-            </div>
-            <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+              <ChevronDown className="w-4 h-4 shrink-0 transition-transform duration-200" style={{ color: "rgba(255,255,255,0.3)", transform: openTrophy ? "rotate(180deg)" : "rotate(0deg)" }} />
+            </button>
+            <div className={openTrophy ? "border-t" : "hidden"} style={{ borderColor: "rgba(255,255,255,0.05)" }}>
               {tourTrophies.length === 0 ? (
                 <div className="px-4 py-8 flex flex-col items-center gap-3 text-center">
                   <div className="w-12 h-12 rounded-full flex items-center justify-center"

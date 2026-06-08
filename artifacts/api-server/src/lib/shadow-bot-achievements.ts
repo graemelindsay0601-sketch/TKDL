@@ -121,8 +121,9 @@ export async function checkAndAwardShadowBotAchievements(playerId: number): Prom
     const total180s     = Number(s?.total_180s     ?? 0);
     const checkoutHits  = Number(s?.checkout_hits  ?? 0);
     const gameModes     = Number((modesQ.rows[0] as { game_modes: number })?.game_modes ?? 0);
+    const MIN_DARTS_FOR_LEVEL = 150;
     const computedAvg   = totalDarts > 0 ? (totalScore / totalDarts) * 3 : 0;
-    const levelIdx      = botLevelIndex(computedAvg);
+    const levelIdx      = totalDarts >= MIN_DARTS_FOR_LEVEL ? botLevelIndex(computedAvg) : 0;
 
     const already = new Set((existingQ.rows as { achievement_key: string }[]).map(r => r.achievement_key));
 
@@ -180,8 +181,9 @@ export async function getShadowAchievementProgress(playerId: number): Promise<Sh
   const total180s     = Number(s?.total_180s     ?? 0);
   const checkoutHits  = Number(s?.checkout_hits  ?? 0);
   const gameModes     = Number((modesQ.rows[0] as { game_modes: number })?.game_modes ?? 0);
+  const MIN_DARTS_FOR_LEVEL = 150;
   const computedAvg   = totalDarts > 0 ? (totalScore / totalDarts) * 3 : 0;
-  const levelIdx      = botLevelIndex(computedAvg);
+  const levelIdx      = totalDarts >= MIN_DARTS_FOR_LEVEL ? botLevelIndex(computedAvg) : 0;
 
   const unlockedMap = new Map(
     (existingQ.rows as { achievement_key: string; unlocked_at: string }[])
