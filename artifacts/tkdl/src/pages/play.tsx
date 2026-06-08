@@ -47,28 +47,6 @@ const TABS_BY_FORMAT: Record<Format, { key: string; label: string }[]> = {
 };
 
 // ── Game type card ─────────────────────────────────────────────────────────────
-function GameCard({ gt, selected, onSelect, onRules }: {
-  gt: GameTypeOption; selected: boolean;
-  onSelect: () => void; onRules: () => void;
-}) {
-  return (
-    <div className="pdc-card p-3" style={{ borderColor: value ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.05)" }}>
-      <div className="text-xs font-bold uppercase mb-2" style={{ fontFamily: "Oswald, sans-serif", color, letterSpacing: "0.1em" }}>{label}</div>
-      <select value={value} onChange={e => onChange(e.target.value)}
-        className="w-full rounded-lg px-3 py-2 text-sm"
-        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: value ? "#fff" : "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-        <option value="" style={{ color: "#111" }}>Select player…</option>
-        {players.filter(p => !excludeIds.includes(String(p.id)) || p.id === Number(value)).map(p => (
-          <option key={p.id} value={p.id} style={{ color: "#111" }}>{p.name} ({p.points}pts)</option>
-        ))}
-      </select>
-      {value && <div className="mt-1 text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
-        {players.find(p => p.id === Number(value))?.points}pts · ELO {players.find(p => p.id === Number(value))?.elo}
-      </div>}
-    </div>
-  );
-}
-
 function GameCard({ gt, selected, onSelect, onRules }: { gt: GameTypeOption; selected: boolean; onSelect: () => void; onRules: () => void }) {
   return (
     <div onClick={onSelect} className="pdc-card p-3 cursor-pointer transition-all relative overflow-hidden"
@@ -129,22 +107,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [selectedGame, setGame]   = useState<GameTypeOption | null>(null);
   const [stake, setStake]         = useState("5");
   const [tab, setTab]             = useState("competitive");
-  const [selectedGame, setGame]   = useState<GameTypeOption | null>(null);
   const [rulesGame, setRulesGame] = useState<GameTypeOption | null>(null);
-
-  // 1v1
-  const [p1Id, setP1Id] = useState(""); const [p2Id, setP2Id] = useState("");
-  const [stake, setStake] = useState("5");
-
-  // doubles
-  const [t1a, setT1a] = useState(""); const [t1b, setT1b] = useState("");
-  const [t2a, setT2a] = useState(""); const [t2b, setT2b] = useState("");
-  const [dStake, setDStake] = useState("5");
-
-  // multi-killer
-  const [kIds, setKIds] = useState<string[]>(["", ""]);
-  const [kLives, setKLives] = useState("3");
-  const [kStake, setKStake] = useState("5");
 
   useEffect(() => {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
@@ -415,7 +378,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
             </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* Start button */}
       <button
@@ -428,12 +391,10 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           fontFamily: "Oswald, sans-serif", cursor: canStart ? "pointer" : "not-allowed",
           boxShadow: canStart ? "0 8px 32px rgba(255,0,92,0.3)" : undefined }}>
         {canStart
-          ? mode === "multi-killer"
-            ? `Start Killer — ${kPlayers.length} Players`
-            : mode === "doubles"
-            ? `Start Doubles — ${selectedGame?.name}`
+          ? format === "killer-ffa"
+            ? `Start Killer — ${ffaCount} Players`
             : `Start — ${selectedGame?.name}`
-          : mode === "multi-killer" ? "Select 2+ players" : "Select players, game & stake"}
+          : format === "killer-ffa" ? "Select players & game" : "Select players, game & stake"}
         {canStart && <ChevronRight className="inline ml-2 w-5 h-5" />}
       </button>
 
@@ -525,9 +486,6 @@ function GameOverScreen({ result, data, stats, onBack }: {
         <div className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.08em", textShadow: "0 0 30px rgba(255,0,92,0.4)" }}>
           {winnerName}
         </div>
-        <div className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.08em", textShadow: "0 0 30px rgba(255,0,92,0.4)" }}>
-          {winnerLabel}
-        </div>
         {result.detail && <div className="text-sm mt-1" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{result.detail}</div>}
       </div>
 
@@ -588,6 +546,8 @@ export default function Play() {
   const [gameResult, setResult]     = useState<GameResult | null>(null);
   const [matchStats, setMatchStats] = useState<PracticeStats | null>(null);
 
+  const reset = () => { setPhase("setup"); setSetupData(null); setResult(null); setMatchStats(null); };
+
   if (phase === "setup") {
     return <SetupScreen onStart={d => { setSetupData(d); setPhase("playing"); }} />;
   }
@@ -628,7 +588,7 @@ export default function Play() {
           playerNames={playerNames}
           onWin={r => { setResult(r); setPhase("gameover"); }}
           onAbandon={reset}
-          onPracticeStats={s => setStats(s)}
+          onPracticeStats={s => setMatchStats(s)}
         />
       </div>
     );
