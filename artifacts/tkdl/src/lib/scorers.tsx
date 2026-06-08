@@ -7,7 +7,6 @@ import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize } from "lucide-react";
 import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit } from "./bot-engine";
 import { type PracticeStats, type DartThrow } from "./stats-types";
-import { DartBoardProvider, DartboardBackground } from "@/components/dartboard-bg";
 
 function useFullscreen() {
   const [fs, setFs] = useState(false);
@@ -147,59 +146,30 @@ function SectionCard({ children }: { children: React.ReactNode }) {
 function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode }) {
   const landscape = useOrientation();
 
-  const arenaBg: React.CSSProperties = {
-    background: [
-      // Strong top-centre red bloom (arena ceiling lights effect)
-      "radial-gradient(ellipse 85% 48% at 50% 0%, rgba(255,0,92,0.42) 0%, rgba(180,0,60,0.12) 45%, transparent 68%)",
-      // Bottom-left teal accent
-      "radial-gradient(ellipse 65% 52% at 6% 98%, rgba(0,210,150,0.22) 0%, transparent 58%)",
-      // Bottom-right blue accent
-      "radial-gradient(ellipse 65% 52% at 94% 98%, rgba(0,83,159,0.18) 0%, transparent 58%)",
-      // Soft centre fill to break up flat darkness
-      "radial-gradient(ellipse 55% 55% at 50% 52%, rgba(255,210,74,0.05) 0%, transparent 65%)",
-      // Fine grid scan-line pattern
-      "repeating-linear-gradient(0deg, transparent 0px, transparent 54px, rgba(255,255,255,0.016) 54px, rgba(255,255,255,0.016) 55px)",
-      "#06040e",
-    ].join(", "),
-  };
-
   if (landscape) {
     return (
-      <DartBoardProvider>
+      <div style={{ height: "100dvh", display: "flex", flexDirection: "row", overflow: "hidden" }}>
         <div style={{
-          height: "100dvh", display: "flex", flexDirection: "row", overflow: "hidden",
-          position: "relative", ...arenaBg,
+          flex: "0 0 44%", overflowY: "auto", padding: "0.5rem 0.75rem",
+          borderRight: "1px solid rgba(255,255,255,0.06)",
         }}>
-          <DartboardBackground />
-          <div style={{
-            flex: "0 0 44%", overflowY: "auto", padding: "0.5rem 0.75rem",
-            borderRight: "1px solid rgba(255,255,255,0.06)", position: "relative", zIndex: 1,
-          }}>
-            {top}
-          </div>
-          <div style={{
-            flex: 1, overflowY: "auto", padding: "0.5rem 0.75rem",
-            position: "relative", zIndex: 1,
-          }}>
-            {bot}
-          </div>
+          {top}
         </div>
-      </DartBoardProvider>
+        <div style={{ flex: 1, overflowY: "auto", padding: "0.5rem 0.75rem" }}>
+          {bot}
+        </div>
+      </div>
     );
   }
 
   return (
-    <DartBoardProvider>
-      <div style={{
-        height: "100dvh", width: "100%", display: "flex", flexDirection: "column",
-        overflow: "hidden", padding: "0 0.5rem",
-        position: "relative", ...arenaBg,
-      }}>
-        <DartboardBackground />
-        <div style={{ flex: 1, overflowY: "auto", minHeight: 0, paddingTop: "0.5rem", position: "relative", zIndex: 1 }}>{top}</div>
-        <div style={{ flexShrink: 0, paddingBottom: "0.5rem", position: "relative", zIndex: 1 }}>{bot}</div>
-      </div>
-    </DartBoardProvider>
+    <div style={{
+      height: "100dvh", width: "100%", display: "flex", flexDirection: "column",
+      overflow: "hidden", padding: "0 0.5rem",
+    }}>
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0, paddingTop: "0.5rem" }}>{top}</div>
+      <div style={{ flexShrink: 0, paddingBottom: "0.5rem" }}>{bot}</div>
+    </div>
   );
 }
 
