@@ -342,7 +342,6 @@ export default function PlayerDetail() {
     category: "Shadow Bot",
   }));
   const normalizedTourAchs = tourAchs
-    .filter((a: any) => a.category !== "trophy")
     .map((a: any) => ({
       ...a,
       id: `tour_${a.key}`,
