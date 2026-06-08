@@ -393,15 +393,24 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       // Remove the last dart within the current visit
       setVisitDarts(prev => prev.slice(0, -1));
     } else if (history.length > 0) {
-      // Undo the last committed visit — restore score and turn, clear board
-      const last = history[history.length - 1];
-      setHistory(prev => prev.slice(0, -1));
-      setScores(prev => {
-        const n = [...prev] as [number, number];
-        n[last.turn] = last.left + last.score;
-        return n;
-      });
-      setTurn(last.turn);
+      // Build new state from history stack
+      const h = [...history];
+      const last = h.pop()!;
+      const newScores: [number, number] = [...scores];
+      newScores[last.turn] = last.left + last.score;
+      let finalTurn = last.turn as 0 | 1;
+
+      // Vs-bot: if the most recent history entry was the bot's turn (turn=1),
+      // also roll back the human's preceding visit so we land on the human's turn
+      if (botConfig && last.turn === 1 && h.length > 0) {
+        const prev = h.pop()!;
+        newScores[prev.turn] = prev.left + prev.score;
+        finalTurn = prev.turn as 0 | 1;
+      }
+
+      setHistory(h);
+      setScores(newScores);
+      setTurn(finalTurn);
       setVisitDarts([]);
     }
   };
