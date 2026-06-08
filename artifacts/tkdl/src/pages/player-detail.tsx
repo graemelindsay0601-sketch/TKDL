@@ -231,6 +231,8 @@ export default function PlayerDetail() {
   const params = useParams();
   const playerId = parseInt(params.id || "0", 10);
   const [achFilter, setAchFilter] = useState<"all" | "unlocked" | "locked" | "close">("all");
+  const [achTab, setAchTab] = useState<"all" | "league" | "bot" | "tour">("all");
+  const [tourAchs, setTourAchs] = useState<any[]>([]);
   const [showAllAch, setShowAllAch] = useState(false);
   const [profileTab, setProfileTab] = useState<"matches" | "h2h" | "practice" | "shadowbot">("matches");
   const [openPractice, setOpenPractice] = useState(false);
@@ -305,6 +307,9 @@ export default function PlayerDetail() {
     fetch(`/api/players/${playerId}/shadow-achievements`)
       .then(r => r.json()).then(d => setShadowAchs(Array.isArray(d) ? d : []))
       .catch(() => {});
+    fetch(`/api/tour/achievements/${playerId}`)
+      .then(r => r.json()).then(d => setTourAchs(Array.isArray(d) ? d : []))
+      .catch(() => {});
   }, [playerId]);
 
   if (isLoading) {
@@ -334,12 +339,32 @@ export default function PlayerDetail() {
     hidden: false,
     category: "Shadow Bot",
   }));
-  const allAchievements = [...achProgress, ...normalizedBotAchs];
+  const normalizedTourAchs = tourAchs
+    .filter((a: any) => a.category !== "trophy")
+    .map((a: any) => ({
+      ...a,
+      id: `tour_${a.key}`,
+      isUnlocked: a.unlocked,
+      unlockedAt: a.awardedAt,
+      currentProgress: a.unlocked ? 1 : 0,
+      criteriaValue: 1,
+      progressPct: a.unlocked ? 100 : 0,
+      hidden: false,
+      rarity: a.gamerscore >= 100 ? "Legendary" : a.gamerscore >= 50 ? "Epic" : a.gamerscore >= 25 ? "Rare" : "Common",
+    }));
 
-  const unlockedCount = allAchievements.filter(a => a.isUnlocked).length;
-  const closeCount = allAchievements.filter(a => !a.isUnlocked && (a.progressPct ?? 0) >= 50).length;
+  const achSourceMap: Record<string, any[]> = {
+    all:    [...achProgress, ...normalizedBotAchs, ...normalizedTourAchs],
+    league: achProgress,
+    bot:    normalizedBotAchs,
+    tour:   normalizedTourAchs,
+  };
+  const activeAchs = achSourceMap[achTab] ?? achSourceMap.all;
 
-  const filteredAch = allAchievements.filter(a => {
+  const unlockedCount = activeAchs.filter((a: any) => a.isUnlocked).length;
+  const closeCount = activeAchs.filter((a: any) => !a.isUnlocked && (a.progressPct ?? 0) >= 50).length;
+
+  const filteredAch = activeAchs.filter((a: any) => {
     if (achFilter === "unlocked") return a.isUnlocked;
     if (achFilter === "locked") return !a.isUnlocked && !a.hidden;
     if (achFilter === "close") return !a.isUnlocked && (a.progressPct ?? 0) >= 50;
@@ -1396,7 +1421,7 @@ export default function PlayerDetail() {
 
       {/* ══ ACHIEVEMENTS ══ */}
       <div>
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <div>
               <h2 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Achievements</h2>
@@ -1428,6 +1453,33 @@ export default function PlayerDetail() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Source type tabs */}
+        <div className="flex gap-1 mb-3 flex-wrap">
+          {([
+            { key: "all",    label: "All",     color: "#ff005c" },
+            { key: "league", label: "🏆 League", color: "#ffd24a" },
+            { key: "bot",    label: "🤖 Bot",    color: "#ff005c" },
+            { key: "tour",   label: "🎯 Tour",   color: "#22c55e" },
+          ] as const).map(({ key, label, color }) => {
+            const src = achSourceMap[key] ?? [];
+            const cnt = src.filter((a: any) => a.isUnlocked).length;
+            return (
+              <button key={key}
+                onClick={() => { setAchTab(key); setShowAllAch(false); }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold uppercase transition-all"
+                style={{
+                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.07em",
+                  background: achTab === key ? `${color}22` : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${achTab === key ? `${color}55` : "rgba(255,255,255,0.07)"}`,
+                  color: achTab === key ? color : "rgba(255,255,255,0.3)",
+                }}>
+                {label}
+                <span className="text-xs opacity-70">{cnt}/{src.length}</span>
+              </button>
+            );
+          })}
         </div>
 
         {openAchievements && <>
