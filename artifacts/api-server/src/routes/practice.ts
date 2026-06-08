@@ -490,13 +490,21 @@ router.get("/players/:id/shadow-bot-stats", async (req, res): Promise<void> => {
     const [playerQ, totalsQ, gameModeQ] = await Promise.all([
       db.execute(sql`SELECT name FROM players WHERE id = ${playerId}`),
       db.execute(sql`
+        WITH ranked AS (
+          SELECT p1_darts, p1_score, p1_checkout_hits, p1_checkout_attempts,
+            POWER(0.92, ROW_NUMBER() OVER (ORDER BY created_at DESC) - 1) AS w
+          FROM practice_sessions WHERE player1_id = ${playerId}
+        )
         SELECT
-          COALESCE(SUM(p1_darts), 0)::int           AS total_darts,
-          COUNT(*)::int                              AS total_sessions,
-          COALESCE(SUM(p1_score), 0)::int           AS total_score,
-          COALESCE(SUM(p1_checkout_hits), 0)::int   AS co_hits,
-          COALESCE(SUM(p1_checkout_attempts), 0)::int AS co_attempts
-        FROM practice_sessions WHERE player1_id = ${playerId}
+          COALESCE(SUM(p1_darts), 0)::int                                              AS total_darts,
+          COUNT(*)::int                                                                 AS total_sessions,
+          COALESCE(SUM(p1_checkout_hits), 0)::int                                      AS co_hits,
+          COALESCE(SUM(p1_checkout_attempts), 0)::int                                  AS co_attempts,
+          COALESCE(
+            SUM(w * CASE WHEN p1_darts > 0 THEN p1_score ELSE 0 END)
+            / NULLIF(SUM(w * CASE WHEN p1_darts > 0 THEN p1_darts ELSE 0 END), 0),
+          0)                                                                            AS weighted_spd
+        FROM ranked
       `),
       db.execute(sql`
         SELECT game_type_key, game_type_name, COUNT(*)::int AS sessions,
@@ -507,10 +515,10 @@ router.get("/players/:id/shadow-bot-stats", async (req, res): Promise<void> => {
     ]);
 
     const playerName = (playerQ.rows[0] as { name: string } | undefined)?.name ?? "Unknown";
-    const t = totalsQ.rows[0] as { total_darts: number; total_sessions: number; total_score: number; co_hits: number; co_attempts: number } | undefined;
+    const t = totalsQ.rows[0] as { total_darts: number; total_sessions: number; weighted_spd: number; co_hits: number; co_attempts: number } | undefined;
     const totalDarts    = Number(t?.total_darts ?? 0);
     const totalSessions = Number(t?.total_sessions ?? 0);
-    const totalScore    = Number(t?.total_score ?? 0);
+    const weightedSpd   = Number(t?.weighted_spd ?? 0);
     const coHits        = Number(t?.co_hits ?? 0);
     const coAttempts    = Number(t?.co_attempts ?? 0);
 
@@ -529,7 +537,9 @@ router.get("/players/:id/shadow-bot-stats", async (req, res): Promise<void> => {
       return;
     }
 
-    const computedAvg  = totalDarts > 0 ? Math.round((totalScore / totalDarts) * 3 * 10) / 10 : 45;
+    // Recency-weighted 3-dart average: recent sessions count much more than old ones (decay 0.92/session).
+    // This means the level goes UP when recent form improves and DOWN when it drops — it is never permanent.
+    const computedAvg  = totalDarts > 0 ? Math.round(weightedSpd * 3 * 10) / 10 : 45;
     const doubleHitPct = coAttempts > 0 ? Math.round((coHits / coAttempts) * 100) / 100 : 0;
 
     const LEVELS = [
@@ -680,16 +690,23 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
 router.get("/bots/leaderboard", async (req, res): Promise<void> => {
   try {
     const result = await db.execute(sql`
+      WITH session_weights AS (
+        SELECT player1_id, game_type_key, p1_darts, p1_score,
+          POWER(0.92, ROW_NUMBER() OVER (PARTITION BY player1_id ORDER BY created_at DESC) - 1) AS w
+        FROM practice_sessions WHERE p1_darts > 0
+      )
       SELECT
         p.id   AS player_id,
         p.name AS player_name,
         p.status,
-        COALESCE(SUM(ps.p1_darts), 0)::int   AS total_darts,
-        COUNT(ps.id)::int                     AS total_sessions,
-        COALESCE(SUM(ps.p1_score), 0)::int   AS total_score,
-        COUNT(DISTINCT ps.game_type_key)::int AS game_modes
+        COALESCE((SELECT SUM(p1_darts)::int FROM practice_sessions WHERE player1_id = p.id), 0) AS total_darts,
+        COALESCE((SELECT COUNT(*)::int      FROM practice_sessions WHERE player1_id = p.id), 0) AS total_sessions,
+        COUNT(DISTINCT sw.game_type_key)::int                                                   AS game_modes,
+        COALESCE(
+          SUM(sw.w * sw.p1_score) / NULLIF(SUM(sw.w * sw.p1_darts), 0),
+        0) AS weighted_spd
       FROM players p
-      LEFT JOIN practice_sessions ps ON ps.player1_id = p.id
+      LEFT JOIN session_weights sw ON sw.player1_id = p.id
       WHERE p.is_active = true AND p.status != 'ELIMINATED'
       GROUP BY p.id, p.name, p.status
       ORDER BY total_darts DESC NULLS LAST
@@ -708,11 +725,11 @@ router.get("/bots/leaderboard", async (req, res): Promise<void> => {
 
     const rows = (result.rows as any[]).map(r => {
       const totalDarts    = Number(r.total_darts);
-      const totalScore    = Number(r.total_score);
       const totalSessions = Number(r.total_sessions);
       const gameModes     = Number(r.game_modes);
+      const weightedSpd   = Number(r.weighted_spd ?? 0);
       const locked        = totalDarts < THRESHOLD;
-      const computedAvg   = totalDarts > 0 ? (totalScore / totalDarts) * 3 : 0;
+      const computedAvg   = totalDarts > 0 ? weightedSpd * 3 : 0;
 
       let accuracyLevel = "beginner";
       let progressToNext = 0;

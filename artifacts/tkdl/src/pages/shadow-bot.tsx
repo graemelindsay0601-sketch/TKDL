@@ -332,9 +332,9 @@ export default function ShadowBot() {
               color: selectedId ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.3)",
               outline: "none",
             }}>
-            <option value="">— choose a player —</option>
+            <option value="" style={{ background: "#0d0d1a", color: "rgba(255,255,255,0.4)" }}>— choose a player —</option>
             {players?.filter((p: any) => p.isActive).map((p: any) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <option key={p.id} value={p.id} style={{ background: "#0d0d1a", color: "#fff" }}>{p.name}</option>
             ))}
           </select>
           {selectedId && (
@@ -504,7 +504,7 @@ export default function ShadowBot() {
                       {[
                         { label: "Sessions",     value: stats.totalSessions.toString()                                    },
                         { label: "Darts Logged", value: stats.totalDarts.toLocaleString()                                },
-                        { label: "3-Dart Avg",   value: stats.computedAvg != null ? stats.computedAvg.toFixed(1) : "—"  },
+                        { label: "Form Avg",     value: stats.computedAvg != null ? stats.computedAvg.toFixed(1) : "—"  },
                         { label: "Checkout %",   value: stats.doubleHitPct != null ? `${Math.round(stats.doubleHitPct * 100)}%` : "—" },
                       ].map(({ label, value }) => (
                         <div key={label} className="rounded-xl px-3 py-3 text-center"
