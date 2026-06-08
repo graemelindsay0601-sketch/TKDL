@@ -470,9 +470,8 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
     if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
     const THRESHOLD = 250;
 
-    const [practiceQ, playerQ, dartLogQ, coQ, avgQ] = await Promise.all([
-      db.execute(sql`SELECT COALESCE(SUM(p1_darts),0)::int AS practice_darts FROM practice_sessions WHERE player1_id = ${playerId}`),
-      db.execute(sql`SELECT name, career_wins, career_losses, elo_rating FROM players WHERE id = ${playerId}`),
+    const [playerQ, dartLogQ, coQ, avgQ] = await Promise.all([
+      db.execute(sql`SELECT name FROM players WHERE id = ${playerId}`),
       db.execute(sql`
         WITH dart_data AS (
           SELECT (dart->>'seg')::int AS seg, (dart->>'mult')::int AS mult, dart->>'phase' AS phase
@@ -495,13 +494,11 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
       `),
     ]);
 
-    const practiceDarts = Number(practiceQ.rows[0]?.practice_darts ?? 0);
-    const player = playerQ.rows[0] as { name: string; career_wins: number; career_losses: number; elo_rating: number } | undefined;
-    const matchDarts  = (Number(player?.career_wins ?? 0) + Number(player?.career_losses ?? 0)) * 50;
-    const totalDarts  = practiceDarts + matchDarts;
+    const playerName     = (playerQ.rows[0] as { name: string } | undefined)?.name ?? "";
+    const totalDarts     = Number(avgQ.rows[0]?.total_darts ?? 0);
 
     if (totalDarts < THRESHOLD) {
-      res.json({ locked: true, totalDarts, needed: THRESHOLD, playerName: player?.name ?? "" });
+      res.json({ locked: true, totalDarts, needed: THRESHOLD, playerName });
       return;
     }
 
@@ -522,38 +519,28 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
 
     const primary    = segTotals[0];
     const primarySeg = primary?.seg ?? 20;
-    const treblePct  = primary && primary.total > 0 ? Math.round((primary.treble / primary.total) * 100) / 100 : 0.25;
-    const singlePct  = primary && primary.total > 0 ? Math.round((primary.single / primary.total) * 100) / 100 : 0.50;
+    const treblePct  = primary && primary.total > 0 ? Math.round((primary.treble / primary.total) * 100) / 100 : 0.15;
+    const singlePct  = primary && primary.total > 0 ? Math.round((primary.single / primary.total) * 100) / 100 : 0.55;
 
-    const coDarts     = raw.filter(r => r.phase === "checkout" && Number(r.mult) === 2);
+    const coDarts      = raw.filter(r => r.phase === "checkout" && Number(r.mult) === 2);
     const checkoutSegs = coDarts.length > 0 ? coDarts.slice(0, 6).map(r => Number(r.seg)) : [16, 8, 4, 2];
 
-    const coHits     = Number(coQ.rows[0]?.co_hits ?? 0);
-    const coAttempts = Number(coQ.rows[0]?.co_attempts ?? 0);
-    const rawDoubleHitPct = coAttempts > 0 ? Math.round((coHits / coAttempts) * 100) / 100 : 0.22;
-    const doubleHitPct = Math.max(0.08, rawDoubleHitPct);
+    const coHits          = Number(coQ.rows[0]?.co_hits ?? 0);
+    const coAttempts      = Number(coQ.rows[0]?.co_attempts ?? 0);
+    const rawDoubleHitPct = coAttempts > 0 ? Math.round((coHits / coAttempts) * 100) / 100 : 0.18;
+    const doubleHitPct    = Math.max(0.05, Math.min(0.95, rawDoubleHitPct));
 
-    const totalScore         = Number(avgQ.rows[0]?.total_score ?? 0);
-    const totalPracticeDarts = Number(avgQ.rows[0]?.total_darts ?? 0);
-    const practiceAvg        = totalPracticeDarts > 0 ? (totalScore / totalPracticeDarts) * 3 : null;
-
-    // Elo → estimated 3-dart avg. Calibrated to league tiers:
-    //   800 Elo ≈ 20 avg, 1000 ≈ 40, 1100 ≈ 55, 1250 ≈ 70, 1400 ≈ 88, 1500+ ≈ 100+
-    const elo = Number(player?.elo_rating ?? 1000);
-    const eloAvg = Math.max(18, Math.min(110, 20 + (elo - 800) * 0.12));
-
-    // Blend: weight practice data by how much we have (saturates at 300 darts).
-    // Below that threshold the Elo estimate anchors the avg; above it practice wins.
-    const practiceWeight = Math.min(1, totalPracticeDarts / 300);
-    const computedAvg    = Math.round(
-      ((practiceAvg ?? eloAvg) * practiceWeight + eloAvg * (1 - practiceWeight)) * 10
-    ) / 10;
+    const totalScore  = Number(avgQ.rows[0]?.total_score ?? 0);
+    // Pure practice average — no Elo blending. Default 45 if session data somehow missing.
+    const computedAvg = totalDarts > 0
+      ? Math.round((totalScore / totalDarts) * 3 * 10) / 10
+      : 45;
 
     res.json({
       locked: false,
       totalDarts,
       needed: THRESHOLD,
-      playerName: player?.name ?? "",
+      playerName,
       playerId,
       primarySeg,
       treblePct,
