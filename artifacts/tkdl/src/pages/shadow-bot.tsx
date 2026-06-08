@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { useListPlayers } from "@workspace/api-client-react";
 import { Bot, Lock, Dumbbell, Zap, Target, ChevronRight, CircuitBoard, Trophy, Star, TrendingUp, Shield } from "lucide-react";
 
@@ -74,10 +74,17 @@ function BotLevelPip({ levelKey, active }: { levelKey: string; active: boolean }
 }
 
 export default function ShadowBot() {
+  const search = useSearch();
+
   const [selectedId, setSelectedId] = useState<number | null>(() => {
-    const p = new URLSearchParams(window.location.search).get("player");
+    const p = new URLSearchParams(search).get("player");
     return p ? Number(p) : null;
   });
+
+  useEffect(() => {
+    const p = new URLSearchParams(search).get("player");
+    if (p) setSelectedId(Number(p));
+  }, [search]);
   const [stats, setStats]     = useState<ShadowBotStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [roster, setRoster]   = useState<BotLeaderboardRow[]>([]);

@@ -247,22 +247,27 @@ function TourSection() {
 
 // ── ACHIEVEMENTS section ───────────────────────────────────────────────────────
 
+type RecentUnlock = {
+  unlocked_at: string; player_id: number; player_name: string;
+  achievement_name: string; icon: string | null; rarity: string;
+};
+
+const RARITY_COLORS: Record<string, string> = {
+  Mythic: "#ff005c", Legendary: "#ffd24a", Epic: "#a855f7", Rare: "#0066ff", Common: "#9ca3af",
+};
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60)  return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)   return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
 function AchievementsSection() {
-  const { data: achievements } = useListAchievements();
-
-  const total         = achievements?.length ?? 0;
-  const totalUnlocked = achievements?.reduce((s, a) => s + ((a as any).unlockedCount ?? 0), 0) ?? 0;
-
-  const topAchs = [...(achievements ?? [])]
-    .filter(a => (a as any).unlockedCount > 0 && !(a as any).hidden)
-    .sort((a, b) => ((b as any).unlockedCount ?? 0) - ((a as any).unlockedCount ?? 0))
-    .slice(0, 4);
-
-  const RARITY_COLORS: Record<string, string> = {
-    Mythic: "#ff005c", Legendary: "#ffd24a", Epic: "#a855f7", Rare: "#0066ff", Common: "#9ca3af",
-  };
-
-  const pct = total > 0 ? Math.round((totalUnlocked / total) * 100) : 0;
+  const { data: recent, loading } = useFetch<RecentUnlock[]>("/api/achievements/recent");
 
   return (
     <div className="section-card" style={{ borderTop: "2px solid #a855f7" }}>
@@ -273,63 +278,66 @@ function AchievementsSection() {
         href="/achievements"
       />
 
-      {/* Progress */}
-      <div className="mb-3 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <div className="flex items-end justify-between mb-2">
-          <div>
-            <span className="font-black tabular-nums"
-              style={{ fontFamily: "Oswald, sans-serif", fontSize: "2rem", color: "#a855f7", textShadow: "0 0 18px rgba(168,85,247,0.45)" }}>
-              {totalUnlocked}
-            </span>
-            <span className="text-xs ml-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>/ {total} unlocked</span>
-          </div>
-          <span className="font-black text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(168,85,247,0.6)" }}>
-            {pct}%
-          </span>
-        </div>
-        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-          <div className="h-full rounded-full transition-all duration-700"
-            style={{ width: `${pct}%`, background: "linear-gradient(90deg, #a855f7, #c084fc)" }} />
-        </div>
-      </div>
-
-      {/* Top unlocked */}
       <div className="space-y-1.5">
-        {topAchs.length > 0 ? topAchs.map(a => {
-          const color = RARITY_COLORS[a.rarity] ?? "#9ca3af";
-          return (
-            <div key={a.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl"
-              style={{ background: `${color}08`, border: `1px solid ${color}22` }}>
-              <span className="text-xl leading-none">{(a as any).icon || "🎯"}</span>
-              <div className="flex-1 min-w-0">
-                <div className="font-black text-xs uppercase truncate"
-                  style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)", letterSpacing: "0.03em" }}>
-                  {a.name.replace(/^[^\s]+\s/, "")}
+        {loading ? (
+          <div className="flex justify-center py-6">
+            <div className="w-5 h-5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#a855f7" }} />
+          </div>
+        ) : recent && recent.length > 0 ? (
+          recent.map((u, i) => {
+            const color = RARITY_COLORS[u.rarity] ?? "#9ca3af";
+            return (
+              <Link key={i} href={`/players/${u.player_id}`}>
+                <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl cursor-pointer transition-all hover:-translate-y-0.5"
+                  style={{ background: `${color}07`, border: `1px solid ${color}1a` }}>
+                  <span className="text-xl leading-none shrink-0">{u.icon || "🎯"}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-black text-xs uppercase truncate"
+                      style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)", letterSpacing: "0.03em" }}>
+                      {u.achievement_name.replace(/^[^\s]+\s/, "")}
+                    </div>
+                    <div className="text-xs truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
+                      <span style={{ color: "rgba(255,255,255,0.55)" }}>{u.player_name}</span>
+                      {" · "}
+                      <span style={{ color }}>{u.rarity}</span>
+                    </div>
+                  </div>
+                  <div className="text-xs shrink-0" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
+                    {timeAgo(u.unlocked_at)}
+                  </div>
                 </div>
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
-                  {(a as any).unlockedCount}× unlocked · <span style={{ color }}>{a.rarity}</span>
-                </div>
-              </div>
+              </Link>
+            );
+          })
+        ) : (
+          <div className="py-6 text-center">
+            <div className="text-2xl mb-1.5">🎖️</div>
+            <div className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>
+              No achievements unlocked yet
             </div>
-          );
-        }) : (
-          <div className="py-4 text-center text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
-            No achievements unlocked yet
+            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.15)" }}>
+              Play matches to start unlocking
+            </div>
           </div>
         )}
       </div>
 
-      <div className="mt-3 pt-2.5 border-t flex gap-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-        {[
-          { label: "League", color: "#ff005c" },
-          { label: "Tour",   color: "#ffd24a" },
-          { label: "Bot",    color: "#0066ff" },
-        ].map(p => (
-          <span key={p.label} className="text-xs font-bold uppercase"
-            style={{ fontFamily: "Oswald, sans-serif", color: p.color, fontSize: "0.6rem", opacity: 0.6 }}>
-            {p.label}
-          </span>
-        ))}
+      <div className="mt-3 pt-2.5 border-t flex gap-3 items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div className="flex gap-3">
+          {[
+            { label: "League", color: "#ff005c" },
+            { label: "Tour",   color: "#ffd24a" },
+            { label: "Bot",    color: "#0066ff" },
+          ].map(p => (
+            <span key={p.label} className="text-xs font-bold uppercase"
+              style={{ fontFamily: "Oswald, sans-serif", color: p.color, fontSize: "0.6rem", opacity: 0.6 }}>
+              {p.label}
+            </span>
+          ))}
+        </div>
+        <span className="text-xs" style={{ color: "rgba(255,255,255,0.15)", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
+          456 total achievements
+        </span>
       </div>
     </div>
   );
