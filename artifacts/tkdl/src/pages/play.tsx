@@ -3,8 +3,9 @@ import { useListPlayers, useSubmitMatch, getGetLeaderboardQueryKey, getGetStatsS
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Swords, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, AlertCircle } from "lucide-react";
-import { GameScorer, type GameTypeOption, type GameResult } from "@/components/game-scorer";
+import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
 import { RulesModal } from "@/components/rules-modal";
+import { MatchStatsCard } from "@/components/match-stats-card";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Player = { id: number; name: string; points: number; elo: number; status: string };
@@ -219,8 +220,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
 }
 
 // ── Game Over Screen ───────────────────────────────────────────────────────────
-function GameOverScreen({ result, data, onBack }: {
-  result: GameResult; data: SetupData; onBack: () => void;
+function GameOverScreen({ result, data, stats, onBack }: {
+  result: GameResult; data: SetupData; stats: PracticeStats | null; onBack: () => void;
 }) {
   const { toast }   = useToast();
   const qc          = useQueryClient();
@@ -272,6 +273,16 @@ function GameOverScreen({ result, data, onBack }: {
         )}
       </div>
 
+      {stats && (
+        <MatchStatsCard
+          p1Name={data.p1.name}
+          p2Name={data.p2.name}
+          stats={stats}
+          winnerIdx={result.winnerIdx}
+          accentColor="#ff005c"
+        />
+      )}
+
       <div className="pdc-card p-4 text-left space-y-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
         <div className="text-xs uppercase tracking-widest mb-2 font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>Match Summary</div>
         {[
@@ -314,9 +325,10 @@ function GameOverScreen({ result, data, onBack }: {
 
 // ── Main Play Page ─────────────────────────────────────────────────────────────
 export default function Play() {
-  const [phase, setPhase]         = useState<"setup" | "playing" | "gameover">("setup");
-  const [setupData, setSetupData] = useState<SetupData | null>(null);
-  const [gameResult, setResult]   = useState<GameResult | null>(null);
+  const [phase, setPhase]             = useState<"setup" | "playing" | "gameover">("setup");
+  const [setupData, setSetupData]     = useState<SetupData | null>(null);
+  const [gameResult, setResult]       = useState<GameResult | null>(null);
+  const [matchStats, setMatchStats]   = useState<PracticeStats | null>(null);
 
   if (phase === "setup") {
     return <SetupScreen onStart={d => { setSetupData(d); setPhase("playing"); }} />;
@@ -325,7 +337,6 @@ export default function Play() {
   if (phase === "playing" && setupData) {
     return (
       <div className="max-w-lg mx-auto">
-        {/* Match header */}
         <div className="flex items-center justify-between mb-4">
           <div className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
             {setupData.p1.name} vs {setupData.p2.name} · {setupData.gameType.name} · {setupData.stake}pt stake
@@ -337,13 +348,21 @@ export default function Play() {
           gameType={setupData.gameType}
           onWin={r => { setResult(r); setPhase("gameover"); }}
           onAbandon={() => setPhase("setup")}
+          onPracticeStats={s => setMatchStats(s)}
         />
       </div>
     );
   }
 
   if (phase === "gameover" && gameResult && setupData) {
-    return <GameOverScreen result={gameResult} data={setupData} onBack={() => { setPhase("setup"); setResult(null); setSetupData(null); }} />;
+    return (
+      <GameOverScreen
+        result={gameResult}
+        data={setupData}
+        stats={matchStats}
+        onBack={() => { setPhase("setup"); setResult(null); setSetupData(null); setMatchStats(null); }}
+      />
+    );
   }
 
   return null;

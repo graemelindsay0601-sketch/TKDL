@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users, Ghost } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
 import { RulesModal } from "@/components/rules-modal";
+import { MatchStatsCard } from "@/components/match-stats-card";
 import {
   BOT_PERSONAS, BOT_LEVELS, getBotConfig, numLevelConfig, numLevelLabel, numLevelColor,
   type BotPersona, type BotConfig, type ShadowProfile,
@@ -741,6 +742,16 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
         </div>
         {result.detail && <div className="text-sm mt-1" style={{ color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>{result.detail}</div>}
       </div>
+
+      {stats && (
+        <MatchStatsCard
+          p1Name={data.p1.name}
+          p2Name={data.botName ?? data.p2?.name ?? "CPU"}
+          stats={stats}
+          winnerIdx={result.winnerIdx}
+          accentColor="#a78bfa"
+        />
+      )}
 
       <div className="pdc-card p-4 text-left space-y-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
         <div className="text-xs uppercase tracking-widest mb-2 font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>Session Summary</div>
