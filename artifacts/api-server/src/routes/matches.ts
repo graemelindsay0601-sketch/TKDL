@@ -134,8 +134,8 @@ router.post("/matches", async (req, res): Promise<void> => {
   }).where(eq(seasonsTable.id, activeSeason.id));
 
   // Check achievements
-  await checkMatchAchievements(winnerId, true,  stake, loserPointsBefore,  winnerPointsBefore, loserEliminated);
-  await checkMatchAchievements(loserId,  false, stake, loserPointsBefore,  winnerPointsBefore, false);
+  await checkMatchAchievements(winnerId, loserId, true,  stake, loserPointsBefore, winnerPointsBefore, loserEliminated);
+  await checkMatchAchievements(loserId,  winnerId, false, stake, loserPointsBefore, winnerPointsBefore, false);
 
   res.status(201).json({
     ...match,

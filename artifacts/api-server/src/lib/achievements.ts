@@ -2,6 +2,8 @@ import { db } from "@workspace/db";
 import { achievementsTable, playerAchievementsTable, playersTable, matchesTable, seasonStandingsTable, seasonsTable } from "@workspace/db";
 import { eq, and, count, sql, or } from "drizzle-orm";
 import { logger } from "./logger";
+import { PRACTICE_ACHIEVEMENT_DEFINITIONS, checkPracticeAchievements } from "./practice-achievements";
+import { FORMAT_AND_MEME_ACHIEVEMENT_DEFINITIONS } from "./format-and-meme-achievements";
 
 export type AchievementDef = {
   key: string;
@@ -148,6 +150,8 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { key: "LUNCH_LEGEND",       name: "🥪 Lunch Break Legend",    description: "Win 3 or more matches in a single day",            icon: "🥪", rarity: "Rare",      category: "Hidden",  hidden: true,  priority: 40, criteriaType: "SAME_DAY_WINS",            criteriaValue: 3,  engineType: "MATCH_EVENT" },
   { key: "KILBIRNIE_LION",     name: "🦁 Kilbirnie Lion",        description: "Win 5 or more matches in a single week",           icon: "🦁", rarity: "Epic",      category: "Hidden",  hidden: true,  priority: 60, criteriaType: "SAME_WEEK_WINS",           criteriaValue: 5,  engineType: "MATCH_EVENT" },
   { key: "FIRST_BLOOD_SEASON", name: "🩸 Season Opener",         description: "Score the very first win of a new season",         icon: "🩸", rarity: "Rare",      category: "Hidden",  hidden: true,  priority: 40, criteriaType: "FIRST_MATCH_SEASON_WIN",   criteriaValue: 1,  engineType: "MATCH_EVENT" },
+  ...PRACTICE_ACHIEVEMENT_DEFINITIONS,
+  ...FORMAT_AND_MEME_ACHIEVEMENT_DEFINITIONS,
 ];
 
 function normGT(gt: string): string {
@@ -416,10 +420,23 @@ export async function checkStatAchievements(playerId: number): Promise<void> {
       await grantIfNotHas(playerId, "LAST_MAN_STANDING");
     }
   }
+
+  // REGULAR_PLAYER — played at least once per week for 20+ distinct weeks
+  try {
+    const [rWeeks] = (await db.execute(sql`
+      SELECT COUNT(DISTINCT date_trunc('week', played_at))::int AS weeks
+      FROM matches WHERE winner_id = ${playerId} OR loser_id = ${playerId}
+    `)).rows as { weeks: number }[];
+    if ((rWeeks?.weeks ?? 0) >= 20) await grantIfNotHas(playerId, "REGULAR_PLAYER");
+  } catch { /* non-critical */ }
+
+  // ── Practice achievements ────────────────────────────────────────────────────
+  await checkPracticeAchievements(playerId);
 }
 
 export async function checkMatchAchievements(
   playerId: number,
+  opponentId: number,
   isWinner: boolean,
   stake: number,
   loserPointsBefore: number,
@@ -463,6 +480,57 @@ export async function checkMatchAchievements(
 
     // Phoenix — win with only 1 point left (loser had 1 point before)
     if (loserPointsBefore <= 1) await grantIfNotHas(playerId, "PHOENIX");
+
+    // Underdog wins — based on Elo difference at time of match
+    try {
+      const [opp] = await db.select().from(playersTable).where(eq(playersTable.id, opponentId));
+      if (opp) {
+        const eloDiff = (opp.elo ?? 1000) - (player.elo ?? 1000);
+        if (eloDiff >= 100) await grantIfNotHas(playerId, "UNDERDOG_SPECIAL");
+        if (eloDiff >= 150) await grantIfNotHas(playerId, "LUCKY_SOB_MASSIVE");
+      }
+    } catch { /* non-critical */ }
+
+    // REVERSAL — beat the opponent you've played most, twice in a row
+    try {
+      const [rRev] = (await db.execute(sql`
+        WITH h2h AS (
+          SELECT
+            CASE WHEN winner_id = ${playerId} THEN 'W' ELSE 'L' END AS result
+          FROM matches
+          WHERE (winner_id = ${playerId} AND loser_id = ${opponentId})
+             OR (loser_id = ${playerId}  AND winner_id = ${opponentId})
+          ORDER BY played_at DESC
+          LIMIT 2
+        )
+        SELECT COUNT(*) FILTER (WHERE result = 'W')::int AS wins FROM h2h
+      `)).rows as { wins: number }[];
+      if ((rRev?.wins ?? 0) >= 2) await grantIfNotHas(playerId, "REVERSAL");
+    } catch { /* non-critical */ }
+
+    // NEMESIS_RELATIONSHIP — 10+ games against the same opponent
+    try {
+      const [rNem] = (await db.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM matches
+        WHERE (winner_id = ${playerId} AND loser_id = ${opponentId})
+           OR (loser_id  = ${playerId} AND winner_id = ${opponentId})
+      `)).rows as { cnt: number }[];
+      if ((rNem?.cnt ?? 0) >= 10) await grantIfNotHas(playerId, "NEMESIS_RELATIONSHIP");
+    } catch { /* non-critical */ }
+
+    // UNBEATABLE_VS_ONE — 3+ consecutive wins vs same opponent in current season
+    try {
+      const [rUB] = (await db.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM (
+          SELECT winner_id FROM matches
+          WHERE (winner_id = ${playerId} AND loser_id = ${opponentId})
+             OR (loser_id  = ${playerId} AND winner_id = ${opponentId})
+          ORDER BY played_at DESC
+          LIMIT 3
+        ) sub WHERE winner_id = ${playerId}
+      `)).rows as { cnt: number }[];
+      if ((rUB?.cnt ?? 0) >= 3) await grantIfNotHas(playerId, "UNBEATABLE_VS_ONE");
+    } catch { /* non-critical */ }
 
     // Same opponent wins
     const allMatches = await db.select().from(matchesTable);

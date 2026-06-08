@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Lock, Star, Users } from "lucide-react";
 
 const RARITIES   = ["All", "Mythic", "Legendary", "Epic", "Rare", "Common"] as const;
-const CATEGORIES = ["All", "Career", "Seasonal", "Tier", "Hidden"] as const;
+const CATEGORIES = ["All", "Career", "Seasonal", "Tier", "Practice", "Format", "Rivalry", "Stakes", "Legacy", "Hidden"] as const;
 const SORTS      = ["Default", "Most Unlocked", "Hardest"] as const;
 
 type Sort = typeof SORTS[number];
