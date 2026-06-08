@@ -657,6 +657,8 @@ components:
           type: integer
         gameType:
           type: string
+        isTeamMatch:
+          type: boolean
         notes:
           type: ["string", "null"]
         playedAt:
@@ -858,6 +860,10 @@ components:
       properties:
         matchId:
           type: integer
+        winnerId:
+          type: integer
+        loserId:
+          type: integer
         winnerName:
           type: string
         loserName:
@@ -866,6 +872,10 @@ components:
           type: integer
         eloChange:
           type: integer
+        gameType:
+          type: string
+        isTeamMatch:
+          type: boolean
         playedAt:
           type: string
           format: date-time

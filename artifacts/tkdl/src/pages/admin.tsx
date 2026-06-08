@@ -1013,11 +1013,14 @@ export default function Admin() {
               {matches?.map((match: any) => (
                 <div key={match.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
                   <div>
-                    <div className="text-sm font-semibold">
+                    <div className="text-sm font-semibold flex items-center flex-wrap gap-1.5">
                       <span style={{ color: "#22c55e" }}>{match.winnerName}</span>
-                      <span style={{ color: "rgba(255,255,255,0.25)", margin: "0 6px" }}>def.</span>
+                      <span style={{ color: "rgba(255,255,255,0.25)" }}>def.</span>
                       <span style={{ color: "#ff005c" }}>{match.loserName}</span>
-                      {match.stake && <span className="ml-2 text-xs font-mono" style={{ color: "#ffd24a" }}>±{match.stake}pts</span>}
+                      {match.stake > 0 && <span className="text-xs font-mono" style={{ color: "#ffd24a" }}>±{match.stake}pts</span>}
+                      {match.isTeamMatch && (
+                        <span className="text-xs font-black px-1.5 py-0.5 rounded" style={{ background: "rgba(0,200,150,0.12)", color: "#00c896", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>TEAM</span>
+                      )}
                     </div>
                     <div className="text-xs" style={{ color: "rgba(255,255,255,0.22)" }}>
                       {format(new Date(match.playedAt), "MMM d, HH:mm")}

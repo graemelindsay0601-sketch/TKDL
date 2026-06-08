@@ -70,6 +70,7 @@ export interface Match {
   stake: number;
   eloChange: number;
   gameType?: string;
+  isTeamMatch?: boolean;
   /** @nullable */
   notes?: string | null;
   playedAt: string;
@@ -217,10 +218,14 @@ export interface CareerLeader {
 
 export interface ActivityItem {
   matchId: number;
+  winnerId?: number;
+  loserId?: number;
   winnerName: string;
   loserName: string;
   stake: number;
   eloChange: number;
+  gameType?: string;
+  isTeamMatch?: boolean;
   playedAt: string;
   seasonId?: number;
 }

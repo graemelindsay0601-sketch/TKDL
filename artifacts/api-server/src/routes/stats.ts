@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, desc, count } from "drizzle-orm";
-import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable } from "@workspace/db";
+import { eq, desc, count, inArray } from "drizzle-orm";
+import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable, matchParticipantsTable } from "@workspace/db";
 import { calcTier } from "../lib/elo";
 import { computeIdentity } from "../lib/identity";
 import { buildNarrativeCards } from "../lib/narrative";
@@ -84,17 +84,26 @@ router.get("/stats/career-leaders", async (_req, res): Promise<void> => {
 
 router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
   const matches = await db.select().from(matchesTable).orderBy(desc(matchesTable.playedAt)).limit(15);
+  const matchIds = matches.map(m => m.id);
+  const teamMatchIdSet = new Set<number>();
+  if (matchIds.length > 0) {
+    const participants = await db.selectDistinct({ matchId: matchParticipantsTable.matchId })
+      .from(matchParticipantsTable)
+      .where(inArray(matchParticipantsTable.matchId, matchIds));
+    for (const p of participants) teamMatchIdSet.add(p.matchId);
+  }
   const activity = matches.map(m => ({
-    matchId:    m.id,
-    winnerId:   m.winnerId,
-    loserId:    m.loserId,
-    winnerName: m.winnerName,
-    loserName:  m.loserName,
-    stake:      m.stake,
-    eloChange:  m.eloChange,
-    gameType:   m.gameType,
-    playedAt:   m.playedAt,
-    seasonId:   m.seasonId,
+    matchId:     m.id,
+    winnerId:    m.winnerId,
+    loserId:     m.loserId,
+    winnerName:  m.winnerName,
+    loserName:   m.loserName,
+    stake:       m.stake,
+    eloChange:   m.eloChange,
+    gameType:    m.gameType,
+    isTeamMatch: teamMatchIdSet.has(m.id),
+    playedAt:    m.playedAt,
+    seasonId:    m.seasonId,
   }));
   res.json(activity);
 });

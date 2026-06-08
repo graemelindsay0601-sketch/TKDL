@@ -8,10 +8,14 @@
 
 export interface ActivityItem {
   matchId: number;
+  winnerId?: number;
+  loserId?: number;
   winnerName: string;
   loserName: string;
   stake: number;
   eloChange: number;
+  gameType?: string;
+  isTeamMatch?: boolean;
   playedAt: Date;
   seasonId?: number;
 }

@@ -328,11 +328,18 @@ export default function Dashboard() {
               <div key={m.matchId} className="flex items-center justify-between px-3 py-2.5 rounded-xl fade-in-up"
                 style={{ animationDelay: `${i * 50}ms`, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
                 <div className="min-w-0">
-                  <div className="text-sm font-bold">
-                    <Link href={`/players/${m.winnerId}`} className="hover:underline font-black uppercase"
-                      style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>{m.winnerName}</Link>
-                    <span style={{ color: "rgba(255,255,255,0.22)", margin: "0 5px", fontSize: "0.7rem" }}>def.</span>
+                  <div className="text-sm font-bold flex items-center gap-1.5 flex-wrap">
+                    {m.isTeamMatch ? (
+                      <span className="font-black uppercase" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>{m.winnerName}</span>
+                    ) : (
+                      <Link href={`/players/${m.winnerId}`} className="hover:underline font-black uppercase"
+                        style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>{m.winnerName}</Link>
+                    )}
+                    <span style={{ color: "rgba(255,255,255,0.22)", fontSize: "0.7rem" }}>def.</span>
                     <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.8rem" }}>{m.loserName}</span>
+                    {m.isTeamMatch && (
+                      <span className="text-xs font-black px-1.5 py-0.5 rounded" style={{ background: "rgba(0,200,150,0.12)", color: "#00c896", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.05em" }}>TEAM</span>
+                    )}
                   </div>
                   <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>
                     {format(new Date(m.playedAt), "MMM d, h:mm a")}

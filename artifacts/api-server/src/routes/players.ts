@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, or, desc } from "drizzle-orm";
-import { db, playersTable, matchesTable, playerAchievementsTable, achievementsTable, seasonStandingsTable, seasonsTable } from "@workspace/db";
+import { eq, or, desc, and, inArray } from "drizzle-orm";
+import { db, playersTable, matchesTable, matchParticipantsTable, playerAchievementsTable, achievementsTable, seasonStandingsTable, seasonsTable } from "@workspace/db";
 import { z } from "zod";
 import { computeIdentity } from "../lib/identity";
 import { calcTier } from "../lib/elo";
@@ -73,11 +73,44 @@ router.get("/players/:id/stats", async (req, res): Promise<void> => {
   const [player] = await db.select().from(playersTable).where(eq(playersTable.id, id));
   if (!player) { res.status(404).json({ error: "Player not found" }); return; }
 
-  // Recent matches (as winner or loser)
-  const recentMatches = await db.select().from(matchesTable)
+  // Recent matches (as captain or team participant)
+  const captainMatches = await db.select().from(matchesTable)
     .where(or(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, id)))
     .orderBy(desc(matchesTable.playedAt))
     .limit(10);
+
+  // Find team matches where this player is a non-captain participant
+  const participantRows = await db.select({
+    matchId: matchParticipantsTable.matchId,
+    team:    matchParticipantsTable.team,
+  }).from(matchParticipantsTable).where(eq(matchParticipantsTable.playerId, id));
+
+  const captainMatchIdSet = new Set(captainMatches.map(m => m.id));
+  const participantTeamMap = new Map(participantRows.map(r => [r.matchId, r.team]));
+  const nonCaptainIds = participantRows
+    .filter(r => !captainMatchIdSet.has(r.matchId))
+    .map(r => r.matchId);
+
+  let participantMatches: typeof captainMatches = [];
+  if (nonCaptainIds.length > 0) {
+    participantMatches = await db.select().from(matchesTable)
+      .where(inArray(matchesTable.id, nonCaptainIds))
+      .orderBy(desc(matchesTable.playedAt))
+      .limit(10);
+  }
+
+  const teamMatchIdSet = new Set(participantRows.map(r => r.matchId));
+
+  const recentMatches = [...captainMatches, ...participantMatches]
+    .sort((a, b) => new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime())
+    .slice(0, 10)
+    .map(m => {
+      const isTeamMatch = teamMatchIdSet.has(m.id);
+      const isWin = isTeamMatch && participantTeamMap.has(m.id)
+        ? participantTeamMap.get(m.id) === "winner"
+        : m.winnerId === id;
+      return { ...m, isTeamMatch, isWin };
+    });
 
   // Season history
   const standings = await db.select({

@@ -17,6 +17,7 @@ export interface Match {
   stake: number;
   eloChange: number;
   gameType?: string;
+  isTeamMatch?: boolean;
   /** @nullable */
   notes?: string | null;
   playedAt: Date;

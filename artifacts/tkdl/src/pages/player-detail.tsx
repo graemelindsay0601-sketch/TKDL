@@ -28,7 +28,7 @@ function FormStrip({ matches, playerId }: { matches: any[]; playerId: number }) 
   return (
     <div className="flex items-center gap-1 flex-wrap">
       {last10.map((m: any, i: number) => {
-        const isWin = m.winnerId === playerId;
+        const isWin = m.isWin !== undefined ? m.isWin : m.winnerId === playerId;
         return (
           <div key={i}
             className="w-6 h-6 rounded flex items-center justify-center font-black"
@@ -55,7 +55,7 @@ function EloSparkline({ currentElo, matches, playerId }: { currentElo: number; m
   const pts: number[] = [currentElo];
   let elo = currentElo;
   for (const m of [...matches].slice(0, 15)) {
-    const isWin = m.winnerId === playerId;
+    const isWin = m.isWin !== undefined ? m.isWin : m.winnerId === playerId;
     elo = isWin ? elo - (m.eloChange ?? 16) : Math.min(elo + (m.eloChange ?? 16), 1600);
     elo = Math.max(800, elo);
     pts.unshift(elo);
@@ -523,19 +523,25 @@ export default function PlayerDetail() {
           </div>
           <div>
             {recentMatches?.slice(0, 8).map((m: any) => {
-              const isWin = m.winnerId === player.id;
+              const isWin = m.isWin !== undefined ? m.isWin : m.winnerId === player.id;
+              const opponent = isWin ? m.loserName : m.winnerName;
               return (
                 <div key={m.id} className="px-4 py-3 flex items-center justify-between border-b hover:bg-white/[0.02] transition-colors"
                   style={{ borderColor: "rgba(255,255,255,0.04)" }}>
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-1 h-8 rounded-full shrink-0" style={{ background: isWin ? "#22c55e" : "#ff005c" }} />
                     <div>
-                      <div className="text-xs font-black uppercase tracking-wider"
-                        style={{ fontFamily: "Oswald, sans-serif", color: isWin ? "#22c55e" : "#ff005c", fontSize: "0.65rem" }}>
-                        {isWin ? "WIN" : "LOSS"}
+                      <div className="flex items-center gap-1.5">
+                        <div className="text-xs font-black uppercase tracking-wider"
+                          style={{ fontFamily: "Oswald, sans-serif", color: isWin ? "#22c55e" : "#ff005c", fontSize: "0.65rem" }}>
+                          {isWin ? "WIN" : "LOSS"}
+                        </div>
+                        {m.isTeamMatch && (
+                          <span className="text-xs font-black px-1 py-0.5 rounded" style={{ background: "rgba(0,200,150,0.12)", color: "#00c896", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem" }}>TEAM</span>
+                        )}
                       </div>
                       <div className="text-sm font-bold truncate" style={{ color: "rgba(255,255,255,0.7)" }}>
-                        vs {isWin ? m.loserName : m.winnerName}
+                        vs {opponent}
                       </div>
                       <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
                         {format(new Date(m.playedAt), "d MMM yy")}

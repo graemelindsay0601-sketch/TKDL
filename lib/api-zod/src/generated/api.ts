@@ -189,6 +189,7 @@ export const GetPlayerStatsResponse = zod.object({
   "stake": zod.number().describe('Points wagered on this match'),
   "eloChange": zod.number(),
   "gameType": zod.string().optional(),
+  "isTeamMatch": zod.boolean().optional(),
   "notes": zod.string().nullish(),
   "playedAt": zod.coerce.date()
 })).optional(),
@@ -284,6 +285,7 @@ export const ListMatchesResponseItem = zod.object({
   "stake": zod.number().describe('Points wagered on this match'),
   "eloChange": zod.number(),
   "gameType": zod.string().optional(),
+  "isTeamMatch": zod.boolean().optional(),
   "notes": zod.string().nullish(),
   "playedAt": zod.coerce.date()
 })
@@ -323,6 +325,7 @@ export const GetMatchResponse = zod.object({
   "stake": zod.number().describe('Points wagered on this match'),
   "eloChange": zod.number(),
   "gameType": zod.string().optional(),
+  "isTeamMatch": zod.boolean().optional(),
   "notes": zod.string().nullish(),
   "playedAt": zod.coerce.date()
 })
@@ -529,6 +532,7 @@ export const GetStatsSummaryResponse = zod.object({
   "stake": zod.number().describe('Points wagered on this match'),
   "eloChange": zod.number(),
   "gameType": zod.string().optional(),
+  "isTeamMatch": zod.boolean().optional(),
   "notes": zod.string().nullish(),
   "playedAt": zod.coerce.date()
 }).optional(),
@@ -577,10 +581,14 @@ export const GetCareerLeadersResponse = zod.array(GetCareerLeadersResponseItem)
  */
 export const GetRecentActivityResponseItem = zod.object({
   "matchId": zod.number(),
+  "winnerId": zod.number().optional(),
+  "loserId": zod.number().optional(),
   "winnerName": zod.string(),
   "loserName": zod.string(),
   "stake": zod.number(),
   "eloChange": zod.number(),
+  "gameType": zod.string().optional(),
+  "isTeamMatch": zod.boolean().optional(),
   "playedAt": zod.coerce.date(),
   "seasonId": zod.number().optional()
 })
