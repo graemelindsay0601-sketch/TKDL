@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, MoreHorizontal } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 import { useGetStatsSummary, useGetRecentActivity, useGetLeaderboard } from "@workspace/api-client-react";
 
@@ -30,7 +30,6 @@ const mobileNavItems = [
   { href: "/leaderboard",  label: "Standings", icon: Trophy          },
   { href: "/practice",     label: "Practice",  icon: Dumbbell        },
   { href: "/submit",       label: "Submit",    icon: Plus            },
-  { href: "/players",      label: "Players",   icon: Users           },
 ];
 
 type TickerEntry = { text: string; cls?: string };
@@ -319,6 +318,18 @@ export function Layout({ children }: { children: ReactNode }) {
             </Link>
           );
         })}
+        <button
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors duration-150 relative"
+          style={{ color: drawerOpen ? "#ff005c" : "rgba(255,255,255,0.3)", WebkitTapHighlightColor: "transparent", outline: "none", background: "none", border: "none" }}
+          onClick={() => setDrawerOpen(true)}>
+          {drawerOpen && (
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: "#ff005c", boxShadow: "0 0 8px rgba(255,0,92,0.8)" }} />
+          )}
+          <MoreHorizontal className="w-5 h-5" style={drawerOpen ? { filter: "drop-shadow(0 0 6px rgba(255,0,92,0.8))" } : {}} />
+          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", fontWeight: drawerOpen ? 700 : 400 }}>
+            Menu
+          </span>
+        </button>
       </nav>
     </div>
   );
