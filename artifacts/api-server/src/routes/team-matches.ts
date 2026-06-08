@@ -21,7 +21,14 @@ router.get("/team-matches", async (req, res): Promise<void> => {
   const matches = await db.select().from(teamMatchesTable)
     .orderBy(desc(teamMatchesTable.playedAt))
     .limit(limit);
-  res.json(matches);
+  const withParticipants = await Promise.all(
+    matches.map(async m => {
+      const participants = await db.select().from(teamMatchParticipantsTable)
+        .where(eq(teamMatchParticipantsTable.teamMatchId, m.id));
+      return { ...m, participants };
+    })
+  );
+  res.json(withParticipants);
 });
 
 router.post("/team-matches", async (req, res): Promise<void> => {
