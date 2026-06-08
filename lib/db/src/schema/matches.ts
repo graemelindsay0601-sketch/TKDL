@@ -14,6 +14,14 @@ export const matchesTable = pgTable("matches", {
   gameType: text("game_type").notNull().default("501"),
   notes: text("notes"),
   playedAt: timestamp("played_at", { withTimezone: true }).notNull().defaultNow(),
+  winnerDarts:             integer("winner_darts"),
+  winner180s:              integer("winner_180s"),
+  winnerCheckoutAttempts:  integer("winner_checkout_attempts"),
+  winnerCheckoutHits:      integer("winner_checkout_hits"),
+  loserDarts:              integer("loser_darts"),
+  loser180s:               integer("loser_180s"),
+  loserCheckoutAttempts:   integer("loser_checkout_attempts"),
+  loserCheckoutHits:       integer("loser_checkout_hits"),
 });
 
 export const insertMatchSchema = createInsertSchema(matchesTable).omit({

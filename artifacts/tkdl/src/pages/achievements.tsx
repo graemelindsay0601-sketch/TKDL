@@ -255,10 +255,15 @@ type TourAchDef = {
 };
 
 const TOUR_CATEGORY_COLORS: Record<string, string> = {
-  career: "#ffd24a", format: "#38bdf8", difficulty: "#ff005c",
-  completionist: "#a855f7", milestone: "#34d399",
+  career:        "#ffd24a",
+  format:        "#38bdf8",
+  difficulty:    "#ff005c",
+  completionist: "#a855f7",
+  milestone:     "#34d399",
+  trophy:        "#e8a020",
+  specific:      "#f97316",
 };
-const TOUR_CATEGORY_ORDER = ["career", "difficulty", "format", "completionist", "milestone"];
+const TOUR_CATEGORY_ORDER = ["trophy", "career", "difficulty", "format", "specific", "completionist", "milestone"];
 
 function TourTab() {
   const { data, loading } = useFetch<TourAchDef[]>("/api/tour/achievement-definitions");
@@ -368,6 +373,9 @@ const BOT_CRITERIA_LABELS: Record<string, string> = {
   TOTAL_SESSIONS: "sessions",
   GAME_MODES:     "game modes",
   BOT_LEVEL:      "bot level",
+  TOTAL_180S:     "× 180s",
+  CHECKOUT_HITS:  "checkouts",
+  TOTAL_SCORE:    "practice score",
 };
 
 function BotTab() {

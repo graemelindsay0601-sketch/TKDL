@@ -21,4 +21,12 @@ export interface Match {
   /** @nullable */
   notes?: string | null;
   playedAt: Date;
+  winnerDarts?: number;
+  winner180s?: number;
+  winnerCheckoutAttempts?: number;
+  winnerCheckoutHits?: number;
+  loserDarts?: number;
+  loser180s?: number;
+  loserCheckoutAttempts?: number;
+  loserCheckoutHits?: number;
 }

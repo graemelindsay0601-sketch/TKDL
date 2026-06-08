@@ -191,7 +191,15 @@ export const GetPlayerStatsResponse = zod.object({
   "gameType": zod.string().optional(),
   "isTeamMatch": zod.boolean().optional(),
   "notes": zod.string().nullish(),
-  "playedAt": zod.coerce.date()
+  "playedAt": zod.coerce.date(),
+  "winnerDarts": zod.number().optional(),
+  "winner180s": zod.number().optional(),
+  "winnerCheckoutAttempts": zod.number().optional(),
+  "winnerCheckoutHits": zod.number().optional(),
+  "loserDarts": zod.number().optional(),
+  "loser180s": zod.number().optional(),
+  "loserCheckoutAttempts": zod.number().optional(),
+  "loserCheckoutHits": zod.number().optional()
 })).optional(),
   "achievements": zod.array(zod.object({
   "achievement": zod.object({
@@ -287,7 +295,15 @@ export const ListMatchesResponseItem = zod.object({
   "gameType": zod.string().optional(),
   "isTeamMatch": zod.boolean().optional(),
   "notes": zod.string().nullish(),
-  "playedAt": zod.coerce.date()
+  "playedAt": zod.coerce.date(),
+  "winnerDarts": zod.number().optional(),
+  "winner180s": zod.number().optional(),
+  "winnerCheckoutAttempts": zod.number().optional(),
+  "winnerCheckoutHits": zod.number().optional(),
+  "loserDarts": zod.number().optional(),
+  "loser180s": zod.number().optional(),
+  "loserCheckoutAttempts": zod.number().optional(),
+  "loserCheckoutHits": zod.number().optional()
 })
 export const ListMatchesResponse = zod.array(ListMatchesResponseItem)
 
@@ -304,7 +320,15 @@ export const SubmitMatchBody = zod.object({
   "loserId": zod.number(),
   "stake": zod.number().min(submitMatchBodyStakeMin).describe('Points wagered (max = min of both balances)'),
   "gameType": zod.string().optional(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "winnerDarts": zod.number().optional(),
+  "winner180s": zod.number().optional(),
+  "winnerCheckoutAttempts": zod.number().optional(),
+  "winnerCheckoutHits": zod.number().optional(),
+  "loserDarts": zod.number().optional(),
+  "loser180s": zod.number().optional(),
+  "loserCheckoutAttempts": zod.number().optional(),
+  "loserCheckoutHits": zod.number().optional()
 })
 
 
@@ -327,7 +351,15 @@ export const GetMatchResponse = zod.object({
   "gameType": zod.string().optional(),
   "isTeamMatch": zod.boolean().optional(),
   "notes": zod.string().nullish(),
-  "playedAt": zod.coerce.date()
+  "playedAt": zod.coerce.date(),
+  "winnerDarts": zod.number().optional(),
+  "winner180s": zod.number().optional(),
+  "winnerCheckoutAttempts": zod.number().optional(),
+  "winnerCheckoutHits": zod.number().optional(),
+  "loserDarts": zod.number().optional(),
+  "loser180s": zod.number().optional(),
+  "loserCheckoutAttempts": zod.number().optional(),
+  "loserCheckoutHits": zod.number().optional()
 })
 
 
@@ -534,7 +566,15 @@ export const GetStatsSummaryResponse = zod.object({
   "gameType": zod.string().optional(),
   "isTeamMatch": zod.boolean().optional(),
   "notes": zod.string().nullish(),
-  "playedAt": zod.coerce.date()
+  "playedAt": zod.coerce.date(),
+  "winnerDarts": zod.number().optional(),
+  "winner180s": zod.number().optional(),
+  "winnerCheckoutAttempts": zod.number().optional(),
+  "winnerCheckoutHits": zod.number().optional(),
+  "loserDarts": zod.number().optional(),
+  "loser180s": zod.number().optional(),
+  "loserCheckoutAttempts": zod.number().optional(),
+  "loserCheckoutHits": zod.number().optional()
 }).optional(),
   "seasonsCompleted": zod.number().optional(),
   "eliminatedCount": zod.number().optional()

@@ -34,6 +34,24 @@ router.post("/seasons/reset", async (req, res): Promise<void> => {
   res.status(201).json(newSeason);
 });
 
+router.get("/seasons/:id/mvp", async (req, res): Promise<void> => {
+  const params = GetSeasonParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const rows = await db.execute(sql`
+    SELECT m.winner_id AS player_id, p.name AS player_name,
+           COUNT(*)::int AS wins
+    FROM matches m
+    JOIN players p ON p.id = m.winner_id
+    WHERE m.season_id = ${params.data.id} AND m.winner_id IS NOT NULL
+    GROUP BY m.winner_id, p.name
+    ORDER BY wins DESC
+    LIMIT 1
+  `);
+  const mvp = rows.rows[0] ?? null;
+  res.json(mvp ? { playerId: mvp.player_id, playerName: mvp.player_name, wins: mvp.wins } : null);
+});
+
 router.get("/seasons/:id", async (req, res): Promise<void> => {
   const params = GetSeasonParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }

@@ -664,6 +664,22 @@ components:
         playedAt:
           type: string
           format: date-time
+        winnerDarts:
+          type: integer
+        winner180s:
+          type: integer
+        winnerCheckoutAttempts:
+          type: integer
+        winnerCheckoutHits:
+          type: integer
+        loserDarts:
+          type: integer
+        loser180s:
+          type: integer
+        loserCheckoutAttempts:
+          type: integer
+        loserCheckoutHits:
+          type: integer
 
     MatchInput:
       type: object
@@ -681,6 +697,22 @@ components:
           type: string
         notes:
           type: string
+        winnerDarts:
+          type: integer
+        winner180s:
+          type: integer
+        winnerCheckoutAttempts:
+          type: integer
+        winnerCheckoutHits:
+          type: integer
+        loserDarts:
+          type: integer
+        loser180s:
+          type: integer
+        loserCheckoutAttempts:
+          type: integer
+        loserCheckoutHits:
+          type: integer
 
     # ── Season ─────────────────────────────────────────────────────────────────
     Season:

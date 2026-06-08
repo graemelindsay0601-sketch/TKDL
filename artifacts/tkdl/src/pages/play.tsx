@@ -431,7 +431,27 @@ function GameOverScreen({ result, data, stats, onBack }: {
       if (data.format === "1v1") {
         const winner = winnerTeam[0];
         const loser  = loserTeam[0];
-        await submitMatch({ data: { winnerId: winner.id, loserId: loser.id, stake: data.stake, gameType: data.gameType.key } });
+        const wIdx = result.winnerIdx;
+        const wStats = wIdx === 0
+          ? { darts: stats?.p1Darts, s180s: stats?.p1_180s, ca: stats?.p1CheckoutAttempts, ch: stats?.p1CheckoutHits }
+          : { darts: stats?.p2Darts, s180s: stats?.p2_180s, ca: stats?.p2CheckoutAttempts, ch: stats?.p2CheckoutHits };
+        const lStats = wIdx === 0
+          ? { darts: stats?.p2Darts, s180s: stats?.p2_180s, ca: stats?.p2CheckoutAttempts, ch: stats?.p2CheckoutHits }
+          : { darts: stats?.p1Darts, s180s: stats?.p1_180s, ca: stats?.p1CheckoutAttempts, ch: stats?.p1CheckoutHits };
+        await submitMatch({ data: {
+          winnerId:               winner.id,
+          loserId:                loser.id,
+          stake:                  data.stake,
+          gameType:               data.gameType.key,
+          ...(wStats.darts !== undefined ? { winnerDarts:            wStats.darts  } : {}),
+          ...(wStats.s180s !== undefined ? { winner180s:             wStats.s180s  } : {}),
+          ...(wStats.ca    !== undefined ? { winnerCheckoutAttempts: wStats.ca     } : {}),
+          ...(wStats.ch    !== undefined ? { winnerCheckoutHits:     wStats.ch     } : {}),
+          ...(lStats.darts !== undefined ? { loserDarts:             lStats.darts  } : {}),
+          ...(lStats.s180s !== undefined ? { loser180s:              lStats.s180s  } : {}),
+          ...(lStats.ca    !== undefined ? { loserCheckoutAttempts:  lStats.ca     } : {}),
+          ...(lStats.ch    !== undefined ? { loserCheckoutHits:      lStats.ch     } : {}),
+        } });
       } else {
         await fetch("/api/team-matches", {
           method: "POST",

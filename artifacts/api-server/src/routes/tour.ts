@@ -402,7 +402,15 @@ router.patch("/tour/runs/:runId", async (req, res): Promise<void> => {
         ON CONFLICT (player_id, tour_id, difficulty) DO NOTHING
       `);
 
-      // Check achievements after awarding trophy
+      // Award per-tour-difficulty achievement
+      const trophyAchKey = `tour_win_${run.slug}_${run.difficulty}`;
+      await db.execute(sql`
+        INSERT INTO player_tour_achievements (player_id, achievement_key)
+        VALUES (${playerId}, ${trophyAchKey})
+        ON CONFLICT DO NOTHING
+      `).catch(() => {});
+
+      // Check broader achievements after awarding trophy
       await checkAndAwardTourAchievements(playerId, run.slug, run.difficulty).catch(() => {});
     }
 

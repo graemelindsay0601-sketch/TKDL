@@ -74,6 +74,14 @@ export interface Match {
   /** @nullable */
   notes?: string | null;
   playedAt: string;
+  winnerDarts?: number;
+  winner180s?: number;
+  winnerCheckoutAttempts?: number;
+  winnerCheckoutHits?: number;
+  loserDarts?: number;
+  loser180s?: number;
+  loserCheckoutAttempts?: number;
+  loserCheckoutHits?: number;
 }
 
 export interface Achievement {
@@ -148,6 +156,14 @@ export interface MatchInput {
   stake: number;
   gameType?: string;
   notes?: string;
+  winnerDarts?: number;
+  winner180s?: number;
+  winnerCheckoutAttempts?: number;
+  winnerCheckoutHits?: number;
+  loserDarts?: number;
+  loser180s?: number;
+  loserCheckoutAttempts?: number;
+  loserCheckoutHits?: number;
 }
 
 export interface Season {

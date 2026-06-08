@@ -16,4 +16,12 @@ export interface MatchInput {
   stake: number;
   gameType?: string;
   notes?: string;
+  winnerDarts?: number;
+  winner180s?: number;
+  winnerCheckoutAttempts?: number;
+  winnerCheckoutHits?: number;
+  loserDarts?: number;
+  loser180s?: number;
+  loserCheckoutAttempts?: number;
+  loserCheckoutHits?: number;
 }

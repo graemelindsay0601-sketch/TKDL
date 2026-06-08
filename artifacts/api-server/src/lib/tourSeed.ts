@@ -203,6 +203,43 @@ export const TOUR_ACHIEVEMENT_DEFS: AchievDef[] = [
   { key: "all_rounder",          name: "All-Rounder",             description: "Win tours in 5 different game format categories.",                               gamerscore: 200,  category: "completionist", icon: "🎯" },
 ];
 
+// ── Per-tour per-difficulty trophy achievements (305 total) ───────────────────
+
+const DIFFICULTIES = ["amateur", "club", "county", "pro", "elite"] as const;
+type Difficulty = typeof DIFFICULTIES[number];
+
+const TROPHY_ACH_GS: Record<number, Record<Difficulty, number>> = {
+  1: { amateur: 15,  club: 20,  county: 30,  pro: 50,  elite: 75  },
+  2: { amateur: 20,  club: 30,  county: 45,  pro: 75,  elite: 100 },
+  3: { amateur: 30,  club: 45,  county: 60,  pro: 100, elite: 150 },
+  4: { amateur: 40,  club: 60,  county: 80,  pro: 125, elite: 175 },
+  5: { amateur: 50,  club: 75,  county: 100, pro: 150, elite: 200 },
+  6: { amateur: 75,  club: 100, county: 125, pro: 175, elite: 250 },
+  7: { amateur: 100, club: 150, county: 175, pro: 200, elite: 300 },
+};
+
+const DIFF_LABEL: Record<Difficulty, string> = {
+  amateur: "Amateur", club: "Club", county: "County", pro: "Pro", elite: "Elite",
+};
+
+function generateTrophyAchievements(): AchievDef[] {
+  const result: AchievDef[] = [];
+  for (const t of TOUR_DEFINITIONS) {
+    const gsRow = TROPHY_ACH_GS[t.tier] ?? TROPHY_ACH_GS[6];
+    for (const diff of DIFFICULTIES) {
+      result.push({
+        key:         `tour_win_${t.slug}_${diff}`,
+        name:        `${t.name} – ${DIFF_LABEL[diff]}`,
+        description: `Win the ${t.name} at ${DIFF_LABEL[diff]} difficulty.`,
+        gamerscore:  gsRow[diff],
+        category:    "trophy",
+        icon:        t.emoji,
+      });
+    }
+  }
+  return result;
+}
+
 // ── Seed function ─────────────────────────────────────────────────────────────
 
 export async function seedTourSystem() {
@@ -309,7 +346,8 @@ export async function seedTourSystem() {
   }
 
   // Seed achievement definitions (idempotent)
-  for (const a of TOUR_ACHIEVEMENT_DEFS) {
+  const allAchievements = [...TOUR_ACHIEVEMENT_DEFS, ...generateTrophyAchievements()];
+  for (const a of allAchievements) {
     await db.execute(sql`
       INSERT INTO tour_achievement_definitions (key, name, description, gamerscore, category, icon)
       VALUES (${a.key}, ${a.name}, ${a.description}, ${a.gamerscore}, ${a.category}, ${a.icon})

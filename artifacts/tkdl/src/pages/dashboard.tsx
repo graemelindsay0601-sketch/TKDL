@@ -11,7 +11,7 @@ import { RankChange } from "@/components/rank-change";
 import { Link } from "wouter";
 import {
   Trophy, Swords, Flame, Skull, Zap, Target, AlertTriangle,
-  Star, Medal, CircuitBoard, ChevronRight,
+  Star, Medal, CircuitBoard, ChevronRight, Crosshair,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -55,7 +55,7 @@ function SectionHeader({
   icon: React.ReactNode;
   label: string;
   accent: string;
-  href: string;
+  href?: string;
   linkLabel?: string;
 }) {
   return (
@@ -67,10 +67,12 @@ function SectionHeader({
           {label}
         </span>
       </div>
-      <Link href={href} className="text-xs font-bold uppercase tracking-widest transition-colors hover:opacity-100"
-        style={{ color: accent, opacity: 0.6, fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
-        {linkLabel}
-      </Link>
+      {href && (
+        <Link href={href} className="text-xs font-bold uppercase tracking-widest transition-colors hover:opacity-100"
+          style={{ color: accent, opacity: 0.6, fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
+          {linkLabel}
+        </Link>
+      )}
     </div>
   );
 }
@@ -430,6 +432,83 @@ function ShadowBotSection() {
   );
 }
 
+// ── RIVALRIES SECTION ──────────────────────────────────────────────────────────
+
+type Rivalry = {
+  p1_id: number; p2_id: number;
+  p1_name: string; p2_name: string;
+  total_matches: number; p1_wins: number; p2_wins: number;
+  last_played_at: string;
+};
+
+function RivalriesSection() {
+  const { data, loading } = useFetch<Rivalry[]>("/api/stats/rivalries");
+
+  return (
+    <div className="section-card" style={{ borderTop: "2px solid #ff005c" }}>
+      <SectionHeader
+        icon={<Crosshair className="w-3.5 h-3.5" />}
+        label="Rivalries"
+        accent="#ff005c"
+      />
+
+      {loading ? (
+        <div className="py-4 text-center text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>Loading…</div>
+      ) : !data || data.length === 0 ? (
+        <div className="py-4 text-center">
+          <div className="text-2xl mb-1.5">⚔️</div>
+          <div className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>
+            No rivalries yet
+          </div>
+          <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.15)" }}>
+            Play 3+ matches against the same opponent
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {data.slice(0, 5).map((r, i) => {
+            const p1Leading  = r.p1_wins > r.p2_wins;
+            const p2Leading  = r.p2_wins > r.p1_wins;
+            const tied       = r.p1_wins === r.p2_wins;
+            const leaderName = p1Leading ? r.p1_name : p2Leading ? r.p2_name : null;
+            const leaderW    = p1Leading ? r.p1_wins : r.p2_wins;
+            const trailerW   = p1Leading ? r.p2_wins : r.p1_wins;
+            return (
+              <div key={i} className="flex items-center gap-3 px-2.5 py-2 rounded-xl"
+                style={{ background: "rgba(255,0,92,0.03)", border: "1px solid rgba(255,0,92,0.1)" }}>
+                <span className="font-black tabular-nums shrink-0"
+                  style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", color: "rgba(255,0,92,0.5)", minWidth: "1.4rem" }}>
+                  {r.total_matches}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-black text-xs uppercase truncate"
+                    style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)", letterSpacing: "0.04em" }}>
+                    {r.p1_name} <span style={{ color: "rgba(255,255,255,0.25)" }}>vs</span> {r.p2_name}
+                  </div>
+                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.62rem" }}>
+                    {tied
+                      ? `${r.p1_wins}–${r.p2_wins} all square`
+                      : `${leaderName} leads ${leaderW}–${trailerW}`}
+                  </div>
+                </div>
+                <div className="flex gap-0.5 shrink-0">
+                  {Array.from({ length: Math.min(r.total_matches, 8) }).map((_, k) => {
+                    const isP1Win = k < r.p1_wins;
+                    return (
+                      <div key={k} className="w-2 h-2 rounded-sm"
+                        style={{ background: isP1Win ? "rgba(255,0,92,0.6)" : "rgba(0,102,255,0.6)" }} />
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── MAIN HUB PAGE ──────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -561,6 +640,7 @@ export default function Dashboard() {
           <TourSection />
           <AchievementsSection />
           <ShadowBotSection />
+          <RivalriesSection />
         </div>
       </div>
 

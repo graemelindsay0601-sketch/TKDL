@@ -7,11 +7,19 @@ import { validateStake, applyWager } from "../lib/wager";
 import { checkMatchAchievements, checkStatAchievements } from "../lib/achievements";
 
 const SubmitMatchBody = z.object({
-  winnerId: z.number().int().positive(),
-  loserId:  z.number().int().positive(),
-  stake:    z.number().int().min(0),
-  gameType: z.string().optional().default("501"),
-  notes:    z.string().optional(),
+  winnerId:                z.number().int().positive(),
+  loserId:                 z.number().int().positive(),
+  stake:                   z.number().int().min(0),
+  gameType:                z.string().optional().default("501"),
+  notes:                   z.string().optional(),
+  winnerDarts:             z.number().int().optional(),
+  winner180s:              z.number().int().optional(),
+  winnerCheckoutAttempts:  z.number().int().optional(),
+  winnerCheckoutHits:      z.number().int().optional(),
+  loserDarts:              z.number().int().optional(),
+  loser180s:               z.number().int().optional(),
+  loserCheckoutAttempts:   z.number().int().optional(),
+  loserCheckoutHits:       z.number().int().optional(),
 });
 
 const router = Router();
@@ -41,7 +49,11 @@ router.post("/matches", async (req, res): Promise<void> => {
     return;
   }
 
-  const { winnerId, loserId, stake, gameType, notes } = parsed.data;
+  const {
+    winnerId, loserId, stake, gameType, notes,
+    winnerDarts, winner180s, winnerCheckoutAttempts, winnerCheckoutHits,
+    loserDarts, loser180s, loserCheckoutAttempts, loserCheckoutHits,
+  } = parsed.data;
 
   if (winnerId === loserId) {
     res.status(400).json({ error: "Winner and loser must be different players" });
@@ -78,15 +90,23 @@ router.post("/matches", async (req, res): Promise<void> => {
 
   // Insert match record
   const [match] = await db.insert(matchesTable).values({
-    seasonId:   activeSeason.id,
+    seasonId:               activeSeason.id,
     winnerId,
     loserId,
-    winnerName: winner.name,
-    loserName:  loser.name,
+    winnerName:             winner.name,
+    loserName:              loser.name,
     stake,
     eloChange,
-    gameType:   gameType ?? "501",
-    notes:      notes ?? null,
+    gameType:               gameType ?? "501",
+    notes:                  notes ?? null,
+    winnerDarts:            winnerDarts ?? null,
+    winner180s:             winner180s ?? null,
+    winnerCheckoutAttempts: winnerCheckoutAttempts ?? null,
+    winnerCheckoutHits:     winnerCheckoutHits ?? null,
+    loserDarts:             loserDarts ?? null,
+    loser180s:              loser180s ?? null,
+    loserCheckoutAttempts:  loserCheckoutAttempts ?? null,
+    loserCheckoutHits:      loserCheckoutHits ?? null,
   }).returning();
 
   // Update winner

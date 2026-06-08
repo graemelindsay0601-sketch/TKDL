@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { eq, desc, count, inArray } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable, matchParticipantsTable } from "@workspace/db";
+import { sql as drizzleSql } from "drizzle-orm";
 import { calcTier } from "../lib/elo";
 import { computeIdentity } from "../lib/identity";
 import { buildNarrativeCards } from "../lib/narrative";
@@ -118,6 +119,29 @@ router.get("/stats/narrative", async (_req, res): Promise<void> => {
     : [];
   const cards = buildNarrativeCards(players, recentMatches);
   res.json(cards);
+});
+
+router.get("/stats/rivalries", async (_req, res): Promise<void> => {
+  const rows = await db.execute(drizzleSql`
+    SELECT
+      LEAST(m.winner_id, m.loser_id)          AS p1_id,
+      GREATEST(m.winner_id, m.loser_id)       AS p2_id,
+      p1.name                                 AS p1_name,
+      p2.name                                 AS p2_name,
+      COUNT(*)::int                           AS total_matches,
+      SUM(CASE WHEN m.winner_id = LEAST(m.winner_id, m.loser_id)     THEN 1 ELSE 0 END)::int AS p1_wins,
+      SUM(CASE WHEN m.winner_id = GREATEST(m.winner_id, m.loser_id)  THEN 1 ELSE 0 END)::int AS p2_wins,
+      MAX(m.played_at)                        AS last_played_at
+    FROM matches m
+    JOIN players p1 ON p1.id = LEAST(m.winner_id, m.loser_id)
+    JOIN players p2 ON p2.id = GREATEST(m.winner_id, m.loser_id)
+    WHERE m.winner_id IS NOT NULL AND m.loser_id IS NOT NULL
+    GROUP BY LEAST(m.winner_id, m.loser_id), GREATEST(m.winner_id, m.loser_id), p1.name, p2.name
+    HAVING COUNT(*) >= 3
+    ORDER BY COUNT(*) DESC, MAX(m.played_at) DESC
+    LIMIT 8
+  `);
+  res.json(rows.rows);
 });
 
 export default router;

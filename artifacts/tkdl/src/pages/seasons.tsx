@@ -13,6 +13,16 @@ function usePlayers() {
   return players;
 }
 
+// Fetch season MVP
+function useSeasonMvp(id: number, enabled: boolean) {
+  const [mvp, setMvp] = useState<{ playerId: number; playerName: string; wins: number } | null>(null);
+  useEffect(() => {
+    if (!enabled || !id) return;
+    fetch(`/api/seasons/${id}/mvp`).then(r => r.json()).then(d => setMvp(d)).catch(() => {});
+  }, [id, enabled]);
+  return mvp;
+}
+
 // Fetch season detail (standings)
 function useSeasonDetail(id: number) {
   const [data, setData] = useState<any>(null);
@@ -297,6 +307,7 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
 function SeasonCard({ season, idx }: { season: any; idx: number }) {
   const [expanded, setExpanded] = useState(false);
   const detail = useSeasonDetail(expanded ? season.id : 0);
+  const mvp    = useSeasonMvp(season.id, !season.isActive && !!season.championName);
 
   const isLive      = season.isActive;
   const hasChampion = !!season.championName;
@@ -380,10 +391,17 @@ function SeasonCard({ season, idx }: { season: any; idx: number }) {
           <div className="flex items-center gap-3 p-3 rounded mb-4"
             style={{ background: "rgba(255,210,74,0.06)", border: "1px solid rgba(255,210,74,0.2)" }}>
             <Trophy className="w-5 h-5 shrink-0" style={{ color: "#ffd24a" }} />
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="text-xs uppercase font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,210,74,0.6)", fontSize: "0.6rem", letterSpacing: "0.1em" }}>Champion</div>
               <div className="text-lg font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a" }}>{season.championName}</div>
             </div>
+            {mvp && mvp.playerId !== season.championId && (
+              <div className="shrink-0 text-right">
+                <div className="text-xs uppercase font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(0,102,255,0.6)", fontSize: "0.6rem", letterSpacing: "0.1em" }}>🏅 MVP</div>
+                <div className="text-sm font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#38bdf8" }}>{mvp.playerName}</div>
+                <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.6rem" }}>{mvp.wins}W</div>
+              </div>
+            )}
           </div>
         )}
 
