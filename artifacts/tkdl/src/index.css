@@ -147,8 +147,6 @@
     text-transform: uppercase;
   }
   select {
-    background-color: hsl(240 22% 7%);
-    color: rgba(255,255,255,0.85);
     color-scheme: dark;
   }
   select option {

@@ -146,9 +146,15 @@ function SectionCard({ children }: { children: React.ReactNode }) {
 function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode }) {
   const landscape = useOrientation();
 
+  const siteBg: React.CSSProperties = {
+    backgroundImage: "linear-gradient(rgba(4,4,10,0.84), rgba(4,4,10,0.92)), url('https://i.postimg.cc/Bbf9fbrp/pdc1.jpg')",
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+  };
+
   if (landscape) {
     return (
-      <div style={{ height: "100dvh", display: "flex", flexDirection: "row", overflow: "hidden" }}>
+      <div style={{ height: "100dvh", display: "flex", flexDirection: "row", overflow: "hidden", ...siteBg }}>
         <div style={{
           flex: "0 0 44%", overflowY: "auto", padding: "0.5rem 0.75rem",
           borderRight: "1px solid rgba(255,255,255,0.06)",
@@ -165,7 +171,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
   return (
     <div style={{
       height: "100dvh", width: "100%", display: "flex", flexDirection: "column",
-      overflow: "hidden", padding: "0 0.5rem",
+      overflow: "hidden", padding: "0 0.5rem", ...siteBg,
     }}>
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0, paddingTop: "0.5rem" }}>{top}</div>
       <div style={{ flexShrink: 0, paddingBottom: "0.5rem" }}>{bot}</div>
