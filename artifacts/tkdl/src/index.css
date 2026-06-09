@@ -148,6 +148,7 @@
   }
   select {
     color-scheme: dark;
+    background-color: hsl(240 22% 7%);
   }
   select option {
     background-color: hsl(240 22% 7%);
