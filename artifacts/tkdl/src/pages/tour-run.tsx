@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { createPortal } from "react-dom";
 import { ArrowLeft, Trophy, Swords, ChevronRight, Crown } from "lucide-react";
 import { GameScorer, type GameTypeOption } from "@/components/game-scorer";
 import { BOT_LEVELS, type BotLevel } from "@/lib/bot-engine";
+import { type PracticeStats } from "@/lib/stats-types";
+import { SessionHistorySection } from "@/components/session-history";
 
 const TIER_COLORS: Record<number, string> = {
   1: "#94a3b8", 2: "#4ade80", 3: "#38bdf8",
@@ -325,6 +327,9 @@ export default function TourRun() {
   const [lastResult, setLastResult] = useState<{ won: boolean; eliminated: boolean } | null>(null);
   const [advancing, setAdvancing] = useState(false);
 
+  const pendingStatsRef = useRef<PracticeStats | null>(null);
+  const matchStartRef   = useRef<number>(Date.now());
+
   useEffect(() => {
     if (!runId) return;
     fetch(`/api/tour/runs/run/${runId}`)
@@ -360,6 +365,39 @@ export default function TourRun() {
 
   async function handleMatchResult(playerWon: boolean) {
     if (!run) return;
+
+    // Save practice session (fire-and-forget)
+    const stats = pendingStatsRef.current;
+    pendingStatsRef.current = null;
+    if (stats) {
+      const opp = getCurrentOpponent();
+      fetch("/api/practice/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          player1Id:          run.player_id,
+          gameTypeKey:        run.game_type_key,
+          gameTypeName:       run.tour_name,
+          winnerIdx:          playerWon ? 0 : 1,
+          detail:             `vs ${opp?.name ?? "CPU"}`,
+          durationSeconds:    Math.round((Date.now() - matchStartRef.current) / 1000),
+          p1Darts:            stats.p1Darts,
+          p1Score:            stats.p1Score,
+          p1_180s:            stats.p1_180s,
+          p1CheckoutAttempts: stats.p1CheckoutAttempts,
+          p1CheckoutHits:     stats.p1CheckoutHits,
+          sessionData: {
+            mode:       "tour",
+            tourName:   run.tour_name,
+            tourId:     run.tour_id,
+            difficulty: run.difficulty,
+            opponent:   opp?.name,
+            dartLog:    stats.dartLog,
+          },
+        }),
+      }).catch(() => {});
+    }
+
     setScoring(false);
     setAdvancing(true);
     try {
@@ -405,6 +443,7 @@ export default function TourRun() {
           legs={run.legs_per_match}
           setsToWin={run.sets_per_match ?? undefined}
           legsToWinSet={run.legs_per_set ?? undefined}
+          onPracticeStats={s => { pendingStatsRef.current = s; }}
           onWin={result => {
             const playerWon = result.winnerIdx === 0;
             handleMatchResult(playerWon);
@@ -490,6 +529,7 @@ export default function TourRun() {
             bracket={bracket as KOBracket}
             onPlay={() => {
               if (!gameType) { alert("Game type not found"); return; }
+              matchStartRef.current = Date.now();
               setScoring(true);
             }}
           />
@@ -499,6 +539,7 @@ export default function TourRun() {
           bracket={bracket as PLBracket}
           onPlay={() => {
             if (!gameType) { alert("Game type not found"); return; }
+            matchStartRef.current = Date.now();
             setScoring(true);
           }}
         />
@@ -510,6 +551,16 @@ export default function TourRun() {
           ⚠ Game type "{run.game_type_key}" not found — check game types are seeded.
         </div>
       )}
+
+      {/* Match history for this player */}
+      <SessionHistorySection
+        playerId={run.player_id}
+        mode="tour"
+        title="Tour Match History"
+        accentColor="#ffd24a"
+        limit={10}
+        emptyMessage="No tour match history yet"
+      />
     </div>
   );
 }

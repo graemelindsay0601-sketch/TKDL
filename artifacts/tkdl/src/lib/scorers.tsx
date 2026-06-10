@@ -3286,7 +3286,7 @@ export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPrac
 // ── Master-501 Scorer ──────────────────────────────────────────────────────────
 // Solo 501 double-out vs a per-leg dart budget. Exceed the budget = leg loss.
 export function Master501Scorer({
-  playerName, dartLimit, legs, legsNeeded, tierName, tierColor, onMatchResult, onAbandon,
+  playerName, dartLimit, legs, legsNeeded, tierName, tierColor, onMatchResult, onAbandon, onPracticeStats,
 }: {
   playerName: string;
   dartLimit:  number;
@@ -3296,6 +3296,7 @@ export function Master501Scorer({
   tierColor:  string;
   onMatchResult: (result: "win" | "loss", legsWon: number, legsLost: number) => void;
   onAbandon:  () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
 }) {
   const START = 501;
   const [score,      setScore]      = useState(START);
@@ -3315,14 +3316,29 @@ export function Master501Scorer({
   const legLossesRef = useRef(0);
   const losingThreshold = legsNeeded; // symmetric best-of (e.g. BO5→3, BO9→5, BO11→6)
 
+  // Dart-by-dart tracking for session history
+  const dartLogRef    = useRef<DartThrow[]>([]);
+  const totalScoreRef = useRef(0);
+  const s180sRef      = useRef(0);
+  const coAttRef      = useRef(0);
+  const coHitsRef     = useRef(0);
+
   const dartsUsed = dil + visitDarts.length;
   const dartsLeft = dartLimit - dartsUsed;
   const frac      = Math.max(0, dartsLeft) / dartLimit;
   const dColor    = frac > 0.5 ? "#22c55e" : frac > 0.2 ? "#ffd24a" : "#ff005c";
 
-  // Notify parent after match is decided
+  // Notify parent after match is decided — emit stats first, then result after 1500ms
   useEffect(() => {
     if (!matchDone) return;
+    onPracticeStats?.({
+      p1Darts: dartLogRef.current.length,
+      p1Score: totalScoreRef.current,
+      p1_180s: s180sRef.current,
+      p1CheckoutAttempts: coAttRef.current,
+      p1CheckoutHits: coHitsRef.current,
+      dartLog: [...dartLogRef.current],
+    });
     const t = setTimeout(() => onMatchResult(matchDone, legWinsRef.current, legLossesRef.current), 1500);
     return () => clearTimeout(t);
   }, [matchDone]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -3359,6 +3375,11 @@ export function Master501Scorer({
     if (visitDarts.length >= 3) return;
     if (dil >= dartLimit) return; // guard: dart limit already triggered
 
+    // Track dart in session log
+    const phase: "scoring" | "checkout" = score <= 170 ? "checkout" : "scoring";
+    dartLogRef.current.push({ seg: dart.segment, mult: dart.multiplier, val: dart.value, phase });
+    if (visitDarts.length === 0 && score <= 170) coAttRef.current++;
+
     const nv  = [...visitDarts, dart];
     const cum = nv.reduce((s, d) => s + d.value, 0);
     const rem = score - cum;
@@ -3378,7 +3399,7 @@ export function Master501Scorer({
       const valid = dart.multiplier === 2 || (dart.segment === 25 && dart.value === 50);
       const newDil = dil + nv.length;
       setDil(newDil);
-      if (valid) { setVD(nv); winLeg(); return; }
+      if (valid) { totalScoreRef.current += score; coHitsRef.current++; setVD(nv); winLeg(); return; }
       setBust(true); setBustMsg("BUST — must finish on a double!");
       setTimeout(() => {
         setBust(false); setBustMsg(""); setVD([]);
@@ -3390,13 +3411,20 @@ export function Master501Scorer({
     setVD(nv);
     if (nv.length === 3) {
       const newDil = dil + 3;
+      totalScoreRef.current += cum;
+      if (cum === 180) s180sRef.current++;
       setDil(newDil); setScore(prev => prev - cum); setVD([]);
       if (newDil >= dartLimit) setTimeout(() => lossLeg(), 400);
     }
   }, [bust, legDone, matchDone, visitDarts, score, dil, dartLimit, winLeg, lossLeg]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
-  const handleUndo = () => { if (!bust && visitDarts.length > 0) setVD(prev => prev.slice(0, -1)); };
+  const handleUndo = () => {
+    if (!bust && visitDarts.length > 0) {
+      dartLogRef.current = dartLogRef.current.slice(0, -1);
+      setVD(prev => prev.slice(0, -1));
+    }
+  };
 
   // Leg status dots
   const wDots = Array.from({ length: legsNeeded },   (_, i) => i < legWins   ? "win"  : "empty");

@@ -287,12 +287,14 @@ router.get("/players/:id/practice-sessions", async (req, res): Promise<void> => 
     const playerId = parseInt(req.params.id, 10);
     if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
     const gameTypeKey = typeof req.query.gameTypeKey === "string" ? req.query.gameTypeKey : null;
+    const mode        = typeof req.query.mode        === "string" ? req.query.mode        : null;
 
     const rows = (await db.execute(
       gameTypeKey
         ? sql`
           SELECT
             id, game_type_key, game_type_name, detail, duration_seconds, created_at,
+            session_data->>'mode' AS session_mode,
             CASE WHEN winner_idx IS NULL THEN NULL ELSE (winner_idx = 0) END AS won,
             p1_darts  AS darts,
             p1_180s   AS s180s,
@@ -309,6 +311,7 @@ router.get("/players/:id/practice-sessions", async (req, res): Promise<void> => 
 
           SELECT
             id, game_type_key, game_type_name, detail, duration_seconds, created_at,
+            session_data->>'mode' AS session_mode,
             CASE WHEN winner_idx IS NULL THEN NULL ELSE (winner_idx = 1) END AS won,
             p2_darts  AS darts,
             p2_180s   AS s180s,
@@ -324,9 +327,47 @@ router.get("/players/:id/practice-sessions", async (req, res): Promise<void> => 
           ORDER BY created_at DESC
           LIMIT 50
         `
+        : mode
+        ? sql`
+          SELECT
+            id, game_type_key, game_type_name, detail, duration_seconds, created_at,
+            session_data->>'mode' AS session_mode,
+            CASE WHEN winner_idx IS NULL THEN NULL ELSE (winner_idx = 0) END AS won,
+            p1_darts  AS darts,
+            p1_180s   AS s180s,
+            p1_checkout_attempts AS co_attempts,
+            p1_checkout_hits     AS co_hits,
+            CASE WHEN p1_darts IS NOT NULL AND p1_darts > 0
+              THEN ROUND(CAST(p1_score AS NUMERIC) * 3.0 / p1_darts, 1)
+              ELSE NULL END AS avg
+          FROM practice_sessions
+          WHERE player1_id = ${playerId}
+            AND session_data->>'mode' = ${mode}
+
+          UNION ALL
+
+          SELECT
+            id, game_type_key, game_type_name, detail, duration_seconds, created_at,
+            session_data->>'mode' AS session_mode,
+            CASE WHEN winner_idx IS NULL THEN NULL ELSE (winner_idx = 1) END AS won,
+            p2_darts  AS darts,
+            p2_180s   AS s180s,
+            p2_checkout_attempts AS co_attempts,
+            p2_checkout_hits     AS co_hits,
+            CASE WHEN p2_darts IS NOT NULL AND p2_darts > 0
+              THEN ROUND(CAST(p2_score AS NUMERIC) * 3.0 / p2_darts, 1)
+              ELSE NULL END AS avg
+          FROM practice_sessions
+          WHERE player2_id = ${playerId}
+            AND session_data->>'mode' = ${mode}
+
+          ORDER BY created_at DESC
+          LIMIT 50
+        `
         : sql`
           SELECT
             id, game_type_key, game_type_name, detail, duration_seconds, created_at,
+            session_data->>'mode' AS session_mode,
             CASE WHEN winner_idx IS NULL THEN NULL ELSE (winner_idx = 0) END AS won,
             p1_darts  AS darts,
             p1_180s   AS s180s,
@@ -342,6 +383,7 @@ router.get("/players/:id/practice-sessions", async (req, res): Promise<void> => 
 
           SELECT
             id, game_type_key, game_type_name, detail, duration_seconds, created_at,
+            session_data->>'mode' AS session_mode,
             CASE WHEN winner_idx IS NULL THEN NULL ELSE (winner_idx = 1) END AS won,
             p2_darts  AS darts,
             p2_180s   AS s180s,

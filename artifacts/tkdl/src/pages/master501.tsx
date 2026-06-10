@@ -1,6 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Target, ArrowRight, CheckCircle, Lock, RotateCcw } from "lucide-react";
 import { Master501Scorer } from "@/lib/scorers";
+import { type PracticeStats } from "@/lib/stats-types";
+import { SessionHistorySection } from "@/components/session-history";
 
 const M501_TIERS = [
   { tier: 1, name: "Challenger",          color: "#94a3b8", dartLimits: [60, 55, 50] as const },
@@ -45,6 +47,10 @@ export default function Master501() {
   const [startCfg,    setStartCfg]    = useState<StartCfg | null>(null);
   const [matchResult, setMatchResult] = useState<{ result: "win" | "loss"; legsWon: number; legsLost: number } | null>(null);
   const [loading,     setLoading]     = useState(false);
+  const [lastStats,   setLastStats]   = useState<PracticeStats | null>(null);
+
+  const pendingStatsRef = useRef<PracticeStats | null>(null);
+  const matchStartRef   = useRef<number>(Date.now());
 
   useEffect(() => {
     fetch("/api/players")
@@ -64,6 +70,7 @@ export default function Master501() {
   const handleStart = async () => {
     if (!playerId) return;
     setLoading(true);
+    matchStartRef.current = Date.now();
     try {
       const res  = await fetch("/api/master501/runs", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -78,7 +85,44 @@ export default function Master501() {
   };
 
   const handleMatchResult = async (result: "win" | "loss", legsWon: number, legsLost: number) => {
+    const stats = pendingStatsRef.current;
+    pendingStatsRef.current = null;
+    setLastStats(stats);
     setMatchResult({ result, legsWon, legsLost });
+
+    // Save session to practice_sessions (fire-and-forget)
+    if (playerId && stats) {
+      const cfg  = startCfg;
+      const prog = progress;
+      fetch("/api/practice/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          player1Id:          playerId,
+          gameTypeKey:        "501_double_out",
+          gameTypeName:       `Master-501 — ${cfg?.name ?? ""}`,
+          winnerIdx:          result === "win" ? 0 : null,
+          detail:             `${cfg?.name ?? ""} R${prog?.currentRound ?? 1}: ${legsWon}–${legsLost}`,
+          durationSeconds:    Math.round((Date.now() - matchStartRef.current) / 1000),
+          p1Darts:            stats.p1Darts,
+          p1Score:            stats.p1Score,
+          p1_180s:            stats.p1_180s,
+          p1CheckoutAttempts: stats.p1CheckoutAttempts,
+          p1CheckoutHits:     stats.p1CheckoutHits,
+          sessionData: {
+            mode:      "master501",
+            tierName:  cfg?.name,
+            tier:      prog?.currentTier,
+            round:     prog?.currentRound,
+            dartLimit: cfg?.dartLimit,
+            legsWon,
+            legsLost,
+            dartLog:   stats.dartLog,
+          },
+        }),
+      }).catch(() => {});
+    }
+
     try {
       if (runId) {
         await fetch(`/api/master501/runs/${runId}`, {
@@ -135,6 +179,34 @@ export default function Master501() {
             </div>
           )}
 
+          {/* Stats strip */}
+          {lastStats && (lastStats.p1Darts ?? 0) > 0 && (
+            <div className="w-full flex gap-2">
+              {lastStats.p1Score != null && lastStats.p1Darts! > 0 && (
+                <div className="flex-1 text-center px-3 py-2.5 rounded-xl" style={{ background: acc + "0a", border: `1px solid ${acc}20` }}>
+                  <div className="font-black text-xl" style={{ fontFamily: "Oswald,sans-serif", color: acc }}>
+                    {(lastStats.p1Score * 3 / lastStats.p1Darts!).toFixed(2)}
+                  </div>
+                  <div className="uppercase" style={{ fontFamily: "Oswald,sans-serif", fontSize: "0.45rem", color: "rgba(255,255,255,0.2)", letterSpacing: "0.08em" }}>3-dart avg</div>
+                </div>
+              )}
+              {(lastStats.p1_180s ?? 0) > 0 && (
+                <div className="flex-1 text-center px-3 py-2.5 rounded-xl" style={{ background: "rgba(255,210,74,0.08)", border: "1px solid rgba(255,210,74,0.15)" }}>
+                  <div className="font-black text-xl" style={{ fontFamily: "Oswald,sans-serif", color: "#ffd24a" }}>{lastStats.p1_180s}</div>
+                  <div className="uppercase" style={{ fontFamily: "Oswald,sans-serif", fontSize: "0.45rem", color: "rgba(255,255,255,0.2)", letterSpacing: "0.08em" }}>180s</div>
+                </div>
+              )}
+              {(lastStats.p1CheckoutAttempts ?? 0) > 0 && (
+                <div className="flex-1 text-center px-3 py-2.5 rounded-xl" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.12)" }}>
+                  <div className="font-black text-xl" style={{ fontFamily: "Oswald,sans-serif", color: "#22c55e" }}>
+                    {Math.round(((lastStats.p1CheckoutHits ?? 0) / lastStats.p1CheckoutAttempts!) * 100)}%
+                  </div>
+                  <div className="uppercase" style={{ fontFamily: "Oswald,sans-serif", fontSize: "0.45rem", color: "rgba(255,255,255,0.2)", letterSpacing: "0.08em" }}>checkout</div>
+                </div>
+              )}
+            </div>
+          )}
+
           <button onClick={handlePlayAgain} className="px-8 py-3 rounded-xl font-black uppercase tracking-widest text-sm"
             style={{ fontFamily: "Oswald,sans-serif", cursor: "pointer", background: acc + "20", border: `1px solid ${acc}50`, color: acc }}>
             <RotateCcw size={13} className="inline mr-1.5" />
@@ -158,6 +230,7 @@ export default function Master501() {
         tierColor={startCfg.color}
         onMatchResult={handleMatchResult}
         onAbandon={() => setPhase("lobby")}
+        onPracticeStats={s => { pendingStatsRef.current = s; }}
       />
     );
   }
@@ -261,6 +334,18 @@ export default function Master501() {
           })}
         </div>
       </div>
+
+      {/* Match history */}
+      {playerId && (
+        <SessionHistorySection
+          playerId={playerId}
+          mode="master501"
+          title="Match History"
+          accentColor="#00c8a0"
+          limit={10}
+          emptyMessage="No M-501 sessions yet"
+        />
+      )}
 
       {/* Start button */}
       <button onClick={handleStart} disabled={!playerId || loading}

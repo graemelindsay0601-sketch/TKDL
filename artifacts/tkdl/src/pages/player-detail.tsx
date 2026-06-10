@@ -1360,6 +1360,18 @@ export default function PlayerDetail() {
                               {won ? "WIN" : "LOSS"}
                             </span>
                           )}
+                          {(s as any).session_mode && (() => {
+                            const META: Record<string, { label: string; color: string }> = {
+                              master501: { label: "M-501", color: "#00c8a0" },
+                              tour:      { label: "TOUR",  color: "#ffd24a" },
+                            };
+                            const m = META[(s as any).session_mode];
+                            return m ? (
+                              <span className="font-black px-1 py-0 rounded" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", background: m.color + "18", color: m.color, border: `1px solid ${m.color}30` }}>
+                                {m.label}
+                              </span>
+                            ) : null;
+                          })()}
                           {s.detail && <span className="text-xs font-mono" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem" }}>{s.detail}</span>}
                         </div>
                         <div className="flex items-center gap-3 mt-0.5">
