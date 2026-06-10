@@ -22,7 +22,7 @@ import ShadowBotDetail from "@/pages/shadow-bot-detail";
 import Tour         from "@/pages/tour";
 import TourRun      from "@/pages/tour-run";
 import Master501    from "@/pages/master501";
-import Challenges   from "@/pages/challenges";
+
 import HallOfFame   from "@/pages/hall-of-fame";
 
 const queryClient = new QueryClient({
@@ -50,7 +50,7 @@ function AppRoutes() {
         <Route path="/tour/:runId"   component={TourRun}     />
         <Route path="/tour"          component={Tour}        />
         <Route path="/master501"     component={Master501}   />
-        <Route path="/challenges"    component={Challenges}  />
+
         <Route path="/hall-of-fame"  component={HallOfFame}  />
         <Route component={NotFound} />
       </Switch>

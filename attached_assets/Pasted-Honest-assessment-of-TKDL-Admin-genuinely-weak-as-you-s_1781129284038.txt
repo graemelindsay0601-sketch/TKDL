@@ -1,0 +1,49 @@
+Honest assessment of TKDL
+🔴 Admin — genuinely weak, as you spotted
+Right now it's basically: reset season, activate/deactivate players, delete a match. That's it. The big gaps:
+
+No match editing — if someone enters the wrong score or wrong players, there's no fix short of deleting and re-entering. No correction flow at all
+No Elo override/correction — if data corruption or a bad match sequence messed up someone's rating, there's no way to fix it
+No audit log — no record of what admin actions were taken and when
+Can't manage achievements — no way to manually award or revoke an achievement if something misfired
+No player stats editor — name changes, deactivation notes, etc.
+No system diagnostics view — current season state, DB health, how many sessions/matches are logged
+🟠 Feature gaps that would genuinely improve the day-to-day experience
+Head-to-head stats — probably the most glaring omission. "Graeme vs Sean all-time: 14 meetings, Graeme leads 9-5, last 5: Sean 4-1." There's clearly enough match data for this but no page/section exists for it. Would be extremely engaging for players.
+
+Match detail page — clicking on a match in recent activity or a player profile probably shows limited info. A full match page (both players, all stats, context like "this was the title decider") would make the archive feel real.
+
+Form charts / Elo history — player profiles show current Elo but no chart of how it's moved over time. A simple line chart of Elo across seasons would make the "career" feel tangible.
+
+Practice session history — players can log sessions but can they actually browse them? A session history log (date, game, result, avg) on the player profile or practice page would close the loop.
+
+Checkout calculator — a simple interactive tool on the practice page. Tiny build, high practical value for a darts app.
+
+🟡 Visual consistency issues
+The newer pages (M501 hero, Tour hero, Shadow Bot "PLAY YOURSELF / BEAT YOURSELF") have a much higher visual energy than the older ones. The pages that are now visually behind:
+
+Dashboard — functional but feels static compared to the newer pages. Could have a proper hero/live moment
+Broadcast mode — designed as a TV display but hasn't been updated alongside everything else. The new visual language (Oswald, big glow effects, colour-coded tiers) could make it look really impressive on a screen
+Leaderboard — solid but fairly plain. The tier colours exist but not much visual drama
+Achievements page — big list of cards, works but no "showcase" moment
+🟡 Engagement gaps
+Season narrative — the season page shows standings but doesn't have any "story." No "title race: Sean leads by 3 points with 4 games left, Richard in 2nd," no "elimination danger zone" callout. The data for all of this exists.
+
+Rivalries/streaks — the system tracks everything needed to surface "🔥 5-game win streak," "nemesis: you've lost to Graeme 7 of your last 8 meetings." These would make profiles much more alive.
+
+Notifications/activity — no way to know when someone played a match or broke a record unless you're watching the broadcast. Even a simple activity feed card would help.
+
+🟢 Smaller but worth mentioning
+Global search — no way to quickly find a player or match by typing
+Mobile feel — dark mode + Tailwind works but some pages (brackets, practice scorer) likely feel cramped on a phone
+Share cards — generating a shareable image of a player's season stats or a tournament win would be very on-brand for a workplace league
+Priority order (my take)
+Priority	Item
+1	Admin panel rebuild — match edit, Elo correction, audit log
+2	Head-to-head stats — high engagement, data already exists
+3	Form chart — Elo history on player profiles
+4	Broadcast mode visual refresh — makes the TV screen actually impressive
+5	Season narrative — title race, danger zone on standings
+6	Practice session history — closes the loop on the practice system
+7	Dashboard hero — more live/dynamic feel
+What resonates with you? Happy to dig into any of these or talk through which would add the most to the actual day-to-day experience in the Tesco kitchen.
