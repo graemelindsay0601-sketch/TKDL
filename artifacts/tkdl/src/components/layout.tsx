@@ -10,6 +10,7 @@ const mainNav = [
 ];
 const tourNav = [
   { href: "/tour",         label: "Tour Mode",    icon: Star            },
+  { href: "/master501",    label: "Master-501",   icon: Target          },
 ];
 const botNav = [
   { href: "/shadow-bot",   label: "Shadow Bot",   icon: CircuitBoard    },

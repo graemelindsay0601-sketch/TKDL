@@ -12,6 +12,7 @@ import gameTypesRouter    from "./game-types";
 import practiceRouter     from "./practice";
 import teamMatchesRouter  from "./team-matches";
 import tourRouter         from "./tour";
+import master501Router    from "./master501";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(settingsRouter);
 router.use(gameTypesRouter);
 router.use(practiceRouter);
 router.use(tourRouter);
+router.use(master501Router);
 
 export default router;

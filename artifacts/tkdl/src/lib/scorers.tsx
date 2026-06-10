@@ -3282,3 +3282,202 @@ export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPrac
     />
   );
 }
+
+// ── Master-501 Scorer ──────────────────────────────────────────────────────────
+// Solo 501 double-out vs a per-leg dart budget. Exceed the budget = leg loss.
+export function Master501Scorer({
+  playerName, dartLimit, legs, legsNeeded, tierName, tierColor, onMatchResult, onAbandon,
+}: {
+  playerName: string;
+  dartLimit:  number;
+  legs:       number;
+  legsNeeded: number;
+  tierName:   string;
+  tierColor:  string;
+  onMatchResult: (result: "win" | "loss", legsWon: number, legsLost: number) => void;
+  onAbandon:  () => void;
+}) {
+  const START = 501;
+  const [score,      setScore]      = useState(START);
+  const [legWins,    setLegWins]    = useState(0);
+  const [legLosses,  setLegLosses]  = useState(0);
+  const [dil,        setDil]        = useState(0);   // darts in current leg (committed)
+  const [visitDarts, setVD]         = useState<Dart[]>([]);
+  const [bust,       setBust]       = useState(false);
+  const [bustMsg,    setBustMsg]    = useState("");
+  const [flash,      setFlash]      = useState("");
+  const [legDone,    setLegDone]    = useState<"win" | "loss" | null>(null);
+  const [matchDone,  setMatchDone]  = useState<"win" | "loss" | null>(null);
+  const { fs, toggle: toggleFs }    = useFullscreen();
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+
+  const legWinsRef   = useRef(0);
+  const legLossesRef = useRef(0);
+  const losingThreshold = legsNeeded; // symmetric best-of (e.g. BO5→3, BO9→5, BO11→6)
+
+  const dartsUsed = dil + visitDarts.length;
+  const dartsLeft = dartLimit - dartsUsed;
+  const frac      = Math.max(0, dartsLeft) / dartLimit;
+  const dColor    = frac > 0.5 ? "#22c55e" : frac > 0.2 ? "#ffd24a" : "#ff005c";
+
+  // Notify parent after match is decided
+  useEffect(() => {
+    if (!matchDone) return;
+    const t = setTimeout(() => onMatchResult(matchDone, legWinsRef.current, legLossesRef.current), 1500);
+    return () => clearTimeout(t);
+  }, [matchDone]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const resetLeg = useCallback(() => {
+    setTimeout(() => {
+      setScore(START); setDil(0); setVD([]);
+      setBust(false); setBustMsg(""); setLegDone(null); setFlash("");
+    }, 2000);
+  }, []);
+
+  const winLeg = useCallback(() => {
+    setFlash("🎯 LEG WON!");
+    setLegDone("win");
+    setLegWins(prev => {
+      const n = prev + 1; legWinsRef.current = n;
+      if (n >= legsNeeded) { setMatchDone("win"); } else { resetLeg(); }
+      return n;
+    });
+  }, [legsNeeded, resetLeg]);
+
+  const lossLeg = useCallback(() => {
+    setFlash("❌ DARTS EXHAUSTED");
+    setLegDone("loss");
+    setLegLosses(prev => {
+      const n = prev + 1; legLossesRef.current = n;
+      if (n >= losingThreshold) { setMatchDone("loss"); } else { resetLeg(); }
+      return n;
+    });
+  }, [losingThreshold, resetLeg]);
+
+  const handleDart = useCallback((dart: Dart) => {
+    if (bust || legDone || matchDone) return;
+    if (visitDarts.length >= 3) return;
+    if (dil >= dartLimit) return; // guard: dart limit already triggered
+
+    const nv  = [...visitDarts, dart];
+    const cum = nv.reduce((s, d) => s + d.value, 0);
+    const rem = score - cum;
+
+    if (rem < 0 || rem === 1) {
+      const newDil = dil + nv.length;
+      setDil(newDil); setBust(true);
+      setBustMsg(rem < 0 ? "BUST — overshot!" : "BUST — can't leave 1!");
+      setTimeout(() => {
+        setBust(false); setBustMsg(""); setVD([]);
+        if (newDil >= dartLimit) lossLeg();
+      }, 1200);
+      return;
+    }
+
+    if (rem === 0) {
+      const valid = dart.multiplier === 2 || (dart.segment === 25 && dart.value === 50);
+      const newDil = dil + nv.length;
+      setDil(newDil);
+      if (valid) { setVD(nv); winLeg(); return; }
+      setBust(true); setBustMsg("BUST — must finish on a double!");
+      setTimeout(() => {
+        setBust(false); setBustMsg(""); setVD([]);
+        if (newDil >= dartLimit) lossLeg();
+      }, 1200);
+      return;
+    }
+
+    setVD(nv);
+    if (nv.length === 3) {
+      const newDil = dil + 3;
+      setDil(newDil); setScore(prev => prev - cum); setVD([]);
+      if (newDil >= dartLimit) setTimeout(() => lossLeg(), 400);
+    }
+  }, [bust, legDone, matchDone, visitDarts, score, dil, dartLimit, winLeg, lossLeg]);
+
+  const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
+  const handleUndo = () => { if (!bust && visitDarts.length > 0) setVD(prev => prev.slice(0, -1)); };
+
+  // Leg status dots
+  const wDots = Array.from({ length: legsNeeded },   (_, i) => i < legWins   ? "win"  : "empty");
+  const lDots = Array.from({ length: losingThreshold }, (_, i) => i < legLosses ? "loss" : "empty");
+
+  const isDisabled = !!(bust || legDone || matchDone);
+
+  return (
+    <ScorerLayout
+      top={<div className="space-y-3">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="text-xs font-black uppercase tracking-widest px-2 py-0.5 rounded"
+              style={{ fontFamily: "Oswald,sans-serif", background: tierColor + "20", color: tierColor, border: `1px solid ${tierColor}40` }}>
+              {tierName}
+            </div>
+            <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald,sans-serif", letterSpacing: "0.08em" }}>MASTER-501</span>
+          </div>
+          <button onClick={toggleFs} className={isMobile ? "" : "opacity-30 hover:opacity-100 transition-opacity"}
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "0.5rem", padding: "0.4rem 0.75rem", color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.7rem", fontFamily: "Oswald,sans-serif", fontWeight: 700, letterSpacing: "0.08em", cursor: "pointer" }}>
+            {fs ? <Minimize size={13} /> : <Maximize size={13} />}
+            {fs ? "EXIT FULL" : "FULLSCREEN"}
+          </button>
+        </div>
+        <div className="pdc-divider" />
+
+        {/* Score + Dart counter */}
+        <div className="flex gap-3">
+          <div className="flex-1 rounded-xl px-3 py-3 text-center" style={{ background: "rgba(34,197,94,0.07)", border: "2px solid rgba(34,197,94,0.3)" }}>
+            <div className="text-xs mb-1 uppercase tracking-wider" style={{ fontFamily: "Oswald,sans-serif", color: "rgba(255,255,255,0.35)", fontSize: "0.62rem" }}>
+              {playerName.slice(0, 12).toUpperCase()}
+            </div>
+            <div className="font-black" style={{ fontFamily: "Oswald,sans-serif", fontSize: "3.2rem", color: "#fff", lineHeight: 1 }}>{score}</div>
+          </div>
+          <div className="flex-1 rounded-xl px-3 py-3 text-center" style={{ background: dColor + "0f", border: `2px solid ${dColor}55`, transition: "border-color 0.3s" }}>
+            <div className="text-xs mb-1 uppercase tracking-wider" style={{ fontFamily: "Oswald,sans-serif", color: "rgba(255,255,255,0.35)", fontSize: "0.62rem" }}>DARTS LEFT</div>
+            <div className="font-black" style={{ fontFamily: "Oswald,sans-serif", fontSize: "3.2rem", color: dColor, lineHeight: 1, transition: "color 0.3s" }}>
+              {Math.max(0, dartsLeft)}
+            </div>
+            <div className="w-full rounded-full mt-1" style={{ height: 3, background: "rgba(255,255,255,0.07)" }}>
+              <div className="rounded-full transition-all duration-300" style={{ height: 3, width: `${frac * 100}%`, background: dColor }} />
+            </div>
+            <div style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald,sans-serif", fontSize: "0.58rem", marginTop: 2 }}>of {dartLimit}</div>
+          </div>
+        </div>
+
+        {/* Leg tracker */}
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-1">
+            {wDots.map((d, i) => (
+              <div key={i} className="w-6 h-6 rounded-full flex items-center justify-center"
+                style={{ background: d === "win" ? "rgba(34,197,94,0.18)" : "rgba(255,255,255,0.04)", border: `1.5px solid ${d === "win" ? "rgba(34,197,94,0.5)" : "rgba(255,255,255,0.1)"}`, fontSize: 9, color: d === "win" ? "#22c55e" : "transparent" }}>
+                ✓
+              </div>
+            ))}
+            <span className="ml-1 text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald,sans-serif", fontSize: "0.58rem" }}>/{legsNeeded} WIN</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="mr-1 text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald,sans-serif", fontSize: "0.58rem" }}>LOSE/</span>
+            {lDots.map((d, i) => (
+              <div key={i} className="w-6 h-6 rounded-full flex items-center justify-center"
+                style={{ background: d === "loss" ? "rgba(255,0,92,0.18)" : "rgba(255,255,255,0.04)", border: `1.5px solid ${d === "loss" ? "rgba(255,0,92,0.5)" : "rgba(255,255,255,0.1)"}`, fontSize: 9, color: d === "loss" ? "#ff005c" : "transparent" }}>
+                ✗
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <VisitDarts darts={visitDarts} />
+
+        {(bust || flash) && (
+          <div className="text-center font-black py-1" style={{ fontFamily: "Oswald,sans-serif", fontSize: "1.1rem", color: bust ? "#ff005c" : (legDone === "win" ? "#22c55e" : "#ff005c") }}>
+            {bust ? bustMsg : flash}
+          </div>
+        )}
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={isDisabled} />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
+    />
+  );
+}

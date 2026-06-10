@@ -20,6 +20,7 @@ import Practice     from "@/pages/practice";
 import ShadowBot    from "@/pages/shadow-bot";
 import Tour         from "@/pages/tour";
 import TourRun      from "@/pages/tour-run";
+import Master501    from "@/pages/master501";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -44,6 +45,7 @@ function AppRoutes() {
         <Route path="/shadow-bot"    component={ShadowBot}   />
         <Route path="/tour/:runId"   component={TourRun}     />
         <Route path="/tour"          component={Tour}        />
+        <Route path="/master501"     component={Master501}   />
         <Route component={NotFound} />
       </Switch>
     </Layout>

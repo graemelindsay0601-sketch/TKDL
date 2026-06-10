@@ -814,4 +814,40 @@ router.get("/bots/leaderboard", async (req, res): Promise<void> => {
   }
 });
 
+// GET /api/practice/game-leaderboard?gameTypeKey=...
+router.get("/practice/game-leaderboard", async (req, res): Promise<void> => {
+  try {
+    const key = String(req.query.gameTypeKey ?? "").trim();
+    if (!key) { res.json([]); return; }
+
+    const result = await db.execute(sql`
+      SELECT
+        p.id                                                                         AS player_id,
+        p.name                                                                       AS player_name,
+        COUNT(*)::int                                                                AS games_played,
+        (COUNT(*) FILTER (WHERE ps.winner_idx = 0 AND ps.player1_id = p.id)
+         + COUNT(*) FILTER (WHERE ps.winner_idx = 1 AND ps.player2_id = p.id))::int AS wins,
+        ROUND(AVG(
+          CASE WHEN ps.player1_id = p.id AND COALESCE(ps.p1_darts, 0) > 0
+               THEN ps.p1_score::numeric / ps.p1_darts * 3
+          END
+        ), 1)::float                                                                 AS avg
+      FROM players p
+      JOIN practice_sessions ps
+        ON (ps.player1_id = p.id OR ps.player2_id = p.id)
+       AND ps.game_type_key = ${key}
+      WHERE p.status = 'ACTIVE'
+      GROUP BY p.id, p.name
+      HAVING COUNT(*) >= 1
+      ORDER BY wins DESC, games_played DESC
+      LIMIT 8
+    `);
+
+    res.json(result.rows as any[]);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get game leaderboard");
+    res.status(500).json({ error: "Failed to get game leaderboard" });
+  }
+});
+
 export default router;

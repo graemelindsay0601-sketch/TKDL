@@ -433,6 +433,34 @@ async function seedMatchParticipants() {
   logger.info("match_participants table ready");
 }
 
+async function seedMaster501() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS master501_progress (
+      id            SERIAL PRIMARY KEY,
+      player_id     INTEGER NOT NULL UNIQUE REFERENCES players(id) ON DELETE CASCADE,
+      current_tier  INTEGER NOT NULL DEFAULT 1,
+      current_round INTEGER NOT NULL DEFAULT 1,
+      updated_at    TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS master501_runs (
+      id           SERIAL PRIMARY KEY,
+      player_id    INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      tier         INTEGER NOT NULL,
+      round        INTEGER NOT NULL,
+      dart_limit   INTEGER NOT NULL,
+      legs_format  INTEGER NOT NULL,
+      legs_won     INTEGER NOT NULL DEFAULT 0,
+      legs_lost    INTEGER NOT NULL DEFAULT 0,
+      result       TEXT,
+      started_at   TIMESTAMPTZ DEFAULT NOW(),
+      completed_at TIMESTAMPTZ
+    )
+  `);
+  logger.info("master501 tables ready");
+}
+
 async function seedShadowBotAchievements() {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS shadow_bot_achievements (
@@ -451,6 +479,7 @@ async function init() {
   try {
     await seedSettings();
     await seedPractice();
+    await seedMaster501();
     await seedMatchParticipants();
     await seedShadowBotAchievements();
     await seedTourSystem();

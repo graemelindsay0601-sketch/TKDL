@@ -266,10 +266,20 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [selectedLegs, setSelectedLegs] = useState(1);
   const [selectedSets, setSelectedSets] = useState({ sets: 3, legsPerSet: 3 });
   const [bullUp, setBullUp]             = useState(false);
+  const [gameLb, setGameLb]             = useState<any[]>([]);
 
   useEffect(() => {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const key = selectedGame?.key;
+    if (!key) { setGameLb([]); return; }
+    fetch(`/api/practice/game-leaderboard?gameTypeKey=${encodeURIComponent(key)}`)
+      .then(r => r.json())
+      .then(setGameLb)
+      .catch(() => setGameLb([]));
+  }, [selectedGame]);
 
   const players = (playersData as Player[] | undefined)?.filter(p => p.status === "ACTIVE") ?? [];
   const p1      = players.find(p => p.id === Number(p1Id));
@@ -573,6 +583,30 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
             <button onClick={() => setRulesGame(selectedGame)} className="ml-auto" style={{ color: "rgba(255,255,255,0.3)", cursor: "pointer" }}>
               <Info className="w-3.5 h-3.5" />
             </button>
+          </div>
+        )}
+        {selectedGame && gameLb.length > 0 && (
+          <div className="mt-2 rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="px-3 py-1.5" style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+              <span className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald,sans-serif", fontSize: "0.6rem" }}>
+                TOP PLAYERS — {selectedGame.name.toUpperCase()}
+              </span>
+            </div>
+            {gameLb.map((row: any, i: number) => (
+              <div key={row.player_id} className="flex items-center gap-2 px-3 py-1.5" style={{ borderBottom: i < gameLb.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                <span style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald,sans-serif", fontSize: "0.65rem", width: 14, textAlign: "right", flexShrink: 0 }}>{i + 1}</span>
+                <span className="flex-1 text-xs font-bold truncate" style={{ fontFamily: "Oswald,sans-serif", color: "rgba(255,255,255,0.7)" }}>{row.player_name}</span>
+                <span className="text-xs font-black" style={{ fontFamily: "Oswald,sans-serif", color: "#a78bfa" }}>{row.wins}W</span>
+                <span className="text-xs" style={{ fontFamily: "Oswald,sans-serif", color: "rgba(255,255,255,0.3)", minWidth: 32, textAlign: "right" }}>
+                  {row.games_played}G
+                </span>
+                {row.avg != null && (
+                  <span className="text-xs" style={{ fontFamily: "Oswald,sans-serif", color: "rgba(255,255,255,0.35)", minWidth: 44, textAlign: "right" }}>
+                    {row.avg} avg
+                  </span>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
