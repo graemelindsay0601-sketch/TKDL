@@ -173,7 +173,6 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
   for (const p of pm.values()) {
     await db.update(playersTable).set({
       elo:               p.elo,
-      tier:              calcTier(p.elo),
       points:            p.points,
       seasonWins:        p.seasonWins,
       seasonLosses:      p.seasonLosses,
@@ -215,7 +214,7 @@ router.patch("/admin/players/:id/elo", async (req, res): Promise<void> => {
   const tier = elo >= 1400 ? "Diamond" : elo >= 1250 ? "Platinum" : elo >= 1100 ? "Gold" : elo >= 950 ? "Silver" : "Bronze";
 
   const [updated] = await db.update(playersTable)
-    .set({ elo, tier })
+    .set({ elo })
     .where(eq(playersTable.id, playerId))
     .returning();
 

@@ -32,7 +32,7 @@ app.use(session({
     tableName: "sessions",
     createTableIfMissing: true,
   }),
-  secret:            process.env.SESSION_SECRET ?? "tkdl-dev-secret-change-in-prod",
+  secret:            process.env.SESSION_SECRET!,
   resave:            false,
   saveUninitialized: false,
   name:              "tkdl.sid",
