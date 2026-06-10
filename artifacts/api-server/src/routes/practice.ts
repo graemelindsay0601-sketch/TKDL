@@ -245,6 +245,7 @@ router.get("/players/:id/practice-stats", async (req, res): Promise<void> => {
 });
 
 // GET /api/players/:id/practice-sessions — recent practice sessions for a player
+// Returns sessions where the player was either P1 or P2, normalised to the player's perspective.
 // Optional query param: ?gameTypeKey=501_double_out  (filter by game type)
 router.get("/players/:id/practice-sessions", async (req, res): Promise<void> => {
   try {
@@ -256,48 +257,67 @@ router.get("/players/:id/practice-sessions", async (req, res): Promise<void> => 
       gameTypeKey
         ? sql`
           SELECT
-            id,
-            game_type_key,
-            game_type_name,
-            winner_idx,
-            p1_darts,
-            p1_score,
-            p1_180s,
-            p1_checkout_attempts,
-            p1_checkout_hits,
-            duration_seconds,
-            created_at,
-            CASE
-              WHEN p1_darts IS NOT NULL AND p1_darts > 0
+            id, game_type_key, game_type_name, detail, duration_seconds, created_at,
+            CASE WHEN winner_idx IS NULL THEN NULL ELSE (winner_idx = 0) END AS won,
+            p1_darts  AS darts,
+            p1_180s   AS s180s,
+            p1_checkout_attempts AS co_attempts,
+            p1_checkout_hits     AS co_hits,
+            CASE WHEN p1_darts IS NOT NULL AND p1_darts > 0
               THEN ROUND(CAST(p1_score AS NUMERIC) * 3.0 / p1_darts, 1)
-              ELSE NULL
-            END AS p1_avg
+              ELSE NULL END AS avg
           FROM practice_sessions
           WHERE player1_id = ${playerId}
             AND game_type_key = ${gameTypeKey}
+
+          UNION ALL
+
+          SELECT
+            id, game_type_key, game_type_name, detail, duration_seconds, created_at,
+            CASE WHEN winner_idx IS NULL THEN NULL ELSE (winner_idx = 1) END AS won,
+            p2_darts  AS darts,
+            p2_180s   AS s180s,
+            p2_checkout_attempts AS co_attempts,
+            p2_checkout_hits     AS co_hits,
+            CASE WHEN p2_darts IS NOT NULL AND p2_darts > 0
+              THEN ROUND(CAST(p2_score AS NUMERIC) * 3.0 / p2_darts, 1)
+              ELSE NULL END AS avg
+          FROM practice_sessions
+          WHERE player2_id = ${playerId}
+            AND game_type_key = ${gameTypeKey}
+
           ORDER BY created_at DESC
           LIMIT 50
         `
         : sql`
           SELECT
-            id,
-            game_type_key,
-            game_type_name,
-            winner_idx,
-            p1_darts,
-            p1_score,
-            p1_180s,
-            p1_checkout_attempts,
-            p1_checkout_hits,
-            duration_seconds,
-            created_at,
-            CASE
-              WHEN p1_darts IS NOT NULL AND p1_darts > 0
+            id, game_type_key, game_type_name, detail, duration_seconds, created_at,
+            CASE WHEN winner_idx IS NULL THEN NULL ELSE (winner_idx = 0) END AS won,
+            p1_darts  AS darts,
+            p1_180s   AS s180s,
+            p1_checkout_attempts AS co_attempts,
+            p1_checkout_hits     AS co_hits,
+            CASE WHEN p1_darts IS NOT NULL AND p1_darts > 0
               THEN ROUND(CAST(p1_score AS NUMERIC) * 3.0 / p1_darts, 1)
-              ELSE NULL
-            END AS p1_avg
+              ELSE NULL END AS avg
           FROM practice_sessions
           WHERE player1_id = ${playerId}
+
+          UNION ALL
+
+          SELECT
+            id, game_type_key, game_type_name, detail, duration_seconds, created_at,
+            CASE WHEN winner_idx IS NULL THEN NULL ELSE (winner_idx = 1) END AS won,
+            p2_darts  AS darts,
+            p2_180s   AS s180s,
+            p2_checkout_attempts AS co_attempts,
+            p2_checkout_hits     AS co_hits,
+            CASE WHEN p2_darts IS NOT NULL AND p2_darts > 0
+              THEN ROUND(CAST(p2_score AS NUMERIC) * 3.0 / p2_darts, 1)
+              ELSE NULL END AS avg
+          FROM practice_sessions
+          WHERE player2_id = ${playerId}
+
           ORDER BY created_at DESC
           LIMIT 50
         `

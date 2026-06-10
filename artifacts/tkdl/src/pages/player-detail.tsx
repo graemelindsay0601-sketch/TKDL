@@ -1082,20 +1082,21 @@ export default function PlayerDetail() {
                               ) : (
                                 <div>
                                   {sessions.slice(0, 15).map((s: any) => {
-                                    const sAvg   = s.p1_avg != null ? Number(s.p1_avg).toFixed(1) : null;
-                                    const won    = s.winner_idx === 0;
-                                    const coH    = Number(s.p1_checkout_hits ?? 0);
-                                    const coA    = Number(s.p1_checkout_attempts ?? 0);
-                                    const sCo    = coA > 0 ? Math.round((coH / coA) * 100) : null;
+                                    const won  = s.won;
+                                    const sAvg = s.avg != null ? Number(s.avg).toFixed(1) : null;
+                                    const coH  = Number(s.co_hits ?? 0);
+                                    const coA  = Number(s.co_attempts ?? 0);
+                                    const sCo  = coA > 0 ? Math.round((coH / coA) * 100) : null;
                                     return (
                                       <div key={s.id} className="px-4 py-1.5 flex items-center gap-2 border-b" style={{ borderColor: "rgba(255,255,255,0.03)" }}>
                                         <div className="w-1 h-5 rounded-full shrink-0"
-                                          style={{ background: s.winner_idx === null ? "rgba(255,255,255,0.12)" : won ? "#22c55e" : "#ff005c" }} />
-                                        <span className="text-xs font-bold w-8 shrink-0" style={{ fontFamily: "Oswald, sans-serif", color: s.winner_idx === null ? "rgba(255,255,255,0.3)" : won ? "#22c55e" : "#ff005c", fontSize: "0.62rem" }}>
-                                          {s.winner_idx === null ? "DNF" : won ? "WIN" : "LOSS"}
+                                          style={{ background: won === null ? "rgba(255,255,255,0.12)" : won ? "#22c55e" : "#ff005c" }} />
+                                        <span className="text-xs font-bold w-8 shrink-0" style={{ fontFamily: "Oswald, sans-serif", color: won === null ? "rgba(255,255,255,0.3)" : won ? "#22c55e" : "#ff005c", fontSize: "0.62rem" }}>
+                                          {won === null ? "DNF" : won ? "WIN" : "LOSS"}
                                         </span>
+                                        {s.detail && <span className="text-xs font-mono" style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.6rem" }}>{s.detail}</span>}
                                         {sAvg && <span className="text-xs font-mono" style={{ color: "#a78bfa" }}>{sAvg} avg</span>}
-                                        {Number(s.p1_180s) > 0 && <span className="text-xs font-mono" style={{ color: "#ffd24a" }}>{s.p1_180s}×180</span>}
+                                        {Number(s.s180s) > 0 && <span className="text-xs font-mono" style={{ color: "#ffd24a" }}>{s.s180s}×180</span>}
                                         {sCo !== null && <span className="text-xs font-mono" style={{ color: "#22c55e" }}>{sCo}%co</span>}
                                         <span className="flex-1" />
                                         <span className="text-xs shrink-0" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", fontSize: "0.58rem" }}>
