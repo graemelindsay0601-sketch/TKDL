@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useState, useEffect, useRef } from "react";
-import { Trophy, Skull, Flame, ArrowLeft, CheckCircle, ChevronDown, Zap, Dumbbell, CircuitBoard } from "lucide-react";
+import { Trophy, Skull, Flame, ArrowLeft, CheckCircle, ChevronDown, Zap, Dumbbell, CircuitBoard, X } from "lucide-react";
 
 function useCountUp(target: number, duration = 900) {
   const [value, setValue] = useState(0);
@@ -270,6 +270,17 @@ export default function PlayerDetail() {
   const [gamerscore, setGamerscore] = useState<{ total: number; league: number; shadowBot: number; tourTrophies: number; tourAchievements: number } | null>(null);
   const [shadowAchs, setShadowAchs] = useState<any[]>([]);
   const [tourTrophies, setTourTrophies] = useState<any[]>([]);
+  const [selectedSession, setSelectedSession] = useState<any | null>(null);
+  const [sessionDetailLoading, setSessionDetailLoading] = useState(false);
+
+  const openSession = (sessionId: number) => {
+    setSessionDetailLoading(true);
+    setSelectedSession({ id: sessionId });
+    fetch(`/api/practice/sessions/${sessionId}`)
+      .then(r => r.json())
+      .then(d => { setSelectedSession(d); setSessionDetailLoading(false); })
+      .catch(() => setSessionDetailLoading(false));
+  };
 
   const toggleGame = (key: string) => {
     if (expandedGame === key) { setExpandedGame(null); return; }
@@ -377,6 +388,7 @@ export default function PlayerDetail() {
   const lossStreak = player.currentLossStreak ?? 0;
 
   return (
+    <>
     <div className="space-y-5 pb-8">
       <div className="pdc-divider" />
 
@@ -1088,7 +1100,9 @@ export default function PlayerDetail() {
                                     const coA  = Number(s.co_attempts ?? 0);
                                     const sCo  = coA > 0 ? Math.round((coH / coA) * 100) : null;
                                     return (
-                                      <div key={s.id} className="px-4 py-1.5 flex items-center gap-2 border-b" style={{ borderColor: "rgba(255,255,255,0.03)" }}>
+                                      <div key={s.id} className="px-4 py-1.5 flex items-center gap-2 border-b cursor-pointer transition-all hover:bg-white/[0.03]"
+                                        style={{ borderColor: "rgba(255,255,255,0.03)" }}
+                                        onClick={() => openSession(s.id)}>
                                         <div className="w-1 h-5 rounded-full shrink-0"
                                           style={{ background: won === null ? "rgba(255,255,255,0.12)" : won ? "#22c55e" : "#ff005c" }} />
                                         <span className="text-xs font-bold w-8 shrink-0" style={{ fontFamily: "Oswald, sans-serif", color: won === null ? "rgba(255,255,255,0.3)" : won ? "#22c55e" : "#ff005c", fontSize: "0.62rem" }}>
@@ -1610,5 +1624,146 @@ export default function PlayerDetail() {
         );
       })()}
     </div>
+
+    {/* ── Session Detail Modal ──────────────────────────────────────────── */}
+    {selectedSession && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}
+        onClick={() => setSelectedSession(null)}>
+        <div className="w-full max-w-md rounded-xl border overflow-hidden"
+          style={{ background: "#0d0a1a", borderColor: "rgba(255,255,255,0.08)" }}
+          onClick={e => e.stopPropagation()}>
+
+          {/* Header */}
+          <div className="px-5 py-4 border-b flex items-center justify-between"
+            style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-widest"
+                style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.3)", fontSize: "0.5rem" }}>
+                Practice Session
+              </div>
+              <div className="text-base font-black uppercase mt-0.5"
+                style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.05em" }}>
+                {sessionDetailLoading ? "Loading…" : (selectedSession.game_type_name ?? "—")}
+              </div>
+              {!sessionDetailLoading && selectedSession.created_at && (
+                <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
+                  {format(new Date(selectedSession.created_at), "d MMM yyyy · HH:mm")}
+                  {selectedSession.detail && (
+                    <span className="ml-2" style={{ color: "#a78bfa" }}>{selectedSession.detail}</span>
+                  )}
+                </div>
+              )}
+            </div>
+            <button onClick={() => setSelectedSession(null)}
+              className="p-1.5 rounded-lg transition-all hover:opacity-70"
+              style={{ background: "rgba(255,255,255,0.05)" }}>
+              <X className="w-4 h-4" style={{ color: "rgba(255,255,255,0.4)" }} />
+            </button>
+          </div>
+
+          {sessionDetailLoading ? (
+            <div className="py-10 flex justify-center">
+              <div className="w-5 h-5 rounded-full border border-transparent animate-spin"
+                style={{ borderTopColor: "#a78bfa" }} />
+            </div>
+          ) : (() => {
+            const s = selectedSession;
+            const isTwoPlayer = s.player2_id != null && s.p2_darts != null;
+            const p1Won = s.winner_idx === 0;
+            const p2Won = s.winner_idx === 1;
+            const noResult = s.winner_idx === null;
+
+            const p1Avg = s.p1_avg != null ? Number(s.p1_avg).toFixed(2) : null;
+            const p2Avg = s.p2_avg != null ? Number(s.p2_avg).toFixed(2) : null;
+            const p1Co  = Number(s.p1_checkout_attempts ?? 0) > 0
+              ? Math.round((Number(s.p1_checkout_hits) / Number(s.p1_checkout_attempts)) * 100) : null;
+            const p2Co  = Number(s.p2_checkout_attempts ?? 0) > 0
+              ? Math.round((Number(s.p2_checkout_hits) / Number(s.p2_checkout_attempts)) * 100) : null;
+
+            const StatRow = ({ label, p1Val, p2Val, highlight }: { label: string; p1Val: string | null; p2Val?: string | null; highlight?: "p1" | "p2" | "none" }) => (
+              <div className="flex items-center py-2 border-b" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                <div className="w-20 text-right pr-3">
+                  <span className="text-sm font-bold" style={{
+                    fontFamily: "Oswald, sans-serif",
+                    color: p1Val ? (highlight === "p1" ? "#22c55e" : "#fff") : "rgba(255,255,255,0.2)",
+                    fontSize: "0.85rem"
+                  }}>{p1Val ?? "—"}</span>
+                </div>
+                <div className="flex-1 text-center">
+                  <span className="text-xs uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", fontSize: "0.5rem" }}>{label}</span>
+                </div>
+                {isTwoPlayer && (
+                  <div className="w-20 text-left pl-3">
+                    <span className="text-sm font-bold" style={{
+                      fontFamily: "Oswald, sans-serif",
+                      color: p2Val ? (highlight === "p2" ? "#22c55e" : "#fff") : "rgba(255,255,255,0.2)",
+                      fontSize: "0.85rem"
+                    }}>{p2Val ?? "—"}</span>
+                  </div>
+                )}
+              </div>
+            );
+
+            const betterAvg = p1Avg != null && p2Avg != null
+              ? (Number(p1Avg) >= Number(p2Avg) ? "p1" : "p2") : "none";
+            const betterCo  = p1Co != null && p2Co != null
+              ? (p1Co >= p2Co ? "p1" : "p2") : "none";
+
+            return (
+              <div className="px-5 py-4 space-y-1">
+                {/* Player name headers */}
+                {isTwoPlayer && (
+                  <div className="flex items-center pb-3 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                    <div className="w-20 text-right pr-3">
+                      <div className="text-sm font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: p1Won ? "#22c55e" : noResult ? "rgba(255,255,255,0.4)" : "#ff005c", fontSize: "0.8rem" }}>
+                        {s.p1_name ?? "P1"}
+                      </div>
+                      <div className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: p1Won ? "#22c55e" : noResult ? "rgba(255,255,255,0.25)" : "#ff005c", fontSize: "0.55rem" }}>
+                        {noResult ? "DNF" : p1Won ? "WIN" : "LOSS"}
+                      </div>
+                    </div>
+                    <div className="flex-1 text-center">
+                      <span className="text-xs uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.15)", fontSize: "0.5rem" }}>vs</span>
+                    </div>
+                    <div className="w-20 text-left pl-3">
+                      <div className="text-sm font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: p2Won ? "#22c55e" : noResult ? "rgba(255,255,255,0.4)" : "#ff005c", fontSize: "0.8rem" }}>
+                        {s.p2_name ?? "P2"}
+                      </div>
+                      <div className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: p2Won ? "#22c55e" : noResult ? "rgba(255,255,255,0.25)" : "#ff005c", fontSize: "0.55rem" }}>
+                        {noResult ? "DNF" : p2Won ? "WIN" : "LOSS"}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!isTwoPlayer && (
+                  <div className="pb-3 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                    <div className="text-sm font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: noResult ? "rgba(255,255,255,0.4)" : p1Won ? "#22c55e" : "#ff005c", fontSize: "0.8rem" }}>
+                      {noResult ? "DNF" : p1Won ? "Win" : "Loss"}
+                    </div>
+                  </div>
+                )}
+
+                <StatRow label="3-dart avg" p1Val={p1Avg} p2Val={p2Avg} highlight={betterAvg} />
+                <StatRow label="Darts thrown" p1Val={s.p1_darts != null ? String(s.p1_darts) : null} p2Val={s.p2_darts != null ? String(s.p2_darts) : null} />
+                <StatRow label="180s" p1Val={Number(s.p1_180s) > 0 ? String(s.p1_180s) : null} p2Val={s.p2_180s != null ? (Number(s.p2_180s) > 0 ? String(s.p2_180s) : null) : undefined} />
+                <StatRow label="Checkout %" p1Val={p1Co != null ? `${p1Co}%` : null} p2Val={p2Co != null ? `${p2Co}%` : undefined} highlight={betterCo} />
+                <StatRow label="Checkout hits" p1Val={Number(s.p1_checkout_hits ?? 0) > 0 ? `${s.p1_checkout_hits}/${s.p1_checkout_attempts}` : null}
+                  p2Val={Number(s.p2_checkout_hits ?? 0) > 0 ? `${s.p2_checkout_hits}/${s.p2_checkout_attempts}` : null} />
+                {s.duration_seconds != null && (
+                  <div className="pt-2 text-center">
+                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", fontSize: "0.58rem" }}>
+                      Duration: {Math.floor(s.duration_seconds / 60)}m {s.duration_seconds % 60}s
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+    )}
+    </>
   );
 }

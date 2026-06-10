@@ -30,6 +30,40 @@ const SessionBody = z.object({
   p2CheckoutHits:       z.number().int().min(0).optional(),
 });
 
+// GET /api/practice/sessions/:id — full detail for one session, with player names
+router.get("/practice/sessions/:id", async (req, res): Promise<void> => {
+  try {
+    const sessionId = parseInt(req.params.id, 10);
+    if (!sessionId) { res.status(400).json({ error: "Invalid session id" }); return; }
+
+    const [row] = (await db.execute(sql`
+      SELECT
+        ps.id, ps.game_type_key, ps.game_type_name, ps.winner_idx, ps.detail,
+        ps.darts_thrown, ps.duration_seconds, ps.created_at,
+        ps.player1_id, ps.player2_id,
+        p1.name AS p1_name, p2.name AS p2_name,
+        ps.p1_darts, ps.p1_score, ps.p1_180s, ps.p1_checkout_attempts, ps.p1_checkout_hits,
+        ps.p2_darts, ps.p2_score, ps.p2_180s, ps.p2_checkout_attempts, ps.p2_checkout_hits,
+        CASE WHEN ps.p1_darts IS NOT NULL AND ps.p1_darts > 0
+          THEN ROUND(CAST(ps.p1_score AS NUMERIC) * 3.0 / ps.p1_darts, 2) ELSE NULL
+        END AS p1_avg,
+        CASE WHEN ps.p2_darts IS NOT NULL AND ps.p2_darts > 0
+          THEN ROUND(CAST(ps.p2_score AS NUMERIC) * 3.0 / ps.p2_darts, 2) ELSE NULL
+        END AS p2_avg
+      FROM practice_sessions ps
+      LEFT JOIN players p1 ON p1.id = ps.player1_id
+      LEFT JOIN players p2 ON p2.id = ps.player2_id
+      WHERE ps.id = ${sessionId}
+    `)).rows;
+
+    if (!row) { res.status(404).json({ error: "Session not found" }); return; }
+    res.json(row);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get practice session detail");
+    res.status(500).json({ error: "Failed to get session" });
+  }
+});
+
 // POST /api/practice/sessions — save a completed practice session
 router.post("/practice/sessions", async (req, res): Promise<void> => {
   try {
