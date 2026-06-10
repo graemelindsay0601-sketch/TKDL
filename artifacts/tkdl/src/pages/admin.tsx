@@ -20,7 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Download, Dumbbell, BarChart3, Star } from "lucide-react";
+import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Download, Dumbbell, BarChart3, Star, Pencil, Check } from "lucide-react";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 
@@ -975,6 +975,9 @@ export default function Admin() {
   const [eloPlayerId, setEloPlayerId] = useState<number | null>(null);
   const [eloValue, setEloValue]       = useState(1000);
   const [eloLoading, setEloLoading]   = useState(false);
+  const [editingMatchId, setEditingMatchId]   = useState<number | null>(null);
+  const [editMatchForm, setEditMatchForm]     = useState({ winnerId: 0, loserId: 0 });
+  const [editMatchLoading, setEditMatchLoading] = useState(false);
 
   // PIN lock
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(ADMIN_PIN_KEY) === "1");
@@ -1055,6 +1058,31 @@ export default function Admin() {
         onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
       }
     );
+  };
+
+  const handleEditMatch = async () => {
+    if (!editingMatchId || !editMatchForm.winnerId || !editMatchForm.loserId) return;
+    if (editMatchForm.winnerId === editMatchForm.loserId) return;
+    setEditMatchLoading(true);
+    try {
+      const res = await fetch(`/api/admin/matches/${editingMatchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editMatchForm),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Match Updated", description: "Winner and loser corrected." });
+        setEditingMatchId(null);
+        queryClient.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetLeaderboardQueryKey() });
+      } else {
+        toast({ title: "Error", description: data.error, variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
+    setEditMatchLoading(false);
   };
 
   const handleSweepAchievements = async () => {
@@ -1282,42 +1310,102 @@ export default function Admin() {
           ) : (
             <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
               {matches?.map((match: any) => (
-                <div key={match.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
-                  <div>
-                    <div className="text-sm font-semibold flex items-center flex-wrap gap-1.5">
-                      <span style={{ color: "#22c55e" }}>{match.winnerName}</span>
-                      <span style={{ color: "rgba(255,255,255,0.25)" }}>def.</span>
-                      <span style={{ color: "#ff005c" }}>{match.loserName}</span>
-                      {match.stake > 0 && <span className="text-xs font-mono" style={{ color: "#ffd24a" }}>±{match.stake}pts</span>}
-                      {match.isTeamMatch && (
-                        <span className="text-xs font-black px-1.5 py-0.5 rounded" style={{ background: "rgba(0,200,150,0.12)", color: "#00c896", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>TEAM</span>
-                      )}
+                <div key={match.id}>
+                  {editingMatchId === match.id ? (
+                    <div className="px-4 py-3 space-y-2.5" style={{ background: "rgba(255,210,74,0.04)", borderLeft: "3px solid rgba(255,210,74,0.4)" }}>
+                      <div className="text-xs font-black uppercase tracking-wider mb-1" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", fontSize: "0.6rem" }}>
+                        Edit Match Result
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem" }}>Winner</label>
+                          <select
+                            value={editMatchForm.winnerId}
+                            onChange={e => setEditMatchForm(f => ({ ...f, winnerId: Number(e.target.value) }))}
+                            className="w-full rounded text-sm px-2 py-1.5"
+                            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(34,197,94,0.3)", color: "#22c55e", fontFamily: "inherit" }}>
+                            <option value={0}>Select winner…</option>
+                            {players?.map(p => <option key={p.id} value={p.id} style={{ background: "#0a0814", color: "#fff" }}>{p.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem" }}>Loser</label>
+                          <select
+                            value={editMatchForm.loserId}
+                            onChange={e => setEditMatchForm(f => ({ ...f, loserId: Number(e.target.value) }))}
+                            className="w-full rounded text-sm px-2 py-1.5"
+                            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,0,92,0.3)", color: "#ff005c", fontFamily: "inherit" }}>
+                            <option value={0}>Select loser…</option>
+                            {players?.map(p => <option key={p.id} value={p.id} style={{ background: "#0a0814", color: "#fff" }}>{p.name}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <p className="text-xs" style={{ color: "rgba(255,210,74,0.5)", fontSize: "0.6rem" }}>
+                        ⚠ Elo is not recalculated — use Elo Override below to correct values if needed.
+                      </p>
+                      <div className="flex gap-2">
+                        <Button size="sm"
+                          onClick={handleEditMatch}
+                          disabled={editMatchLoading || !editMatchForm.winnerId || !editMatchForm.loserId || editMatchForm.winnerId === editMatchForm.loserId}
+                          className="gap-1.5 text-xs font-bold uppercase"
+                          style={{ background: "#ffd24a", color: "#000", border: "none", fontFamily: "Oswald, sans-serif", height: 28 }}>
+                          {editMatchLoading ? <div className="w-3 h-3 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#000" }} /> : <Check className="w-3 h-3" />}
+                          Save
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingMatchId(null)}
+                          className="text-xs" style={{ color: "rgba(255,255,255,0.4)", height: 28 }}>
+                          Cancel
+                        </Button>
+                      </div>
                     </div>
-                    <div className="text-xs" style={{ color: "rgba(255,255,255,0.22)" }}>
-                      {format(new Date(match.playedAt), "MMM d, HH:mm")}
+                  ) : (
+                    <div className="flex items-center justify-between px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
+                      <div>
+                        <div className="text-sm font-semibold flex items-center flex-wrap gap-1.5">
+                          <span style={{ color: "#22c55e" }}>{match.winnerName}</span>
+                          <span style={{ color: "rgba(255,255,255,0.25)" }}>def.</span>
+                          <span style={{ color: "#ff005c" }}>{match.loserName}</span>
+                          {match.stake > 0 && <span className="text-xs font-mono" style={{ color: "#ffd24a" }}>±{match.stake}pts</span>}
+                          {match.isTeamMatch && (
+                            <span className="text-xs font-black px-1.5 py-0.5 rounded" style={{ background: "rgba(0,200,150,0.12)", color: "#00c896", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>TEAM</span>
+                          )}
+                        </div>
+                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.22)" }}>
+                          {format(new Date(match.playedAt), "MMM d, HH:mm")}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-yellow-500/10"
+                          onClick={() => {
+                            setEditingMatchId(match.id);
+                            setEditMatchForm({ winnerId: match.winnerId, loserId: match.loserId });
+                          }}>
+                          <Pencil className="h-3.5 w-3.5" style={{ color: "#ffd24a" }} />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/10">
+                              <Trash2 className="h-3.5 w-3.5" style={{ color: "#ff005c" }} />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(255,0,92,0.3)" }}>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle style={{ fontFamily: "Oswald, sans-serif" }}>Delete Match?</AlertDialogTitle>
+                              <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
+                                Delete {match.winnerName} vs {match.loserName} from {format(new Date(match.playedAt), "MMM d, yyyy")}? Points and Elo will be reverted.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteMatch(match.id, match.winnerId, match.loserId)} style={{ background: "#ff005c", color: "#fff", border: "none" }}>
+                                Delete Match
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </div>
-                  </div>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/10">
-                        <Trash2 className="h-3.5 w-3.5" style={{ color: "#ff005c" }} />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(255,0,92,0.3)" }}>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle style={{ fontFamily: "Oswald, sans-serif" }}>Delete Match?</AlertDialogTitle>
-                        <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
-                          Delete {match.winnerName} vs {match.loserName} from {format(new Date(match.playedAt), "MMM d, yyyy")}? Points and Elo will be reverted.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDeleteMatch(match.id, match.winnerId, match.loserId)} style={{ background: "#ff005c", color: "#fff", border: "none" }}>
-                          Delete Match
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  )}
                 </div>
               ))}
               {(!matches || matches.length === 0) && (

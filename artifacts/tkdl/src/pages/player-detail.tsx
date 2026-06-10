@@ -50,21 +50,41 @@ function FormStrip({ matches, playerId }: { matches: any[]; playerId: number }) 
 }
 
 function EloSparkline({ currentElo, matches, playerId }: { currentElo: number; matches: any[]; playerId: number }) {
-  if (!matches || matches.length < 2) return null;
+  const [fullHistory, setFullHistory] = useState<{ elo: number; isWin: boolean; opponent: string }[] | null>(null);
 
-  const pts: number[] = [currentElo];
-  let elo = currentElo;
-  for (const m of [...matches].slice(0, 15)) {
-    const isWin = m.isWin !== undefined ? m.isWin : m.winnerId === playerId;
-    elo = isWin ? elo - (m.eloChange ?? 16) : Math.min(elo + (m.eloChange ?? 16), 1600);
-    elo = Math.max(800, elo);
-    pts.unshift(elo);
+  useEffect(() => {
+    fetch(`/api/players/${playerId}/elo-history`)
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.history) && d.history.length > 0) setFullHistory(d.history); })
+      .catch(() => {});
+  }, [playerId]);
+
+  let pts: number[];
+  let matchCount: number;
+
+  if (fullHistory && fullHistory.length >= 2) {
+    pts = fullHistory.map(h => h.elo);
+    pts.push(currentElo);
+    matchCount = fullHistory.length;
+  } else {
+    if (!matches || matches.length < 2) return null;
+    pts = [currentElo];
+    let elo = currentElo;
+    for (const m of [...matches].slice(0, 15)) {
+      const isWin = m.isWin !== undefined ? m.isWin : m.winnerId === playerId;
+      elo = isWin ? elo - (m.eloChange ?? 16) : Math.min(elo + (m.eloChange ?? 16), 1600);
+      elo = Math.max(800, elo);
+      pts.unshift(elo);
+    }
+    matchCount = matches.length;
   }
 
-  const W = 300; const H = 56;
-  const lo = Math.min(...pts) - 8;
-  const hi = Math.max(...pts) + 8;
-  const rng = hi - lo || 80;
+  if (pts.length < 2) return null;
+
+  const W = 300; const H = 80;
+  const lo = Math.min(...pts) - 15;
+  const hi = Math.max(...pts) + 15;
+  const rng = hi - lo || 100;
 
   const coords = pts.map((v, i) => ({
     x: (i / (pts.length - 1)) * W,
@@ -77,31 +97,36 @@ function EloSparkline({ currentElo, matches, playerId }: { currentElo: number; m
   const trending = pts[pts.length - 1] >= pts[0];
   const color = trending ? "#22c55e" : "#ff005c";
   const uid = `sg-${playerId}`;
+  const minElo = Math.min(...pts);
+  const maxElo = Math.max(...pts);
 
   return (
     <div className="relative">
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>
-          ELO Journey
+          ELO Journey · {matchCount} matches
         </span>
         <span className="font-mono text-xs font-bold" style={{ color }}>
           {trending ? "↑" : "↓"} {currentElo}
         </span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: "100%", height: 56, display: "block" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: "100%", height: 80, display: "block" }}>
         <defs>
           <linearGradient id={uid} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
             <stop offset="100%" stopColor={color} stopOpacity="0" />
           </linearGradient>
         </defs>
         <path d={area} fill={`url(#${uid})`} />
         <path d={path} stroke={color} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        {coords.length <= 30 && coords.map((c, i) => (
+          <circle key={i} cx={c.x} cy={c.y} r="2" fill={color} opacity="0.35" />
+        ))}
         <circle cx={last.x} cy={last.y} r="3.5" fill={color} style={{ filter: `drop-shadow(0 0 4px ${color})` }} />
       </svg>
       <div className="flex justify-between mt-0.5">
-        <span className="font-mono text-xs" style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.58rem" }}>{pts[0]}</span>
-        <span className="font-mono text-xs" style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.58rem" }}>{pts[pts.length - 1]}</span>
+        <span className="font-mono text-xs" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>▼ {minElo}</span>
+        <span className="font-mono text-xs" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>▲ {maxElo}</span>
       </div>
     </div>
   );

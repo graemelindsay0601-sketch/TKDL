@@ -405,12 +405,6 @@ function SeasonCard({ season, idx }: { season: any; idx: number }) {
           </div>
         )}
 
-        {/* Status */}
-        {isLive && (
-          <div className="text-xs font-bold uppercase tracking-wider" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem" }}>
-            ● Season in Progress
-          </div>
-        )}
         {playoffPend && !hasChampion && (
           <div className="flex items-center gap-1.5 text-xs font-bold uppercase"
             style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem" }}>
@@ -419,43 +413,105 @@ function SeasonCard({ season, idx }: { season: any; idx: number }) {
         )}
 
         {/* Expand/Collapse button */}
-        {!isLive && (
-          <button
-            onClick={() => setExpanded(e => !e)}
-            className="w-full mt-4 pt-3 border-t flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-all hover:opacity-70"
-            style={{ borderColor: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-            {expanded ? <><ChevronUp className="w-3.5 h-3.5" /> Hide Details</> : <><ChevronDown className="w-3.5 h-3.5" /> {showPlayoff ? "Playoff & Standings" : "View Standings"}</>}
-          </button>
-        )}
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="w-full mt-4 pt-3 border-t flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-all hover:opacity-70"
+          style={{ borderColor: "rgba(255,255,255,0.06)", color: isLive ? "rgba(255,0,92,0.5)" : "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+          {expanded
+            ? <><ChevronUp className="w-3.5 h-3.5" /> Hide</>
+            : <><ChevronDown className="w-3.5 h-3.5" /> {isLive ? "Standings & Race" : showPlayoff ? "Playoff & Standings" : "View Standings"}</>}
+        </button>
       </div>
 
       {/* Expanded content */}
-      {expanded && !isLive && (
+      {expanded && (
         <div className="border-t px-5 pb-5" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+
+          {/* ── LIVE season narrative ── */}
+          {isLive && detail?.standings && detail.standings.length >= 2 && (() => {
+            const st: any[] = [...detail.standings].sort((a: any, b: any) => b.points - a.points);
+            const top = st[0];
+            const second = st[1];
+            const gap = top && second ? top.points - second.points : null;
+            const dangerZone = st.filter((s: any) => s.points === 0);
+            const hasNarrative = gap !== null || dangerZone.length > 0;
+            if (!hasNarrative) return null;
+
+            return (
+              <div className="mt-4 space-y-2 mb-1">
+                {gap !== null && gap <= 10 && second && (
+                  <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg"
+                    style={{ background: "rgba(255,210,74,0.07)", border: "1px solid rgba(255,210,74,0.22)" }}>
+                    <span className="text-base shrink-0 mt-0.5">⚡</span>
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", fontSize: "0.6rem", letterSpacing: "0.1em" }}>
+                        TITLE RACE
+                      </div>
+                      <p className="text-xs mt-0.5 leading-snug" style={{ color: "rgba(255,255,255,0.55)" }}>
+                        <span style={{ color: "#ffd24a", fontWeight: 700 }}>{top.playerName}</span> leads{" "}
+                        <span style={{ color: "rgba(255,255,255,0.8)", fontWeight: 700 }}>{second.playerName}</span>{" "}
+                        by only <span style={{ color: "#ffd24a", fontWeight: 700 }}>{gap} pts</span> — anyone's race
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {gap !== null && gap > 10 && top && second && (
+                  <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg"
+                    style={{ background: "rgba(255,0,92,0.06)", border: "1px solid rgba(255,0,92,0.15)" }}>
+                    <span className="text-base shrink-0 mt-0.5">👑</span>
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c", fontSize: "0.6rem", letterSpacing: "0.1em" }}>
+                        LEADER
+                      </div>
+                      <p className="text-xs mt-0.5 leading-snug" style={{ color: "rgba(255,255,255,0.55)" }}>
+                        <span style={{ color: "#fff", fontWeight: 700 }}>{top.playerName}</span> leads by{" "}
+                        <span style={{ color: "#ff005c", fontWeight: 700 }}>{gap} pts</span> — {second.playerName} chasing
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {dangerZone.length > 0 && (
+                  <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg"
+                    style={{ background: "rgba(255,0,92,0.04)", border: "1px solid rgba(255,0,92,0.12)" }}>
+                    <span className="text-base shrink-0 mt-0.5">☠</span>
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,0,92,0.7)", fontSize: "0.6rem", letterSpacing: "0.1em" }}>
+                        DANGER ZONE
+                      </div>
+                      <p className="text-xs mt-0.5 leading-snug" style={{ color: "rgba(255,255,255,0.4)" }}>
+                        {dangerZone.map((s: any) => s.playerName).join(", ")} — eliminated from title race
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Standings */}
           {detail?.standings && detail.standings.length > 0 && (
             <div className="mt-4">
               <div className="text-xs uppercase font-bold mb-3" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.25)", letterSpacing: "0.12em" }}>
-                League Standings
+                {isLive ? "Current Standings" : "League Standings"}
               </div>
               <div className="space-y-1">
-                {detail.standings.map((s: any) => (
+                {[...detail.standings].sort((a: any, b: any) => isLive ? b.points - a.points : a.position - b.position).map((s: any, idx: number) => (
                   <Link key={s.playerId} href={`/players/${s.playerId}`}>
                     <div className="flex items-center gap-2 px-3 py-2 rounded hover:bg-white/5 transition-colors cursor-pointer group"
-                      style={{ background: s.position === 1 ? "rgba(255,210,74,0.04)" : undefined }}>
+                      style={{ background: (isLive ? idx === 0 : s.position === 1) ? "rgba(255,210,74,0.04)" : undefined }}>
                       <span className="w-5 text-xs font-black text-right shrink-0"
-                        style={{ fontFamily: "Oswald, sans-serif", color: s.position === 1 ? "#ffd24a" : s.position === 2 ? "#9ca3af" : s.position === 3 ? "#cd7c2f" : "rgba(255,255,255,0.25)" }}>
-                        {s.position}
+                        style={{ fontFamily: "Oswald, sans-serif", color: (isLive ? idx : s.position - 1) === 0 ? "#ffd24a" : (isLive ? idx : s.position - 1) === 1 ? "#9ca3af" : (isLive ? idx : s.position - 1) === 2 ? "#cd7c2f" : "rgba(255,255,255,0.25)" }}>
+                        {isLive ? idx + 1 : s.position}
                       </span>
                       {s.isChampion && <span className="text-xs">👑</span>}
                       <span className="text-sm font-bold flex-1 truncate group-hover:underline"
-                        style={{ fontFamily: "Oswald, sans-serif", color: s.points === 0 ? "#ff005c" : "rgba(255,255,255,0.75)" }}>
+                        style={{ fontFamily: "Oswald, sans-serif", color: s.points === 0 ? "rgba(255,0,92,0.5)" : "rgba(255,255,255,0.75)" }}>
                         {s.playerName}
                         {s.points === 0 && <span className="ml-1 text-xs opacity-60">☠</span>}
                       </span>
                       <span className="text-xs font-mono" style={{ color: "#22c55e", minWidth: "2rem", textAlign: "right" }}>{s.wins}W</span>
                       <span className="text-xs font-mono" style={{ color: "#ff005c" }}>{s.losses}L</span>
-                      <span className="text-sm font-black ml-2" style={{ fontFamily: "Oswald, sans-serif", color: s.points === 0 ? "#ff005c" : "#ff005c", minWidth: "3rem", textAlign: "right" }}>
+                      <span className="text-sm font-black ml-2" style={{ fontFamily: "Oswald, sans-serif", color: s.points === 0 ? "rgba(255,0,92,0.5)" : "#ff005c", minWidth: "3rem", textAlign: "right" }}>
                         {s.points}pts
                       </span>
                     </div>

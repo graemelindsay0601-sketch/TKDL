@@ -24,6 +24,7 @@ import TourRun      from "@/pages/tour-run";
 import Master501    from "@/pages/master501";
 
 import HallOfFame   from "@/pages/hall-of-fame";
+import Broadcast   from "@/pages/broadcast";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -31,30 +32,34 @@ const queryClient = new QueryClient({
 
 function AppRoutes() {
   return (
-    <Layout>
-      <Switch>
-        <Route path="/"              component={Dashboard}   />
-        <Route path="/leaderboard"   component={Leaderboard} />
-        <Route path="/submit"        component={SubmitMatch} />
-        <Route path="/players"       component={Players}     />
-        <Route path="/players/:id"   component={PlayerDetail}/>
-        <Route path="/seasons"       component={Seasons}     />
-        <Route path="/seasons/:id"   component={SeasonDetail}/>
-        <Route path="/achievements"  component={Achievements}/>
-        <Route path="/rules"         component={Rules}       />
-        <Route path="/admin"         component={Admin}       />
-        <Route path="/play"          component={Play}        />
-        <Route path="/practice"      component={Practice}    />
-        <Route path="/shadow-bot/:playerId" component={ShadowBotDetail} />
-        <Route path="/shadow-bot"    component={ShadowBot}   />
-        <Route path="/tour/:runId"   component={TourRun}     />
-        <Route path="/tour"          component={Tour}        />
-        <Route path="/master501"     component={Master501}   />
-
-        <Route path="/hall-of-fame"  component={HallOfFame}  />
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
+    <Switch>
+      <Route path="/broadcast" component={Broadcast} />
+      <Route>
+        <Layout>
+          <Switch>
+            <Route path="/"              component={Dashboard}   />
+            <Route path="/leaderboard"   component={Leaderboard} />
+            <Route path="/submit"        component={SubmitMatch} />
+            <Route path="/players"       component={Players}     />
+            <Route path="/players/:id"   component={PlayerDetail}/>
+            <Route path="/seasons"       component={Seasons}     />
+            <Route path="/seasons/:id"   component={SeasonDetail}/>
+            <Route path="/achievements"  component={Achievements}/>
+            <Route path="/rules"         component={Rules}       />
+            <Route path="/admin"         component={Admin}       />
+            <Route path="/play"          component={Play}        />
+            <Route path="/practice"      component={Practice}    />
+            <Route path="/shadow-bot/:playerId" component={ShadowBotDetail} />
+            <Route path="/shadow-bot"    component={ShadowBot}   />
+            <Route path="/tour/:runId"   component={TourRun}     />
+            <Route path="/tour"          component={Tour}        />
+            <Route path="/master501"     component={Master501}   />
+            <Route path="/hall-of-fame"  component={HallOfFame}  />
+            <Route component={NotFound} />
+          </Switch>
+        </Layout>
+      </Route>
+    </Switch>
   );
 }
 

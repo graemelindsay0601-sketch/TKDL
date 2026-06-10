@@ -188,6 +188,42 @@ router.get("/players/:id/stats", async (req, res): Promise<void> => {
   });
 });
 
+// ── Full Elo history for career chart ──────────────────────────────────────────
+router.get("/players/:id/elo-history", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const id = params.data.id;
+
+  const [player] = await db.select().from(playersTable).where(eq(playersTable.id, id));
+  if (!player) { res.status(404).json({ error: "Player not found" }); return; }
+
+  const allMatches = await db.select().from(matchesTable)
+    .where(or(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, id)))
+    .orderBy(matchesTable.playedAt);
+
+  const currentElo = player.elo;
+  // Reconstruct Elo at each match point by working backwards from current value
+  const reversed = [...allMatches].reverse();
+  const eloPoints: number[] = [currentElo];
+  let elo = currentElo;
+  for (const m of reversed) {
+    const isWin = m.winnerId === id;
+    elo = isWin ? elo - m.eloChange : elo + m.eloChange;
+    elo = Math.max(800, Math.min(1600, elo));
+    eloPoints.unshift(elo);
+  }
+
+  const history = allMatches.map((m, i) => ({
+    date: m.playedAt,
+    elo: eloPoints[i + 1],
+    eloChange: m.winnerId === id ? m.eloChange : -m.eloChange,
+    opponent: m.winnerId === id ? m.loserName : m.winnerName,
+    isWin: m.winnerId === id,
+  }));
+
+  res.json({ history, startElo: eloPoints[0], currentElo });
+});
+
 router.get("/players/:id/achievements", async (req, res): Promise<void> => {
   const params = IdParam.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
