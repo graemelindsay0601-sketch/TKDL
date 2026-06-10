@@ -973,6 +973,12 @@ function UserAccountsManager({ players }: { players: any[] | undefined }) {
   const [revealed, setRevealed]             = useState<Record<number, string>>({});
   const [resetPwd, setResetPwd]             = useState<Record<number, string>>({});
   const [resetting, setResetting]           = useState<number | null>(null);
+  const [showNewPlayer, setShowNewPlayer]   = useState(false);
+  const [newName, setNewName]               = useState("");
+  const [newPwd, setNewPwd]                 = useState("");
+  const [newIsAdmin, setNewIsAdmin]         = useState(false);
+  const [creatingNew, setCreatingNew]       = useState(false);
+  const queryClient                         = useQueryClient();
 
   const load = async () => {
     setLoading(true);
@@ -1023,6 +1029,38 @@ function UserAccountsManager({ players }: { players: any[] | undefined }) {
     setResetting(null);
   };
 
+  const handleCreateNewPlayer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setCreatingNew(true);
+    const playerRes = await fetch("/api/players", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName.trim() }),
+    });
+    const playerData = await playerRes.json();
+    if (!playerRes.ok) {
+      toast({ title: "Failed to create player", description: playerData.error ?? "Unknown error", variant: "destructive" });
+      setCreatingNew(false); return;
+    }
+    const userRes = await fetch("/api/admin/users", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerId: playerData.id, password: newPwd, isAdmin: newIsAdmin }),
+    });
+    const userData = await userRes.json();
+    if (userRes.ok) {
+      toast({ title: `${playerData.name} added to the league!`, description: `Login: @${userData.username} — password shown above.` });
+      setRevealed(p => ({ ...p, [userData.id]: newPwd }));
+      setNewName(""); setNewPwd(""); setNewIsAdmin(false); setShowNewPlayer(false);
+      queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
+      void load();
+    } else {
+      toast({ title: "Player created but account failed", description: userData.error, variant: "destructive" });
+    }
+    setCreatingNew(false);
+  };
+
   const playersWithoutAccount = (players ?? []).filter(p => !accounts.some(a => a.playerId === p.id));
 
   return (
@@ -1035,6 +1073,14 @@ function UserAccountsManager({ players }: { players: any[] | undefined }) {
         <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>
           {accounts.length} accounts created
         </span>
+        <button
+          onClick={() => setShowNewPlayer(p => !p)}
+          className="ml-auto px-2.5 py-1 rounded-lg text-xs font-bold transition-all"
+          style={{ background: showNewPlayer ? "rgba(0,229,160,0.12)" : "rgba(0,229,160,0.06)",
+            border: `1px solid ${showNewPlayer ? "rgba(0,229,160,0.35)" : "rgba(0,229,160,0.15)"}`,
+            color: "#00e5a0", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
+          + New Player
+        </button>
       </div>
 
       {/* Existing accounts */}
@@ -1161,10 +1207,78 @@ function UserAccountsManager({ players }: { players: any[] | undefined }) {
           </p>
         </form>
       )}
-      {playersWithoutAccount.length === 0 && accounts.length > 0 && (
+      {playersWithoutAccount.length === 0 && accounts.length > 0 && !showNewPlayer && (
         <p className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
-          All active players have accounts.
+          All active players have accounts. Use <strong>+ New Player</strong> to add someone new to the league.
         </p>
+      )}
+
+      {/* New Player form */}
+      {showNewPlayer && (
+        <form onSubmit={handleCreateNewPlayer}
+          className="mt-4 space-y-3 rounded-xl p-4"
+          style={{ background: "rgba(0,229,160,0.03)", border: "1px solid rgba(0,229,160,0.12)" }}>
+          <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.52rem", letterSpacing: "0.18em",
+            color: "rgba(0,229,160,0.5)", textTransform: "uppercase", marginBottom: "0.25rem" }}>
+            Register New Player + Account
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.14em",
+                color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>Full Name</label>
+              <input
+                type="text"
+                placeholder="e.g. Jamie Smith"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                required
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", fontFamily: "Oswald, sans-serif" }}
+              />
+            </div>
+            <div>
+              <label className="block mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.14em",
+                color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>Initial Password</label>
+              <input
+                type="text"
+                placeholder="Set their password"
+                value={newPwd}
+                onChange={e => setNewPwd(e.target.value)}
+                required
+                minLength={4}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", fontFamily: "Oswald, sans-serif" }}
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={newIsAdmin} onChange={e => setNewIsAdmin(e.target.checked)}
+                className="rounded" style={{ accentColor: "#ffd24a" }} />
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem", color: "rgba(255,255,255,0.45)", letterSpacing: "0.06em" }}>
+                Admin access
+              </span>
+            </label>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => { setShowNewPlayer(false); setNewName(""); setNewPwd(""); }}
+                className="px-3 py-2 rounded-lg text-xs font-bold"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                  color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                Cancel
+              </button>
+              <button type="submit" disabled={creatingNew}
+                className="px-4 py-2 rounded-lg text-sm font-bold transition-opacity disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, rgba(0,229,160,0.2), rgba(0,229,160,0.08))",
+                  border: "1px solid rgba(0,229,160,0.35)", color: "#00e5a0",
+                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
+                {creatingNew ? "Adding…" : "Add to League"}
+              </button>
+            </div>
+          </div>
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" }}>
+            Creates the player profile and their login account in one step. Username is auto-generated from their name.
+          </p>
+        </form>
       )}
     </div>
   );
