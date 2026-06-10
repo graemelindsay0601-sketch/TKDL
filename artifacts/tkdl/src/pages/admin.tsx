@@ -1072,7 +1072,8 @@ export default function Admin() {
       });
       const data = await res.json();
       if (res.ok) {
-        toast({ title: "Match Updated", description: "Winner and loser corrected." });
+        const eloMsg = data.eloChange != null ? ` Elo recalculated (±${data.eloChange}).` : "";
+        toast({ title: "Match Updated", description: `Winner and loser corrected.${eloMsg}` });
         setEditingMatchId(null);
         queryClient.invalidateQueries({ queryKey: getListMatchesQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetLeaderboardQueryKey() });
@@ -1340,8 +1341,8 @@ export default function Admin() {
                           </select>
                         </div>
                       </div>
-                      <p className="text-xs" style={{ color: "rgba(255,210,74,0.5)", fontSize: "0.6rem" }}>
-                        ⚠ Elo is not recalculated — use Elo Override below to correct values if needed.
+                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem" }}>
+                        Elo, points, wins and losses are automatically recalculated.
                       </p>
                       <div className="flex gap-2">
                         <Button size="sm"

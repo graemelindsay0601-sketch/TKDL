@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable, achievementsTable, playerAchievementsTable } from "@workspace/db";
 import { z } from "zod";
 import { checkStatAchievements, checkMatchAchievements, retroactiveSweep } from "../lib/achievements";
+import { applyEloChange, calcTier } from "../lib/elo";
 
 const router = Router();
 
@@ -90,14 +91,12 @@ router.patch("/admin/seasons/:id", async (req, res): Promise<void> => {
   res.json(updated);
 });
 
-// ── Fix match result (correct winner/loser for an existing match) ─────────────
+// ── Fix match result + auto-recalculate Elo/points/stats ─────────────────────
 const FixMatchBody = z.object({
-  winnerId:   z.number().int().positive(),
-  loserId:    z.number().int().positive(),
-  winnerName: z.string().optional(),
-  loserName:  z.string().optional(),
-  stake:      z.number().int().min(1).optional(),
-  notes:      z.string().optional(),
+  winnerId: z.number().int().positive(),
+  loserId:  z.number().int().positive(),
+  stake:    z.number().int().min(0).optional(),
+  notes:    z.string().optional(),
 });
 
 router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
@@ -106,22 +105,101 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
   const parsed = FixMatchBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { winnerId, loserId, stake, notes } = parsed.data;
-  const [winner] = await db.select().from(playersTable).where(eq(playersTable.id, winnerId));
-  const [loser]  = await db.select().from(playersTable).where(eq(playersTable.id, loserId));
-  if (!winner || !loser) { res.status(404).json({ error: "Player not found" }); return; }
+  const { winnerId, loserId, notes } = parsed.data;
+  if (winnerId === loserId) { res.status(400).json({ error: "Winner and loser must be different" }); return; }
 
+  // Fetch original match
+  const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, matchId));
+  if (!match) { res.status(404).json({ error: "Match not found" }); return; }
+
+  const stake = parsed.data.stake ?? match.stake;
+
+  // Fetch all involved players (original + new, de-duped)
+  const allIds = [...new Set([match.winnerId, match.loserId, winnerId, loserId])];
+  const rows = await db.select().from(playersTable).where(inArray(playersTable.id, allIds));
+  if (rows.length < allIds.length) { res.status(404).json({ error: "One or more players not found" }); return; }
+
+  // Mutable copies keyed by player ID
+  const pm = new Map(rows.map(p => [p.id, { ...p }]));
+
+  // ── Step 1: Reverse original match effects ──────────────────────────────────
+  const origW = pm.get(match.winnerId)!;
+  const origL = pm.get(match.loserId)!;
+
+  const loserWasElim = origL.status === "ELIMINATED" && (origL.points + match.stake) > 0;
+
+  origW.elo               = Math.max(800, origW.elo - match.eloChange);
+  origW.points            = Math.max(0, origW.points - match.stake);
+  origW.seasonWins        = Math.max(0, origW.seasonWins - 1);
+  origW.seasonGamesPlayed = Math.max(0, origW.seasonGamesPlayed - 1);
+  origW.careerWins        = Math.max(0, origW.careerWins - 1);
+  origW.careerGamesPlayed = Math.max(0, origW.careerGamesPlayed - 1);
+  origW.careerPoints      = origW.careerPoints - match.stake;
+
+  origL.elo               = origL.elo + match.eloChange;
+  origL.points            = origL.points + match.stake;
+  origL.seasonLosses      = Math.max(0, origL.seasonLosses - 1);
+  origL.seasonGamesPlayed = Math.max(0, origL.seasonGamesPlayed - 1);
+  origL.careerLosses      = Math.max(0, origL.careerLosses - 1);
+  origL.careerGamesPlayed = Math.max(0, origL.careerGamesPlayed - 1);
+  if (loserWasElim) origL.status = "ACTIVE";
+
+  // ── Step 2: Apply new match result using reversed state ─────────────────────
+  const newW = pm.get(winnerId)!;
+  const newL = pm.get(loserId)!;
+
+  const { newWinnerElo, newLoserElo, change: newEloChange } = applyEloChange(newW.elo, newL.elo);
+  const newLoserPts    = Math.max(0, newL.points - stake);
+  const newLoserElim   = newLoserPts === 0;
+
+  newW.elo               = newWinnerElo;
+  newW.points            = newW.points + stake;
+  newW.seasonWins        = newW.seasonWins + 1;
+  newW.seasonGamesPlayed = newW.seasonGamesPlayed + 1;
+  newW.careerWins        = newW.careerWins + 1;
+  newW.careerGamesPlayed = newW.careerGamesPlayed + 1;
+  newW.careerPoints      = newW.careerPoints + stake;
+
+  newL.elo               = newLoserElo;
+  newL.points            = newLoserPts;
+  newL.seasonLosses      = newL.seasonLosses + 1;
+  newL.seasonGamesPlayed = newL.seasonGamesPlayed + 1;
+  newL.careerLosses      = newL.careerLosses + 1;
+  newL.careerGamesPlayed = newL.careerGamesPlayed + 1;
+  newL.careerPoints      = newL.careerPoints - stake;
+  if (newLoserElim) newL.status = "ELIMINATED";
+
+  // ── Step 3: Persist all affected players ───────────────────────────────────
+  for (const p of pm.values()) {
+    await db.update(playersTable).set({
+      elo:               p.elo,
+      tier:              calcTier(p.elo),
+      points:            p.points,
+      seasonWins:        p.seasonWins,
+      seasonLosses:      p.seasonLosses,
+      seasonGamesPlayed: p.seasonGamesPlayed,
+      careerWins:        p.careerWins,
+      careerLosses:      p.careerLosses,
+      careerGamesPlayed: p.careerGamesPlayed,
+      careerPoints:      p.careerPoints,
+      status:            p.status,
+    }).where(eq(playersTable.id, p.id));
+  }
+
+  // ── Step 4: Update match record ─────────────────────────────────────────────
+  const newWPlayer = pm.get(winnerId)!;
+  const newLPlayer = pm.get(loserId)!;
   const [updated] = await db.update(matchesTable).set({
     winnerId,
     loserId,
-    winnerName: winner.name,
-    loserName:  loser.name,
-    ...(stake !== undefined ? { stake } : {}),
+    winnerName: newWPlayer.name,
+    loserName:  newLPlayer.name,
+    eloChange:  newEloChange,
+    stake,
     ...(notes !== undefined ? { notes } : {}),
   }).where(eq(matchesTable.id, matchId)).returning();
 
-  if (!updated) { res.status(404).json({ error: "Match not found" }); return; }
-  res.json(updated);
+  res.json({ match: updated, eloChange: newEloChange });
 });
 
 // ── Override player Elo ────────────────────────────────────────────────────────
