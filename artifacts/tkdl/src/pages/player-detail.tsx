@@ -1175,30 +1175,32 @@ export default function PlayerDetail() {
                   </span>
                 </div>
                 {practiceSessions.slice(0, 10).map((s: any) => {
-                  const avg    = s.p1_avg != null ? Number(s.p1_avg).toFixed(1) : null;
-                  const won    = s.winner_idx === 0;
-                  const coHits = Number(s.p1_checkout_hits ?? 0);
-                  const coAtt  = Number(s.p1_checkout_attempts ?? 0);
-                  const coPct  = coAtt > 0 ? Math.round((coHits / coAtt) * 100) : null;
+                  const won   = s.won;
+                  const avg   = s.avg != null ? Number(s.avg).toFixed(1) : null;
+                  const coH   = Number(s.co_hits ?? 0);
+                  const coA   = Number(s.co_attempts ?? 0);
+                  const coPct = coA > 0 ? Math.round((coH / coA) * 100) : null;
                   return (
-                    <div key={s.id} className="px-4 py-2.5 flex items-center gap-3 border-b hover:bg-white/[0.02] transition-colors"
-                      style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                    <div key={s.id} className="px-4 py-2.5 flex items-center gap-3 border-b hover:bg-white/[0.02] transition-colors cursor-pointer"
+                      style={{ borderColor: "rgba(255,255,255,0.04)" }}
+                      onClick={() => openSession(s.id)}>
                       <div className="w-1 h-7 rounded-full shrink-0"
-                        style={{ background: s.winner_idx === null ? "rgba(255,255,255,0.15)" : won ? "#22c55e" : "#ff005c" }} />
+                        style={{ background: won === null ? "rgba(255,255,255,0.15)" : won ? "#22c55e" : "#ff005c" }} />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.75)" }}>
                             {s.game_type_name}
                           </span>
-                          {s.winner_idx !== null && (
+                          {won !== null && (
                             <span className="text-xs font-black" style={{ fontFamily: "Oswald, sans-serif", color: won ? "#22c55e" : "#ff005c", fontSize: "0.62rem" }}>
                               {won ? "WIN" : "LOSS"}
                             </span>
                           )}
+                          {s.detail && <span className="text-xs font-mono" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem" }}>{s.detail}</span>}
                         </div>
                         <div className="flex items-center gap-3 mt-0.5">
                           {avg && <span className="text-xs font-mono" style={{ color: "#a78bfa" }}>{avg} avg</span>}
-                          {Number(s.p1_180s) > 0 && <span className="text-xs font-mono" style={{ color: "#ffd24a" }}>{s.p1_180s}×180</span>}
+                          {Number(s.s180s) > 0 && <span className="text-xs font-mono" style={{ color: "#ffd24a" }}>{s.s180s}×180</span>}
                           {coPct !== null && <span className="text-xs font-mono" style={{ color: "#22c55e" }}>{coPct}% co</span>}
                         </div>
                       </div>
