@@ -161,12 +161,15 @@ export default function AccountPage() {
   }, [eloHistory]);
 
   const unlockedAchievements = useMemo(() =>
-    (stats?.achievements ?? []).slice(0, 4) as any[], [stats]);
+    (stats?.achievements ?? []).slice(0, 4).map((a: any) => ({
+      ...(a.achievement ?? a),
+      unlockedAt: a.unlockedAt,
+    })) as any[], [stats]);
 
   const nearMissAchievements = useMemo(() =>
     (achProgress as any[])
-      .filter(a => a.progress !== null && a.max !== null && a.progress > 0 && a.progress < a.max && a.progress / a.max >= 0.55)
-      .sort((a, b) => (b.progress / b.max) - (a.progress / a.max))
+      .filter(a => !a.isUnlocked && a.currentProgress != null && a.criteriaValue != null && a.currentProgress > 0 && a.currentProgress < a.criteriaValue && a.currentProgress / a.criteriaValue >= 0.55)
+      .sort((a, b) => (b.currentProgress / b.criteriaValue) - (a.currentProgress / a.criteriaValue))
       .slice(0, 3),
   [achProgress]);
 
@@ -205,7 +208,7 @@ export default function AccountPage() {
 
     if (nearMissAchievements.length > 0) {
       const a = nearMissAchievements[0];
-      focuses.push(`Close to "${a.name}" — ${a.progress}/${a.max}`);
+      focuses.push(`Close to "${a.name}" — ${a.currentProgress}/${a.criteriaValue}`);
     }
 
     if (tier === "Diamond") strengths.push("Diamond tier — top of the food chain");
@@ -697,13 +700,13 @@ export default function AccountPage() {
               </div>
               <div className="space-y-2">
                 {nearMissAchievements.map((a: any) => {
-                  const pct = Math.round((a.progress / a.max) * 100);
+                  const pct = Math.round((a.currentProgress / a.criteriaValue) * 100);
                   return (
                     <div key={a.key ?? a.id}>
                       <div className="flex items-center justify-between mb-1">
                         <span style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.55)" }}>{a.icon ?? "🎯"} {a.name}</span>
                         <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "#f59e0b" }}>
-                          {a.progress}/{a.max}
+                          {a.currentProgress}/{a.criteriaValue}
                         </span>
                       </div>
                       <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
