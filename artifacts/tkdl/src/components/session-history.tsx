@@ -70,51 +70,72 @@ function x01StartScore(key: string): number | null {
 // ── Scorecard UI ──────────────────────────────────────────────────────────────
 
 function ScorecardLegView({ leg }: { leg: ScorecardLeg }) {
+  const [open, setOpen] = useState(false);
+  const checkout = leg.visits.find(v => v.isCheckout);
+  const highVisit = leg.visits.reduce((best, v) => v.total > best ? v.total : best, 0);
   return (
-    <div className="mb-3 last:mb-0">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "#ffd24a" }}>
+    <div className="rounded overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.05)", marginBottom: "4px" }}>
+      {/* Leg header — always visible, click to toggle */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-2.5 py-1.5 transition-colors hover:bg-white/[0.03]"
+        style={{ background: "rgba(255,255,255,0.02)" }}
+      >
+        <span className="font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "#ffd24a", minWidth: "2.5rem", textAlign: "left" }}>
           Leg {leg.legNum}
         </span>
-        <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.18)" }}>
-          {leg.dartCount} dart{leg.dartCount !== 1 ? "s" : ""}
+        <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.22)" }}>
+          {leg.dartCount}d
         </span>
-      </div>
-      <div className="space-y-0.5">
-        {leg.visits.map((visit, vi) => (
-          <div key={vi} className="flex items-center gap-1.5 px-2 py-1 rounded" style={{
-            background: visit.isBust ? "rgba(255,0,92,0.06)" : visit.isCheckout ? "rgba(34,197,94,0.06)" : "rgba(255,255,255,0.02)",
-          }}>
-            <div className="flex gap-1 flex-1">
-              {visit.darts.map((d, di) => (
-                <span key={di} className="px-1 py-0.5 rounded font-bold" style={{
-                  fontFamily: "Oswald, sans-serif", fontSize: "0.62rem",
-                  background: d.val === 60 ? "rgba(255,210,74,0.12)" : d.val === 50 ? "rgba(255,120,180,0.1)" : d.isDouble ? "rgba(34,197,94,0.08)" : d.isTreble ? "rgba(99,102,241,0.1)" : "rgba(255,255,255,0.04)",
-                  color: d.val === 60 ? "#ffd24a" : d.val === 50 ? "#ff7eb3" : d.isDouble ? "#4ade80" : d.isTreble ? "#a5b4fc" : d.isMiss ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.65)",
-                  border: `1px solid ${d.val === 60 ? "rgba(255,210,74,0.14)" : d.isDouble ? "rgba(74,222,128,0.1)" : d.isTreble ? "rgba(165,180,252,0.1)" : "transparent"}`,
-                }}>
-                  {d.label}
-                </span>
-              ))}
-              {Array.from({ length: 3 - visit.darts.length }).map((_, i) => (
-                <span key={`p${i}`} style={{ fontSize: "0.62rem", color: "transparent", userSelect: "none" }}>___</span>
-              ))}
+        {highVisit === 180 && (
+          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.48rem", color: "#ffd24a", background: "rgba(255,210,74,0.1)", padding: "1px 4px", borderRadius: "3px" }}>180</span>
+        )}
+        {checkout && (
+          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.48rem", color: "#4ade80", background: "rgba(34,197,94,0.08)", padding: "1px 4px", borderRadius: "3px" }}>
+            CO {checkout.total}
+          </span>
+        )}
+        <span className="flex-1" />
+        <ChevronDown className="w-3 h-3 shrink-0 transition-transform" style={{ color: "rgba(255,255,255,0.2)", transform: open ? "rotate(180deg)" : "rotate(0deg)" }} />
+      </button>
+      {/* Visit rows — only when expanded */}
+      {open && (
+        <div className="px-2 pb-2 pt-1 space-y-0.5">
+          {leg.visits.map((visit, vi) => (
+            <div key={vi} className="flex items-center gap-1.5 px-2 py-1 rounded" style={{
+              background: visit.isBust ? "rgba(255,0,92,0.06)" : visit.isCheckout ? "rgba(34,197,94,0.06)" : "rgba(255,255,255,0.02)",
+            }}>
+              <div className="flex gap-1 flex-1">
+                {visit.darts.map((d, di) => (
+                  <span key={di} className="px-1 py-0.5 rounded font-bold" style={{
+                    fontFamily: "Oswald, sans-serif", fontSize: "0.62rem",
+                    background: d.val === 60 ? "rgba(255,210,74,0.12)" : d.val === 50 ? "rgba(255,120,180,0.1)" : d.isDouble ? "rgba(34,197,94,0.08)" : d.isTreble ? "rgba(99,102,241,0.1)" : "rgba(255,255,255,0.04)",
+                    color: d.val === 60 ? "#ffd24a" : d.val === 50 ? "#ff7eb3" : d.isDouble ? "#4ade80" : d.isTreble ? "#a5b4fc" : d.isMiss ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.65)",
+                    border: `1px solid ${d.val === 60 ? "rgba(255,210,74,0.14)" : d.isDouble ? "rgba(74,222,128,0.1)" : d.isTreble ? "rgba(165,180,252,0.1)" : "transparent"}`,
+                  }}>
+                    {d.label}
+                  </span>
+                ))}
+                {Array.from({ length: 3 - visit.darts.length }).map((_, i) => (
+                  <span key={`p${i}`} style={{ fontSize: "0.62rem", color: "transparent", userSelect: "none" }}>___</span>
+                ))}
+              </div>
+              <span className="font-black shrink-0 text-right" style={{
+                fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", minWidth: "2.8rem",
+                color: visit.total === 180 ? "#ffd24a" : visit.isBust ? "#ff005c" : visit.isCheckout ? "#4ade80" : "rgba(255,255,255,0.45)",
+              }}>
+                {visit.isBust ? "BUST" : visit.total === 180 ? "180!" : visit.total}
+              </span>
+              <span className="shrink-0 text-right" style={{
+                fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", minWidth: "1.8rem",
+                color: visit.isCheckout ? "#4ade80" : "rgba(255,255,255,0.18)",
+              }}>
+                {visit.isCheckout ? "✓" : visit.remaining}
+              </span>
             </div>
-            <span className="font-black shrink-0 text-right" style={{
-              fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", minWidth: "2.8rem",
-              color: visit.total === 180 ? "#ffd24a" : visit.isBust ? "#ff005c" : visit.isCheckout ? "#4ade80" : "rgba(255,255,255,0.45)",
-            }}>
-              {visit.isBust ? "BUST" : visit.total === 180 ? "180!" : visit.total}
-            </span>
-            <span className="shrink-0 text-right" style={{
-              fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", minWidth: "1.8rem",
-              color: visit.isCheckout ? "#4ade80" : "rgba(255,255,255,0.18)",
-            }}>
-              {visit.isCheckout ? "✓" : visit.remaining}
-            </span>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
