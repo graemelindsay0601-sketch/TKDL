@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Target, ArrowRight, CheckCircle, Lock, RotateCcw } from "lucide-react";
+import { Target, ArrowRight, CheckCircle, Lock, RotateCcw, Zap, Shield, Flame, TrendingUp } from "lucide-react";
 import { Master501Scorer } from "@/lib/scorers";
 import { type PracticeStats } from "@/lib/stats-types";
 import { SessionHistorySection } from "@/components/session-history";
@@ -38,6 +38,16 @@ const SITE_BG: React.CSSProperties = {
   backgroundSize: "cover", backgroundPosition: "center",
 };
 
+type LbRow = { id: number; name: string; tier: number; round: number; total_wins: number; total_losses: number; total_runs: number; best_avg: string; total_180s: number; co_hits: number; co_attempts: number };
+
+const M501_TIER_META: Record<number, { label: string; color: string; emoji: string }> = {
+  1: { label: "Challenger",         color: "#94a3b8", emoji: "🎯" },
+  2: { label: "Pro Circuit",        color: "#4ade80", emoji: "⚡" },
+  3: { label: "Premier",            color: "#38bdf8", emoji: "🔵" },
+  4: { label: "Grand Prix",         color: "#ffd24a", emoji: "🏆" },
+  5: { label: "World Championship", color: "#ff005c", emoji: "👑" },
+};
+
 export default function Master501() {
   const [players,     setPlayers]     = useState<Player[]>([]);
   const [playerId,    setPlayerId]    = useState<number | null>(null);
@@ -48,6 +58,7 @@ export default function Master501() {
   const [matchResult, setMatchResult] = useState<{ result: "win" | "loss"; legsWon: number; legsLost: number } | null>(null);
   const [loading,     setLoading]     = useState(false);
   const [lastStats,   setLastStats]   = useState<PracticeStats | null>(null);
+  const [lbRows,      setLbRows]      = useState<LbRow[]>([]);
 
   const pendingStatsRef = useRef<PracticeStats | null>(null);
   const matchStartRef   = useRef<number>(Date.now());
@@ -56,6 +67,10 @@ export default function Master501() {
     fetch("/api/players")
       .then(r => r.json())
       .then((d: Player[]) => setPlayers(d.filter(p => p.status === "ACTIVE")))
+      .catch(() => {});
+    fetch("/api/master501/leaderboard")
+      .then(r => r.json())
+      .then(setLbRows)
       .catch(() => {});
   }, []);
 
@@ -239,20 +254,131 @@ export default function Master501() {
   const currentTier  = progress?.currentTier  ?? 0;
   const currentRound = progress?.currentRound ?? 0;
   const lobbyCfg     = progress?.config;
+  const activeLbRows = lbRows.filter(r => r.total_runs > 0);
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="p-2.5 rounded-xl" style={{ background: "rgba(0,200,160,0.1)", border: "1px solid rgba(0,200,160,0.2)" }}>
-          <Target className="w-5 h-5" style={{ color: "#00c8a0" }} />
+    <div className="space-y-5 pb-10">
+
+      {/* ── HERO / SALES PITCH ─────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl"
+        style={{ background: "linear-gradient(135deg, rgba(0,200,160,0.12) 0%, rgba(0,102,255,0.07) 60%, transparent 100%)", border: "1px solid rgba(0,200,160,0.25)" }}>
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div style={{ position: "absolute", top: -60, right: -60, width: 240, height: 240, background: "radial-gradient(circle, rgba(0,200,160,0.22) 0%, transparent 65%)" }} />
+          <div style={{ position: "absolute", bottom: -40, left: -40, width: 180, height: 180, background: "radial-gradient(circle, rgba(0,102,255,0.14) 0%, transparent 65%)" }} />
         </div>
-        <div>
-          <h1 className="font-black uppercase tracking-widest text-xl" style={{ fontFamily: "Oswald,sans-serif" }}>Master-501</h1>
-          <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>Career ladder · 501 double-out vs dart limit per leg</div>
+        <div className="relative p-5 md:p-7">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="w-3.5 h-3.5 fill-current" style={{ color: "#00c8a0" }} />
+            <span className="text-xs font-black uppercase tracking-widest" style={{ color: "#00c8a0", fontFamily: "Oswald,sans-serif", letterSpacing: "0.22em" }}>
+              TKDL MASTER-501
+            </span>
+          </div>
+          <h1 className="font-black uppercase leading-none mb-3"
+            style={{ fontFamily: "Oswald,sans-serif", fontSize: "clamp(1.8rem, 5vw, 3rem)", letterSpacing: "0.06em", color: "#fff" }}>
+            CAN YOU BEAT<br />THE CLOCK?
+          </h1>
+          <p className="text-sm leading-relaxed mb-5 max-w-lg" style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Oswald,sans-serif" }}>
+            Every leg has a dart limit. Go over it and the leg is gone — no excuses, no extensions.
+            Start at 60 darts per leg. By the time you reach the World Championship tier, you've got just <span style={{ color: "#ff005c", fontWeight: 900 }}>15</span>.
+            Five tiers. Fifteen rounds. Pure solo pressure.
+          </p>
+
+          {/* Feature bullets */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
+            {[
+              { icon: <Zap className="w-3.5 h-3.5" />,        color: "#00c8a0", title: "Dart Limits",    desc: "60 → 15 darts" },
+              { icon: <Shield className="w-3.5 h-3.5" />,     color: "#38bdf8", title: "5 Tiers",        desc: "Challenger to Worlds" },
+              { icon: <Flame className="w-3.5 h-3.5" />,      color: "#ff005c", title: "15 Rounds",      desc: "BO5 · BO9 · BO11" },
+              { icon: <TrendingUp className="w-3.5 h-3.5" />, color: "#ffd24a", title: "Career Ladder",  desc: "Progress saves forever" },
+            ].map(f => (
+              <div key={f.title} className="flex items-start gap-2 px-3 py-2.5 rounded-xl"
+                style={{ background: `${f.color}0e`, border: `1px solid ${f.color}28` }}>
+                <div className="shrink-0 mt-0.5" style={{ color: f.color }}>{f.icon}</div>
+                <div>
+                  <div className="font-black uppercase text-xs" style={{ fontFamily: "Oswald,sans-serif", color: f.color, fontSize: "0.62rem", letterSpacing: "0.1em" }}>{f.title}</div>
+                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.6rem" }}>{f.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
+      {/* ── MINI LEADERBOARD ───────────────────────────────────────────────── */}
+      <div className="pdc-card overflow-hidden">
+        <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <div className="flex items-center gap-2">
+            <Target className="w-3.5 h-3.5" style={{ color: "#00c8a0" }} />
+            <span className="font-black uppercase tracking-widest text-xs" style={{ fontFamily: "Oswald,sans-serif", color: "rgba(255,255,255,0.5)", fontSize: "0.6rem", letterSpacing: "0.15em" }}>
+              LADDER STANDINGS
+            </span>
+          </div>
+          <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald,sans-serif", fontSize: "0.58rem" }}>Ranked by tier · round</span>
+        </div>
+        {activeLbRows.length === 0 ? (
+          <div className="px-4 py-8 text-center space-y-2">
+            <div className="text-3xl">🎯</div>
+            <div className="font-black uppercase text-sm" style={{ fontFamily: "Oswald,sans-serif", color: "rgba(255,255,255,0.4)" }}>No runs yet</div>
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>Be the first to climb the ladder</div>
+          </div>
+        ) : (
+          <div>
+            {activeLbRows.slice(0, 6).map((row, idx) => {
+              const meta   = M501_TIER_META[row.tier] ?? M501_TIER_META[1];
+              const avg    = Number(row.best_avg);
+              const coPct  = row.co_attempts > 0 ? Math.round((row.co_hits / row.co_attempts) * 100) : null;
+              const POS_COLORS = ["#ffd24a", "#94a3b8", "#cd7f32"];
+              const posColor   = POS_COLORS[idx] ?? "rgba(255,255,255,0.2)";
+              return (
+                <div key={row.id} className="px-4 py-2.5 border-b flex items-center gap-3"
+                  style={{ borderColor: "rgba(255,255,255,0.04)", background: idx === 0 ? "rgba(0,200,160,0.04)" : undefined }}>
+                  <span className="font-black text-sm w-5 shrink-0 text-center tabular-nums"
+                    style={{ fontFamily: "Oswald,sans-serif", color: posColor, fontSize: idx < 3 ? "0.85rem" : "0.7rem" }}>
+                    {idx < 3 ? ["🥇","🥈","🥉"][idx] : idx + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-black uppercase text-sm" style={{ fontFamily: "Oswald,sans-serif", color: idx === 0 ? "#fff" : "rgba(255,255,255,0.8)" }}>
+                      {row.name}
+                    </span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-xs px-1.5 py-0.5 rounded font-black uppercase"
+                        style={{ background: `${meta.color}18`, color: meta.color, border: `1px solid ${meta.color}30`, fontFamily: "Oswald,sans-serif", fontSize: "0.55rem", letterSpacing: "0.08em" }}>
+                        {meta.emoji} T{row.tier} {meta.label}
+                      </span>
+                      <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald,sans-serif", fontSize: "0.58rem" }}>R{row.round}</span>
+                    </div>
+                  </div>
+                  <div className="hidden sm:flex items-center gap-3 shrink-0">
+                    <div className="text-center">
+                      <div className="font-mono text-xs font-bold" style={{ color: "#22c55e" }}>{row.total_wins}<span style={{ color: "rgba(255,255,255,0.2)" }}>W</span></div>
+                    </div>
+                    {avg > 0 && (
+                      <div className="text-center" style={{ minWidth: "3rem" }}>
+                        <div className="font-black text-sm tabular-nums" style={{ fontFamily: "Oswald,sans-serif", color: avg >= 90 ? "#ffd24a" : avg >= 80 ? "#22c55e" : "rgba(255,255,255,0.45)", lineHeight: 1 }}>{avg.toFixed(1)}</div>
+                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald,sans-serif", fontSize: "0.5rem" }}>AVG</div>
+                      </div>
+                    )}
+                    {row.total_180s > 0 && (
+                      <div className="text-center">
+                        <div className="font-black text-sm" style={{ fontFamily: "Oswald,sans-serif", color: "#ffd24a", lineHeight: 1 }}>{row.total_180s}</div>
+                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald,sans-serif", fontSize: "0.5rem" }}>180s</div>
+                      </div>
+                    )}
+                    {coPct !== null && (
+                      <div className="text-center">
+                        <div className="font-black text-sm" style={{ fontFamily: "Oswald,sans-serif", color: coPct >= 50 ? "#00c8a0" : "rgba(255,255,255,0.4)", lineHeight: 1 }}>{coPct}%</div>
+                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald,sans-serif", fontSize: "0.5rem" }}>CO%</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="max-w-xl mx-auto w-full space-y-5">
       {/* Player selector */}
       <div>
         <h2 className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald,sans-serif" }}>Player</h2>
@@ -359,6 +485,7 @@ export default function Master501() {
         }}>
         {loading ? "LOADING…" : "START MATCH"}
       </button>
+      </div>{/* /max-w-xl */}
     </div>
   );
 }
