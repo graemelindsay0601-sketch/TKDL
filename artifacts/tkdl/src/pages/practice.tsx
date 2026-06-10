@@ -333,7 +333,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     if (botMode === "level" && selectedLevel !== null) {
       const color = numLevelColor(selectedLevel);
       return {
-        p1: p1!, p2: null, gameType: selectedGame!, solo: true,
+        p1: p1!, p2: null, gameType: selectedGame!, solo: true, bullUp,
         botName: `Level ${selectedLevel} Bot`,
         botSubtitle: `${numLevelLabel(selectedLevel)} · ${numLevelConfig(selectedLevel).avg} avg`,
         botFlag: undefined,
@@ -357,7 +357,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         computedAvg: prof.computedAvg,
       };
       return {
-        p1: p1!, p2: null, gameType: selectedGame!, solo: true,
+        p1: p1!, p2: null, gameType: selectedGame!, solo: true, bullUp,
         botName: `Shadow ${shadowPlayer.name}`,
         botSubtitle: `Player Clone · ${Number(prof.computedAvg).toFixed(1)} avg`,
         botFlag: "👻",
@@ -369,7 +369,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     const persona = selectedPersona!;
     const lvl = BOT_LEVELS[persona.level];
     return {
-      p1: p1!, p2: null, gameType: selectedGame!, solo: true,
+      p1: p1!, p2: null, gameType: selectedGame!, solo: true, bullUp,
       botName: persona.name,
       botSubtitle: `${persona.nickname} · ${lvl.label} · ${persona.avg} avg`,
       botFlag: persona.flag,
