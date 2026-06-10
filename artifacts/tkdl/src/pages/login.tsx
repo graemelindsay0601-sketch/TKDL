@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/context/auth";
-import { Target } from "lucide-react";
+import { Target, X } from "lucide-react";
 
 export default function Login() {
   const { login } = useAuth();
@@ -45,8 +45,19 @@ export default function Login() {
         </div>
 
         {/* Card */}
-        <div className="rounded-2xl p-6"
+        <div className="rounded-2xl p-6 relative"
           style={{ background: "rgba(10,8,20,0.95)", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 24px 48px rgba(0,0,0,0.5)" }}>
+
+          <button
+            onClick={() => navigate("/")}
+            className="absolute top-4 right-4 flex items-center justify-center w-7 h-7 rounded-lg transition-all"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.35)" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.1)"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.05)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.35)"; }}
+            aria-label="Close"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
 
           <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.2em", color: "rgba(255,0,92,0.7)", textTransform: "uppercase", marginBottom: "1.2rem" }}>
             Sign In
