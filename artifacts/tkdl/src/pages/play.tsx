@@ -17,6 +17,7 @@ type SetupData = {
   team2: Player[];   // killer-ffa: empty
   gameType: GameTypeOption;
   stake: number;
+  bullUp?: boolean;
 };
 
 // ── Format config ───────────────────────────────────────────────────────────────
@@ -108,6 +109,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [stake, setStake]         = useState("5");
   const [tab, setTab]             = useState("competitive");
   const [rulesGame, setRulesGame] = useState<GameTypeOption | null>(null);
+  const [bullUp, setBullUp]       = useState(false);
 
   useEffect(() => {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
@@ -187,7 +189,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     } else if (format === "1v1") {
       const p1 = players.find(p => String(p.id) === team1Ids[0])!;
       const p2 = players.find(p => String(p.id) === team2Ids[0])!;
-      onStart({ format, team1: [p1], team2: [p2], gameType: selectedGame, stake: stakeN });
+      onStart({ format, team1: [p1], team2: [p2], gameType: selectedGame, stake: stakeN, bullUp });
     } else {
       onStart({
         format,
@@ -374,6 +376,32 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           </div>
         )}
       </div>
+
+      {/* Bull Up toggle (1v1 only) */}
+      {format === "1v1" && (
+        <button onClick={() => setBullUp(v => !v)}
+          className="w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all"
+          style={{
+            background: bullUp ? "rgba(255,210,74,0.08)" : "rgba(255,255,255,0.03)",
+            border: `1px solid ${bullUp ? "rgba(255,210,74,0.35)" : "rgba(255,255,255,0.07)"}`,
+            cursor: "pointer",
+          }}>
+          <span style={{ fontSize: 18 }}>🎯</span>
+          <div className="flex-1 text-left">
+            <div className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: bullUp ? "#ffd24a" : "rgba(255,255,255,0.45)" }}>
+              Bull Up
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem" }}>
+              Closest to bull decides who throws first
+            </div>
+          </div>
+          <div className="w-10 h-5 rounded-full relative transition-all flex-shrink-0"
+            style={{ background: bullUp ? "rgba(255,210,74,0.5)" : "rgba(255,255,255,0.1)" }}>
+            <div className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
+              style={{ background: bullUp ? "#ffd24a" : "rgba(255,255,255,0.3)", left: bullUp ? "calc(100% - 18px)" : "2px" }} />
+          </div>
+        </button>
+      )}
 
       {/* Start button */}
       <button
@@ -601,6 +629,7 @@ export default function Play() {
           gameType={setupData.gameType}
           teamNames={teamNames}
           playerNames={playerNames}
+          bullUp={setupData.bullUp}
           onWin={r => { setResult(r); setPhase("gameover"); }}
           onAbandon={reset}
           onPracticeStats={s => setMatchStats(s)}

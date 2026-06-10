@@ -38,6 +38,7 @@ type SetupData = {
   legs?: number;
   setsToWin?: number;
   legsToWinSet?: number;
+  bullUp?: boolean;
 };
 
 const TABS = [
@@ -264,6 +265,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [formatMode, setFormatMode] = useState<"legs" | "sets">("legs");
   const [selectedLegs, setSelectedLegs] = useState(1);
   const [selectedSets, setSelectedSets] = useState({ sets: 3, legsPerSet: 3 });
+  const [bullUp, setBullUp]             = useState(false);
 
   useEffect(() => {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
@@ -316,7 +318,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
 
   function buildSetupData(): SetupData {
     const fmt = formatProps();
-    if (mode === "2p") return { p1: p1!, p2: p2!, gameType: selectedGame!, solo: false, ...fmt };
+    if (mode === "2p") return { p1: p1!, p2: p2!, gameType: selectedGame!, solo: false, bullUp, ...fmt };
     if (mode === "solo") return { p1: p1!, p2: null, gameType: selectedGame!, solo: true, soloPlay: true, ...fmt };
     if (botMode === "level" && selectedLevel !== null) {
       const color = numLevelColor(selectedLevel);
@@ -663,6 +665,32 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         </div>
       )}
 
+      {/* Bull Up toggle (2p / bot modes only) */}
+      {mode !== "solo" && (
+        <button onClick={() => setBullUp(v => !v)}
+          className="w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all"
+          style={{
+            background: bullUp ? "rgba(255,210,74,0.08)" : "rgba(255,255,255,0.03)",
+            border: `1px solid ${bullUp ? "rgba(255,210,74,0.35)" : "rgba(255,255,255,0.07)"}`,
+            cursor: "pointer",
+          }}>
+          <span style={{ fontSize: 18 }}>🎯</span>
+          <div className="flex-1 text-left">
+            <div className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: bullUp ? "#ffd24a" : "rgba(255,255,255,0.45)" }}>
+              Bull Up
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem" }}>
+              Closest to bull decides who throws first
+            </div>
+          </div>
+          <div className="w-10 h-5 rounded-full relative transition-all flex-shrink-0"
+            style={{ background: bullUp ? "rgba(255,210,74,0.5)" : "rgba(255,255,255,0.1)" }}>
+            <div className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
+              style={{ background: bullUp ? "#ffd24a" : "rgba(255,255,255,0.3)", left: bullUp ? "calc(100% - 18px)" : "2px" }} />
+          </div>
+        </button>
+      )}
+
       <button
         onClick={() => canStart && onStart(buildSetupData())}
         disabled={!canStart}
@@ -847,6 +875,7 @@ export default function Practice() {
           setsToWin={setupData.setsToWin}
           legsToWinSet={setupData.legsToWinSet}
           soloMode={setupData.soloPlay}
+          bullUp={setupData.bullUp}
           onWin={r => { setResult(r); setPhase("done"); }}
           onAbandon={() => setPhase("setup")}
           onPracticeStats={s => setPracticeStats(s)}
