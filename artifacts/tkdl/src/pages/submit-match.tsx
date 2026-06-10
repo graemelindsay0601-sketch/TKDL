@@ -49,7 +49,7 @@ export default function SubmitMatch() {
 
   const winnerId = form.watch("winnerId");
   const loserId  = form.watch("loserId");
-  const stake    = form.watch("stake");
+  const stake    = Number(form.watch("stake"));
 
   const activePlayers = players?.filter(p => p.isActive && p.status !== "ELIMINATED") ?? [];
 
