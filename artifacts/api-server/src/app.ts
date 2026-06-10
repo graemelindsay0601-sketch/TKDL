@@ -500,6 +500,24 @@ async function seedShadowBotAchievements() {
   logger.info("shadow_bot_achievements table ready");
 }
 
+async function seedPlayoffMatches() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS playoff_matches (
+      id          SERIAL PRIMARY KEY,
+      season_id   INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+      player1_id  INTEGER NOT NULL REFERENCES players(id),
+      player2_id  INTEGER NOT NULL REFERENCES players(id),
+      winner_id   INTEGER REFERENCES players(id),
+      round       TEXT NOT NULL DEFAULT 'final',
+      game_type   TEXT NOT NULL DEFAULT '501',
+      notes       TEXT,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_playoff_matches_season ON playoff_matches(season_id)`);
+  logger.info("playoff_matches table ready");
+}
+
 async function seedSessions() {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -541,6 +559,7 @@ async function init() {
     await seedAchievements();
     await seedRealData();
     await maybeAutoResetSeason();
+    await seedPlayoffMatches();
     await seedSessions();
     await seedUsers();
     logger.info("Startup init complete");
