@@ -545,6 +545,24 @@ async function seedUsers() {
   `);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_users_player_id ON users(player_id)`);
   logger.info("Users table ready");
+
+  // Bootstrap first admin if SETUP_ADMIN_PASSWORD is set and no users exist yet
+  const setupPwd = process.env.SETUP_ADMIN_PASSWORD;
+  if (setupPwd) {
+    const existing = (await db.execute(sql`SELECT COUNT(*)::int AS c FROM users`)).rows[0] as { c: number };
+    if (Number(existing.c) === 0) {
+      const graemeRow = (await db.execute(sql`SELECT id FROM players WHERE LOWER(name) = 'graeme' LIMIT 1`)).rows[0] as { id: number } | undefined;
+      if (graemeRow) {
+        const hash = await bcrypt.hash(setupPwd, 12);
+        await db.execute(sql`
+          INSERT INTO users (username, password_hash, player_id, is_admin)
+          VALUES ('graeme', ${hash}, ${graemeRow.id}, true)
+          ON CONFLICT (username) DO NOTHING
+        `);
+        logger.info("Bootstrap admin account created for graeme");
+      }
+    }
+  }
 }
 
 async function init() {
