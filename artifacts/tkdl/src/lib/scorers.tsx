@@ -3107,3 +3107,178 @@ export function TeamCountUpScorer({ team1, team2, config, onWin, onAbandon }: {
     />
   );
 }
+
+// ── 99 Darts Scorer ────────────────────────────────────────────────────────────
+export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string;
+  config: { variant?: "standard" | "doubles" | "trebles" };
+  onWin: (w: 0|1, d?: string) => void;
+  onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+}) {
+  const variant = config.variant ?? "standard";
+  const [target, setTarget]         = useState<number | null>(null);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [dartsThrown, setDartsThrown] = useState(0);
+  const [score, setScore]           = useState(0);
+  const [done, setDone]             = useState(false);
+  const [flashMsg, setFlashMsg]     = useState<string | null>(null);
+
+  const TOTAL_DARTS = 99;
+  const variantLabel = variant === "doubles" ? "Doubles" : variant === "trebles" ? "Trebles" : "Standard";
+  const maxPerDart   = variant === "standard" ? 3 : 1;
+  const maxScore     = TOTAL_DARTS * maxPerDart;
+
+  const siteBg: React.CSSProperties = {
+    backgroundImage: "linear-gradient(rgba(4,4,10,0.84), rgba(4,4,10,0.92)), url('https://i.postimg.cc/Bbf9fbrp/pdc1.jpg')",
+    backgroundSize: "cover", backgroundPosition: "center",
+  };
+
+  function getDartScore(dart: Dart, t: number): number {
+    if (dart.segment !== t) return 0;
+    if (variant === "standard") return dart.multiplier;
+    if (variant === "doubles")  return dart.multiplier === 2 ? 1 : 0;
+    if (variant === "trebles")  return dart.multiplier === 3 ? 1 : 0;
+    return 0;
+  }
+
+  const handleDart = (dart: Dart) => {
+    if (target === null || done || visitDarts.length >= 3) return;
+    const t = target;
+    const pts = getDartScore(dart, t);
+    if (pts > 0) {
+      const label = variant === "standard"
+        ? (dart.multiplier === 3 ? "TREBLE!" : dart.multiplier === 2 ? "Double!" : "Hit!")
+        : "HIT!";
+      setFlashMsg(`${label} +${pts}`);
+      setTimeout(() => setFlashMsg(null), 800);
+    }
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      const visitPts = nv.reduce((acc, d) => acc + getDartScore(d, t), 0);
+      setScore(prev => {
+        const ns = prev + visitPts;
+        const newDarts = dartsThrown + 3;
+        if (newDarts >= TOTAL_DARTS) {
+          setDone(true);
+          const pct = Math.round((ns / maxScore) * 100);
+          setTimeout(() => {
+            onPracticeStats?.({ sessionData: { mode: "99darts" } });
+            onWin(0, `${ns}/${maxScore} (${pct}%)`);
+          }, 1000);
+        }
+        return ns;
+      });
+      setDartsThrown(prev => prev + 3);
+      setVisitDarts([]);
+    }
+  };
+
+  const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
+  const handleUndo = () => {
+    if (visitDarts.length > 0) setVisitDarts(p => p.slice(0, -1));
+  };
+
+  // ── Setup screen ─────────────────────────────────────────────────────────────
+  if (target === null) {
+    const nums = [20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
+    const rule = variant === "standard"
+      ? "S = 1pt · D = 2pts · T = 3pts"
+      : variant === "doubles"
+      ? "Only doubles count · 1 pt per hit · max 99"
+      : "Only trebles count · 1 pt per hit · max 99";
+    return (
+      <div style={{ minHeight:"100dvh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"1.5rem", ...siteBg }}>
+        <div className="text-center mb-6">
+          <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color:"#00c8a0", fontFamily:"Oswald,sans-serif" }}>
+            99 Darts · {variantLabel}
+          </div>
+          <h2 className="text-3xl font-black uppercase" style={{ fontFamily:"Oswald,sans-serif", color:"#fff" }}>
+            Pick Your Target
+          </h2>
+          <p className="text-xs mt-2" style={{ color:"rgba(255,255,255,0.3)" }}>{rule}</p>
+        </div>
+        <div className="grid grid-cols-5 gap-2 mb-3" style={{ maxWidth:"17rem" }}>
+          {nums.map(n => (
+            <button key={n} onClick={() => setTarget(n)}
+              className="rounded-lg font-black text-lg transition-all active:scale-95 hover:brightness-125"
+              style={{ fontFamily:"Oswald,sans-serif", padding:"0.55rem 0", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"#fff" }}>
+              {n}
+            </button>
+          ))}
+        </div>
+        {variant !== "trebles" && (
+          <button onClick={() => setTarget(25)}
+            className="rounded-lg font-black text-sm transition-all active:scale-95 hover:brightness-125 mb-6"
+            style={{ fontFamily:"Oswald,sans-serif", padding:"0.55rem 2.5rem", background:"rgba(255,0,92,0.15)", border:"1px solid rgba(255,0,92,0.4)", color:"#ff005c" }}>
+            Bull
+          </button>
+        )}
+        {variant === "trebles" && <div className="mb-6" />}
+        <button onClick={onAbandon} className="text-xs" style={{ color:"rgba(255,255,255,0.2)" }}>← Back</button>
+      </div>
+    );
+  }
+
+  // ── Active / done ─────────────────────────────────────────────────────────────
+  const targetLabel = target === 25 ? "Bull" : String(target);
+  const dartsInFlight = dartsThrown + visitDarts.length;
+  const remaining = TOTAL_DARTS - dartsInFlight;
+  const visitNum  = Math.floor(dartsThrown / 3) + 1;
+  const pct = dartsInFlight > 0 ? Math.round((score / (dartsInFlight * maxPerDart)) * 100) : 0;
+
+  return (
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider" />
+        <div className="text-center">
+          <div className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily:"Oswald,sans-serif", color:"#00c8a0" }}>
+            99 Darts at {targetLabel} · {variantLabel}
+          </div>
+          <div className="text-xs mt-0.5" style={{ color:"rgba(255,255,255,0.25)", fontFamily:"Oswald,sans-serif" }}>{p1Name}</div>
+        </div>
+        <div className="pdc-divider" />
+        <div className="flex items-center justify-around px-4">
+          <div className="text-center">
+            <div className="text-5xl font-black" style={{ fontFamily:"Oswald,sans-serif", color:"#ffd24a" }}>{score}</div>
+            <div className="text-xs mt-1" style={{ color:"rgba(255,255,255,0.25)" }}>/ {maxScore} max</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-black" style={{ fontFamily:"Oswald,sans-serif", color: pct >= 60 ? "#00c8a0" : pct >= 30 ? "#ffd24a" : "rgba(255,255,255,0.5)" }}>
+              {pct}%
+            </div>
+            <div className="text-xs mt-1" style={{ color:"rgba(255,255,255,0.25)" }}>accuracy</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-black" style={{ fontFamily:"Oswald,sans-serif", color:"rgba(255,255,255,0.6)" }}>{remaining}</div>
+            <div className="text-xs mt-1" style={{ color:"rgba(255,255,255,0.25)" }}>darts left</div>
+          </div>
+        </div>
+        <div className="px-4">
+          <div className="flex items-center justify-between mb-1" style={{ color:"rgba(255,255,255,0.2)", fontFamily:"Oswald,sans-serif", fontSize:"0.6rem", letterSpacing:"0.08em" }}>
+            <span>VISIT {done ? 33 : visitNum} / 33</span>
+            <span>{dartsInFlight} / {TOTAL_DARTS} DARTS</span>
+          </div>
+          <div className="w-full rounded-full" style={{ height:4, background:"rgba(255,255,255,0.06)" }}>
+            <div className="rounded-full transition-all duration-300" style={{ height:4, width:`${(dartsInFlight / TOTAL_DARTS)*100}%`, background:"#00c8a0" }} />
+          </div>
+        </div>
+        {flashMsg && (
+          <div className="text-center font-black" style={{ fontFamily:"Oswald,sans-serif", color:"#00c8a0", fontSize:"1rem" }}>{flashMsg}</div>
+        )}
+        <VisitDarts darts={visitDarts} />
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard
+          onDart={handleDart}
+          onMiss={handleMiss}
+          onUndo={handleUndo}
+          disabled={done}
+          highlightSegments={[target]}
+        />
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>}
+    />
+  );
+}

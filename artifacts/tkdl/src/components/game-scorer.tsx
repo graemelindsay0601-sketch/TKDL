@@ -10,6 +10,7 @@ import {
   JDCChallenge41Scorer, ExponentialBundleScorer, ShootingGalleryScorer, DeadCentreScorer,
   ThreeInABedScorer,
   TeamX01Scorer, TeamCricketScorer, MultiKillerScorer,
+  NinetyNineDartsScorer,
 } from "@/lib/scorers";
 import { type BotConfig } from "@/lib/bot-engine";
 import { type PracticeStats } from "@/lib/stats-types";
@@ -104,6 +105,9 @@ export function GameScorer({
 
     case "DeadCentre":
       return <DeadCentreScorer p1Name={p1Name} p2Name={p2Name} target={(cfg.target as number) ?? 300} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+
+    case "NinetyNine":
+      return <NinetyNineDartsScorer p1Name={p1Name} config={cfg as any} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
 
     case "Custom":
       switch (gameType.key) {
