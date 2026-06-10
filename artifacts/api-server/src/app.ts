@@ -9,6 +9,7 @@ import { logger } from "./lib/logger";
 import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetSeason } from "./lib/seasonReset";
 import { seedTourSystem } from "./lib/tourSeed";
+import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { playersTable, seasonsTable, matchesTable, seasonStandingsTable, settingsTable, gameTypesTable } from "@workspace/db";
 import { eq, count, sql } from "drizzle-orm";
@@ -24,6 +25,13 @@ app.use(
     },
   }),
 );
+
+app.set("trust proxy", 1);
+
+if (!process.env.SESSION_SECRET) {
+  logger.error("SESSION_SECRET env var is not set — sessions will not work. Set it in Render/environment config.");
+  process.exit(1);
+}
 
 const PgSession = connectPg(session);
 app.use(session({
