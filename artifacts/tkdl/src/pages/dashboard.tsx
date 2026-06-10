@@ -432,6 +432,58 @@ function ShadowBotSection() {
   );
 }
 
+// ── CHALLENGES TEASER ──────────────────────────────────────────────────────────
+
+const CHALLENGE_CATS = [
+  { key: "league",   label: "League",   color: "#ff005c", count: 9,  icon: "🏆" },
+  { key: "practice", label: "Practice", color: "#0066ff", count: 9,  icon: "🎯" },
+  { key: "m501",     label: "Master 501",color:"#ffd24a", count: 6,  icon: "⚡" },
+  { key: "tour",     label: "Tour",     color: "#c084fc", count: 6,  icon: "🌟" },
+  { key: "career",   label: "Career",   color: "#4ade80", count: 6,  icon: "👑" },
+];
+
+function ChallengesSection() {
+  return (
+    <div className="section-card" style={{ borderTop: "2px solid #f97316" }}>
+      <SectionHeader
+        icon={<Target className="w-3.5 h-3.5" />}
+        label="Challenges"
+        accent="#f97316"
+        href="/challenges"
+        linkLabel="Take on Challenges →"
+      />
+
+      <div className="space-y-1.5 mb-3">
+        {CHALLENGE_CATS.map(c => (
+          <div key={c.key} className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl"
+            style={{ background: `${c.color}07`, border: `1px solid ${c.color}18` }}>
+            <span className="text-base leading-none shrink-0">{c.icon}</span>
+            <div className="flex-1 min-w-0">
+              <div className="font-black text-xs uppercase"
+                style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.8)", letterSpacing: "0.04em" }}>
+                {c.label}
+              </div>
+            </div>
+            <div className="text-xs font-black shrink-0"
+              style={{ fontFamily: "Oswald, sans-serif", color: c.color, fontSize: "0.65rem" }}>
+              {c.count} challenges
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="pt-2.5 border-t flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <span className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#f97316", fontSize: "0.6rem", opacity: 0.6 }}>
+          36 Total Challenges
+        </span>
+        <span className="text-xs" style={{ color: "rgba(255,255,255,0.15)", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
+          Pick a player to track progress
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ── RIVALRIES SECTION ──────────────────────────────────────────────────────────
 
 type Rivalry = {
@@ -641,6 +693,7 @@ export default function Dashboard() {
           <AchievementsSection />
           <ShadowBotSection />
           <RivalriesSection />
+          <ChallengesSection />
         </div>
       </div>
 

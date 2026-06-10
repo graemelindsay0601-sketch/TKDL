@@ -972,6 +972,9 @@ export default function Admin() {
   const queryClient = useQueryClient();
   const [seasonName, setSeasonName] = useState("");
   const [isSweeping, setIsSweeping] = useState(false);
+  const [eloPlayerId, setEloPlayerId] = useState<number | null>(null);
+  const [eloValue, setEloValue]       = useState(1000);
+  const [eloLoading, setEloLoading]   = useState(false);
 
   // PIN lock
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(ADMIN_PIN_KEY) === "1");
@@ -1007,6 +1010,31 @@ export default function Admin() {
         onError: (e: any) => toast({ title: "Error resetting season", description: e.message, variant: "destructive" }),
       }
     );
+  };
+
+  const handleEloOverride = async () => {
+    if (!eloPlayerId) return;
+    setEloLoading(true);
+    try {
+      const res = await fetch(`/api/admin/players/${eloPlayerId}/elo`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ elo: eloValue }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const name = players?.find(p => p.id === eloPlayerId)?.name ?? "Player";
+        toast({ title: "Elo Updated", description: `${name} → ${eloValue} Elo (${data.tier})` });
+        queryClient.invalidateQueries({ queryKey: getGetLeaderboardQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
+        setEloPlayerId(null);
+      } else {
+        toast({ title: "Error", description: data.error, variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
+    setEloLoading(false);
   };
 
   const handleDeleteMatch = (matchId: number, winnerId: number, loserId: number) => {
@@ -1148,6 +1176,55 @@ export default function Admin() {
             )}
           </Button>
         </div>
+      </div>
+
+      {/* Elo Override */}
+      <div className="pdc-card p-5" style={{ borderColor: "rgba(0,102,255,0.2)", background: "rgba(0,102,255,0.02)" }}>
+        <div className="flex items-center gap-2 mb-4">
+          <Zap className="w-4 h-4" style={{ color: "#0066ff" }} />
+          <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#0066ff" }}>
+            Elo Override
+          </h2>
+          <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>· Manually correct a player's Elo rating</span>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 items-start">
+          <select
+            value={eloPlayerId ?? ""}
+            onChange={e => {
+              const id = e.target.value ? Number(e.target.value) : null;
+              setEloPlayerId(id);
+              const p = players?.find(pl => pl.id === id);
+              if (p) setEloValue(p.elo);
+            }}
+            className="flex-1 rounded-lg text-sm px-3 py-2 min-w-0"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(0,102,255,0.25)", color: "rgba(255,255,255,0.75)", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
+            <option value="">Select player…</option>
+            {players?.map(p => (
+              <option key={p.id} value={p.id} style={{ background: "#0a0814" }}>{p.name} (Elo {p.elo})</option>
+            ))}
+          </select>
+          <Input
+            type="number" min={800} max={2000}
+            value={eloValue}
+            onChange={e => setEloValue(Number(e.target.value))}
+            placeholder="800 – 2000"
+            className="w-36"
+            style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(0,102,255,0.25)" }}
+          />
+          <Button
+            onClick={handleEloOverride}
+            disabled={!eloPlayerId || eloLoading}
+            className="gap-2 font-bold uppercase tracking-wider whitespace-nowrap"
+            style={{ background: "#0066ff", border: "none", fontFamily: "Oswald, sans-serif", minWidth: 110 }}>
+            {eloLoading
+              ? <div className="w-3.5 h-3.5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#fff" }} />
+              : <Zap className="w-4 h-4" />}
+            Set Elo
+          </Button>
+        </div>
+        <p className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
+          Tier is recalculated automatically. Career peak Elo is not affected.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">

@@ -2,7 +2,7 @@ import { useGetSeason, getGetSeasonQueryKey } from "@workspace/api-client-react"
 import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
-import { Trophy, Calendar, Hash, ArrowLeft, Medal } from "lucide-react";
+import { Trophy, Calendar, Hash, ArrowLeft, Medal, Flame, Zap, Crown, BarChart3 } from "lucide-react";
 
 export default function SeasonDetail() {
   const params = useParams();
@@ -86,6 +86,53 @@ export default function SeasonDetail() {
           )}
         </div>
       </div>
+
+      {/* Report Card — only for completed seasons */}
+      {!season.isActive && standings && standings.length > 0 && (() => {
+        const sorted = [...standings];
+        const mostWins    = [...sorted].sort((a, b) => (b.wins  ?? 0) - (a.wins  ?? 0))[0];
+        const highestElo  = [...sorted].sort((a, b) => (b.elo   ?? 0) - (a.elo   ?? 0))[0];
+        const mostPoints  = [...sorted].sort((a, b) => (b.points ?? 0) - (a.points ?? 0))[0];
+        const totalMatches = sorted.reduce((s, e) => s + (e.wins ?? 0), 0);
+        const winPct = mostWins ? Math.round(((mostWins.wins ?? 0) / Math.max((mostWins.wins ?? 0) + (mostWins.losses ?? 0), 1)) * 100) : 0;
+
+        const stats = [
+          { icon: <Flame className="w-4 h-4" />, color: "#ff005c", label: "Season Dominator", value: mostWins?.playerName ?? "—", sub: `${mostWins?.wins ?? 0}W–${mostWins?.losses ?? 0}L · ${winPct}% win rate` },
+          { icon: <Zap className="w-4 h-4" />,   color: "#0066ff", label: "Peak Elo",          value: `${highestElo?.elo ?? 0}`,    sub: highestElo?.playerName ?? "—" },
+          { icon: <Crown className="w-4 h-4" />, color: "#ffd24a", label: "Points Leader",     value: `${mostPoints?.points ?? 0}`, sub: mostPoints?.playerName ?? "—" },
+          { icon: <BarChart3 className="w-4 h-4" />, color: "#4ade80", label: "Total Matches",  value: totalMatches,                  sub: `${sorted.length} players` },
+        ];
+
+        return (
+          <div className="pdc-card p-5" style={{ borderColor: "rgba(255,210,74,0.12)", background: "rgba(255,210,74,0.02)" }}>
+            <div className="flex items-center gap-2 mb-4">
+              <Trophy className="w-4 h-4" style={{ color: "#ffd24a" }} />
+              <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", letterSpacing: "0.14em" }}>
+                Season Report Card
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {stats.map(s => (
+                <div key={s.label} className="rounded-xl px-4 py-3"
+                  style={{ background: `${s.color}08`, border: `1px solid ${s.color}20` }}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span style={{ color: s.color }}>{s.icon}</span>
+                    <span className="text-xs uppercase tracking-widest font-bold"
+                      style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.3)", fontSize: "0.55rem", letterSpacing: "0.16em" }}>
+                      {s.label}
+                    </span>
+                  </div>
+                  <div className="font-black leading-none mb-0.5"
+                    style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.5rem", color: s.color, textShadow: `0 0 16px ${s.color}55` }}>
+                    {s.value}
+                  </div>
+                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>{s.sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Standings */}
       <div className="pdc-card overflow-hidden">

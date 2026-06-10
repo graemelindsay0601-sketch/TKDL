@@ -1,15 +1,21 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, MoreHorizontal } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, Crosshair } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 import { useGetStatsSummary, useGetRecentActivity, useGetLeaderboard } from "@workspace/api-client-react";
 
-const mainNav = [
+const hubNav = [
   { href: "/",             label: "Hub",          icon: LayoutDashboard },
+];
+const playNav = [
   { href: "/submit",       label: "Submit Match", icon: Plus            },
+];
+const practiceNav = [
   { href: "/practice",     label: "Practice",     icon: Dumbbell        },
 ];
-const tourNav = [
+const tourModeNav = [
   { href: "/tour",         label: "Tour Mode",    icon: Star            },
+];
+const master501Nav = [
   { href: "/master501",    label: "Master-501",   icon: Target          },
 ];
 const botNav = [
@@ -19,19 +25,25 @@ const leagueNav = [
   { href: "/leaderboard",  label: "Standings",    icon: Trophy          },
   { href: "/players",      label: "Players",      icon: Users           },
   { href: "/seasons",      label: "Seasons",      icon: History         },
-  { href: "/achievements", label: "Achievements", icon: Medal           },
+  { href: "/hall-of-fame", label: "Hall of Fame", icon: Award           },
   { href: "/rules",        label: "Rules",        icon: BookOpen        },
+];
+const challengesNav = [
+  { href: "/challenges",   label: "Challenges",   icon: Crosshair       },
+];
+const achievementsNav = [
+  { href: "/achievements", label: "Achievements", icon: Medal           },
 ];
 const configNav = [
   { href: "/admin",        label: "Admin",        icon: Shield          },
 ];
 
 const mobileNavItems = [
-  { href: "/",             label: "Hub",       icon: LayoutDashboard, color: "#0066ff"  },
-  { href: "/leaderboard",  label: "Standings", icon: Trophy,          color: "#ffd24a"  },
-  { href: "/play",         label: "Scorer",    icon: Swords,          color: "#ff005c"  },
-  { href: "/practice",     label: "Practice",  icon: Dumbbell,        color: "#00e5a0"  },
-  { href: "/tour",         label: "Tour",      icon: Star,            color: "#a855f7"  },
+  { href: "/",             label: "Hub",        icon: LayoutDashboard, color: "#0066ff"  },
+  { href: "/leaderboard",  label: "Standings",  icon: Trophy,          color: "#ffd24a"  },
+  { href: "/challenges",   label: "Challenges", icon: Crosshair,       color: "#ff005c"  },
+  { href: "/practice",     label: "Practice",   icon: Dumbbell,        color: "#00e5a0"  },
+  { href: "/tour",         label: "Tour",       icon: Star,            color: "#a855f7"  },
 ];
 
 type TickerEntry = { text: string; cls?: string };
@@ -129,9 +141,9 @@ export function Layout({ children }: { children: ReactNode }) {
   }, []);
 
   type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> };
-  const dynamicMainNav: NavItem[] = liveScorer
-    ? [...mainNav, { href: "/play", label: "Live Scorer", icon: Swords }]
-    : mainNav;
+  const dynamicPlayNav: NavItem[] = liveScorer
+    ? [...playNav, { href: "/play", label: "Live Scorer", icon: Swords }]
+    : playNav;
 
   function NavLink({ item }: { item: NavItem }) {
     const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
@@ -240,16 +252,26 @@ export function Layout({ children }: { children: ReactNode }) {
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-3">
-        <NavSection label="Main"   items={dynamicMainNav}   />
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-2">
+        <NavSection label="Hub"          items={hubNav}          />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-        <NavSection label="Tour"   items={tourNav} />
+        <NavSection label="Play"         items={dynamicPlayNav}  />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-        <NavSection label="Bot"    items={botNav} />
+        <NavSection label="Practice"     items={practiceNav}     />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-        <NavSection label="League" items={leagueNav} />
+        <NavSection label="Tour Mode"    items={tourModeNav}     />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-        <NavSection label="Config" items={configNav} />
+        <NavSection label="Master 501"   items={master501Nav}    />
+        <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
+        <NavSection label="Bot"          items={botNav}          />
+        <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
+        <NavSection label="League"       items={leagueNav}       />
+        <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
+        <NavSection label="Challenges"   items={challengesNav}   />
+        <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
+        <NavSection label="Achievements" items={achievementsNav} />
+        <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
+        <NavSection label="Admin"        items={configNav}       />
       </nav>
 
       {/* Footer — season countdown */}

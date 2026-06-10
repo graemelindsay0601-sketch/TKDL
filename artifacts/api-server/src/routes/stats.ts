@@ -219,6 +219,58 @@ router.get("/stats/live-feed", async (req, res): Promise<void> => {
   }
 });
 
+router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
+  const [players, practiceQ, tourQ, achievQ] = await Promise.all([
+    db.select().from(playersTable),
+    db.execute(drizzleSql`
+      SELECT player1_id AS player_id, COUNT(*)::int AS sessions,
+             COALESCE(SUM(darts_thrown),0)::int AS total_darts,
+             COALESCE(SUM(p1_180s),0)::int AS total_180s
+      FROM practice_sessions WHERE player1_id IS NOT NULL GROUP BY player1_id
+    `),
+    db.execute(drizzleSql`SELECT player_id, COUNT(*)::int AS trophies FROM tour_trophies GROUP BY player_id`).catch(() => ({ rows: [] })),
+    db.execute(drizzleSql`SELECT player_id, COUNT(*)::int AS cnt FROM player_achievements GROUP BY player_id`),
+  ]);
+
+  const practiceMap = new Map<number, { sessions: number; total_darts: number; total_180s: number }>();
+  for (const r of practiceQ.rows as any[]) practiceMap.set(r.player_id, { sessions: Number(r.sessions), total_darts: Number(r.total_darts), total_180s: Number(r.total_180s) });
+
+  const tourMap = new Map<number, number>();
+  for (const r of tourQ.rows as any[]) tourMap.set(Number(r.player_id), Number(r.trophies));
+
+  const achievMap = new Map<number, number>();
+  for (const r of achievQ.rows as any[]) achievMap.set(Number(r.player_id), Number(r.cnt));
+
+  const all = players.map(p => ({
+    id:               p.id,
+    name:             p.name,
+    careerWins:       p.careerWins,
+    careerPeakElo:    p.careerPeakElo,
+    careerPoints:     p.careerPoints,
+    longestWinStreak: p.longestWinStreak ?? 0,
+    careerGamesPlayed:p.careerGamesPlayed ?? 0,
+    sessions:         practiceMap.get(p.id)?.sessions    ?? 0,
+    totalDarts:       practiceMap.get(p.id)?.total_darts ?? 0,
+    total180s:        practiceMap.get(p.id)?.total_180s  ?? 0,
+    tourTrophies:     tourMap.get(p.id)    ?? 0,
+    achievements:     achievMap.get(p.id)  ?? 0,
+  }));
+
+  const topBy = (key: keyof typeof all[0]) =>
+    [...all].sort((a, b) => (b[key] as number) - (a[key] as number)).slice(0, 3);
+
+  res.json({
+    mostWins:          topBy("careerWins"),
+    highestElo:        topBy("careerPeakElo"),
+    mostPoints:        topBy("careerPoints"),
+    longestStreak:     topBy("longestWinStreak"),
+    mostSessions:      topBy("sessions"),
+    most180s:          topBy("total180s"),
+    mostTourTrophies:  topBy("tourTrophies"),
+    mostAchievements:  topBy("achievements"),
+  });
+});
+
 router.get("/stats/rivalries", async (_req, res): Promise<void> => {
   const rows = await db.execute(drizzleSql`
     SELECT

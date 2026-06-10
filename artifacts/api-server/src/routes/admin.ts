@@ -124,6 +124,27 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
   res.json(updated);
 });
 
+// ── Override player Elo ────────────────────────────────────────────────────────
+const EloOverrideBody = z.object({ elo: z.number().int().min(800).max(2000) });
+
+router.patch("/admin/players/:id/elo", async (req, res): Promise<void> => {
+  const playerId = Number(req.params.id);
+  if (isNaN(playerId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const parsed = EloOverrideBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const { elo } = parsed.data;
+  const tier = elo >= 1400 ? "Diamond" : elo >= 1250 ? "Platinum" : elo >= 1100 ? "Gold" : elo >= 950 ? "Silver" : "Bronze";
+
+  const [updated] = await db.update(playersTable)
+    .set({ elo, tier })
+    .where(eq(playersTable.id, playerId))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "Player not found" }); return; }
+  res.json({ ok: true, elo, tier });
+});
+
 // ── Retroactive achievement sweep ─────────────────────────────────────────────
 router.post("/admin/achievement-sweep", async (_req, res): Promise<void> => {
   const result = await retroactiveSweep();
