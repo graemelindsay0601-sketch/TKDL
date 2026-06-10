@@ -197,6 +197,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         team2: team2Players.filter((p): p is Player => !!p),
         gameType: selectedGame,
         stake: stakeN,
+        bullUp,
       });
     }
   };
@@ -377,8 +378,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         )}
       </div>
 
-      {/* Bull Up toggle (1v1 only) */}
-      {format === "1v1" && (
+      {/* Bull Up toggle (all non-FFA formats) */}
+      {format !== "killer-ffa" && (
         <button onClick={() => setBullUp(v => !v)}
           className="w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all"
           style={{

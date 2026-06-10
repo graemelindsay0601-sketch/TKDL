@@ -230,7 +230,7 @@ export function GameScorer({
   soloMode?: boolean;
   bullUp?: boolean;
 }) {
-  const isBullUpApplicable = bullUp && !soloMode && !teamNames && !playerNames;
+  const isBullUpApplicable = bullUp && !soloMode;
   const [starterIdx, setStarterIdx] = useState<0 | 1 | null>(isBullUpApplicable ? null : 0);
 
   if (starterIdx === null) {

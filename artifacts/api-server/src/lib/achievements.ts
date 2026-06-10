@@ -5,6 +5,7 @@ import { logger } from "./logger";
 import { PRACTICE_ACHIEVEMENT_DEFINITIONS, checkPracticeAchievements } from "./practice-achievements";
 import { FORMAT_AND_MEME_ACHIEVEMENT_DEFINITIONS } from "./format-and-meme-achievements";
 import { checkAndAwardShadowBotAchievements } from "./shadow-bot-achievements";
+import { MASTER501_ACHIEVEMENT_DEFINITIONS } from "./master501-achievements";
 
 export type AchievementDef = {
   key: string;
@@ -153,6 +154,7 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { key: "FIRST_BLOOD_SEASON", name: "🩸 Season Opener",         description: "Score the very first win of a new season",         icon: "🩸", rarity: "Rare",      category: "Hidden",  hidden: true,  priority: 40, criteriaType: "FIRST_MATCH_SEASON_WIN",   criteriaValue: 1,  engineType: "MATCH_EVENT" },
   ...PRACTICE_ACHIEVEMENT_DEFINITIONS,
   ...FORMAT_AND_MEME_ACHIEVEMENT_DEFINITIONS,
+  ...MASTER501_ACHIEVEMENT_DEFINITIONS,
 ];
 
 function normGT(gt: string): string {

@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
 import { Link } from "wouter";
-import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal } from "lucide-react";
+import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal, Zap } from "lucide-react";
 import { useState } from "react";
 
-type Mode = "season" | "career" | "achievements" | "bot" | "tour";
+type Mode = "season" | "career" | "achievements" | "bot" | "tour" | "master501";
 
 const CAREER_SORTS = [
   { key: "wins",    label: "Career Wins" },
@@ -29,6 +29,14 @@ const TIER_LABELS: Record<number, { label: string; color: string; emoji: string 
   4: { label: "Pro",        color: "#f97316", emoji: "💎" },
   5: { label: "Elite",      color: "#a78bfa", emoji: "⭐" },
   6: { label: "Grand Prix", color: "#ff005c", emoji: "👑" },
+};
+
+const M501_TIERS: Record<number, { label: string; color: string; emoji: string }> = {
+  1: { label: "Challenger",    color: "#94a3b8", emoji: "🎯" },
+  2: { label: "Pro Circuit",   color: "#4ade80", emoji: "🏅" },
+  3: { label: "Premier",       color: "#38bdf8", emoji: "💎" },
+  4: { label: "Grand Prix",    color: "#ffd24a", emoji: "🏁" },
+  5: { label: "World Champ",   color: "#ff005c", emoji: "👑" },
 };
 
 function Tab({ active, onClick, color = "#ff005c", icon, children }: {
@@ -267,6 +275,59 @@ function TourRow({ entry, idx }: { entry: any; idx: number }) {
   );
 }
 
+function M501Row({ entry, idx }: { entry: any; idx: number }) {
+  const isTop3    = idx < 3;
+  const pColor    = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
+  const tier      = Number(entry.tier ?? 1);
+  const round     = Number(entry.round ?? 1);
+  const meta      = M501_TIERS[tier] ?? M501_TIERS[1];
+  const wins      = Number(entry.total_wins ?? 0);
+  const losses    = Number(entry.total_losses ?? 0);
+  const bestAvg   = Number(entry.best_avg ?? 0);
+  const total180s = Number(entry.total_180s ?? 0);
+  const coHits    = Number(entry.co_hits ?? 0);
+  const coAttempts= Number(entry.co_attempts ?? 0);
+  const coPct     = coAttempts > 0 ? Math.round((coHits / coAttempts) * 100) : 0;
+  const hasPlayed = wins + losses > 0;
+  return (
+    <Link href={`/players/${entry.id}`} asChild>
+      <div className="group flex items-center gap-3 rounded-xl cursor-pointer transition-all duration-150 hover:bg-white/[0.035] fade-in-up"
+        style={{ padding: "0.8rem 1.1rem", background: isTop3 && hasPlayed ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 && hasPlayed ? pColor + "55" : meta.color + "20"}`, animationDelay: `${idx * 35}ms` }}>
+        <Pos idx={idx} />
+        <div className="flex-1 min-w-0 pr-2">
+          <span className="font-black uppercase text-base" style={{ fontFamily: "Oswald, sans-serif", color: isTop3 && hasPlayed ? "#fff" : "rgba(255,255,255,0.82)" }}>{entry.name}</span>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-xs px-1.5 py-0.5 rounded-md font-black uppercase"
+              style={{ background: `${meta.color}18`, color: meta.color, border: `1px solid ${meta.color}33`, fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em", fontSize: "0.6rem" }}>
+              {meta.emoji} {meta.label}
+            </span>
+            <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Rd {round}</span>
+          </div>
+        </div>
+        <div className="hidden sm:block font-mono text-sm text-center shrink-0" style={{ minWidth: "4rem" }}>
+          <span style={{ color: "#22c55e" }}>{wins}</span><span style={{ color: "rgba(255,255,255,0.18)" }}>-</span><span style={{ color: "#ff005c" }}>{losses}</span>
+        </div>
+        <div className="hidden sm:flex flex-col items-center shrink-0 gap-0.5" style={{ minWidth: "3.5rem" }}>
+          <span className="font-black text-base tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color: bestAvg >= 90 ? "#ffd24a" : bestAvg >= 80 ? "#22c55e" : "rgba(255,255,255,0.45)", lineHeight: 1 }}>
+            {bestAvg > 0 ? bestAvg.toFixed(1) : "—"}
+          </span>
+          <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>Avg</span>
+        </div>
+        <div className="hidden sm:flex flex-col items-center shrink-0 gap-0.5" style={{ minWidth: "2.5rem" }}>
+          <span className="font-black text-base tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", lineHeight: 1 }}>{total180s}</span>
+          <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>180s</span>
+        </div>
+        <div className="hidden md:flex flex-col items-center shrink-0 gap-0.5" style={{ minWidth: "3rem" }}>
+          <span className="font-black text-base tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color: coPct >= 50 ? "#00c8a0" : "rgba(255,255,255,0.4)", lineHeight: 1 }}>
+            {coAttempts > 0 ? `${coPct}%` : "—"}
+          </span>
+          <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>CO%</span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function Spinner() {
   return (
     <div className="flex items-center justify-center py-24">
@@ -300,8 +361,13 @@ export default function Standings() {
     queryFn:  () => fetch("/api/leaderboard/tour").then(r => r.json()),
     enabled:  mode === "tour",
   });
+  const { data: m501Data,      isLoading: m501Loading }     = useQuery({
+    queryKey: ["leaderboard-master501"],
+    queryFn:  () => fetch("/api/master501/leaderboard").then(r => r.json()),
+    enabled:  mode === "master501",
+  });
 
-  const isLoading = { season: seasonLoading, career: careerLoading, achievements: achLoading, bot: botLoading, tour: tourLoading }[mode];
+  const isLoading = { season: seasonLoading, career: careerLoading, achievements: achLoading, bot: botLoading, tour: tourLoading, master501: m501Loading }[mode];
 
   const active     = leaderboard?.filter(e => e.status !== "ELIMINATED") ?? [];
   const eliminated = leaderboard?.filter(e => e.status === "ELIMINATED") ?? [];
@@ -311,18 +377,21 @@ export default function Standings() {
   const achRows    = (achData  ?? []) as any[];
   const botRows    = (botData  ?? []) as any[];
   const tourRows   = (tourData ?? []) as any[];
+  const m501Rows   = (m501Data ?? []) as any[];
   const maxDarts   = Math.max(...botRows.map(r => r.totalDarts), 1);
 
   const headings: Record<Mode, string> = {
     season: "Season Standings", career: "All-Time Records",
-    achievements: "Achievement Standings", bot: "Shadow Bot Rankings", tour: "Tour Rankings",
+    achievements: "Achievement Standings", bot: "Shadow Bot Rankings",
+    tour: "Tour Rankings", master501: "Master-501 Rankings",
   };
   const subheads: Record<Mode, React.ReactNode> = {
-    season: <><span className="live-dot" /> Ranked by points · ELO tiebreak</>,
-    career: <>Career statistics across all seasons</>,
+    season:      <><span className="live-dot" /> Ranked by points · ELO tiebreak</>,
+    career:      <>Career statistics across all seasons</>,
     achievements: <>Total gamerscore from league + tour achievements</>,
-    bot: <>Practice session stats — darts thrown, 180s, checkout %</>,
-    tour: <>Tour trophy cabinet rankings across all 61 tours</>,
+    bot:         <>Practice session stats — darts thrown, 180s, checkout %</>,
+    tour:        <>Tour trophy cabinet rankings across all 61 tours</>,
+    master501:   <>Tier progression · win/loss · best avg · 180s · checkout %</>,
   };
 
   return (
@@ -355,6 +424,7 @@ export default function Standings() {
         <Tab active={mode === "achievements"} onClick={() => setMode("achievements")} color="#a855f7"  icon={<Medal className="w-3.5 h-3.5" />}>Achievements</Tab>
         <Tab active={mode === "bot"}          onClick={() => setMode("bot")}          color="#00e5a0"  icon={<CircuitBoard className="w-3.5 h-3.5" />}>Shadow Bot</Tab>
         <Tab active={mode === "tour"}         onClick={() => setMode("tour")}         color="#ffd24a"  icon={<Star className="w-3.5 h-3.5" />}>Tour</Tab>
+        <Tab active={mode === "master501"}   onClick={() => setMode("master501")}   color="#00c8a0"  icon={<Zap className="w-3.5 h-3.5" />}>Master-501</Tab>
       </div>
 
       {/* Career sort pills */}
@@ -484,6 +554,27 @@ export default function Standings() {
               {tourRows.length > 0 && (
                 <div className="flex items-center gap-4 pt-2 flex-wrap">
                   {Object.entries(TIER_LABELS).map(([t, info]) => (
+                    <span key={t} className="text-xs flex items-center gap-1" style={{ color: info.color }}>
+                      {info.emoji} T{t} {info.label}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Master-501 ── */}
+          {mode === "master501" && (
+            <div className="space-y-1.5">
+              {m501Rows.length === 0 ? (
+                <div className="pdc-card px-6 py-16 text-center space-y-3">
+                  <div className="text-4xl">🎯</div>
+                  <div className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No Master-501 runs yet — start climbing the ladder!</div>
+                </div>
+              ) : m501Rows.map((entry, idx) => <M501Row key={entry.id} entry={entry} idx={idx} />)}
+              {m501Rows.length > 0 && (
+                <div className="flex items-center gap-3 pt-2 flex-wrap">
+                  {Object.entries(M501_TIERS).map(([t, info]) => (
                     <span key={t} className="text-xs flex items-center gap-1" style={{ color: info.color }}>
                       {info.emoji} T{t} {info.label}
                     </span>

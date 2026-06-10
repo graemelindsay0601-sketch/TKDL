@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { logger } from "../lib/logger";
+import { checkM501Achievements } from "../lib/master501-achievements";
 
 const router = Router();
 
@@ -73,18 +74,49 @@ router.get("/master501/progress/:playerId", async (req, res): Promise<void> => {
 router.get("/master501/leaderboard", async (_req, res): Promise<void> => {
   try {
     const result = await db.execute(sql`
-      SELECT p.id, p.name,
-             COALESCE(m.current_tier,  1) AS tier,
-             COALESCE(m.current_round, 1) AS round,
-             (SELECT COUNT(*) FROM master501_runs r
-              WHERE r.player_id = p.id AND r.result = 'win') AS total_wins
+      SELECT
+        p.id, p.name,
+        COALESCE(m.current_tier,  1) AS tier,
+        COALESCE(m.current_round, 1) AS round,
+        COUNT(CASE WHEN r.result = 'win'  THEN 1 END)::int                                  AS total_wins,
+        COUNT(CASE WHEN r.result = 'loss' THEN 1 END)::int                                  AS total_losses,
+        COUNT(r.id)::int                                                                     AS total_runs,
+        COALESCE(MAX(CASE WHEN s.p1_darts > 0 THEN (s.p1_score::float / s.p1_darts) * 3.0 END), 0)::numeric(6,2) AS best_avg,
+        COALESCE(SUM(s.p1_180s),             0)::int AS total_180s,
+        COALESCE(SUM(s.p1_checkout_hits),    0)::int AS co_hits,
+        COALESCE(SUM(s.p1_checkout_attempts),0)::int AS co_attempts
       FROM players p
       LEFT JOIN master501_progress m ON m.player_id = p.id
+      LEFT JOIN master501_runs r     ON r.player_id = p.id AND r.result IS NOT NULL
+      LEFT JOIN practice_sessions s  ON s.player1_id = p.id
+                                     AND s.session_data->>'mode' = 'master501'
       WHERE p.status = 'ACTIVE'
-      ORDER BY COALESCE(m.current_tier, 1) DESC,
-               COALESCE(m.current_round, 1) DESC,
-               (SELECT COUNT(*) FROM master501_runs r WHERE r.player_id = p.id AND r.result = 'win') DESC,
-               p.name
+      GROUP BY p.id, p.name, m.current_tier, m.current_round
+      ORDER BY
+        COALESCE(m.current_tier,  1) DESC,
+        COALESCE(m.current_round, 1) DESC,
+        COUNT(CASE WHEN r.result = 'win' THEN 1 END) DESC,
+        p.name
+    `);
+    res.json(result.rows as any[]);
+  } catch (err) {
+    logger.error({ err });
+    res.status(500).json({ error: "Failed" });
+  }
+});
+
+// GET /api/master501/achievement-definitions
+router.get("/master501/achievement-definitions", async (_req, res): Promise<void> => {
+  try {
+    const result = await db.execute(sql`
+      SELECT a.id, a.key, a.name, a.description, a.icon, a.rarity, a.hidden,
+             a.criteria_type, a.criteria_value, a.priority,
+             COUNT(pa.id)::int AS unlocked_count
+      FROM achievements a
+      LEFT JOIN player_achievements pa ON pa.achievement_id = a.id
+      WHERE a.category = 'Master-501'
+      GROUP BY a.id
+      ORDER BY a.priority DESC, a.rarity DESC, a.name
     `);
     res.json(result.rows as any[]);
   } catch (err) {
@@ -142,6 +174,8 @@ router.patch("/master501/runs/:runId", async (req, res): Promise<void> => {
     const run = (runResult.rows as any[])[0] as any;
     if (!run) { res.status(404).json({ error: "Run not found" }); return; }
 
+    const legsFormatVal = getM501Config(run.tier as number, run.round as number)?.legs ?? 5;
+
     await db.execute(sql`
       UPDATE master501_runs
       SET legs_won = ${legsWon}, legs_lost = ${legsLost},
@@ -162,6 +196,15 @@ router.patch("/master501/runs/:runId", async (req, res): Promise<void> => {
         WHERE player_id = ${run.player_id}
       `);
     }
+
+    void checkM501Achievements(Number(run.player_id), {
+      tier:        Number(run.tier),
+      round:       Number(run.round),
+      result,
+      legsWon,
+      legsLost,
+      legsFormat:  legsFormatVal,
+    });
 
     res.json({
       result,

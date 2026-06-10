@@ -479,6 +479,84 @@ function BotTab() {
   );
 }
 
+// ── MASTER-501 TAB ─────────────────────────────────────────────────────────────
+
+type M501AchDef = {
+  id: number; key: string; name: string; description: string; icon: string;
+  rarity: string; hidden: boolean; priority: number; unlocked_count: number;
+};
+
+function Master501Tab() {
+  const { data, loading } = useFetch<M501AchDef[]>("/api/master501/achievement-definitions");
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+
+  const RARITY_ORDER = ["Mythic", "Legendary", "Epic", "Rare", "Common"];
+  const sorted = (data ?? []).slice().sort((a, b) => {
+    if (a.hidden !== b.hidden) return a.hidden ? 1 : -1;
+    return (b.priority ?? 0) - (a.priority ?? 0);
+  });
+
+  const totalGs = (data ?? [])
+    .filter(d => !d.hidden)
+    .reduce((s, d) => s + (RARITY_META[d.rarity]?.order !== undefined
+      ? ({ Mythic: 200, Legendary: 100, Epic: 50, Rare: 25, Common: 10 } as any)[d.rarity] ?? 10
+      : 10), 0);
+  const unlockedCount = (data ?? []).filter(d => d.unlocked_count > 0).length;
+  const counts = data ? {
+    Mythic:    data.filter(d => d.rarity === "Mythic"    && !d.hidden).length,
+    Legendary: data.filter(d => d.rarity === "Legendary" && !d.hidden).length,
+    Epic:      data.filter(d => d.rarity === "Epic"       && !d.hidden).length,
+    Rare:      data.filter(d => d.rarity === "Rare"       && !d.hidden).length,
+    Common:    data.filter(d => d.rarity === "Common"     && !d.hidden).length,
+    Hidden:    data.filter(d => d.hidden).length,
+  } : null;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>
+          {data?.length ?? 0} achievements · {totalGs}G available · {unlockedCount} unlocked
+        </p>
+        <a href="/master501" className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all hover:-translate-y-0.5"
+          style={{ fontFamily: "Oswald, sans-serif", background: "rgba(0,200,160,0.1)", border: "1px solid rgba(0,200,160,0.3)", color: "#00c8a0", letterSpacing: "0.1em" }}>
+          Open Master-501 →
+        </a>
+      </div>
+
+      {counts && (
+        <div className="flex flex-wrap gap-2">
+          {(["Mythic", "Legendary", "Epic", "Rare", "Common", "Hidden"] as const).map(r => {
+            const rm = RARITY_META[r];
+            return (
+              <div key={r} className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase"
+                style={{ background: `${rm.color}14`, border: `1px solid ${rm.color}44`, color: rm.color, fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", fontSize: "0.6rem" }}>
+                {r} ×{counts[r]}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#00c8a0" }} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {sorted.map(a => (
+            <AchCard
+              key={a.key}
+              a={{ ...a, unlockedCount: a.unlocked_count }}
+              hovered={hoveredKey === a.key}
+              onHover={v => setHoveredKey(v ? a.key : null)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── TROPHIES TAB ───────────────────────────────────────────────────────────────
 
 type TourTrophy = {
@@ -575,10 +653,11 @@ function TrophiesTab() {
 // ── MAIN PAGE ──────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { key: "league",   label: "League",            icon: <Medal className="w-3.5 h-3.5" />,         color: "#ff005c" },
-  { key: "tour",     label: "Tour",              icon: <Star className="w-3.5 h-3.5" />,            color: "#ffd24a" },
-  { key: "bot",      label: "Shadow Bot",        icon: <CircuitBoard className="w-3.5 h-3.5" />,    color: "#0066ff" },
-  { key: "trophies", label: "Trophies",          icon: <Trophy className="w-3.5 h-3.5" />,          color: "#a855f7" },
+  { key: "league",    label: "League",      icon: <Medal className="w-3.5 h-3.5" />,       color: "#ff005c" },
+  { key: "tour",      label: "Tour",        icon: <Star className="w-3.5 h-3.5" />,         color: "#ffd24a" },
+  { key: "bot",       label: "Shadow Bot",  icon: <CircuitBoard className="w-3.5 h-3.5" />, color: "#0066ff" },
+  { key: "master501", label: "Master-501",  icon: <span className="text-xs">🎯</span>,      color: "#00c8a0" },
+  { key: "trophies",  label: "Trophies",    icon: <Trophy className="w-3.5 h-3.5" />,       color: "#a855f7" },
 ] as const;
 type TabKey = typeof TABS[number]["key"];
 
@@ -621,10 +700,11 @@ export default function Achievements() {
         })}
       </div>
 
-      {tab === "league"   && <LeagueTab />}
-      {tab === "tour"     && <TourTab />}
-      {tab === "bot"      && <BotTab />}
-      {tab === "trophies" && <TrophiesTab />}
+      {tab === "league"    && <LeagueTab />}
+      {tab === "tour"      && <TourTab />}
+      {tab === "bot"       && <BotTab />}
+      {tab === "master501" && <Master501Tab />}
+      {tab === "trophies"  && <TrophiesTab />}
     </div>
   );
 }
