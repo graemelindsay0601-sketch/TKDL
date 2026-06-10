@@ -8,3 +8,4 @@
 - [Solo Play mode](solo-play-mode.md) — soloMode prop on X01Scorer/GameScorer; soloPlay?: boolean in SetupData; practice.tsx mode state is "2p"|"bot"|"solo" (not a boolean)
 - [Dartboard animation](dartboard-animation.md) — DartBoardProvider context in dartboard-bg.tsx; ScorerLayout wraps provider+board; hitDart called in DartInputBoard.fire()
 - [Tour system](tour-system.md) — 61 tours/6 tiers fully seeded; player_tour_runs/trophies/achievements tables raw SQL; bracketEngine.ts generates KO+PL brackets with bot personas
+- [Shadow Bot detail page](shadow-bot-detail.md) — /shadow-bot/:id page, match tracking via session_data.shadowPlayerId, darksNeeded typo fixed, player profile link updated

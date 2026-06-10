@@ -957,10 +957,10 @@ export default function PlayerDetail() {
             <ChevronDown className="w-4 h-4 shrink-0 transition-transform duration-200"
               style={{ color: "rgba(255,255,255,0.25)", transform: openPractice ? "rotate(180deg)" : "rotate(0deg)" }} />
           </button>
-          <Link href={`/shadow-bot?player=${playerId}`}
+          <Link href={`/shadow-bot/${playerId}`}
             className="flex items-center gap-1.5 px-3 transition-colors hover:bg-white/[0.03] shrink-0"
             style={{ borderLeft: "1px solid rgba(255,255,255,0.06)" }}
-            title="Train My Bot">
+            title="My Shadow Bot">
             <CircuitBoard className="w-3.5 h-3.5" style={{ color: "rgba(255,0,92,0.6)" }} />
             <span className="text-xs font-black uppercase hidden md:inline"
               style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,0,92,0.6)", letterSpacing: "0.06em" }}>

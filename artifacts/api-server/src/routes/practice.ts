@@ -654,7 +654,7 @@ router.get("/players/:id/shadow-bot-stats", async (req, res): Promise<void> => {
 
     if (totalDarts < THRESHOLD) {
       res.json({
-        playerName, locked: true, totalDarts, darksNeeded: THRESHOLD,
+        playerName, locked: true, totalDarts, dartsNeeded: THRESHOLD,
         totalSessions, accuracyLevel: null, nextLevel: null,
         progressToNext: Math.round((totalDarts / THRESHOLD) * 100),
         gameModeSessions, thinSpots,
@@ -908,6 +908,60 @@ router.get("/bots/leaderboard", async (req, res): Promise<void> => {
   } catch (err) {
     req.log.error({ err }, "Failed to get bot leaderboard");
     res.status(500).json({ error: "Failed to get bot leaderboard" });
+  }
+});
+
+// GET /api/shadow-bot/:playerId/matches — practice sessions played against this shadow bot
+router.get("/shadow-bot/:playerId/matches", async (req, res): Promise<void> => {
+  try {
+    const playerId = parseInt(req.params.playerId, 10);
+    if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+
+    const result = await db.execute(sql`
+      SELECT
+        ps.id,
+        ps.player1_id,
+        p1.name        AS player_name,
+        ps.winner_idx,
+        ps.p1_darts,
+        ps.p1_score,
+        ps.p1_checkout_hits,
+        ps.p1_checkout_attempts,
+        ps.p1_180s,
+        ps.game_type_key,
+        ps.game_type_name,
+        ps.created_at,
+        ps.detail,
+        CASE WHEN ps.p1_darts IS NOT NULL AND ps.p1_darts > 0
+          THEN ROUND(CAST(ps.p1_score AS NUMERIC) * 3.0 / ps.p1_darts, 1)
+          ELSE NULL END AS p1_avg
+      FROM practice_sessions ps
+      LEFT JOIN players p1 ON p1.id = ps.player1_id
+      WHERE (ps.session_data->>'shadowPlayerId')::int = ${playerId}
+      ORDER BY ps.created_at DESC
+      LIMIT 50
+    `);
+
+    const rows = (result.rows as any[]).map(r => ({
+      id:               Number(r.id),
+      playerId:         Number(r.player1_id),
+      playerName:       r.player_name as string,
+      winnerIdx:        r.winner_idx != null ? Number(r.winner_idx) : null,
+      playerWon:        r.winner_idx === 0 || r.winner_idx === "0",
+      p1Darts:          r.p1_darts != null ? Number(r.p1_darts) : null,
+      p1Avg:            r.p1_avg != null ? Number(r.p1_avg) : null,
+      p1CheckoutHits:   r.p1_checkout_hits != null ? Number(r.p1_checkout_hits) : null,
+      p1_180s:          r.p1_180s != null ? Number(r.p1_180s) : null,
+      gameTypeKey:      r.game_type_key as string,
+      gameTypeName:     r.game_type_name as string,
+      detail:           r.detail as string | null,
+      createdAt:        r.created_at as string,
+    }));
+
+    res.json(rows);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get shadow bot matches");
+    res.status(500).json({ error: "Failed to get shadow bot matches" });
   }
 });
 

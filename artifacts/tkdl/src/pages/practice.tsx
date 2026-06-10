@@ -39,6 +39,7 @@ type SetupData = {
   setsToWin?: number;
   legsToWinSet?: number;
   bullUp?: boolean;
+  shadowPlayerId?: number;
 };
 
 const TABS = [
@@ -363,6 +364,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         botFlag: "👻",
         botColor: "#a78bfa",
         botConfig: { ...getBotConfig("club"), shadowProfile: sp },
+        shadowPlayerId: selectedShadowId,
         ...fmt,
       };
     }
@@ -798,9 +800,10 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
       }
       // Store dart logs + game-specific session data in session_data JSONB
       const sd: Record<string, unknown> = { ...stats.sessionData };
-      if (stats.dartLog?.length)   sd.dartLog   = stats.dartLog;
-      if (stats.p2DartLog?.length) sd.p2DartLog = stats.p2DartLog;
-      if (Object.keys(sd).length)  body.sessionData = sd;
+      if (stats.dartLog?.length)    sd.dartLog        = stats.dartLog;
+      if (stats.p2DartLog?.length)  sd.p2DartLog      = stats.p2DartLog;
+      if (data.shadowPlayerId)      sd.shadowPlayerId  = data.shadowPlayerId;
+      if (Object.keys(sd).length)   body.sessionData  = sd;
     }
     fetch("/api/practice/sessions", {
       method: "POST",
