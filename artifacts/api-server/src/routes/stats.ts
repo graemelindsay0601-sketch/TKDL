@@ -94,17 +94,18 @@ router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
     for (const p of participants) teamMatchIdSet.add(p.matchId);
   }
   const activity = matches.map(m => ({
-    matchId:     m.id,
-    winnerId:    m.winnerId,
-    loserId:     m.loserId,
-    winnerName:  m.winnerName,
-    loserName:   m.loserName,
-    stake:       m.stake,
-    eloChange:   m.eloChange,
-    gameType:    m.gameType,
-    isTeamMatch: teamMatchIdSet.has(m.id),
-    playedAt:    m.playedAt,
-    seasonId:    m.seasonId,
+    matchId:       m.id,
+    winnerId:      m.winnerId,
+    loserId:       m.loserId,
+    winnerName:    m.winnerName,
+    loserName:     m.loserName,
+    stake:         m.stake,
+    pointsAwarded: m.stake,
+    eloChange:     m.eloChange,
+    gameType:      m.gameType,
+    isTeamMatch:   teamMatchIdSet.has(m.id),
+    playedAt:      m.playedAt,
+    seasonId:      m.seasonId,
   }));
   res.json(activity);
 });
