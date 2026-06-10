@@ -1,4 +1,4 @@
-# TKDL – Tesco Kitchen Darts League
+# TKDL – Tesco Kilbirnie Darts League
 
 A fully automated, gamified workplace darts league platform. Players earn Elo ratings, unlock achievements, build career legacies, and compete in monthly seasons — all tracked automatically with zero manual admin.
 
