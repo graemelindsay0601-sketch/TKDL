@@ -44,6 +44,7 @@ router.get("/practice/sessions/:id", async (req, res): Promise<void> => {
         p1.name AS p1_name, p2.name AS p2_name,
         ps.p1_darts, ps.p1_score, ps.p1_180s, ps.p1_checkout_attempts, ps.p1_checkout_hits,
         ps.p2_darts, ps.p2_score, ps.p2_180s, ps.p2_checkout_attempts, ps.p2_checkout_hits,
+        ps.session_data,
         CASE WHEN ps.p1_darts IS NOT NULL AND ps.p1_darts > 0
           THEN ROUND(CAST(ps.p1_score AS NUMERIC) * 3.0 / ps.p1_darts, 2) ELSE NULL
         END AS p1_avg,
