@@ -2,6 +2,8 @@ import express, { type Express } from "express";
 import cors from "cors";
 import path from "path";
 import pinoHttp from "pino-http";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { seedAchievements } from "./lib/achievements";
@@ -22,7 +24,27 @@ app.use(
     },
   }),
 );
-app.use(cors());
+
+const PgSession = connectPg(session);
+app.use(session({
+  store: new PgSession({
+    conString: process.env.DATABASE_URL,
+    tableName: "sessions",
+    createTableIfMissing: true,
+  }),
+  secret:            process.env.SESSION_SECRET ?? "tkdl-dev-secret-change-in-prod",
+  resave:            false,
+  saveUninitialized: false,
+  name:              "tkdl.sid",
+  cookie: {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === "production",
+    maxAge:   30 * 24 * 60 * 60 * 1000,
+    sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+  },
+}));
+
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/api", router);
@@ -478,6 +500,23 @@ async function seedShadowBotAchievements() {
   logger.info("shadow_bot_achievements table ready");
 }
 
+async function seedUsers() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS users (
+      id            SERIAL PRIMARY KEY,
+      username      TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      player_id     INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      is_admin      BOOLEAN NOT NULL DEFAULT false,
+      last_login_at TIMESTAMPTZ,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_users_player_id ON users(player_id)`);
+  logger.info("Users table ready");
+}
+
 async function init() {
   try {
     await seedSettings();
@@ -490,6 +529,7 @@ async function init() {
     await seedAchievements();
     await seedRealData();
     await maybeAutoResetSeason();
+    await seedUsers();
     logger.info("Startup init complete");
   } catch (err) {
     logger.error({ err }, "Startup init failed");

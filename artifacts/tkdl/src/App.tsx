@@ -2,6 +2,7 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/context/auth";
 import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout";
 
@@ -22,9 +23,10 @@ import ShadowBotDetail from "@/pages/shadow-bot-detail";
 import Tour         from "@/pages/tour";
 import TourRun      from "@/pages/tour-run";
 import Master501    from "@/pages/master501";
-
 import HallOfFame   from "@/pages/hall-of-fame";
-import Broadcast   from "@/pages/broadcast";
+import Broadcast    from "@/pages/broadcast";
+import Login        from "@/pages/login";
+import Account      from "@/pages/account";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -34,6 +36,7 @@ function AppRoutes() {
   return (
     <Switch>
       <Route path="/broadcast" component={Broadcast} />
+      <Route path="/login"     component={Login}     />
       <Route>
         <Layout>
           <Switch>
@@ -55,6 +58,7 @@ function AppRoutes() {
             <Route path="/tour"          component={Tour}        />
             <Route path="/master501"     component={Master501}   />
             <Route path="/hall-of-fame"  component={HallOfFame}  />
+            <Route path="/account"       component={Account}     />
             <Route component={NotFound} />
           </Switch>
         </Layout>
@@ -66,12 +70,14 @@ function AppRoutes() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <AppRoutes />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <AppRoutes />
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

@@ -962,6 +962,214 @@ function TourDataManager({ players }: { players: { id: number; name: string; isA
   );
 }
 
+function UserAccountsManager({ players }: { players: any[] | undefined }) {
+  const { toast }                           = useToast();
+  const [accounts, setAccounts]             = useState<any[]>([]);
+  const [loading, setLoading]               = useState(false);
+  const [createPlayerId, setCreatePlayerId] = useState("");
+  const [createPwd, setCreatePwd]           = useState("");
+  const [createIsAdmin, setCreateIsAdmin]   = useState(false);
+  const [creating, setCreating]             = useState(false);
+  const [revealed, setRevealed]             = useState<Record<number, string>>({});
+  const [resetPwd, setResetPwd]             = useState<Record<number, string>>({});
+  const [resetting, setResetting]           = useState<number | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const res = await fetch("/api/admin/users", { credentials: "include" });
+    if (res.ok) setAccounts(await res.json());
+    setLoading(false);
+  };
+
+  useEffect(() => { void load(); }, []);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    const res = await fetch("/api/admin/users", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerId: Number(createPlayerId), password: createPwd, isAdmin: createIsAdmin }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      toast({ title: `Account created: @${data.username}`, description: `Initial password shown above — write it down.` });
+      setRevealed(p => ({ ...p, [data.id]: createPwd }));
+      setCreatePlayerId(""); setCreatePwd(""); setCreateIsAdmin(false);
+      void load();
+    } else {
+      toast({ title: "Error", description: data.error, variant: "destructive" });
+    }
+    setCreating(false);
+  };
+
+  const handleReset = async (userId: number) => {
+    const pwd = resetPwd[userId];
+    if (!pwd || pwd.length < 4) { toast({ title: "Password too short (min 4 chars)", variant: "destructive" }); return; }
+    setResetting(userId);
+    const res = await fetch(`/api/admin/users/${userId}/reset-password`, {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: pwd }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      toast({ title: `Password reset for @${data.username}`, description: "New password shown — write it down." });
+      setRevealed(p => ({ ...p, [userId]: pwd }));
+      setResetPwd(p => ({ ...p, [userId]: "" }));
+    } else {
+      toast({ title: "Error", description: data.error, variant: "destructive" });
+    }
+    setResetting(null);
+  };
+
+  const playersWithoutAccount = (players ?? []).filter(p => !accounts.some(a => a.playerId === p.id));
+
+  return (
+    <div className="pdc-card p-5" style={{ borderColor: "rgba(0,102,255,0.15)", background: "rgba(0,102,255,0.02)" }}>
+      <div className="flex items-center gap-2 mb-4">
+        <Users className="w-4 h-4" style={{ color: "#4d94ff" }} />
+        <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#4d94ff" }}>
+          Player Accounts
+        </h2>
+        <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>
+          {accounts.length} accounts created
+        </span>
+      </div>
+
+      {/* Existing accounts */}
+      {loading ? (
+        <div className="py-4 text-center" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.8rem" }}>Loading…</div>
+      ) : accounts.length > 0 ? (
+        <div className="rounded-xl overflow-hidden mb-5" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+          {accounts.map((acc, i) => (
+            <div key={acc.id}
+              style={{ borderBottom: i < accounts.length - 1 ? "1px solid rgba(255,255,255,0.05)" : undefined,
+                padding: "0.75rem 1rem" }}>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.82rem", fontWeight: 700, color: "#fff", letterSpacing: "0.04em" }}>
+                      @{acc.username}
+                    </span>
+                    <span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.35)" }}>
+                      → {acc.playerName}
+                    </span>
+                    {acc.isAdmin && (
+                      <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: "rgba(255,210,74,0.12)", color: "#ffd24a", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.1em" }}>
+                        ADMIN
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: "0.58rem", color: "rgba(255,255,255,0.22)", marginTop: "1px" }}>
+                    {acc.lastLoginAt
+                      ? `Last login: ${new Date(acc.lastLoginAt).toLocaleDateString()}`
+                      : "Never logged in"}
+                  </div>
+                </div>
+                {revealed[acc.id] && (
+                  <div className="px-2 py-1 rounded-lg shrink-0"
+                    style={{ background: "rgba(0,229,160,0.08)", border: "1px solid rgba(0,229,160,0.2)" }}>
+                    <span style={{ fontFamily: "monospace", fontSize: "0.75rem", color: "#00e5a0", letterSpacing: "0.05em" }}>
+                      {revealed[acc.id]}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="New password (min 4 chars)"
+                  value={resetPwd[acc.id] ?? ""}
+                  onChange={e => setResetPwd(p => ({ ...p, [acc.id]: e.target.value }))}
+                  className="flex-1 rounded-lg px-3 py-1.5 text-xs outline-none"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff", fontFamily: "Oswald, sans-serif" }}
+                />
+                <button
+                  onClick={() => handleReset(acc.id)}
+                  disabled={resetting === acc.id}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold transition-opacity disabled:opacity-50"
+                  style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.25)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                  {resetting === acc.id ? "…" : "Reset"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="mb-4 py-4 text-center rounded-xl" style={{ border: "1px dashed rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.3)", fontSize: "0.78rem" }}>
+          No accounts yet — create the first one below
+        </div>
+      )}
+
+      {/* Create account */}
+      {playersWithoutAccount.length > 0 && (
+        <form onSubmit={handleCreate} className="space-y-3">
+          <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.52rem", letterSpacing: "0.18em",
+            color: "rgba(255,255,255,0.2)", textTransform: "uppercase", marginBottom: "0.25rem" }}>
+            Create New Account
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.14em",
+                color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>Player</label>
+              <select
+                value={createPlayerId}
+                onChange={e => setCreatePlayerId(e.target.value)}
+                required
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", fontFamily: "Oswald, sans-serif" }}>
+                <option value="">Select player…</option>
+                {playersWithoutAccount.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.14em",
+                color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>Initial Password</label>
+              <input
+                type="text"
+                placeholder="Set their password"
+                value={createPwd}
+                onChange={e => setCreatePwd(e.target.value)}
+                required
+                minLength={4}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", fontFamily: "Oswald, sans-serif" }}
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={createIsAdmin} onChange={e => setCreateIsAdmin(e.target.checked)}
+                className="rounded" style={{ accentColor: "#ffd24a" }} />
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem", color: "rgba(255,255,255,0.45)", letterSpacing: "0.06em" }}>
+                Admin access
+              </span>
+            </label>
+            <button type="submit" disabled={creating}
+              className="px-4 py-2 rounded-lg text-sm font-bold transition-opacity disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg, rgba(0,102,255,0.25), rgba(0,102,255,0.12))",
+                border: "1px solid rgba(0,102,255,0.35)", color: "#4d94ff",
+                fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
+              {creating ? "Creating…" : "Create Account"}
+            </button>
+          </div>
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
+            Username is auto-generated from the player's name. Password is shown once — write it down to hand out.
+          </p>
+        </form>
+      )}
+      {playersWithoutAccount.length === 0 && accounts.length > 0 && (
+        <p className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
+          All active players have accounts.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function Admin() {
   const { data: players, isLoading: isLoadingPlayers } = useListPlayers();
   const { data: matches, isLoading: isLoadingMatches } = useListMatches({ limit: 30 });
@@ -1124,6 +1332,7 @@ export default function Admin() {
 
       <FeatureFlags />
       <GameTypesManager />
+      <UserAccountsManager players={players} />
 
       {/* Season Management — full editor */}
       <div className="pdc-card p-5" style={{ borderColor: "rgba(255,210,74,0.15)", background: "rgba(255,210,74,0.02)" }}>

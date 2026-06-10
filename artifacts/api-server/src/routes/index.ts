@@ -7,6 +7,7 @@ import leaderboardRouter  from "./leaderboard";
 import achievementsRouter from "./achievements";
 import statsRouter        from "./stats";
 import adminRouter        from "./admin";
+import authRouter         from "./auth";
 import settingsRouter     from "./settings";
 import gameTypesRouter    from "./game-types";
 import practiceRouter     from "./practice";
@@ -18,6 +19,7 @@ import master501Router    from "./master501";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(authRouter);
 router.use(playersRouter);
 router.use(matchesRouter);
 router.use(teamMatchesRouter);

@@ -1,7 +1,8 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 import { useGetStatsSummary, useGetRecentActivity, useGetLeaderboard } from "@workspace/api-client-react";
+import { useAuth } from "@/context/auth";
 
 const hubNav = [
   { href: "/",             label: "Hub",          icon: LayoutDashboard },
@@ -111,6 +112,42 @@ function LiveTicker() {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function AccountWidget() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  return (
+    <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+      {user ? (
+        <Link href="/account"
+          className="flex items-center gap-2.5 mx-2 my-1.5 px-3 py-2 rounded-xl transition-colors hover:bg-white/5"
+          style={{ background: "rgba(255,0,92,0.06)", border: "1px solid rgba(255,0,92,0.12)" }}>
+          <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: "rgba(255,0,92,0.18)", border: "1px solid rgba(255,0,92,0.3)" }}>
+            <UserCircle className="w-4 h-4" style={{ color: "#ff005c" }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.75rem", fontWeight: 700, color: "#fff", letterSpacing: "0.04em", lineHeight: 1.2 }} className="truncate">
+              {user.playerName}
+            </div>
+            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.28)", letterSpacing: "0.08em" }} className="truncate">
+              @{user.username}{user.isAdmin ? " · Admin" : ""}
+            </div>
+          </div>
+        </Link>
+      ) : (
+        <Link href="/login"
+          className="flex items-center gap-2 mx-2 my-1.5 px-3 py-2 rounded-xl transition-opacity hover:opacity-70"
+          style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+          <LogIn className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
+          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
+            Sign In
+          </span>
+        </Link>
+      )}
     </div>
   );
 }
@@ -269,6 +306,9 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
         <NavSection label="Admin"        items={configNav}       />
       </nav>
+
+      {/* Account widget */}
+      <AccountWidget />
 
       {/* Footer — season countdown */}
       <div className="relative px-4 py-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
