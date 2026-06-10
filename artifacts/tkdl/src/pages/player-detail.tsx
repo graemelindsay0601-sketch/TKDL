@@ -227,6 +227,170 @@ function CollapsibleSection({ title, icon, open, onToggle, badge, children, acce
   );
 }
 
+// ── X01 dart-by-dart scorecard ───────────────────────────────────────────────
+
+type ScorecardDart = { label: string; val: number; isDouble: boolean; isTreble: boolean; isMiss: boolean };
+type ScorecardVisit = { darts: ScorecardDart[]; total: number; remaining: number; isBust: boolean; isCheckout: boolean };
+type ScorecardLeg = { legNum: number; visits: ScorecardVisit[]; dartCount: number };
+
+function makeDartLabel(d: { seg: number; mult: number; val: number }): ScorecardDart {
+  if (d.seg === 0) return { label: "MISS", val: 0, isDouble: false, isTreble: false, isMiss: true };
+  if (d.seg === 25 && d.mult === 2) return { label: "BULL", val: 50, isDouble: true, isTreble: false, isMiss: false };
+  if (d.seg === 25) return { label: "25", val: 25, isDouble: false, isTreble: false, isMiss: false };
+  if (d.mult === 3) return { label: `T${d.seg}`, val: d.val, isDouble: false, isTreble: true, isMiss: false };
+  if (d.mult === 2) return { label: `D${d.seg}`, val: d.val, isDouble: true, isTreble: false, isMiss: false };
+  return { label: String(d.seg), val: d.val, isDouble: false, isTreble: false, isMiss: false };
+}
+
+function parseX01Scorecard(darts: { seg: number; mult: number; val: number }[], startScore: number): ScorecardLeg[] {
+  const legs: ScorecardLeg[] = [];
+  let remaining = startScore;
+  let visitStart = startScore;
+  let currentLeg: ScorecardVisit[] = [];
+  let visitDarts: { d: ScorecardDart; val: number }[] = [];
+
+  function endVisit(isBust: boolean, isCheckout: boolean, finalRemaining: number) {
+    currentLeg.push({
+      darts: visitDarts.map(v => v.d),
+      total: visitDarts.reduce((s, v) => s + v.val, 0),
+      remaining: finalRemaining,
+      isBust,
+      isCheckout,
+    });
+    visitDarts = [];
+  }
+
+  for (const dart of darts) {
+    const d = makeDartLabel(dart);
+    const tentative = remaining - dart.val;
+    visitDarts.push({ d, val: dart.val });
+
+    if (tentative < 0 || tentative === 1) {
+      endVisit(true, false, visitStart);
+      remaining = visitStart;
+      visitStart = remaining;
+    } else if (tentative === 0) {
+      endVisit(false, true, 0);
+      legs.push({ legNum: legs.length + 1, visits: currentLeg, dartCount: currentLeg.reduce((s, v) => s + v.darts.length, 0) });
+      currentLeg = [];
+      remaining = startScore;
+      visitStart = startScore;
+    } else {
+      remaining = tentative;
+      if (visitDarts.length === 3) {
+        endVisit(false, false, remaining);
+        visitStart = remaining;
+      }
+    }
+  }
+
+  if (visitDarts.length > 0) {
+    currentLeg.push({ darts: visitDarts.map(v => v.d), total: visitDarts.reduce((s, v) => s + v.val, 0), remaining, isBust: false, isCheckout: false });
+  }
+  if (currentLeg.length > 0) {
+    legs.push({ legNum: legs.length + 1, visits: currentLeg, dartCount: currentLeg.reduce((s, v) => s + v.darts.length, 0) });
+  }
+  return legs;
+}
+
+function x01StartScore(key: string): number | null {
+  const m = key.match(/^(\d+)/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return [101, 201, 301, 401, 501, 601, 701, 1001, 1501, 2001].includes(n) ? n : null;
+}
+
+function ScorecardLegView({ leg }: { leg: ScorecardLeg }) {
+  return (
+    <div className="mb-3 last:mb-0">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "#ffd24a" }}>
+          Leg {leg.legNum}
+        </span>
+        <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.18)" }}>
+          {leg.dartCount} dart{leg.dartCount !== 1 ? "s" : ""}
+        </span>
+      </div>
+      <div className="space-y-0.5">
+        {leg.visits.map((visit, vi) => (
+          <div key={vi} className="flex items-center gap-1.5 px-2 py-1 rounded" style={{
+            background: visit.isBust ? "rgba(255,0,92,0.06)" : visit.isCheckout ? "rgba(34,197,94,0.06)" : "rgba(255,255,255,0.02)",
+          }}>
+            <div className="flex gap-1 flex-1">
+              {visit.darts.map((d, di) => (
+                <span key={di} className="px-1 py-0.5 rounded font-bold" style={{
+                  fontFamily: "Oswald, sans-serif", fontSize: "0.62rem",
+                  background: d.val === 60 ? "rgba(255,210,74,0.12)" : d.val === 50 ? "rgba(255,120,180,0.1)" : d.isDouble ? "rgba(34,197,94,0.08)" : d.isTreble ? "rgba(99,102,241,0.1)" : "rgba(255,255,255,0.04)",
+                  color: d.val === 60 ? "#ffd24a" : d.val === 50 ? "#ff7eb3" : d.isDouble ? "#4ade80" : d.isTreble ? "#a5b4fc" : d.isMiss ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.65)",
+                  border: `1px solid ${d.val === 60 ? "rgba(255,210,74,0.14)" : d.isDouble ? "rgba(74,222,128,0.1)" : d.isTreble ? "rgba(165,180,252,0.1)" : "transparent"}`,
+                }}>
+                  {d.label}
+                </span>
+              ))}
+              {Array.from({ length: 3 - visit.darts.length }).map((_, i) => (
+                <span key={`p${i}`} style={{ fontSize: "0.62rem", color: "transparent", userSelect: "none" }}>___</span>
+              ))}
+            </div>
+            <span className="font-black shrink-0 text-right" style={{
+              fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", minWidth: "2.8rem",
+              color: visit.total === 180 ? "#ffd24a" : visit.isBust ? "#ff005c" : visit.isCheckout ? "#4ade80" : "rgba(255,255,255,0.45)",
+            }}>
+              {visit.isBust ? "BUST" : visit.total === 180 ? "180!" : visit.total}
+            </span>
+            <span className="shrink-0 text-right" style={{
+              fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", minWidth: "1.8rem",
+              color: visit.isCheckout ? "#4ade80" : "rgba(255,255,255,0.18)",
+            }}>
+              {visit.isCheckout ? "✓" : visit.remaining}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ScorecardView({ session_data, game_type_key, p1_name, p2_name }: {
+  session_data: any; game_type_key: string | null; p1_name?: string | null; p2_name?: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const startScore = game_type_key ? x01StartScore(game_type_key) : null;
+  const p1Log: { seg: number; mult: number; val: number }[] = session_data?.dartLog ?? [];
+  const p2Log: { seg: number; mult: number; val: number }[] = session_data?.p2DartLog ?? [];
+  if (!startScore || (!p1Log.length && !p2Log.length)) return null;
+  const p1Legs = p1Log.length ? parseX01Scorecard(p1Log, startScore) : [];
+  const p2Legs = p2Log.length ? parseX01Scorecard(p2Log, startScore) : [];
+  const hasP2 = p2Legs.length > 0;
+
+  return (
+    <div className="mt-3 pt-3 border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-2 mb-2">
+        <span className="font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.22)", letterSpacing: "0.15em" }}>
+          Scorecard
+        </span>
+        <span className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.04)" }} />
+        <ChevronDown className="w-3 h-3 transition-transform shrink-0" style={{ color: "rgba(255,255,255,0.2)", transform: open ? "rotate(180deg)" : "rotate(0deg)" }} />
+      </button>
+      {open && (
+        <div className="space-y-1 pt-1">
+          {p1Legs.length > 0 && (
+            <div>
+              {hasP2 && <div className="font-bold uppercase mb-2" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.52rem", color: "rgba(255,255,255,0.22)", letterSpacing: "0.1em" }}>{p1_name ?? "P1"}</div>}
+              {p1Legs.map(leg => <ScorecardLegView key={leg.legNum} leg={leg} />)}
+            </div>
+          )}
+          {hasP2 && (
+            <div className="pt-2 border-t" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+              <div className="font-bold uppercase mb-2" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.52rem", color: "rgba(255,255,255,0.22)", letterSpacing: "0.1em" }}>{p2_name ?? "P2"}</div>
+              {p2Legs.map(leg => <ScorecardLegView key={leg.legNum} leg={leg} />)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PlayerDetail() {
   const params = useParams();
   const playerId = parseInt(params.id || "0", 10);
@@ -1760,6 +1924,12 @@ export default function PlayerDetail() {
                     </span>
                   </div>
                 )}
+                <ScorecardView
+                  session_data={(s as any).session_data}
+                  game_type_key={s.game_type_key ?? null}
+                  p1_name={(s as any).p1_name ?? null}
+                  p2_name={(s as any).p2_name ?? null}
+                />
               </div>
             );
           })()}
