@@ -30,7 +30,7 @@ app.use(session({
   store: new PgSession({
     conString: process.env.DATABASE_URL,
     tableName: "sessions",
-    createTableIfMissing: true,
+    createTableIfMissing: false,
   }),
   secret:            process.env.SESSION_SECRET!,
   resave:            false,
@@ -500,6 +500,18 @@ async function seedShadowBotAchievements() {
   logger.info("shadow_bot_achievements table ready");
 }
 
+async function seedSessions() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS sessions (
+      sid    VARCHAR      NOT NULL PRIMARY KEY,
+      sess   JSON         NOT NULL,
+      expire TIMESTAMP(6) NOT NULL
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_sessions_expire" ON sessions (expire)`);
+  logger.info("Sessions table ready");
+}
+
 async function seedUsers() {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS users (
@@ -529,6 +541,7 @@ async function init() {
     await seedAchievements();
     await seedRealData();
     await maybeAutoResetSeason();
+    await seedSessions();
     await seedUsers();
     logger.info("Startup init complete");
   } catch (err) {

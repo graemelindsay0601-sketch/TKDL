@@ -94,8 +94,20 @@ router.patch("/auth/password", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
+// ── Admin auth guard ──────────────────────────────────────────────────────────
+function requireAdmin(req: any, res: any): boolean {
+  const userId = (req.session as any).userId;
+  const isAdmin = (req.session as any).isAdmin;
+  if (!userId || !isAdmin) {
+    res.status(403).json({ error: "Admin access required" });
+    return false;
+  }
+  return true;
+}
+
 // ── GET /api/admin/users ──────────────────────────────────────────────────────
 router.get("/admin/users", async (req, res): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
   const users = await db.select({
     id:          usersTable.id,
     username:    usersTable.username,
@@ -119,6 +131,7 @@ const CreateUserBody = z.object({
 });
 
 router.post("/admin/users", async (req, res): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
   const parsed = CreateUserBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
@@ -148,6 +161,7 @@ router.post("/admin/users", async (req, res): Promise<void> => {
 const ResetPasswordBody = z.object({ password: z.string().min(4) });
 
 router.post("/admin/users/:id/reset-password", async (req, res): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
   const userId = Number(req.params.id);
   if (isNaN(userId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
