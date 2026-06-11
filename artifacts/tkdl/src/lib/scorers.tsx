@@ -516,9 +516,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
             sub={doubleIn && !started[i] ? "double in required" : undefined} />
         ))}
       </div>
-      {/* Checkout bar */}
+      {/* Checkout bar — updates live after every dart in the visit */}
       {([0, ...(soloMode ? [] : [1])] as (0|1)[]).map(i => {
-        const co = (scores[i] <= 170 && scores[i] >= 2 && (!doubleIn || started[i])) ? CHECKOUTS[scores[i]] : undefined;
+        // For the active player, use the live remaining (score minus darts thrown so far this visit)
+        // so the suggestion updates dart-by-dart. For inactive player use committed score.
+        const liveRem = (i === turn && !bust) ? projected : scores[i];
+        const co = (liveRem <= 170 && liveRem >= 2 && (!doubleIn || started[i])) ? CHECKOUTS[liveRem] : undefined;
         if (!co) return null;
         return <CheckoutBar key={i} checkout={co} playerName={names[i]} playerIdx={i as 0|1} />;
       })}
@@ -2446,9 +2449,12 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
             </div>
           ))}
         </div>
-        {scores[teamTurn] <= 170 && scores[teamTurn] >= 2 && CHECKOUTS[scores[teamTurn]] && (
-          <CheckoutBar checkout={CHECKOUTS[scores[teamTurn]]!} playerName={currentPlayerName(teamTurn)} playerIdx={teamTurn} />
-        )}
+        {(() => {
+          const teamLiveRem = !bust ? Math.max(0, scores[teamTurn] - cum) : scores[teamTurn];
+          return teamLiveRem >= 2 && teamLiveRem <= 170 && CHECKOUTS[teamLiveRem]
+            ? <CheckoutBar checkout={CHECKOUTS[teamLiveRem]!} playerName={currentPlayerName(teamTurn)} playerIdx={teamTurn} />
+            : null;
+        })()}
         {bust
           ? <BustBanner msg={bustMsg} />
           : <TurnBanner name={currentPlayerName(teamTurn)} turn={teamTurn} msg="— enter your score" />}
@@ -3478,6 +3484,12 @@ export function Master501Scorer({
 
   const isDisabled = !!(bust || legDone || matchDone);
 
+  // Live checkout: update after every dart thrown in the current visit
+  const cumRender     = visitDarts.reduce((s, d) => s + d.value, 0);
+  const liveScore501  = score - cumRender;
+  const m501Checkout  = (!bust && !legDone && liveScore501 >= 2 && liveScore501 <= 170)
+    ? CHECKOUTS[liveScore501] : undefined;
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
@@ -3541,6 +3553,8 @@ export function Master501Scorer({
         </div>
 
         <VisitDarts darts={visitDarts} />
+
+        {m501Checkout && <CheckoutBar checkout={m501Checkout} playerName={playerName} playerIdx={0} />}
 
         {(bust || flash) && (
           <div className="text-center font-black py-1" style={{ fontFamily: "Oswald,sans-serif", fontSize: "1.1rem", color: bust ? "#ff005c" : (legDone === "win" ? "#22c55e" : "#ff005c") }}>
