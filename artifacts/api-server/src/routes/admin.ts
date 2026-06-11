@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable, achievementsTable, playerAchievementsTable } from "@workspace/db";
 import { z } from "zod";
 import { checkStatAchievements, checkMatchAchievements, retroactiveSweep } from "../lib/achievements";
@@ -199,6 +199,40 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
   }).where(eq(matchesTable.id, matchId)).returning();
 
   res.json({ match: updated, eloChange: newEloChange });
+});
+
+// ── Delete player (cascade all related data) ──────────────────────────────────
+router.delete("/admin/players/:id", async (req, res): Promise<void> => {
+  const playerId = Number(req.params.id);
+  if (isNaN(playerId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [player] = await db.select({ id: playersTable.id, name: playersTable.name })
+    .from(playersTable).where(eq(playersTable.id, playerId));
+  if (!player) { res.status(404).json({ error: "Player not found" }); return; }
+
+  // Cascade delete everything related to this player (raw SQL for non-Drizzle tables)
+  await db.execute(sql`DELETE FROM player_achievements        WHERE player_id = ${playerId}`);
+  await db.execute(sql`DELETE FROM season_standings           WHERE player_id = ${playerId}`);
+  await db.execute(sql`DELETE FROM player_titles              WHERE player_id = ${playerId}`);
+  await db.execute(sql`DELETE FROM shadow_bot_achievements    WHERE player_id = ${playerId}`);
+  await db.execute(sql`DELETE FROM player_tour_achievements   WHERE player_id = ${playerId}`);
+  await db.execute(sql`DELETE FROM tour_trophies              WHERE player_id = ${playerId}`);
+  await db.execute(sql`DELETE FROM player_tour_runs           WHERE player_id = ${playerId}`);
+  await db.execute(sql`DELETE FROM practice_sessions          WHERE player1_id = ${playerId} OR player2_id = ${playerId}`);
+  await db.execute(sql`DELETE FROM users                      WHERE player_id = ${playerId}`);
+
+  // Delete matches they appeared in (both as winner and loser)
+  await db.delete(matchesTable).where(eq(matchesTable.winnerId, playerId));
+  await db.delete(matchesTable).where(eq(matchesTable.loserId, playerId));
+
+  // Update seasons if they were champion
+  await db.execute(sql`UPDATE seasons SET champion_id = NULL, champion_name = NULL WHERE champion_id = ${playerId}`);
+
+  // Finally delete the player
+  await db.delete(playersTable).where(eq(playersTable.id, playerId));
+
+  req.log.info({ playerId, name: player.name }, "Player deleted by admin");
+  res.json({ ok: true, deleted: player.name });
 });
 
 // ── Override player Elo ────────────────────────────────────────────────────────
