@@ -34,6 +34,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
 
   (req.session as any).userId = user.id;
+  (req.session as any).isAdmin = user.isAdmin;
 
   req.log.info({ userId: user.id, username: user.username }, "User logged in");
   res.json({
