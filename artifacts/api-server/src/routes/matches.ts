@@ -5,6 +5,7 @@ import { z } from "zod";
 import { applyEloChange, calcTier } from "../lib/elo";
 import { validateStake, applyWager } from "../lib/wager";
 import { checkMatchAchievements, checkStatAchievements } from "../lib/achievements";
+import { checkAndGrantTitles } from "../lib/titles";
 
 const SubmitMatchBody = z.object({
   winnerId:                z.number().int().positive(),
@@ -156,6 +157,8 @@ router.post("/matches", async (req, res): Promise<void> => {
   // Check achievements
   await checkMatchAchievements(winnerId, loserId, true,  stake, loserPointsBefore, winnerPointsBefore, loserEliminated);
   await checkMatchAchievements(loserId,  winnerId, false, stake, loserPointsBefore, winnerPointsBefore, false);
+  void checkAndGrantTitles(winnerId);
+  void checkAndGrantTitles(loserId);
 
   res.status(201).json({
     ...match,

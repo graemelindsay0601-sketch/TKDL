@@ -6,7 +6,7 @@ import { computeIdentity } from "../lib/identity";
 import { calcTier } from "../lib/elo";
 import { gamerscoreForRarity, SHADOW_BOT_ACHIEVEMENT_DEFS } from "../lib/shadow-bot-achievements";
 import { logger } from "../lib/logger";
-import { TITLE_DEFINITIONS, getPlayerTitles } from "../lib/titles";
+import { TITLE_DEFINITIONS, getAllPlayerTitles, checkAndGrantTitles } from "../lib/titles";
 
 const CreatePlayerBody = z.object({
   name:     z.string().min(1),
@@ -541,16 +541,14 @@ router.get("/players/:id/gamerscore", async (req, res): Promise<void> => {
   }
 });
 
-// GET /players/:id/titles
+// GET /players/:id/titles  — returns ALL titles (earned + locked), auto-grants on fetch
 router.get("/players/:id/titles", async (req, res): Promise<void> => {
   const params = IdParam.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const id = params.data.id;
   try {
-    const activeTitleRow = await db.execute(sql`SELECT active_title FROM players WHERE id = ${id}`);
-    const activeTitle = (activeTitleRow.rows[0] as any)?.active_title as string | null ?? null;
-    const earned = await getPlayerTitles(id);
-    res.json(earned.map(t => ({ ...t, isActive: t.key === activeTitle })));
+    await checkAndGrantTitles(id); // idempotent — picks up any newly earned achievements
+    res.json(await getAllPlayerTitles(id));
   } catch (err) {
     req.log.error({ err }, "GET /players/:id/titles failed");
     res.status(500).json({ error: "Failed" });

@@ -9,7 +9,7 @@ import { logger } from "./lib/logger";
 import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetSeason } from "./lib/seasonReset";
 import { seedTourSystem } from "./lib/tourSeed";
-import { seedTitles } from "./lib/titles";
+import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { playersTable, seasonsTable, matchesTable, seasonStandingsTable, settingsTable, gameTypesTable } from "@workspace/db";
@@ -590,6 +590,7 @@ async function init() {
     await seedSessions();
     await seedUsers();
     await seedTitles();
+    void sweepAllPlayerTitles(); // grant any titles earned via existing achievements
     logger.info("Startup init complete");
   } catch (err) {
     logger.error({ err }, "Startup init failed");
