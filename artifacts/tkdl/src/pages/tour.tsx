@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useCurrentPlayer } from "@/context/auth";
 import { Trophy, Lock, ChevronRight, Star, Tv2, RotateCcw, Check, ChevronDown, Zap, Crown, Target, Flame } from "lucide-react";
 
 const TIERS = [
@@ -73,6 +74,7 @@ function TrophyPips({ wonDifficulties }: { wonDifficulties: string[] }) {
 
 export default function Tour() {
   const [, navigate] = useLocation();
+  const currentPlayer = useCurrentPlayer();
 
   const [players, setPlayers]               = useState<any[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
@@ -87,7 +89,10 @@ export default function Tour() {
     fetch("/api/players").then(r => r.json()).then(ps => {
       const active = ps.filter((p: any) => p.status === "ACTIVE");
       setPlayers(active);
-      if (active.length > 0) setSelectedPlayerId(active[0].id);
+      if (active.length > 0) {
+        const defaultId = currentPlayer ? active.find((p: any) => p.id === currentPlayer.playerId)?.id : null;
+        setSelectedPlayerId(defaultId ?? active[0].id);
+      }
     }).catch(() => {});
     fetch("/api/leaderboard/tour").then(r => r.json()).then(setTourLb).catch(() => {});
   }, []);

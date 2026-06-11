@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useListPlayers } from "@workspace/api-client-react";
+import { useCurrentPlayer } from "@/context/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users, Ghost, User } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
@@ -251,6 +252,7 @@ function ShadowPlayerPicker({ players, profiles, selected, onSelect }: {
 // ── Setup Screen ───────────────────────────────────────────────────────────────
 function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const { data: playersData }   = useListPlayers();
+  const currentPlayer           = useCurrentPlayer();
   const [gameTypes, setGameTypes] = useState<GameTypeOption[]>([]);
   const [mode, setMode]           = useState<"2p" | "bot" | "solo">("2p");
   const [botMode, setBotMode]     = useState<SoloBotMode>("level");
@@ -283,6 +285,14 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   }, [selectedGame]);
 
   const players = (playersData as Player[] | undefined)?.filter(p => p.status === "ACTIVE") ?? [];
+
+  useEffect(() => {
+    if (players.length === 0 || p1Id) return;
+    const defaultId = currentPlayer ? players.find(p => p.id === currentPlayer.playerId)?.id : null;
+    if (defaultId) setP1Id(String(defaultId));
+    else if (players[0]) setP1Id(String(players[0].id));
+  }, [players.length]);
+
   const p1      = players.find(p => p.id === Number(p1Id));
   const p2      = mode === "2p" ? (players.find(p => p.id === Number(p2Id)) ?? null) : null;
 

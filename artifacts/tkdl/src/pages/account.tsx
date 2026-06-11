@@ -108,7 +108,7 @@ export default function AccountPage() {
       fetch(`/api/tour/runs/${id}`).then(r => r.ok ? r.json() : []).then(setTourRuns),
       fetch(`/api/players/${id}/shadow-bot-stats`).then(r => r.ok ? r.json() : null).then(setShadow),
       fetch(`/api/players/${id}/achievement-progress`).then(r => r.ok ? r.json() : []).then(setAchProgress),
-      fetch(`/api/players/${id}/elo-history`).then(r => r.ok ? r.json() : {}).then(d => setEloHistory(d.history ?? [])),
+      fetch(`/api/players/${id}/elo-history`).then(r => r.ok ? r.json() : {}).then((d: any) => setEloHistory(d.history ?? [])),
     ]);
   }, [user?.playerId]);
 
