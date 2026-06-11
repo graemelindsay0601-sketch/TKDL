@@ -5,7 +5,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize } from "lucide-react";
-import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit } from "./bot-engine";
+import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart } from "./bot-engine";
 import { type PracticeStats, type DartThrow } from "./stats-types";
 
 function useFullscreen() {
@@ -720,6 +720,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
                 color: "rgba(255,255,255,0.4)",
                 borderLeft: "1px solid rgba(255,255,255,0.06)",
                 borderRight: "1px solid rgba(255,255,255,0.06)",
+                textDecoration: marks[0][idx] >= 3 && marks[1][idx] >= 3 ? "line-through" : undefined,
               }}>
                 {CRICKET_LABELS[idx]}
               </div>
@@ -1414,8 +1415,8 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
 }
 
 // ── Gotcha Scorer ──────────────────────────────────────────────────────────────
-export function GotchaScorer({ p1Name, p2Name, target = 301, onWin, onAbandon, onTurnChanged }: {
-  p1Name: string; p2Name: string; target?: number;
+export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, onAbandon, onTurnChanged }: {
+  p1Name: string; p2Name: string; target?: number; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onTurnChanged?: (t: 0|1) => void;
 }) {
@@ -1424,6 +1425,8 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, onWin, onAbandon, o
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
   const [msg, setMsg]               = useState("");
   const names = [p1Name, p2Name];
+  const handleDartRefGotcha = useRef<(d: Dart) => void>(() => {});
+  const isBotTurnGotcha = !!botConfig && turn === 1;
 
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
@@ -1458,6 +1461,16 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, onWin, onAbandon, o
     }
   };
 
+  useEffect(() => { handleDartRefGotcha.current = handleDart; });
+  useEffect(() => {
+    if (!botConfig || turn !== 1) return;
+    const [d1, d2, d3] = botGotchaVisit(scores[1], target, scores[0], botConfig);
+    const t1 = setTimeout(() => handleDartRefGotcha.current(d1), 700);
+    const t2 = setTimeout(() => handleDartRefGotcha.current(d2), 1400);
+    const t3 = setTimeout(() => handleDartRefGotcha.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -1469,19 +1482,20 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, onWin, onAbandon, o
         {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} scoreSuffix={`/${target}`} turn={i===0} active={turn===i} />)}
       </div>
       {msg && <div className="text-center font-bold" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{msg}</div>}
-      <TurnBanner name={names[turn]} turn={turn} />
+      <TurnBanner name={names[turn]} turn={turn} msg={isBotTurnGotcha ? "— CPU THROWING…" : undefined} />
       <VisitDarts darts={visitDarts} />
       <DartInputBoard onDart={handleDart}
         onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
-        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))} />
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        disabled={isBotTurnGotcha} />
       <AbandonBtn onAbandon={onAbandon} />
     </div>
   );
 }
 
 // ── Baseball Scorer ────────────────────────────────────────────────────────────
-export function BaseballScorer({ p1Name, p2Name, innings = 9, onWin, onAbandon, onTurnChanged }: {
-  p1Name: string; p2Name: string; innings?: number;
+export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, onAbandon, onTurnChanged }: {
+  p1Name: string; p2Name: string; innings?: number; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onTurnChanged?: (t: 0|1) => void;
 }) {
@@ -1490,6 +1504,8 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, onWin, onAbandon, 
   const [runs, setRuns]             = useState<[number,number]>([0,0]);
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
   const names = [p1Name, p2Name];
+  const handleDartRefBaseball = useRef<(d: Dart) => void>(() => {});
+  const isBotTurnBaseball = !!botConfig && half === 1;
 
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
@@ -1509,6 +1525,16 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, onWin, onAbandon, 
     }
   };
 
+  useEffect(() => { handleDartRefBaseball.current = handleDart; });
+  useEffect(() => {
+    if (!botConfig || half !== 1) return;
+    const [d1, d2, d3] = botBaseballVisit(inning, botConfig);
+    const t1 = setTimeout(() => handleDartRefBaseball.current(d1), 700);
+    const t2 = setTimeout(() => handleDartRefBaseball.current(d2), 1400);
+    const t3 = setTimeout(() => handleDartRefBaseball.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [half, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -1520,12 +1546,12 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, onWin, onAbandon, 
       <div className="grid grid-cols-2 gap-3">
         {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={runs[i]} scoreSuffix=" runs" turn={i===0} active={half===i} />)}
       </div>
-      <TurnBanner name={names[half]} turn={half} msg={`— aim at ${inning}`} />
+      <TurnBanner name={names[half]} turn={half} msg={isBotTurnBaseball ? "— CPU THROWING…" : `— aim at ${inning}`} />
       <VisitDarts darts={visitDarts} />
       <DartInputBoard onDart={handleDart}
         onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
         onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
-        highlightSegments={[inning]} />
+        highlightSegments={[inning]} disabled={isBotTurnBaseball} />
       <AbandonBtn onAbandon={onAbandon} />
     </div>
   );
@@ -1534,8 +1560,8 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, onWin, onAbandon, 
 // ── Scram Scorer ───────────────────────────────────────────────────────────────
 const SCRAM_NUMS = [20,19,18,17,16,15,25];
 
-export function ScramScorer({ p1Name, p2Name, onWin, onAbandon }: {
-  p1Name: string; p2Name: string;
+export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
   const [phase, setPhase]             = useState<1|2>(1);
@@ -1546,6 +1572,8 @@ export function ScramScorer({ p1Name, p2Name, onWin, onAbandon }: {
   const [visitDarts, setVisitDarts]   = useState<Dart[]>([]);
   const names = [p1Name, p2Name];
   const scorer: 0|1 = stopper === 0 ? 1 : 0;
+  const handleDartRefScram = useRef<(d: Dart) => void>(() => {});
+  const isBotTurnScram = !!botConfig && turn === 1;
 
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
@@ -1592,6 +1620,16 @@ export function ScramScorer({ p1Name, p2Name, onWin, onAbandon }: {
     }
   };
 
+  useEffect(() => { handleDartRefScram.current = handleDart; });
+  useEffect(() => {
+    if (!botConfig || turn !== 1) return;
+    const [d1, d2, d3] = botScramVisit(stopper === 1, closed, botConfig);
+    const t1 = setTimeout(() => handleDartRefScram.current(d1), 700);
+    const t2 = setTimeout(() => handleDartRefScram.current(d2), 1400);
+    const t3 = setTimeout(() => handleDartRefScram.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -1623,12 +1661,12 @@ export function ScramScorer({ p1Name, p2Name, onWin, onAbandon }: {
         </div>
       </SectionCard>
       <TurnBanner name={names[turn]} turn={turn}
-        msg={turn===stopper ? "— close numbers!" : "— score on open numbers!"} />
+        msg={isBotTurnScram ? "— CPU THROWING…" : turn===stopper ? "— close numbers!" : "— score on open numbers!"} />
       <VisitDarts darts={visitDarts} />
       <DartInputBoard onDart={handleDart}
         onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
         onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
-        activeSegments={SCRAM_NUMS} highlightSegments={SCRAM_NUMS.filter((_,i)=>!closed[i])} />
+        activeSegments={SCRAM_NUMS} highlightSegments={SCRAM_NUMS.filter((_,i)=>!closed[i])} disabled={isBotTurnScram} />
       <AbandonBtn onAbandon={onAbandon} />
     </div>
   );
@@ -1840,14 +1878,90 @@ export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAban
 }
 
 // ── Nearest Bull Scorer ────────────────────────────────────────────────────────
-export function NearestBullScorer({ p1Name, p2Name, onWin, onAbandon }: {
-  p1Name: string; p2Name: string;
+export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
-  const [phase, setPhase]           = useState<"throwing"|"declare">("throwing");
-  const [thrower, setThrower]       = useState<0|1>(0);
-  const [thrown, setThrown]         = useState<[boolean,boolean]>([false,false]);
+  const [phase,   setPhase]   = useState<"throwing"|"declare">("throwing");
+  const [thrown,  setThrown]  = useState<[boolean,boolean]>([false,false]);
+  const [p1Score, setP1Score] = useState<number|null>(null);
+  const [botScore,setBotScore]= useState<number|null>(null);
   const names = [p1Name, p2Name];
+
+  const computeBotScore = (acc: number): number => {
+    const r = Math.random();
+    if (r > acc * 0.9)  return 0;
+    if (r < acc * 0.35) return 50;
+    return 25;
+  };
+
+  const handleP1Pick = (score: number) => {
+    if (p1Score !== null) return;
+    setP1Score(score);
+    setTimeout(() => {
+      const bs = computeBotScore(botConfig!.hitAcc);
+      setBotScore(bs);
+      setTimeout(() => onWin(score >= bs ? 0 : 1, `${score} vs ${bs}`), 1800);
+    }, 900);
+  };
+
+  // ── Human vs Human ───────────────────────────────────────────────────────────
+  if (!botConfig) {
+    return (
+      <div className="max-w-lg mx-auto space-y-5">
+        <div className="pdc-divider" />
+        <div className="text-center">
+          <Target className="w-12 h-12 mx-auto mb-2" style={{ color: "#ffd24a" }} />
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Nearest the Bull</h2>
+          <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Each player throws 3 darts. Closest dart to Bull wins.</p>
+        </div>
+        {phase === "throwing" ? (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              {[0,1].map(i => (
+                <button key={i}
+                  onClick={() => { if (!thrown[i]) { setThrown(p=>{const n=[...p] as [boolean,boolean]; n[i]=true; return n;}); } }}
+                  style={{ padding:"2rem 1rem", borderRadius:"0.75rem", cursor: thrown[i]?"default":"pointer", background: thrown[i]?`${P_COLOR(i)}22`:"rgba(255,255,255,0.04)", border: thrown[i]?`2px solid ${P_COLOR(i)}`:"1px solid rgba(255,255,255,0.1)", color: P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>
+                  <div className="font-bold text-lg">{names[i]}</div>
+                  <div className="text-xs mt-1 opacity-70">{thrown[i]?"✓ Thrown":"Tap when thrown"}</div>
+                </button>
+              ))}
+            </div>
+            {thrown[0] && thrown[1] && (
+              <button onClick={() => setPhase("declare")}
+                className="w-full h-12 font-bold uppercase tracking-widest rounded-xl"
+                style={{ background:"#ff005c", color:"#fff", border:"none", fontFamily:"Oswald,sans-serif", cursor:"pointer" }}>
+                Declare Winner →
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="text-center text-sm" style={{ color:"rgba(255,255,255,0.5)", fontFamily:"Oswald,sans-serif" }}>Look at the board — who is closest?</p>
+            <div className="grid grid-cols-2 gap-4">
+              {[0,1].map(i => (
+                <button key={i} onClick={() => onWin(i as 0|1, "Nearest the Bull")}
+                  style={{ padding:"2.5rem 1rem", borderRadius:"0.75rem", cursor:"pointer", background:`${P_COLOR(i)}18`, border:`2px solid ${P_COLOR(i)}44`, color:P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>
+                  <Trophy className="w-8 h-8 mx-auto mb-2" />
+                  <div className="font-bold text-xl">{names[i]}</div>
+                  <div className="text-xs mt-1 opacity-60">Tap — they were closest</div>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>
+    );
+  }
+
+  // ── Bot mode ─────────────────────────────────────────────────────────────────
+  const ScoreLabel = ({ score }: { score: number|null }) => {
+    if (score === null) return <span className="animate-pulse" style={{ color:"rgba(255,255,255,0.25)", fontFamily:"Oswald,sans-serif" }}>throwing…</span>;
+    if (score === 50)   return <span style={{ color:"#ff005c", fontFamily:"Oswald,sans-serif", fontWeight:900 }}>BULL · 50</span>;
+    if (score === 25)   return <span style={{ color:"#ffd24a", fontFamily:"Oswald,sans-serif", fontWeight:900 }}>OUTER · 25</span>;
+    return <span style={{ color:"rgba(255,255,255,0.3)", fontFamily:"Oswald,sans-serif" }}>MISS · 0</span>;
+  };
 
   return (
     <div className="max-w-lg mx-auto space-y-5">
@@ -1855,55 +1969,36 @@ export function NearestBullScorer({ p1Name, p2Name, onWin, onAbandon }: {
       <div className="text-center">
         <Target className="w-12 h-12 mx-auto mb-2" style={{ color: "#ffd24a" }} />
         <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Nearest the Bull</h2>
-        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>
-          Each player throws 3 darts. Closest dart to Bull wins.
-        </p>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Pick your closest dart — bot throws automatically.</p>
       </div>
-      {phase === "throwing" ? (
-        <>
-          <div className="grid grid-cols-2 gap-3">
-            {[0,1].map(i => (
-              <button key={i}
-                onClick={() => { if (!thrown[i]) { setThrown(p=>{const n=[...p] as [boolean,boolean]; n[i]=true; return n;}); } }}
-                style={{
-                  padding:"2rem 1rem", borderRadius:"0.75rem", cursor: thrown[i] ? "default" : "pointer",
-                  background: thrown[i] ? `${P_COLOR(i)}22` : "rgba(255,255,255,0.04)",
-                  border: thrown[i] ? `2px solid ${P_COLOR(i)}` : "1px solid rgba(255,255,255,0.1)",
-                  color: P_COLOR(i), fontFamily: "Oswald, sans-serif",
-                }}>
-                <div className="font-bold text-lg">{names[i]}</div>
-                <div className="text-xs mt-1 opacity-70">{thrown[i] ? "✓ Thrown" : "Tap when thrown"}</div>
-              </button>
-            ))}
-          </div>
-          {thrown[0] && thrown[1] && (
-            <button onClick={() => setPhase("declare")}
-              className="w-full h-12 font-bold uppercase tracking-widest rounded-xl"
-              style={{ background: "#ff005c", color: "#fff", border: "none", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
-              Declare Winner →
+      {p1Score !== null && (
+        <div className="pdc-card overflow-hidden">
+          {[{ label: p1Name, score: p1Score }, { label: p2Name, score: botScore }].map((row, i) => {
+            const isWinner = p1Score !== null && botScore !== null && (i === 0 ? p1Score >= botScore : botScore > p1Score);
+            return (
+              <div key={i} className="flex items-center gap-3 px-4 py-3" style={{ background: isWinner?"rgba(34,197,94,0.07)":undefined, borderBottom: i===0?"1px solid rgba(255,255,255,0.06)":undefined }}>
+                <span className="text-xs font-black w-16 shrink-0" style={{ fontFamily:"Oswald,sans-serif", color:P_COLOR(i as 0|1) }}>{row.label.toUpperCase()}</span>
+                <span className="flex-1 text-right text-sm"><ScoreLabel score={row.score} /></span>
+                {isWinner && <span className="text-xs font-black ml-2" style={{ color:"#22c55e", fontFamily:"Oswald,sans-serif", fontSize:"0.55rem" }}>WIN</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {p1Score === null && (
+        <div className="space-y-2">
+          <p className="text-xs text-center" style={{ color:"rgba(255,255,255,0.4)", fontFamily:"Oswald,sans-serif" }}>Your closest dart to Bull:</p>
+          {([
+            { score:50, label:"🎯 Inner Bull", sub:"50", col:"#ff005c",               border:"rgba(255,0,92,0.4)",    bg:"rgba(255,0,92,0.1)"    },
+            { score:25, label:"⭕ Outer Bull", sub:"25", col:"#ffd24a",               border:"rgba(255,210,74,0.3)",  bg:"rgba(255,210,74,0.07)" },
+            { score:0,  label:"✗ Miss",         sub:"",  col:"rgba(255,255,255,0.3)", border:"rgba(255,255,255,0.1)", bg:"rgba(255,255,255,0.03)"},
+          ] as const).map(({ score, label, sub, col, border, bg }) => (
+            <button key={score} onClick={() => handleP1Pick(score)}
+              style={{ width:"100%", padding:"1rem", borderRadius:"0.875rem", fontFamily:"Oswald,sans-serif", fontWeight:900, fontSize:"0.875rem", textTransform:"uppercase", letterSpacing:"0.14em", background:bg, border:`2px solid ${border}`, color:col, cursor:"pointer" }}>
+              {label}{sub && <span style={{ color:"rgba(255,255,255,0.3)", fontWeight:400, marginLeft:"0.5rem" }}>{sub}</span>}
             </button>
-          )}
-        </>
-      ) : (
-        <>
-          <p className="text-center text-sm" style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif" }}>
-            Look at the board — who is closest to the bull?
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            {[0,1].map(i => (
-              <button key={i} onClick={() => onWin(i as 0|1, "Nearest the Bull")}
-                style={{
-                  padding:"2.5rem 1rem", borderRadius:"0.75rem", cursor:"pointer",
-                  background:`${P_COLOR(i)}18`, border:`2px solid ${P_COLOR(i)}44`,
-                  color: P_COLOR(i), fontFamily: "Oswald, sans-serif",
-                }}>
-                <Trophy className="w-8 h-8 mx-auto mb-2" />
-                <div className="font-bold text-xl">{names[i]}</div>
-                <div className="text-xs mt-1 opacity-60">Tap — they were closest</div>
-              </button>
-            ))}
-          </div>
-        </>
+          ))}
+        </div>
       )}
       <AbandonBtn onAbandon={onAbandon} />
     </div>
@@ -1945,9 +2040,131 @@ export function ManualScorer({ p1Name, p2Name, gameName, rules, onWin, onAbandon
   );
 }
 
+// ── Snooker Darts ──────────────────────────────────────────────────────────────
+const SNOOKER_BALLS: { label: string; value: number; segs: number[]; color: string; emoji: string }[] = [
+  ...Array.from({ length: 15 }, () => ({ label: "Red", value: 1, segs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], color: "#dc2626", emoji: "🔴" })),
+  { label: "Yellow", value: 2, segs: [2], color: "#fde047", emoji: "🟡" },
+  { label: "Green",  value: 3, segs: [3], color: "#22c55e", emoji: "🟢" },
+  { label: "Brown",  value: 4, segs: [4], color: "#a16207", emoji: "🟤" },
+  { label: "Blue",   value: 5, segs: [5], color: "#3b82f6", emoji: "🔵" },
+  { label: "Pink",   value: 6, segs: [6], color: "#ec4899", emoji: "🩷" },
+  { label: "Black",  value: 7, segs: [7], color: "#4b5563", emoji: "⚫" },
+];
+
+function botSnookerDart(segs: number[], cfg: BotConfig): Dart {
+  if (Math.random() > cfg.hitAcc) return { segment: 0, multiplier: 1, value: 0, label: "Miss" };
+  const seg = segs[Math.floor(Math.random() * Math.min(3, segs.length))];
+  return { segment: seg, multiplier: 1, value: seg, label: `${seg}` };
+}
+
+export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+}) {
+  const [ballIdx,    setBallIdx]    = useState(0);
+  const [half,       setHalf]       = useState<0|1>(0);
+  const [scores,     setScores]     = useState<[number,number]>([0,0]);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [potted,     setPotted]     = useState(false);
+  const names = [p1Name, p2Name];
+  const ball  = SNOOKER_BALLS[ballIdx];
+  const ballIdxRef = useRef(ballIdx); ballIdxRef.current = ballIdx;
+  const halfRef    = useRef(half);    halfRef.current    = half;
+  const isBotTurnSnk = !!botConfig && half === 1;
+
+  const doAdvance = (wasHit: boolean, bi: number, h: 0|1) => {
+    if (wasHit) setScores(prev => { const ns:[number,number]=[...prev] as [number,number]; ns[h]+=SNOOKER_BALLS[bi].value; return ns; });
+    setVisitDarts([]);
+    setPotted(false);
+    if (h === 0) {
+      setHalf(1);
+    } else if (bi + 1 < SNOOKER_BALLS.length) {
+      setBallIdx(bi + 1);
+      setHalf(0);
+    } else {
+      setTimeout(() => {
+        setScores(sc => { onPracticeStats?.({ sessionData: { mode: "snooker_darts" } }); onWin(sc[0] >= sc[1] ? 0 : 1, `${sc[0]}–${sc[1]} pts`); return sc; });
+      }, 400);
+    }
+  };
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3 || potted) return;
+    const hit = ball.segs.includes(dart.segment);
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (hit) { setPotted(true); return; }
+    if (nv.length === 3) doAdvance(false, ballIdx, half);
+  };
+
+  useEffect(() => {
+    if (!potted) return;
+    const bi = ballIdxRef.current; const h = halfRef.current;
+    const t = setTimeout(() => doAdvance(true, bi, h), 600);
+    return () => clearTimeout(t);
+  }, [potted]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDartRefSnk = useRef<(d: Dart) => void>(() => {});
+  useEffect(() => { handleDartRefSnk.current = handleDart; });
+  useEffect(() => {
+    if (!botConfig || half !== 1) return;
+    const segs = SNOOKER_BALLS[ballIdx].segs;
+    const t1 = setTimeout(() => handleDartRefSnk.current(botSnookerDart(segs, botConfig)), 700);
+    const t2 = setTimeout(() => handleDartRefSnk.current(botSnookerDart(segs, botConfig)), 1400);
+    const t3 = setTimeout(() => handleDartRefSnk.current(botSnookerDart(segs, botConfig)), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [half, ballIdx, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isRed = ballIdx < 15;
+  const redCount = Math.min(ballIdx + 1, 15);
+
+  return (
+    <ScorerLayout
+      top={<div className="space-y-3">
+        <div className="pdc-divider"/>
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Snooker Darts</h2>
+          <div className="flex items-center justify-center gap-2 mt-1">
+            <span className="text-lg">{ball.emoji}</span>
+            <span className="font-black text-sm" style={{fontFamily:"Oswald,sans-serif", color:ball.color}}>
+              {isRed ? `Red ${redCount}/15` : ball.label}
+            </span>
+            <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{fontFamily:"Oswald,sans-serif", background:`${ball.color}22`, color:ball.color, fontSize:"0.6rem"}}>+{ball.value}pt</span>
+          </div>
+          <p className="text-xs mt-1" style={{color:"rgba(255,255,255,0.3)"}}>
+            {isRed ? "Hit any segment 1–15 to pot" : `Aim at segment ${ball.segs[0]}`}
+          </p>
+        </div>
+        <div className="flex gap-0.5 justify-center flex-wrap px-2">
+          {SNOOKER_BALLS.map((b, i) => (
+            <div key={i} className="w-2 h-2 rounded-full" style={{
+              background: b.color,
+              opacity: i < ballIdx ? 0.2 : i === ballIdx ? 1 : 0.35,
+              boxShadow: i === ballIdx ? `0 0 6px ${b.color}` : "none",
+            }}/>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i=><PlayerCard key={i} name={names[i]} score={scores[i]} scoreSuffix=" pts" turn={i===0} active={half===i}/>)}
+        </div>
+        {potted && <div className="text-center font-bold text-sm" style={{color:"#22c55e",fontFamily:"Oswald,sans-serif"}}>Potted! 🎯</div>}
+        <TurnBanner name={names[half]} turn={half} msg={isBotTurnSnk?"— CPU THROWING…":`— aim at ${isRed?"1–15":ball.segs[0]}`}/>
+        <VisitDarts darts={visitDarts}/>
+      </div>}
+      bot={<div className="flex flex-col gap-2">
+        <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+          onUndo={()=>visitDarts.length>0&&!potted&&setVisitDarts(p=>p.slice(0,-1))}
+          highlightSegments={ball.segs} activeSegments={ball.segs} disabled={isBotTurnSnk||potted}/>
+        <AbandonBtn onAbandon={onAbandon}/>
+      </div>}
+    />
+  );
+}
+
 // ── JDC Challenge 41 ──────────────────────────────────────────────────────────
-export function JDCChallenge41Scorer({ p1Name, p2Name, onWin, onAbandon, onPracticeStats }: {
-  p1Name: string; p2Name: string;
+export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
@@ -1962,6 +2179,8 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, onWin, onAbandon, onPract
   const [shHits, setShHits]         = useState({s:false,d:false,t:false});
   const [msg, setMsg]               = useState("");
   const names = [p1Name, p2Name];
+  const handleDartRefJDC = useRef<(d: Dart) => void>(() => {});
+  const isBotTurnJDC = !!botConfig && turn === 1;
   const phaseArr = phase==="sh1"?SH1:phase==="dbl"?DBL:SH2;
   const target   = phaseArr[idx];
 
@@ -2003,6 +2222,16 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, onWin, onAbandon, onPract
     if(nv.length===3){advance(nv.reduce((a,d)=>a+(d.segment===target?d.value:0),0));}
   },[visitDarts,phase,target,shHits,turn,advance]);
 
+  useEffect(() => { handleDartRefJDC.current = handleDart; });
+  useEffect(() => {
+    if (!botConfig || turn !== 1) return;
+    const [d1, d2, d3] = botJDCVisit(phase, target, botConfig);
+    const t1 = setTimeout(() => handleDartRefJDC.current(d1), 700);
+    const t2 = setTimeout(() => handleDartRefJDC.current(d2), 1400);
+    const t3 = setTimeout(() => handleDartRefJDC.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const label=phase==="sh1"?`Phase 1 — Shanghai ${SH1[0]}–${SH1.at(-1)}`
     :phase==="dbl"?`Phase 2 — Doubles ${DBL[0]}–D${DBL.at(-1)}`
     :`Phase 3 — Shanghai ${SH2[0]}–${SH2.at(-1)}`;
@@ -2021,12 +2250,12 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, onWin, onAbandon, onPract
         </div>
         <div className="grid grid-cols-2 gap-3">{[0,1].map(i=><PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i}/>)}</div>
         {msg&&<div className="text-center font-bold text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>{msg}</div>}
-        <TurnBanner name={names[turn]} turn={turn} msg={phase==="dbl"?`— hit D${target}!`:`— aim at ${target}`}/>
+        <TurnBanner name={names[turn]} turn={turn} msg={isBotTurnJDC?"— CPU THROWING…":phase==="dbl"?`— hit D${target}!`:`— aim at ${target}`}/>
         <VisitDarts darts={visitDarts}/>
       </div>}
       bot={<div className="flex flex-col gap-2">
         <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
-          onUndo={()=>visitDarts.length>0&&setVisitDarts(p=>p.slice(0,-1))} highlightSegments={[target]}/>
+          onUndo={()=>visitDarts.length>0&&setVisitDarts(p=>p.slice(0,-1))} highlightSegments={[target]} disabled={isBotTurnJDC}/>
         <AbandonBtn onAbandon={onAbandon}/>
       </div>}
     />
@@ -2034,8 +2263,8 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, onWin, onAbandon, onPract
 }
 
 // ── Exponential Bundle ─────────────────────────────────────────────────────────
-export function ExponentialBundleScorer({ p1Name, p2Name, onWin, onAbandon, onPracticeStats }: {
-  p1Name: string; p2Name: string;
+export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
@@ -2046,6 +2275,8 @@ export function ExponentialBundleScorer({ p1Name, p2Name, onWin, onAbandon, onPr
   const [visitDarts,setVisitDarts] = useState<Dart[]>([]);
   const names=[p1Name,p2Name];
   const target=TARGETS[tIdx];
+  const handleDartRefExp = useRef<(d: Dart) => void>(() => {});
+  const isBotTurnExp = !!botConfig && half === 1;
 
   const handleDart=useCallback((dart:Dart)=>{
     if(visitDarts.length>=3)return;
@@ -2067,6 +2298,16 @@ export function ExponentialBundleScorer({ p1Name, p2Name, onWin, onAbandon, onPr
     }
   },[visitDarts,target,half,tIdx,onWin,onPracticeStats]);
 
+  useEffect(() => { handleDartRefExp.current = handleDart; });
+  useEffect(() => {
+    if (!botConfig || half !== 1) return;
+    const [d1, d2, d3] = botExponentialVisit(target, botConfig);
+    const t1 = setTimeout(() => handleDartRefExp.current(d1), 700);
+    const t2 = setTimeout(() => handleDartRefExp.current(d2), 1400);
+    const t3 = setTimeout(() => handleDartRefExp.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [half, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
@@ -2077,12 +2318,12 @@ export function ExponentialBundleScorer({ p1Name, p2Name, onWin, onAbandon, onPr
           <p className="text-xs" style={{color:"rgba(255,255,255,0.3)"}}>S={target} · D={target}²={target*target} · T={target}³={target*target*target} per dart</p>
         </div>
         <div className="grid grid-cols-2 gap-3">{[0,1].map(i=><PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={half===i}/>)}</div>
-        <TurnBanner name={names[half]} turn={half} msg={`— aim at ${target} (doubles & trebles score BIG)`}/>
+        <TurnBanner name={names[half]} turn={half} msg={isBotTurnExp?"— CPU THROWING…":`— aim at ${target} (doubles & trebles score BIG)`}/>
         <VisitDarts darts={visitDarts}/>
       </div>}
       bot={<div className="flex flex-col gap-2">
         <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
-          onUndo={()=>visitDarts.length>0&&setVisitDarts(p=>p.slice(0,-1))} highlightSegments={[target]}/>
+          onUndo={()=>visitDarts.length>0&&setVisitDarts(p=>p.slice(0,-1))} highlightSegments={[target]} disabled={isBotTurnExp}/>
         <AbandonBtn onAbandon={onAbandon}/>
       </div>}
     />
@@ -2090,8 +2331,8 @@ export function ExponentialBundleScorer({ p1Name, p2Name, onWin, onAbandon, onPr
 }
 
 // ── Shooting Gallery ───────────────────────────────────────────────────────────
-export function ShootingGalleryScorer({ p1Name, p2Name, onWin, onAbandon, onPracticeStats }: {
-  p1Name: string; p2Name: string;
+export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
@@ -2106,6 +2347,8 @@ export function ShootingGalleryScorer({ p1Name, p2Name, onWin, onAbandon, onPrac
   const [msg,setMsg]                 = useState("");
   const [sgHistory,setSgHistory]     = useState<{remain:number,dartCount:number}[]>([]);
   const names=[p1Name,p2Name];
+  const handleDartRefSG = useRef<(d: Dart) => void>(() => {});
+  const isBotTurnSG = !!botConfig && half === 1;
 
   const nextPlayer=useCallback((dartsUsed:number)=>{
     setScores(prev=>{
@@ -2142,6 +2385,13 @@ export function ShootingGalleryScorer({ p1Name, p2Name, onWin, onAbandon, onPrac
     setSgHistory(h=>h.slice(0,-1));
   };
 
+  useEffect(() => { handleDartRefSG.current = handleDart; });
+  useEffect(() => {
+    if (!botConfig || half !== 1) return;
+    const t = setTimeout(() => handleDartRefSG.current(botShootingGalleryDart(remain, botConfig)), 700);
+    return () => clearTimeout(t);
+  }, [half, remain, dartCount, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
@@ -2157,10 +2407,10 @@ export function ShootingGalleryScorer({ p1Name, p2Name, onWin, onAbandon, onPrac
           <div className="text-xs" style={{color:"rgba(255,255,255,0.3)"}}>remaining · dart {dartCount+1}</div>
         </div>
         {msg&&<div className="text-center font-bold text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>{msg}</div>}
-        <TurnBanner name={names[half]} turn={half} msg="— checkout on a double!"/>
+        <TurnBanner name={names[half]} turn={half} msg={isBotTurnSG?"— CPU THROWING…":"— checkout on a double!"}/>
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={handleSgUndo}/>
+        <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={handleSgUndo} disabled={isBotTurnSG}/>
         <AbandonBtn onAbandon={onAbandon}/>
       </div>}
     />

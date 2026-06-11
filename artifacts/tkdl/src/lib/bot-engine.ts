@@ -596,3 +596,89 @@ export function botKillerVisit(
     Math.random() < cfg.hitAcc * 0.7 ? makeDart(target, 2) : BOT_MISS
   ) as [Dart, Dart, Dart];
 }
+
+// ── Gotcha visit ──────────────────────────────────────────────────────────────
+// Aims for high value; avoids matching opponent score (GOTCHA) or busting
+export function botGotchaVisit(
+  myScore: number, target: number, oppScore: number, cfg: BotConfig,
+): [Dart, Dart, Dart] {
+  const darts: Dart[] = [];
+  let sim = myScore;
+  for (let i = 0; i < 3; i++) {
+    if (Math.random() > cfg.hitAcc) { darts.push(BOT_MISS); continue; }
+    const seg = [20, 19, 18][Math.floor(Math.random() * 3)];
+    const roll = Math.random();
+    const mult: 1|2|3 = roll < cfg.hitAcc * 0.4 ? 3 : roll < cfg.hitAcc * 0.65 ? 2 : 1;
+    const d = makeDart(seg, mult);
+    const proj = sim + d.value;
+    if (proj === oppScore || proj > target) { darts.push(BOT_MISS); continue; }
+    sim = proj;
+    darts.push(d);
+  }
+  return darts as [Dart, Dart, Dart];
+}
+
+// ── Baseball visit ────────────────────────────────────────────────────────────
+// Aims at the current inning number
+export function botBaseballVisit(inning: number, cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () => {
+    if (Math.random() > cfg.hitAcc) return BOT_MISS;
+    const roll = Math.random();
+    const mult: 1|2|3 = roll < cfg.hitAcc * 0.3 ? 3 : roll < cfg.hitAcc * 0.55 ? 2 : 1;
+    return makeDart(inning, mult);
+  }) as [Dart, Dart, Dart];
+}
+
+// ── Scram visit ───────────────────────────────────────────────────────────────
+// Stopper: close open numbers; Scorer: score on open numbers
+const SCRAM_SEGS_B = [20, 19, 18, 17, 16, 15, 25];
+export function botScramVisit(isStopper: boolean, closed: boolean[], cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () => {
+    if (Math.random() > cfg.hitAcc) return BOT_MISS;
+    if (isStopper) {
+      const open = SCRAM_SEGS_B.filter((_, i) => !closed[i]);
+      if (!open.length) return BOT_MISS;
+      return makeDart(open[Math.floor(Math.random() * Math.min(3, open.length))], 1);
+    } else {
+      const open = SCRAM_SEGS_B.filter((_, i) => !closed[i]);
+      if (!open.length) return BOT_MISS;
+      const roll = Math.random();
+      return makeDart(open[0], roll < cfg.hitAcc * 0.35 ? 3 : roll < 0.6 ? 2 : 1);
+    }
+  }) as [Dart, Dart, Dart];
+}
+
+// ── JDC Challenge 41 visit ────────────────────────────────────────────────────
+// Phase-aware: hit doubles in dbl phase, Shanghai in sh1/sh2
+export function botJDCVisit(phase: "sh1"|"dbl"|"sh2", target: number, cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () => {
+    if (Math.random() > cfg.hitAcc) return BOT_MISS;
+    if (phase === "dbl") return makeDart(target, 2);
+    const roll = Math.random();
+    const mult: 1|2|3 = roll < 0.28 ? 3 : roll < 0.52 ? 2 : 1;
+    return makeDart(target, mult);
+  }) as [Dart, Dart, Dart];
+}
+
+// ── Exponential Bundle visit ──────────────────────────────────────────────────
+// Aims at target; prefers doubles/trebles for exponential scoring
+export function botExponentialVisit(target: number, cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () => {
+    if (Math.random() > cfg.hitAcc) return BOT_MISS;
+    const roll = Math.random();
+    const mult: 1|2|3 = roll < cfg.hitAcc * 0.35 ? 3 : roll < cfg.hitAcc * 0.6 ? 2 : 1;
+    return makeDart(target, mult);
+  }) as [Dart, Dart, Dart];
+}
+
+// ── Shooting Gallery dart ─────────────────────────────────────────────────────
+// Returns a single dart for the current remaining score (called once per dart)
+export function botShootingGalleryDart(remain: number, cfg: BotConfig): Dart {
+  if (Math.random() > cfg.hitAcc) return BOT_MISS;
+  if (remain <= 40 && remain % 2 === 0 && Math.random() < cfg.checkoutPct * 0.9)
+    return makeDart(remain / 2, 2);
+  if (remain <= 20 && remain % 2 === 0) return makeDart(remain / 2, 2);
+  const seg = Math.min(20, remain > 60 ? 20 : Math.ceil(remain / 3));
+  if (remain > 60 && Math.random() < cfg.hitAcc * 0.4) return makeDart(20, 3);
+  return makeDart(Math.min(20, seg), 1);
+}

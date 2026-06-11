@@ -7,7 +7,7 @@ import {
   X01Scorer, CricketScorer, KillerScorer, SequenceScorer,
   HalveItScorer, CountUpScorer, GotchaScorer, BaseballScorer,
   ScramScorer, FootballScorer, GolfScorer, NearestBullScorer, ManualScorer,
-  JDCChallenge41Scorer, ExponentialBundleScorer, ShootingGalleryScorer, DeadCentreScorer,
+  JDCChallenge41Scorer, ExponentialBundleScorer, ShootingGalleryScorer, DeadCentreScorer, SnookerScorer,
   ThreeInABedScorer,
   TeamX01Scorer, TeamCricketScorer, MultiKillerScorer,
   NinetyNineDartsScorer,
@@ -288,19 +288,19 @@ export function GameScorer({
       return <CountUpScorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
 
     case "Gotcha":
-      return <GotchaScorer p1Name={ep1} p2Name={ep2} target={(cfg.target as number) ?? 301} onWin={win} onAbandon={onAbandon} />;
+      return <GotchaScorer p1Name={ep1} p2Name={ep2} target={(cfg.target as number) ?? 301} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;
 
     case "NearestBull":
-      return <NearestBullScorer p1Name={ep1} p2Name={ep2} onWin={win} onAbandon={onAbandon} />;
+      return <NearestBullScorer p1Name={ep1} p2Name={ep2} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;
 
     case "JDCChallenge41":
-      return <JDCChallenge41Scorer p1Name={ep1} p2Name={ep2} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+      return <JDCChallenge41Scorer p1Name={ep1} p2Name={ep2} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
 
     case "ExponentialBundle":
-      return <ExponentialBundleScorer p1Name={ep1} p2Name={ep2} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+      return <ExponentialBundleScorer p1Name={ep1} p2Name={ep2} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
 
     case "ShootingGallery":
-      return <ShootingGalleryScorer p1Name={ep1} p2Name={ep2} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+      return <ShootingGalleryScorer p1Name={ep1} p2Name={ep2} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
 
     case "DeadCentre":
       return <DeadCentreScorer p1Name={ep1} p2Name={ep2} target={(cfg.target as number) ?? 300} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
@@ -311,18 +311,20 @@ export function GameScorer({
     case "Custom":
       switch (gameType.key) {
         case "baseball":
-          return <BaseballScorer p1Name={ep1} p2Name={ep2} innings={(cfg.innings as number) ?? 9} onWin={win} onAbandon={onAbandon} />;
+          return <BaseballScorer p1Name={ep1} p2Name={ep2} innings={(cfg.innings as number) ?? 9} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;
         case "scram":
-          return <ScramScorer p1Name={ep1} p2Name={ep2} onWin={win} onAbandon={onAbandon} />;
+          return <ScramScorer p1Name={ep1} p2Name={ep2} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;
         case "football_darts":
           return <FootballScorer p1Name={ep1} p2Name={ep2} goalsToWin={(cfg.goalsToWin as number) ?? 5} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
         case "golf_darts":
         case "golf_darts_18":
           return <GolfScorer p1Name={ep1} p2Name={ep2} holes={(cfg.holes as number) ?? 9} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
         case "nearest_bull":
-          return <NearestBullScorer p1Name={ep1} p2Name={ep2} onWin={win} onAbandon={onAbandon} />;
+          return <NearestBullScorer p1Name={ep1} p2Name={ep2} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;
         case "three_in_a_bed":
           return <ThreeInABedScorer p1Name={ep1} p2Name={ep2} winsNeeded={(cfg.winsNeeded as number) ?? 5} onWin={win} onAbandon={onAbandon} />;
+        case "snooker_darts":
+          return <SnookerScorer p1Name={ep1} p2Name={ep2} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
         default:
           return <ManualScorer p1Name={ep1} p2Name={ep2} gameName={gameType.name} rules={gameType.description} onWin={win} onAbandon={onAbandon} />;
       }
