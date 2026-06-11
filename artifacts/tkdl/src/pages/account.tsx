@@ -256,6 +256,7 @@ export default function AccountPage() {
   const gsLeague = gamerscore?.league ?? 0;
   const gsBot    = gamerscore?.shadowBot ?? 0;
   const gsTour   = (gamerscore?.tourTrophies ?? 0) + (gamerscore?.tourAchievements ?? 0);
+  const gsM501   = gamerscore?.master501 ?? 0;
 
   return (
     <div className="max-w-2xl mx-auto space-y-4 pb-8">
@@ -393,6 +394,7 @@ export default function AccountPage() {
             { label: "League",     val: gsLeague, col: "#ff005c" },
             { label: "Shadow Bot", val: gsBot,    col: "#00e5a0" },
             { label: "Tour",       val: gsTour,   col: "#a855f7" },
+            { label: "M·501",      val: gsM501,   col: "#00c8a0" },
           ].map(({ label, val, col }) => (
             <div key={label} className="flex-1 rounded-xl p-2.5 text-center"
               style={{ background: `${col}0c`, border: `1px solid ${col}22` }}>

@@ -445,11 +445,11 @@ router.get("/players/:id/gamerscore", async (req, res): Promise<void> => {
     const playerId = parseInt(req.params.id, 10);
     if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
 
-    const [leagueQ, shadowQ, trophyQ, tourAchievQ] = await Promise.all([
+    const [leagueQ, shadowQ, trophyQ, tourAchievQ, m501Q] = await Promise.all([
       db.execute(sql`
         SELECT a.rarity FROM player_achievements pa
         JOIN achievements a ON a.id = pa.achievement_id
-        WHERE pa.player_id = ${playerId}
+        WHERE pa.player_id = ${playerId} AND a.key NOT LIKE 'M501_%'
       `),
       db.execute(sql`
         SELECT achievement_key FROM shadow_bot_achievements WHERE player_id = ${playerId}
@@ -463,6 +463,11 @@ router.get("/players/:id/gamerscore", async (req, res): Promise<void> => {
         JOIN tour_achievement_definitions tad ON tad.key = pta.achievement_key
         WHERE pta.player_id = ${playerId}
       `).catch(() => ({ rows: [{ total: 0 }] })),
+      db.execute(sql`
+        SELECT a.rarity FROM player_achievements pa
+        JOIN achievements a ON a.id = pa.achievement_id
+        WHERE pa.player_id = ${playerId} AND a.key LIKE 'M501_%'
+      `),
     ]);
 
     const leagueTotal = (leagueQ.rows as { rarity: string }[])
@@ -476,13 +481,16 @@ router.get("/players/:id/gamerscore", async (req, res): Promise<void> => {
 
     const tourTrophyTotal = (trophyQ.rows[0] as { total: number }).total ?? 0;
     const tourAchievTotal = (tourAchievQ.rows[0] as { total: number }).total ?? 0;
+    const m501Total       = (m501Q.rows as { rarity: string }[])
+      .reduce((sum, r) => sum + gamerscoreForRarity(r.rarity), 0);
 
     res.json({
-      total: leagueTotal + shadowTotal + tourTrophyTotal + tourAchievTotal,
-      league: leagueTotal,
-      shadowBot: shadowTotal,
+      total: leagueTotal + shadowTotal + tourTrophyTotal + tourAchievTotal + m501Total,
+      league:       leagueTotal,
+      shadowBot:    shadowTotal,
       tourTrophies: tourTrophyTotal,
       tourAchievements: tourAchievTotal,
+      master501:    m501Total,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get gamerscore");
