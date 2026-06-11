@@ -166,12 +166,21 @@ export default function AccountPage() {
       unlockedAt: a.unlockedAt,
     })) as any[], [stats]);
 
-  const nearMissAchievements = useMemo(() =>
-    (achProgress as any[])
+  const nearMissAchievements = useMemo(() => {
+    const prog = (achProgress as any[])
       .filter(a => !a.isUnlocked && a.currentProgress != null && a.criteriaValue != null && a.currentProgress > 0 && a.currentProgress < a.criteriaValue && a.currentProgress / a.criteriaValue >= 0.55)
       .sort((a, b) => (b.currentProgress / b.criteriaValue) - (a.currentProgress / a.criteriaValue))
-      .slice(0, 3),
-  [achProgress]);
+      .slice(0, 3);
+    if (m501 && (m501.currentTier ?? 0) > 0 && (m501.currentTier ?? 0) < 6) {
+      const entry = {
+        key: '__m501', name: "Master 501 Mastery", icon: "🎯",
+        description: `Currently at ${m501.config?.name ?? `Tier ${m501.currentTier}`}`,
+        currentProgress: m501.currentTier ?? 1, criteriaValue: 6,
+      };
+      return [entry, ...prog].slice(0, 4);
+    }
+    return prog;
+  }, [achProgress, m501]);
 
   const activeRuns = useMemo(() => (tourRuns as any[]).filter(r => r.status === "active"), [tourRuns]);
 
@@ -245,77 +254,113 @@ export default function AccountPage() {
     <div className="max-w-2xl mx-auto space-y-4 pb-8">
 
       {/* ── Hero ─────────────────────────────────────────────── */}
-      <div className="rounded-2xl p-5 relative overflow-hidden"
-        style={{ background: "linear-gradient(135deg, rgba(255,0,92,0.14) 0%, rgba(10,8,20,0.97) 60%)", border: "1px solid rgba(255,0,92,0.2)", boxShadow: "0 0 40px rgba(255,0,92,0.06)" }}>
-        <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: "linear-gradient(90deg, #ff005c 0%, rgba(255,0,92,0.3) 60%, transparent 100%)" }} />
+      <div className="rounded-2xl relative overflow-hidden"
+        style={{ background: `linear-gradient(135deg, ${tCol}1e 0%, rgba(8,6,20,0.98) 55%)`, border: `1px solid ${tCol}35`, boxShadow: `0 0 60px ${tCol}14` }}>
+        <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: `linear-gradient(90deg, ${tCol} 0%, ${tCol}55 40%, transparent 100%)` }} />
 
-        <div className="flex items-start gap-4">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 relative"
-            style={{ background: `linear-gradient(135deg, ${tCol}22, ${tCol}08)`, border: `1px solid ${tCol}44` }}>
-            <div className="absolute inset-0 rounded-2xl" style={{ background: `${tCol}18`, filter: "blur(8px)" }} />
-            <Target className="w-8 h-8 relative z-10" style={{ color: tCol, filter: `drop-shadow(0 0 8px ${tCol}99)` }} />
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.8rem", fontWeight: 900,
-              color: "#fff", letterSpacing: "0.06em", lineHeight: 1.05 }} className="truncate">
-              {user.playerName}
+        <div className="p-5">
+          <div className="flex items-start gap-4">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 relative"
+              style={{ background: `linear-gradient(135deg, ${tCol}28, ${tCol}0a)`, border: `1px solid ${tCol}55` }}>
+              <div className="absolute inset-0 rounded-2xl" style={{ background: `${tCol}1c`, filter: "blur(10px)" }} />
+              <Target className="w-8 h-8 relative z-10" style={{ color: tCol, filter: `drop-shadow(0 0 10px ${tCol})` }} />
             </div>
-            <div className="flex flex-wrap items-center gap-2 mt-1.5">
-              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", color: tCol,
-                letterSpacing: "0.14em", fontWeight: 700 }}>{tier}</span>
-              <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.6rem" }}>·</span>
-              <span style={{ fontSize: "0.62rem", color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
-                ELO {player?.elo ?? "–"}
-              </span>
-              {player?.seasonWins !== undefined && (
-                <>
-                  <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.6rem" }}>·</span>
-                  <span style={{ fontSize: "0.62rem", color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
+
+            <div className="flex-1 min-w-0">
+              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "2rem", fontWeight: 900,
+                color: "#fff", letterSpacing: "0.04em", lineHeight: 1, textShadow: "0 2px 20px rgba(0,0,0,0.9)" }} className="truncate">
+                {user.playerName}
+              </div>
+              {player?.tagline && (
+                <div className="mt-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem",
+                  color: tCol, letterSpacing: "0.08em", fontStyle: "italic", opacity: 0.9 }}>
+                  "{player.tagline}"
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                <span className="px-2 py-0.5 rounded-md" style={{ background: `${tCol}22`, fontFamily: "Oswald, sans-serif",
+                  fontSize: "0.58rem", color: tCol, letterSpacing: "0.14em", fontWeight: 800, border: `1px solid ${tCol}44` }}>
+                  {tier}
+                </span>
+                <span style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
+                  ELO {player?.elo ?? "–"}
+                </span>
+                {player?.seasonWins !== undefined && (
+                  <span style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
                     {player.seasonWins}W–{player.seasonLosses}L
                   </span>
-                </>
-              )}
-              {user.isAdmin && (
-                <>
-                  <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.6rem" }}>·</span>
-                  <span className="flex items-center gap-1">
+                )}
+                {user.isAdmin && (
+                  <span className="flex items-center gap-0.5">
                     <Shield className="w-3 h-3" style={{ color: "#ffd24a" }} />
-                    <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "#ffd24a", letterSpacing: "0.1em" }}>ADMIN</span>
+                    <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "#ffd24a", letterSpacing: "0.1em" }}>ADMIN</span>
                   </span>
-                </>
-              )}
+                )}
+              </div>
+              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.48rem", color: "rgba(255,255,255,0.18)", letterSpacing: "0.1em", marginTop: "0.25rem" }}>
+                @{user.username}
+              </div>
             </div>
-            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em", marginTop: "0.3rem" }}>
-              @{user.username}
+
+            <div className="text-right shrink-0">
+              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", fontWeight: 900,
+                color: "#ff005c", lineHeight: 0.85, textShadow: "0 0 28px rgba(255,0,92,0.9)" }}>
+                {player?.points ?? "–"}
+              </div>
+              <div style={{ fontSize: "0.44rem", color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.2em", marginTop: "2px" }}>PTS</div>
+              {(player?.currentWinStreak ?? player?.win_streak ?? 0) >= 3 && (
+                <div className="mt-1.5 flex items-center justify-end gap-1">
+                  <Flame className="w-3.5 h-3.5" style={{ color: "#ff8c00", filter: "drop-shadow(0 0 5px #ff8c00)" }} />
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", color: "#ff8c00", fontWeight: 900, letterSpacing: "0.06em" }}>
+                    {player?.currentWinStreak ?? player?.win_streak} STREAK
+                  </span>
+                </div>
+              )}
+              {(player?.currentLossStreak ?? player?.loss_streak ?? 0) >= 3 && (
+                <div className="mt-1.5 text-right">
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "rgba(255,0,92,0.7)", fontWeight: 700, letterSpacing: "0.08em" }}>
+                    {player?.currentLossStreak ?? player?.loss_streak}L RUN
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="text-right shrink-0">
-            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "2.4rem", fontWeight: 900,
-              color: "#ff005c", lineHeight: 1, textShadow: "0 0 18px rgba(255,0,92,0.7)" }}>
-              {player?.points ?? "–"}
-            </div>
-            <div style={{ fontSize: "0.48rem", color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.15em" }}>PTS</div>
+          {/* View Profile + Sign Out */}
+          <div className="flex items-center gap-2 mt-4">
+            <Link href={`/players/${user.playerId}`}
+              className="flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-opacity hover:opacity-80"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                color: "rgba(255,255,255,0.45)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", fontSize: "0.7rem" }}>
+              <User className="w-3 h-3" />
+              Full Profile
+            </Link>
+            <button onClick={handleLogout}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl transition-opacity hover:opacity-70"
+              style={{ background: "rgba(255,0,92,0.07)", border: "1px solid rgba(255,0,92,0.18)",
+                color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", fontSize: "0.7rem" }}>
+              <LogOut className="w-3.5 h-3.5" />
+              Sign Out
+            </button>
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-2 mt-4">
-          <Link href={`/players/${user.playerId}`}
-            className="flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-opacity hover:opacity-80"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-              color: "rgba(255,255,255,0.45)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", fontSize: "0.7rem" }}>
-            <User className="w-3 h-3" />
-            Full Profile
-          </Link>
-          <button onClick={handleLogout}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl transition-opacity hover:opacity-70"
-            style={{ background: "rgba(255,0,92,0.07)", border: "1px solid rgba(255,0,92,0.18)",
-              color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", fontSize: "0.7rem" }}>
-            <LogOut className="w-3.5 h-3.5" />
-            Sign Out
-          </button>
+        {/* ── Quick Actions strip ──────────────────────────────── */}
+        <div className="grid grid-cols-4 gap-2 px-4 pb-4">
+          {[
+            { href: "/practice",                             icon: Dumbbell,     label: "Practice",   col: "#4d94ff" },
+            { href: `/shadow-bot/${user.playerId}`,          icon: CircuitBoard, label: "My Bot",     col: "#00e5a0" },
+            { href: "/master501",                            icon: Target,       label: "M·501",      col: "#00e5a0" },
+            { href: "/tour",                                 icon: Star,         label: "Tour",       col: "#a855f7" },
+          ].map(({ href, icon: Icon, label, col }) => (
+            <Link key={href} href={href}
+              className="rounded-xl py-3 flex flex-col items-center gap-1.5 transition-all hover:opacity-85 active:scale-95"
+              style={{ background: `${col}10`, border: `1px solid ${col}28` }}>
+              <Icon className="w-4 h-4" style={{ color: col }} />
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.12em",
+                color: col, textTransform: "uppercase", fontWeight: 700 }}>{label}</span>
+            </Link>
+          ))}
         </div>
       </div>
 
@@ -570,7 +615,7 @@ export default function AccountPage() {
           shadowStats.locked ? (
             <div>
               <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.45)", marginBottom: "0.75rem" }}>
-                Unlock your Shadow Bot by logging practice sessions
+                Log <strong style={{ color: "#00e5a0" }}>{(shadowStats.dartsNeeded ?? 250) - (shadowStats.totalDarts ?? 0)}</strong> more practice darts to unlock your digital clone
               </div>
               <div className="flex items-center justify-between mb-1.5">
                 <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.12em",
@@ -582,28 +627,45 @@ export default function AccountPage() {
                 </span>
               </div>
               <div style={{ height: 5, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden" }}>
-                <div style={{ height: "100%", borderRadius: 3, transition: "width 0.8s ease", background: "#00e5a0",
+                <div style={{ height: "100%", borderRadius: 3, transition: "width 0.8s ease", background: "linear-gradient(90deg, #00e5a0, #00c885)",
                   width: `${Math.min(100, ((shadowStats.totalDarts ?? 0) / (shadowStats.dartsNeeded ?? 250)) * 100)}%` }} />
               </div>
+              <Link href="/practice"
+                className="mt-3 w-full flex items-center justify-center gap-2 py-2 rounded-xl transition-opacity hover:opacity-75"
+                style={{ background: "rgba(0,229,160,0.07)", border: "1px solid rgba(0,229,160,0.2)",
+                  color: "#00e5a0", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.12em" }}>
+                <Dumbbell className="w-3.5 h-3.5" />
+                Practise Now to Unlock
+              </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: "Matches",  val: shadowStats.totalMatches ?? 0 },
-                { label: "Win Rate", val: `${shadowStats.matchWinRate ?? 0}%` },
-                { label: "Level",    val: shadowStats.accuracyLevel ?? shadowStats.nextLevel ?? "–" },
-              ].map(({ label, val }) => (
-                <div key={label} className="rounded-xl p-2.5 text-center"
-                  style={{ background: "rgba(0,229,160,0.05)", border: "1px solid rgba(0,229,160,0.12)" }}>
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", fontWeight: 800, color: "#00e5a0", lineHeight: 1 }}>
-                    {val}
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Matches",  val: shadowStats.totalMatches ?? 0 },
+                  { label: "Win Rate", val: `${shadowStats.matchWinRate ?? 0}%` },
+                  { label: "Level",    val: shadowStats.accuracyLevel ?? shadowStats.nextLevel ?? "–" },
+                ].map(({ label, val }) => (
+                  <div key={label} className="rounded-xl p-2.5 text-center"
+                    style={{ background: "rgba(0,229,160,0.05)", border: "1px solid rgba(0,229,160,0.12)" }}>
+                    <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", fontWeight: 800, color: "#00e5a0", lineHeight: 1 }}>
+                      {val}
+                    </div>
+                    <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif",
+                      letterSpacing: "0.1em", textTransform: "uppercase", marginTop: "3px" }}>
+                      {label}
+                    </div>
                   </div>
-                  <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif",
-                    letterSpacing: "0.1em", textTransform: "uppercase", marginTop: "3px" }}>
-                    {label}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <Link href={`/shadow-bot/${user.playerId}`}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl transition-opacity hover:opacity-80"
+                style={{ background: "linear-gradient(135deg, rgba(0,229,160,0.16), rgba(0,229,160,0.07))",
+                  border: "1px solid rgba(0,229,160,0.35)", color: "#00e5a0",
+                  fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", letterSpacing: "0.14em", fontWeight: 800 }}>
+                <CircuitBoard className="w-3.5 h-3.5" />
+                CHALLENGE YOUR CLONE ⚔️
+              </Link>
             </div>
           )
         ) : (
@@ -644,17 +706,16 @@ export default function AccountPage() {
                 </div>
               </div>
             )}
-            {practiceStats.total_sessions === 0 && (
-              <div className="col-span-2 text-center py-2">
-                <Link href="/practice"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl transition-opacity hover:opacity-70"
-                  style={{ background: "rgba(0,102,255,0.08)", border: "1px solid rgba(0,102,255,0.18)",
-                    color: "#4d94ff", fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", letterSpacing: "0.1em" }}>
-                  <Dumbbell className="w-3.5 h-3.5" />
-                  Start Practising
-                </Link>
-              </div>
-            )}
+            <div className="col-span-2">
+              <Link href="/practice"
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl transition-opacity hover:opacity-80"
+                style={{ background: "linear-gradient(135deg, rgba(77,148,255,0.14), rgba(77,148,255,0.07))",
+                  border: "1px solid rgba(77,148,255,0.3)", color: "#4d94ff",
+                  fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", letterSpacing: "0.14em", fontWeight: 800 }}>
+                <Dumbbell className="w-3.5 h-3.5" />
+                {practiceStats.total_sessions === 0 ? "START PRACTISING" : "PRACTICE NOW"} →
+              </Link>
+            </div>
           </div>
         ) : (
           <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)" }}>Loading…</div>
