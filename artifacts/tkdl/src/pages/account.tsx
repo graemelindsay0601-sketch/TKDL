@@ -46,6 +46,175 @@ const CATEGORY_CFG: Record<string, { label: string; accent: string; emoji: strin
   Seasonal: { label: "Seasonal", accent: "#00e5a0", emoji: "⭐"  },
 };
 
+const SHADOW_CAT: Record<string, { label: string; accent: string; emoji: string }> = {
+  "Darts Thrown":   { label: "Darts Thrown",   accent: "#4d94ff", emoji: "🎯" },
+  "Sessions":       { label: "Sessions",        accent: "#00e5a0", emoji: "🏋️" },
+  "Bot Level":      { label: "Bot Level",       accent: "#a855f7", emoji: "🤖" },
+  "Performance":    { label: "Performance",     accent: "#ffd24a", emoji: "📊" },
+  "Matches":        { label: "Matches",         accent: "#ff005c", emoji: "⚔️" },
+};
+function shadowCategory(ct: string): string {
+  if (ct === "TOTAL_DARTS")                                                   return "Darts Thrown";
+  if (ct === "TOTAL_SESSIONS" || ct === "GAME_MODES")                        return "Sessions";
+  if (ct === "BOT_LEVEL")                                                     return "Bot Level";
+  if (ct.includes("180") || ct.includes("CHECKOUT") || ct.includes("SCORE") || ct.includes("AVERAGE")) return "Performance";
+  return "Matches";
+}
+
+const TOUR_CAT: Record<string, { label: string; accent: string; emoji: string }> = {
+  career:        { label: "Career",        accent: "#ff005c", emoji: "🏆" },
+  trophy:        { label: "Trophies",      accent: "#ffd24a", emoji: "🏅" },
+  difficulty:    { label: "Difficulty",    accent: "#a855f7", emoji: "⚡" },
+  format:        { label: "Format",        accent: "#3b82f6", emoji: "🎮" },
+  completionist: { label: "Completionist", accent: "#00e5a0", emoji: "💯" },
+  specific:      { label: "Specific",      accent: "#f59e0b", emoji: "🎯" },
+};
+
+type AchCat = { category: string; achievements: any[] };
+type CfgMap = Record<string, { label: string; accent: string; emoji: string }>;
+
+function AchievementPortal({
+  categories, cfgMap, defaultOpen = [],
+  unlockedField = "isUnlocked",
+  progressField = "currentProgress",
+  valueField    = "criteriaValue",
+  gsField       = "rarity" as "rarity" | "gamerscore",
+}: {
+  categories:    AchCat[];
+  cfgMap:        CfgMap;
+  defaultOpen?:  string[];
+  unlockedField?: string;
+  progressField?: string;
+  valueField?:    string;
+  gsField?:       "rarity" | "gamerscore";
+}) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(defaultOpen));
+  const toggle = (cat: string) => setExpanded(prev => {
+    const next = new Set(prev);
+    next.has(cat) ? next.delete(cat) : next.add(cat);
+    return next;
+  });
+
+  return (
+    <div className="space-y-1.5">
+      {categories.map(({ category, achievements }) => {
+        const cfg    = cfgMap[category] ?? { label: category, accent: "#9ca3af", emoji: "🎯" };
+        const unlocked = achievements.filter(a => !!a[unlockedField]).length;
+        const total    = achievements.length;
+        const gs       = achievements.filter(a => !!a[unlockedField]).reduce((s, a) =>
+          s + (gsField === "gamerscore" ? (a.gamerscore ?? 0) : gamerscoreForRarity(a.rarity)), 0);
+        const open     = expanded.has(category);
+        const sorted   = [...achievements].sort((a, b) => {
+          const au = !!a[unlockedField], bu = !!b[unlockedField];
+          if (au !== bu) return au ? -1 : 1;
+          const av = a[valueField] ?? 1, bv = b[valueField] ?? 1;
+          const ap = (a[progressField] ?? a.currentValue ?? 0) / av;
+          const bp = (b[progressField] ?? b.currentValue ?? 0) / bv;
+          return bp - ap;
+        });
+
+        return (
+          <div key={category} className="rounded-xl overflow-hidden"
+            style={{ border: `1px solid ${open ? cfg.accent + "30" : "rgba(255,255,255,0.06)"}`,
+              background: open ? `${cfg.accent}08` : "rgba(255,255,255,0.02)", transition: "border-color 0.2s" }}>
+
+            <button onClick={() => toggle(category)} className="w-full flex items-center gap-2.5 px-3 py-2.5"
+              style={{ borderBottom: open ? `1px solid ${cfg.accent}18` : undefined }}>
+              <span style={{ fontSize: "0.9rem" }}>{cfg.emoji}</span>
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", fontWeight: 700,
+                letterSpacing: "0.08em", color: open ? "#fff" : "rgba(255,255,255,0.55)", flex: 1, textAlign: "left" }}>
+                {cfg.label}
+              </span>
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "rgba(255,255,255,0.3)", marginRight: "6px" }}>
+                {unlocked}/{total}
+              </span>
+              {gs > 0 && (
+                <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", fontWeight: 800,
+                  color: cfg.accent, marginRight: "6px" }}>{gs}G</span>
+              )}
+              {open
+                ? <ChevronDown  className="w-3.5 h-3.5 shrink-0" style={{ color: cfg.accent }} />
+                : <ChevronRight className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.2)" }} />}
+            </button>
+
+            {open && (
+              <div className="p-2 space-y-1">
+                {sorted.map((a: any) => {
+                  const isUnlocked = !!a[unlockedField];
+                  const rawProg    = a[progressField] ?? a.currentValue ?? 0;
+                  const rawMax     = a[valueField]    ?? 1;
+                  const pct        = rawMax > 0 ? Math.min(100, Math.round((rawProg / rawMax) * 100)) : 0;
+                  const hasProgress = !isUnlocked && rawProg > 0 && rawMax > 0;
+                  const isClose     = !isUnlocked && pct >= 60;
+                  const gs          = gsField === "gamerscore" ? (a.gamerscore ?? 0) : gamerscoreForRarity(a.rarity);
+                  const rCol        = RARITY_COL[a.rarity] ?? "#9ca3af";
+                  return (
+                    <div key={a.key ?? a.id}
+                      className="flex items-start gap-2.5 px-2.5 py-2 rounded-lg"
+                      style={{
+                        background: isUnlocked ? `${cfg.accent}0a` : isClose ? "rgba(245,158,11,0.05)" : "rgba(255,255,255,0.02)",
+                        border: `1px solid ${isUnlocked ? cfg.accent + "25" : isClose ? "rgba(245,158,11,0.2)" : "rgba(255,255,255,0.04)"}`,
+                      }}>
+                      <span style={{ fontSize: "0.95rem", marginTop: "1px",
+                        filter: isUnlocked ? "none" : "grayscale(1) opacity(0.35)", flexShrink: 0 }}>{a.icon ?? "🏆"}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", letterSpacing: "0.04em",
+                            color: isUnlocked ? "#fff" : isClose ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.32)" }}>
+                            {a.name}
+                          </span>
+                          {a.rarity && (
+                            <span style={{ fontSize: "0.44rem", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em",
+                              color: rCol, border: `1px solid ${rCol}55`, borderRadius: 4, padding: "1px 4px",
+                              opacity: isUnlocked ? 1 : 0.5, flexShrink: 0 }}>
+                              {a.rarity?.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: "0.55rem", color: isUnlocked ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.2)",
+                          lineHeight: 1.3, marginBottom: hasProgress ? "5px" : 0 }}>
+                          {a.description}
+                        </div>
+                        {hasProgress && (
+                          <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+                            <div style={{ height: "100%", borderRadius: 2, transition: "width 0.6s ease",
+                              width: `${pct}%`,
+                              background: pct >= 80 ? "linear-gradient(90deg,#22c55e,rgba(34,197,94,0.5))"
+                                : isClose  ? "linear-gradient(90deg,#f59e0b,rgba(245,158,11,0.45))"
+                                :             "linear-gradient(90deg,rgba(255,255,255,0.25),rgba(255,255,255,0.1))" }} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-0.5 shrink-0" style={{ minWidth: "36px" }}>
+                        {isUnlocked ? (
+                          <>
+                            <CheckCircle className="w-3.5 h-3.5" style={{ color: cfg.accent }} />
+                            <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "#ffd24a", fontWeight: 700 }}>{gs}G</span>
+                          </>
+                        ) : hasProgress ? (
+                          <>
+                            <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem",
+                              color: isClose ? "#f59e0b" : "rgba(255,255,255,0.2)", fontWeight: 700 }}>
+                              {rawProg}/{rawMax}
+                            </span>
+                            <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.15)" }}>{gs}G</span>
+                          </>
+                        ) : (
+                          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.12)" }}>{gs}G</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function FormDot({ result }: { result: "W" | "L" }) {
   return (
     <div className="w-5 h-5 rounded-full flex items-center justify-center"
@@ -105,6 +274,8 @@ export default function AccountPage() {
   const [tourTrophies,  setTrophies]    = useState<any[]>([]);
   const [tourRuns,      setTourRuns]    = useState<any[]>([]);
   const [shadowStats,   setShadow]      = useState<any>(null);
+  const [shadowAchs,    setShadowAchs]  = useState<any[]>([]);
+  const [tourAchs,      setTourAchs]    = useState<any[]>([]);
   const [achProgress,   setAchProgress] = useState<any[]>([]);
   const [eloHistory,    setEloHistory]  = useState<any[]>([]);
   const [titleList,    setTitleList]    = useState<any[]>([]);
@@ -123,6 +294,8 @@ export default function AccountPage() {
       fetch(`/api/tour/trophies/${id}`).then(r => r.ok ? r.json() : []).then(setTrophies),
       fetch(`/api/tour/runs/${id}`).then(r => r.ok ? r.json() : []).then(setTourRuns),
       fetch(`/api/players/${id}/shadow-bot-stats`).then(r => r.ok ? r.json() : null).then(setShadow),
+      fetch(`/api/players/${id}/shadow-achievements`).then(r => r.ok ? r.json() : []).then(setShadowAchs),
+      fetch(`/api/tour/achievements/${id}`).then(r => r.ok ? r.json() : []).then(setTourAchs),
       fetch(`/api/players/${id}/achievement-progress`).then(r => r.ok ? r.json() : []).then(setAchProgress),
       fetch(`/api/players/${id}/elo-history`).then(r => r.ok ? r.json() : {}).then((d: any) => setEloHistory(d.history ?? [])),
       fetch(`/api/players/${id}/titles`).then(r => r.ok ? r.json() : []).then(setTitleList),
@@ -243,6 +416,40 @@ export default function AccountPage() {
     for (const [cat, achs] of cats) if (!ORDER.includes(cat)) result.push({ category: cat, achievements: achs });
     return result;
   }, [achProgress]);
+
+  const m501AchCategories = useMemo((): AchCat[] => {
+    const m501 = (achProgress as any[]).filter(a => (a.key ?? "").startsWith("M501_"));
+    if (m501.length === 0) return [];
+    return [{ category: "Master-501", achievements: m501 }];
+  }, [achProgress]);
+
+  const shadowAchsByCategory = useMemo((): AchCat[] => {
+    const cats = new Map<string, any[]>();
+    for (const a of shadowAchs) {
+      const cat = shadowCategory(a.criteriaType ?? "");
+      if (!cats.has(cat)) cats.set(cat, []);
+      cats.get(cat)!.push(a);
+    }
+    const ORDER = ["Darts Thrown", "Sessions", "Bot Level", "Performance", "Matches"];
+    const result: AchCat[] = [];
+    for (const cat of ORDER) if (cats.has(cat)) result.push({ category: cat, achievements: cats.get(cat)! });
+    for (const [cat, achs] of cats) if (!ORDER.includes(cat)) result.push({ category: cat, achievements: achs });
+    return result;
+  }, [shadowAchs]);
+
+  const tourAchsByCategory = useMemo((): AchCat[] => {
+    const cats = new Map<string, any[]>();
+    for (const a of tourAchs) {
+      const cat = a.category ?? "career";
+      if (!cats.has(cat)) cats.set(cat, []);
+      cats.get(cat)!.push(a);
+    }
+    const ORDER = ["career", "trophy", "difficulty", "format", "completionist", "specific"];
+    const result: AchCat[] = [];
+    for (const cat of ORDER) if (cats.has(cat)) result.push({ category: cat, achievements: cats.get(cat)! });
+    for (const [cat, achs] of cats) if (!ORDER.includes(cat)) result.push({ category: cat, achievements: achs });
+    return result;
+  }, [tourAchs]);
 
   const activeRuns = useMemo(() => (tourRuns as any[]).filter(r => r.status === "active"), [tourRuns]);
 
@@ -726,50 +933,35 @@ export default function AccountPage() {
       </SectionCard>
 
       {/* ── Master 501 Achievements ──────────────────────────── */}
-      {m501Achievements.length > 0 && (
-        <SectionCard title="Master 501 Achievements" icon={Target} accent="#00e5a0">
-          <div className="space-y-1.5 mb-3">
-            {m501Achievements.slice(0, 8).map((a: any) => (
-              <div key={a.key}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-xl"
-                style={{ background: a.isUnlocked ? "rgba(0,229,160,0.07)" : "rgba(255,255,255,0.025)",
-                  border: `1px solid ${a.isUnlocked ? "rgba(0,229,160,0.2)" : "rgba(255,255,255,0.06)"}` }}>
-                <span style={{ fontSize: "1rem", filter: a.isUnlocked ? "none" : "grayscale(1) opacity(0.35)" }}>{a.icon ?? "🎯"}</span>
-                <div className="flex-1 min-w-0">
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", letterSpacing: "0.04em",
-                    color: a.isUnlocked ? "#fff" : "rgba(255,255,255,0.38)" }}>
-                    {a.name}
-                  </div>
-                  {!a.isUnlocked && (a.currentProgress ?? 0) > 0 && a.criteriaValue != null && (
-                    <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden", marginTop: "4px" }}>
-                      <div style={{ height: "100%", borderRadius: 2, background: "#00e5a0", opacity: 0.65,
-                        width: `${Math.min(100, Math.round(((a.currentProgress ?? 0) / a.criteriaValue) * 100))}%`,
-                        transition: "width 0.8s ease" }} />
-                    </div>
-                  )}
-                </div>
-                {a.isUnlocked ? (
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "#00e5a0", fontWeight: 700, flexShrink: 0 }}>{gamerscoreForRarity(a.rarity)}G</span>
-                ) : (a.currentProgress ?? 0) > 0 && a.criteriaValue != null ? (
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "rgba(255,255,255,0.22)", fontWeight: 700, flexShrink: 0 }}>
-                    {a.currentProgress}/{a.criteriaValue}
-                  </span>
-                ) : null}
-              </div>
-            ))}
+      {m501AchCategories.length > 0 && (
+        <SectionCard title="Master 501 Achievements" icon={Target} accent="#00e5a0" collapsible>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.15em", color: "rgba(255,255,255,0.18)", textTransform: "uppercase" }}>
+                Challenge Progress
+              </span>
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.8rem", fontWeight: 900, color: "#00e5a0" }}>
+                {m501AchCategories[0].achievements.filter(a => a.isUnlocked).length} / {m501AchCategories[0].achievements.length}
+              </span>
+            </div>
+            <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{ height: "100%", borderRadius: 2, transition: "width 0.8s ease",
+                background: "linear-gradient(90deg,#00e5a0,rgba(0,229,160,0.4))",
+                width: `${Math.round((m501AchCategories[0].achievements.filter(a => a.isUnlocked).length / m501AchCategories[0].achievements.length) * 100)}%` }} />
+            </div>
+            <AchievementPortal
+              categories={m501AchCategories}
+              cfgMap={{ "Master-501": { label: "Master 501", accent: "#00e5a0", emoji: "🎯" } }}
+              defaultOpen={["Master-501"]}
+            />
+            <Link href="/master501"
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl transition-opacity hover:opacity-75"
+              style={{ background: "rgba(0,229,160,0.06)", border: "1px solid rgba(0,229,160,0.18)",
+                color: "#00e5a0", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.12em" }}>
+              <Target className="w-3.5 h-3.5" />
+              Play Master 501
+            </Link>
           </div>
-          {m501Achievements.length > 8 && (
-            <p style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", marginBottom: "0.75rem" }}>
-              +{m501Achievements.length - 8} more in the challenge tree
-            </p>
-          )}
-          <Link href="/master501"
-            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl transition-opacity hover:opacity-75"
-            style={{ background: "rgba(0,229,160,0.06)", border: "1px solid rgba(0,229,160,0.18)",
-              color: "#00e5a0", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.12em" }}>
-            <Target className="w-3.5 h-3.5" />
-            Play Master 501
-          </Link>
         </SectionCard>
       )}
 
@@ -841,6 +1033,36 @@ export default function AccountPage() {
         )}
       </SectionCard>
 
+      {/* ── Tour Achievements ────────────────────────────────── */}
+      {tourAchsByCategory.length > 0 && (
+        <SectionCard title="Tour Achievements" icon={Star} accent="#a855f7" collapsible>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.15em", color: "rgba(255,255,255,0.18)", textTransform: "uppercase" }}>
+                Total Unlocked
+              </span>
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.8rem", fontWeight: 900, color: "#a855f7" }}>
+                {tourAchs.filter(a => a.unlocked).length} / {tourAchs.length}
+              </span>
+            </div>
+            <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{ height: "100%", borderRadius: 2, transition: "width 0.8s ease",
+                background: "linear-gradient(90deg,#a855f7,rgba(168,85,247,0.4))",
+                width: `${tourAchs.length > 0 ? Math.round((tourAchs.filter(a => a.unlocked).length / tourAchs.length) * 100) : 0}%` }} />
+            </div>
+            <AchievementPortal
+              categories={tourAchsByCategory}
+              cfgMap={TOUR_CAT}
+              defaultOpen={["career"]}
+              unlockedField="unlocked"
+              progressField="_noProgress"
+              valueField="criteriaValue"
+              gsField="gamerscore"
+            />
+          </div>
+        </SectionCard>
+      )}
+
       {/* ── Shadow Bot ───────────────────────────────────────── */}
       <SectionCard title="Shadow Bot" icon={CircuitBoard} accent="#00e5a0">
         {shadowStats ? (
@@ -904,6 +1126,36 @@ export default function AccountPage() {
           <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)" }}>Loading…</div>
         )}
       </SectionCard>
+
+      {/* ── Shadow Bot Achievements ───────────────────────────── */}
+      {shadowAchsByCategory.length > 0 && (
+        <SectionCard title="Shadow Bot Achievements" icon={CircuitBoard} accent="#00e5a0" collapsible>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.15em", color: "rgba(255,255,255,0.18)", textTransform: "uppercase" }}>
+                Total Unlocked
+              </span>
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.8rem", fontWeight: 900, color: "#00e5a0" }}>
+                {shadowAchs.filter(a => a.unlocked).length} / {shadowAchs.length}
+              </span>
+            </div>
+            <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{ height: "100%", borderRadius: 2, transition: "width 0.8s ease",
+                background: "linear-gradient(90deg,#00e5a0,rgba(0,229,160,0.4))",
+                width: `${shadowAchs.length > 0 ? Math.round((shadowAchs.filter(a => a.unlocked).length / shadowAchs.length) * 100) : 0}%` }} />
+            </div>
+            <AchievementPortal
+              categories={shadowAchsByCategory}
+              cfgMap={SHADOW_CAT}
+              defaultOpen={["Darts Thrown"]}
+              unlockedField="unlocked"
+              progressField="currentValue"
+              valueField="criteriaValue"
+              gsField="gamerscore"
+            />
+          </div>
+        </SectionCard>
+      )}
 
       {/* ── Practice ─────────────────────────────────────────── */}
       <SectionCard title="Practice" icon={Dumbbell} accent="#0066ff">
