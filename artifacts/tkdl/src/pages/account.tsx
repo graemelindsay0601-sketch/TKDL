@@ -166,21 +166,28 @@ export default function AccountPage() {
       unlockedAt: a.unlockedAt,
     })) as any[], [stats]);
 
-  const nearMissAchievements = useMemo(() => {
-    const prog = (achProgress as any[])
-      .filter(a => !a.isUnlocked && a.currentProgress != null && a.criteriaValue != null && a.currentProgress > 0 && a.currentProgress < a.criteriaValue && a.currentProgress / a.criteriaValue >= 0.55)
-      .sort((a, b) => (b.currentProgress / b.criteriaValue) - (a.currentProgress / a.criteriaValue))
-      .slice(0, 3);
-    if (m501 && (m501.currentTier ?? 0) > 0 && (m501.currentTier ?? 0) < 6) {
-      const entry = {
-        key: '__m501', name: "Master 501 Mastery", icon: "🎯",
-        description: `Currently at ${m501.config?.name ?? `Tier ${m501.currentTier}`}`,
-        currentProgress: m501.currentTier ?? 1, criteriaValue: 6,
-      };
-      return [entry, ...prog].slice(0, 4);
-    }
-    return prog;
-  }, [achProgress, m501]);
+  const nearMissAchievements = useMemo(() =>
+    (achProgress as any[])
+      .filter(a => !a.isUnlocked && a.currentProgress != null && a.criteriaValue != null && a.currentProgress > 0 && a.currentProgress < a.criteriaValue && a.currentProgress / a.criteriaValue >= 0.45)
+      .sort((a: any, b: any) => (b.currentProgress / b.criteriaValue) - (a.currentProgress / a.criteriaValue))
+      .slice(0, 6),
+  [achProgress]);
+
+  const m501Achievements = useMemo(() =>
+    (achProgress as any[])
+      .filter(a => (a.key ?? "").startsWith("M501_"))
+      .sort((a: any, b: any) => {
+        if (a.isUnlocked !== b.isUnlocked) return a.isUnlocked ? -1 : 1;
+        const ap = a.currentProgress ?? 0, av = a.criteriaValue ?? 1;
+        const bp = b.currentProgress ?? 0, bv = b.criteriaValue ?? 1;
+        return (bp / bv) - (ap / av);
+      }),
+  [achProgress]);
+
+  const achTotals = useMemo(() => ({
+    total:    (achProgress as any[]).length,
+    unlocked: (achProgress as any[]).filter(a => a.isUnlocked).length,
+  }), [achProgress]);
 
   const activeRuns = useMemo(() => (tourRuns as any[]).filter(r => r.status === "active"), [tourRuns]);
 
@@ -346,22 +353,28 @@ export default function AccountPage() {
         </div>
 
         {/* ── Quick Actions strip ──────────────────────────────── */}
-        <div className="grid grid-cols-4 gap-2 px-4 pb-4">
-          {[
-            { href: "/practice",                             icon: Dumbbell,     label: "Practice",   col: "#4d94ff" },
-            { href: `/shadow-bot/${user.playerId}`,          icon: CircuitBoard, label: "My Bot",     col: "#00e5a0" },
-            { href: "/master501",                            icon: Target,       label: "M·501",      col: "#00e5a0" },
-            { href: "/tour",                                 icon: Star,         label: "Tour",       col: "#a855f7" },
-          ].map(({ href, icon: Icon, label, col }) => (
-            <Link key={href} href={href}
-              className="rounded-xl py-3 flex flex-col items-center gap-1.5 transition-all hover:opacity-85 active:scale-95"
-              style={{ background: `${col}10`, border: `1px solid ${col}28` }}>
-              <Icon className="w-4 h-4" style={{ color: col }} />
-              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.12em",
-                color: col, textTransform: "uppercase", fontWeight: 700 }}>{label}</span>
-            </Link>
-          ))}
-        </div>
+        {(() => {
+          const actions = [
+            { href: "/practice",                    icon: Dumbbell,     label: "Practice", col: "#4d94ff" },
+            { href: `/shadow-bot/${user.playerId}`, icon: CircuitBoard, label: "My Bot",   col: "#00e5a0" },
+            { href: "/master501",                   icon: Target,       label: "M·501",    col: "#00e5a0" },
+            { href: "/tour",                        icon: Star,         label: "Tour",     col: "#a855f7" },
+            ...(user.isAdmin ? [{ href: "/admin",   icon: Shield,       label: "Admin",    col: "#ffd24a" }] : []),
+          ];
+          return (
+            <div className={`grid gap-2 px-4 pb-4`} style={{ gridTemplateColumns: `repeat(${actions.length}, 1fr)` }}>
+              {actions.map(({ href, icon: Icon, label, col }) => (
+                <Link key={href} href={href}
+                  className="rounded-xl py-3 flex flex-col items-center gap-1.5 transition-all hover:opacity-85 active:scale-95"
+                  style={{ background: `${col}10`, border: `1px solid ${col}28` }}>
+                  <Icon className="w-4 h-4" style={{ color: col }} />
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.12em",
+                    color: col, textTransform: "uppercase", fontWeight: 700 }}>{label}</span>
+                </Link>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Gamerscore ─────────────────────────────────────────── */}
@@ -540,6 +553,54 @@ export default function AccountPage() {
           <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>Loading…</div>
         )}
       </SectionCard>
+
+      {/* ── Master 501 Achievements ──────────────────────────── */}
+      {m501Achievements.length > 0 && (
+        <SectionCard title="Master 501 Achievements" icon={Target} accent="#00e5a0">
+          <div className="space-y-1.5 mb-3">
+            {m501Achievements.slice(0, 8).map((a: any) => (
+              <div key={a.key}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-xl"
+                style={{ background: a.isUnlocked ? "rgba(0,229,160,0.07)" : "rgba(255,255,255,0.025)",
+                  border: `1px solid ${a.isUnlocked ? "rgba(0,229,160,0.2)" : "rgba(255,255,255,0.06)"}` }}>
+                <span style={{ fontSize: "1rem", filter: a.isUnlocked ? "none" : "grayscale(1) opacity(0.35)" }}>{a.icon ?? "🎯"}</span>
+                <div className="flex-1 min-w-0">
+                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", letterSpacing: "0.04em",
+                    color: a.isUnlocked ? "#fff" : "rgba(255,255,255,0.38)" }}>
+                    {a.name}
+                  </div>
+                  {!a.isUnlocked && (a.currentProgress ?? 0) > 0 && a.criteriaValue != null && (
+                    <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden", marginTop: "4px" }}>
+                      <div style={{ height: "100%", borderRadius: 2, background: "#00e5a0", opacity: 0.65,
+                        width: `${Math.min(100, Math.round(((a.currentProgress ?? 0) / a.criteriaValue) * 100))}%`,
+                        transition: "width 0.8s ease" }} />
+                    </div>
+                  )}
+                </div>
+                {a.isUnlocked ? (
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "#00e5a0", fontWeight: 700, flexShrink: 0 }}>{a.gamerscore ?? 0}G</span>
+                ) : (a.currentProgress ?? 0) > 0 && a.criteriaValue != null ? (
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "rgba(255,255,255,0.22)", fontWeight: 700, flexShrink: 0 }}>
+                    {a.currentProgress}/{a.criteriaValue}
+                  </span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          {m501Achievements.length > 8 && (
+            <p style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", marginBottom: "0.75rem" }}>
+              +{m501Achievements.length - 8} more in the challenge tree
+            </p>
+          )}
+          <Link href="/master501"
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl transition-opacity hover:opacity-75"
+            style={{ background: "rgba(0,229,160,0.06)", border: "1px solid rgba(0,229,160,0.18)",
+              color: "#00e5a0", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.12em" }}>
+            <Target className="w-3.5 h-3.5" />
+            Play Master 501
+          </Link>
+        </SectionCard>
+      )}
 
       {/* ── Tour ─────────────────────────────────────────────── */}
       <SectionCard title="Tour Mode" icon={Star} accent="#a855f7">
@@ -724,7 +785,24 @@ export default function AccountPage() {
 
       {/* ── Achievements ─────────────────────────────────────── */}
       <SectionCard title="Achievements" icon={Award} accent="#a855f7">
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {achTotals.total > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.15em", color: "rgba(255,255,255,0.18)", textTransform: "uppercase" }}>Total Progress</span>
+                <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.8rem", fontWeight: 900,
+                  color: achTotals.unlocked === achTotals.total && achTotals.total > 0 ? "#ffd24a" : "#a855f7" }}>
+                  {achTotals.unlocked} / {achTotals.total}
+                </span>
+              </div>
+              <div style={{ height: 5, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 3, transition: "width 0.8s ease",
+                  background: "linear-gradient(90deg, #a855f7, rgba(168,85,247,0.4))",
+                  width: `${Math.round((achTotals.unlocked / achTotals.total) * 100)}%` }} />
+              </div>
+            </div>
+          )}
+
           {unlockedAchievements.length > 0 && (
             <div>
               <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.15em",
@@ -732,19 +810,15 @@ export default function AccountPage() {
                 Recently Unlocked
               </div>
               <div className="space-y-1.5">
-                {unlockedAchievements.map((a: any) => (
+                {unlockedAchievements.slice(0, 5).map((a: any) => (
                   <div key={a.key ?? a.id} className="flex items-center gap-2.5 px-3 py-2 rounded-xl"
                     style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.14)" }}>
-                    <span style={{ fontSize: "1.1rem" }}>{a.icon ?? "🏆"}</span>
+                    <span style={{ fontSize: "1rem" }}>{a.icon ?? "🏆"}</span>
                     <div className="flex-1 min-w-0">
-                      <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.75rem", color: "#fff", letterSpacing: "0.04em" }}>
-                        {a.name}
-                      </div>
-                      <div style={{ fontSize: "0.58rem", color: "rgba(255,255,255,0.3)", marginTop: "1px" }} className="truncate">
-                        {a.description}
-                      </div>
+                      <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", color: "#fff", letterSpacing: "0.04em" }}>{a.name}</div>
+                      <div style={{ fontSize: "0.56rem", color: "rgba(255,255,255,0.28)", marginTop: "1px" }} className="truncate">{a.description}</div>
                     </div>
-                    <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", color: "#ffd24a", fontWeight: 700, flexShrink: 0 }}>
+                    <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", color: "#ffd24a", fontWeight: 700, flexShrink: 0 }}>
                       {a.gamerscore ?? a.points ?? 0}G
                     </div>
                   </div>
@@ -757,7 +831,7 @@ export default function AccountPage() {
             <div>
               <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.15em",
                 color: "rgba(255,255,255,0.18)", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-                Close To Unlocking
+                In Progress
               </div>
               <div className="space-y-2">
                 {nearMissAchievements.map((a: any) => {
@@ -766,13 +840,13 @@ export default function AccountPage() {
                     <div key={a.key ?? a.id}>
                       <div className="flex items-center justify-between mb-1">
                         <span style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.55)" }}>{a.icon ?? "🎯"} {a.name}</span>
-                        <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "#f59e0b" }}>
+                        <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "#f59e0b", fontWeight: 700 }}>
                           {a.currentProgress}/{a.criteriaValue}
                         </span>
                       </div>
                       <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
                         <div style={{ height: "100%", borderRadius: 2, width: `${pct}%`, transition: "width 0.8s ease",
-                          background: "linear-gradient(90deg, #f59e0b, rgba(245,158,11,0.5))" }} />
+                          background: pct >= 80 ? "linear-gradient(90deg, #22c55e, rgba(34,197,94,0.5))" : "linear-gradient(90deg, #f59e0b, rgba(245,158,11,0.45))" }} />
                       </div>
                     </div>
                   );
@@ -787,16 +861,35 @@ export default function AccountPage() {
             </div>
           )}
 
-          <div className="pt-1">
+          <div className="pt-1 border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
             <Link href="/achievements"
-              className="text-sm flex items-center gap-1.5 transition-opacity hover:opacity-70"
+              className="flex items-center gap-1.5 transition-opacity hover:opacity-70 pt-2"
               style={{ color: "rgba(168,85,247,0.6)", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.1em" }}>
-              View all achievements
+              View all{achTotals.total > 0 ? ` ${achTotals.total}` : ""} achievements
               <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
         </div>
       </SectionCard>
+
+      {/* ── Admin Panel ───────────────────────────────────────── */}
+      {user.isAdmin && (
+        <SectionCard title="Admin Panel" icon={Shield} accent="#ffd24a">
+          <div className="space-y-3">
+            <p style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.35)" }}>
+              Season management, player accounts, game types, achievement sweeps, Elo overrides, and more.
+            </p>
+            <Link href="/admin"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl transition-opacity hover:opacity-80"
+              style={{ background: "linear-gradient(135deg, rgba(255,210,74,0.18), rgba(255,210,74,0.07))",
+                border: "1px solid rgba(255,210,74,0.35)", color: "#ffd24a",
+                fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", letterSpacing: "0.14em", fontWeight: 800 }}>
+              <Shield className="w-3.5 h-3.5" />
+              OPEN ADMIN PANEL ⚡
+            </Link>
+          </div>
+        </SectionCard>
+      )}
 
       {/* ── Change Password ──────────────────────────────────── */}
       <SectionCard title="Change Password" icon={Lock} accent="rgba(255,255,255,0.2)" collapsible>

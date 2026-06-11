@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Download, Dumbbell, BarChart3, Star, Pencil, Check } from "lucide-react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 
 const ADMIN_PIN_KEY = "tkdl_admin_unlocked";
@@ -118,6 +118,37 @@ function PinScreen({ onUnlock }: { onUnlock: () => void }) {
   );
 }
 
+// ── Collapsible admin section wrapper ─────────────────────────────────────
+function CollapsibleAdminSection({ title, icon: Icon, accent, badge, children, borderColor, background }: {
+  title: string;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  accent?: string;
+  badge?: React.ReactNode;
+  children: React.ReactNode;
+  borderColor?: string;
+  background?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const col = accent ?? "rgba(255,255,255,0.5)";
+  return (
+    <div className="pdc-card overflow-hidden" style={{ borderColor, background }}>
+      <button
+        className="w-full flex items-center gap-2 px-5 py-3 border-b hover:bg-white/[0.02] transition-colors"
+        style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.01)" }}
+        onClick={() => setOpen(v => !v)}
+      >
+        <Icon className="w-4 h-4" style={{ color: col }} />
+        <span className="font-bold uppercase tracking-wider text-sm flex-1 text-left" style={{ fontFamily: "Oswald, sans-serif", color: col }}>{title}</span>
+        {badge}
+        {open
+          ? <ChevronUp className="w-3.5 h-3.5 ml-1 shrink-0" style={{ color: "rgba(255,255,255,0.2)" }} />
+          : <ChevronDown className="w-3.5 h-3.5 ml-1 shrink-0" style={{ color: "rgba(255,255,255,0.2)" }} />}
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
 function DataManagement() {
   const [exporting, setExporting] = useState(false);
   const { toast } = useToast();
@@ -142,13 +173,7 @@ function DataManagement() {
   };
 
   return (
-    <div className="pdc-card overflow-hidden">
-      <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.015)" }}>
-        <Download className="w-4 h-4" style={{ color: "#6ab0ff" }} />
-        <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-          Data Backup
-        </h2>
-      </div>
+    <CollapsibleAdminSection title="Data Backup" icon={Download} accent="#6ab0ff">
       <div className="px-4 py-4 space-y-3">
         <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
           Export a full JSON snapshot of all players, matches, seasons, standings, and achievements. Keep regular backups — store externally as insurance against data loss.
@@ -175,7 +200,7 @@ function DataManagement() {
           Includes all tables: players, matches, seasons, standings, achievements, unlocks
         </p>
       </div>
-    </div>
+    </CollapsibleAdminSection>
   );
 }
 
@@ -203,13 +228,7 @@ function SweepTool() {
   };
 
   return (
-    <div className="pdc-card overflow-hidden">
-      <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.015)" }}>
-        <Zap className="w-4 h-4" style={{ color: "#ffd24a" }} />
-        <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-          Achievement Engine
-        </h2>
-      </div>
+    <CollapsibleAdminSection title="Achievement Engine" icon={Zap} accent="#ffd24a">
       <div className="px-4 py-4">
         <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
           Retroactively evaluate all achievements across full match history. Run after importing matches or adding new achievements.
@@ -233,7 +252,7 @@ function SweepTool() {
           )}
         </div>
       </div>
-    </div>
+    </CollapsibleAdminSection>
   );
 }
 
@@ -435,12 +454,7 @@ function FeatureFlags() {
   };
 
   return (
-    <div className="pdc-card overflow-hidden" style={{ borderColor: "rgba(167,139,250,0.15)", background: "rgba(167,139,250,0.02)" }}>
-      <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor: "rgba(167,139,250,0.1)", background: "rgba(167,139,250,0.03)" }}>
-        <Zap className="w-4 h-4" style={{ color: "#a78bfa" }} />
-        <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#a78bfa" }}>Feature Flags</h2>
-        <span className="ml-auto text-xs font-bold uppercase px-2 py-0.5 rounded-full" style={{ background: "rgba(167,139,250,0.12)", border: "1px solid rgba(167,139,250,0.3)", color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>Dev</span>
-      </div>
+    <CollapsibleAdminSection title="Feature Flags" icon={Zap} accent="#a78bfa" borderColor="rgba(167,139,250,0.15)" background="rgba(167,139,250,0.02)" badge={<span className="text-xs font-bold uppercase px-2 py-0.5 rounded-full ml-1" style={{ background: "rgba(167,139,250,0.12)", border: "1px solid rgba(167,139,250,0.3)", color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>Dev</span>}>
       <div className="px-5 py-4">
         <div className="flex items-center justify-between">
           <div>
@@ -465,7 +479,7 @@ function FeatureFlags() {
           </a>
         </div>
       </div>
-    </div>
+    </CollapsibleAdminSection>
   );
 }
 
@@ -482,11 +496,7 @@ function PracticeAnalytics() {
   }, []);
 
   return (
-    <div className="pdc-card overflow-hidden" style={{ borderColor: "rgba(167,139,250,0.15)", background: "rgba(167,139,250,0.02)" }}>
-      <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor: "rgba(167,139,250,0.1)", background: "rgba(167,139,250,0.03)" }}>
-        <BarChart3 className="w-4 h-4" style={{ color: "#a78bfa" }} />
-        <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#a78bfa" }}>Practice Analytics</h2>
-      </div>
+    <CollapsibleAdminSection title="Practice Analytics" icon={BarChart3} accent="#a78bfa" borderColor="rgba(167,139,250,0.15)" background="rgba(167,139,250,0.02)">
       {loading ? (
         <div className="flex justify-center py-8">
           <div className="w-5 h-5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#a78bfa" }} />
@@ -549,7 +559,7 @@ function PracticeAnalytics() {
           )}
         </div>
       )}
-    </div>
+    </CollapsibleAdminSection>
   );
 }
 
@@ -638,15 +648,7 @@ function GameTypesManager() {
   for (const g of gameTypes) { (groups[g.category] ??= []).push(g); }
 
   return (
-    <div className="pdc-card overflow-hidden" style={{ borderColor: "rgba(0,204,136,0.15)", background: "rgba(0,204,136,0.01)" }}>
-      <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor: "rgba(0,204,136,0.1)", background: "rgba(0,204,136,0.02)" }}>
-        <Swords className="w-4 h-4" style={{ color: "#00cc88" }} />
-        <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#00cc88" }}>Game Types</h2>
-        <span className="ml-auto text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
-          {gameTypes.filter(g => g.enabled).length} / {gameTypes.length} enabled
-        </span>
-      </div>
-
+    <CollapsibleAdminSection title="Game Types" icon={Swords} accent="#00cc88" borderColor="rgba(0,204,136,0.15)" background="rgba(0,204,136,0.01)" badge={<span className="text-xs ml-1" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>{gameTypes.filter(g => g.enabled).length}/{gameTypes.length}</span>}>
       <div className="px-5 py-4 space-y-5">
         {loading ? (
           <p className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>Loading…</p>
@@ -767,7 +769,7 @@ function GameTypesManager() {
           </button>
         )}
       </div>
-    </div>
+    </CollapsibleAdminSection>
   );
 }
 
@@ -831,14 +833,8 @@ function TourDataManager({ players }: { players: { id: number; name: string; isA
   };
 
   return (
-    <div className="pdc-card p-5" style={{ borderColor: "rgba(192,132,252,0.2)", background: "rgba(192,132,252,0.02)" }}>
-      <div className="flex items-center gap-2 mb-3">
-        <Star className="w-4 h-4" style={{ color: "#c084fc" }} />
-        <div>
-          <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#c084fc" }}>Tour Data</h2>
-          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Delete individual tour runs or trophies for a player</p>
-        </div>
-      </div>
+    <CollapsibleAdminSection title="Tour Data" icon={Star} accent="#c084fc" borderColor="rgba(192,132,252,0.2)" background="rgba(192,132,252,0.02)">
+      <div className="p-5">
 
       <select
         value={selectedId}
@@ -958,7 +954,8 @@ function TourDataManager({ players }: { players: { id: number; name: string; isA
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </CollapsibleAdminSection>
   );
 }
 
@@ -1064,24 +1061,8 @@ function UserAccountsManager({ players }: { players: any[] | undefined }) {
   const playersWithoutAccount = (players ?? []).filter(p => !accounts.some(a => a.playerId === p.id));
 
   return (
-    <div className="pdc-card p-5" style={{ borderColor: "rgba(0,102,255,0.15)", background: "rgba(0,102,255,0.02)" }}>
-      <div className="flex items-center gap-2 mb-4">
-        <Users className="w-4 h-4" style={{ color: "#4d94ff" }} />
-        <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#4d94ff" }}>
-          Player Accounts
-        </h2>
-        <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>
-          {accounts.length} accounts created
-        </span>
-        <button
-          onClick={() => setShowNewPlayer(p => !p)}
-          className="ml-auto px-2.5 py-1 rounded-lg text-xs font-bold transition-all"
-          style={{ background: showNewPlayer ? "rgba(0,229,160,0.12)" : "rgba(0,229,160,0.06)",
-            border: `1px solid ${showNewPlayer ? "rgba(0,229,160,0.35)" : "rgba(0,229,160,0.15)"}`,
-            color: "#00e5a0", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
-          + New Player
-        </button>
-      </div>
+    <CollapsibleAdminSection title="Player Accounts" icon={Users} accent="#4d94ff" borderColor="rgba(0,102,255,0.15)" background="rgba(0,102,255,0.02)" badge={<><span className="text-xs mx-1" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>{accounts.length} accounts</span><button onClick={e => { e.stopPropagation(); setShowNewPlayer(p => !p); }} className="px-2.5 py-1 rounded-lg text-xs font-bold transition-all" style={{ background: showNewPlayer ? "rgba(0,229,160,0.12)" : "rgba(0,229,160,0.06)", border: `1px solid ${showNewPlayer ? "rgba(0,229,160,0.35)" : "rgba(0,229,160,0.15)"}`, color: "#00e5a0", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>+ New Player</button></>}>
+      <div className="p-5">
 
       {/* Existing accounts */}
       {loading ? (
@@ -1280,7 +1261,8 @@ function UserAccountsManager({ players }: { players: any[] | undefined }) {
           </p>
         </form>
       )}
-    </div>
+      </div>
+    </CollapsibleAdminSection>
   );
 }
 
@@ -1449,76 +1431,62 @@ export default function Admin() {
       <UserAccountsManager players={players} />
 
       {/* Season Management — full editor */}
-      <div className="pdc-card p-5" style={{ borderColor: "rgba(255,210,74,0.15)", background: "rgba(255,210,74,0.02)" }}>
-        <div className="flex items-center gap-2 mb-4">
-          <Trophy className="w-4 h-4" style={{ color: "#ffd24a" }} />
-          <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a" }}>
-            Season Manager
-          </h2>
+      <CollapsibleAdminSection title="Season Manager" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.15)" background="rgba(255,210,74,0.02)">
+        <div className="p-5">
+          <SeasonEditor />
         </div>
-        <SeasonEditor />
-      </div>
+      </CollapsibleAdminSection>
 
       {/* Season Reset */}
-      <div className="pdc-card p-5" style={{ borderColor: "rgba(255,0,92,0.2)", background: "rgba(255,0,92,0.03)" }}>
-        <div className="flex items-center gap-2 mb-2">
-          <RotateCcw className="w-4 h-4" style={{ color: "#ff005c" }} />
-          <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c" }}>
-            Start New Season
-          </h2>
-        </div>
-        <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
-          End the current season and start a new one. All players reset to 25 pts. Elo and career stats preserved.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3 items-start">
-          <div className="flex-1">
-            <Input placeholder="Custom season name (optional)" value={seasonName} onChange={e => setSeasonName(e.target.value)}
-              style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,0,92,0.2)" }} />
-            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.22)" }}>Leave blank for auto-generated name</p>
+      <CollapsibleAdminSection title="Start New Season" icon={RotateCcw} accent="#ff005c" borderColor="rgba(255,0,92,0.2)" background="rgba(255,0,92,0.03)">
+        <div className="p-5">
+          <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
+            End the current season and start a new one. All players reset to 25 pts. Elo and career stats preserved.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 items-start">
+            <div className="flex-1">
+              <Input placeholder="Custom season name (optional)" value={seasonName} onChange={e => setSeasonName(e.target.value)}
+                style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,0,92,0.2)" }} />
+              <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.22)" }}>Leave blank for auto-generated name</p>
+            </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button className="gap-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ background: "#ff005c", border: "none", fontFamily: "Oswald, sans-serif" }}>
+                  <AlertTriangle className="w-4 h-4" /> Reset Season
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(255,0,92,0.3)" }}>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+                    <AlertTriangle className="w-5 h-5" /> Are you absolutely sure?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
+                    This will end the current active season, crown the champion, and reset all players to 25 pts. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleResetSeason} style={{ background: "#ff005c", color: "#fff", border: "none" }}>
+                    Yes, End Season
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button className="gap-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ background: "#ff005c", border: "none", fontFamily: "Oswald, sans-serif" }}>
-                <AlertTriangle className="w-4 h-4" /> Reset Season
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(255,0,92,0.3)" }}>
-              <AlertDialogHeader>
-                <AlertDialogTitle className="flex items-center gap-2" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
-                  <AlertTriangle className="w-5 h-5" /> Are you absolutely sure?
-                </AlertDialogTitle>
-                <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
-                  This will end the current active season, crown the champion, and reset all players to 25 pts. This cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleResetSeason} style={{ background: "#ff005c", color: "#fff", border: "none" }}>
-                  Yes, End Season
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
-      </div>
+      </CollapsibleAdminSection>
 
       {/* Tour data manager */}
       <TourDataManager players={players ?? []} />
 
       {/* Achievement sweep */}
-      <div className="pdc-card p-5" style={{ borderColor: "rgba(0,102,255,0.2)", background: "rgba(0,102,255,0.02)" }}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4" style={{ color: "#0066ff" }} />
-            <div>
-              <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#0066ff" }}>Achievement Sweep</h2>
-              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Retroactively check and grant all earned achievements based on current career stats</p>
-            </div>
-          </div>
+      <CollapsibleAdminSection title="Achievement Sweep" icon={Zap} accent="#0066ff" borderColor="rgba(0,102,255,0.2)" background="rgba(0,102,255,0.02)">
+        <div className="p-5 flex items-center justify-between gap-4">
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>Retroactively check and grant all earned achievements based on current career stats</p>
           <Button
             onClick={handleSweepAchievements}
             disabled={isSweeping}
-            className="gap-2 font-bold uppercase tracking-wider"
+            className="gap-2 font-bold uppercase tracking-wider shrink-0"
             style={{ background: "#0066ff", border: "none", fontFamily: "Oswald, sans-serif", minWidth: 120 }}
           >
             {isSweeping ? (
@@ -1528,66 +1496,55 @@ export default function Admin() {
             )}
           </Button>
         </div>
-      </div>
+      </CollapsibleAdminSection>
 
       {/* Elo Override */}
-      <div className="pdc-card p-5" style={{ borderColor: "rgba(0,102,255,0.2)", background: "rgba(0,102,255,0.02)" }}>
-        <div className="flex items-center gap-2 mb-4">
-          <Zap className="w-4 h-4" style={{ color: "#0066ff" }} />
-          <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#0066ff" }}>
-            Elo Override
-          </h2>
-          <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>· Manually correct a player's Elo rating</span>
+      <CollapsibleAdminSection title="Elo Override" icon={Zap} accent="#0066ff" borderColor="rgba(0,102,255,0.2)" background="rgba(0,102,255,0.02)">
+        <div className="p-5">
+          <div className="flex flex-col sm:flex-row gap-3 items-start">
+            <select
+              value={eloPlayerId ?? ""}
+              onChange={e => {
+                const id = e.target.value ? Number(e.target.value) : null;
+                setEloPlayerId(id);
+                const p = players?.find(pl => pl.id === id);
+                if (p) setEloValue(p.elo);
+              }}
+              className="flex-1 rounded-lg text-sm px-3 py-2 min-w-0"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(0,102,255,0.25)", color: "rgba(255,255,255,0.75)", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
+              <option value="">Select player…</option>
+              {players?.map(p => (
+                <option key={p.id} value={p.id} style={{ background: "#0a0814" }}>{p.name} (Elo {p.elo})</option>
+              ))}
+            </select>
+            <Input
+              type="number" min={800} max={2000}
+              value={eloValue}
+              onChange={e => setEloValue(Number(e.target.value))}
+              placeholder="800 – 2000"
+              className="w-36"
+              style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(0,102,255,0.25)" }}
+            />
+            <Button
+              onClick={handleEloOverride}
+              disabled={!eloPlayerId || eloLoading}
+              className="gap-2 font-bold uppercase tracking-wider whitespace-nowrap"
+              style={{ background: "#0066ff", border: "none", fontFamily: "Oswald, sans-serif", minWidth: 110 }}>
+              {eloLoading
+                ? <div className="w-3.5 h-3.5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#fff" }} />
+                : <Zap className="w-4 h-4" />}
+              Set Elo
+            </Button>
+          </div>
+          <p className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
+            Tier is recalculated automatically. Career peak Elo is not affected.
+          </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 items-start">
-          <select
-            value={eloPlayerId ?? ""}
-            onChange={e => {
-              const id = e.target.value ? Number(e.target.value) : null;
-              setEloPlayerId(id);
-              const p = players?.find(pl => pl.id === id);
-              if (p) setEloValue(p.elo);
-            }}
-            className="flex-1 rounded-lg text-sm px-3 py-2 min-w-0"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(0,102,255,0.25)", color: "rgba(255,255,255,0.75)", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
-            <option value="">Select player…</option>
-            {players?.map(p => (
-              <option key={p.id} value={p.id} style={{ background: "#0a0814" }}>{p.name} (Elo {p.elo})</option>
-            ))}
-          </select>
-          <Input
-            type="number" min={800} max={2000}
-            value={eloValue}
-            onChange={e => setEloValue(Number(e.target.value))}
-            placeholder="800 – 2000"
-            className="w-36"
-            style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(0,102,255,0.25)" }}
-          />
-          <Button
-            onClick={handleEloOverride}
-            disabled={!eloPlayerId || eloLoading}
-            className="gap-2 font-bold uppercase tracking-wider whitespace-nowrap"
-            style={{ background: "#0066ff", border: "none", fontFamily: "Oswald, sans-serif", minWidth: 110 }}>
-            {eloLoading
-              ? <div className="w-3.5 h-3.5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#fff" }} />
-              : <Zap className="w-4 h-4" />}
-            Set Elo
-          </Button>
-        </div>
-        <p className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
-          Tier is recalculated automatically. Career peak Elo is not affected.
-        </p>
-      </div>
+      </CollapsibleAdminSection>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Player roster */}
-        <div className="pdc-card overflow-hidden">
-          <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.015)" }}>
-            <Users className="w-4 h-4" style={{ color: "#0066ff" }} />
-            <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-              Roster
-            </h2>
-          </div>
+        <CollapsibleAdminSection title="Roster" icon={Users} accent="#0066ff">
           {isLoadingPlayers ? (
             <div className="flex justify-center py-8">
               <div className="w-6 h-6 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
@@ -1612,7 +1569,7 @@ export default function Admin() {
               ))}
             </div>
           )}
-        </div>
+        </CollapsibleAdminSection>
 
         {/* Achievement sweep tool */}
         <DataManagement />
@@ -1620,13 +1577,7 @@ export default function Admin() {
         <PracticeAnalytics />
 
         {/* Match management */}
-        <div className="pdc-card overflow-hidden">
-          <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.015)" }}>
-            <Swords className="w-4 h-4" style={{ color: "#ff005c" }} />
-            <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-              Recent Matches
-            </h2>
-          </div>
+        <CollapsibleAdminSection title="Recent Matches" icon={Swords} accent="#ff005c">
           {isLoadingMatches ? (
             <div className="flex justify-center py-8">
               <div className="w-6 h-6 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
@@ -1737,7 +1688,7 @@ export default function Admin() {
               )}
             </div>
           )}
-        </div>
+        </CollapsibleAdminSection>
       </div>
     </div>
   );
