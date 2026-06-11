@@ -1286,6 +1286,8 @@ export default function Admin() {
   // PIN lock
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(ADMIN_PIN_KEY) === "1");
   const [deletingPlayerId, setDeletingPlayerId] = useState<number | null>(null);
+  const [expandedPlayers, setExpandedPlayers] = useState<Set<number>>(new Set());
+  const [modeToggling, setModeToggling] = useState<string | null>(null); // "playerId:field"
 
   if (!unlocked) return <PinScreen onUnlock={() => setUnlocked(true)} />;
 
@@ -1320,6 +1322,36 @@ export default function Admin() {
         onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
       }
     );
+  };
+
+  type ModeKey = "isActive" | "practiceEnabled" | "tourEnabled" | "m501Enabled" | "shadowBotEnabled";
+  const PLAYER_MODES: { key: ModeKey; label: string; desc: string; color: string; emoji: string }[] = [
+    { key: "isActive",         label: "League",     desc: "Participates in the current season",  color: "#22c55e", emoji: "🏆" },
+    { key: "practiceEnabled",  label: "Practice",   desc: "Can use Practice mode",               color: "#38bdf8", emoji: "🎯" },
+    { key: "tourEnabled",      label: "Tour",        desc: "Can enter Tour Mode events",          color: "#c084fc", emoji: "⭐" },
+    { key: "m501Enabled",      label: "M501",        desc: "Can play Master 501 runs",            color: "#ffd24a", emoji: "🎱" },
+    { key: "shadowBotEnabled", label: "Shadow Bot",  desc: "Can train against Shadow Bot",        color: "#f97316", emoji: "🤖" },
+  ];
+
+  const handleModeToggle = async (playerId: number, field: ModeKey, newVal: boolean) => {
+    const key = `${playerId}:${field}`;
+    setModeToggling(key);
+    try {
+      const res = await fetch(`/api/players/${playerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: newVal }),
+      });
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast({ title: "Update failed", description: d.error ?? "Unknown error", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Update failed", description: e.message, variant: "destructive" });
+    }
+    setModeToggling(null);
   };
 
   const handleResetSeason = () => {
@@ -1572,47 +1604,99 @@ export default function Admin() {
             </div>
           ) : (
             <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-              {players?.map(player => (
-                <div key={player.id} className="flex items-center justify-between px-4 py-2.5 transition-colors hover:bg-white/[0.02]" style={{ opacity: !player.isActive ? 0.4 : 1 }}>
-                  <div>
-                    <div className="font-semibold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>
-                      {player.name}
+              {players?.map(player => {
+                const p = player as any;
+                const isExpanded = expandedPlayers.has(player.id);
+                const enabledCount = PLAYER_MODES.filter(m => p[m.key] !== false).length;
+                return (
+                  <div key={player.id}>
+                    {/* Collapsed header row */}
+                    <div className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-white/[0.02]">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>
+                          {player.name}
+                        </div>
+                        <div className="text-xs font-mono" style={{ color: "#0066ff" }}>{player.elo} Elo · {player.points}pts</div>
+                      </div>
+                      {/* Mode status dots */}
+                      <div className="flex items-center gap-1">
+                        {PLAYER_MODES.map(m => (
+                          <div key={m.key} title={`${m.label}: ${p[m.key] !== false ? "on" : "off"}`} className="w-2 h-2 rounded-full transition-colors" style={{ background: p[m.key] !== false ? m.color : "rgba(255,255,255,0.1)" }} />
+                        ))}
+                        <span className="ml-1 text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>{enabledCount}/5</span>
+                      </div>
+                      {/* Expand toggle */}
+                      <button
+                        onClick={() => setExpandedPlayers(prev => {
+                          const next = new Set(prev);
+                          if (next.has(player.id)) next.delete(player.id); else next.add(player.id);
+                          return next;
+                        })}
+                        className="p-1 rounded transition-colors hover:bg-white/10"
+                        title="Manage modes"
+                      >
+                        {isExpanded
+                          ? <ChevronUp className="w-4 h-4" style={{ color: "rgba(255,255,255,0.4)" }} />
+                          : <ChevronDown className="w-4 h-4" style={{ color: "rgba(255,255,255,0.4)" }} />}
+                      </button>
+                      {/* Delete */}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-red-500/10" disabled={deletingPlayerId === player.id}>
+                            {deletingPlayerId === player.id
+                              ? <div className="w-3 h-3 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
+                              : <Trash2 className="h-3 w-3" style={{ color: "rgba(255,0,92,0.5)" }} />}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(255,0,92,0.3)" }}>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="flex items-center gap-2" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+                              <AlertTriangle className="w-5 h-5" /> Delete {player.name}?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
+                              This permanently removes <strong style={{ color: "#fff" }}>{player.name}</strong> and all their data — matches, achievements, titles, tour runs, and their login account. This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDeletePlayer(player.id, player.name)} style={{ background: "#ff005c", color: "#fff", border: "none" }}>
+                              Delete Forever
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
-                    <div className="text-xs font-mono" style={{ color: "#0066ff" }}>{player.elo} Elo · {player.points}pts</div>
+                    {/* Expanded mode toggles */}
+                    {isExpanded && (
+                      <div className="px-4 pb-3 pt-1 space-y-1" style={{ background: "rgba(255,255,255,0.015)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                        <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.05em" }}>
+                          MODE ACCESS — toggle to restrict/restore
+                        </div>
+                        {PLAYER_MODES.map(m => {
+                          const isOn = p[m.key] !== false;
+                          const toggling = modeToggling === `${player.id}:${m.key}`;
+                          return (
+                            <div key={m.key} className="flex items-center justify-between py-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm">{m.emoji}</span>
+                                <span className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: isOn ? m.color : "rgba(255,255,255,0.3)" }}>
+                                  {m.label}
+                                </span>
+                                <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>{m.desc}</span>
+                              </div>
+                              <Switch
+                                checked={isOn}
+                                onCheckedChange={val => handleModeToggle(player.id, m.key, val)}
+                                disabled={toggling}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold uppercase" style={{ color: player.isActive ? "#22c55e" : "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
-                      {player.isActive ? "Active" : "Off"}
-                    </span>
-                    <Switch checked={player.isActive} onCheckedChange={() => handleToggleActive(player.id, player.isActive)} disabled={updatePlayerMutation.isPending} />
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-red-500/10" disabled={deletingPlayerId === player.id}>
-                          {deletingPlayerId === player.id
-                            ? <div className="w-3 h-3 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
-                            : <Trash2 className="h-3 w-3" style={{ color: "rgba(255,0,92,0.5)" }} />}
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(255,0,92,0.3)" }}>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle className="flex items-center gap-2" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
-                            <AlertTriangle className="w-5 h-5" /> Delete {player.name}?
-                          </AlertDialogTitle>
-                          <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
-                            This permanently removes <strong style={{ color: "#fff" }}>{player.name}</strong> and all their data — matches, achievements, titles, tour runs, and their login account. This cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDeletePlayer(player.id, player.name)} style={{ background: "#ff005c", color: "#fff", border: "none" }}>
-                            Delete Forever
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CollapsibleAdminSection>

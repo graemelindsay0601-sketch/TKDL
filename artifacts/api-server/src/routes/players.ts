@@ -13,9 +13,13 @@ const CreatePlayerBody = z.object({
   playerId: z.string().optional(),
 });
 const UpdatePlayerBody = z.object({
-  name:     z.string().min(1).optional(),
-  isActive: z.boolean().optional(),
-  status:   z.string().optional(),
+  name:             z.string().min(1).optional(),
+  isActive:         z.boolean().optional(),
+  status:           z.string().optional(),
+  practiceEnabled:  z.boolean().optional(),
+  tourEnabled:      z.boolean().optional(),
+  m501Enabled:      z.boolean().optional(),
+  shadowBotEnabled: z.boolean().optional(),
 });
 const IdParam = z.object({ id: z.coerce.number().int().positive() });
 

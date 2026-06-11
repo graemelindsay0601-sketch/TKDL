@@ -23,6 +23,10 @@ export const playersTable = pgTable("players", {
   currentLossStreak: integer("current_loss_streak").notNull().default(0),
   eliminationsCount: integer("eliminations_count").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
+  practiceEnabled:  boolean("practice_enabled").notNull().default(true),
+  tourEnabled:      boolean("tour_enabled").notNull().default(true),
+  m501Enabled:      boolean("m501_enabled").notNull().default(true),
+  shadowBotEnabled: boolean("shadow_bot_enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

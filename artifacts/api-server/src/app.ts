@@ -450,6 +450,12 @@ async function seedPractice() {
   await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p2_checkout_attempts  INTEGER DEFAULT 0`);
   await db.execute(sql`ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS p2_checkout_hits      INTEGER DEFAULT 0`);
   logger.info("Practice sessions table ready");
+
+  // Per-mode access flags on players (all default true so existing players get full access)
+  await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS practice_enabled  BOOLEAN NOT NULL DEFAULT true`);
+  await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS tour_enabled       BOOLEAN NOT NULL DEFAULT true`);
+  await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS m501_enabled       BOOLEAN NOT NULL DEFAULT true`);
+  await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS shadow_bot_enabled BOOLEAN NOT NULL DEFAULT true`);
 }
 
 async function seedMatchParticipants() {
