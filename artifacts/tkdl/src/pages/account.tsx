@@ -95,6 +95,8 @@ export default function AccountPage() {
   const [shadowStats,   setShadow]      = useState<any>(null);
   const [achProgress,   setAchProgress] = useState<any[]>([]);
   const [eloHistory,    setEloHistory]  = useState<any[]>([]);
+  const [titleList,    setTitleList]    = useState<any[]>([]);
+  const [titleSaving,  setTitleSaving]  = useState(false);
 
   useEffect(() => {
     if (!user?.playerId) return;
@@ -109,6 +111,7 @@ export default function AccountPage() {
       fetch(`/api/players/${id}/shadow-bot-stats`).then(r => r.ok ? r.json() : null).then(setShadow),
       fetch(`/api/players/${id}/achievement-progress`).then(r => r.ok ? r.json() : []).then(setAchProgress),
       fetch(`/api/players/${id}/elo-history`).then(r => r.ok ? r.json() : {}).then((d: any) => setEloHistory(d.history ?? [])),
+      fetch(`/api/players/${id}/titles`).then(r => r.ok ? r.json() : []).then(setTitleList),
     ]);
   }, [user?.playerId]);
 
@@ -137,6 +140,23 @@ export default function AccountPage() {
       }
     } catch { toast({ title: "Network error", variant: "destructive" }); }
     setPwdLoad(false);
+  };
+
+  const handleSetTitle = async (titleKey: string | null) => {
+    if (!user?.playerId || titleSaving) return;
+    setTitleSaving(true);
+    try {
+      const res = await fetch(`/api/players/${user.playerId}/active-title`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ titleKey }),
+      });
+      if (res.ok) {
+        setTitleList(prev => prev.map(t => ({ ...t, isActive: t.key === titleKey })));
+        toast({ title: titleKey ? "Title equipped ✓" : "Title cleared" });
+      }
+    } catch { toast({ title: "Failed to update title", variant: "destructive" }); }
+    setTitleSaving(false);
   };
 
   const player     = stats?.player as any;
@@ -290,6 +310,21 @@ export default function AccountPage() {
                   fontSize: "0.58rem", color: tCol, letterSpacing: "0.14em", fontWeight: 800, border: `1px solid ${tCol}44` }}>
                   {tier}
                 </span>
+                {(() => {
+                  const at = titleList.find(t => t.isActive);
+                  if (!at) return null;
+                  const RC: Record<string,string> = { Common:"#9ca3af", Rare:"#3b82f6", Epic:"#a855f7", Legendary:"#ffd24a" };
+                  const c = RC[at.rarity as string] ?? "#9ca3af";
+                  return (
+                    <span className="px-2 py-0.5 rounded-md" style={{
+                      background: `${c}18`, fontFamily: "Oswald, sans-serif",
+                      fontSize: "0.55rem", color: c, letterSpacing: "0.1em",
+                      fontWeight: 700, border: `1px solid ${c}38`,
+                    }}>
+                      {at.icon} {at.title}
+                    </span>
+                  );
+                })()}
                 <span style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
                   ELO {player?.elo ?? "–"}
                 </span>
@@ -408,6 +443,47 @@ export default function AccountPage() {
           ))}
         </div>
       </div>
+
+      {/* ── Titles ───────────────────────────────────────────── */}
+      {titleList.length > 0 && (
+        <SectionCard title="Titles" icon={Award} accent="#a855f7" collapsible>
+          <div className="space-y-3">
+            <div style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.3)" }}>
+              Tap a title to equip it on your profile card. Tap again to remove.
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {titleList.map((t: any) => {
+                const RC: Record<string,string> = { Common:"#9ca3af", Rare:"#3b82f6", Epic:"#a855f7", Legendary:"#ffd24a" };
+                const c = RC[t.rarity as string] ?? "#9ca3af";
+                return (
+                  <button key={t.key} disabled={titleSaving}
+                    onClick={() => handleSetTitle(t.isActive ? null : t.key)}
+                    className="text-left rounded-xl p-3 transition-all hover:opacity-90 active:scale-95"
+                    style={{
+                      background: t.isActive ? `${c}18` : "rgba(255,255,255,0.025)",
+                      border: `1px solid ${t.isActive ? c + "55" : "rgba(255,255,255,0.07)"}`,
+                      boxShadow: t.isActive ? `0 0 14px ${c}22` : undefined,
+                      cursor: "pointer",
+                    }}>
+                    <div style={{ fontSize: "1rem", lineHeight: 1, marginBottom: "4px" }}>{t.icon}</div>
+                    <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", color: c, fontWeight: 800, letterSpacing: "0.06em", lineHeight: 1.2 }}>
+                      {t.title}
+                    </div>
+                    <div style={{ fontSize: "0.52rem", color: "rgba(255,255,255,0.25)", marginTop: "3px", letterSpacing: "0.08em", fontFamily: "Oswald, sans-serif" }}>
+                      {t.rarity}
+                    </div>
+                    {t.isActive && (
+                      <div style={{ fontSize: "0.48rem", color: c, marginTop: "3px", letterSpacing: "0.12em", fontFamily: "Oswald, sans-serif", fontWeight: 700 }}>
+                        ✓ ACTIVE
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </SectionCard>
+      )}
 
       {/* ── Coach ─────────────────────────────────────────────── */}
       {(insights.strengths.length > 0 || insights.focuses.length > 0) && (

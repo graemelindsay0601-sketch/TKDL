@@ -5,6 +5,8 @@ import { z } from "zod";
 import { computeIdentity } from "../lib/identity";
 import { calcTier } from "../lib/elo";
 import { gamerscoreForRarity, SHADOW_BOT_ACHIEVEMENT_DEFS } from "../lib/shadow-bot-achievements";
+import { logger } from "../lib/logger";
+import { TITLE_DEFINITIONS, getPlayerTitles } from "../lib/titles";
 
 const CreatePlayerBody = z.object({
   name:     z.string().min(1),
@@ -20,8 +22,49 @@ const IdParam = z.object({ id: z.coerce.number().int().positive() });
 const router = Router();
 
 router.get("/players", async (_req, res): Promise<void> => {
-  const players = await db.select().from(playersTable).orderBy(playersTable.name);
-  res.json(players);
+  try {
+    const players = await db.select().from(playersTable).orderBy(playersTable.name);
+
+    // Fetch recent form (last 5 W/L) and active_title for each player in one query
+    const extras = await db.execute(sql`
+      SELECT
+        p.id,
+        p.active_title,
+        (
+          SELECT COALESCE(json_agg(r.form ORDER BY r.played_at DESC), '[]'::json)
+          FROM (
+            SELECT
+              CASE WHEN m.winner_id = p.id THEN 'W' ELSE 'L' END AS form,
+              m.played_at
+            FROM matches m
+            WHERE m.winner_id = p.id OR m.loser_id = p.id
+            ORDER BY m.played_at DESC
+            LIMIT 5
+          ) r
+        ) AS recent_form
+      FROM players p
+    `);
+
+    const titleMap  = new Map(TITLE_DEFINITIONS.map(d => [d.key, d]));
+    const extrasMap = new Map((extras.rows as any[]).map(r => [r.id as number, r]));
+
+    const result = players.map(p => {
+      const ex  = extrasMap.get(p.id);
+      const def = ex?.active_title ? titleMap.get(ex.active_title as string) : undefined;
+      return {
+        ...p,
+        recentForm:        ex?.recent_form ?? [],
+        activeTitleLabel:  def?.title  ?? null,
+        activeTitleRarity: def?.rarity ?? null,
+        activeTitleIcon:   def?.icon   ?? null,
+      };
+    });
+
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, "GET /players failed");
+    res.status(500).json({ error: "Failed" });
+  }
 });
 
 router.post("/players", async (req, res): Promise<void> => {
@@ -495,6 +538,45 @@ router.get("/players/:id/gamerscore", async (req, res): Promise<void> => {
   } catch (err) {
     req.log.error({ err }, "Failed to get gamerscore");
     res.status(500).json({ error: "Failed to get gamerscore" });
+  }
+});
+
+// GET /players/:id/titles
+router.get("/players/:id/titles", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const id = params.data.id;
+  try {
+    const activeTitleRow = await db.execute(sql`SELECT active_title FROM players WHERE id = ${id}`);
+    const activeTitle = (activeTitleRow.rows[0] as any)?.active_title as string | null ?? null;
+    const earned = await getPlayerTitles(id);
+    res.json(earned.map(t => ({ ...t, isActive: t.key === activeTitle })));
+  } catch (err) {
+    req.log.error({ err }, "GET /players/:id/titles failed");
+    res.status(500).json({ error: "Failed" });
+  }
+});
+
+// PATCH /players/:id/active-title
+router.patch("/players/:id/active-title", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const id = params.data.id;
+  try {
+    const { titleKey } = z.object({ titleKey: z.string().nullable() }).parse(req.body);
+    if (titleKey !== null) {
+      const earnedRow = await db.execute(sql`
+        SELECT id FROM player_titles WHERE player_id = ${id} AND title_key = ${titleKey}
+      `);
+      if ((earnedRow.rows as any[]).length === 0) {
+        res.status(403).json({ error: "Title not earned" }); return;
+      }
+    }
+    await db.execute(sql`UPDATE players SET active_title = ${titleKey} WHERE id = ${id}`);
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "PATCH /players/:id/active-title failed");
+    res.status(500).json({ error: "Failed" });
   }
 });
 

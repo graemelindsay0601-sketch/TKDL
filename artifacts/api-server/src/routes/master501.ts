@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { logger } from "../lib/logger";
 import { checkM501Achievements } from "../lib/master501-achievements";
+import { checkAndGrantTitles } from "../lib/titles";
 
 const router = Router();
 
@@ -197,14 +198,17 @@ router.patch("/master501/runs/:runId", async (req, res): Promise<void> => {
       `);
     }
 
-    void checkM501Achievements(Number(run.player_id), {
-      tier:        Number(run.tier),
-      round:       Number(run.round),
-      result,
-      legsWon,
-      legsLost,
-      legsFormat:  legsFormatVal,
-    });
+    void (async () => {
+      await checkM501Achievements(Number(run.player_id), {
+        tier:        Number(run.tier),
+        round:       Number(run.round),
+        result,
+        legsWon,
+        legsLost,
+        legsFormat:  legsFormatVal,
+      });
+      await checkAndGrantTitles(Number(run.player_id));
+    })();
 
     res.json({
       result,

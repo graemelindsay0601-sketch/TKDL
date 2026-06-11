@@ -27,6 +27,20 @@ const RANK_COLORS: Record<number, string> = {
   0: "#ffd24a", 1: "#ff008c", 2: "#00aaff", 3: "#ff5050", 4: "#00ffaa",
 };
 
+const RARITY_COLOR: Record<string, string> = {
+  Common: "#9ca3af", Rare: "#3b82f6", Epic: "#a855f7", Legendary: "#ffd24a",
+};
+
+const TIER_BAND: Record<string, { min: number; max: number }> = {
+  Bronze: { min: 800, max: 950 }, Silver: { min: 950, max: 1100 },
+  Gold: { min: 1100, max: 1250 }, Platinum: { min: 1250, max: 1400 },
+  Diamond: { min: 1400, max: 1600 },
+};
+
+const TIER_ELO_COLOR: Record<string, string> = {
+  Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
+};
+
 function PlayerCard({ player, leaderboardRank }: { player: any; leaderboardRank?: number }) {
   const isElim = player.status === "ELIMINATED";
   const pts    = isElim ? 0 : (player.points ?? 25);
@@ -114,8 +128,25 @@ function PlayerCard({ player, leaderboardRank }: { player: any; leaderboardRank?
           </div>
 
           {(player as any).nickname && (
-            <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.28)", fontStyle: "italic" }}>
+            <div className="text-xs mb-1.5" style={{ color: "rgba(255,255,255,0.28)", fontStyle: "italic" }}>
               "{(player as any).nickname}"
+            </div>
+          )}
+
+          {/* Title badge */}
+          {(player as any).activeTitleLabel && (
+            <div className="mb-2">
+              <span style={{
+                display: "inline-block",
+                fontFamily: "Oswald, sans-serif", fontSize: "0.52rem",
+                padding: "2px 7px", borderRadius: "6px",
+                letterSpacing: "0.1em", fontWeight: 700,
+                color: RARITY_COLOR[(player as any).activeTitleRarity] ?? "#9ca3af",
+                background: `${RARITY_COLOR[(player as any).activeTitleRarity] ?? "#9ca3af"}18`,
+                border: `1px solid ${RARITY_COLOR[(player as any).activeTitleRarity] ?? "#9ca3af"}38`,
+              }}>
+                {(player as any).activeTitleIcon} {(player as any).activeTitleLabel}
+              </span>
             </div>
           )}
 
@@ -138,7 +169,7 @@ function PlayerCard({ player, leaderboardRank }: { player: any; leaderboardRank?
 
           {/* Stats row */}
           <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <span style={{ color: "#22c55e", fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.8rem" }}>
                 {player.seasonWins ?? 0}W
               </span>
@@ -147,11 +178,39 @@ function PlayerCard({ player, leaderboardRank }: { player: any; leaderboardRank?
                 {player.seasonLosses ?? 0}L
               </span>
             </div>
-            <span className="font-mono font-bold tabular-nums"
-              style={{ color: "#0066ff", fontSize: "0.72rem", textShadow: "0 0 8px rgba(0,102,255,0.5)" }}>
-              {player.elo} Elo
-            </span>
+            {/* Recent form dots */}
+            {Array.isArray((player as any).recentForm) && (player as any).recentForm.length > 0 && (
+              <div className="flex items-center gap-1">
+                {((player as any).recentForm as string[]).slice(0, 5).map((r, i) => (
+                  <div key={i} style={{
+                    width: "10px", height: "10px", borderRadius: "50%",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: r === "W" ? "rgba(34,197,94,0.18)" : "rgba(255,0,92,0.12)",
+                    border: `1px solid ${r === "W" ? "rgba(34,197,94,0.45)" : "rgba(255,0,92,0.38)"}`,
+                  }}>
+                    <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.3rem", fontWeight: 900, color: r === "W" ? "#22c55e" : "#ff005c" }}>{r}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+          {/* Elo progress bar */}
+          {!isElim && (() => {
+            const band = TIER_BAND[player.tier ?? "Bronze"] ?? { min: 800, max: 1000 };
+            const pct  = Math.min(100, Math.max(0, ((player.elo - band.min) / (band.max - band.min)) * 100));
+            const col  = TIER_ELO_COLOR[player.tier ?? "Bronze"] ?? "#9ca3af";
+            return (
+              <div style={{ marginTop: "6px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px" }}>
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.45rem", color: "rgba(255,255,255,0.18)", letterSpacing: "0.08em" }}>ELO BAND</span>
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", fontWeight: 700, color: "#0066ff" }}>{player.elo}</span>
+                </div>
+                <div style={{ height: "2px", background: "rgba(255,255,255,0.05)", borderRadius: "1px", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: col, borderRadius: "1px", opacity: 0.6, transition: "width 0.5s ease" }} />
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </Link>
