@@ -6,6 +6,7 @@ import { Swords, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, AlertCirc
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
 import { RulesModal } from "@/components/rules-modal";
 import { MatchStatsCard } from "@/components/match-stats-card";
+import { useCurrentPlayer } from "@/context/auth";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Player = { id: number; name: string; points: number; elo: number; status: string };
@@ -99,6 +100,7 @@ function PlayerSlot({ label, color, value, onChange, exclude, players }: {
 // ── Setup Screen ───────────────────────────────────────────────────────────────
 function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const { data: playersData } = useListPlayers();
+  const currentPlayer         = useCurrentPlayer();
   const [gameTypes, setGameTypes] = useState<GameTypeOption[]>([]);
   const [format, setFormat]       = useState<Format>("1v1");
   const [team1Ids, setTeam1Ids]   = useState<string[]>(["", "", ""]);
@@ -123,6 +125,13 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   }, [format]);
 
   const players = (playersData as Player[] | undefined)?.filter(p => p.status === "ACTIVE") ?? [];
+
+  // Auto-default Player 1 slot to logged-in player
+  useEffect(() => {
+    if (!currentPlayer || players.length === 0 || team1Ids[0] !== "") return;
+    const match = players.find(p => p.id === currentPlayer.playerId);
+    if (match) setTeam1Ids(prev => { const n = [...prev]; n[0] = String(match.id); return n; });
+  }, [players.length, currentPlayer?.playerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Collect all selected IDs to prevent duplicates
   const allTeam1 = team1Ids.filter(Boolean);

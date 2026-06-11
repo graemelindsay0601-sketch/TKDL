@@ -3,6 +3,7 @@ import { Target, ArrowRight, CheckCircle, Lock, RotateCcw, Zap, Shield, Flame, T
 import { Master501Scorer } from "@/lib/scorers";
 import { type PracticeStats } from "@/lib/stats-types";
 import { SessionHistorySection } from "@/components/session-history";
+import { useCurrentPlayer } from "@/context/auth";
 
 const M501_TIERS = [
   { tier: 1, name: "Challenger",          color: "#94a3b8", dartLimits: [60, 55, 50] as const },
@@ -63,10 +64,19 @@ export default function Master501() {
   const pendingStatsRef = useRef<PracticeStats | null>(null);
   const matchStartRef   = useRef<number>(Date.now());
 
+  const currentPlayer = useCurrentPlayer();
+
   useEffect(() => {
     fetch("/api/players")
       .then(r => r.json())
-      .then((d: Player[]) => setPlayers(d.filter(p => p.status === "ACTIVE")))
+      .then((d: Player[]) => {
+        const active = d.filter(p => p.status === "ACTIVE");
+        setPlayers(active);
+        if (!playerId && active.length > 0) {
+          const defaultId = currentPlayer ? active.find(p => p.id === currentPlayer.playerId)?.id ?? null : null;
+          setPlayerId(defaultId ?? active[0].id);
+        }
+      })
       .catch(() => {});
     fetch("/api/master501/leaderboard")
       .then(r => r.json())

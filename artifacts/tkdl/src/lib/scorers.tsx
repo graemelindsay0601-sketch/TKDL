@@ -569,6 +569,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [turn, setTurn]         = useState<0|1>(0);
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
   const [lastHit, setLastHit]   = useState<string>("");
+  const [snapHistory, setSnapHistory] = useState<{marks: [[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]], scores: [number,number], turn: 0|1, visitDarts: Dart[]}[]>([]);
 
   const names = [p1Name, p2Name];
 
@@ -585,6 +586,13 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
 
   const handleDart = useCallback((dart: Dart) => {
     if (visitDarts.length >= 3) return;
+    // Snapshot full state before this dart — enables per-dart AND cross-visit undo
+    setSnapHistory(prev => [...prev, {
+      marks: [marks[0].slice() as [number,number,number,number,number,number,number], marks[1].slice() as [number,number,number,number,number,number,number]],
+      scores: [...scores] as [number,number],
+      turn,
+      visitDarts: [...visitDarts],
+    }]);
     // Cricket No Bull: bull hits are treated as misses
     if (!includesBull && dart.segment === 25) {
       const nv = [...visitDarts, dart];
@@ -646,10 +654,19 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         return m;
       });
     }, 50);
-  }, [visitDarts, turn, cutThroat, includesBull, numCount, onWin]);
+  }, [visitDarts, turn, marks, scores, cutThroat, includesBull, numCount, onWin]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
-  const handleUndo = () => { if (visitDarts.length > 0) setVisitDarts(prev => prev.slice(0,-1)); };
+  const handleUndo = () => {
+    if (snapHistory.length === 0) return;
+    const snap = snapHistory[snapHistory.length - 1];
+    setMarks(snap.marks);
+    setScores(snap.scores);
+    setTurn(snap.turn);
+    setVisitDarts(snap.visitDarts);
+    setLastHit("");
+    setSnapHistory(prev => prev.slice(0, -1));
+  };
 
   const handleDartRefCri = useRef(handleDart);
   useEffect(() => { handleDartRefCri.current = handleDart; });
@@ -747,6 +764,7 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
   const [turn, setTurn]             = useState<0|1>(0);
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
   const [msg, setMsg]               = useState("");
+  const [snapHistory, setSnapHistory] = useState<{killerNums: [number|null,number|null], isKiller: [boolean,boolean], playerLives: [number,number], turn: 0|1, visitDarts: Dart[]}[]>([]);
   const names = [p1Name, p2Name];
 
   // Bot auto-picks a number during assign phase
@@ -770,6 +788,14 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
 
   const handleDart = useCallback((dart: Dart) => {
     if (visitDarts.length >= 3) return;
+    // Snapshot state before this dart — enables per-dart + cross-visit undo
+    setSnapHistory(prev => [...prev, {
+      killerNums: [...killerNums] as [number|null,number|null],
+      isKiller: [...isKiller] as [boolean,boolean],
+      playerLives: [...playerLives] as [number,number],
+      turn,
+      visitDarts: [...visitDarts],
+    }]);
     const nv = [...visitDarts, dart];
     setVisitDarts(nv);
 
@@ -797,10 +823,20 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
     }
 
     if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); }
-  }, [visitDarts, turn, killerNums, isKiller, names, onWin]);
+  }, [visitDarts, turn, killerNums, isKiller, playerLives, names, onWin]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
-  const handleUndo = () => { if (visitDarts.length > 0) setVisitDarts(prev => prev.slice(0,-1)); };
+  const handleUndo = () => {
+    if (snapHistory.length === 0) return;
+    const snap = snapHistory[snapHistory.length - 1];
+    setKillerNums(snap.killerNums);
+    setIsKiller(snap.isKiller);
+    setLives(snap.playerLives);
+    setTurn(snap.turn);
+    setVisitDarts(snap.visitDarts);
+    setMsg("");
+    setSnapHistory(prev => prev.slice(0, -1));
+  };
 
   const handleDartRefKill = useRef(handleDart);
   useEffect(() => { handleDartRefKill.current = handleDart; });
@@ -2065,6 +2101,7 @@ export function ShootingGalleryScorer({ p1Name, p2Name, onWin, onAbandon, onPrac
   const [roundTarget,setRoundTarget] = useState(rng);
   const [remain,setRemain]           = useState(()=>roundTarget);
   const [msg,setMsg]                 = useState("");
+  const [sgHistory,setSgHistory]     = useState<{remain:number,dartCount:number}[]>([]);
   const names=[p1Name,p2Name];
 
   const nextPlayer=useCallback((dartsUsed:number)=>{
@@ -2087,11 +2124,20 @@ export function ShootingGalleryScorer({ p1Name, p2Name, onWin, onAbandon, onPrac
   const handleDart=useCallback((dart:Dart)=>{
     const dc=dartCount+1;
     const nr=remain-dart.value;
-    if(nr===0&&dart.multiplier===2){setMsg(`Checkout in ${dc}! 🎯`);setTimeout(()=>setMsg(""),2000);nextPlayer(dc);return;}
-    if(nr<0||nr===1){setMsg("Bust! +10");setTimeout(()=>setMsg(""),1500);nextPlayer(10);return;}
+    if(nr===0&&dart.multiplier===2){setSgHistory([]);setMsg(`Checkout in ${dc}! 🎯`);setTimeout(()=>setMsg(""),2000);nextPlayer(dc);return;}
+    if(nr<0||nr===1){setSgHistory([]);setMsg("Bust! +10");setTimeout(()=>setMsg(""),1500);nextPlayer(10);return;}
+    setSgHistory(prev=>[...prev,{remain,dartCount}]);
     setRemain(nr);setDartCount(dc);
-    if(dc>=9){nextPlayer(10);}
+    if(dc>=9){setSgHistory([]);nextPlayer(10);}
   },[dartCount,remain,nextPlayer]);
+
+  const handleSgUndo=()=>{
+    if(sgHistory.length===0)return;
+    const prev=sgHistory[sgHistory.length-1];
+    setRemain(prev.remain);
+    setDartCount(prev.dartCount);
+    setSgHistory(h=>h.slice(0,-1));
+  };
 
   return (
     <ScorerLayout
@@ -2111,7 +2157,7 @@ export function ShootingGalleryScorer({ p1Name, p2Name, onWin, onAbandon, onPrac
         <TurnBanner name={names[half]} turn={half} msg="— checkout on a double!"/>
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={()=>{}}/>
+        <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={handleSgUndo}/>
         <AbandonBtn onAbandon={onAbandon}/>
       </div>}
     />
