@@ -977,9 +977,12 @@ function UserAccountsManager({ players }: { players: any[] | undefined }) {
   const [creatingNew, setCreatingNew]       = useState(false);
   const queryClient                         = useQueryClient();
 
+  const adminPin = () => sessionStorage.getItem("tkdl_admin_pin") ?? "";
+  const adminHeaders = () => ({ "Content-Type": "application/json", "x-admin-pin": adminPin() });
+
   const load = async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/users", { credentials: "include" });
+    const res = await fetch("/api/admin/users", { credentials: "include", headers: { "x-admin-pin": adminPin() } });
     if (res.ok) setAccounts(await res.json());
     setLoading(false);
   };
@@ -991,7 +994,7 @@ function UserAccountsManager({ players }: { players: any[] | undefined }) {
     setCreating(true);
     const res = await fetch("/api/admin/users", {
       method: "POST", credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: adminHeaders(),
       body: JSON.stringify({ playerId: Number(createPlayerId), password: createPwd, isAdmin: createIsAdmin }),
     });
     const data = await res.json();
@@ -1012,7 +1015,7 @@ function UserAccountsManager({ players }: { players: any[] | undefined }) {
     setResetting(userId);
     const res = await fetch(`/api/admin/users/${userId}/reset-password`, {
       method: "POST", credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: adminHeaders(),
       body: JSON.stringify({ password: pwd }),
     });
     const data = await res.json();
@@ -1042,7 +1045,7 @@ function UserAccountsManager({ players }: { players: any[] | undefined }) {
     }
     const userRes = await fetch("/api/admin/users", {
       method: "POST", credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: adminHeaders(),
       body: JSON.stringify({ playerId: playerData.id, password: newPwd, isAdmin: newIsAdmin }),
     });
     const userData = await userRes.json();

@@ -96,7 +96,13 @@ router.patch("/auth/password", async (req, res): Promise<void> => {
 });
 
 // ── Admin auth guard ──────────────────────────────────────────────────────────
+// Accepts EITHER a valid admin session OR the X-Admin-Pin header (same PIN
+// used by the admin UI and by the seasons routes).
+const ADMIN_PIN = process.env.ADMIN_PIN ?? "0601";
 function requireAdmin(req: any, res: any): boolean {
+  const pinHeader = req.headers["x-admin-pin"];
+  if (pinHeader && pinHeader === ADMIN_PIN) return true;
+
   const userId = (req.session as any).userId;
   const isAdmin = (req.session as any).isAdmin;
   if (!userId || !isAdmin) {
