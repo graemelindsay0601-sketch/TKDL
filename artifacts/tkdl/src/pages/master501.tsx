@@ -32,7 +32,8 @@ function getConfig(tier: number, round: number) {
 type Player  = { id: number; name: string; status: string };
 type Progress = { currentTier: number; currentRound: number; config: ReturnType<typeof getConfig> };
 type StartCfg = NonNullable<ReturnType<typeof getConfig>>;
-type Phase   = "lobby" | "playing" | "result";
+type Phase   = "lobby" | "bullup" | "playing" | "result";
+type BullResult = { playerScore: number; botScore: number; playerFirst: boolean } | null;
 
 const SITE_BG: React.CSSProperties = {
   backgroundImage: "linear-gradient(rgba(4,4,10,0.84), rgba(4,4,10,0.92)), url('https://i.postimg.cc/Bbf9fbrp/pdc1.jpg')",
@@ -60,6 +61,7 @@ export default function Master501() {
   const [loading,     setLoading]     = useState(false);
   const [lastStats,   setLastStats]   = useState<PracticeStats | null>(null);
   const [lbRows,      setLbRows]      = useState<LbRow[]>([]);
+  const [bullResult,  setBullResult]  = useState<BullResult>(null);
 
   const pendingStatsRef = useRef<PracticeStats | null>(null);
   const matchStartRef   = useRef<number>(Date.now());
@@ -104,9 +106,19 @@ export default function Master501() {
       const data = await res.json();
       setRunId(data.runId);
       setStartCfg(data.config as StartCfg);
-      setPhase("playing");
+      setBullResult(null);
+      setPhase("bullup");
     } catch { /* ignore */ }
     finally { setLoading(false); }
+  };
+
+  // Random bot bull score weighted toward realistic outcomes
+  const handleBullThrow = (playerScore: number) => {
+    const BOT_POOL = [50, 50, 25, 25, 25, 20, 18, 16, 14, 11, 9, 7, 5, 3, 1, 0];
+    const botScore = BOT_POOL[Math.floor(Math.random() * BOT_POOL.length)];
+    const playerFirst = playerScore >= botScore;
+    setBullResult({ playerScore, botScore, playerFirst });
+    setTimeout(() => { setBullResult(null); setPhase("playing"); }, 3000);
   };
 
   const handleMatchResult = async (result: "win" | "loss", legsWon: number, legsLost: number) => {
@@ -238,6 +250,127 @@ export default function Master501() {
             {won ? "NEXT LEVEL" : "TRY AGAIN"}
           </button>
         </div>
+      </div>
+    );
+  }
+
+  // ── BULL UP ────────────────────────────────────────────────────────────────
+  if (phase === "bullup" && startCfg) {
+    const playerName = players.find(p => p.id === playerId)?.name ?? "Player";
+    const threw = bullResult !== null;
+
+    const ScoreLabel = ({ score }: { score: number }) => {
+      if (score === 50) return <><span style={{ color: "#ff005c" }}>BULL</span> <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.8em" }}>50</span></>;
+      if (score === 25) return <><span style={{ color: "#ffd24a" }}>OUTER BULL</span> <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.8em" }}>25</span></>;
+      if (score === 0)  return <span style={{ color: "rgba(255,255,255,0.3)" }}>MISS</span>;
+      return <><span style={{ color: "rgba(255,255,255,0.7)" }}>{score}</span></>;
+    };
+
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4" style={SITE_BG}>
+        <div className="w-full max-w-sm space-y-6">
+
+          {/* Header */}
+          <div className="text-center space-y-1">
+            <div className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald,sans-serif", color: startCfg.color, letterSpacing: "0.22em" }}>
+              {startCfg.name} · Master-501
+            </div>
+            <div className="font-black uppercase" style={{ fontFamily: "Oswald,sans-serif", fontSize: "2.4rem", color: "#fff", lineHeight: 1 }}>
+              BULL UP
+            </div>
+            <div className="text-sm" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald,sans-serif" }}>
+              {threw ? "Closest to the bull throws first" : "Throw for the bull to decide who starts"}
+            </div>
+          </div>
+
+          {/* Scoreboard — shown after throw */}
+          {threw && bullResult && (
+            <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${bullResult.playerFirst ? "rgba(34,197,94,0.3)" : "rgba(255,0,92,0.3)"}` }}>
+              {/* Player row */}
+              <div className="flex items-center justify-between px-5 py-4" style={{ background: bullResult.playerFirst ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.03)" }}>
+                <div>
+                  <div className="font-black uppercase text-sm" style={{ fontFamily: "Oswald,sans-serif", color: bullResult.playerFirst ? "#22c55e" : "rgba(255,255,255,0.6)" }}>
+                    {playerName.toUpperCase()}
+                  </div>
+                  {bullResult.playerFirst && (
+                    <div className="text-xs font-black uppercase" style={{ color: "#22c55e", fontFamily: "Oswald,sans-serif", fontSize: "0.55rem", letterSpacing: "0.12em" }}>
+                      ✓ THROWS FIRST
+                    </div>
+                  )}
+                </div>
+                <div className="font-black text-2xl tabular-nums" style={{ fontFamily: "Oswald,sans-serif" }}>
+                  <ScoreLabel score={bullResult.playerScore} />
+                </div>
+              </div>
+
+              <div className="h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+
+              {/* Bot row */}
+              <div className="flex items-center justify-between px-5 py-4" style={{ background: !bullResult.playerFirst ? "rgba(255,0,92,0.08)" : "rgba(255,255,255,0.03)" }}>
+                <div>
+                  <div className="font-black uppercase text-sm" style={{ fontFamily: "Oswald,sans-serif", color: !bullResult.playerFirst ? "#ff005c" : "rgba(255,255,255,0.4)" }}>
+                    THE MACHINE
+                  </div>
+                  {!bullResult.playerFirst && (
+                    <div className="text-xs font-black uppercase" style={{ color: "#ff005c", fontFamily: "Oswald,sans-serif", fontSize: "0.55rem", letterSpacing: "0.12em" }}>
+                      ✓ THROWS FIRST
+                    </div>
+                  )}
+                </div>
+                <div className="font-black text-2xl tabular-nums" style={{ fontFamily: "Oswald,sans-serif" }}>
+                  <ScoreLabel score={bullResult.botScore} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Throw buttons — shown before throw */}
+          {!threw && (
+            <div className="space-y-3">
+              <button
+                onClick={() => handleBullThrow(50)}
+                className="w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95"
+                style={{ fontFamily: "Oswald,sans-serif", background: "rgba(255,0,92,0.12)", border: "2px solid rgba(255,0,92,0.4)", color: "#ff005c", cursor: "pointer", letterSpacing: "0.14em" }}>
+                🎯 BULL &nbsp;<span style={{ color: "rgba(255,255,255,0.35)", fontWeight: 400 }}>50</span>
+              </button>
+              <button
+                onClick={() => handleBullThrow(25)}
+                className="w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-95"
+                style={{ fontFamily: "Oswald,sans-serif", background: "rgba(255,210,74,0.08)", border: "2px solid rgba(255,210,74,0.3)", color: "#ffd24a", cursor: "pointer", letterSpacing: "0.14em" }}>
+                ⭕ OUTER BULL &nbsp;<span style={{ color: "rgba(255,255,255,0.35)", fontWeight: 400 }}>25</span>
+              </button>
+              <button
+                onClick={() => handleBullThrow(0)}
+                className="w-full py-3 rounded-xl font-black uppercase tracking-widest text-sm transition-all active:scale-95"
+                style={{ fontFamily: "Oswald,sans-serif", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.3)", cursor: "pointer", letterSpacing: "0.14em" }}>
+                ✗ MISS
+              </button>
+            </div>
+          )}
+
+          {/* Loading bar — auto-advances after throw */}
+          {threw && (
+            <div className="space-y-2 text-center">
+              <div className="text-xs font-black uppercase" style={{ fontFamily: "Oswald,sans-serif", color: "rgba(255,255,255,0.25)", letterSpacing: "0.12em" }}>
+                Starting match…
+              </div>
+              <div className="w-full rounded-full overflow-hidden" style={{ height: 3, background: "rgba(255,255,255,0.07)" }}>
+                <div className="h-full rounded-full" style={{ background: startCfg.color, animation: "fill-bar 3s linear forwards", width: "0%" }} />
+              </div>
+            </div>
+          )}
+
+          {/* Abandon link */}
+          {!threw && (
+            <div className="text-center">
+              <button onClick={() => setPhase("lobby")} className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald,sans-serif", background: "none", border: "none", cursor: "pointer" }}>
+                ← Back to lobby
+              </button>
+            </div>
+          )}
+        </div>
+
+        <style>{`@keyframes fill-bar { from { width: 0% } to { width: 100% } }`}</style>
       </div>
     );
   }
