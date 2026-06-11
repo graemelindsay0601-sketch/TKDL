@@ -34,6 +34,18 @@ function EloSparkline({ history }: { history: { elo: number }[] }) {
   );
 }
 
+const RARITY_GS: Record<string, number> = { Common: 10, Rare: 25, Epic: 50, Legendary: 100, Mythic: 200 };
+function gamerscoreForRarity(rarity?: string): number { return RARITY_GS[rarity ?? ""] ?? 10; }
+const RARITY_COL: Record<string, string> = {
+  Common: "#9ca3af", Rare: "#3b82f6", Epic: "#a855f7", Legendary: "#ffd24a", Mythic: "#ff005c",
+};
+const CATEGORY_CFG: Record<string, { label: string; accent: string; emoji: string }> = {
+  Career:   { label: "Career",   accent: "#ff005c", emoji: "🏆" },
+  Tier:     { label: "Tier",     accent: "#ffd24a", emoji: "🎖"  },
+  Rank:     { label: "Rank",     accent: "#a855f7", emoji: "👑"  },
+  Seasonal: { label: "Seasonal", accent: "#00e5a0", emoji: "⭐"  },
+};
+
 function FormDot({ result }: { result: "W" | "L" }) {
   return (
     <div className="w-5 h-5 rounded-full flex items-center justify-center"
@@ -98,6 +110,7 @@ export default function AccountPage() {
   const [titleList,    setTitleList]    = useState<any[]>([]);
   const [titleSaving,  setTitleSaving]  = useState(false);
   const [titleFilter,  setTitleFilter]  = useState<string>("earned");
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(["Career"]));
 
   useEffect(() => {
     if (!user?.playerId) return;
@@ -206,9 +219,30 @@ export default function AccountPage() {
   [achProgress]);
 
   const achTotals = useMemo(() => ({
-    total:    (achProgress as any[]).length,
-    unlocked: (achProgress as any[]).filter(a => a.isUnlocked).length,
+    total:    (achProgress as any[]).filter(a => !(a.key ?? "").startsWith("M501_")).length,
+    unlocked: (achProgress as any[]).filter(a => !(a.key ?? "").startsWith("M501_") && a.isUnlocked).length,
   }), [achProgress]);
+
+  const achProgressMap = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const a of achProgress) if (a.key) m.set(a.key, a);
+    return m;
+  }, [achProgress]);
+
+  const achByCategory = useMemo(() => {
+    const cats = new Map<string, any[]>();
+    for (const a of achProgress) {
+      if ((a.key ?? "").startsWith("M501_")) continue;
+      const cat = a.category ?? "Career";
+      if (!cats.has(cat)) cats.set(cat, []);
+      cats.get(cat)!.push(a);
+    }
+    const ORDER = ["Career", "Tier", "Rank", "Seasonal"];
+    const result: { category: string; achievements: any[] }[] = [];
+    for (const cat of ORDER) if (cats.has(cat)) result.push({ category: cat, achievements: cats.get(cat)! });
+    for (const [cat, achs] of cats) if (!ORDER.includes(cat)) result.push({ category: cat, achievements: achs });
+    return result;
+  }, [achProgress]);
 
   const activeRuns = useMemo(() => (tourRuns as any[]).filter(r => r.status === "active"), [tourRuns]);
 
@@ -715,7 +749,7 @@ export default function AccountPage() {
                   )}
                 </div>
                 {a.isUnlocked ? (
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "#00e5a0", fontWeight: 700, flexShrink: 0 }}>{a.gamerscore ?? 0}G</span>
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "#00e5a0", fontWeight: 700, flexShrink: 0 }}>{gamerscoreForRarity(a.rarity)}G</span>
                 ) : (a.currentProgress ?? 0) > 0 && a.criteriaValue != null ? (
                   <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "rgba(255,255,255,0.22)", fontWeight: 700, flexShrink: 0 }}>
                     {a.currentProgress}/{a.criteriaValue}
@@ -920,13 +954,17 @@ export default function AccountPage() {
         )}
       </SectionCard>
 
-      {/* ── Achievements ─────────────────────────────────────── */}
-      <SectionCard title="Achievements" icon={Award} accent="#a855f7">
+      {/* ── My Achievements Portal ───────────────────────────── */}
+      <SectionCard title="My Achievements" icon={Award} accent="#a855f7" collapsible>
         <div className="space-y-4">
+
+          {/* Overall progress */}
           {achTotals.total > 0 && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.15em", color: "rgba(255,255,255,0.18)", textTransform: "uppercase" }}>Total Progress</span>
+                <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.15em", color: "rgba(255,255,255,0.18)", textTransform: "uppercase" }}>
+                  League Achievements
+                </span>
                 <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.8rem", fontWeight: 900,
                   color: achTotals.unlocked === achTotals.total && achTotals.total > 0 ? "#ffd24a" : "#a855f7" }}>
                   {achTotals.unlocked} / {achTotals.total}
@@ -940,69 +978,137 @@ export default function AccountPage() {
             </div>
           )}
 
-          {unlockedAchievements.length > 0 && (
-            <div>
-              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.15em",
-                color: "rgba(255,255,255,0.18)", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-                Recently Unlocked
-              </div>
-              <div className="space-y-1.5">
-                {unlockedAchievements.slice(0, 5).map((a: any) => (
-                  <div key={a.key ?? a.id} className="flex items-center gap-2.5 px-3 py-2 rounded-xl"
-                    style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.14)" }}>
-                    <span style={{ fontSize: "1rem" }}>{a.icon ?? "🏆"}</span>
-                    <div className="flex-1 min-w-0">
-                      <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", color: "#fff", letterSpacing: "0.04em" }}>{a.name}</div>
-                      <div style={{ fontSize: "0.56rem", color: "rgba(255,255,255,0.28)", marginTop: "1px" }} className="truncate">{a.description}</div>
-                    </div>
-                    <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", color: "#ffd24a", fontWeight: 700, flexShrink: 0 }}>
-                      {a.gamerscore ?? a.points ?? 0}G
-                    </div>
+          {/* Expandable category rows */}
+          {achByCategory.length > 0 ? (
+            <div className="space-y-1.5">
+              {achByCategory.map(({ category, achievements }) => {
+                const cfg   = CATEGORY_CFG[category] ?? { label: category, accent: "#9ca3af", emoji: "🎯" };
+                const total = achievements.length;
+                const done  = achievements.filter(a => a.isUnlocked).length;
+                const gs    = achievements.filter(a => a.isUnlocked).reduce((s, a) => s + gamerscoreForRarity(a.rarity), 0);
+                const open  = expandedCats.has(category);
+                const toggle = () => setExpandedCats(prev => {
+                  const next = new Set(prev);
+                  open ? next.delete(category) : next.add(category);
+                  return next;
+                });
+                const sorted = [...achievements].sort((a, b) => {
+                  if (a.isUnlocked !== b.isUnlocked) return a.isUnlocked ? -1 : 1;
+                  const ap = (a.currentProgress ?? 0) / (a.criteriaValue ?? 1);
+                  const bp = (b.currentProgress ?? 0) / (b.criteriaValue ?? 1);
+                  return bp - ap;
+                });
+                return (
+                  <div key={category} className="rounded-xl overflow-hidden"
+                    style={{ border: `1px solid ${open ? cfg.accent + "30" : "rgba(255,255,255,0.06)"}`,
+                      background: open ? `${cfg.accent}08` : "rgba(255,255,255,0.02)", transition: "border-color 0.2s" }}>
+
+                    {/* Category header */}
+                    <button onClick={toggle} className="w-full flex items-center gap-2.5 px-3 py-2.5"
+                      style={{ borderBottom: open ? `1px solid ${cfg.accent}18` : undefined }}>
+                      <span style={{ fontSize: "0.9rem" }}>{cfg.emoji}</span>
+                      <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", fontWeight: 700,
+                        letterSpacing: "0.08em", color: open ? "#fff" : "rgba(255,255,255,0.55)", flex: 1, textAlign: "left" }}>
+                        {cfg.label}
+                      </span>
+                      <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "rgba(255,255,255,0.3)", marginRight: "6px" }}>
+                        {done}/{total}
+                      </span>
+                      {gs > 0 && (
+                        <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", fontWeight: 800,
+                          color: cfg.accent, marginRight: "6px" }}>{gs}G</span>
+                      )}
+                      {open
+                        ? <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: cfg.accent }} />
+                        : <ChevronRight className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.2)" }} />}
+                    </button>
+
+                    {/* Achievement list */}
+                    {open && (
+                      <div className="p-2 space-y-1">
+                        {sorted.map((a: any) => {
+                          const pct       = a.criteriaValue > 0 ? Math.min(100, Math.round(((a.currentProgress ?? 0) / a.criteriaValue) * 100)) : 0;
+                          const hasProgress = !a.isUnlocked && (a.currentProgress ?? 0) > 0 && a.criteriaValue != null;
+                          const isClose   = !a.isUnlocked && pct >= 60;
+                          const gs        = gamerscoreForRarity(a.rarity);
+                          const rCol      = RARITY_COL[a.rarity] ?? "#9ca3af";
+                          return (
+                            <div key={a.key ?? a.id}
+                              className="flex items-start gap-2.5 px-2.5 py-2 rounded-lg"
+                              style={{
+                                background: a.isUnlocked ? `${cfg.accent}0a` : isClose ? "rgba(245,158,11,0.05)" : "rgba(255,255,255,0.02)",
+                                border: `1px solid ${a.isUnlocked ? cfg.accent + "25" : isClose ? "rgba(245,158,11,0.2)" : "rgba(255,255,255,0.04)"}`,
+                              }}>
+                              <span style={{ fontSize: "0.95rem", marginTop: "1px",
+                                filter: a.isUnlocked ? "none" : "grayscale(1) opacity(0.35)", flexShrink: 0 }}>{a.icon ?? "🏆"}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 mb-0.5">
+                                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem",
+                                    letterSpacing: "0.04em",
+                                    color: a.isUnlocked ? "#fff" : isClose ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.32)" }}>
+                                    {a.name}
+                                  </span>
+                                  <span style={{ fontSize: "0.44rem", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em",
+                                    color: rCol, border: `1px solid ${rCol}55`, borderRadius: 4, padding: "1px 4px",
+                                    opacity: a.isUnlocked ? 1 : 0.5, flexShrink: 0 }}>
+                                    {a.rarity?.toUpperCase()}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: "0.55rem", color: a.isUnlocked ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.2)",
+                                  lineHeight: 1.3, marginBottom: hasProgress ? "5px" : 0 }}>
+                                  {a.description}
+                                </div>
+                                {hasProgress && (
+                                  <div>
+                                    <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+                                      <div style={{ height: "100%", borderRadius: 2, transition: "width 0.6s ease",
+                                        width: `${pct}%`,
+                                        background: pct >= 80
+                                          ? "linear-gradient(90deg, #22c55e, rgba(34,197,94,0.5))"
+                                          : isClose
+                                            ? "linear-gradient(90deg, #f59e0b, rgba(245,158,11,0.45))"
+                                            : "linear-gradient(90deg, rgba(255,255,255,0.25), rgba(255,255,255,0.1))" }} />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex flex-col items-end gap-0.5 shrink-0" style={{ minWidth: "36px" }}>
+                                {a.isUnlocked ? (
+                                  <>
+                                    <CheckCircle className="w-3.5 h-3.5" style={{ color: cfg.accent }} />
+                                    <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "#ffd24a", fontWeight: 700 }}>{gs}G</span>
+                                  </>
+                                ) : hasProgress ? (
+                                  <>
+                                    <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: isClose ? "#f59e0b" : "rgba(255,255,255,0.2)", fontWeight: 700 }}>
+                                      {a.currentProgress}/{a.criteriaValue}
+                                    </span>
+                                    <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.15)" }}>{gs}G</span>
+                                  </>
+                                ) : (
+                                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.12)" }}>{gs}G</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          )}
-
-          {nearMissAchievements.length > 0 && (
-            <div>
-              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.15em",
-                color: "rgba(255,255,255,0.18)", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-                In Progress
-              </div>
-              <div className="space-y-2">
-                {nearMissAchievements.map((a: any) => {
-                  const pct = Math.round((a.currentProgress / a.criteriaValue) * 100);
-                  return (
-                    <div key={a.key ?? a.id}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.55)" }}>{a.icon ?? "🎯"} {a.name}</span>
-                        <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "#f59e0b", fontWeight: 700 }}>
-                          {a.currentProgress}/{a.criteriaValue}
-                        </span>
-                      </div>
-                      <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
-                        <div style={{ height: "100%", borderRadius: 2, width: `${pct}%`, transition: "width 0.8s ease",
-                          background: pct >= 80 ? "linear-gradient(90deg, #22c55e, rgba(34,197,94,0.5))" : "linear-gradient(90deg, #f59e0b, rgba(245,158,11,0.45))" }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {unlockedAchievements.length === 0 && nearMissAchievements.length === 0 && (
+          ) : achProgress.length === 0 ? (
             <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
               No achievements yet — play some matches to get started
             </div>
-          )}
+          ) : null}
 
           <div className="pt-1 border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
             <Link href="/achievements"
               className="flex items-center gap-1.5 transition-opacity hover:opacity-70 pt-2"
               style={{ color: "rgba(168,85,247,0.6)", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.1em" }}>
-              View all{achTotals.total > 0 ? ` ${achTotals.total}` : ""} achievements
+              View full achievement list
               <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
