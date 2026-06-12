@@ -315,11 +315,32 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
 
     streamRef.current = stream;
     const video = videoRef.current;
-    if (video) {
-      video.srcObject = stream;
-      // play() can throw on iOS if autoPlay already handled it — that's fine
-      try { await video.play(); } catch { /* autoPlay + playsInline handles it on iOS */ }
+    if (!video) {
+      stream.getTracks().forEach(t => t.stop());
+      setStatus('off');
+      setError('Video element not ready. Please try again.');
+      return;
     }
+
+    video.srcObject = stream;
+
+    // On iOS, explicit play() called after an awaited async call breaks the
+    // user-gesture chain and is silently refused. Instead we rely on the
+    // autoPlay + playsInline + muted attributes on the <video> element and
+    // wait for the 'playing' event with a timeout fallback.
+    await new Promise<void>((resolve) => {
+      const onPlaying = () => { video.removeEventListener('playing', onPlaying); resolve(); };
+      video.addEventListener('playing', onPlaying);
+
+      // Fallback: if playing never fires (e.g. stream attached but not started),
+      // try play() once and resolve regardless after a short delay.
+      setTimeout(() => {
+        video.removeEventListener('playing', onPlaying);
+        video.play().catch(() => { /* ignore — autoPlay should cover it */ });
+        resolve();
+      }, 1500);
+    });
+
     setCameraActive(true);
     setStatus('waiting');
     captureIntervalRef.current = setInterval(runTick, CAPTURE_INTERVAL_MS);

@@ -9,5 +9,6 @@
 - [Dartboard animation](dartboard-animation.md) — DartBoardProvider context in dartboard-bg.tsx; ScorerLayout wraps provider+board; hitDart called in DartInputBoard.fire()
 - [Tour system](tour-system.md) — 61 tours/6 tiers fully seeded; player_tour_runs/trophies/achievements tables raw SQL; bracketEngine.ts generates KO+PL brackets with bot personas
 - [Auto-scorer system](auto-scorer.md) — camera+CV scorer: useAutoScorer hook, CameraOverlay component, scorer-camera.tsx page (/scorer/camera), SSE session relay (scorer.ts), admin feature flags (auto_scorer_enabled, auto_scorer_test_only)
+- [iOS camera play() quirk](ios-camera-play.md) — never call video.play() after awaited getUserMedia on iOS; use autoPlay attr + 'playing' event instead
 - [practice_sessions schema](practice-sessions-schema.md) — player column is player1_id (not player_id); 180s column is p1_180s; always filter WHERE player1_id IS NOT NULL for per-player aggregates
 - [Shadow Bot detail page](shadow-bot-detail.md) — /shadow-bot/:id page, match tracking via session_data.shadowPlayerId, darksNeeded typo fixed, player profile link updated

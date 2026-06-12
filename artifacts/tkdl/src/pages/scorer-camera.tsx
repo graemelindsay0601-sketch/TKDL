@@ -408,20 +408,33 @@ function GameScreen({ p1Name, p2Name, startScore, onBack }: {
             detectedDarts={pendingDarts ?? detectedDarts}
           />
         ) : (
-          <div className="w-full rounded-xl flex flex-col items-center justify-center gap-3" style={{ aspectRatio: '16/9', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            {error ? (
+          <div className="w-full rounded-xl flex flex-col items-center justify-center gap-3" style={{ aspectRatio: '16/9', background: 'rgba(255,255,255,0.03)', border: `1px solid ${error ? 'rgba(255,0,92,0.25)' : 'rgba(255,255,255,0.08)'}` }}>
+            {status === 'starting' ? (
+              <>
+                <div className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'rgba(0,212,255,0.5)', borderTopColor: 'transparent' }} />
+                <div className="text-xs font-bold uppercase tracking-widest" style={{ color: 'rgba(0,212,255,0.7)', fontFamily: 'Oswald, sans-serif' }}>Opening camera…</div>
+                <div className="text-xs text-center px-6" style={{ color: 'rgba(255,255,255,0.25)' }}>Allow camera access if prompted</div>
+              </>
+            ) : error ? (
               <>
                 <AlertTriangle className="w-8 h-8" style={{ color: '#ff005c' }} />
-                <div className="text-xs text-center px-4" style={{ color: 'rgba(255,255,255,0.4)' }}>{error}</div>
+                <div className="text-xs text-center px-4" style={{ color: 'rgba(255,100,100,0.8)' }}>{error}</div>
+                <button onClick={() => void startCamera()}
+                  className="px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider"
+                  style={{ background: 'rgba(255,0,92,0.12)', border: '1px solid rgba(255,0,92,0.35)', color: '#ff005c' }}>
+                  Try Again
+                </button>
               </>
             ) : (
-              <Camera className="w-10 h-10" style={{ color: 'rgba(255,255,255,0.2)' }} />
+              <>
+                <Camera className="w-10 h-10" style={{ color: 'rgba(255,255,255,0.2)' }} />
+                <button onClick={() => void startCamera()}
+                  className="px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider"
+                  style={{ background: 'rgba(0,212,255,0.15)', border: '1px solid rgba(0,212,255,0.4)', color: '#00d4ff' }}>
+                  Open Camera
+                </button>
+              </>
             )}
-            <button onClick={() => void startCamera()}
-              className="px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider"
-              style={{ background: 'rgba(0,212,255,0.15)', border: '1px solid rgba(0,212,255,0.4)', color: '#00d4ff' }}>
-              Open Camera
-            </button>
           </div>
         )}
       </div>
