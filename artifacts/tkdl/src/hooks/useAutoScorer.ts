@@ -277,20 +277,52 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
     if (cameraActive) return;
     setStatus('starting');
     setError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
-      streamRef.current = stream;
-      const video = videoRef.current;
-      if (video) { video.srcObject = stream; await video.play(); }
-      setCameraActive(true);
-      setStatus('waiting');
-      captureIntervalRef.current = setInterval(runTick, CAPTURE_INTERVAL_MS);
-    } catch (err) {
-      setStatus('off');
-      setError(err instanceof Error ? err.message : 'Camera unavailable');
+
+    // iOS Safari rejects getUserMedia if it can't satisfy all constraints at once.
+    // Try progressively simpler sets so we always get a stream if permission is granted.
+    const constraintSets: MediaStreamConstraints[] = [
+      { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+      { video: { facingMode: 'environment' } },
+      { video: true },
+    ];
+
+    let stream: MediaStream | null = null;
+    let lastErr: unknown;
+
+    for (const constraints of constraintSets) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        break;
+      } catch (err) {
+        lastErr = err;
+        // User denied permission — no point trying simpler constraints
+        if (err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) break;
+      }
     }
+
+    if (!stream) {
+      setStatus('off');
+      const err = lastErr;
+      if (err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) {
+        setError('Camera permission denied. Please allow camera access in your browser settings.');
+      } else if (err instanceof DOMException && err.name === 'NotFoundError') {
+        setError('No camera found on this device.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Camera unavailable');
+      }
+      return;
+    }
+
+    streamRef.current = stream;
+    const video = videoRef.current;
+    if (video) {
+      video.srcObject = stream;
+      // play() can throw on iOS if autoPlay already handled it — that's fine
+      try { await video.play(); } catch { /* autoPlay + playsInline handles it on iOS */ }
+    }
+    setCameraActive(true);
+    setStatus('waiting');
+    captureIntervalRef.current = setInterval(runTick, CAPTURE_INTERVAL_MS);
   }, [cameraActive, runTick]);
 
   const stopCamera = useCallback(() => {
