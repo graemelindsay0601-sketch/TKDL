@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Camera } from "lucide-react";
+import { Camera, X } from "lucide-react";
 
 export default function ScorerJoin() {
   const [, navigate] = useLocation();
@@ -48,6 +48,15 @@ export default function ScorerJoin() {
         background: 'radial-gradient(ellipse at 30% 20%, rgba(0,212,255,0.08) 0%, transparent 55%), radial-gradient(ellipse at 70% 80%, rgba(255,0,92,0.07) 0%, transparent 55%), #06040e',
         fontFamily: 'Oswald, sans-serif',
       }}>
+
+      {/* Close button */}
+      <button
+        onClick={() => navigate("/")}
+        className="absolute top-4 right-4 p-2 rounded-full transition-all hover:bg-white/10"
+        style={{ color: 'rgba(255,255,255,0.35)' }}>
+        <X className="w-5 h-5" />
+      </button>
+
       <div
         className={`w-80 flex flex-col items-center gap-6 p-8 rounded-2xl ${shake ? 'animate-[shake_0.4s_ease-in-out]' : ''}`}
         style={{

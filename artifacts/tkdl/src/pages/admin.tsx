@@ -513,10 +513,10 @@ function FeatureFlags() {
 
           {autoScorerEnabled && (
             <div className="flex gap-2 pt-1">
-              <a href="/practice"
+              <a href="/scorer/camera"
                 className="flex-1 py-2 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
                 style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.25)", color: "#00d4ff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
-                <Camera className="inline w-3 h-3 mr-1" />Test in Practice →
+                <Camera className="inline w-3 h-3 mr-1" />Camera Scorer →
               </a>
               <a href="/scorer/join"
                 className="flex-1 py-2 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
