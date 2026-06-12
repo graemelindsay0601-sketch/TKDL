@@ -38,8 +38,8 @@ const ANALYSIS_W = 320;    // downsampled width for frame analysis
 const ANALYSIS_H = 240;
 const MOTION_THRESHOLD = 12;      // mean pixel diff to declare motion
 const DART_DIFF_THRESHOLD = 25;   // pixel diff to consider a dart-changed pixel
-const MIN_DART_WEIGHT = 1200;     // minimum weighted diff signal to count as dart
-const SETTLE_MS = 700;            // ms of low motion before we analyse dart position
+const MIN_DART_WEIGHT = 200;      // minimum weighted diff signal to count as dart (inside board only)
+const SETTLE_MS = 1500;           // ms of low motion before we analyse dart position
 const CAPTURE_INTERVAL_MS = 300;
 
 // ── Board geometry ─────────────────────────────────────────────────────────────
@@ -95,14 +95,27 @@ function computeMeanDiff(a: Uint8ClampedArray, b: Uint8ClampedArray): number {
   return sum / (a.length / 4 * 3);
 }
 
+// Only examine pixels inside the calibrated board circle — anything outside
+// the ring is not a dart landing, so we ignore it entirely.
 function findCentroid(
   before: Uint8ClampedArray,
   after: Uint8ClampedArray,
   w: number, h: number,
+  boardRadiusFraction: number,
 ): { x: number; y: number; totalWeight: number } | null {
+  const cx = w / 2;
+  const cy = h / 2;
+  const r = Math.min(w, h) * boardRadiusFraction;
+  const rSq = r * r;
+
   let sumX = 0, sumY = 0, total = 0;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
+      // Skip everything outside the board circle
+      const dx = x - cx;
+      const dy = y - cy;
+      if (dx * dx + dy * dy > rSq) continue;
+
       const i = (y * w + x) * 4;
       const wt = (Math.abs(after[i] - before[i]) + Math.abs(after[i + 1] - before[i + 1]) + Math.abs(after[i + 2] - before[i + 2])) / 3;
       if (wt > DART_DIFF_THRESHOLD) { sumX += x * wt; sumY += y * wt; total += wt; }
@@ -225,7 +238,7 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
     const video = videoRef.current;
     if (!before || !after || !video) return;
 
-    const centroid = findCentroid(before, after, ANALYSIS_W, ANALYSIS_H);
+    const centroid = findCentroid(before, after, ANALYSIS_W, ANALYSIS_H, radiusFraction);
     if (!centroid) return;
 
     // Scale analysis-canvas coords → native video coords (for overlay)
