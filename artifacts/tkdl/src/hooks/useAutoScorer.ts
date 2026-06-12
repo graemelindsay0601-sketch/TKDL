@@ -38,7 +38,7 @@ const ANALYSIS_W = 320;    // downsampled width for frame analysis
 const ANALYSIS_H = 240;
 const MOTION_THRESHOLD = 12;      // mean pixel diff to declare motion
 const DART_DIFF_THRESHOLD = 25;   // pixel diff to consider a dart-changed pixel
-const MIN_DART_WEIGHT = 200;      // minimum weighted diff signal to count as dart (inside board only)
+const MIN_DART_WEIGHT = 2500;     // minimum weighted diff signal to count as dart (inside board only)
 const SETTLE_MS = 1500;           // ms of low motion before we analyse dart position
 const CAPTURE_INTERVAL_MS = 300;
 
