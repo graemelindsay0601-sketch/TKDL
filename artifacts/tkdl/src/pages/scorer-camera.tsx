@@ -264,7 +264,7 @@ function GameScreen({ p1Name, p2Name, startScore, onBack }: {
     setPendingDarts(darts);
   }, []);
 
-  const { videoRef, cameraActive, startCamera, stopCamera, status, error, radiusFraction, setRadiusFraction, detectedDarts, resetRound, startSession, broadcastEvent } = useAutoScorer({ onDartDetected, onRoundComplete });
+  const { videoRef, cameraActive, startCamera, stopCamera, status, error, radiusFraction, setRadiusFraction, zoomLevel, setZoomLevel, detectedDarts, resetRound, startSession, broadcastEvent } = useAutoScorer({ onDartDetected, onRoundComplete });
 
   // Auto-check bust when 3 darts pending
   useEffect(() => {
@@ -407,14 +407,20 @@ function GameScreen({ p1Name, p2Name, startScore, onBack }: {
             border: `1px solid ${error && !cameraActive ? 'rgba(255,0,92,0.25)' : 'rgba(255,255,255,0.08)'}`,
           }}>
 
-          {/* Video always rendered; invisible until cameraActive */}
+          {/* Video always rendered; invisible until cameraActive.
+              CSS scale provides the visual zoom — detection zoom is handled
+              by cropping the canvas drawImage in useAutoScorer. */}
           <video
             ref={videoRef}
             autoPlay
             playsInline
             muted
             className="absolute inset-0 w-full h-full object-cover"
-            style={{ display: cameraActive ? 'block' : 'none' }}
+            style={{
+              display: cameraActive ? 'block' : 'none',
+              transform: `scale(${zoomLevel})`,
+              transformOrigin: 'center center',
+            }}
           />
 
           {/* Canvas + controls overlay — only when camera is active */}
@@ -424,6 +430,8 @@ function GameScreen({ p1Name, p2Name, startScore, onBack }: {
               status={pendingDarts ? 'settled' : status}
               radiusFraction={radiusFraction}
               onRadiusChange={setRadiusFraction}
+              zoomLevel={zoomLevel}
+              onZoomChange={setZoomLevel}
               detectedDarts={pendingDarts ?? detectedDarts}
             />
           )}

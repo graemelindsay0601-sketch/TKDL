@@ -113,6 +113,8 @@ interface CameraOverlayProps {
   status: AutoScorerStatus;
   radiusFraction: number;
   onRadiusChange: (f: number) => void;
+  zoomLevel: number;
+  onZoomChange: (z: number) => void;
   detectedDarts: DetectedDart[];
 }
 
@@ -124,7 +126,7 @@ const STATUS_LABEL: Record<AutoScorerStatus, string> = {
   settled: '✓ Analysing',
 };
 
-export function CameraOverlay({ videoRef, status, radiusFraction, onRadiusChange, detectedDarts }: CameraOverlayProps) {
+export function CameraOverlay({ videoRef, status, radiusFraction, onRadiusChange, zoomLevel, onZoomChange, detectedDarts }: CameraOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
 
@@ -171,19 +173,43 @@ export function CameraOverlay({ videoRef, status, radiusFraction, onRadiusChange
         </div>
       )}
 
-      {/* Board size adjuster */}
+      {/* Right-side controls: zoom (top) + circle calibration (bottom) */}
       {isOn && (
         <div className="absolute top-3 right-3 flex flex-col items-center gap-1">
-          {[{ label: '+', delta: 0.02 }, { label: '−', delta: -0.02 }].map(({ label, delta }) => (
-            <button
-              key={label}
-              onClick={() => onRadiusChange(radiusFraction + delta)}
-              className="w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center transition-opacity hover:opacity-100 opacity-55"
-              style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff' }}>
-              {label}
-            </button>
-          ))}
-          <div className="text-xs mt-0.5 opacity-40" style={{ color: '#fff', fontFamily: 'Oswald, sans-serif' }}>⊙</div>
+          {/* Zoom */}
+          <button
+            onClick={() => onZoomChange(zoomLevel + 0.25)}
+            className="w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center hover:opacity-100 opacity-70"
+            style={{ background: 'rgba(0,0,0,0.65)', border: '1px solid rgba(0,212,255,0.45)', color: '#00d4ff' }}>
+            +
+          </button>
+          <div className="text-[9px] font-bold leading-none" style={{ color: '#00d4ff', opacity: 0.8, fontFamily: 'Oswald, sans-serif' }}>
+            {zoomLevel.toFixed(1)}×
+          </div>
+          <button
+            onClick={() => onZoomChange(zoomLevel - 0.25)}
+            className="w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center hover:opacity-100 opacity-70"
+            style={{ background: 'rgba(0,0,0,0.65)', border: '1px solid rgba(0,212,255,0.45)', color: '#00d4ff' }}>
+            −
+          </button>
+
+          {/* Divider */}
+          <div className="w-5 h-px my-0.5" style={{ background: 'rgba(255,255,255,0.15)' }} />
+
+          {/* Circle calibration */}
+          <button
+            onClick={() => onRadiusChange(radiusFraction + 0.02)}
+            className="w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center hover:opacity-100 opacity-50"
+            style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.7)' }}>
+            +
+          </button>
+          <div className="text-[9px] leading-none opacity-35" style={{ color: '#fff', fontFamily: 'Oswald, sans-serif' }}>⊙</div>
+          <button
+            onClick={() => onRadiusChange(radiusFraction - 0.02)}
+            className="w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center hover:opacity-100 opacity-50"
+            style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.7)' }}>
+            −
+          </button>
         </div>
       )}
 

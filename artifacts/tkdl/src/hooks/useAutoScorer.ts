@@ -33,6 +33,7 @@ const SECTORS = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9,
 const RING = { bull: 0.037, outerBull: 0.094, tripleInner: 0.582, tripleOuter: 0.63, doubleInner: 0.953 };
 
 const CALIBRATION_KEY = 'tkdl_scorer_radius';
+const ZOOM_KEY = 'tkdl_scorer_zoom';
 const ANALYSIS_W = 320;    // downsampled width for frame analysis
 const ANALYSIS_H = 240;
 const MOTION_THRESHOLD = 12;      // mean pixel diff to declare motion
@@ -135,6 +136,12 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
     catch { return 0.42; }
   });
 
+  const [zoomLevel, setZoomLevelState] = useState<number>(() => {
+    try { const v = Number(localStorage.getItem(ZOOM_KEY)); return v >= 1 ? v : 1; }
+    catch { return 1; }
+  });
+  const zoomRef = useRef<number>(1);
+
   // ── Calibration ────────────────────────────────────────────────────────────
 
   const setRadiusFraction = useCallback((f: number) => {
@@ -142,6 +149,16 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
     setRadiusFractionState(clamped);
     try { localStorage.setItem(CALIBRATION_KEY, String(clamped)); } catch { /* ignore */ }
   }, []);
+
+  const setZoomLevel = useCallback((z: number) => {
+    const clamped = Math.max(1, Math.min(4, Math.round(z * 10) / 10));
+    zoomRef.current = clamped;
+    setZoomLevelState(clamped);
+    try { localStorage.setItem(ZOOM_KEY, String(clamped)); } catch { /* ignore */ }
+  }, []);
+
+  // Sync zoomRef whenever zoomLevel state changes (e.g. on init from localStorage)
+  useEffect(() => { zoomRef.current = zoomLevel; }, [zoomLevel]);
 
   // ── Session / SSE relay ────────────────────────────────────────────────────
 
@@ -189,7 +206,14 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
     canvas.height = ANALYSIS_H;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return null;
-    ctx.drawImage(video, 0, 0, ANALYSIS_W, ANALYSIS_H);
+    // Apply zoom by cropping the centre of the video frame.
+    // At zoom=1 we use the full frame; at zoom=2 we use the centre 50%, etc.
+    const z = zoomRef.current;
+    const sw = video.videoWidth / z;
+    const sh = video.videoHeight / z;
+    const sx = (video.videoWidth - sw) / 2;
+    const sy = (video.videoHeight - sh) / 2;
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, ANALYSIS_W, ANALYSIS_H);
     return ctx.getImageData(0, 0, ANALYSIS_W, ANALYSIS_H).data;
   }, []);
 
@@ -388,6 +412,8 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
     error,
     radiusFraction,
     setRadiusFraction,
+    zoomLevel,
+    setZoomLevel,
     detectedDarts,
     resetRound,
     sessionCode,
