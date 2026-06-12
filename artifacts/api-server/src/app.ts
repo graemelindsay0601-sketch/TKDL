@@ -290,11 +290,15 @@ async function seedSettings() {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
-  const existing = await db.select().from(settingsTable);
-  if (existing.length === 0) {
-    await db.insert(settingsTable).values([{ key: "live_scorer_enabled", value: "false" }]);
-    logger.info("Settings seeded with defaults");
-  }
+  // ON CONFLICT DO NOTHING — preserves any admin-set values
+  await db.execute(sql`
+    INSERT INTO settings (key, value) VALUES
+      ('live_scorer_enabled',   'false'),
+      ('auto_scorer_enabled',   'false'),
+      ('auto_scorer_test_only', 'true')
+    ON CONFLICT (key) DO NOTHING
+  `);
+  logger.info("Settings defaults ensured");
 }
 
 async function seedGameTypes() {

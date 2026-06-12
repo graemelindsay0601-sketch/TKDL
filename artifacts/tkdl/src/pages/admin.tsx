@@ -20,7 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Download, Dumbbell, BarChart3, Star, Pencil, Check } from "lucide-react";
+import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Download, Dumbbell, BarChart3, Star, Pencil, Check, Camera } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 
@@ -430,24 +430,29 @@ const CATEGORIES = ["competitive", "practice", "party"];
 type GameTypeRow = { id: number; key: string; name: string; engine: string; category: string; description: string; config: string; enabled: boolean; sortOrder: number };
 
 function FeatureFlags() {
-  const [liveScorer, setLiveScorer] = useState<boolean | null>(null);
+  const [liveScorer, setLiveScorer]               = useState<boolean | null>(null);
+  const [autoScorerEnabled, setAutoScorerEnabled] = useState<boolean | null>(null);
+  const [autoScorerTest, setAutoScorerTest]       = useState<boolean | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     fetch("/api/settings")
       .then(r => r.ok ? r.json() : {})
-      .then((s: Record<string, unknown>) => setLiveScorer(s.live_scorer_enabled === true))
-      .catch(() => setLiveScorer(false));
+      .then((s: Record<string, unknown>) => {
+        setLiveScorer(s.live_scorer_enabled === true);
+        setAutoScorerEnabled(s.auto_scorer_enabled === true);
+        setAutoScorerTest(s.auto_scorer_test_only !== false);
+      })
+      .catch(() => { setLiveScorer(false); setAutoScorerEnabled(false); setAutoScorerTest(true); });
   }, []);
 
-  const toggle = async (val: boolean) => {
-    setLiveScorer(val);
+  const patchSetting = async (key: string, val: boolean, label: string) => {
     try {
-      await fetch("/api/admin/settings/live_scorer_enabled", {
+      await fetch(`/api/admin/settings/${key}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ value: String(val) }),
       });
-      toast({ title: val ? "Live Scorer enabled" : "Live Scorer hidden", description: val ? "Players can now see the Live Scorer in the nav." : "Live Scorer hidden from all players." });
+      toast({ title: label });
     } catch {
       toast({ title: "Error", description: "Failed to update setting", variant: "destructive" });
     }
@@ -455,27 +460,85 @@ function FeatureFlags() {
 
   return (
     <CollapsibleAdminSection title="Feature Flags" icon={Zap} accent="#a78bfa" borderColor="rgba(167,139,250,0.15)" background="rgba(167,139,250,0.02)" badge={<span className="text-xs font-bold uppercase px-2 py-0.5 rounded-full ml-1" style={{ background: "rgba(167,139,250,0.12)", border: "1px solid rgba(167,139,250,0.3)", color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>Dev</span>}>
-      <div className="px-5 py-4">
+      <div className="px-5 py-4 space-y-5">
+
+        {/* ── Live Scorer ── */}
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.8)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>Live Scorer</div>
             <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Show the in-game scorer in the nav for all players</div>
           </div>
-          <Switch checked={liveScorer === true} onCheckedChange={toggle} disabled={liveScorer === null} />
+          <Switch
+            checked={liveScorer === true}
+            disabled={liveScorer === null}
+            onCheckedChange={val => { setLiveScorer(val); void patchSetting("live_scorer_enabled", val, val ? "Live Scorer enabled" : "Live Scorer hidden"); }}
+          />
         </div>
-        <p className="text-xs mt-3" style={{ color: "rgba(255,255,255,0.15)" }}>
-          Turn on when ready to test. While off, the Live Scorer link is invisible to all players.
-        </p>
-        <div className="flex gap-2 mt-4">
+
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+
+        {/* ── Auto-Scorer ── */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Camera className="w-3.5 h-3.5" style={{ color: "#00d4ff" }} />
+            <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "#00d4ff", fontFamily: "Oswald, sans-serif" }}>Camera Auto-Scorer</span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.8)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>Enable Auto-Scorer</div>
+              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Camera-based dart detection inside scorers</div>
+            </div>
+            <Switch
+              checked={autoScorerEnabled === true}
+              disabled={autoScorerEnabled === null}
+              onCheckedChange={val => { setAutoScorerEnabled(val); void patchSetting("auto_scorer_enabled", val, val ? "Auto-Scorer enabled" : "Auto-Scorer disabled"); }}
+            />
+          </div>
+
+          {autoScorerEnabled && (
+            <div className="flex items-center justify-between pl-3 pr-3 py-2.5 rounded-xl"
+              style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.12)" }}>
+              <div>
+                <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.7)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>Test Mode (Graeme Only)</div>
+                <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)" }}>While on, only you see the 🎯 Auto toggle in scorers</div>
+              </div>
+              <Switch
+                checked={autoScorerTest === true}
+                disabled={autoScorerTest === null}
+                onCheckedChange={val => { setAutoScorerTest(val); void patchSetting("auto_scorer_test_only", val, val ? "Auto-Scorer: test mode (Graeme only)" : "Auto-Scorer: visible to all players"); }}
+              />
+            </div>
+          )}
+
+          {autoScorerEnabled && (
+            <div className="flex gap-2 pt-1">
+              <a href="/practice"
+                className="flex-1 py-2 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
+                style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.25)", color: "#00d4ff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                <Camera className="inline w-3 h-3 mr-1" />Test in Practice →
+              </a>
+              <a href="/scorer/join"
+                className="flex-1 py-2 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
+                style={{ background: "rgba(167,139,250,0.08)", border: "1px solid rgba(167,139,250,0.25)", color: "#a78bfa", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                Test Display →
+              </a>
+            </div>
+          )}
+        </div>
+
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+
+        <div className="flex gap-2">
           <a href="/play"
             className="flex-1 py-2.5 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
             style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.3)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
-            <Swords className="inline w-3.5 h-3.5 mr-1.5" />Test Live Scorer →
+            <Swords className="inline w-3.5 h-3.5 mr-1.5" />Live Scorer →
           </a>
           <a href="/practice"
             className="flex-1 py-2.5 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
             style={{ background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.3)", color: "#a78bfa", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
-            <Dumbbell className="inline w-3.5 h-3.5 mr-1.5" />Test Practice →
+            <Dumbbell className="inline w-3.5 h-3.5 mr-1.5" />Practice →
           </a>
         </div>
       </div>
