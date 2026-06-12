@@ -3,20 +3,26 @@ import { useRef, useState, useCallback, useEffect } from "react";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type AutoScorerStatus =
-  | 'off'       // camera not started
-  | 'starting'  // awaiting getUserMedia permission
-  | 'waiting'   // camera on, board locked, waiting for throw
-  | 'motion'    // motion detected (dart in flight)
-  | 'settled';  // motion stopped, analysis complete
+  | 'off'
+  | 'starting'
+  | 'waiting'
+  | 'motion'
+  | 'settled';
 
 export interface DetectedDart {
   index: 0 | 1 | 2;
-  sector: number;   // 1-20, 25 (outer bull), or 50 (bull)
+  sector: number;
   ring: 'bull' | 'outer_bull' | 'single' | 'triple' | 'double' | 'miss';
   score: number;
-  confidence: number; // 0-1
-  pixelX: number;     // position in native video frame (for overlay)
+  confidence: number;
+  pixelX: number;
   pixelY: number;
+}
+
+export interface DetectedBoard {
+  cx: number;  // board centre x in analysis-frame pixels
+  cy: number;  // board centre y in analysis-frame pixels
+  r: number;   // board radius in analysis-frame pixels
 }
 
 interface UseAutoScorerOptions {
@@ -32,145 +38,260 @@ const SECTORS = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9,
 // Ring boundary as fraction of board radius (real dartboard measurements)
 const RING = { bull: 0.037, outerBull: 0.094, tripleInner: 0.582, tripleOuter: 0.63, doubleInner: 0.953 };
 
-const CALIBRATION_KEY = 'tkdl_scorer_radius';
-const ZOOM_KEY = 'tkdl_scorer_zoom';
-const ANALYSIS_W = 320;    // downsampled width for frame analysis
-const ANALYSIS_H = 240;
-const MOTION_THRESHOLD = 12;      // mean pixel diff to declare motion
-const DART_DIFF_THRESHOLD = 25;   // pixel diff to consider a dart-changed pixel
-const MIN_DART_WEIGHT = 2500;     // minimum weighted diff signal to count as dart (inside board only)
-const SETTLE_MS = 1500;           // ms of low motion before we analyse dart position
+const CALIBRATION_KEY    = 'tkdl_scorer_radius';
+const ZOOM_KEY           = 'tkdl_scorer_zoom';
+const BOARD_CENTER_KEY   = 'tkdl_scorer_board_center';   // JSON DetectedBoard
+
+const ANALYSIS_W          = 320;
+const ANALYSIS_H          = 240;
+const MOTION_THRESHOLD    = 12;    // mean-pixel-diff to call it motion
+const SETTLE_MS           = 1500;  // ms of no motion before analysing
+const STABLE_MS           = 3000;  // ms of no motion before treating frame as clean baseline
 const CAPTURE_INTERVAL_MS = 300;
+
+// OpenCV analysis constants
+const CV_DIFF_THRESHOLD  = 30;    // per-pixel brightness diff (0-255) to call it changed
+const MIN_CONTOUR_AREA   = 40;    // px² in analysis frame — smaller = noise, larger = dart
+
+// Fallback (plain JS) constants — used while OpenCV is still loading
+const FALLBACK_DIFF_THRESHOLD = 25;
+const FALLBACK_MIN_WEIGHT     = 2500;
 
 // ── Board geometry ─────────────────────────────────────────────────────────────
 
 function mapToBoard(
   px: number, py: number,
-  frameW: number, frameH: number,
-  radiusFraction: number,
+  board: DetectedBoard,
 ): Pick<DetectedDart, 'sector' | 'ring' | 'score' | 'confidence'> {
-  const cx = frameW / 2;
-  const cy = frameH / 2;
-  const r = Math.min(frameW, frameH) * radiusFraction;
-  const dx = px - cx;
-  const dy = py - cy;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const nd = dist / r; // normalized distance
+  const dx  = px - board.cx;
+  const dy  = py - board.cy;
+  const nd  = Math.sqrt(dx * dx + dy * dy) / board.r;
 
-  // Bullseye regions
-  if (nd < RING.bull) return { sector: 50, ring: 'bull', score: 50, confidence: 0.95 };
+  if (nd < RING.bull)      return { sector: 50, ring: 'bull',       score: 50, confidence: 0.95 };
   if (nd < RING.outerBull) return { sector: 25, ring: 'outer_bull', score: 25, confidence: 0.90 };
-  if (nd > 1.1) return { sector: 0, ring: 'miss', score: 0, confidence: 0.70 };
+  if (nd > 1.1)            return { sector: 0,  ring: 'miss',       score: 0,  confidence: 0.70 };
 
-  // Sector angle: atan2(dx, -dy) gives 0 at top, positive CW (matches dartboard)
-  const rawAngle = Math.atan2(dx, -dy);
-  const boardAngle = (rawAngle + 2 * Math.PI) % (2 * Math.PI);
-  const sectorIdx = Math.floor(boardAngle / (2 * Math.PI / 20)) % 20;
-  const sector = SECTORS[sectorIdx];
+  // atan2(dx, -dy) = 0 at top, positive CW — matches dartboard layout
+  const boardAngle = ((Math.atan2(dx, -dy) + 2 * Math.PI) % (2 * Math.PI));
+  const sectorIdx  = Math.floor(boardAngle / (2 * Math.PI / 20)) % 20;
+  const sector     = SECTORS[sectorIdx];
 
   let ring: DetectedDart['ring'];
   let score: number;
-  if (nd < RING.tripleInner) { ring = 'single'; score = sector; }
+  if      (nd < RING.tripleInner) { ring = 'single'; score = sector; }
   else if (nd < RING.tripleOuter) { ring = 'triple'; score = sector * 3; }
   else if (nd < RING.doubleInner) { ring = 'single'; score = sector; }
-  else { ring = 'double'; score = sector * 2; }
+  else                            { ring = 'double'; score = sector * 2; }
 
-  // Confidence: higher when far from ring boundaries
   const distFromBoundary = Math.min(
     Math.abs(nd - RING.bull), Math.abs(nd - RING.outerBull),
     Math.abs(nd - RING.tripleInner), Math.abs(nd - RING.tripleOuter),
     Math.abs(nd - RING.doubleInner), Math.abs(nd - 1.0),
   );
-  const confidence = Math.min(0.95, 0.55 + distFromBoundary * 3);
-  return { sector, ring, score, confidence };
+  return { sector, ring, score, confidence: Math.min(0.95, 0.55 + distFromBoundary * 3) };
 }
 
-// ── Frame analysis ─────────────────────────────────────────────────────────────
+// ── OpenCV helpers ─────────────────────────────────────────────────────────────
 
-function computeMeanDiff(a: Uint8ClampedArray, b: Uint8ClampedArray): number {
-  let sum = 0;
-  for (let i = 0; i < a.length; i += 4) {
-    sum += Math.abs(b[i] - a[i]) + Math.abs(b[i + 1] - a[i + 1]) + Math.abs(b[i + 2] - a[i + 2]);
-  }
-  return sum / (a.length / 4 * 3);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getCv(): any | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cv = (window as any).cv;
+  return (cv && typeof cv.Mat === 'function') ? cv : null;
 }
 
-// Only examine pixels inside the calibrated board circle — anything outside
-// the ring is not a dart landing, so we ignore it entirely.
-function findCentroid(
+function loadOpenCV(): void {
+  if (document.getElementById('tkdl-opencv')) return;
+  const s = document.createElement('script');
+  s.id  = 'tkdl-opencv';
+  s.src = 'https://docs.opencv.org/4.8.0/opencv.js';
+  s.async = true;
+  document.head.appendChild(s);
+}
+
+// Use OpenCV to find the dart's position in the diff between baseline and current frame.
+// Returns analysis-frame pixel coords of the dart centroid, or null if no dart found.
+function analyzeWithOpenCV(
   before: Uint8ClampedArray,
-  after: Uint8ClampedArray,
+  after:  Uint8ClampedArray,
   w: number, h: number,
-  boardRadiusFraction: number,
-): { x: number; y: number; totalWeight: number } | null {
-  const cx = w / 2;
-  const cy = h / 2;
-  const r = Math.min(w, h) * boardRadiusFraction;
-  const rSq = r * r;
+  board: DetectedBoard,
+): { x: number; y: number } | null {
+  const cv = getCv();
+  if (!cv) return null;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let bMat: any, aMat: any, diff: any, gray: any, thresh: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      kernel: any, boardMask: any, masked: any, contours: any, hierarchy: any;
+
+  try {
+    bMat      = cv.matFromImageData(new ImageData(new Uint8ClampedArray(before), w, h));
+    aMat      = cv.matFromImageData(new ImageData(new Uint8ClampedArray(after),  w, h));
+    diff      = new cv.Mat();
+    gray      = new cv.Mat();
+    thresh    = new cv.Mat();
+    kernel    = cv.Mat.ones(3, 3, cv.CV_8U);
+    boardMask = cv.Mat.zeros(h, w, cv.CV_8UC1);
+    masked    = new cv.Mat();
+    contours  = new cv.MatVector();
+    hierarchy = new cv.Mat();
+
+    // 1. Absolute difference between clean baseline and current frame
+    cv.absdiff(bMat, aMat, diff);
+
+    // 2. Convert to greyscale (we only care about brightness change, not colour)
+    cv.cvtColor(diff, gray, cv.COLOR_RGBA2GRAY);
+
+    // 3. Threshold: pixels that changed by less than CV_DIFF_THRESHOLD → 0
+    cv.threshold(gray, thresh, CV_DIFF_THRESHOLD, 255, cv.THRESH_BINARY);
+
+    // 4. Morphological opening: erode then dilate.
+    //    This removes isolated noise pixels while preserving dart-sized blobs.
+    cv.morphologyEx(thresh, thresh, cv.MORPH_OPEN, kernel);
+
+    // 5. Mask to the board circle — ignore everything outside the ring
+    cv.circle(
+      boardMask,
+      new cv.Point(Math.round(board.cx), Math.round(board.cy)),
+      Math.round(board.r),
+      new cv.Scalar(255), -1,
+    );
+    cv.bitwise_and(thresh, boardMask, masked);
+
+    // 6. Find connected regions (contours) of changed pixels
+    cv.findContours(masked, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+    // 7. Pick the largest contour (most likely the dart)
+    let bestIdx = -1, bestArea = 0;
+    for (let i = 0; i < contours.size(); i++) {
+      const a = cv.contourArea(contours.get(i));
+      if (a > bestArea) { bestArea = a; bestIdx = i; }
+    }
+
+    if (bestIdx < 0 || bestArea < MIN_CONTOUR_AREA) return null;
+
+    // 8. Centroid of the dart blob
+    const M = cv.moments(contours.get(bestIdx));
+    if (M.m00 === 0) return null;
+
+    return { x: M.m10 / M.m00, y: M.m01 / M.m00 };
+
+  } catch {
+    return null;
+  } finally {
+    // MUST delete all Mats to avoid WASM heap leaks
+    bMat?.delete(); aMat?.delete(); diff?.delete(); gray?.delete();
+    thresh?.delete(); kernel?.delete(); boardMask?.delete(); masked?.delete();
+    contours?.delete(); hierarchy?.delete();
+  }
+}
+
+// Plain-JS fallback — used while OpenCV.js is still downloading.
+// Finds the weighted centroid of changed pixels inside the board circle.
+function findCentroidFallback(
+  before: Uint8ClampedArray,
+  after:  Uint8ClampedArray,
+  w: number, h: number,
+  board: DetectedBoard,
+): { x: number; y: number } | null {
+  const rSq = board.r * board.r;
   let sumX = 0, sumY = 0, total = 0;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      // Skip everything outside the board circle
-      const dx = x - cx;
-      const dy = y - cy;
+      const dx = x - board.cx, dy = y - board.cy;
       if (dx * dx + dy * dy > rSq) continue;
-
-      const i = (y * w + x) * 4;
-      const wt = (Math.abs(after[i] - before[i]) + Math.abs(after[i + 1] - before[i + 1]) + Math.abs(after[i + 2] - before[i + 2])) / 3;
-      if (wt > DART_DIFF_THRESHOLD) { sumX += x * wt; sumY += y * wt; total += wt; }
+      const i  = (y * w + x) * 4;
+      const wt = (Math.abs(after[i] - before[i]) + Math.abs(after[i+1] - before[i+1]) + Math.abs(after[i+2] - before[i+2])) / 3;
+      if (wt > FALLBACK_DIFF_THRESHOLD) { sumX += x * wt; sumY += y * wt; total += wt; }
     }
   }
-  if (total < MIN_DART_WEIGHT) return null;
-  return { x: sumX / total, y: sumY / total, totalWeight: total };
+  if (total < FALLBACK_MIN_WEIGHT) return null;
+  return { x: sumX / total, y: sumY / total };
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorerOptions = {}) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const analysisCanvas = useRef<HTMLCanvasElement>(document.createElement('canvas'));
-  const prevFrameRef = useRef<Uint8ClampedArray | null>(null);
+  const videoRef          = useRef<HTMLVideoElement>(null);
+  const streamRef         = useRef<MediaStream | null>(null);
+  const analysisCanvas    = useRef<HTMLCanvasElement>(document.createElement('canvas'));
+  const prevFrameRef      = useRef<Uint8ClampedArray | null>(null);
   const preMotionFrameRef = useRef<Uint8ClampedArray | null>(null);
-  const isMotionRef = useRef(false);
-  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const detectedDartsRef = useRef<DetectedDart[]>([]);
-  const sessionCodeRef = useRef<string | null>(null);
+  const stableBaselineRef = useRef<Uint8ClampedArray | null>(null);
+  const lastMotionTimeRef = useRef<number>(Date.now());
+  const isMotionRef       = useRef(false);
+  const settleTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const captureIntervalRef= useRef<ReturnType<typeof setInterval> | null>(null);
+  const detectedDartsRef  = useRef<DetectedDart[]>([]);
+  const sessionCodeRef    = useRef<string | null>(null);
+  const detectedBoardRef  = useRef<DetectedBoard | null>(null);
 
   const [cameraActive, setCameraActive] = useState(false);
-  const [status, setStatus] = useState<AutoScorerStatus>('off');
-  const [error, setError] = useState<string | null>(null);
-  const [detectedDarts, setDetectedDarts] = useState<DetectedDart[]>([]);
-  const [sessionCode, setSessionCode] = useState<string | null>(null);
+  const [status,       setStatus      ] = useState<AutoScorerStatus>('off');
+  const [error,        setError       ] = useState<string | null>(null);
+  const [detectedDarts,setDetectedDarts] = useState<DetectedDart[]>([]);
+  const [sessionCode,  setSessionCode ] = useState<string | null>(null);
+  const [cvReady,      setCvReady     ] = useState(false);
+  const [detectedBoard,setDetectedBoardState] = useState<DetectedBoard | null>(null);
+
   const [radiusFraction, setRadiusFractionState] = useState<number>(() => {
     try { const v = Number(localStorage.getItem(CALIBRATION_KEY)); return v > 0 ? v : 0.42; }
     catch { return 0.42; }
   });
-
   const [zoomLevel, setZoomLevelState] = useState<number>(() => {
     try { const v = Number(localStorage.getItem(ZOOM_KEY)); return v >= 1 ? v : 1; }
     catch { return 1; }
   });
   const zoomRef = useRef<number>(1);
 
+  // ── OpenCV loading ──────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    loadOpenCV();
+    // Poll until the WASM runtime is initialised (cv.Mat becomes a constructor)
+    const iv = setInterval(() => {
+      if (getCv()) { setCvReady(true); clearInterval(iv); }
+    }, 500);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Restore previously-detected board position from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(BOARD_CENTER_KEY);
+      if (saved) {
+        const board = JSON.parse(saved) as DetectedBoard;
+        if (board.cx > 0 && board.cy > 0 && board.r > 0) {
+          detectedBoardRef.current = board;
+          setDetectedBoardState(board);
+        }
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   // ── Calibration ────────────────────────────────────────────────────────────
 
   const setRadiusFraction = useCallback((f: number) => {
-    const clamped = Math.max(0.15, Math.min(0.65, f));
-    setRadiusFractionState(clamped);
-    try { localStorage.setItem(CALIBRATION_KEY, String(clamped)); } catch { /* ignore */ }
+    const c = Math.max(0.15, Math.min(0.65, f));
+    setRadiusFractionState(c);
+    try { localStorage.setItem(CALIBRATION_KEY, String(c)); } catch { /* ignore */ }
+    // If we have a detected board, update its radius too (allows fine-tuning)
+    if (detectedBoardRef.current) {
+      const updated = { ...detectedBoardRef.current, r: c * Math.min(ANALYSIS_W, ANALYSIS_H) };
+      detectedBoardRef.current = updated;
+      setDetectedBoardState(updated);
+      try { localStorage.setItem(BOARD_CENTER_KEY, JSON.stringify(updated)); } catch { /* ignore */ }
+    }
   }, []);
 
   const setZoomLevel = useCallback((z: number) => {
-    const clamped = Math.max(1, Math.min(4, Math.round(z * 10) / 10));
-    zoomRef.current = clamped;
-    setZoomLevelState(clamped);
-    try { localStorage.setItem(ZOOM_KEY, String(clamped)); } catch { /* ignore */ }
+    const c = Math.max(1, Math.min(4, Math.round(z * 10) / 10));
+    zoomRef.current = c;
+    setZoomLevelState(c);
+    try { localStorage.setItem(ZOOM_KEY, String(c)); } catch { /* ignore */ }
   }, []);
 
-  // Sync zoomRef whenever zoomLevel state changes (e.g. on init from localStorage)
   useEffect(() => { zoomRef.current = zoomLevel; }, [zoomLevel]);
 
   // ── Session / SSE relay ────────────────────────────────────────────────────
@@ -184,12 +305,12 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, payload }),
       });
-    } catch { /* non-fatal: display device may not be connected */ }
+    } catch { /* non-fatal */ }
   }, []);
 
   const startSession = useCallback(async (): Promise<string | null> => {
     try {
-      const res = await fetch('/api/scorer/sessions', {
+      const res  = await fetch('/api/scorer/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ gameType: null, players: [] }),
@@ -215,57 +336,132 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
     const video = videoRef.current;
     if (!video || video.readyState < 2 || video.videoWidth === 0) return null;
     const canvas = analysisCanvas.current;
-    canvas.width = ANALYSIS_W;
+    canvas.width  = ANALYSIS_W;
     canvas.height = ANALYSIS_H;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return null;
-    // Apply zoom by cropping the centre of the video frame.
-    // At zoom=1 we use the full frame; at zoom=2 we use the centre 50%, etc.
-    const z = zoomRef.current;
-    const sw = video.videoWidth / z;
+    const z  = zoomRef.current;
+    const sw = video.videoWidth  / z;
     const sh = video.videoHeight / z;
-    const sx = (video.videoWidth - sw) / 2;
+    const sx = (video.videoWidth  - sw) / 2;
     const sy = (video.videoHeight - sh) / 2;
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, ANALYSIS_W, ANALYSIS_H);
     return ctx.getImageData(0, 0, ANALYSIS_W, ANALYSIS_H).data;
   }, []);
 
+  // ── Board detection ─────────────────────────────────────────────────────────
+
+  // Returns the board to use for analysis: detected board, or a centred fallback.
+  const getBoard = useCallback((): DetectedBoard => {
+    if (detectedBoardRef.current) return detectedBoardRef.current;
+    return {
+      cx: ANALYSIS_W / 2,
+      cy: ANALYSIS_H / 2,
+      r:  radiusFraction * Math.min(ANALYSIS_W, ANALYSIS_H),
+    };
+  }, [radiusFraction]);
+
+  // Run HoughCircles on the current camera frame to auto-detect the board circle.
+  const detectBoard = useCallback(() => {
+    const cv = getCv();
+    if (!cv) return;
+    const frame = captureFrame();
+    if (!frame) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let src: any, gray: any, circles: any;
+    try {
+      src     = cv.matFromImageData(new ImageData(new Uint8ClampedArray(frame), ANALYSIS_W, ANALYSIS_H));
+      gray    = new cv.Mat();
+      circles = new cv.Mat();
+
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+      // Blur reduces false edges caused by board graphics/lighting
+      cv.GaussianBlur(gray, gray, new cv.Size(9, 9), 2, 2);
+
+      // HoughCircles parameters tuned for a dartboard filling 30-90% of the frame:
+      //   dp=1        — accumulator resolution equals image resolution
+      //   minDist=50  — only one board expected, so any centre distance is fine
+      //   param1=80   — upper Canny threshold
+      //   param2=22   — accumulator threshold: lower = less strict (more circles)
+      //   minRadius   — board must be at least 30% of analysis frame height
+      //   maxRadius   — board at most 90% of analysis frame height
+      cv.HoughCircles(
+        gray, circles, cv.HOUGH_GRADIENT,
+        1, 50, 80, 22,
+        Math.floor(ANALYSIS_H * 0.15),
+        Math.floor(ANALYSIS_H * 0.55),
+      );
+
+      if (circles.cols > 0) {
+        const cx = circles.data32F[0];
+        const cy = circles.data32F[1];
+        const r  = circles.data32F[2];
+        const board: DetectedBoard = { cx, cy, r };
+
+        detectedBoardRef.current = board;
+        setDetectedBoardState(board);
+
+        // Sync radiusFraction so manual +/- controls stay consistent
+        const frac = Math.max(0.15, Math.min(0.65, r / Math.min(ANALYSIS_W, ANALYSIS_H)));
+        setRadiusFractionState(frac);
+
+        try {
+          localStorage.setItem(BOARD_CENTER_KEY, JSON.stringify(board));
+          localStorage.setItem(CALIBRATION_KEY, String(frac));
+        } catch { /* ignore */ }
+      }
+    } catch { /* ignore — if detection fails, user can retry */ }
+    finally { src?.delete(); gray?.delete(); circles?.delete(); }
+  }, [captureFrame]);
+
   // ── Dart analysis ──────────────────────────────────────────────────────────
 
   const analyzeDartLanding = useCallback(() => {
-    const before = preMotionFrameRef.current;
-    const after = captureFrame();
-    const video = videoRef.current;
-    if (!before || !after || !video) return;
+    // Prefer the long-stable baseline (arm-free clean board) over the pre-motion snapshot
+    const before = stableBaselineRef.current ?? preMotionFrameRef.current;
+    const after  = captureFrame();
+    if (!before || !after) return;
 
-    const centroid = findCentroid(before, after, ANALYSIS_W, ANALYSIS_H, radiusFraction);
-    if (!centroid) return;
+    const board = getBoard();
+    const cv    = getCv();
 
-    // Scale analysis-canvas coords → native video coords (for overlay)
-    const scaleX = video.videoWidth / ANALYSIS_W;
-    const scaleY = video.videoHeight / ANALYSIS_H;
-    const pixelX = centroid.x * scaleX;
-    const pixelY = centroid.y * scaleY;
+    // Use OpenCV pipeline if ready, otherwise fall back to plain-JS centroid
+    const point = cv
+      ? analyzeWithOpenCV(before, after, ANALYSIS_W, ANALYSIS_H, board)
+      : findCentroidFallback(before, after, ANALYSIS_W, ANALYSIS_H, board);
 
-    const board = mapToBoard(centroid.x, centroid.y, ANALYSIS_W, ANALYSIS_H, radiusFraction);
-    // Reject if the centroid is clearly outside the board and signal is weak
-    if (board.ring === 'miss' && centroid.totalWeight < MIN_DART_WEIGHT * 3) return;
+    if (!point) return;
+
+    const boardResult = mapToBoard(point.x, point.y, board);
+    if (boardResult.ring === 'miss') return; // don't report misses as dart events
+
+    // Scale analysis coords → native video pixel coords (for the overlay dot)
+    const video  = videoRef.current;
+    const scaleX = (video?.videoWidth  ?? ANALYSIS_W) / ANALYSIS_W;
+    const scaleY = (video?.videoHeight ?? ANALYSIS_H) / ANALYSIS_H;
 
     const idx = detectedDartsRef.current.length as 0 | 1 | 2;
     if (idx >= 3) return;
 
-    const dart: DetectedDart = { index: idx, pixelX, pixelY, ...board };
+    const dart: DetectedDart = {
+      index: idx,
+      pixelX: point.x * scaleX,
+      pixelY: point.y * scaleY,
+      ...boardResult,
+    };
     detectedDartsRef.current = [...detectedDartsRef.current, dart];
     setDetectedDarts([...detectedDartsRef.current]);
     setStatus('waiting');
 
+    // Update the stable baseline to include this dart so the next throw
+    // diffs against a frame that already has the previous dart(s) in it.
+    stableBaselineRef.current = after;
+
     onDartDetected?.(dart);
     void broadcastEvent('dart_detected', {
-      dartIndex: dart.index,
-      sector: dart.sector,
-      ring: dart.ring,
-      score: dart.score,
-      confidence: dart.confidence,
+      dartIndex: dart.index, sector: dart.sector,
+      ring: dart.ring, score: dart.score, confidence: dart.confidence,
     });
 
     if (detectedDartsRef.current.length === 3) {
@@ -276,7 +472,7 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
         total: all.reduce((s, d) => s + d.score, 0),
       });
     }
-  }, [captureFrame, radiusFraction, onDartDetected, onRoundComplete, broadcastEvent]);
+  }, [captureFrame, getBoard, onDartDetected, onRoundComplete, broadcastEvent]);
 
   // ── Detection loop ─────────────────────────────────────────────────────────
 
@@ -288,23 +484,36 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
     prevFrameRef.current = current;
     if (!prev || prev.length !== current.length) return;
 
-    const diff = computeMeanDiff(prev, current);
-    const isMoving = diff > MOTION_THRESHOLD;
+    // Mean per-channel diff across the whole frame (motion detection only —
+    // dart analysis is restricted to the board circle)
+    let sum = 0;
+    for (let i = 0; i < prev.length; i += 4) {
+      sum += Math.abs(current[i] - prev[i]) + Math.abs(current[i+1] - prev[i+1]) + Math.abs(current[i+2] - prev[i+2]);
+    }
+    const meanDiff = sum / (prev.length / 4 * 3);
+    const isMoving = meanDiff > MOTION_THRESHOLD;
 
     if (isMoving) {
+      lastMotionTimeRef.current = Date.now();
       if (!isMotionRef.current) {
-        // Motion just started — save pre-motion frame (the prev frame, before arm entered)
+        // Motion just started — save the frame immediately before it started
         preMotionFrameRef.current = prev;
         isMotionRef.current = true;
         setStatus('motion');
       }
-      // Reset settle timer while motion continues
+      // Extend the settle timer while motion continues
       if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
       settleTimerRef.current = setTimeout(() => {
         isMotionRef.current = false;
         setStatus('settled');
         analyzeDartLanding();
       }, SETTLE_MS);
+    } else {
+      // Scene is still — update the clean baseline once it has been calm for STABLE_MS.
+      // This ensures the baseline never includes the player's arm.
+      if (Date.now() - lastMotionTimeRef.current > STABLE_MS) {
+        stableBaselineRef.current = current;
+      }
     }
   }, [captureFrame, analyzeDartLanding]);
 
@@ -315,8 +524,6 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
     setStatus('starting');
     setError(null);
 
-    // iOS Safari rejects getUserMedia if it can't satisfy all constraints at once.
-    // Try progressively simpler sets so we always get a stream if permission is granted.
     const constraintSets: MediaStreamConstraints[] = [
       { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
       { video: { facingMode: 'environment' } },
@@ -325,14 +532,10 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
 
     let stream: MediaStream | null = null;
     let lastErr: unknown;
-
     for (const constraints of constraintSets) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        break;
-      } catch (err) {
+      try { stream = await navigator.mediaDevices.getUserMedia(constraints); break; }
+      catch (err) {
         lastErr = err;
-        // User denied permission — no point trying simpler constraints
         if (err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) break;
       }
     }
@@ -352,8 +555,6 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
 
     streamRef.current = stream;
     const video = videoRef.current;
-    // videoRef is always mounted in the DOM (scorer-camera.tsx renders it unconditionally)
-    // so this should never be null, but guard just in case
     if (!video) {
       stream.getTracks().forEach(t => t.stop());
       setStatus('off');
@@ -363,19 +564,12 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
 
     video.srcObject = stream;
 
-    // On iOS, explicit play() called after an awaited async call breaks the
-    // user-gesture chain and is silently refused. Instead we rely on the
-    // autoPlay + playsInline + muted attributes on the <video> element and
-    // wait for the 'playing' event with a timeout fallback.
     await new Promise<void>((resolve) => {
       const onPlaying = () => { video.removeEventListener('playing', onPlaying); resolve(); };
       video.addEventListener('playing', onPlaying);
-
-      // Fallback: if playing never fires (e.g. stream attached but not started),
-      // try play() once and resolve regardless after a short delay.
       setTimeout(() => {
         video.removeEventListener('playing', onPlaying);
-        video.play().catch(() => { /* ignore — autoPlay should cover it */ });
+        video.play().catch(() => { /* autoPlay covers it */ });
         resolve();
       }, 1500);
     });
@@ -383,17 +577,21 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
     setCameraActive(true);
     setStatus('waiting');
     captureIntervalRef.current = setInterval(runTick, CAPTURE_INTERVAL_MS);
-  }, [cameraActive, runTick]);
+
+    // Auto-detect the board a couple of seconds after the camera stabilises
+    setTimeout(() => detectBoard(), 2500);
+  }, [cameraActive, runTick, detectBoard]);
 
   const stopCamera = useCallback(() => {
     if (captureIntervalRef.current) { clearInterval(captureIntervalRef.current); captureIntervalRef.current = null; }
-    if (settleTimerRef.current) { clearTimeout(settleTimerRef.current); settleTimerRef.current = null; }
+    if (settleTimerRef.current)     { clearTimeout(settleTimerRef.current);      settleTimerRef.current = null; }
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
-    isMotionRef.current = false;
-    prevFrameRef.current = null;
-    preMotionFrameRef.current = null;
+    isMotionRef.current          = false;
+    prevFrameRef.current         = null;
+    preMotionFrameRef.current    = null;
+    stableBaselineRef.current    = null;
     setCameraActive(false);
     setStatus('off');
   }, []);
@@ -401,20 +599,24 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
   const resetRound = useCallback(() => {
     detectedDartsRef.current = [];
     setDetectedDarts([]);
-    prevFrameRef.current = null;
+    prevFrameRef.current      = null;
     preMotionFrameRef.current = null;
-    isMotionRef.current = false;
+    stableBaselineRef.current = null;
+    isMotionRef.current       = false;
+    lastMotionTimeRef.current = Date.now();
     if (settleTimerRef.current) { clearTimeout(settleTimerRef.current); settleTimerRef.current = null; }
     if (cameraActive) setStatus('waiting');
   }, [cameraActive]);
 
-  // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      stopCamera();
-      void stopSession();
-    };
+    return () => { stopCamera(); void stopSession(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Exposed values ─────────────────────────────────────────────────────────
+
+  // Normalised board centre (0-1) for the overlay to draw the ring at the right position
+  const boardCenterX = detectedBoard ? detectedBoard.cx / ANALYSIS_W : 0.5;
+  const boardCenterY = detectedBoard ? detectedBoard.cy / ANALYSIS_H : 0.5;
 
   return {
     videoRef,
@@ -433,5 +635,11 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
     startSession,
     stopSession,
     broadcastEvent,
+    // Board detection
+    cvReady,
+    boardDetected: !!detectedBoard,
+    boardCenterX,
+    boardCenterY,
+    detectBoard,
   };
 }

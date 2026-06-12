@@ -264,7 +264,7 @@ function GameScreen({ p1Name, p2Name, startScore, onBack }: {
     setPendingDarts(darts);
   }, []);
 
-  const { videoRef, cameraActive, startCamera, stopCamera, status, error, radiusFraction, setRadiusFraction, zoomLevel, setZoomLevel, detectedDarts, resetRound, startSession, broadcastEvent } = useAutoScorer({ onDartDetected, onRoundComplete });
+  const { videoRef, cameraActive, startCamera, stopCamera, status, error, radiusFraction, setRadiusFraction, zoomLevel, setZoomLevel, detectedDarts, resetRound, startSession, broadcastEvent, cvReady, boardDetected, boardCenterX, boardCenterY, detectBoard } = useAutoScorer({ onDartDetected, onRoundComplete });
 
   // Auto-check bust when 3 darts pending
   useEffect(() => {
@@ -433,6 +433,11 @@ function GameScreen({ p1Name, p2Name, startScore, onBack }: {
               zoomLevel={zoomLevel}
               onZoomChange={setZoomLevel}
               detectedDarts={pendingDarts ?? detectedDarts}
+              boardDetected={boardDetected}
+              boardCenterX={boardCenterX}
+              boardCenterY={boardCenterY}
+              cvReady={cvReady}
+              onDetectBoard={detectBoard}
             />
           )}
 
