@@ -4,7 +4,7 @@
  * Supports two-device mode: session code connects a display device via SSE.
  */
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Camera, RotateCcw, Check, AlertTriangle, ChevronLeft, Tv2, Plus, Minus } from "lucide-react";
+import { Camera, RotateCcw, Check, AlertTriangle, ChevronLeft, Tv2, ChevronDown } from "lucide-react";
 import { useAutoScorer, type DetectedDart } from "@/hooks/useAutoScorer";
 import { CameraOverlay } from "@/components/auto-scorer/CameraOverlay";
 
@@ -106,10 +106,68 @@ function ManualNumpad({ max, onSubmit, onCancel }: { max: number; onSubmit: (n: 
 
 const START_SCORES = [170, 301, 401, 501];
 
+interface Player { id: number; name: string; isActive: boolean; }
+
+function PlayerSelect({ label, value, onChange, players, exclude }: {
+  label: string;
+  value: string;
+  onChange: (name: string) => void;
+  players: Player[];
+  exclude: string;
+}) {
+  return (
+    <div>
+      <div className="text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{label}</div>
+      <div className="relative">
+        <select
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="w-full appearance-none px-4 py-3 rounded-xl text-sm font-bold pr-10"
+          style={{
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            color: value ? '#fff' : 'rgba(255,255,255,0.35)',
+            fontFamily: 'Oswald, sans-serif',
+            outline: 'none',
+          }}>
+          <option value="" style={{ background: '#0e0a1a', color: 'rgba(255,255,255,0.35)' }}>Select player…</option>
+          {players
+            .filter(p => p.name !== exclude)
+            .map(p => (
+              <option key={p.id} value={p.name} style={{ background: '#0e0a1a', color: '#fff' }}>
+                {p.name}{!p.isActive ? ' (inactive)' : ''}
+              </option>
+            ))}
+        </select>
+        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'rgba(255,255,255,0.3)' }} />
+      </div>
+    </div>
+  );
+}
+
 function SetupScreen({ onStart }: { onStart: (p1: string, p2: string, start: number) => void }) {
-  const [p1, setP1] = useState('Player 1');
-  const [p2, setP2] = useState('Player 2');
+  const [p1, setP1] = useState('');
+  const [p2, setP2] = useState('');
   const [start, setStart] = useState(501);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/players')
+      .then(r => r.json() as Promise<Player[]>)
+      .then(data => {
+        // Active players first, then inactive
+        const sorted = [...data].sort((a, b) => {
+          if (a.isActive === b.isActive) return a.name.localeCompare(b.name);
+          return a.isActive ? -1 : 1;
+        });
+        setPlayers(sorted);
+      })
+      .catch(() => { /* show empty list */ })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const canStart = p1 && p2 && p1 !== p2;
 
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center px-6" style={{ background: '#06040e', fontFamily: 'Oswald, sans-serif' }}>
@@ -124,20 +182,18 @@ function SetupScreen({ onStart }: { onStart: (p1: string, p2: string, start: num
           <div className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>Point your camera at the dartboard</div>
         </div>
 
-        {/* Player names */}
-        <div className="space-y-3">
-          {[{ label: 'Player 1', val: p1, set: setP1 }, { label: 'Player 2', val: p2, set: setP2 }].map(({ label, val, set }) => (
-            <div key={label}>
-              <div className="text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{label}</div>
-              <input
-                value={val}
-                onChange={e => set(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-sm font-bold"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontFamily: 'Oswald, sans-serif', outline: 'none' }}
-              />
-            </div>
-          ))}
-        </div>
+        {/* Player selectors */}
+        {loading ? (
+          <div className="text-center text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>Loading players…</div>
+        ) : (
+          <div className="space-y-3">
+            <PlayerSelect label="Player 1" value={p1} onChange={setP1} players={players} exclude={p2} />
+            <PlayerSelect label="Player 2" value={p2} onChange={setP2} players={players} exclude={p1} />
+            {p1 && p2 && p1 === p2 && (
+              <div className="text-xs text-center" style={{ color: '#ff005c' }}>Players must be different</div>
+            )}
+          </div>
+        )}
 
         {/* Starting score */}
         <div>
@@ -159,9 +215,15 @@ function SetupScreen({ onStart }: { onStart: (p1: string, p2: string, start: num
 
         {/* Start */}
         <button
-          onClick={() => onStart(p1.trim() || 'Player 1', p2.trim() || 'Player 2', start)}
-          className="w-full py-4 rounded-xl text-base font-bold uppercase tracking-widest"
-          style={{ background: 'rgba(0,212,255,0.15)', border: '1px solid rgba(0,212,255,0.4)', color: '#00d4ff' }}>
+          onClick={() => canStart && onStart(p1, p2, start)}
+          disabled={!canStart}
+          className="w-full py-4 rounded-xl text-base font-bold uppercase tracking-widest transition-opacity"
+          style={{
+            background: canStart ? 'rgba(0,212,255,0.15)' : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${canStart ? 'rgba(0,212,255,0.4)' : 'rgba(255,255,255,0.08)'}`,
+            color: canStart ? '#00d4ff' : 'rgba(255,255,255,0.2)',
+            opacity: canStart ? 1 : 0.6,
+          }}>
           <Camera className="inline w-4 h-4 mr-2" />Start Game
         </button>
 
