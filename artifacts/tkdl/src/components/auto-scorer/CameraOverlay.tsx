@@ -65,7 +65,6 @@ function drawOverlay(
     const isHighConf = dart.confidence > 0.75;
 
     ctx.save();
-    // Outer glow
     ctx.shadowColor = isHighConf ? '#ffd24a' : 'rgba(255,210,74,0.5)';
     ctx.shadowBlur = 8;
     ctx.fillStyle = isHighConf ? '#ffd24a' : 'rgba(255,210,74,0.65)';
@@ -77,14 +76,12 @@ function drawOverlay(
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Dart index number
     ctx.fillStyle = '#111';
     ctx.font = 'bold 9px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(dart.index + 1), dx, dy);
 
-    // Score label
     const label = ringLabel(dart);
     const scoreStr = `${dart.score}pts`;
     const lx = dx + 15;
@@ -107,6 +104,9 @@ function drawOverlay(
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
+// NOTE: CameraOverlay renders ONLY the canvas + controls overlay.
+// The <video> element is always mounted by the parent (scorer-camera.tsx)
+// so that videoRef is available before cameraActive becomes true.
 
 interface CameraOverlayProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -151,11 +151,8 @@ export function CameraOverlay({ videoRef, status, radiusFraction, onRadiusChange
   const isOn = status !== 'off' && status !== 'starting';
 
   return (
-    <div className="relative w-full overflow-hidden rounded-xl" style={{ aspectRatio: '16/9', background: '#000' }}>
-      {/* Camera feed */}
-      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
-
-      {/* Overlay canvas */}
+    <>
+      {/* Canvas overlay */}
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
 
       {/* Status badge */}
@@ -210,6 +207,6 @@ export function CameraOverlay({ videoRef, status, radiusFraction, onRadiusChange
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }

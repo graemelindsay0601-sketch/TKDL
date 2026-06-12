@@ -397,46 +397,73 @@ function GameScreen({ p1Name, p2Name, startScore, onBack }: {
         </div>
       </div>
 
-      {/* Camera view */}
+      {/* Camera view — video is ALWAYS mounted so videoRef is ready before cameraActive */}
       <div className="px-3 pt-2.5 shrink-0">
-        {cameraActive ? (
-          <CameraOverlay
-            videoRef={videoRef}
-            status={pendingDarts ? 'settled' : status}
-            radiusFraction={radiusFraction}
-            onRadiusChange={setRadiusFraction}
-            detectedDarts={pendingDarts ?? detectedDarts}
+        <div
+          className="relative w-full overflow-hidden rounded-xl"
+          style={{
+            aspectRatio: '16/9',
+            background: cameraActive ? '#000' : (error ? 'rgba(255,20,20,0.04)' : 'rgba(255,255,255,0.03)'),
+            border: `1px solid ${error && !cameraActive ? 'rgba(255,0,92,0.25)' : 'rgba(255,255,255,0.08)'}`,
+          }}>
+
+          {/* Video always rendered; invisible until cameraActive */}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ display: cameraActive ? 'block' : 'none' }}
           />
-        ) : (
-          <div className="w-full rounded-xl flex flex-col items-center justify-center gap-3" style={{ aspectRatio: '16/9', background: 'rgba(255,255,255,0.03)', border: `1px solid ${error ? 'rgba(255,0,92,0.25)' : 'rgba(255,255,255,0.08)'}` }}>
-            {status === 'starting' ? (
-              <>
-                <div className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'rgba(0,212,255,0.5)', borderTopColor: 'transparent' }} />
-                <div className="text-xs font-bold uppercase tracking-widest" style={{ color: 'rgba(0,212,255,0.7)', fontFamily: 'Oswald, sans-serif' }}>Opening camera…</div>
-                <div className="text-xs text-center px-6" style={{ color: 'rgba(255,255,255,0.25)' }}>Allow camera access if prompted</div>
-              </>
-            ) : error ? (
-              <>
-                <AlertTriangle className="w-8 h-8" style={{ color: '#ff005c' }} />
-                <div className="text-xs text-center px-4" style={{ color: 'rgba(255,100,100,0.8)' }}>{error}</div>
-                <button onClick={() => void startCamera()}
-                  className="px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider"
-                  style={{ background: 'rgba(255,0,92,0.12)', border: '1px solid rgba(255,0,92,0.35)', color: '#ff005c' }}>
-                  Try Again
-                </button>
-              </>
-            ) : (
-              <>
-                <Camera className="w-10 h-10" style={{ color: 'rgba(255,255,255,0.2)' }} />
-                <button onClick={() => void startCamera()}
-                  className="px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider"
-                  style={{ background: 'rgba(0,212,255,0.15)', border: '1px solid rgba(0,212,255,0.4)', color: '#00d4ff' }}>
-                  Open Camera
-                </button>
-              </>
-            )}
-          </div>
-        )}
+
+          {/* Canvas + controls overlay — only when camera is active */}
+          {cameraActive && (
+            <CameraOverlay
+              videoRef={videoRef}
+              status={pendingDarts ? 'settled' : status}
+              radiusFraction={radiusFraction}
+              onRadiusChange={setRadiusFraction}
+              detectedDarts={pendingDarts ?? detectedDarts}
+            />
+          )}
+
+          {/* Placeholder — shown while camera is off */}
+          {!cameraActive && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+              {status === 'starting' ? (
+                <>
+                  <div className="w-10 h-10 rounded-full border-2 animate-spin"
+                    style={{ borderColor: 'rgba(0,212,255,0.5)', borderTopColor: 'transparent' }} />
+                  <div className="text-xs font-bold uppercase tracking-widest"
+                    style={{ color: 'rgba(0,212,255,0.7)', fontFamily: 'Oswald, sans-serif' }}>Opening camera…</div>
+                  <div className="text-xs text-center px-6" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                    Allow camera access if prompted
+                  </div>
+                </>
+              ) : error ? (
+                <>
+                  <AlertTriangle className="w-8 h-8" style={{ color: '#ff005c' }} />
+                  <div className="text-xs text-center px-4" style={{ color: 'rgba(255,100,100,0.8)' }}>{error}</div>
+                  <button onClick={() => void startCamera()}
+                    className="px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider"
+                    style={{ background: 'rgba(255,0,92,0.12)', border: '1px solid rgba(255,0,92,0.35)', color: '#ff005c' }}>
+                    Try Again
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Camera className="w-10 h-10" style={{ color: 'rgba(255,255,255,0.2)' }} />
+                  <button onClick={() => void startCamera()}
+                    className="px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider"
+                    style={{ background: 'rgba(0,212,255,0.15)', border: '1px solid rgba(0,212,255,0.4)', color: '#00d4ff' }}>
+                    Open Camera
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Scoreboard */}

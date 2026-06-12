@@ -315,10 +315,12 @@ export function useAutoScorer({ onDartDetected, onRoundComplete }: UseAutoScorer
 
     streamRef.current = stream;
     const video = videoRef.current;
+    // videoRef is always mounted in the DOM (scorer-camera.tsx renders it unconditionally)
+    // so this should never be null, but guard just in case
     if (!video) {
       stream.getTracks().forEach(t => t.stop());
       setStatus('off');
-      setError('Video element not ready. Please try again.');
+      setError('Camera not ready — please reload and try again.');
       return;
     }
 
