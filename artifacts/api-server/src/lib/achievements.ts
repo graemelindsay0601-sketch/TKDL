@@ -481,10 +481,13 @@ export async function checkMatchAchievements(
 
     // Upset win — winner had fewer points than loser before match
     if (winnerPointsBefore < loserPointsBefore) {
-      await grantIfNotHas(playerId, "TACTICAL");
-      const upsetWins = await db.select({ id: matchesTable.id }).from(matchesTable)
-        .where(eq(matchesTable.winnerId, playerId));
-      if (upsetWins.length >= 3) await grantIfNotHas(playerId, "GENIUS");
+      // grantIfNotHas returns true when newly granted, false when already held.
+      // If TACTICAL was already held before this match, this is at least a 2nd upset win.
+      const tacticalNewlyGranted = await grantIfNotHas(playerId, "TACTICAL");
+      if (!tacticalNewlyGranted) {
+        // Already had TACTICAL → this is a subsequent upset win → grant GENIUS
+        await grantIfNotHas(playerId, "GENIUS");
+      }
     }
 
     // Phoenix — win with only 1 point left (loser had 1 point before)

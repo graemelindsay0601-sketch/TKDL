@@ -4,12 +4,13 @@ import { logger } from "./logger";
 
 export function gamerscoreForRarity(rarity: string): number {
   switch (rarity) {
-    case "Common":    return 10;
+    case "Common":    return 5;
+    case "Uncommon":  return 10;
     case "Rare":      return 25;
     case "Epic":      return 50;
     case "Legendary": return 100;
-    case "Mythic":    return 200;
-    default:          return 10;
+    case "Mythic":    return 250;
+    default:          return 5;
   }
 }
 

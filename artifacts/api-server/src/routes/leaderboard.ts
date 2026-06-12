@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 import { calcTier } from "../lib/elo";
 import { computeIdentity } from "../lib/identity";
 import { seasonStandingsTable } from "@workspace/db";
+import { SHADOW_BOT_ACHIEVEMENT_DEFS, gamerscoreForRarity } from "../lib/shadow-bot-achievements";
 
 const router = Router();
 
@@ -119,49 +120,88 @@ router.get("/leaderboard/career", async (req, res): Promise<void> => {
 // ── Achievements leaderboard ────────────────────────────────────────────────
 router.get("/leaderboard/achievements", async (_req, res): Promise<void> => {
   try {
-    const rows = (await db.execute(sql`
-      SELECT
-        p.id          AS player_id,
-        p.name        AS player_name,
-        p.status,
+    // Use separate CTEs to avoid cartesian product between player_achievements
+    // and player_tour_achievements (cross-join inflates every SUM by N×M).
+    const [playerRows, shadowRows] = await Promise.all([
+      db.execute(sql`
+        WITH lg AS (
+          SELECT pa.player_id,
+            COUNT(pa.id)::int AS league_count,
+            COALESCE(SUM(CASE a.rarity
+              WHEN 'Common'    THEN 5
+              WHEN 'Uncommon'  THEN 10
+              WHEN 'Rare'      THEN 25
+              WHEN 'Epic'      THEN 50
+              WHEN 'Legendary' THEN 100
+              WHEN 'Mythic'    THEN 250
+              ELSE 5 END), 0)::int AS league_gs
+          FROM player_achievements pa
+          JOIN achievements a ON a.id = pa.achievement_id
+          GROUP BY pa.player_id
+        ),
+        tg AS (
+          SELECT pta.player_id,
+            COUNT(pta.id)::int AS tour_count,
+            COALESCE(SUM(tad.gamerscore), 0)::int AS tour_gs
+          FROM player_tour_achievements pta
+          JOIN tour_achievement_definitions tad ON tad.key = pta.achievement_key
+          GROUP BY pta.player_id
+        ),
+        tt AS (
+          SELECT player_id,
+            COALESCE(SUM(gamerscore), 0)::int AS trophy_gs
+          FROM tour_trophies
+          GROUP BY player_id
+        )
+        SELECT
+          p.id   AS player_id,
+          p.name AS player_name,
+          p.status,
+          COALESCE(lg.league_count, 0) AS league_count,
+          COALESCE(lg.league_gs,    0) AS league_gs,
+          COALESCE(tg.tour_count,   0) AS tour_count,
+          COALESCE(tg.tour_gs,      0) AS tour_gs,
+          COALESCE(tt.trophy_gs,    0) AS trophy_gs
+        FROM players p
+        LEFT JOIN lg ON lg.player_id = p.id
+        LEFT JOIN tg ON tg.player_id = p.id
+        LEFT JOIN tt ON tt.player_id = p.id
+        WHERE p.is_active = true
+      `),
+      db.execute(sql`
+        SELECT player_id, achievement_key
+        FROM shadow_bot_achievements
+        WHERE player_id IN (SELECT id FROM players WHERE is_active = true)
+      `),
+    ]);
 
-        /* League achievements */
-        COUNT(DISTINCT pa.id)::int AS league_count,
-        COALESCE(SUM(CASE a.rarity
-          WHEN 'Common'    THEN 5
-          WHEN 'Uncommon'  THEN 10
-          WHEN 'Rare'      THEN 25
-          WHEN 'Epic'      THEN 50
-          WHEN 'Legendary' THEN 100
-          WHEN 'Mythic'    THEN 250
-          ELSE 5 END), 0)::int AS league_gs,
+    const shadowGsMap = new Map<number, number>();
+    for (const row of shadowRows.rows as { player_id: number; achievement_key: string }[]) {
+      const def = SHADOW_BOT_ACHIEVEMENT_DEFS.find(d => d.key === row.achievement_key);
+      const gs  = def ? gamerscoreForRarity(def.rarity) : 0;
+      shadowGsMap.set(Number(row.player_id), (shadowGsMap.get(Number(row.player_id)) ?? 0) + gs);
+    }
 
-        /* Tour achievements */
-        COUNT(DISTINCT pta.id)::int AS tour_count,
-        COALESCE(SUM(DISTINCT tad.gamerscore), 0)::int AS tour_gs
+    const mapped = (playerRows.rows as any[]).map(r => {
+      const pid      = Number(r.player_id);
+      const leagueGs = Number(r.league_gs);
+      const tourGs   = Number(r.tour_gs) + Number(r.trophy_gs) + (shadowGsMap.get(pid) ?? 0);
+      const totalGs  = leagueGs + tourGs;
+      return {
+        playerId:    pid,
+        playerName:  r.player_name,
+        status:      r.status,
+        leagueCount: Number(r.league_count),
+        leagueGs,
+        tourCount:   Number(r.tour_count),
+        tourGs,
+        totalCount:  Number(r.league_count) + Number(r.tour_count),
+        totalGs,
+      };
+    });
 
-      FROM players p
-      LEFT JOIN player_achievements pa    ON pa.player_id = p.id
-      LEFT JOIN achievements a            ON a.id         = pa.achievement_id
-      LEFT JOIN player_tour_achievements pta ON pta.player_id = p.id
-      LEFT JOIN tour_achievement_definitions tad ON tad.key = pta.achievement_key
-      WHERE p.is_active = true
-      GROUP BY p.id, p.name, p.status
-      ORDER BY (COALESCE(SUM(CASE a.rarity WHEN 'Common' THEN 5 WHEN 'Uncommon' THEN 10 WHEN 'Rare' THEN 25 WHEN 'Epic' THEN 50 WHEN 'Legendary' THEN 100 WHEN 'Mythic' THEN 250 ELSE 5 END),0) + COALESCE(SUM(DISTINCT tad.gamerscore),0)) DESC, COUNT(DISTINCT pa.id) DESC
-    `)).rows as any[];
-
-    res.json(rows.map((r, i) => ({
-      position:       i + 1,
-      playerId:       r.player_id,
-      playerName:     r.player_name,
-      status:         r.status,
-      leagueCount:    Number(r.league_count),
-      leagueGs:       Number(r.league_gs),
-      tourCount:      Number(r.tour_count),
-      tourGs:         Number(r.tour_gs),
-      totalCount:     Number(r.league_count) + Number(r.tour_count),
-      totalGs:        Number(r.league_gs) + Number(r.tour_gs),
-    })));
+    mapped.sort((a, b) => b.totalGs - a.totalGs || b.leagueCount - a.leagueCount);
+    res.json(mapped.map((r, i) => ({ position: i + 1, ...r })));
   } catch (err) {
     (_req as any)?.log?.error({ err }, "Failed achievements leaderboard");
     res.status(500).json({ error: "Failed" });

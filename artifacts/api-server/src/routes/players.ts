@@ -372,6 +372,10 @@ router.get("/players/:id/achievement-progress", async (req, res): Promise<void> 
   for (let i = 1; i < sortedS.length; i++) {
     if (sortedS[i - 1].isChampion && sortedS[i].isChampion) { consecTitles = 1; break; }
   }
+  const multiSeasonWins    = standings.filter(s => s.wins > 0).length;
+  const unelimSeasons      = standings.filter(s => s.points > 0 && (s.wins + s.losses) >= 5).length;
+  const firstSeasonPoints  = sortedS[0]?.points ?? 0;
+  const firstSeasonIsTop3  = (sortedS[0] && sortedS[0].position <= 3) ? 1 : 0;
 
   const totalGames = player.careerGamesPlayed;
   const winRate = totalGames > 0 ? (player.careerWins / totalGames) * 100 : 0;
@@ -413,6 +417,28 @@ router.get("/players/:id/achievement-progress", async (req, res): Promise<void> 
       case "SAME_WEEK_WINS":                return maxSameWeekWins;
       case "CONSECUTIVE_HIGH_STAKE_WINS":   return maxConsecHigh;
       case "FIRST_MATCH_SEASON_WIN":        return 0;
+      case "MULTI_SEASON_WINS":             return multiSeasonWins;
+      case "MULTI_SEASON_SURVIVOR":         return unelimSeasons;
+      case "SEASON_UNELIMINATED":           return unelimSeasons >= 1 ? 1 : 0;
+      case "SEASON_TOP3":                   return top3Finishes >= 1 ? 1 : 0;
+      case "TOP3_FULL_SEASON":              return top3Finishes >= 1 ? 1 : 0;
+      case "FIRST_SEASON_POINTS":           return firstSeasonPoints;
+      case "FIRST_SEASON_TOP3":             return firstSeasonIsTop3;
+      case "ELIMINATED_SEASON":             return standings.some(s => s.points === 0) ? 1 : 0;
+      case "RIVAL_WINS":                    return maxSameOppWins;
+      case "PLAYER_ELIMINATIONS":           return player.eliminationsCount;
+      case "UNIQUE_ELIMINATIONS":           return player.eliminationsCount;
+      case "SEASON_ELIMINATIONS":           return player.eliminationsCount;
+      case "UPSET_WIN":                     return 0;
+      case "TOP_RANKED_WINS":               return 0;
+      case "TOP_RANKED_ELIMS":              return 0;
+      case "MASSIVE_SWING":                 return 0;
+      case "WEEKLY_WINS":                   return 0;
+      case "SEASON_START_WINS":             return 0;
+      case "COMEBACK_STREAK":               return 0;
+      case "ALL_HIDDEN_UNLOCKED":           return 0;
+      case "SINGLE_SEASON_INACTIVE":        return 0;
+      case "SEASON_POINTS_LOSS":            return 0;
       default:                              return 0;
     }
   }
