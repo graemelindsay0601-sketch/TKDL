@@ -75,28 +75,45 @@ router.get("/master501/progress/:playerId", async (req, res): Promise<void> => {
 router.get("/master501/leaderboard", async (_req, res): Promise<void> => {
   try {
     const result = await db.execute(sql`
+      WITH run_stats AS (
+        SELECT player_id,
+               COUNT(*)                                    AS total_runs,
+               COUNT(CASE WHEN result = 'win'  THEN 1 END) AS total_wins,
+               COUNT(CASE WHEN result = 'loss' THEN 1 END) AS total_losses
+        FROM master501_runs
+        WHERE result IS NOT NULL
+        GROUP BY player_id
+      ),
+      session_stats AS (
+        SELECT player1_id,
+               COALESCE(SUM(p1_180s),             0)::int                                                                 AS total_180s,
+               COALESCE(SUM(p1_checkout_hits),    0)::int                                                                 AS co_hits,
+               COALESCE(SUM(p1_checkout_attempts),0)::int                                                                 AS co_attempts,
+               COALESCE(MAX(CASE WHEN p1_darts > 0 THEN (p1_score::float / p1_darts) * 3.0 END), 0)::numeric(6,2)        AS best_avg
+        FROM practice_sessions
+        WHERE session_data->>'mode' = 'master501'
+        GROUP BY player1_id
+      )
       SELECT
         p.id, p.name,
-        COALESCE(m.current_tier,  1) AS tier,
-        COALESCE(m.current_round, 1) AS round,
-        COUNT(CASE WHEN r.result = 'win'  THEN 1 END)::int                                  AS total_wins,
-        COUNT(CASE WHEN r.result = 'loss' THEN 1 END)::int                                  AS total_losses,
-        COUNT(r.id)::int                                                                     AS total_runs,
-        COALESCE(MAX(CASE WHEN s.p1_darts > 0 THEN (s.p1_score::float / s.p1_darts) * 3.0 END), 0)::numeric(6,2) AS best_avg,
-        COALESCE(SUM(s.p1_180s),             0)::int AS total_180s,
-        COALESCE(SUM(s.p1_checkout_hits),    0)::int AS co_hits,
-        COALESCE(SUM(s.p1_checkout_attempts),0)::int AS co_attempts
+        COALESCE(m.current_tier,  1)::int AS tier,
+        COALESCE(m.current_round, 1)::int AS round,
+        COALESCE(rs.total_wins,   0)::int AS total_wins,
+        COALESCE(rs.total_losses, 0)::int AS total_losses,
+        COALESCE(rs.total_runs,   0)::int AS total_runs,
+        COALESCE(ss.best_avg,     0)      AS best_avg,
+        COALESCE(ss.total_180s,   0)      AS total_180s,
+        COALESCE(ss.co_hits,      0)      AS co_hits,
+        COALESCE(ss.co_attempts,  0)      AS co_attempts
       FROM players p
       LEFT JOIN master501_progress m ON m.player_id = p.id
-      LEFT JOIN master501_runs r     ON r.player_id = p.id AND r.result IS NOT NULL
-      LEFT JOIN practice_sessions s  ON s.player1_id = p.id
-                                     AND s.session_data->>'mode' = 'master501'
+      LEFT JOIN run_stats     rs     ON rs.player_id   = p.id
+      LEFT JOIN session_stats ss     ON ss.player1_id  = p.id
       WHERE p.status = 'ACTIVE'
-      GROUP BY p.id, p.name, m.current_tier, m.current_round
       ORDER BY
         COALESCE(m.current_tier,  1) DESC,
         COALESCE(m.current_round, 1) DESC,
-        COUNT(CASE WHEN r.result = 'win' THEN 1 END) DESC,
+        COALESCE(rs.total_wins,   0) DESC,
         p.name
     `);
     res.json(result.rows as any[]);
