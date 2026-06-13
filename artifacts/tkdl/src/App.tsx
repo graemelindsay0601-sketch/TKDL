@@ -29,7 +29,6 @@ import Login          from "@/pages/login";
 import Account        from "@/pages/account";
 import ScorerJoin     from "@/pages/scorer-join";
 import ScorerDisplay  from "@/pages/scorer-display";
-import CameraScorer   from "@/pages/scorer-camera";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -41,7 +40,6 @@ function AppRoutes() {
       <Route path="/broadcast"           component={Broadcast}      />
       <Route path="/scorer/join"          component={ScorerJoin}    />
       <Route path="/scorer/display/:code" component={ScorerDisplay} />
-      <Route path="/scorer/camera"        component={CameraScorer}  />
       <Route path="/login"               component={Login}          />
       <Route>
         <Layout>

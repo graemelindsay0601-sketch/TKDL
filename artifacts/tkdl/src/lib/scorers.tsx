@@ -2495,8 +2495,8 @@ export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin,
 }
 
 // ── Three-in-a-Bed Scorer ──────────────────────────────────────────────────────
-export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, onWin, onAbandon }: {
-  p1Name: string; p2Name: string; winsNeeded?: number;
+export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; winsNeeded?: number; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
   const [roundWins, setRoundWins]   = useState<[number,number]>([0,0]);
@@ -2507,6 +2507,7 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, onWin, onAba
   const [msg, setMsg]               = useState("");
   const names = [p1Name, p2Name];
   const NUMS = Array.from({length:20},(_,i)=>i+1);
+  const isBotTurn3B = !!botConfig && turn === 1;
 
   const callTarget = (n: number) => { setTarget(n); setPhase("throw"); };
 
@@ -2537,6 +2538,34 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, onWin, onAba
     }
   }, [visitDarts, target, turn, winsNeeded, onWin]);
 
+  const handleDartRef3B = useRef(handleDart);
+  useEffect(() => { handleDartRef3B.current = handleDart; });
+
+  // Bot: auto-call a target during "call" phase
+  useEffect(() => {
+    if (!botConfig || turn !== 1 || phase !== "call") return;
+    // Smarter bots aim higher — scale 0.25→1.0 hitAcc into num range 5→20
+    const maxNum = Math.max(5, Math.round(botConfig.hitAcc * 20));
+    const botNum = Math.floor(Math.random() * maxNum) + 1;
+    const t = setTimeout(() => callTarget(Math.min(20, botNum)), 600);
+    return () => clearTimeout(t);
+  }, [turn, phase, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Bot: auto-throw 3 darts during "throw" phase
+  useEffect(() => {
+    if (!botConfig || turn !== 1 || phase !== "throw" || target === null) return;
+    // Trebles are hard: effective accuracy is ~50% of general hitAcc
+    const mk = (): Dart => {
+      if (Math.random() > botConfig.hitAcc * 0.5)
+        return { segment: 0, multiplier: 1, value: 0, label: "Miss" };
+      return { segment: target, multiplier: 3, value: target * 3, label: `T${target}` };
+    };
+    const t1 = setTimeout(() => handleDartRef3B.current(mk()), 700);
+    const t2 = setTimeout(() => handleDartRef3B.current(mk()), 1400);
+    const t3 = setTimeout(() => handleDartRef3B.current(mk()), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, phase, target, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider"/>
@@ -2554,35 +2583,41 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, onWin, onAba
       {msg && <div className="text-center font-bold text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>{msg}</div>}
       {phase === "call" ? (
         <>
-          <TurnBanner name={names[turn]} turn={turn} msg="— call your treble!" />
-          <SectionCard>
-            <p className="text-xs text-center mb-3" style={{color:"rgba(255,255,255,0.4)",fontFamily:"Oswald,sans-serif"}}>Pick your target:</p>
-            <div className="grid grid-cols-5 gap-2">
-              {NUMS.map(n => (
-                <button key={n} onClick={() => callTarget(n)}
-                  className="py-3 rounded-lg font-bold text-sm"
-                  style={{
-                    fontFamily:"Oswald,sans-serif", background:"rgba(255,255,255,0.05)",
-                    border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.8)",
-                    cursor:"pointer",
-                  }}>
-                  T{n}
-                </button>
-              ))}
-            </div>
-          </SectionCard>
+          <TurnBanner name={names[turn]} turn={turn} msg={isBotTurn3B ? "— CPU choosing…" : "— call your treble!"} />
+          {!isBotTurn3B && (
+            <SectionCard>
+              <p className="text-xs text-center mb-3" style={{color:"rgba(255,255,255,0.4)",fontFamily:"Oswald,sans-serif"}}>Pick your target:</p>
+              <div className="grid grid-cols-5 gap-2">
+                {NUMS.map(n => (
+                  <button key={n} onClick={() => callTarget(n)}
+                    className="py-3 rounded-lg font-bold text-sm"
+                    style={{
+                      fontFamily:"Oswald,sans-serif", background:"rgba(255,255,255,0.05)",
+                      border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.8)",
+                      cursor:"pointer",
+                    }}>
+                    T{n}
+                  </button>
+                ))}
+              </div>
+            </SectionCard>
+          )}
         </>
       ) : (
         <>
-          <TurnBanner name={names[turn]} turn={turn} msg={`— all 3 in T${target}!`} />
+          <TurnBanner name={names[turn]} turn={turn} msg={isBotTurn3B ? "— CPU THROWING…" : `— all 3 in T${target}!`} />
           <div className="text-center py-4" style={{fontFamily:"Oswald,sans-serif"}}>
             <div className="text-5xl font-black" style={{color:"#ffd24a"}}>T{target}</div>
-            <div className="text-xs mt-1" style={{color:"rgba(255,255,255,0.3)"}}>Throw all 3 darts at treble {target}</div>
+            <div className="text-xs mt-1" style={{color:"rgba(255,255,255,0.3)"}}>
+              {isBotTurn3B ? "CPU throwing…" : "Throw all 3 darts at treble " + target}
+            </div>
           </div>
-          <DartInputBoard onDart={handleDart}
-            onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
-            onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
-            highlightSegments={target ? [target] : undefined} />
+          {!isBotTurn3B && (
+            <DartInputBoard onDart={handleDart}
+              onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+              onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+              highlightSegments={target ? [target] : undefined} />
+          )}
           <VisitDarts darts={visitDarts} />
         </>
       )}
