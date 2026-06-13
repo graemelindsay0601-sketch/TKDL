@@ -54,6 +54,7 @@ function AppRoutes() {
             <Route path="/achievements"  component={Achievements}/>
             <Route path="/rules"         component={Rules}       />
             <Route path="/admin"         component={Admin}       />
+        <Route path="/admin/auto-scorer-test" component={AutoScorerTestPage} />
             <Route path="/play"          component={Play}        />
             <Route path="/practice"      component={Practice}    />
             <Route path="/shadow-bot/:playerId" component={ShadowBotDetail} />
