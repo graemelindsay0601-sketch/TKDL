@@ -229,7 +229,15 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
       FROM practice_sessions WHERE player1_id IS NOT NULL GROUP BY player1_id
     `),
     db.execute(drizzleSql`SELECT player_id, COUNT(*)::int AS trophies FROM tour_trophies GROUP BY player_id`).catch(() => ({ rows: [] })),
-    db.execute(drizzleSql`SELECT player_id, COUNT(*)::int AS cnt FROM player_achievements GROUP BY player_id`),
+    db.execute(drizzleSql`
+      SELECT player_id, SUM(cnt)::int AS cnt FROM (
+        SELECT player_id, COUNT(*) AS cnt FROM player_achievements        GROUP BY player_id
+        UNION ALL
+        SELECT player_id, COUNT(*) AS cnt FROM shadow_bot_achievements    GROUP BY player_id
+        UNION ALL
+        SELECT player_id, COUNT(*) AS cnt FROM player_tour_achievements   GROUP BY player_id
+      ) t GROUP BY player_id
+    `),
   ]);
 
   const practiceMap = new Map<number, { sessions: number; total_darts: number; total_180s: number }>();
