@@ -1,10 +1,11 @@
 services:
+  # ── Node.js web app + API ──────────────────────────────────────────────────
   - type: web
     name: tkdl
-    env: docker
+    runtime: node
     region: oregon
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    buildCommand: pnpm install && pnpm --filter @workspace/tkdl run build && pnpm --filter @workspace/api-server run build
+    startCommand: node --enable-source-maps ./artifacts/api-server/dist/index.mjs
     envVars:
       - key: NODE_ENV
         value: production
@@ -12,5 +13,19 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
-      - key: DART_SCORER_DIR
-        value: /app/artifacts/dart-scorer
+      # Set this to the tkdl-scorer service URL after it is deployed
+      # e.g. https://tkdl-scorer.onrender.com
+      - key: DART_SCORER_URL
+        sync: false
+
+  # ── Python YOLOv8 scorer microservice ──────────────────────────────────────
+  - type: web
+    name: tkdl-scorer
+    runtime: python
+    region: oregon
+    rootDir: artifacts/dart-scorer
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
