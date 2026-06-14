@@ -73,15 +73,37 @@ export function CameraScorerOverlay({ onClose }: { onClose: () => void }) {
     return () => { streamRef.current?.getTracks().forEach(t => t.stop()); };
   }, []);
 
+  const healthPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function stopHealthPoll() {
+    if (healthPollRef.current) { clearInterval(healthPollRef.current); healthPollRef.current = null; }
+  }
+
   function checkHealth() {
     setSvcState("unknown");
     fetch("/api/dart-scorer/health")
       .then(r => r.ok ? r.json() : null)
-      .then((d: { ok?: boolean; ready?: boolean } | null) => {
-        setSvcState(!d?.ok ? "unavailable" : d.ready ? "ok" : "starting");
+      .then((d: { ok?: boolean; ready?: boolean; error?: string } | null) => {
+        if (!d?.ok) { setSvcState("unavailable"); stopHealthPoll(); }
+        else if (d.ready) { setSvcState("ok"); stopHealthPoll(); }
+        else if (d.error) { setSvcState("unavailable"); stopHealthPoll(); }
+        else setSvcState("starting");
       })
-      .catch(() => setSvcState("unavailable"));
+      .catch(() => { setSvcState("unavailable"); stopHealthPoll(); });
   }
+
+  // Poll every 5 s while the daemon is still loading
+  useEffect(() => {
+    if (svcState === "starting") {
+      if (!healthPollRef.current) {
+        healthPollRef.current = setInterval(checkHealth, 5000);
+      }
+    } else {
+      stopHealthPoll();
+    }
+    return stopHealthPoll;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [svcState]);
 
   // Auto-start camera when service comes up
   useEffect(() => {
@@ -295,9 +317,13 @@ export function CameraScorerOverlay({ onClose }: { onClose: () => void }) {
           flexShrink: 0,
         }}>
           <Loader2 size={13} style={{ color: "#ffd24a", animation: "spin 1s linear infinite", flexShrink: 0 }} />
-          <span style={{ color: "rgba(255,210,74,0.8)", fontSize: "0.8rem", fontFamily: "Oswald, sans-serif" }}>
-            YOLOv8 loading… camera will start automatically
+          <span style={{ color: "rgba(255,210,74,0.8)", fontSize: "0.8rem", fontFamily: "Oswald, sans-serif", flex: 1 }}>
+            YOLOv8 loading… checking every 5s
           </span>
+          <button onClick={() => { fetch("/api/dart-scorer/restart", { method: "POST" }).catch(() => {}); checkHealth(); }}
+            style={{ padding: "0.2rem 0.5rem", borderRadius: "0.3rem", background: "rgba(255,210,74,0.1)", border: "1px solid rgba(255,210,74,0.3)", color: "#ffd24a", fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.65rem", cursor: "pointer", flexShrink: 0 }}>
+            Restart
+          </button>
         </div>
       )}
 

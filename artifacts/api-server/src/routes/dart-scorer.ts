@@ -40,10 +40,14 @@ type Waiter = {
   image:   string;
 };
 
-let proc:     ChildProcessWithoutNullStreams | null = null;
-let ready     = false;
-let starting  = false;
+let proc:       ChildProcessWithoutNullStreams | null = null;
+let ready       = false;
+let starting    = false;
 let startErr: string | null = null;
+let startTimer: ReturnType<typeof setTimeout> | null = null;
+let spawnCount  = 0;
+const MAX_SPAWN = 3;           // give up after 3 consecutive failures
+const START_TIMEOUT_MS = 120_000; // 2 min max for model load (pip install may run first)
 const waiters: Waiter[] = [];
 let lineBuf   = "";
 
@@ -53,10 +57,25 @@ function rejectAll(msg: string) {
   while ((w = waiters.shift())) w.reject(err);
 }
 
+function clearStartTimer() {
+  if (startTimer) { clearTimeout(startTimer); startTimer = null; }
+}
+
+function failDaemon(msg: string) {
+  clearStartTimer();
+  starting = false;
+  ready    = false;
+  startErr = msg;
+  proc     = null;
+  rejectAll(msg);
+}
+
 function spawnDaemon() {
   if (proc || starting) return;
-  starting = true;
-  startErr = null;
+  if (spawnCount >= MAX_SPAWN) return; // give up — show error, don't loop
+  starting  = true;
+  startErr  = null;
+  spawnCount++;
 
   const script = path.join(DART_SCORER_DIR, "scorer_daemon.py");
 
@@ -66,19 +85,19 @@ function spawnDaemon() {
       env: { ...process.env, PYTHONUNBUFFERED: "1" },
     });
   } catch (e: unknown) {
-    starting = false;
-    startErr = `Failed to spawn Python: ${e instanceof Error ? e.message : String(e)}`;
-    rejectAll(startErr);
+    failDaemon(`Failed to spawn Python: ${e instanceof Error ? e.message : String(e)}`);
     return;
   }
 
-  // Catch spawn errors (ENOENT, permission denied, etc.)
+  // Startup timeout — pip install + model load can take a while; give it 2 min
+  startTimer = setTimeout(() => {
+    failDaemon(`Scorer timed out after ${START_TIMEOUT_MS / 1000}s (Python: ${PYTHON}, dir: ${DART_SCORER_DIR})`);
+    proc?.kill();
+    proc = null;
+  }, START_TIMEOUT_MS);
+
   proc.on("error", (err: Error) => {
-    starting = false;
-    ready    = false;
-    startErr = `Python spawn error: ${err.message}`;
-    proc     = null;
-    rejectAll(startErr);
+    failDaemon(`Python spawn error: ${err.message}`);
   });
 
   proc.stdout.setEncoding("utf8");
@@ -94,17 +113,20 @@ function spawnDaemon() {
       try { msg = JSON.parse(s); } catch { continue; }
 
       if (!ready) {
+        // Status messages from pip install etc — keep starting, don't resolve yet
+        if (msg.status) continue;
+
+        clearStartTimer();
         starting = false;
         if (msg.ready) {
-          ready = true;
-          // Flush buffered requests
+          ready      = true;
+          spawnCount = 0; // reset on success
           for (const w of waiters) {
             proc!.stdin.write(JSON.stringify({ image: w.image }) + "\n");
           }
         } else {
-          startErr = (msg.error as string) ?? "Scorer process failed to start";
-          proc = null;
-          rejectAll(startErr);
+          const errMsg = [(msg.error as string), (msg.trace as string)].filter(Boolean).join("\n").slice(0, 400);
+          failDaemon(errMsg || "Scorer process failed to start");
         }
       } else {
         const w = waiters.shift();
@@ -113,12 +135,14 @@ function spawnDaemon() {
     }
   });
 
+  // Always log stderr — essential for diagnosing production failures
   proc.stderr.setEncoding("utf8");
   proc.stderr.on("data", (d: string) => {
-    if (process.env.NODE_ENV !== "production") process.stderr.write(`[dart-scorer] ${d}`);
+    process.stderr.write(`[dart-scorer] ${d}`);
   });
 
   proc.on("close", () => {
+    clearStartTimer();
     proc     = null;
     ready    = false;
     starting = false;
@@ -146,8 +170,18 @@ function callDaemon(imageBase64: string): Promise<unknown> {
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 router.get("/dart-scorer/health", (_req, res) => {
-  if (!proc && !starting) spawnDaemon(); // pre-warm
-  res.json({ ok: true, ready, starting, error: startErr, python: PYTHON, scorerDir: DART_SCORER_DIR });
+  // Pre-warm only if never started or explicitly retried — don't loop after failures
+  if (!proc && !starting && !startErr) spawnDaemon();
+  res.json({ ok: true, ready, starting, error: startErr, python: PYTHON, scorerDir: DART_SCORER_DIR, spawnCount });
+});
+
+// Manual retry — resets failure state and tries again
+router.post("/dart-scorer/restart", (_req, res) => {
+  if (proc) { proc.kill(); proc = null; }
+  clearStartTimer();
+  ready = false; starting = false; startErr = null; spawnCount = 0;
+  spawnDaemon();
+  res.json({ ok: true, message: "Restarting scorer daemon" });
 });
 
 router.post("/dart-scorer/analyze", async (req, res) => {
