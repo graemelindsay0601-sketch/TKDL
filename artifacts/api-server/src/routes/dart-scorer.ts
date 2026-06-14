@@ -31,8 +31,11 @@ function findPython(): string {
 
 const PYTHON = findPython();
 
-// Process runs from artifacts/api-server, so go up two levels to workspace root
-const DART_SCORER_DIR = path.resolve(process.cwd(), "../../artifacts/dart-scorer");
+// DART_SCORER_DIR env var is set explicitly in Docker/Render (= /app/artifacts/dart-scorer).
+// In Replit dev, pnpm runs from the package dir so ../../ resolves correctly.
+const DART_SCORER_DIR =
+  process.env.DART_SCORER_DIR ??
+  path.resolve(process.cwd(), "../../artifacts/dart-scorer");
 
 // ── Daemon state ──────────────────────────────────────────────────────────────
 

@@ -1,10 +1,10 @@
 services:
   - type: web
     name: tkdl
-    runtime: node
+    env: docker
     region: oregon
-    buildCommand: pip3 install --quiet ultralytics opencv-python-headless Pillow numpy && pnpm install && pnpm --filter @workspace/tkdl run build && pnpm --filter @workspace/api-server run build
-    startCommand: node --enable-source-maps ./artifacts/api-server/dist/index.mjs
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: NODE_ENV
         value: production
@@ -12,3 +12,5 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      - key: DART_SCORER_DIR
+        value: /app/artifacts/dart-scorer
