@@ -12,19 +12,21 @@ import path from "path";
 const router = Router();
 
 // ── Find Python binary once at startup ───────────────────────────────────────
+// We rely on the shell (shell: true in spawn) to resolve the binary, so we only
+// need to know which *name* to call — not the absolute path. This avoids the
+// ENOENT that occurs when Node does a direct execvp on a symlink chain.
 
 function findPython(): string {
-  // Prefer the venv we created for this service (has ultralytics/cv2 installed)
-  const venvPython = path.resolve("../../artifacts/dart-scorer/.venv/bin/python3");
+  // 1. Prefer the venv we created for this service (has ultralytics/cv2 installed)
+  const venvPython = path.resolve(process.cwd(), "../../artifacts/dart-scorer/.venv/bin/python3");
   try {
-    execSync(`${venvPython} --version`, { timeout: 3000 });
+    execSync(`"${venvPython}" --version`, { stdio: "pipe", timeout: 3000 });
     return venvPython;
   } catch { /* fall through */ }
-  try {
-    return execSync("which python3", { timeout: 5000 }).toString().trim();
-  } catch {
-    return "python3";
-  }
+  // 2. Fall back to whatever the shell resolves — do NOT use `which` since the
+  //    returned absolute path may be a broken symlink when Node calls execvp directly.
+  //    Just return the bare name; spawn will use shell: true.
+  return "python3";
 }
 
 const PYTHON = findPython();
@@ -80,10 +82,14 @@ function spawnDaemon() {
   const script = path.join(DART_SCORER_DIR, "scorer_daemon.py");
 
   try {
+    // shell: true — lets the shell resolve 'python3' via PATH, handles symlinks
+    // correctly. Without it, Node calls execvp directly which can ENOENT on Render
+    // even when 'which python3' succeeds (broken symlink chain).
     proc = spawn(PYTHON, [script], {
       cwd: DART_SCORER_DIR,
       env: { ...process.env, PYTHONUNBUFFERED: "1" },
-    });
+      shell: true,
+    }) as ChildProcessWithoutNullStreams;
   } catch (e: unknown) {
     failDaemon(`Failed to spawn Python: ${e instanceof Error ? e.message : String(e)}`);
     return;
