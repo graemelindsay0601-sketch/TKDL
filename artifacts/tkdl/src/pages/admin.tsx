@@ -20,7 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Download, Dumbbell, BarChart3, Star, Pencil, Check } from "lucide-react";
+import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Download, Dumbbell, BarChart3, Star, Pencil, Check, Crosshair } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 
@@ -430,7 +430,9 @@ const CATEGORIES = ["competitive", "practice", "party"];
 type GameTypeRow = { id: number; key: string; name: string; engine: string; category: string; description: string; config: string; enabled: boolean; sortOrder: number };
 
 function FeatureFlags() {
-  const [liveScorer, setLiveScorer] = useState<boolean | null>(null);
+  const [liveScorer,       setLiveScorer]       = useState<boolean | null>(null);
+  const [autoScorerOn,     setAutoScorerOn]      = useState<boolean | null>(null);
+  const [autoScorerTest,   setAutoScorerTest]    = useState<boolean | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -438,8 +440,10 @@ function FeatureFlags() {
       .then(r => r.ok ? r.json() : {})
       .then((s: Record<string, unknown>) => {
         setLiveScorer(s.live_scorer_enabled === true);
+        setAutoScorerOn(s.auto_scorer_enabled === true);
+        setAutoScorerTest(s.auto_scorer_test_only !== false);
       })
-      .catch(() => { setLiveScorer(false); });
+      .catch(() => { setLiveScorer(false); setAutoScorerOn(false); setAutoScorerTest(true); });
   }, []);
 
   const patchSetting = async (key: string, val: boolean, label: string) => {
@@ -473,6 +477,33 @@ function FeatureFlags() {
 
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
 
+        {/* ── AI Camera Scorer ── */}
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.8)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>AI Camera Scorer</div>
+            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Show camera 🎥 button in all game scorers (requires Auto-Scorer Test Only = off)</div>
+          </div>
+          <Switch
+            checked={autoScorerOn === true}
+            disabled={autoScorerOn === null}
+            onCheckedChange={val => { setAutoScorerOn(val); void patchSetting("auto_scorer_enabled", val, val ? "AI Camera Scorer enabled" : "AI Camera Scorer disabled"); }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.8)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>Auto-Scorer Test Only</div>
+            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>When on, camera button only shows if AI Camera Scorer is also on — hidden from nav until you're ready</div>
+          </div>
+          <Switch
+            checked={autoScorerTest === true}
+            disabled={autoScorerTest === null}
+            onCheckedChange={val => { setAutoScorerTest(val); void patchSetting("auto_scorer_test_only", val, val ? "Test-only mode on" : "Test-only mode off"); }}
+          />
+        </div>
+
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+
         <div className="flex gap-2">
           <a href="/play"
             className="flex-1 py-2.5 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
@@ -483,6 +514,11 @@ function FeatureFlags() {
             className="flex-1 py-2.5 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
             style={{ background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.3)", color: "#a78bfa", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
             <Dumbbell className="inline w-3.5 h-3.5 mr-1.5" />Practice →
+          </a>
+          <a href="/auto-scorer"
+            className="flex-1 py-2.5 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
+            style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.25)", color: "#00d4ff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
+            <Crosshair className="inline w-3.5 h-3.5 mr-1.5" />Auto-Scorer →
           </a>
         </div>
       </div>

@@ -168,11 +168,15 @@ export function Layout({ children }: { children: ReactNode }) {
 
   useEffect(() => { setDrawerOpen(false); }, [location]);
 
-  const [liveScorer, setLiveScorer] = useState(false);
+  const [liveScorer,       setLiveScorer]   = useState(false);
+  const [autoScorerInNav,  setAutoScorer]   = useState(false);
   useEffect(() => {
     fetch("/api/settings")
       .then(r => r.ok ? r.json() : {})
-      .then((s: Record<string, unknown>) => { if (s.live_scorer_enabled === true) setLiveScorer(true); })
+      .then((s: Record<string, unknown>) => {
+        if (s.live_scorer_enabled === true) setLiveScorer(true);
+        if (s.auto_scorer_enabled === true && s.auto_scorer_test_only !== true) setAutoScorer(true);
+      })
       .catch(() => {});
   }, []);
 
@@ -180,6 +184,9 @@ export function Layout({ children }: { children: ReactNode }) {
   const dynamicPlayNav: NavItem[] = liveScorer
     ? [...playNav, { href: "/play", label: "Live Scorer", icon: Swords }]
     : playNav;
+  const dynamicBotNav: NavItem[] = autoScorerInNav
+    ? botNav
+    : botNav.filter(i => i.href !== "/auto-scorer");
 
   function NavLink({ item }: { item: NavItem }) {
     const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
@@ -299,7 +306,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
         <NavSection label="Master 501"   items={master501Nav}    />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-        <NavSection label="Bot"          items={botNav}          />
+        <NavSection label="Bot"          items={dynamicBotNav}   />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
         <NavSection label="League"       items={leagueNav}       />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />

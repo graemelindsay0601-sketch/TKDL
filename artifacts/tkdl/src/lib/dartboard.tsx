@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useDartHit } from "@/components/dartboard-bg";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -8,6 +8,31 @@ export type Dart = {
   value: number;
   label: string;
 };
+
+// ── Camera Scorer Context ──────────────────────────────────────────────────────
+// Holds darts detected by the AI camera overlay. DartInputBoard subscribes and
+// auto-fires them (staggered) as if the player had tapped them manually.
+interface CameraScorerCtx {
+  pendingDarts: Dart[] | null;
+  setPendingDarts: (darts: Dart[] | null) => void;
+}
+const CameraScorerContext = createContext<CameraScorerCtx>({
+  pendingDarts: null,
+  setPendingDarts: () => {},
+});
+
+export function CameraScorerProvider({ children }: { children: ReactNode }) {
+  const [pendingDarts, setPendingDarts] = useState<Dart[] | null>(null);
+  return (
+    <CameraScorerContext.Provider value={{ pendingDarts, setPendingDarts }}>
+      {children}
+    </CameraScorerContext.Provider>
+  );
+}
+
+export function useCameraScorerCtx() {
+  return useContext(CameraScorerContext);
+}
 
 // ── Checkout table ─────────────────────────────────────────────────────────────
 export const CHECKOUTS: Record<number, string> = {
@@ -74,6 +99,20 @@ export function DartInputBoard({
   const [mult, setMult] = useState<1 | 2 | 3>(1);
 
   const { hitDart } = useDartHit();
+  const { pendingDarts, setPendingDarts } = useCameraScorerCtx();
+
+  // Auto-fire camera-detected darts into this board when it's active (not disabled)
+  useEffect(() => {
+    if (!pendingDarts?.length || disabled) return;
+    const timers = pendingDarts.map((d, i) =>
+      setTimeout(() => {
+        hitDart(d.label);
+        onDart(d);
+        if (i === pendingDarts.length - 1) setPendingDarts(null);
+      }, i * 220)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [pendingDarts, disabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fire = (seg: number, forceMult?: 1 | 2 | 3) => {
     if (disabled) return;

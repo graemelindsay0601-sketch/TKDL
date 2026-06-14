@@ -2,7 +2,10 @@
  * GameScorer — orchestrator that routes any game type to its proper scorer engine.
  * Used by both /play (real matches) and /practice (practice sessions).
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Camera } from "lucide-react";
+import { CameraScorerProvider } from "@/lib/dartboard";
+import { CameraScorerOverlay } from "@/components/camera-scorer-overlay";
 import {
   X01Scorer, CricketScorer, KillerScorer, SequenceScorer,
   HalveItScorer, CountUpScorer, GotchaScorer, BaseballScorer,
@@ -232,27 +235,37 @@ export function GameScorer({
 }) {
   const isBullUpApplicable = bullUp && !soloMode;
   const [starterIdx, setStarterIdx] = useState<0 | 1 | null>(isBullUpApplicable ? null : 0);
+  const [cameraOpen, setCameraOpen]         = useState(false);
+  const [autoScorerEnabled, setAutoScorer]  = useState(false);
 
-  if (starterIdx === null) {
-    return (
-      <BullUpPhase
-        p1Name={p1Name}
-        p2Name={p2Name}
-        isBot={!!botConfig}
-        onComplete={setStarterIdx}
-      />
-    );
-  }
+  useEffect(() => {
+    fetch("/api/settings")
+      .then(r => r.ok ? r.json() : {})
+      .then((s: Record<string, unknown>) => { if (s.auto_scorer_enabled === true) setAutoScorer(true); })
+      .catch(() => {});
+  }, []);
 
-  // Swap names + invert winner index if P2 won the bull-up
-  const ep1 = starterIdx === 1 ? p2Name : p1Name;
-  const ep2 = starterIdx === 1 ? p1Name : p2Name;
-  const wrappedOnWin: typeof onWin = starterIdx === 1
-    ? (result) => onWin({ ...result, winnerIdx: result.winnerIdx === 0 ? 1 : 0 })
-    : onWin;
+  function renderInner() {
+    if (starterIdx === null) {
+      return (
+        <BullUpPhase
+          p1Name={p1Name}
+          p2Name={p2Name}
+          isBot={!!botConfig}
+          onComplete={setStarterIdx}
+        />
+      );
+    }
 
-  const cfg = safeParse(gameType.config);
-  const win = (idx: number, detail?: string) => wrappedOnWin({ winnerIdx: idx, detail });
+    // Swap names + invert winner index if P2 won the bull-up
+    const ep1 = starterIdx === 1 ? p2Name : p1Name;
+    const ep2 = starterIdx === 1 ? p1Name : p2Name;
+    const wrappedOnWin: typeof onWin = starterIdx === 1
+      ? (result) => onWin({ ...result, winnerIdx: result.winnerIdx === 0 ? 1 : 0 })
+      : onWin;
+
+    const cfg = safeParse(gameType.config);
+    const win = (idx: number, detail?: string) => wrappedOnWin({ winnerIdx: idx, detail });
 
   // ── Team engines (variable-length, 2v2 / 3v3) ────────────────────────────────
   if (gameType.engine === "TeamX01" && teamNames) {
@@ -332,4 +345,38 @@ export function GameScorer({
     default:
       return <ManualScorer p1Name={ep1} p2Name={ep2} gameName={gameType.name} rules={gameType.description} onWin={win} onAbandon={onAbandon} />;
   }
+  } // end renderInner
+
+  return (
+    <CameraScorerProvider>
+      {renderInner()}
+
+      {/* ── AI Camera scorer FAB ── */}
+      {autoScorerEnabled && !cameraOpen && (
+        <button
+          onClick={() => setCameraOpen(true)}
+          title="AI Camera Scorer"
+          style={{
+            position: "fixed", bottom: 80, right: 16, zIndex: 400,
+            width: 48, height: 48, borderRadius: "50%",
+            background: "rgba(4,4,10,0.92)",
+            border: "1.5px solid rgba(0,212,255,0.5)",
+            color: "#00d4ff",
+            boxShadow: "0 0 18px rgba(0,212,255,0.25), 0 4px 12px rgba(0,0,0,0.5)",
+            cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "transform 0.15s, box-shadow 0.15s",
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.1)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)"; }}
+        >
+          <Camera size={20} />
+        </button>
+      )}
+
+      {cameraOpen && (
+        <CameraScorerOverlay onClose={() => setCameraOpen(false)} />
+      )}
+    </CameraScorerProvider>
+  );
 }
