@@ -1,0 +1,80 @@
+Summary
+I've found exactly what you need for your TKDL autoscorer — a complete, production-ready open-source project called Dart Sense that does automated dart scoring using AI. Here's what you're getting:
+📦 What's Included:
+
+QUICK_START_GUIDE.md — Start here! (5-10 minute read)
+
+TL;DR of what dart-sense is
+How it works in 5 minutes
+Key accuracy metrics
+Step-by-step getting started guide
+
+
+DART_SENSE_INTEGRATION_GUIDE.md — Full technical deep-dive
+
+Component breakdown
+Integration architecture
+Expected accuracy & limitations
+11-16 day development estimate
+Database schema examples
+
+
+CODE_EXTRACTION_GUIDE.md — Copy-paste ready code
+
+Exactly which files to copy (6 files)
+How to modify them for TKDL
+Ready-to-use code examples
+REST API endpoints
+React component template
+Database migrations
+
+
+dart-sense-main/ — The complete source code
+
+get_scores.py — Score calculation (copy as-is ✅)
+game_logic.py — Game rules (minor changes ⚠️)
+video_processing.py — Video pipeline (reference)
+weights.pt — Pre-trained YOLOv8 model
+Full documentation & examples
+
+
+
+🎯 Key Points:
+What dart-sense does:
+
+Uses YOLOv8 AI to detect darts in video
+Performs perspective correction (works from any camera angle)
+Calculates scores automatically (T20, S5, miss, etc.)
+Manages multiplayer x01 games with full rule enforcement
+98% precision, 94% recall on real darts
+
+What you need to do:
+
+Extract 2 Python files (get_scores.py, game_logic.py)
+Create wrapper for YOLO video processing
+Add database integration (PostgreSQL)
+Build React UI to display live game
+Test with real players
+
+Estimated effort: 2-3 weeks total development
+🚀 Recommended Next Steps:
+Today (1-2 hours):
+
+Read QUICK_START_GUIDE.md
+Skim DART_SENSE_INTEGRATION_GUIDE.md
+Understand how it works
+
+This week (if you have a dartboard):
+
+Install Python + dependencies
+Test dart-sense with real darts
+Record accuracy on YOUR board setup
+Decide if worth the integration effort
+
+Next week:
+
+Follow CODE_EXTRACTION_GUIDE.md
+Start copying/adapting code to TKDL
+Begin building video processing pipeline
+
+The hard parts (dart detection, score calculation) are already solved. You just need to integrate them with your database and React app.

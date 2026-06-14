@@ -15,6 +15,7 @@ import teamMatchesRouter  from "./team-matches";
 import tourRouter         from "./tour";
 import master501Router    from "./master501";
 import scorerRouter       from "./scorer";
+import dartScorerRouter   from "./dart-scorer";
 
 
 const router: IRouter = Router();
@@ -35,6 +36,7 @@ router.use(practiceRouter);
 router.use(tourRouter);
 router.use(master501Router);
 router.use(scorerRouter);
+router.use(dartScorerRouter);
 
 
 export default router;
