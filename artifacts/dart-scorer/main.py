@@ -41,6 +41,11 @@ class AnalyzeRequest(BaseModel):
     image: str  # base64-encoded JPEG
 
 
+@app.get("/")
+def root():
+    return {"ok": True, "service": "dart-scorer"}
+
+
 @app.get("/dart-scorer/health")
 def health():
     return {
