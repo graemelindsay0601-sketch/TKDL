@@ -266,11 +266,23 @@ router.get("/players/:id/practice-stats", async (req, res): Promise<void> => {
       ORDER BY sessions DESC
     `)).rows;
 
+    const [highestCoRow] = (await db.execute(sql`
+      SELECT COALESCE(MAX((v->>'total')::int), 0) AS highest_checkout
+      FROM practice_sessions ps,
+           jsonb_array_elements(ps.session_data->'legs') AS l,
+           jsonb_array_elements(l->'visits') AS v
+      WHERE ps.player1_id = ${playerId}
+        AND ps.session_data ? 'legs'
+        AND (v->>'isCheckout')::boolean = true
+        AND (v->>'total')::int > 0
+    `)).rows;
+
     res.json({
       ...agg,
-      best_session_avg: best?.session_avg ?? null,
-      visit_stats: visitStats ?? null,
-      fav_doubles: favDoubles,
+      best_session_avg:   best?.session_avg ?? null,
+      highest_checkout:   (highestCoRow as any)?.highest_checkout ?? 0,
+      visit_stats:        visitStats ?? null,
+      fav_doubles:        favDoubles,
       byGame,
     });
   } catch (err) {

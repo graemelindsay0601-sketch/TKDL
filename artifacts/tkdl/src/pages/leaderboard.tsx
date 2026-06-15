@@ -6,7 +6,7 @@ import { Link } from "wouter";
 import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal, Zap } from "lucide-react";
 import { useState } from "react";
 
-type Mode = "season" | "career" | "achievements" | "bot" | "tour" | "master501";
+type Mode = "season" | "career" | "achievements" | "bot" | "tour" | "master501" | "records";
 
 const CAREER_SORTS = [
   { key: "wins",    label: "Career Wins" },
@@ -366,8 +366,13 @@ export default function Standings() {
     queryFn:  () => fetch("/api/master501/leaderboard").then(r => r.json()),
     enabled:  mode === "master501",
   });
+  const { data: recordsData,   isLoading: recordsLoading }  = useQuery({
+    queryKey: ["leaderboard-records"],
+    queryFn:  () => fetch("/api/stats/checkout-records").then(r => r.json()),
+    enabled:  mode === "records",
+  });
 
-  const isLoading = { season: seasonLoading, career: careerLoading, achievements: achLoading, bot: botLoading, tour: tourLoading, master501: m501Loading }[mode];
+  const isLoading = { season: seasonLoading, career: careerLoading, achievements: achLoading, bot: botLoading, tour: tourLoading, master501: m501Loading, records: recordsLoading }[mode];
 
   const active     = leaderboard?.filter(e => e.status !== "ELIMINATED") ?? [];
   const eliminated = leaderboard?.filter(e => e.status === "ELIMINATED") ?? [];
@@ -377,13 +382,15 @@ export default function Standings() {
   const achRows    = (achData  ?? []) as any[];
   const botRows    = (botData  ?? []) as any[];
   const tourRows   = (tourData ?? []) as any[];
-  const m501Rows   = (m501Data ?? []) as any[];
+  const m501Rows      = (m501Data    ?? []) as any[];
+  const recordsRows   = (recordsData ?? []) as any[];
   const maxDarts   = Math.max(...botRows.map(r => r.totalDarts), 1);
 
   const headings: Record<Mode, string> = {
     season: "Season Standings", career: "All-Time Records",
     achievements: "Achievement Standings", bot: "Shadow Bot Rankings",
     tour: "Tour Rankings", master501: "Master-501 Rankings",
+    records: "Checkout Hall of Fame",
   };
   const subheads: Record<Mode, React.ReactNode> = {
     season:      <><span className="live-dot" /> Ranked by points · ELO tiebreak</>,
@@ -392,6 +399,7 @@ export default function Standings() {
     bot:         <>Practice session stats — darts thrown, 180s, checkout %</>,
     tour:        <>Tour trophy cabinet rankings across all 61 tours</>,
     master501:   <>Tier progression · win/loss · best avg · 180s · checkout %</>,
+    records:     <>Highest single-leg checkouts ever recorded in practice</>,
   };
 
   return (
@@ -425,6 +433,7 @@ export default function Standings() {
         <Tab active={mode === "bot"}          onClick={() => setMode("bot")}          color="#00e5a0"  icon={<CircuitBoard className="w-3.5 h-3.5" />}>Shadow Bot</Tab>
         <Tab active={mode === "tour"}         onClick={() => setMode("tour")}         color="#ffd24a"  icon={<Star className="w-3.5 h-3.5" />}>Tour</Tab>
         <Tab active={mode === "master501"}   onClick={() => setMode("master501")}   color="#00c8a0"  icon={<Zap className="w-3.5 h-3.5" />}>Master-501</Tab>
+        <Tab active={mode === "records"}     onClick={() => setMode("records")}     color="#ff005c"  icon={<Flame className="w-3.5 h-3.5" />}>Records</Tab>
       </div>
 
       {/* Career sort pills */}
@@ -558,6 +567,63 @@ export default function Standings() {
                       {info.emoji} T{t} {info.label}
                     </span>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Checkout Records ── */}
+          {mode === "records" && (
+            <div className="space-y-2">
+              {recordsRows.length === 0 ? (
+                <div className="pdc-card px-6 py-16 text-center space-y-3">
+                  <div className="text-4xl">🎯</div>
+                  <div className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No checkouts recorded yet — hit the practice board!</div>
+                </div>
+              ) : recordsRows.map((entry, idx) => {
+                const checkout = Number(entry.highest_checkout);
+                const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : null;
+                const isTop3 = idx < 3;
+                const checkoutColor = checkout >= 160 ? "#ff005c" : checkout >= 100 ? "#ffd24a" : checkout >= 60 ? "#00e5a0" : "rgba(255,255,255,0.55)";
+                const date = entry.created_at ? new Date(entry.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : null;
+                return (
+                  <Link key={entry.player_id} href={`/players/${entry.player_id}`} asChild>
+                    <div className="pdc-card flex items-center gap-4 cursor-pointer transition-all hover:scale-[1.01]"
+                      style={{ padding: "0.85rem 1.2rem", borderLeft: isTop3 ? `3px solid ${checkoutColor}` : undefined }}>
+                      {/* Rank */}
+                      <div className="w-8 text-center shrink-0">
+                        {medal
+                          ? <span className="text-xl">{medal}</span>
+                          : <span className="font-black text-sm tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.25)" }}>{idx + 1}</span>
+                        }
+                      </div>
+                      {/* Player */}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-black uppercase truncate" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1rem", letterSpacing: "0.05em", color: isTop3 ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.65)" }}>
+                          {entry.player_name}
+                        </div>
+                        {entry.game_type_name && (
+                          <div className="text-xs truncate mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                            {entry.game_type_name}{date ? ` · ${date}` : ""}
+                          </div>
+                        )}
+                      </div>
+                      {/* Checkout score */}
+                      <div className="text-right shrink-0">
+                        <div className="font-black tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontSize: isTop3 ? "2.2rem" : "1.8rem", color: checkoutColor, textShadow: isTop3 ? `0 0 20px ${checkoutColor}60` : undefined }}>
+                          {checkout}
+                        </div>
+                        <div className="text-xs uppercase tracking-widest mt-0.5" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "0.48rem" }}>
+                          CHECKOUT
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+              {recordsRows.length > 0 && (
+                <div className="pt-1 text-xs" style={{ color: "rgba(255,255,255,0.15)" }}>
+                  Highest single-leg checkout per player from all practice sessions · 170 is the maximum possible checkout
                 </div>
               )}
             </div>

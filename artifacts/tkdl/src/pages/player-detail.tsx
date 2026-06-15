@@ -439,7 +439,7 @@ export default function PlayerDetail() {
   const params = useParams();
   const playerId = parseInt(params.id || "0", 10);
   const [achFilter, setAchFilter] = useState<"all" | "unlocked" | "locked" | "close">("all");
-  const [achTab, setAchTab] = useState<"league" | "bot" | "tour">("league");
+  const [achTab, setAchTab] = useState<"league" | "bot" | "tour" | "m501">("league");
   const [tourAchs, setTourAchs] = useState<any[]>([]);
   const [showAllAch, setShowAllAch] = useState(false);
   const [profileTab, setProfileTab] = useState<"matches" | "h2h" | "practice" | "shadowbot">("matches");
@@ -573,9 +573,12 @@ export default function PlayerDetail() {
       rarity: a.gamerscore >= 100 ? "Legendary" : a.gamerscore >= 50 ? "Epic" : a.gamerscore >= 25 ? "Rare" : "Common",
     }));
 
+  const leagueAchs = achProgress.filter((a: any) => !a.key?.startsWith("M501_"));
+  const m501Achs   = achProgress.filter((a: any) =>  a.key?.startsWith("M501_"));
   const achSourceMap: Record<string, any[]> = {
-    all:    [...achProgress, ...normalizedBotAchs, ...normalizedTourAchs],
-    league: achProgress,
+    all:    [...leagueAchs, ...m501Achs, ...normalizedBotAchs, ...normalizedTourAchs],
+    league: leagueAchs,
+    m501:   m501Achs,
     bot:    normalizedBotAchs,
     tour:   normalizedTourAchs,
   };
@@ -1017,13 +1020,14 @@ export default function PlayerDetail() {
             </div>
 
             {/* ── Row 2: key counts ── */}
-            <div className="grid grid-cols-5 divide-x divide-white/[0.07]" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="grid grid-cols-6 divide-x divide-white/[0.07]" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
               {[
                 { label: "Sessions",     value: practiceAgg.total_sessions ?? 0,   color: "rgba(255,255,255,0.6)", fmt: (v: number) => String(v) },
                 { label: "180s",         value: practiceAgg.total_180s ?? 0,        color: "#ffd24a",              fmt: (v: number) => String(v) },
                 { label: "140+",         value: practiceAgg.visit_stats?.v140 ?? 0, color: "#f97316",              fmt: (v: number) => String(v) },
                 { label: "100+",         value: practiceAgg.visit_stats?.v100 ?? 0, color: "#fb923c",              fmt: (v: number) => String(v) },
-                { label: "Checkout %",   value: practiceAgg.total_co_attempts > 0 ? Math.round((practiceAgg.total_co_hits / practiceAgg.total_co_attempts) * 100) : null, color: "#22c55e", fmt: (v: number|null) => v != null ? `${v}%` : "—" },
+                { label: "CO %",         value: practiceAgg.total_co_attempts > 0 ? Math.round((practiceAgg.total_co_hits / practiceAgg.total_co_attempts) * 100) : null, color: "#22c55e", fmt: (v: number|null) => v != null ? `${v}%` : "—" },
+                { label: "Best CO",      value: (practiceAgg as any).highest_checkout ?? 0, color: "#ff005c", fmt: (v: number) => v > 0 ? String(v) : "—" },
               ].map(({ label, value, color, fmt }) => (
                 <div key={label} className="px-2 py-3 text-center">
                   <div className="text-lg font-black tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", color }}>
@@ -1700,8 +1704,9 @@ export default function PlayerDetail() {
         <div className="flex gap-1 mb-3 flex-wrap">
           {([
             { key: "league", label: "🏆 League", color: "#ffd24a" },
+            { key: "m501",   label: "🎯 M-501",  color: "#00c8a0" },
             { key: "bot",    label: "🤖 Bot",    color: "#ff005c" },
-            { key: "tour",   label: "🎯 Tour",   color: "#22c55e" },
+            { key: "tour",   label: "🌟 Tour",   color: "#a855f7" },
           ] as const).map(({ key, label, color }) => {
             const src = achSourceMap[key] ?? [];
             const cnt = src.filter((a: any) => a.isUnlocked).length;
