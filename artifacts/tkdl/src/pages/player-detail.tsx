@@ -200,15 +200,15 @@ function BigStat({ value, label, color, suffix = "" }: { value: number; label: s
   );
 }
 
-function SmallStat({ value, label, accent, suffix = "" }: { value: number; label: string; accent?: string; suffix?: string }) {
-  const animated = useCountUp(value);
+function SmallStat({ value, label, accent, suffix = "", placeholder = "0" }: { value: number | null; label: string; accent?: string; suffix?: string; placeholder?: string }) {
+  const animated = useCountUp(value ?? 0);
   return (
     <div className="pdc-card p-3.5 text-center">
       <div className="text-xs uppercase tracking-widest mb-1.5 font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.22)", fontSize: "0.58rem", letterSpacing: "0.15em" }}>
         {label}
       </div>
-      <div className="text-xl font-bold leading-none" style={{ fontFamily: "Oswald, sans-serif", color: accent ?? "rgba(255,255,255,0.85)" }}>
-        {animated}{suffix}
+      <div className="text-xl font-bold leading-none" style={{ fontFamily: "Oswald, sans-serif", color: value == null ? "rgba(255,255,255,0.2)" : (accent ?? "rgba(255,255,255,0.85)") }}>
+        {value == null ? placeholder : `${animated}${suffix}`}
       </div>
     </div>
   );
@@ -503,6 +503,20 @@ export default function PlayerDetail() {
       })
       .catch(() => setGameSessionsLoading(prev => ({ ...prev, [key]: false })));
   };
+  const [checkouts, setCheckouts]           = useState<any[] | null>(null);
+  const [checkoutsOpen, setCheckoutsOpen]   = useState(false);
+  const [checkoutsLoading, setCheckoutsLoading] = useState(false);
+
+  const loadCheckouts = () => {
+    if (checkouts !== null) { setCheckoutsOpen(v => !v); return; }
+    setCheckoutsOpen(true);
+    setCheckoutsLoading(true);
+    fetch(`/api/players/${playerId}/checkouts?minScore=80`)
+      .then(r => r.json())
+      .then(d => { setCheckouts(Array.isArray(d) ? d : []); setCheckoutsLoading(false); })
+      .catch(() => { setCheckouts([]); setCheckoutsLoading(false); });
+  };
+
   const [dartProfile, setDartProfile] = useState<any>(null);
   useEffect(() => {
     if (!playerId) return;
@@ -756,7 +770,7 @@ export default function PlayerDetail() {
           style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.22)", letterSpacing: "0.15em" }}>
           Career
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
           <SmallStat label="Wins"      value={player.careerWins ?? 0}     accent="#22c55e" />
           <SmallStat label="Losses"    value={player.careerLosses ?? 0}   accent="#ff005c" />
           <SmallStat label="Played"    value={totalGames} />
@@ -765,8 +779,91 @@ export default function PlayerDetail() {
           <SmallStat label="Career Pts" value={player.careerPoints ?? 0}
             accent={(player.careerPoints ?? 0) >= 0 ? "#22c55e" : "#ff005c"} />
           <SmallStat label="Gamerscore" value={gamerscore?.total ?? 0} suffix="G" accent="#ffd24a" />
+          <SmallStat label="Best CO" value={(practiceAgg as any)?.highest_checkout > 0 ? (practiceAgg as any).highest_checkout : null} accent="#ff005c" placeholder="—" />
         </div>
       </div>
+
+      {/* ══ HIGH CHECKOUTS ══ */}
+      {((practiceAgg as any)?.highest_checkout > 0) && (
+        <div className="pdc-card overflow-hidden">
+          {/* Header row — always visible, acts as the toggle */}
+          <button
+            onClick={loadCheckouts}
+            className="w-full flex items-center justify-between px-4 py-3 transition-all hover:bg-white/[0.03]"
+            style={{ borderBottom: checkoutsOpen ? "1px solid rgba(255,255,255,0.07)" : undefined }}
+          >
+            <div className="flex items-center gap-2.5">
+              <span style={{ color: "#ff005c", fontSize: "1.1rem" }}>🎯</span>
+              <span className="font-black uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.75)" }}>
+                High Checkouts
+              </span>
+              <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(255,0,92,0.12)", color: "#ff005c", border: "1px solid rgba(255,0,92,0.25)" }}>
+                80+
+              </span>
+              {checkouts !== null && (
+                <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  {checkouts.length} recorded
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.5rem", color: "#ff005c" }}>
+                {(practiceAgg as any).highest_checkout}
+              </span>
+              <ChevronDown className="w-4 h-4 transition-transform" style={{ color: "rgba(255,255,255,0.3)", transform: checkoutsOpen ? "rotate(180deg)" : undefined }} />
+            </div>
+          </button>
+
+          {/* Expandable list */}
+          {checkoutsOpen && (
+            <div>
+              {checkoutsLoading ? (
+                <div className="px-4 py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>Loading…</div>
+              ) : checkouts && checkouts.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No 80+ checkouts recorded yet.</div>
+              ) : checkouts && (
+                <div>
+                  {/* Column headers */}
+                  <div className="grid grid-cols-12 px-4 py-1.5 text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                    <div className="col-span-2 text-center">#</div>
+                    <div className="col-span-3 text-center">Score</div>
+                    <div className="col-span-4">Game</div>
+                    <div className="col-span-3 text-right">Date</div>
+                  </div>
+                  {checkouts.map((co: any, idx: number) => {
+                    const score = Number(co.checkout_score);
+                    const scoreColor = score >= 160 ? "#ff005c" : score >= 100 ? "#ffd24a" : score >= 80 ? "#00e5a0" : "rgba(255,255,255,0.55)";
+                    const date = co.created_at ? new Date(co.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—";
+                    const isFirst = idx === 0;
+                    return (
+                      <div key={idx} className="grid grid-cols-12 items-center px-4 py-2.5 transition-colors hover:bg-white/[0.02]"
+                        style={{ borderBottom: "1px solid rgba(255,255,255,0.035)", background: isFirst ? "rgba(255,0,92,0.04)" : undefined }}>
+                        <div className="col-span-2 text-center">
+                          {isFirst
+                            ? <span className="text-base">🥇</span>
+                            : <span className="text-xs tabular-nums font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)" }}>{idx + 1}</span>
+                          }
+                        </div>
+                        <div className="col-span-3 text-center">
+                          <span className="font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", fontSize: isFirst ? "1.6rem" : "1.25rem", color: scoreColor, textShadow: isFirst ? `0 0 12px ${scoreColor}60` : undefined, lineHeight: 1 }}>
+                            {score}
+                          </span>
+                        </div>
+                        <div className="col-span-4 truncate text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                          {co.game_type_name ?? "—"}
+                        </div>
+                        <div className="col-span-3 text-right text-xs tabular-nums" style={{ color: "rgba(255,255,255,0.25)" }}>
+                          {date}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ══ RECENT MATCHES + H2H ══ */}
 

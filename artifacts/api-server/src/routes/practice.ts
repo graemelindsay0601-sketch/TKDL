@@ -291,6 +291,34 @@ router.get("/players/:id/practice-stats", async (req, res): Promise<void> => {
   }
 });
 
+// GET /api/players/:id/checkouts — all 80+ checkouts for a player, sorted by score desc
+router.get("/players/:id/checkouts", async (req, res): Promise<void> => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+    const minScore = Math.max(1, parseInt(String(req.query.minScore ?? "80"), 10) || 80);
+
+    const result = await db.execute(sql`
+      SELECT
+        (v->>'total')::int    AS checkout_score,
+        ps.game_type_name,
+        ps.created_at
+      FROM practice_sessions ps,
+           jsonb_array_elements(ps.session_data->'legs') AS l,
+           jsonb_array_elements(l->'visits') AS v
+      WHERE ps.player1_id = ${playerId}
+        AND ps.session_data ? 'legs'
+        AND (v->>'isCheckout')::boolean = true
+        AND (v->>'total')::int >= ${minScore}
+      ORDER BY (v->>'total')::int DESC, ps.created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get player checkouts");
+    res.status(500).json({ error: "Failed" });
+  }
+});
+
 // GET /api/players/:id/practice-sessions — recent practice sessions for a player
 // Returns sessions where the player was either P1 or P2, normalised to the player's perspective.
 // Optional query param: ?gameTypeKey=501_double_out  (filter by game type)
