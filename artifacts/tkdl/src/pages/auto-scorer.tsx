@@ -45,21 +45,39 @@ export default function AutoScorer() {
       .catch(() => setMState("error"));
   }, []);
 
-  // Start device camera
+  // Start device camera — iOS Safari requires no explicit play() after await
   async function startCamera() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setStreaming(true);
-    } catch {
-      setResult({ darts: [], total: 0, calibrationPoints: 0, error: "Camera access denied — allow camera permission in your browser." });
+    const constraintSets = [
+      { video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } },
+      { video: { facingMode: "environment" } },
+      { video: true },
+    ];
+    let stream: MediaStream | null = null;
+    for (const c of constraintSets) {
+      try { stream = await navigator.mediaDevices.getUserMedia(c); break; } catch { /* try next */ }
     }
+    if (!stream) {
+      setResult({ darts: [], total: 0, calibrationPoints: 0, error: "Camera access denied — allow camera permission in your browser." });
+      return;
+    }
+    streamRef.current = stream;
+    const video = videoRef.current;
+    if (video) {
+      video.srcObject = stream;
+      // iOS breaks the user-gesture chain after any await — never call play() explicitly.
+      // Instead rely on the autoPlay attribute and wait for the 'playing' event.
+      await new Promise<void>((resolve) => {
+        const onPlaying = () => { video.removeEventListener('playing', onPlaying); resolve(); };
+        video.addEventListener('playing', onPlaying);
+        // Timeout fallback: if 'playing' never fires (desktop), nudge with play() then resolve
+        setTimeout(() => {
+          video.removeEventListener('playing', onPlaying);
+          video.play().catch(() => {});
+          resolve();
+        }, 1500);
+      });
+    }
+    setStreaming(true);
   }
 
   function stopCamera() {
