@@ -1,0 +1,48 @@
+{"level":30,"time":1781542477748,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":51,"method":"GET","url":"/api/tour/all-trophies"},"res":{"statusCode":304},"responseTime":208,"msg":"request completed"}
+{"level":30,"time":1781542478247,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":58,"method":"GET","url":"/api/stats/narrative"},"res":{"statusCode":304},"responseTime":600,"msg":"request completed"}
+{"level":30,"time":1781542478447,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":52,"method":"GET","url":"/api/bots/leaderboard"},"res":{"statusCode":304},"responseTime":902,"msg":"request completed"}
+{"level":30,"time":1781542478461,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":53,"method":"GET","url":"/api/tour/summary"},"res":{"statusCode":304},"responseTime":915,"msg":"request completed"}
+{"level":30,"time":1781542478463,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":56,"method":"GET","url":"/api/stats/rivalries"},"res":{"statusCode":304},"responseTime":911,"msg":"request completed"}
+{"level":30,"time":1781542478548,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":61,"method":"GET","url":"/api/stats/recent-activity"},"res":{"statusCode":304},"responseTime":899,"msg":"request completed"}
+{"level":30,"time":1781542478563,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":62,"method":"GET","url":"/api/settings"},"res":{"statusCode":304},"responseTime":818,"msg":"request completed"}
+{"level":30,"time":1781542478648,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":59,"method":"GET","url":"/api/stats/live-feed"},"res":{"statusCode":304},"responseTime":1000,"msg":"request completed"}
+{"level":30,"time":1781542478648,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":60,"method":"GET","url":"/api/auth/me"},"res":{"statusCode":304},"responseTime":1000,"msg":"request completed"}
+{"level":30,"time":1781542478676,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":54,"method":"GET","url":"/api/achievements/recent"},"res":{"statusCode":304},"responseTime":1130,"msg":"request completed"}
+{"level":30,"time":1781542478759,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":55,"method":"GET","url":"/api/leaderboard"},"res":{"statusCode":304},"responseTime":1208,"msg":"request completed"}
+{"level":30,"time":1781542478831,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":57,"method":"GET","url":"/api/stats/summary"},"res":{"statusCode":304},"responseTime":1279,"msg":"request completed"}
+{"level":30,"time":1781542494416,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":63,"method":"GET","url":"/api/matches"},"res":{"statusCode":304},"responseTime":219,"msg":"request completed"}
+{"level":30,"time":1781542494430,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":64,"method":"GET","url":"/api/players"},"res":{"statusCode":304},"responseTime":233,"msg":"request completed"}
+{"level":30,"time":1781542496253,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":65,"method":"POST","url":"/api/admin/verify-pin"},"res":{"statusCode":200},"responseTime":34,"msg":"request completed"}
+{"level":30,"time":1781542496460,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":66,"method":"GET","url":"/api/admin/game-types"},"res":{"statusCode":304},"responseTime":81,"msg":"request completed"}
+{"level":30,"time":1781542496461,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":67,"method":"GET","url":"/api/admin/users"},"res":{"statusCode":304},"responseTime":81,"msg":"request completed"}
+{"level":30,"time":1781542496647,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":70,"method":"GET","url":"/api/stats/live-feed"},"res":{"statusCode":200},"responseTime":164,"msg":"request completed"}
+{"level":30,"time":1781542496661,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":69,"method":"GET","url":"/api/admin/practice/stats"},"res":{"statusCode":304},"responseTime":277,"msg":"request completed"}
+{"level":30,"time":1781542496694,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":68,"method":"GET","url":"/api/settings"},"res":{"statusCode":304},"responseTime":313,"msg":"request completed"}
+{"level":30,"time":1781542496735,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":71,"method":"GET","url":"/api/stats/live-feed"},"res":{"statusCode":304},"responseTime":239,"msg":"request completed"}
+{"level":30,"time":1781542498765,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":72,"method":"GET","url":"/auto-scorer"},"res":{"statusCode":200},"responseTime":31,"msg":"request completed"}
+{"level":30,"time":1781542498836,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":73,"method":"GET","url":"/manifest.json"},"res":{"statusCode":304},"responseTime":29,"msg":"request completed"}
+{"level":30,"time":1781542498852,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":74,"method":"GET","url":"/assets/index-kNfY0vut.js"},"res":{"statusCode":304},"responseTime":28,"msg":"request completed"}
+{"level":30,"time":1781542498856,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":75,"method":"GET","url":"/assets/index-FUQQ6zEp.css"},"res":{"statusCode":304},"responseTime":28,"msg":"request completed"}
+{"level":30,"time":1781542498989,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":76,"method":"GET","url":"/icon-192.png"},"res":{"statusCode":304},"responseTime":29,"msg":"request completed"}
+{"level":30,"time":1781542499048,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":79,"method":"GET","url":"/api/settings"},"res":{"statusCode":304},"responseTime":85,"msg":"request completed"}
+{"level":30,"time":1781542499062,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":77,"method":"GET","url":"/api/auth/me"},"res":{"statusCode":304},"responseTime":101,"msg":"request completed"}
+{"level":30,"time":1781542499063,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":78,"method":"GET","url":"/api/leaderboard"},"res":{"statusCode":304},"responseTime":101,"msg":"request completed"}
+{"level":30,"time":1781542499174,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":83,"method":"GET","url":"/icon-192.png"},"res":{"statusCode":304},"responseTime":29,"msg":"request completed"}
+{"level":30,"time":1781542499245,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":81,"method":"GET","url":"/api/dart-scorer/health"},"res":{"statusCode":200},"responseTime":277,"msg":"request completed"}
+{"level":30,"time":1781542499314,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":82,"method":"GET","url":"/api/stats/live-feed"},"res":{"statusCode":304},"responseTime":344,"msg":"request completed"}
+{"level":30,"time":1781542499342,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":80,"method":"GET","url":"/api/stats/summary"},"res":{"statusCode":304},"responseTime":374,"msg":"request completed"}
+{"level":30,"time":1781542499426,"pid":71,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","req":{"id":84,"method":"GET","url":"/icon-192.png"},"res":{"statusCode":304},"responseTime":30,"msg":"request completed"}
+==> Running 'node --enable-source-maps ./artifacts/api-server/dist/index.mjs'
+{"level":30,"time":1781542548700,"pid":53,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","port":10000,"msg":"Server listening"}
+(node:53) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"level":30,"time":1781542549693,"pid":53,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","msg":"Settings defaults ensured"}
+{"level":30,"time":1781542550208,"pid":53,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","msg":"Practice sessions table ready"}
+{"level":30,"time":1781542550521,"pid":53,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","msg":"master501 tables ready"}
+{"level":30,"time":1781542550607,"pid":53,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","msg":"match_participants table ready"}
+{"level":30,"time":1781542550693,"pid":53,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-6b5747dd7c-jzjkt","msg":"shadow_bot_achievements table ready"}
