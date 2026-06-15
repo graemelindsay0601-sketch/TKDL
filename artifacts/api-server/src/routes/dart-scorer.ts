@@ -22,7 +22,24 @@ const USE_PROXY  = SCORER_URL.length > 0;
 
 // ── Spawn mode ────────────────────────────────────────────────────────────────
 
-const SCORER_DIR  = path.resolve(process.cwd(), "../../artifacts/dart-scorer");
+// Resolve scorer directory — cwd differs between Replit dev and Render production.
+// Try multiple candidates and use the first that contains scorer_daemon.py.
+function findScorerDir(): string {
+  const candidates = [
+    // Render production: start command runs from repo root
+    path.join(process.cwd(), "artifacts/dart-scorer"),
+    // Replit dev: pnpm filter sets cwd to artifacts/api-server/
+    path.resolve(process.cwd(), "../../artifacts/dart-scorer"),
+    // Absolute fallback based on this file's location at build time
+    path.resolve(__dirname, "../../../artifacts/dart-scorer"),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(path.join(c, "scorer_daemon.py"))) return c;
+  }
+  return candidates[0]; // return first anyway so error message is meaningful
+}
+
+const SCORER_DIR  = process.env.DART_SCORER_DIR ?? findScorerDir();
 const VENV_PYTHON = path.join(SCORER_DIR, ".venv", "bin", "python3");
 const DAEMON_PY   = path.join(SCORER_DIR, "scorer_daemon.py");
 
