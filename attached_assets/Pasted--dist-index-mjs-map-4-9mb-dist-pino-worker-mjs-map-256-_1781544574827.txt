@@ -1,0 +1,47 @@
+  dist/index.mjs.map                   4.9mb
+  dist/pino-worker.mjs.map           256.9kb
+  dist/pino-file.mjs.map             229.0kb
+  dist/pino-pretty.mjs.map           204.0kb
+  dist/thread-stream-worker.mjs.map   12.0kb
+⚡ Done in 643ms
+==> Uploading build...
+==> Uploaded in 58.5s. Compression took 62.0s
+==> Build successful 🎉
+==> Deploying...
+==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+==> No open ports detected, continuing to scan...
+==> Docs on specifying a port: https://render.com/docs/web-services#port-binding
+==> Running 'node --enable-source-maps ./artifacts/api-server/dist/index.mjs'
+{"level":30,"time":1781544485728,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","port":10000,"msg":"Server listening"}
+(node:70) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"level":30,"time":1781544486430,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","req":{"id":1,"method":"HEAD","url":"/"},"res":{"statusCode":200},"responseTime":97,"msg":"request completed"}
+{"level":30,"time":1781544486744,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","msg":"Settings defaults ensured"}
+{"level":30,"time":1781544487245,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","msg":"Practice sessions table ready"}
+{"level":30,"time":1781544487460,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","msg":"master501 tables ready"}
+{"level":30,"time":1781544487559,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","msg":"match_participants table ready"}
+{"level":30,"time":1781544487628,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","msg":"shadow_bot_achievements table ready"}
+==> Your service is live 🎉
+{"level":30,"time":1781544490933,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","req":{"id":2,"method":"GET","url":"/"},"res":{"statusCode":200},"responseTime":4,"msg":"request completed"}
+==> 
+==> ///////////////////////////////////////////////////////////
+==> 
+==> Available at your primary URL https://tkdl-wt7y.onrender.com
+==> 
+==> ///////////////////////////////////////////////////////////
+{"level":30,"time":1781544502361,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","msg":"Tour system tables and seed data ready"}
+{"level":30,"time":1781544502828,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","msg":"Game types seeded (79 declared, skipping existing)"}
+{"level":30,"time":1781544525644,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","msg":"Players already seeded, skipping"}
+{"level":30,"time":1781544525744,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","msg":"playoff_matches table ready"}
+{"level":30,"time":1781544525775,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","msg":"Sessions table ready"}
+{"level":30,"time":1781544525807,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","msg":"Users table ready"}
+{"level":30,"time":1781544525882,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","msg":"Titles table ready"}
+{"level":30,"time":1781544525882,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","msg":"Startup init complete"}
+{"level":30,"time":1781544527757,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","msg":"Titles sweep complete"}
+[dart-scorer] Matplotlib is building the font cache; this may take a moment.
+{"level":30,"time":1781544537145,"pid":70,"hostname":"srv-d8i44sq8qa3s73e2fri0-hibernate-77f79f9f95-gzcjn","req":{"id":3,"method":"GET","url":"/api/stats/live-feed"},"res":{"statusCode":200},"responseTime":661,"msg":"request completed"}
