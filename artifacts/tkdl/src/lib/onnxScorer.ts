@@ -1,11 +1,15 @@
 /**
  * On-device YOLOv8 dart scoring using ONNX Runtime Web.
  * Runs entirely in the browser — no server, no memory limits.
+ *
+ * IMPORTANT: onnxruntime-web is loaded lazily (dynamic import) so the
+ * 26 MB WASM bundle is never fetched until the user opens the auto-scorer.
+ * Do NOT add a top-level `import * as ort from 'onnxruntime-web'` — it
+ * would execute module-level WASM init code on every page load and crash
+ * the whole app for non-WASM pages.
  */
-import * as ort from 'onnxruntime-web';
 
-ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0/dist/';
-ort.env.wasm.numThreads = 1;
+type OrtModule = typeof import('onnxruntime-web');
 
 const MODEL_PATH = '/weights.onnx';
 const INFER_SIZE = 640;
@@ -40,9 +44,27 @@ function getBoardplaneCoords(): [number, number][] {
 }
 const BP_CAL = getBoardplaneCoords();
 
+// ── Lazy ORT loader ───────────────────────────────────────────────────────────
+
+let _ortPromise: Promise<OrtModule> | null = null;
+
+async function getOrt(): Promise<OrtModule> {
+  if (!_ortPromise) {
+    _ortPromise = import('onnxruntime-web').then(ort => {
+      // Configure WASM paths BEFORE any session is created
+      ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0/dist/';
+      ort.env.wasm.numThreads = 1;
+      return ort;
+    });
+  }
+  return _ortPromise;
+}
+
 // ── Session singleton ─────────────────────────────────────────────────────────
 
-let _session: ort.InferenceSession | null = null;
+type InferenceSession = import('onnxruntime-web').InferenceSession;
+
+let _session: InferenceSession | null = null;
 let _loading = false;
 let _loadPromise: Promise<void> | null = null;
 let _loadError: string | null = null;
@@ -61,6 +83,7 @@ export async function loadModel(): Promise<void> {
   _loadError = null;
   _loadPromise = (async () => {
     try {
+      const ort = await getOrt();
       _session = await ort.InferenceSession.create(MODEL_PATH, {
         executionProviders: ['wasm'],
         graphOptimizationLevel: 'all',
@@ -243,7 +266,7 @@ function scorePos(bx: number, by: number): { label: string; value: number } {
   const angDeg = Math.atan(dy / (bxSafe - 0.5)) * 180 / Math.PI;
   const ang = angDeg > 0 ? Math.floor(angDeg) : Math.ceil(angDeg);
 
-  let possible: [number,number];
+  let possible: [number, number];
   if (Math.abs(ang) >= 81) {
     possible = [3, 20];
   } else {
@@ -319,6 +342,7 @@ export type AnalysisResult = {
 };
 
 export async function analyzeCanvas(canvas: HTMLCanvasElement): Promise<AnalysisResult> {
+  const ort = await getOrt();
   if (!_session) await loadModel();
   const sess = _session!;
 
