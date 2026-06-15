@@ -1,15 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Camera, Wifi, Play, Square, RotateCcw, CheckCircle, AlertTriangle, Loader2, Crosshair, RefreshCw } from "lucide-react";
-
-type DartResult = { label: string; value: number };
-
-type AnalysisResult = {
-  darts: DartResult[];
-  total: number;
-  annotatedImage?: string;
-  calibrationPoints?: number;
-  error?: string;
-};
+import { analyzeCanvas, loadModel, modelStatus, type AnalysisResult } from "../lib/onnxScorer";
 
 type InputMode = "camera" | "webcam";
 
@@ -32,33 +23,29 @@ function dartBg(label: string): string {
 }
 
 export default function AutoScorer() {
-  const [mode, setMode] = useState<InputMode>("camera");
-  const [webcamUrl, setWebcamUrl] = useState("192.168.1.x:8080");
-  const [streaming, setStreaming] = useState(false);
-  const [autoAnalyze, setAutoAnalyze] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [committedDarts, setCommittedDarts] = useState<DartResult[]>([]);
-  const [serviceState, setServiceState] = useState<"unknown" | "ok" | "starting" | "unavailable">("unknown");
+  const [mode, setMode]                   = useState<InputMode>("camera");
+  const [webcamUrl, setWebcamUrl]         = useState("192.168.1.x:8080");
+  const [streaming, setStreaming]         = useState(false);
+  const [autoAnalyze, setAutoAnalyze]     = useState(false);
+  const [analyzing, setAnalyzing]         = useState(false);
+  const [result, setResult]               = useState<AnalysisResult | null>(null);
+  const [committedDarts, setCommittedDarts] = useState<{ label: string; value: number }[]>([]);
+  const [mState, setMState]               = useState<ReturnType<typeof modelStatus>>("idle");
 
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const autoRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Health check on mount
+  // Load the model on mount
   useEffect(() => {
-    fetch("/api/dart-scorer/health")
-      .then(r => r.ok ? r.json() : null)
-      .then((d: { ok?: boolean; ready?: boolean; starting?: boolean } | null) => {
-        if (!d?.ok)       setServiceState("unavailable");
-        else if (d.ready) setServiceState("ok");
-        else              setServiceState("starting");
-      })
-      .catch(() => setServiceState("unavailable"));
+    setMState("loading");
+    loadModel()
+      .then(() => setMState("ready"))
+      .catch(() => setMState("error"));
   }, []);
 
-  // Start device camera (rear-facing for phone pointed at board)
+  // Start device camera
   async function startCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -71,7 +58,7 @@ export default function AutoScorer() {
       }
       setStreaming(true);
     } catch {
-      setResult({ darts: [], total: 0, error: "Camera access denied. Allow camera permission in your browser." });
+      setResult({ darts: [], total: 0, calibrationPoints: 0, error: "Camera access denied — allow camera permission in your browser." });
     }
   }
 
@@ -83,58 +70,47 @@ export default function AutoScorer() {
     setAutoAnalyze(false);
   }
 
-  // Capture current frame → base64 JPEG → send to API
+  // Capture frame and run on-device inference
   const analyzeFrame = useCallback(async () => {
-    if (analyzing) return;
+    if (analyzing || mState !== "ready") return;
 
-    let base64: string | null = null;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
     if (mode === "camera") {
-      const video  = videoRef.current;
-      const canvas = canvasRef.current;
-      if (!video || !canvas || !streaming) return;
+      const video = videoRef.current;
+      if (!video || !streaming) return;
       canvas.width  = video.videoWidth  || 640;
       canvas.height = video.videoHeight || 480;
       canvas.getContext("2d")!.drawImage(video, 0, 0);
-      // Strip "data:image/jpeg;base64," prefix
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-      base64 = dataUrl.split(",")[1] ?? null;
     } else {
-      // IP webcam: ask the server to snapshot for us
+      // IP webcam: fetch snapshot and draw onto canvas
       try {
-        const r = await fetch(
-          `/api/dart-scorer/webcam-snap?url=${encodeURIComponent(webcamUrl)}`
-        );
-        if (!r.ok) throw new Error("Webcam snapshot failed");
-        const data = await r.arrayBuffer();
-        base64 = btoa(String.fromCharCode(...new Uint8Array(data)));
+        const r = await fetch(`/api/dart-scorer/webcam-snap?url=${encodeURIComponent(webcamUrl)}`);
+        if (!r.ok) throw new Error();
+        const blob = await r.blob();
+        const img  = await createImageBitmap(blob);
+        canvas.width  = img.width;
+        canvas.height = img.height;
+        canvas.getContext("2d")!.drawImage(img, 0, 0);
       } catch {
-        setResult({ darts: [], total: 0, error: "Could not reach IP webcam. Check URL and that both devices are on the same WiFi." });
+        setResult({ darts: [], total: 0, calibrationPoints: 0, error: "Could not reach IP webcam. Check URL and that both devices are on the same WiFi." });
         return;
       }
     }
 
-    if (!base64) return;
     setAnalyzing(true);
     setResult(null);
-
     try {
-      const res = await fetch("/api/dart-scorer/analyze", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ image: base64 }),
-      });
-      const data: AnalysisResult = await res.json();
-      setResult(data);
-      setServiceState("ok");
-    } catch {
-      setResult({ darts: [], total: 0, error: "Analysis request failed. Is the scorer service running?" });
+      const res = await analyzeCanvas(canvas);
+      setResult(res);
+    } catch (e) {
+      setResult({ darts: [], total: 0, calibrationPoints: 0, error: `Inference failed: ${String(e)}` });
     } finally {
       setAnalyzing(false);
     }
-  }, [analyzing, mode, streaming, webcamUrl]);
+  }, [analyzing, mState, mode, streaming, webcamUrl]);
 
-  // Auto-analyze toggle
   useEffect(() => {
     if (autoAnalyze) {
       autoRef.current = setInterval(analyzeFrame, 2500);
@@ -150,10 +126,9 @@ export default function AutoScorer() {
     setResult(null);
   }
 
-  const sessionTotal  = committedDarts.reduce((s, d) => s + d.value, 0);
-  const pendingTotal  = result?.darts.reduce((s, d) => s + d.value, 0) ?? 0;
-  const isDisabled    = serviceState === "unavailable";
-  const canAnalyze    = !analyzing && (streaming || mode === "webcam") && !isDisabled;
+  const sessionTotal = committedDarts.reduce((s, d) => s + d.value, 0);
+  const pendingTotal = result?.darts.reduce((s, d) => s + d.value, 0) ?? 0;
+  const canAnalyze   = !analyzing && mState === "ready" && (streaming || mode === "webcam");
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem 1rem 4rem" }}>
@@ -170,49 +145,59 @@ export default function AutoScorer() {
             color: "#00d4ff", borderRadius: "0.3rem", padding: "0.15rem 0.5rem",
             fontSize: "0.65rem", fontWeight: 800, letterSpacing: "0.12em", fontFamily: "Oswald, sans-serif",
           }}>YOLOv8 AI</span>
+          <span style={{
+            background: "rgba(0,210,150,0.12)", border: "1px solid rgba(0,210,150,0.3)",
+            color: "#00d296", borderRadius: "0.3rem", padding: "0.15rem 0.5rem",
+            fontSize: "0.65rem", fontWeight: 800, letterSpacing: "0.12em", fontFamily: "Oswald, sans-serif",
+          }}>ON-DEVICE</span>
         </div>
         <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.85rem" }}>
-          Point your camera at the board · AI detects dart positions · scores computed automatically
+          AI runs on your phone — no server needed · YOLOv8 detects dart positions locally
         </p>
       </div>
 
-      {/* ── Service status banner ── */}
-      {serviceState === "unavailable" && (
+      {/* ── Model loading banner ── */}
+      {mState === "loading" && (
+        <div className="pdc-card p-3 mb-4 flex items-center gap-3"
+          style={{ borderColor: "rgba(255,210,74,0.2)", background: "rgba(255,210,74,0.04)" }}>
+          <Loader2 size={15} style={{ color: "#ffd24a", animation: "spin 1s linear infinite", flexShrink: 0 }} />
+          <span style={{ color: "rgba(255,210,74,0.8)", fontSize: "0.85rem" }}>
+            Loading YOLOv8 model (12MB) into browser… takes ~5–15s on first load
+          </span>
+        </div>
+      )}
+
+      {mState === "error" && (
         <div className="pdc-card p-3 mb-4 flex items-start gap-3"
           style={{ borderColor: "rgba(255,0,92,0.3)", background: "rgba(255,0,92,0.05)" }}>
           <AlertTriangle size={16} style={{ color: "#ff005c", flexShrink: 0, marginTop: 2 }} />
           <div>
             <div style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, color: "#ff005c", fontSize: "0.9rem", marginBottom: "0.2rem" }}>
-              AI scorer service offline
+              Failed to load AI model
             </div>
             <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "0.8rem", lineHeight: 1.5 }}>
-              Python packages need to finish installing. Run the <strong style={{ color: "#fff" }}>API Server</strong> workflow
-              and wait ~60 seconds for ultralytics + PyTorch to finish installing, then reload this page.
+              Check your internet connection (the WASM runtime loads from CDN on first use), then retry.
             </div>
-            <button onClick={() => {
-              setServiceState("unknown");
-              fetch("/api/dart-scorer/health").then(r => r.json()).then(d => {
-                setServiceState(d.ready ? "ok" : d.starting ? "starting" : "unavailable");
-              }).catch(() => setServiceState("unavailable"));
-            }} style={{
-              marginTop: "0.5rem", padding: "0.3rem 0.8rem",
-              background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.3)",
-              borderRadius: "0.4rem", color: "#ff005c",
-              fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.75rem",
-              cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem",
-            }}>
+            <button onClick={() => { setMState("loading"); loadModel().then(()=>setMState("ready")).catch(()=>setMState("error")); }}
+              style={{
+                marginTop: "0.5rem", padding: "0.3rem 0.8rem",
+                background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.3)",
+                borderRadius: "0.4rem", color: "#ff005c",
+                fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.75rem",
+                cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem",
+              }}>
               <RefreshCw size={12} /> Retry
             </button>
           </div>
         </div>
       )}
 
-      {serviceState === "starting" && (
-        <div className="pdc-card p-3 mb-4 flex items-center gap-3"
-          style={{ borderColor: "rgba(255,210,74,0.2)", background: "rgba(255,210,74,0.04)" }}>
-          <Loader2 size={15} style={{ color: "#ffd24a", animation: "spin 1s linear infinite", flexShrink: 0 }} />
-          <span style={{ color: "rgba(255,210,74,0.8)", fontSize: "0.85rem" }}>
-            YOLOv8 model loading… first start takes ~20–30 seconds
+      {mState === "ready" && !streaming && !result && (
+        <div className="pdc-card p-2 mb-4 flex items-center gap-2"
+          style={{ borderColor: "rgba(0,210,150,0.2)", background: "rgba(0,210,150,0.04)" }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#00d296", flexShrink: 0, display: "inline-block" }} />
+          <span style={{ color: "rgba(0,210,150,0.8)", fontSize: "0.8rem", fontFamily: "Oswald, sans-serif", fontWeight: 700 }}>
+            Model ready · running on your device
           </span>
         </div>
       )}
@@ -262,7 +247,7 @@ export default function AutoScorer() {
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           {mode === "camera" && (
             <button onClick={streaming ? stopCamera : startCamera}
-              disabled={isDisabled}
+              disabled={mState === "loading"}
               style={{
                 flex: 1, padding: "0.6rem 1rem",
                 border: `1.5px solid ${streaming ? "rgba(255,0,92,0.4)" : "rgba(0,212,255,0.35)"}`,
@@ -270,7 +255,8 @@ export default function AutoScorer() {
                 background: streaming ? "rgba(255,0,92,0.07)" : "rgba(0,212,255,0.08)",
                 color: streaming ? "#ff005c" : "#00d4ff",
                 fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.9rem",
-                cursor: isDisabled ? "not-allowed" : "pointer", opacity: isDisabled ? 0.4 : 1,
+                cursor: mState === "loading" ? "not-allowed" : "pointer",
+                opacity: mState === "loading" ? 0.4 : 1,
                 display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
               }}>
               {streaming ? <><Square size={14} />Stop Camera</> : <><Camera size={14} />Start Camera</>}
@@ -292,7 +278,7 @@ export default function AutoScorer() {
           </button>
 
           {(streaming || mode === "webcam") && (
-            <button onClick={() => setAutoAnalyze(a => !a)} disabled={isDisabled}
+            <button onClick={() => setAutoAnalyze(a => !a)} disabled={mState !== "ready"}
               style={{
                 padding: "0.6rem 1rem",
                 border: autoAnalyze ? "1.5px solid rgba(0,210,150,0.5)" : "1.5px solid rgba(255,255,255,0.08)",
@@ -300,7 +286,7 @@ export default function AutoScorer() {
                 background: autoAnalyze ? "rgba(0,210,150,0.09)" : "rgba(255,255,255,0.02)",
                 color: autoAnalyze ? "#00d296" : "rgba(255,255,255,0.35)",
                 fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.85rem",
-                cursor: isDisabled ? "not-allowed" : "pointer",
+                cursor: mState !== "ready" ? "not-allowed" : "pointer",
               }}>
               AUTO {autoAnalyze ? "ON" : "OFF"}
             </button>
@@ -326,6 +312,7 @@ export default function AutoScorer() {
             <canvas ref={canvasRef} style={{ display: "none" }} />
           </div>
         )}
+        {!streaming && <canvas ref={canvasRef} style={{ display: "none" }} />}
 
         {result?.annotatedImage && (
           <div className="pdc-card p-0 overflow-hidden" style={{ borderRadius: "0.75rem" }}>
@@ -341,7 +328,7 @@ export default function AutoScorer() {
                 {result.calibrationPoints ?? 0}/4 CAL PTS
               </span>
             </div>
-            <img src={`data:image/jpeg;base64,${result.annotatedImage}`}
+            <img src={result.annotatedImage}
               alt="Annotated dartboard" style={{ width: "100%", display: "block", maxHeight: 400, objectFit: "contain" }} />
           </div>
         )}
@@ -411,7 +398,6 @@ export default function AutoScorer() {
         </div>
       )}
 
-      {/* ── No darts found ── */}
       {result && result.darts.length === 0 && !result.error && (
         <div className="pdc-card p-4 mb-3 text-center" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
           <div style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
@@ -456,8 +442,8 @@ export default function AutoScorer() {
         </div>
       )}
 
-      {/* ── How it works (shown before camera started) ── */}
-      {!streaming && !result && (
+      {/* ── How it works ── */}
+      {!streaming && !result && mState === "ready" && (
         <div className="pdc-card p-4">
           <div style={{ fontSize: "0.65rem", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", color: "rgba(255,255,255,0.35)", marginBottom: "0.75rem" }}>
             HOW IT WORKS
@@ -466,7 +452,7 @@ export default function AutoScorer() {
             {[
               ["1", "Point your camera at the full dartboard — all four edges visible", "#00d4ff"],
               ["2", "Throw your 3 darts as normal", "#ffd24a"],
-              ["3", "Tap Analyze Now — YOLOv8 AI detects each dart's tip position", "#ff6b9d"],
+              ["3", "Tap Analyze Now — YOLOv8 runs on your phone, no server needed", "#ff6b9d"],
               ["4", "Board calibration is automatic (corner markers of 20/6/3/11 segments)", "#00d296"],
               ["5", "Accept the detected score, or re-scan if a dart was missed", "#ffd24a"],
             ].map(([n, txt, col]) => (
