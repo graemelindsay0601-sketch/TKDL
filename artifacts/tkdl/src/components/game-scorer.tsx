@@ -2,10 +2,7 @@
  * GameScorer — orchestrator that routes any game type to its proper scorer engine.
  * Used by both /play (real matches) and /practice (practice sessions).
  */
-import { useState, useEffect } from "react";
-import { Camera } from "lucide-react";
-import { CameraScorerProvider } from "@/lib/dartboard";
-import { CameraScorerOverlay } from "@/components/camera-scorer-overlay";
+import { useState } from "react";
 import {
   X01Scorer, CricketScorer, KillerScorer, SequenceScorer,
   HalveItScorer, CountUpScorer, GotchaScorer, BaseballScorer,
@@ -236,14 +233,6 @@ export function GameScorer({
   const isBullUpApplicable = bullUp && !soloMode;
   const [starterIdx, setStarterIdx] = useState<0 | 1 | null>(isBullUpApplicable ? null : 0);
   const [cameraOpen, setCameraOpen]         = useState(false);
-  const [autoScorerEnabled, setAutoScorer]  = useState(false);
-
-  useEffect(() => {
-    fetch("/api/settings")
-      .then(r => r.ok ? r.json() : {})
-      .then((s: Record<string, unknown>) => { if (s.auto_scorer_enabled === true) setAutoScorer(true); })
-      .catch(() => {});
-  }, []);
 
   function renderInner() {
     if (starterIdx === null) {
@@ -347,36 +336,5 @@ export function GameScorer({
   }
   } // end renderInner
 
-  return (
-    <CameraScorerProvider>
-      {renderInner()}
-
-      {/* ── AI Camera scorer FAB ── */}
-      {autoScorerEnabled && !cameraOpen && (
-        <button
-          onClick={() => setCameraOpen(true)}
-          title="AI Camera Scorer"
-          style={{
-            position: "fixed", bottom: 80, right: 16, zIndex: 400,
-            width: 48, height: 48, borderRadius: "50%",
-            background: "rgba(4,4,10,0.92)",
-            border: "1.5px solid rgba(0,212,255,0.5)",
-            color: "#00d4ff",
-            boxShadow: "0 0 18px rgba(0,212,255,0.25), 0 4px 12px rgba(0,0,0,0.5)",
-            cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            transition: "transform 0.15s, box-shadow 0.15s",
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.1)"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)"; }}
-        >
-          <Camera size={20} />
-        </button>
-      )}
-
-      {cameraOpen && (
-        <CameraScorerOverlay onClose={() => setCameraOpen(false)} />
-      )}
-    </CameraScorerProvider>
-  );
+  return renderInner();
 }

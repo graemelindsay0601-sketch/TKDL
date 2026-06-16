@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, Crosshair } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 import { useGetStatsSummary, useGetRecentActivity, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
@@ -21,7 +21,7 @@ const master501Nav = [
 ];
 const botNav = [
   { href: "/shadow-bot",   label: "Shadow Bot",   icon: CircuitBoard    },
-  { href: "/auto-scorer",  label: "Auto-Scorer",  icon: Crosshair       },
+  // auto-scorer removed
 ];
 const leagueNav = [
   { href: "/leaderboard",  label: "Standings",    icon: Trophy          },
@@ -169,13 +169,11 @@ export function Layout({ children }: { children: ReactNode }) {
   useEffect(() => { setDrawerOpen(false); }, [location]);
 
   const [liveScorer,       setLiveScorer]   = useState(false);
-  const [autoScorerInNav,  setAutoScorer]   = useState(false);
   useEffect(() => {
     fetch("/api/settings")
       .then(r => r.ok ? r.json() : {})
       .then((s: Record<string, unknown>) => {
         if (s.live_scorer_enabled === true) setLiveScorer(true);
-        if (s.auto_scorer_enabled === true && s.auto_scorer_test_only !== true) setAutoScorer(true);
       })
       .catch(() => {});
   }, []);
@@ -184,9 +182,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const dynamicPlayNav: NavItem[] = liveScorer
     ? [...playNav, { href: "/play", label: "Live Scorer", icon: Swords }]
     : playNav;
-  const dynamicBotNav: NavItem[] = autoScorerInNav
-    ? botNav
-    : botNav.filter(i => i.href !== "/auto-scorer");
+  const dynamicBotNav: NavItem[] = botNav;
 
   function NavLink({ item }: { item: NavItem }) {
     const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));

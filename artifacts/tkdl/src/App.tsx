@@ -27,9 +27,9 @@ import HallOfFame   from "@/pages/hall-of-fame";
 import Broadcast      from "@/pages/broadcast";
 import Login          from "@/pages/login";
 import Account        from "@/pages/account";
-import ScorerJoin     from "@/pages/scorer-join";
-import ScorerDisplay  from "@/pages/scorer-display";
-import AutoScorer     from "@/pages/auto-scorer";
+// import ScorerJoin     from "@/pages/scorer-join";    // auto-scorer disabled
+// import ScorerDisplay  from "@/pages/scorer-display"; // auto-scorer disabled
+// import AutoScorer     from "@/pages/auto-scorer";    // auto-scorer disabled
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -39,8 +39,9 @@ function AppRoutes() {
   return (
     <Switch>
       <Route path="/broadcast"           component={Broadcast}      />
-      <Route path="/scorer/join"          component={ScorerJoin}    />
-      <Route path="/scorer/display/:code" component={ScorerDisplay} />
+      {/* scorer routes disabled — auto-scorer removed */}
+      {/* <Route path="/scorer/join"          component={ScorerJoin}    /> */}
+      {/* <Route path="/scorer/display/:code" component={ScorerDisplay} /> */}
       <Route path="/login"               component={Login}          />
       <Route>
         <Layout>
@@ -64,7 +65,7 @@ function AppRoutes() {
             <Route path="/master501"     component={Master501}   />
             <Route path="/hall-of-fame"  component={HallOfFame}  />
             <Route path="/account"       component={Account}     />
-            <Route path="/auto-scorer"   component={AutoScorer}  />
+            {/* <Route path="/auto-scorer"   component={AutoScorer}  /> */}
             <Route component={NotFound} />
           </Switch>
         </Layout>

@@ -14,8 +14,8 @@ import practiceRouter     from "./practice";
 import teamMatchesRouter  from "./team-matches";
 import tourRouter         from "./tour";
 import master501Router    from "./master501";
-import scorerRouter       from "./scorer";
-import dartScorerRouter   from "./dart-scorer";
+// import scorerRouter       from "./scorer";      // auto-scorer disabled
+// import dartScorerRouter   from "./dart-scorer"; // auto-scorer disabled
 
 
 const router: IRouter = Router();
@@ -35,8 +35,8 @@ router.use(gameTypesRouter);
 router.use(practiceRouter);
 router.use(tourRouter);
 router.use(master501Router);
-router.use(scorerRouter);
-router.use(dartScorerRouter);
+// router.use(scorerRouter);     // auto-scorer disabled
+// router.use(dartScorerRouter); // auto-scorer disabled
 
 
 export default router;
