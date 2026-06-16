@@ -143,10 +143,15 @@ router.get("/master501/achievement-definitions", async (_req, res): Promise<void
   }
 });
 
-// POST /api/master501/runs — start a run at the player's current tier/round
+// POST /api/master501/runs — start a run at the player's current tier/round, or at a
+// specific tier/round if the player has already unlocked it (for replay).
 router.post("/master501/runs", async (req, res): Promise<void> => {
   try {
-    const { playerId } = z.object({ playerId: z.number().int().positive() }).parse(req.body);
+    const { playerId, tier: reqTier, round: reqRound } = z.object({
+      playerId: z.number().int().positive(),
+      tier:     z.number().int().min(1).max(5).optional(),
+      round:    z.number().int().min(1).max(3).optional(),
+    }).parse(req.body);
 
     await db.execute(sql`
       INSERT INTO master501_progress (player_id, current_tier, current_round)
@@ -157,10 +162,25 @@ router.post("/master501/runs", async (req, res): Promise<void> => {
     const progResult = await db.execute(sql`
       SELECT current_tier, current_round FROM master501_progress WHERE player_id = ${playerId}
     `);
-    const prog  = (progResult.rows as any[])[0] as any;
-    const tier  = prog?.current_tier  ?? 1;
-    const round = prog?.current_round ?? 1;
-    const cfg   = getM501Config(tier, round)!;
+    const prog       = (progResult.rows as any[])[0] as any;
+    const curTier    = prog?.current_tier  ?? 1;
+    const curRound   = prog?.current_round ?? 1;
+
+    // Resolve the tier/round to actually play
+    let tier  = curTier;
+    let round = curRound;
+
+    if (reqTier && reqRound) {
+      // Allow replay only if the requested position is at or behind current progress
+      const curPos = (curTier  - 1) * 3 + curRound;
+      const reqPos = (reqTier  - 1) * 3 + reqRound;
+      if (reqPos <= curPos) {
+        tier  = reqTier;
+        round = reqRound;
+      }
+    }
+
+    const cfg = getM501Config(tier, round)!;
 
     const runResult = await db.execute(sql`
       INSERT INTO master501_runs (player_id, tier, round, dart_limit, legs_format, legs_won, legs_lost)
@@ -208,11 +228,31 @@ router.patch("/master501/runs/:runId", async (req, res): Promise<void> => {
       const n = nextTierRound(run.tier, run.round);
       nextTier  = n.tier;
       nextRound = n.round;
-      await db.execute(sql`
-        UPDATE master501_progress
-        SET current_tier = ${nextTier}, current_round = ${nextRound}, updated_at = NOW()
-        WHERE player_id = ${run.player_id}
+
+      // Only advance progress if winning this run would actually move it forward.
+      // Replay wins (at a tier/round already behind current progress) are counted
+      // in stats and achievements but must never regress the progress pointer.
+      const curProgResult = await db.execute(sql`
+        SELECT current_tier, current_round FROM master501_progress WHERE player_id = ${run.player_id}
       `);
+      const curProg  = (curProgResult.rows as any[])[0] as any;
+      const curTier  = curProg?.current_tier  ?? 1;
+      const curRound = curProg?.current_round ?? 1;
+      const curPos   = (curTier  - 1) * 3 + curRound;
+      const nextPos  = (nextTier - 1) * 3 + nextRound;
+
+      if (nextPos > curPos) {
+        await db.execute(sql`
+          UPDATE master501_progress
+          SET current_tier = ${nextTier}, current_round = ${nextRound}, updated_at = NOW()
+          WHERE player_id = ${run.player_id}
+        `);
+      } else {
+        // Replay win: return the player's actual current position instead of the
+        // next-step from the replayed round (so the UI can show their real progress).
+        nextTier  = curTier;
+        nextRound = curRound;
+      }
     }
 
     void (async () => {

@@ -94,14 +94,17 @@ export default function Master501() {
       .catch(() => {});
   }, [playerId]);
 
-  const handleStart = async () => {
+  const [startingCell, setStartingCell] = useState<string | null>(null); // "tier-round" key
+
+  const handleStartAt = async (tier: number, round: number) => {
     if (!playerId) return;
-    setLoading(true);
+    const key = `${tier}-${round}`;
+    setStartingCell(key);
     matchStartRef.current = Date.now();
     try {
       const res  = await fetch("/api/master501/runs", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId }),
+        body: JSON.stringify({ playerId, tier, round }),
       });
       const data = await res.json();
       setRunId(data.runId);
@@ -109,7 +112,7 @@ export default function Master501() {
       setBullResult(null);
       setPhase("bullup");
     } catch { /* ignore */ }
-    finally { setLoading(false); }
+    finally { setStartingCell(null); }
   };
 
   // Random bot bull score weighted toward realistic outcomes
@@ -149,8 +152,8 @@ export default function Master501() {
           sessionData: {
             mode:      "master501",
             tierName:  cfg?.name,
-            tier:      prog?.currentTier,
-            round:     prog?.currentRound,
+            tier:      cfg?.tier,
+            round:     cfg?.round,
             dartLimit: cfg?.dartLimit,
             legsWon,
             legsLost,
@@ -533,67 +536,80 @@ export default function Master501() {
         </select>
       </div>
 
-      {/* Current challenge card */}
-      {playerId && lobbyCfg && (
-        <div className="rounded-xl p-4" style={{ background: lobbyCfg.color + "10", border: `2px solid ${lobbyCfg.color}35` }}>
-          <div className="flex items-center gap-2 mb-3">
-            <div className="text-xs font-black uppercase tracking-widest px-2 py-0.5 rounded"
-              style={{ fontFamily: "Oswald,sans-serif", background: lobbyCfg.color + "20", color: lobbyCfg.color, border: `1px solid ${lobbyCfg.color}40` }}>
-              {lobbyCfg.name}
-            </div>
-            <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald,sans-serif" }}>
-              Tier {currentTier} · Round {currentRound}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
-              <div className="font-black text-2xl" style={{ fontFamily: "Oswald,sans-serif", color: lobbyCfg.color }}>{lobbyCfg.dartLimit}</div>
-              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald,sans-serif", fontSize: "0.65rem" }}>DARTS / LEG</div>
-            </div>
-            <div>
-              <div className="font-black text-lg mt-0.5" style={{ fontFamily: "Oswald,sans-serif", color: "#fff" }}>{lobbyCfg.label}</div>
-              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald,sans-serif", fontSize: "0.65rem" }}>FORMAT</div>
-            </div>
-            <div>
-              <div className="font-black text-2xl" style={{ fontFamily: "Oswald,sans-serif", color: "#ffd24a" }}>{lobbyCfg.legsNeeded}</div>
-              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald,sans-serif", fontSize: "0.65rem" }}>LEGS TO WIN</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Career ladder */}
+      {/* Career ladder — each unlocked round has an inline play / replay button */}
       <div>
         <h2 className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald,sans-serif" }}>Career Ladder</h2>
         <div className="space-y-2">
           {M501_TIERS.map(tier => {
-            const tierDone = playerId ? tier.tier < currentTier : false;
+            const tierFullyDone = playerId ? tier.tier < currentTier : false;
             return (
               <div key={tier.tier} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${tier.color}25` }}>
+                {/* Tier header */}
                 <div className="px-3 py-1.5 flex items-center gap-2" style={{ background: tier.color + "12" }}>
-                  <span className="text-xs font-black uppercase tracking-wider" style={{ fontFamily: "Oswald,sans-serif", color: tierDone ? "#22c55e" : tier.color }}>
+                  <span className="text-xs font-black uppercase tracking-wider" style={{ fontFamily: "Oswald,sans-serif", color: tierFullyDone ? "#22c55e" : tier.color }}>
                     {tier.name}
                   </span>
-                  {tierDone && <CheckCircle size={11} style={{ color: "#22c55e" }} />}
+                  {tierFullyDone && <CheckCircle size={11} style={{ color: "#22c55e" }} />}
+                  {!playerId && tier.tier > 1 && <Lock size={9} style={{ color: "rgba(255,255,255,0.18)" }} />}
                 </div>
-                <div className="grid grid-cols-3">
+                {/* Round cells */}
+                <div className="grid grid-cols-3 divide-x" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
                   {M501_ROUNDS.map(r => {
                     const isCompleted = playerId ? (tier.tier < currentTier || (tier.tier === currentTier && r.round < currentRound)) : false;
                     const isCurrent   = playerId ? (tier.tier === currentTier && r.round === currentRound) : false;
                     const isLocked    = !isCompleted && !isCurrent;
+                    const cellKey     = `${tier.tier}-${r.round}`;
+                    const isStarting  = startingCell === cellKey;
+                    const dartLimit   = tier.dartLimits[r.round - 1 as 0|1|2];
+
                     return (
-                      <div key={r.round}
-                        className="px-3 py-2.5 flex items-center gap-1.5 border-r last:border-r-0"
-                        style={{ borderColor: "rgba(255,255,255,0.05)", background: isCurrent ? tier.color + "15" : "transparent" }}>
-                        <div className="flex-1 min-w-0">
-                          <div style={{ fontFamily: "Oswald,sans-serif", fontWeight: isCurrent ? 700 : 400, fontSize: "0.72rem", color: isLocked ? "rgba(255,255,255,0.2)" : "#fff" }}>
-                            R{r.round} · {tier.dartLimits[r.round - 1]}d
-                          </div>
-                          <div style={{ color: "rgba(255,255,255,0.22)", fontSize: "0.58rem", fontFamily: "Oswald,sans-serif" }}>{r.label}</div>
+                      <div key={r.round} className="px-2.5 py-2.5 flex flex-col gap-1.5"
+                        style={{ borderColor: "rgba(255,255,255,0.05)", background: isCurrent ? tier.color + "14" : "transparent" }}>
+                        {/* Round label + dart count */}
+                        <div className="flex items-baseline gap-1">
+                          <span style={{ fontFamily: "Oswald,sans-serif", fontWeight: isCurrent ? 900 : 500, fontSize: "0.72rem",
+                            color: isLocked ? "rgba(255,255,255,0.18)" : isCurrent ? "#fff" : "rgba(255,255,255,0.65)" }}>
+                            R{r.round}
+                          </span>
+                          <span style={{ fontFamily: "Oswald,sans-serif", fontSize: "0.58rem",
+                            color: isLocked ? "rgba(255,255,255,0.1)" : isCurrent ? tier.color : "rgba(255,255,255,0.3)" }}>
+                            {dartLimit}d · {r.label}
+                          </span>
                         </div>
-                        {isCompleted && <CheckCircle size={11} style={{ color: "#22c55e", flexShrink: 0 }} />}
-                        {isCurrent   && <ArrowRight  size={11} style={{ color: tier.color,  flexShrink: 0 }} />}
-                        {isLocked && !playerId && <Lock size={9} style={{ color: "rgba(255,255,255,0.1)", flexShrink: 0 }} />}
+
+                        {/* Action button */}
+                        {isCurrent && (
+                          <button
+                            onClick={() => handleStartAt(tier.tier, r.round)}
+                            disabled={isStarting}
+                            className="w-full py-1.5 rounded-lg font-black uppercase text-center transition-all"
+                            style={{
+                              fontFamily: "Oswald,sans-serif", fontSize: "0.6rem", letterSpacing: "0.08em", cursor: "pointer",
+                              background: `linear-gradient(135deg, ${tier.color}, ${tier.color}99)`,
+                              color: "#fff", border: "none", opacity: isStarting ? 0.6 : 1,
+                            }}>
+                            {isStarting ? "…" : "▶ PLAY"}
+                          </button>
+                        )}
+                        {isCompleted && (
+                          <button
+                            onClick={() => handleStartAt(tier.tier, r.round)}
+                            disabled={isStarting}
+                            className="w-full py-1 rounded-lg font-black uppercase text-center transition-all"
+                            style={{
+                              fontFamily: "Oswald,sans-serif", fontSize: "0.55rem", letterSpacing: "0.06em", cursor: "pointer",
+                              background: "rgba(34,197,94,0.08)", color: "#22c55e",
+                              border: "1px solid rgba(34,197,94,0.2)", opacity: isStarting ? 0.6 : 1,
+                            }}>
+                            {isStarting ? "…" : "↺ REPLAY"}
+                          </button>
+                        )}
+                        {isLocked && (
+                          <div className="w-full py-1 rounded-lg text-center"
+                            style={{ background: "rgba(255,255,255,0.03)", fontSize: "0.55rem", color: "rgba(255,255,255,0.1)", fontFamily: "Oswald,sans-serif" }}>
+                            🔒
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -615,19 +631,6 @@ export default function Master501() {
           emptyMessage="No M-501 sessions yet"
         />
       )}
-
-      {/* Start button */}
-      <button onClick={handleStart} disabled={!playerId || loading}
-        className="w-full py-4 rounded-xl font-black uppercase tracking-widest text-lg transition-all"
-        style={{
-          fontFamily: "Oswald,sans-serif", cursor: playerId && !loading ? "pointer" : "not-allowed",
-          background: playerId ? "linear-gradient(135deg, #00c8a0, #0066ff)" : "rgba(255,255,255,0.04)",
-          color: playerId ? "#fff" : "rgba(255,255,255,0.2)",
-          border: playerId ? "none" : "1px solid rgba(255,255,255,0.07)",
-          opacity: loading ? 0.7 : 1,
-        }}>
-        {loading ? "LOADING…" : "START MATCH"}
-      </button>
       </div>{/* /max-w-xl */}
     </div>
   );
