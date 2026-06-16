@@ -267,14 +267,28 @@ router.get("/players/:id/practice-stats", async (req, res): Promise<void> => {
     `)).rows;
 
     const [highestCoRow] = (await db.execute(sql`
-      SELECT COALESCE(MAX((v->>'total')::int), 0) AS highest_checkout
-      FROM practice_sessions ps,
-           jsonb_array_elements(ps.session_data->'legs') AS l,
-           jsonb_array_elements(l->'visits') AS v
-      WHERE ps.player1_id = ${playerId}
-        AND ps.session_data ? 'legs'
-        AND (v->>'isCheckout')::boolean = true
-        AND (v->>'total')::int > 0
+      WITH session_darts AS (
+        SELECT
+          ps.id AS session_id,
+          (dart->>'val')::int               AS val,
+          ordinality::int                    AS pos,
+          COUNT(*) OVER (PARTITION BY ps.id)::int AS total_darts
+        FROM practice_sessions ps,
+             jsonb_array_elements(ps.session_data->'dartLog') WITH ORDINALITY AS t(dart, ordinality)
+        WHERE ps.player1_id = ${playerId}
+          AND ps.session_data ? 'dartLog'
+          AND ps.p1_checkout_hits > 0
+          AND ps.game_type_key IN (SELECT key FROM game_types WHERE engine = 'X01')
+      ),
+      last_visits AS (
+        SELECT session_id, SUM(val) AS checkout_score
+        FROM session_darts
+        WHERE pos > total_darts - ((total_darts - 1) % 3 + 1)
+        GROUP BY session_id
+        HAVING SUM(val) BETWEEN 2 AND 170
+      )
+      SELECT COALESCE(MAX(checkout_score), 0) AS highest_checkout
+      FROM last_visits
     `)).rows;
 
     res.json({
@@ -299,18 +313,31 @@ router.get("/players/:id/checkouts", async (req, res): Promise<void> => {
     const minScore = Math.max(1, parseInt(String(req.query.minScore ?? "80"), 10) || 80);
 
     const result = await db.execute(sql`
-      SELECT
-        (v->>'total')::int    AS checkout_score,
-        ps.game_type_name,
-        ps.created_at
-      FROM practice_sessions ps,
-           jsonb_array_elements(ps.session_data->'legs') AS l,
-           jsonb_array_elements(l->'visits') AS v
-      WHERE ps.player1_id = ${playerId}
-        AND ps.session_data ? 'legs'
-        AND (v->>'isCheckout')::boolean = true
-        AND (v->>'total')::int >= ${minScore}
-      ORDER BY (v->>'total')::int DESC, ps.created_at DESC
+      WITH session_darts AS (
+        SELECT
+          ps.id                              AS session_id,
+          ps.game_type_name,
+          ps.created_at,
+          (dart->>'val')::int               AS val,
+          ordinality::int                    AS pos,
+          COUNT(*) OVER (PARTITION BY ps.id)::int AS total_darts
+        FROM practice_sessions ps,
+             jsonb_array_elements(ps.session_data->'dartLog') WITH ORDINALITY AS t(dart, ordinality)
+        WHERE ps.player1_id = ${playerId}
+          AND ps.session_data ? 'dartLog'
+          AND ps.p1_checkout_hits > 0
+          AND ps.game_type_key IN (SELECT key FROM game_types WHERE engine = 'X01')
+      ),
+      last_visits AS (
+        SELECT session_id, game_type_name, created_at, SUM(val) AS checkout_score
+        FROM session_darts
+        WHERE pos > total_darts - ((total_darts - 1) % 3 + 1)
+        GROUP BY session_id, game_type_name, created_at
+        HAVING SUM(val) BETWEEN ${minScore} AND 170
+      )
+      SELECT checkout_score, game_type_name, created_at
+      FROM last_visits
+      ORDER BY checkout_score DESC, created_at DESC
     `);
     res.json(result.rows);
   } catch (err) {

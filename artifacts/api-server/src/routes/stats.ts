@@ -282,21 +282,31 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
 router.get("/stats/checkout-records", async (req, res): Promise<void> => {
   try {
     const result = await db.execute(drizzleSql`
-      WITH checkout_vals AS (
+      WITH session_darts AS (
         SELECT
-          p.id              AS player_id,
-          p.name            AS player_name,
-          (v->>'total')::int AS co_val,
+          p.id                               AS player_id,
+          p.name                             AS player_name,
+          ps.id                              AS session_id,
           ps.game_type_name,
-          ps.created_at
+          ps.created_at,
+          (dart->>'val')::int               AS val,
+          ordinality::int                    AS pos,
+          COUNT(*) OVER (PARTITION BY ps.id)::int AS total_darts
         FROM players p
         JOIN practice_sessions ps ON ps.player1_id = p.id,
-             jsonb_array_elements(ps.session_data->'legs') AS l,
-             jsonb_array_elements(l->'visits') AS v
+             jsonb_array_elements(ps.session_data->'dartLog') WITH ORDINALITY AS t(dart, ordinality)
         WHERE p.status = 'ACTIVE'
-          AND ps.session_data ? 'legs'
-          AND (v->>'isCheckout')::boolean = true
-          AND (v->>'total')::int > 0
+          AND ps.session_data ? 'dartLog'
+          AND ps.p1_checkout_hits > 0
+          AND ps.game_type_key IN (SELECT key FROM game_types WHERE engine = 'X01')
+      ),
+      last_visits AS (
+        SELECT player_id, player_name, session_id, game_type_name, created_at,
+               SUM(val) AS co_val
+        FROM session_darts
+        WHERE pos > total_darts - ((total_darts - 1) % 3 + 1)
+        GROUP BY player_id, player_name, session_id, game_type_name, created_at
+        HAVING SUM(val) BETWEEN 2 AND 170
       )
       SELECT DISTINCT ON (player_id)
         player_id,
@@ -304,7 +314,7 @@ router.get("/stats/checkout-records", async (req, res): Promise<void> => {
         co_val          AS highest_checkout,
         game_type_name,
         created_at
-      FROM checkout_vals
+      FROM last_visits
       ORDER BY player_id, co_val DESC, created_at DESC
     `);
     const rows = (result.rows as any[]).sort((a, b) => b.highest_checkout - a.highest_checkout);
