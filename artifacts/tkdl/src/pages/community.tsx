@@ -76,7 +76,7 @@ function PlayerAvatar({ name, tier, size = 8 }: { name: string; tier: string; si
   );
 }
 
-function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDelete }: {
+function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDelete, onRemovePhoto, onDeleteComment }: {
   post: Post;
   onReact: (id: number, emoji: string) => void;
   onComment: (id: number, content: string) => void;
@@ -84,6 +84,8 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
   onApprove?: (id: number) => void;
   onReject?: (id: number) => void;
   onDelete?: (id: number) => void;
+  onRemovePhoto?: (id: number) => void;
+  onDeleteComment?: (postId: number, commentId: number) => void;
 }) {
   const { user } = useAuth();
   const [showComments, setShowComments]   = useState(false);
@@ -192,10 +194,17 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
 
         {/* Photo */}
         {post.photo_path && (
-          <div className="mb-3 rounded-xl overflow-hidden" style={{ maxHeight: 360 }}>
+          <div className="mb-3 rounded-xl overflow-hidden relative" style={{ maxHeight: 360 }}>
             <img src={`/api/storage${post.photo_path}`} alt="Post photo"
               className="w-full object-cover rounded-xl"
               style={{ maxHeight: 360 }} />
+            {isAdmin && (
+              <button onClick={() => onRemovePhoto?.(post.id)}
+                className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-opacity hover:opacity-90"
+                style={{ background: "rgba(0,0,0,0.75)", border: "1px solid rgba(255,0,92,0.5)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
+                <X className="w-3 h-3" />REMOVE PHOTO
+              </button>
+            )}
           </div>
         )}
 
@@ -241,15 +250,22 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
               <div className="text-xs text-center py-2" style={{ color: "rgba(255,255,255,0.3)" }}>No comments yet</div>
             ) : (
               comments.map(c => (
-                <div key={c.id} className="flex gap-2">
+                <div key={c.id} className="flex gap-2 group">
                   <PlayerAvatar name={c.player_name} tier={c.player_tier} size={6} />
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <span className="text-xs font-bold mr-2" style={{ fontFamily: "Oswald, sans-serif", color: TIER_COLORS[c.player_tier] ?? "#9ca3af" }}>
                       {c.player_name}
                     </span>
                     <span className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>{c.content}</span>
                     <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>{relativeTime(c.created_at)}</div>
                   </div>
+                  {(isAdmin || c.player_id === user?.playerId) && (
+                    <button onClick={() => onDeleteComment?.(post.id, c.id)}
+                      className="shrink-0 p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
+                      style={{ color: "#ff005c" }} title="Delete comment">
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -427,6 +443,28 @@ export default function CommunityPage() {
     if (r.ok) {
       toast({ title: "Post deleted" });
       setPosts(prev => prev.filter(p => p.id !== id));
+      setPending(prev => prev.filter(p => p.id !== id));
+    }
+  };
+
+  const handleRemovePhoto = async (id: number) => {
+    const r = await fetch(`/api/community/posts/${id}/remove-photo`, { method: "PATCH", credentials: "include" });
+    if (r.ok) {
+      toast({ title: "Photo removed" });
+      setPosts(prev => prev.map(p => p.id === id ? { ...p, photo_path: null } : p));
+      setPending(prev => prev.map(p => p.id === id ? { ...p, photo_path: null } : p));
+    } else {
+      toast({ title: "Failed to remove photo", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteComment = async (postId: number, commentId: number) => {
+    const r = await fetch(`/api/community/posts/${postId}/comments/${commentId}`, { method: "DELETE", credentials: "include" });
+    if (r.ok) {
+      toast({ title: "Comment deleted" });
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, comment_count: Math.max(0, p.comment_count - 1) } : p));
+    } else {
+      toast({ title: "Failed to delete comment", variant: "destructive" });
     }
   };
 
@@ -523,7 +561,8 @@ export default function CommunityPage() {
           </div>
           {pending.map(post => (
             <PostCard key={post.id} post={post} onReact={handleReact} onComment={handleComment}
-              isAdmin={!!user?.isAdmin} onApprove={handleApprove} onReject={handleReject} onDelete={handleDelete} />
+              isAdmin={!!user?.isAdmin} onApprove={handleApprove} onReject={handleReject}
+              onDelete={handleDelete} onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} />
           ))}
           <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
         </div>
@@ -549,7 +588,8 @@ export default function CommunityPage() {
           <div className="space-y-3">
             {posts.map(post => (
               <PostCard key={post.id} post={post} onReact={handleReact} onComment={handleComment}
-                isAdmin={!!user?.isAdmin} onDelete={handleDelete} />
+                isAdmin={!!user?.isAdmin} onDelete={handleDelete}
+                onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} />
             ))}
           </div>
           {hasMore && (

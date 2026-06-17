@@ -252,7 +252,12 @@ router.get("/community/posts/:id/comments", async (req, res): Promise<void> => {
   const postId = Number(req.params.id);
   if (isNaN(postId)) { res.status(400).json({ error: "Invalid id" }); return; }
   const rows = await db.execute(sql`
-    SELECT pc.id, pc.player_id, pl.name AS player_name, pl.tier AS player_tier,
+    SELECT pc.id, pc.player_id, pl.name AS player_name,
+           CASE WHEN pl.elo >= 1400 THEN 'Diamond'
+                WHEN pl.elo >= 1250 THEN 'Platinum'
+                WHEN pl.elo >= 1100 THEN 'Gold'
+                WHEN pl.elo >= 950  THEN 'Silver'
+                ELSE 'Bronze' END AS player_tier,
            pc.content, pc.created_at
     FROM post_comments pc
     JOIN players pl ON pl.id = pc.player_id
@@ -260,6 +265,38 @@ router.get("/community/posts/:id/comments", async (req, res): Promise<void> => {
     ORDER BY pc.created_at ASC
   `);
   res.json(rows.rows);
+});
+
+// ── PATCH /community/posts/:id/remove-photo — admin ──────────────────────────
+router.patch("/community/posts/:id/remove-photo", async (req, res): Promise<void> => {
+  if (!sessionIsAdmin(req)) { res.status(403).json({ error: "Admin required" }); return; }
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const result = await db.execute(sql`
+    UPDATE community_posts SET photo_path = NULL
+    WHERE id = ${id}
+    RETURNING id
+  `);
+  if (!result.rows.length) { res.status(404).json({ error: "Post not found" }); return; }
+  res.json({ ok: true });
+});
+
+// ── DELETE /community/posts/:id/comments/:commentId — admin or own comment ───
+router.delete("/community/posts/:id/comments/:commentId", async (req, res): Promise<void> => {
+  const isAdmin = sessionIsAdmin(req);
+  const playerId = sessionPlayerId(req);
+  if (!isAdmin && !playerId) { res.status(401).json({ error: "Login required" }); return; }
+
+  const commentId = Number(req.params.commentId);
+  if (isNaN(commentId)) { res.status(400).json({ error: "Invalid commentId" }); return; }
+
+  // Admin can delete any comment; players can only delete their own
+  const result = isAdmin
+    ? await db.execute(sql`DELETE FROM post_comments WHERE id = ${commentId} RETURNING id`)
+    : await db.execute(sql`DELETE FROM post_comments WHERE id = ${commentId} AND player_id = ${playerId!} RETURNING id`);
+
+  if (!result.rows.length) { res.status(404).json({ error: "Comment not found or not yours" }); return; }
+  res.json({ ok: true });
 });
 
 // ── POST /community/posts/:id/comments ──────────────────────────────────────
