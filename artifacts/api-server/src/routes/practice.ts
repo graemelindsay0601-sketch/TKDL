@@ -1054,7 +1054,7 @@ router.get("/practice/game-leaderboard", async (req, res): Promise<void> => {
       JOIN practice_sessions ps
         ON (ps.player1_id = p.id OR ps.player2_id = p.id)
        AND ps.game_type_key = ${key}
-      WHERE p.status = 'ACTIVE'
+      WHERE p.is_active = true
       GROUP BY p.id, p.name
       HAVING COUNT(*) >= 1
       ORDER BY wins DESC, games_played DESC

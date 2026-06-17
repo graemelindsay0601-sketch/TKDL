@@ -29,7 +29,7 @@ function getConfig(tier: number, round: number) {
   return { ...t, ...r, dartLimit: t.dartLimits[(round - 1) as RoundIdx] };
 }
 
-type Player  = { id: number; name: string; status: string };
+type Player  = { id: number; name: string; status: string; isActive: boolean };
 type Progress = { currentTier: number; currentRound: number; config: ReturnType<typeof getConfig> };
 type StartCfg = NonNullable<ReturnType<typeof getConfig>>;
 type Phase   = "lobby" | "bullup" | "playing" | "result";
@@ -72,7 +72,7 @@ export default function Master501() {
     fetch("/api/players")
       .then(r => r.json())
       .then((d: Player[]) => {
-        const active = d.filter(p => p.status === "ACTIVE");
+        const active = d.filter(p => p.isActive !== false);
         setPlayers(active);
         if (!playerId && active.length > 0) {
           const defaultId = currentPlayer ? active.find(p => p.id === currentPlayer.playerId)?.id ?? null : null;

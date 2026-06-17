@@ -87,7 +87,7 @@ export default function Tour() {
 
   useEffect(() => {
     fetch("/api/players").then(r => r.json()).then(ps => {
-      const active = ps.filter((p: any) => p.status === "ACTIVE");
+      const active = ps.filter((p: any) => p.isActive !== false);
       setPlayers(active);
       if (active.length > 0) {
         const defaultId = currentPlayer ? active.find((p: any) => p.id === currentPlayer.playerId)?.id : null;

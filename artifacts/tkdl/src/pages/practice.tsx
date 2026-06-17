@@ -12,7 +12,7 @@ import {
   type BotPersona, type BotConfig, type ShadowProfile,
 } from "@/lib/bot-engine";
 
-type Player = { id: number; name: string; points: number; elo: number; status: string };
+type Player = { id: number; name: string; points: number; elo: number; status: string; isActive: boolean };
 
 type SoloBotMode = "level" | "pro" | "shadow";
 
@@ -284,7 +284,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       .catch(() => setGameLb([]));
   }, [selectedGame]);
 
-  const players = (playersData as Player[] | undefined)?.filter(p => p.status === "ACTIVE") ?? [];
+  const players = (playersData as Player[] | undefined)?.filter(p => p.isActive !== false) ?? [];
 
   useEffect(() => {
     if (players.length === 0 || p1Id) return;
