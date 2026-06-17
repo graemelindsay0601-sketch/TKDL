@@ -14,6 +14,10 @@ import practiceRouter     from "./practice";
 import teamMatchesRouter  from "./team-matches";
 import tourRouter         from "./tour";
 import master501Router    from "./master501";
+import storageRouter      from "./storage";
+import communityRouter    from "./community";
+import messagesRouter     from "./messages";
+import notificationsRouter from "./notifications";
 // import scorerRouter       from "./scorer";      // auto-scorer disabled
 // import dartScorerRouter   from "./dart-scorer"; // auto-scorer disabled
 
@@ -35,6 +39,10 @@ router.use(gameTypesRouter);
 router.use(practiceRouter);
 router.use(tourRouter);
 router.use(master501Router);
+router.use(storageRouter);
+router.use(communityRouter);
+router.use(messagesRouter);
+router.use(notificationsRouter);
 // router.use(scorerRouter);     // auto-scorer disabled
 // router.use(dartScorerRouter); // auto-scorer disabled
 

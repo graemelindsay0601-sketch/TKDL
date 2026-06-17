@@ -32,3 +32,5 @@ export * from './statsSummary';
 export * from './submitTeamMatchInput';
 export * from './teamMatchParticipant';
 export * from './teamMatchResult';
+export * from './uploadUrlRequest';
+export * from './uploadUrlResponse';

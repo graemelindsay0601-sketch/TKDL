@@ -435,6 +435,9 @@ function FeatureFlags() {
   const [liveScorer,       setLiveScorer]       = useState<boolean | null>(null);
   const [autoScorerOn,     setAutoScorerOn]      = useState<boolean | null>(null);
   const [autoScorerTest,   setAutoScorerTest]    = useState<boolean | null>(null);
+  const [communityOn,      setCommunityOn]       = useState<boolean | null>(null);
+  const [messagingOn,      setMessagingOn]       = useState<boolean | null>(null);
+  const [notificationsOn,  setNotificationsOn]   = useState<boolean | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -444,8 +447,11 @@ function FeatureFlags() {
         setLiveScorer(s.live_scorer_enabled === true);
         setAutoScorerOn(s.auto_scorer_enabled === true);
         setAutoScorerTest(s.auto_scorer_test_only !== false);
+        setCommunityOn(s.community_enabled === true);
+        setMessagingOn(s.messaging_enabled === true);
+        setNotificationsOn(s.notifications_enabled === true);
       })
-      .catch(() => { setLiveScorer(false); setAutoScorerOn(false); setAutoScorerTest(true); });
+      .catch(() => { setLiveScorer(false); setAutoScorerOn(false); setAutoScorerTest(true); setCommunityOn(false); setMessagingOn(false); setNotificationsOn(false); });
   }, []);
 
   const patchSetting = async (key: string, val: boolean, label: string) => {
@@ -502,6 +508,55 @@ function FeatureFlags() {
             disabled={autoScorerTest === null}
             onCheckedChange={val => { setAutoScorerTest(val); void patchSetting("auto_scorer_test_only", val, val ? "Test-only mode on" : "Test-only mode off"); }}
           />
+        </div>
+
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+
+        {/* ── Community ── */}
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.8)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>Community Feed</div>
+            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Show the Community section in the nav and allow players to post</div>
+          </div>
+          <Switch
+            checked={communityOn === true}
+            disabled={communityOn === null}
+            onCheckedChange={val => { setCommunityOn(val); void patchSetting("community_enabled", val, val ? "Community enabled" : "Community hidden"); }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.8)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>Direct Messaging</div>
+            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Allow players to send each other private messages via the Account page</div>
+          </div>
+          <Switch
+            checked={messagingOn === true}
+            disabled={messagingOn === null}
+            onCheckedChange={val => { setMessagingOn(val); void patchSetting("messaging_enabled", val, val ? "Messaging enabled" : "Messaging disabled"); }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.8)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>Notifications</div>
+            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Fire in-app notifications for reactions, comments, messages, and match events</div>
+          </div>
+          <Switch
+            checked={notificationsOn === true}
+            disabled={notificationsOn === null}
+            onCheckedChange={val => { setNotificationsOn(val); void patchSetting("notifications_enabled", val, val ? "Notifications enabled" : "Notifications disabled"); }}
+          />
+        </div>
+
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+
+        <div className="flex gap-2">
+          <a href="/community"
+            className="flex-1 py-2.5 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
+            style={{ background: "rgba(0,229,160,0.08)", border: "1px solid rgba(0,229,160,0.25)", color: "#00e5a0", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
+            Community →
+          </a>
         </div>
 
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />

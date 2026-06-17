@@ -283,6 +283,20 @@ export interface TeamMatchResult {
   participants: TeamMatchParticipant[];
 }
 
+export interface UploadUrlRequest {
+  /** @minLength 1 */
+  name: string;
+  /** @minimum 1 */
+  size: number;
+  /** @minLength 1 */
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+}
+
 export type ListMatchesParams = {
 seasonId?: number;
 limit?: number;

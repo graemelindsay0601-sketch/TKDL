@@ -27,6 +27,7 @@ import HallOfFame   from "@/pages/hall-of-fame";
 import Broadcast      from "@/pages/broadcast";
 import Login          from "@/pages/login";
 import Account        from "@/pages/account";
+import Community      from "@/pages/community";
 // import ScorerJoin     from "@/pages/scorer-join";    // auto-scorer disabled
 // import ScorerDisplay  from "@/pages/scorer-display"; // auto-scorer disabled
 // import AutoScorer     from "@/pages/auto-scorer";    // auto-scorer disabled
@@ -64,6 +65,7 @@ function AppRoutes() {
             <Route path="/tour"          component={Tour}        />
             <Route path="/master501"     component={Master501}   />
             <Route path="/hall-of-fame"  component={HallOfFame}  />
+            <Route path="/community"     component={Community}   />
             <Route path="/account"       component={Account}     />
             {/* <Route path="/auto-scorer"   component={AutoScorer}  /> */}
             <Route component={NotFound} />

@@ -293,12 +293,75 @@ async function seedSettings() {
   // ON CONFLICT DO NOTHING — preserves any admin-set values
   await db.execute(sql`
     INSERT INTO settings (key, value) VALUES
-      ('live_scorer_enabled',   'false'),
-      ('auto_scorer_enabled',   'false'),
-      ('auto_scorer_test_only', 'true')
+      ('live_scorer_enabled',    'false'),
+      ('auto_scorer_enabled',    'false'),
+      ('auto_scorer_test_only',  'true'),
+      ('community_enabled',      'false'),
+      ('messaging_enabled',      'false'),
+      ('notifications_enabled',  'false')
     ON CONFLICT (key) DO NOTHING
   `);
   logger.info("Settings defaults ensured");
+}
+
+async function seedCommunityTables() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS community_posts (
+      id          SERIAL PRIMARY KEY,
+      player_id   INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      content     TEXT NOT NULL DEFAULT '',
+      photo_path  TEXT,
+      post_type   TEXT NOT NULL DEFAULT 'manual',
+      auto_meta   JSONB NOT NULL DEFAULT '{}',
+      status      TEXT NOT NULL DEFAULT 'pending',
+      approved_at TIMESTAMPTZ,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS post_reactions (
+      id         SERIAL PRIMARY KEY,
+      post_id    INTEGER NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+      player_id  INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      emoji      TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(post_id, player_id, emoji)
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS post_comments (
+      id         SERIAL PRIMARY KEY,
+      post_id    INTEGER NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+      player_id  INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      content    TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS direct_messages (
+      id          SERIAL PRIMARY KEY,
+      sender_id   INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      receiver_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      content     TEXT,
+      photo_path  TEXT,
+      read_at     TIMESTAMPTZ,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id           SERIAL PRIMARY KEY,
+      player_id    INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      type         TEXT NOT NULL,
+      actor_id     INTEGER REFERENCES players(id) ON DELETE SET NULL,
+      entity_id    INTEGER,
+      entity_type  TEXT,
+      message      TEXT NOT NULL,
+      read_at      TIMESTAMPTZ,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  logger.info("Community tables ready");
 }
 
 async function seedGameTypes() {
@@ -587,6 +650,7 @@ async function seedUsers() {
 async function init() {
   try {
     await seedSettings();
+    await seedCommunityTables();
     await seedPractice();
     await seedMaster501();
     await seedMatchParticipants();

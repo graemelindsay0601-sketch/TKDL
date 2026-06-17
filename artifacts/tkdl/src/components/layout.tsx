@@ -1,11 +1,14 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 import { useGetStatsSummary, useGetRecentActivity, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
 
 const hubNav = [
   { href: "/",             label: "Hub",          icon: LayoutDashboard },
+];
+const communityNav = [
+  { href: "/community",    label: "Community",    icon: MessageSquare   },
 ];
 const playNav = [
   { href: "/submit",       label: "Submit Match", icon: Plus            },
@@ -117,7 +120,7 @@ function LiveTicker() {
   );
 }
 
-function AccountWidget() {
+function AccountWidget({ unreadCount = 0 }: { unreadCount?: number }) {
   const { user, loading } = useAuth();
   if (loading) return null;
   return (
@@ -126,9 +129,15 @@ function AccountWidget() {
         <Link href="/account"
           className="flex items-center gap-2.5 mx-2 my-1.5 px-3 py-2 rounded-xl transition-colors hover:bg-white/5"
           style={{ background: "rgba(255,0,92,0.06)", border: "1px solid rgba(255,0,92,0.12)" }}>
-          <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+          <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 relative"
             style={{ background: "rgba(255,0,92,0.18)", border: "1px solid rgba(255,0,92,0.3)" }}>
             <UserCircle className="w-4 h-4" style={{ color: "#ff005c" }} />
+            {unreadCount > 0 && (
+              <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white font-black"
+                style={{ background: "#ff005c", fontSize: "0.45rem", fontFamily: "Oswald, sans-serif", border: "1.5px solid #0a0612", zIndex: 10 }}>
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </div>
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.75rem", fontWeight: 700, color: "#fff", letterSpacing: "0.04em", lineHeight: 1.2 }} className="truncate">
@@ -138,6 +147,9 @@ function AccountWidget() {
               @{user.username}{user.isAdmin ? " · Admin" : ""}
             </div>
           </div>
+          {unreadCount > 0 && (
+            <Bell className="w-3.5 h-3.5 shrink-0 animate-pulse" style={{ color: "#ff005c" }} />
+          )}
         </Link>
       ) : (
         <Link href="/login"
@@ -168,15 +180,32 @@ export function Layout({ children }: { children: ReactNode }) {
 
   useEffect(() => { setDrawerOpen(false); }, [location]);
 
+  const { user: authUser }              = useAuth();
   const [liveScorer,       setLiveScorer]   = useState(false);
+  const [communityEnabled, setCommunityEnabled] = useState(false);
+  const [unreadCount,      setUnreadCount]  = useState(0);
   useEffect(() => {
     fetch("/api/settings")
       .then(r => r.ok ? r.json() : {})
       .then((s: Record<string, unknown>) => {
         if (s.live_scorer_enabled === true) setLiveScorer(true);
+        if (s.community_enabled   === true) setCommunityEnabled(true);
       })
       .catch(() => {});
   }, []);
+  // Poll unread notification count when logged in
+  useEffect(() => {
+    if (!authUser) return;
+    const load = () => {
+      fetch("/api/notifications/unread-count", { credentials: "include" })
+        .then(r => r.ok ? r.json() : { count: 0 })
+        .then((d: { count: number }) => setUnreadCount(d.count))
+        .catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 30_000);
+    return () => clearInterval(id);
+  }, [authUser]);
 
   type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> };
   const dynamicPlayNav: NavItem[] = liveScorer
@@ -293,6 +322,12 @@ export function Layout({ children }: { children: ReactNode }) {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-2">
         <NavSection label="Hub"          items={hubNav}          />
+        {(communityEnabled || authUser?.isAdmin) && (
+          <>
+            <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
+            <NavSection label="Community"    items={communityNav}    />
+          </>
+        )}
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
         <NavSection label="Play"         items={dynamicPlayNav}  />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
@@ -312,7 +347,7 @@ export function Layout({ children }: { children: ReactNode }) {
       </nav>
 
       {/* Account widget */}
-      <AccountWidget />
+      <AccountWidget unreadCount={unreadCount} />
 
       {/* Footer — season countdown */}
       <div className="relative px-4 py-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>

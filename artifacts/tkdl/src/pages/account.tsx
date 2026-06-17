@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/context/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -6,6 +6,7 @@ import {
   Shield, Target, LogOut, Lock, User, TrendingUp, TrendingDown,
   Zap, Trophy, Dumbbell, CircuitBoard, Star, ChevronDown, ChevronRight,
   Award, Flame, CheckCircle, Clock,
+  MessageSquare, Bell, Send, X, Image, ArrowLeft, MailOpen,
 } from "lucide-react";
 
 const TIER_COLORS: Record<string, string> = {
@@ -281,7 +282,23 @@ export default function AccountPage() {
   const [titleList,    setTitleList]    = useState<any[]>([]);
   const [titleSaving,  setTitleSaving]  = useState(false);
   const [titleFilter,  setTitleFilter]  = useState<string>("earned");
-  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(["Career"]));
+  const [expandedCats,    setExpandedCats]    = useState<Set<string>>(new Set(["Career"]));
+
+  // ── Tab + Community state ────────────────────────────────────────────
+  const [activeTab,        setActiveTab]       = useState<"profile" | "dms" | "notifications">("profile");
+  const [conversations,    setConversations]   = useState<any[]>([]);
+  const [activeConvId,     setActiveConvId]    = useState<number | null>(null);
+  const [threadMessages,   setThreadMessages]  = useState<any[]>([]);
+  const [msgText,          setMsgText]         = useState("");
+  const [msgPhotoFile,     setMsgPhotoFile]    = useState<File | null>(null);
+  const [msgPhotoPreview,  setMsgPhotoPreview] = useState<string | null>(null);
+  const [sendingMsg,       setSendingMsg]      = useState(false);
+  const [notifs,           setNotifs]          = useState<any[]>([]);
+  const [notifsLoading,    setNotifsLoading]   = useState(false);
+  const [messagingEnabled, setMessagingEnabled] = useState(false);
+  const [notifsEnabled,    setNotifsEnabled]   = useState(false);
+  const msgFileRef = useRef<HTMLInputElement>(null);
+  const threadRef  = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!user?.playerId) return;
@@ -301,6 +318,52 @@ export default function AccountPage() {
       fetch(`/api/players/${id}/titles`).then(r => r.ok ? r.json() : []).then(setTitleList),
     ]);
   }, [user?.playerId]);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then(r => r.ok ? r.json() : {})
+      .then((s: Record<string, unknown>) => {
+        setMessagingEnabled(s.messaging_enabled === true);
+        setNotifsEnabled(s.notifications_enabled === true);
+      })
+      .catch(() => {});
+  }, []);
+
+  const loadConversations = useCallback(async () => {
+    if (!user?.playerId) return;
+    const r = await fetch("/api/messages/conversations", { credentials: "include" });
+    if (r.ok) setConversations(await r.json());
+  }, [user?.playerId]);
+
+  const loadThread = useCallback(async (partnerId: number) => {
+    const r = await fetch(`/api/messages/${partnerId}`, { credentials: "include" });
+    if (r.ok) setThreadMessages(await r.json());
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "dms") {
+      void loadConversations();
+      setActiveConvId(null);
+      setThreadMessages([]);
+    } else if (activeTab === "notifications") {
+      setNotifsLoading(true);
+      fetch("/api/notifications", { credentials: "include" })
+        .then(r => r.ok ? r.json() : [])
+        .then(setNotifs)
+        .finally(() => setNotifsLoading(false));
+    }
+  }, [activeTab, loadConversations]);
+
+  useEffect(() => {
+    if (activeConvId === null) return;
+    void loadThread(activeConvId);
+    const id = setInterval(() => void loadThread(activeConvId), 5_000);
+    return () => clearInterval(id);
+  }, [activeConvId, loadThread]);
+
+  useEffect(() => {
+    if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
+  }, [threadMessages]);
 
   const handleLogout = async () => {
     await logout();
@@ -654,6 +717,29 @@ export default function AccountPage() {
           );
         })()}
       </div>
+
+      {/* ── Account Tabs ────────────────────────────────────────── */}
+      <div className="flex gap-1 p-1 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        {([
+          { id: "profile"       as const, label: "Profile",  Icon: User          },
+          { id: "dms"           as const, label: "Messages", Icon: MessageSquare },
+          { id: "notifications" as const, label: "Notifs",   Icon: Bell          },
+        ]).map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
+            style={{
+              background: activeTab === tab.id ? "rgba(255,0,92,0.18)" : "transparent",
+              border:     activeTab === tab.id ? "1px solid rgba(255,0,92,0.35)" : "1px solid transparent",
+              color:      activeTab === tab.id ? "#ff005c" : "rgba(255,255,255,0.35)",
+              fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em",
+            }}>
+            <tab.Icon className="w-3.5 h-3.5" />
+            {tab.label.toUpperCase()}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "profile" && (<>
 
       {/* ── Gamerscore ─────────────────────────────────────────── */}
       <div className="rounded-2xl p-4"
@@ -1416,6 +1502,228 @@ export default function AccountPage() {
           </button>
         </form>
       </SectionCard>
+
+      </>)}
+
+      {/* ── Messages Tab ─────────────────────────────────────────── */}
+      {activeTab === "dms" && (
+        <div className="space-y-3">
+          {!messagingEnabled ? (
+            <div className="text-center py-16 rounded-2xl" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <MessageSquare className="w-8 h-8 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.12)" }} />
+              <p className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>MESSAGES COMING SOON</p>
+              <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.15)" }}>Direct messaging between players isn't live yet.</p>
+            </div>
+          ) : activeConvId === null ? (
+            <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <MessageSquare className="w-4 h-4" style={{ color: "rgba(255,0,92,0.7)" }} />
+                <span className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", color: "#fff" }}>MESSAGES</span>
+              </div>
+              {conversations.length === 0 ? (
+                <div className="text-center py-10 text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>No conversations yet</div>
+              ) : (
+                conversations.map((conv: any) => (
+                  <button key={conv.playerId}
+                    onClick={() => { setActiveConvId(conv.playerId); void loadThread(conv.playerId); }}
+                    className="w-full px-4 py-3 flex items-center gap-3 text-left transition-colors hover:bg-white/5"
+                    style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-sm"
+                      style={{ background: "rgba(255,0,92,0.15)", border: "1px solid rgba(255,0,92,0.3)", color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+                      {(conv.playerName as string)?.charAt(0) ?? "?"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>{conv.playerName}</span>
+                        {(conv.unreadCount as number) > 0 && (
+                          <span className="ml-auto text-xs font-black shrink-0 px-1.5 rounded-full"
+                            style={{ background: "#ff005c", color: "#fff", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem" }}>
+                            {conv.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs truncate mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{conv.lastMessage ?? "Photo"}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : (
+            <div className="rounded-2xl overflow-hidden flex flex-col" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", height: "60vh" }}>
+              <div className="px-4 py-3 flex items-center gap-3 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <button onClick={() => { setActiveConvId(null); void loadConversations(); }}
+                  className="p-1 rounded-lg" style={{ color: "rgba(255,255,255,0.5)" }}>
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>
+                  {conversations.find((c: any) => c.playerId === activeConvId)?.playerName ?? ""}
+                </span>
+              </div>
+              <div ref={threadRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+                {threadMessages.map((msg: any) => {
+                  const mine = msg.sender_id === user?.playerId;
+                  return (
+                    <div key={msg.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                      <div className="max-w-[75%]">
+                        {msg.content && (
+                          <div className="px-3 py-2 rounded-2xl text-sm"
+                            style={{
+                              background: mine ? "rgba(255,0,92,0.2)"   : "rgba(255,255,255,0.06)",
+                              border:     mine ? "1px solid rgba(255,0,92,0.35)" : "1px solid rgba(255,255,255,0.08)",
+                              color: "#fff",
+                            }}>
+                            {msg.content}
+                          </div>
+                        )}
+                        {msg.photo_path && (
+                          <img src={`/api/storage${msg.photo_path}`} alt="photo"
+                            className="mt-1 rounded-xl max-w-full" style={{ maxHeight: 200 }} />
+                        )}
+                        <div className={`text-xs mt-0.5 ${mine ? "text-right" : ""}`}
+                          style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "0.5rem" }}>
+                          {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="shrink-0 px-3 py-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                {msgPhotoPreview && (
+                  <div className="relative mb-2 rounded-xl overflow-hidden" style={{ maxHeight: 120 }}>
+                    <img src={msgPhotoPreview} alt="preview" className="rounded-xl object-cover" style={{ maxHeight: 120 }} />
+                    <button type="button"
+                      onClick={() => { setMsgPhotoFile(null); if (msgPhotoPreview) URL.revokeObjectURL(msgPhotoPreview); setMsgPhotoPreview(null); if (msgFileRef.current) msgFileRef.current.value = ""; }}
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center"
+                      style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}>
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+                <form className="flex gap-2" onSubmit={async e => {
+                  e.preventDefault();
+                  if ((!msgText.trim() && !msgPhotoFile) || sendingMsg) return;
+                  setSendingMsg(true);
+                  try {
+                    let photoPath: string | undefined;
+                    if (msgPhotoFile) {
+                      const pur = await fetch("/api/storage/uploads/request-url", {
+                        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+                        body: JSON.stringify({ name: msgPhotoFile.name, size: msgPhotoFile.size, contentType: msgPhotoFile.type }),
+                      });
+                      if (pur.ok) {
+                        const { uploadURL, objectPath } = await pur.json() as { uploadURL: string; objectPath: string };
+                        await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": msgPhotoFile.type }, body: msgPhotoFile });
+                        photoPath = objectPath;
+                      }
+                    }
+                    const r = await fetch("/api/messages", {
+                      method: "POST", credentials: "include",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ receiverId: activeConvId, content: msgText || undefined, photoPath }),
+                    });
+                    if (r.ok) {
+                      setMsgText(""); setMsgPhotoFile(null);
+                      if (msgPhotoPreview) URL.revokeObjectURL(msgPhotoPreview);
+                      setMsgPhotoPreview(null);
+                      if (msgFileRef.current) msgFileRef.current.value = "";
+                      void loadThread(activeConvId!);
+                    }
+                  } finally { setSendingMsg(false); }
+                }}>
+                  <input ref={msgFileRef} type="file" accept="image/*" className="hidden"
+                    onChange={e => {
+                      const f = e.target.files?.[0]; if (!f) return;
+                      setMsgPhotoFile(f); setMsgPhotoPreview(URL.createObjectURL(f));
+                    }} />
+                  <button type="button" onClick={() => msgFileRef.current?.click()}
+                    className="p-2 rounded-xl"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }}>
+                    <Image className="w-4 h-4" />
+                  </button>
+                  <input value={msgText} onChange={e => setMsgText(e.target.value)}
+                    placeholder="Message…" maxLength={500}
+                    className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }} />
+                  <button type="submit" disabled={sendingMsg || (!msgText.trim() && !msgPhotoFile)}
+                    className="px-3 py-2 rounded-xl font-bold disabled:opacity-40"
+                    style={{ background: "rgba(255,0,92,0.2)", border: "1px solid rgba(255,0,92,0.4)", color: "#ff005c" }}>
+                    <Send className="w-4 h-4" />
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Notifications Tab ─────────────────────────────────────── */}
+      {activeTab === "notifications" && (
+        <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          {!notifsEnabled ? (
+            <div className="text-center py-16 px-4">
+              <Bell className="w-8 h-8 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.12)" }} />
+              <p className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>NOTIFICATIONS COMING SOON</p>
+              <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.15)" }}>In-app notifications aren't live yet.</p>
+            </div>
+          ) : (
+            <>
+              <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <Bell className="w-4 h-4" style={{ color: "rgba(255,0,92,0.7)" }} />
+                <span className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", color: "#fff" }}>NOTIFICATIONS</span>
+                {notifs.some((n: any) => !n.read_at) && (
+                  <button
+                    onClick={async () => {
+                      await fetch("/api/notifications/mark-all-read", { method: "POST", credentials: "include" });
+                      setNotifs(prev => prev.map((n: any) => ({ ...n, read_at: n.read_at ?? new Date().toISOString() })));
+                    }}
+                    className="ml-auto text-xs font-bold px-2.5 py-1 rounded-lg"
+                    style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.3)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                    <MailOpen className="inline w-3 h-3 mr-1" />Mark all read
+                  </button>
+                )}
+              </div>
+              {notifsLoading ? (
+                <div className="py-8 text-center text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Loading…</div>
+              ) : notifs.length === 0 ? (
+                <div className="py-10 text-center text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>No notifications yet</div>
+              ) : (
+                notifs.map((n: any) => (
+                  <button key={n.id}
+                    onClick={async () => {
+                      if (!n.read_at) {
+                        await fetch(`/api/notifications/${n.id}/read`, { method: "POST", credentials: "include" });
+                        setNotifs(prev => prev.map((x: any) => x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x));
+                      }
+                    }}
+                    className="w-full px-4 py-3 flex items-start gap-3 text-left transition-colors hover:bg-white/5"
+                    style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", opacity: n.read_at ? 0.5 : 1 }}>
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                      style={{ background: !n.read_at ? "rgba(255,0,92,0.18)" : "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                      <Bell className="w-3.5 h-3.5" style={{ color: !n.read_at ? "#ff005c" : "rgba(255,255,255,0.3)" }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm" style={{ color: n.read_at ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.85)" }}>
+                        {n.message}
+                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
+                        {(() => {
+                          const diff = (Date.now() - new Date(n.created_at).getTime()) / 1000;
+                          if (diff < 60) return "just now";
+                          if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+                          if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+                          return `${Math.floor(diff / 86400)}d ago`;
+                        })()}
+                      </p>
+                    </div>
+                    {!n.read_at && <div className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ background: "#ff005c" }} />}
+                  </button>
+                ))
+              )}
+            </>
+          )}
+        </div>
+      )}
 
     </div>
   );
