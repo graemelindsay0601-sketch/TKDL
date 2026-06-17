@@ -1,4 +1,4 @@
-import { Router, type IRouter, type Request, type Response } from "express";
+import express, { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
 import {
   RequestUploadUrlBody,
@@ -9,6 +9,43 @@ import { ObjectPermission } from "../lib/objectAcl";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
+
+/**
+ * POST /storage/uploads/file — server-side proxy upload (avoids browser CORS)
+ * Client sends raw file bytes; server proxies to GCS and returns objectPath.
+ */
+router.post(
+  "/storage/uploads/file",
+  express.raw({ limit: "10mb", type: () => true }),
+  async (req: Request, res: Response) => {
+    try {
+      const contentType =
+        (req.headers["x-file-type"] as string) ||
+        req.headers["content-type"] ||
+        "application/octet-stream";
+
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+
+      const putRes = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": contentType },
+        body: req.body as Buffer,
+      });
+
+      if (!putRes.ok) {
+        req.log.error({ status: putRes.status }, "GCS proxy upload failed");
+        res.status(500).json({ error: "Storage upload failed" });
+        return;
+      }
+
+      res.json({ objectPath });
+    } catch (error) {
+      req.log.error({ err: error }, "Proxy upload error");
+      res.status(500).json({ error: "Upload failed" });
+    }
+  }
+);
 
 /**
  * POST /storage/uploads/request-url

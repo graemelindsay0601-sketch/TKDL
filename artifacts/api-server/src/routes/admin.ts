@@ -279,6 +279,73 @@ router.get("/admin/seasons", async (_req, res): Promise<void> => {
   res.json(result);
 });
 
+// ── Test comms: fire fake DM + notifications to Graeme (player 1) ────────────
+router.post("/admin/test-comms", async (req, res): Promise<void> => {
+  const GRAEME_ID = 1;
+  const SEAN_ID   = 2;
+
+  // Ensure messaging + notifications are enabled
+  await db.execute(sql`
+    INSERT INTO settings (key, value) VALUES
+      ('messaging_enabled',    'true'),
+      ('notifications_enabled','true'),
+      ('community_enabled',    'true')
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+  `);
+
+  // 1. Fake DM from Sean → Graeme
+  const dmResult = await db.execute(sql`
+    INSERT INTO direct_messages (sender_id, receiver_id, content)
+    VALUES (${SEAN_ID}, ${GRAEME_ID}, '🎯 Test message — comms are working! Nice game today.')
+    RETURNING id
+  `);
+  const dmId = (dmResult.rows[0] as any).id as number;
+
+  // 2. DM notification for Graeme
+  await db.execute(sql`
+    INSERT INTO notifications (player_id, type, actor_id, entity_id, entity_type, message)
+    VALUES (
+      ${GRAEME_ID}, 'dm_received', ${SEAN_ID}, ${dmId}, 'message',
+      'New message from Sean'
+    )
+  `);
+
+  // 3. Fake post_liked notification (as if Sean liked a post by Graeme)
+  await db.execute(sql`
+    INSERT INTO notifications (player_id, type, actor_id, entity_id, entity_type, message)
+    VALUES (
+      ${GRAEME_ID}, 'post_liked', ${SEAN_ID}, NULL, 'post',
+      'Sean reacted 🎯 to your post'
+    )
+  `);
+
+  // 4. Fake community post from Sean (auto-approved so it appears in feed)
+  const postResult = await db.execute(sql`
+    INSERT INTO community_posts (player_id, content, post_type, status)
+    VALUES (${SEAN_ID}, '🎯 Test post — community feed working!', 'manual', 'approved')
+    RETURNING id
+  `);
+  const postId = (postResult.rows[0] as any).id as number;
+
+  // 5. post_commented notification — as if Sean commented on a post by Graeme
+  await db.execute(sql`
+    INSERT INTO notifications (player_id, type, actor_id, entity_id, entity_type, message)
+    VALUES (
+      ${GRAEME_ID}, 'post_commented', ${SEAN_ID}, ${postId}, 'comment',
+      'Sean commented on your post'
+    )
+  `);
+
+  res.json({
+    ok: true,
+    sent: {
+      dm: { id: dmId, from: "Sean", to: "Graeme", content: "🎯 Test message — comms are working!" },
+      notifications: 3,
+      communityPost: { id: postId, status: "approved" },
+    },
+  });
+});
+
 // ── Full data export (JSON backup) ────────────────────────────────────────────
 router.get("/admin/export", async (_req, res): Promise<void> => {
   const [players, matches, seasons, standings, achievements, playerAchievements] = await Promise.all([

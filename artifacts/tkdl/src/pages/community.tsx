@@ -19,25 +19,18 @@ function relativeTime(ts: string): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-async function requestUploadUrl(file: File): Promise<{ uploadURL: string; objectPath: string }> {
-  const res = await fetch("/api/storage/uploads/request-url", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
-  });
-  if (!res.ok) throw new Error("Failed to get upload URL");
-  return res.json();
-}
-
 async function uploadPhoto(file: File): Promise<string> {
-  const { uploadURL, objectPath } = await requestUploadUrl(file);
-  const upload = await fetch(uploadURL, {
-    method: "PUT",
-    headers: { "Content-Type": file.type },
+  const res = await fetch("/api/storage/uploads/file", {
+    method: "POST",
+    headers: {
+      "Content-Type": file.type,
+      "X-File-Type": file.type,
+    },
+    credentials: "include",
     body: file,
   });
-  if (!upload.ok) throw new Error("Upload failed");
+  if (!res.ok) throw new Error("Upload failed");
+  const { objectPath } = await res.json();
   return objectPath;
 }
 
