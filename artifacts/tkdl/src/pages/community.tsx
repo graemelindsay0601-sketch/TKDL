@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/context/auth";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { MessageSquare, Image, Send, X, Heart, ChevronDown, ChevronUp, Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { MessageSquare, Image as ImageIcon, Send, X, Heart, ChevronDown, ChevronUp, Clock, CheckCircle, AlertCircle } from "lucide-react";
 
 const TIER_COLORS: Record<string, string> = {
   Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
@@ -565,7 +565,7 @@ export default function CommunityPage() {
             <button type="button" onClick={() => fileRef.current?.click()}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-opacity hover:opacity-75"
               style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
-              <Image className="w-3.5 h-3.5" />PHOTO
+              <ImageIcon className="w-3.5 h-3.5" />PHOTO
             </button>
             <div className="flex-1 text-right text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
               {createText.length}/1000

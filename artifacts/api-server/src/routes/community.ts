@@ -27,9 +27,14 @@ async function featureEnabled(key: string): Promise<boolean> {
 
 // ── GET /community/posts ─────────────────────────────────────────────────────
 router.get("/community/posts", async (req, res): Promise<void> => {
-  const limit      = Math.min(Number(req.query.limit)  || 20, 50);
-  const offset     = Math.max(Number(req.query.offset) || 0,  0);
-  const myPlayerId = sessionPlayerId(req);
+  const limit        = Math.min(Number(req.query.limit)  || 20, 100);
+  const offset       = Math.max(Number(req.query.offset) || 0,  0);
+  const myPlayerId   = sessionPlayerId(req);
+  const filterPlayer = req.query.player_id ? Number(req.query.player_id) : null;
+  const photoOnly    = req.query.photo_only === "true";
+
+  const playerFilter = filterPlayer ? sql`AND cp.player_id = ${filterPlayer}` : sql``;
+  const photoFilter  = photoOnly    ? sql`AND cp.photo_path IS NOT NULL`       : sql``;
 
   const rows = await db.execute(sql`
     SELECT
@@ -56,6 +61,8 @@ router.get("/community/posts", async (req, res): Promise<void> => {
     FROM community_posts cp
     JOIN players pl ON pl.id = cp.player_id
     WHERE cp.status = 'approved'
+    ${playerFilter}
+    ${photoFilter}
     ORDER BY cp.created_at DESC
     LIMIT ${limit} OFFSET ${offset}
   `);

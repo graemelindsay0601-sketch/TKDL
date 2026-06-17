@@ -6,7 +6,7 @@ import {
   Shield, Target, LogOut, Lock, User, TrendingUp, TrendingDown,
   Zap, Trophy, Dumbbell, CircuitBoard, Star, ChevronDown, ChevronRight,
   Award, Flame, CheckCircle, Clock,
-  MessageSquare, Bell, Send, X, Image, ArrowLeft, MailOpen,
+  MessageSquare, Bell, Send, X, Image, ArrowLeft, MailOpen, Images, Camera,
 } from "lucide-react";
 
 const TIER_COLORS: Record<string, string> = {
@@ -285,7 +285,7 @@ export default function AccountPage() {
   const [expandedCats,    setExpandedCats]    = useState<Set<string>>(new Set(["Career"]));
 
   // ── Tab + Community state ────────────────────────────────────────────
-  const [activeTab,        setActiveTab]       = useState<"profile" | "dms" | "notifications">("profile");
+  const [activeTab,        setActiveTab]       = useState<"profile" | "dms" | "notifications" | "photos">("profile");
   const [conversations,    setConversations]   = useState<any[]>([]);
   const [activeConvId,     setActiveConvId]    = useState<number | null>(null);
   const [threadMessages,   setThreadMessages]  = useState<any[]>([]);
@@ -297,6 +297,9 @@ export default function AccountPage() {
   const [notifsLoading,    setNotifsLoading]   = useState(false);
   const [messagingEnabled, setMessagingEnabled] = useState(false);
   const [notifsEnabled,    setNotifsEnabled]   = useState(false);
+  const [myPhotoPosts,     setMyPhotoPosts]    = useState<any[] | null>(null);
+  const [photosLoading,    setPhotosLoading]   = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const msgFileRef = useRef<HTMLInputElement>(null);
   const threadRef  = useRef<HTMLDivElement>(null);
 
@@ -349,10 +352,25 @@ export default function AccountPage() {
       setNotifsLoading(true);
       fetch("/api/notifications", { credentials: "include" })
         .then(r => r.ok ? r.json() : [])
-        .then(setNotifs)
+        .then(data => { setNotifs(data); setUnreadNotifCount(0); })
         .finally(() => setNotifsLoading(false));
+    } else if (activeTab === "photos" && myPhotoPosts === null) {
+      if (!user?.playerId) return;
+      setPhotosLoading(true);
+      fetch(`/api/community/posts?player_id=${user.playerId}&photo_only=true&limit=100`)
+        .then(r => r.ok ? r.json() : [])
+        .then(setMyPhotoPosts)
+        .finally(() => setPhotosLoading(false));
     }
-  }, [activeTab, loadConversations]);
+  }, [activeTab, loadConversations, user?.playerId, myPhotoPosts]);
+
+  useEffect(() => {
+    if (!user?.playerId) return;
+    fetch("/api/notifications", { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: any[]) => setUnreadNotifCount(data.filter((n: any) => !n.read_at).length))
+      .catch(() => {});
+  }, [user?.playerId]);
 
   useEffect(() => {
     if (activeConvId === null) return;
@@ -721,20 +739,27 @@ export default function AccountPage() {
       {/* ── Account Tabs ────────────────────────────────────────── */}
       <div className="flex gap-1 p-1 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
         {([
-          { id: "profile"       as const, label: "Profile",  Icon: User          },
-          { id: "dms"           as const, label: "Messages", Icon: MessageSquare },
-          { id: "notifications" as const, label: "Notifs",   Icon: Bell          },
+          { id: "profile"       as const, label: "Profile", Icon: User          },
+          { id: "dms"           as const, label: "Msgs",    Icon: MessageSquare },
+          { id: "notifications" as const, label: "Notifs",  Icon: Bell,  badge: unreadNotifCount },
+          { id: "photos"        as const, label: "Photos",  Icon: Images },
         ]).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
+            className="flex-1 relative flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all"
             style={{
               background: activeTab === tab.id ? "rgba(255,0,92,0.18)" : "transparent",
               border:     activeTab === tab.id ? "1px solid rgba(255,0,92,0.35)" : "1px solid transparent",
               color:      activeTab === tab.id ? "#ff005c" : "rgba(255,255,255,0.35)",
-              fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em",
+              fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em",
             }}>
-            <tab.Icon className="w-3.5 h-3.5" />
-            {tab.label.toUpperCase()}
+            <tab.Icon className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden xs:inline">{tab.label.toUpperCase()}</span>
+            {"badge" in tab && (tab as any).badge > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white"
+                style={{ background: "#ff005c", fontSize: "0.45rem", fontFamily: "Oswald, sans-serif", fontWeight: 900 }}>
+                {(tab as any).badge > 9 ? "9+" : (tab as any).badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -1722,6 +1747,108 @@ export default function AccountPage() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* ── Photos Tab ──────────────────────────────────────────── */}
+      {activeTab === "photos" && (
+        <div className="space-y-4">
+          {/* Header */}
+          <div className="rounded-2xl px-5 py-4 flex items-center justify-between"
+            style={{ background: "rgba(8,6,18,0.9)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div>
+              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.2em",
+                color: "rgba(255,255,255,0.2)", textTransform: "uppercase", marginBottom: "4px" }}>
+                My Photo Album
+              </div>
+              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.4rem", fontWeight: 900, color: "#fff", lineHeight: 1 }}>
+                {myPhotoPosts === null ? "–" : myPhotoPosts.length}
+                <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)", marginLeft: "6px", fontWeight: 400 }}>
+                  photo{myPhotoPosts?.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+            </div>
+            <Link href="/community"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl transition-opacity hover:opacity-75"
+              style={{ background: "rgba(255,0,92,0.08)", border: "1px solid rgba(255,0,92,0.22)",
+                color: "#ff005c", fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", letterSpacing: "0.1em" }}>
+              <Camera className="w-3.5 h-3.5" />
+              Post Photo
+            </Link>
+          </div>
+
+          {/* Grid */}
+          {photosLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin"
+                style={{ borderTopColor: "#ff005c" }} />
+            </div>
+          ) : myPhotoPosts && myPhotoPosts.length === 0 ? (
+            <div className="rounded-2xl flex flex-col items-center justify-center py-16 gap-3"
+              style={{ background: "rgba(8,6,18,0.9)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <Camera className="w-10 h-10" style={{ color: "rgba(255,255,255,0.1)" }} />
+              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", letterSpacing: "0.12em",
+                color: "rgba(255,255,255,0.25)", textTransform: "uppercase" }}>
+                No Photos Yet
+              </div>
+              <p style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.18)", textAlign: "center", maxWidth: "220px" }}>
+                Share a photo on the community feed and it'll appear here
+              </p>
+              <Link href="/community"
+                className="mt-1 px-5 py-2 rounded-xl transition-opacity hover:opacity-75"
+                style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.28)",
+                  color: "#ff005c", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.12em" }}>
+                Go to Community
+              </Link>
+            </div>
+          ) : myPhotoPosts && myPhotoPosts.length > 0 ? (
+            <div className="grid grid-cols-3 gap-1.5">
+              {myPhotoPosts.map((post: any) => {
+                const totalReactions = Object.values(post.reactions as Record<string, number> ?? {}).reduce((s, c) => s + Number(c), 0);
+                const diff = (Date.now() - new Date(post.created_at).getTime()) / 1000;
+                const age  = diff < 86400 ? `${Math.floor(diff / 3600)}h` : `${Math.floor(diff / 86400)}d`;
+                return (
+                  <Link key={post.id} href="/community"
+                    className="relative block rounded-xl overflow-hidden group transition-transform active:scale-95"
+                    style={{ aspectRatio: "1/1" }}>
+                    <img
+                      src={`/api/storage${post.photo_path}`}
+                      alt={post.content ?? "Community photo"}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover"
+                    />
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{ background: "rgba(0,0,0,0.6)" }}>
+                      {totalReactions > 0 && (
+                        <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", color: "#fff", fontWeight: 900 }}>
+                          {Object.entries(post.reactions ?? {}).map(([emoji]) => emoji).join("")} {totalReactions}
+                        </div>
+                      )}
+                      {post.comment_count > 0 && (
+                        <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "rgba(255,255,255,0.7)" }}>
+                          {post.comment_count} comment{post.comment_count !== 1 ? "s" : ""}
+                        </div>
+                      )}
+                      <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "rgba(255,255,255,0.45)", marginTop: "2px" }}>
+                        {age} ago
+                      </div>
+                    </div>
+                    {/* Always-visible reaction dot */}
+                    {totalReactions > 0 && (
+                      <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-full"
+                        style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
+                        <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "#fff", fontWeight: 700 }}>
+                          {totalReactions}
+                        </span>
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       )}
 
