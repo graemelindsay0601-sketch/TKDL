@@ -9,7 +9,7 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 const EMOJIS = ["👍", "❤️", "😂", "🎯", "🏆"] as const;
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 
 function relativeTime(ts: string): string {
   const diff = (Date.now() - new Date(ts).getTime()) / 1000;
@@ -19,15 +19,48 @@ function relativeTime(ts: string): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+const MAX_WIDTH  = 1080;
+const MAX_HEIGHT = 1080;
+const JPEG_QUALITY = 0.82;
+
+async function compressImage(file: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+        const ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height);
+        width  = Math.round(width  * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width  = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        blob => blob ? resolve(blob) : reject(new Error("Compression failed")),
+        "image/jpeg",
+        JPEG_QUALITY,
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
+    img.src = url;
+  });
+}
+
 async function uploadPhoto(file: File): Promise<string> {
+  const compressed = await compressImage(file);
   const res = await fetch("/api/storage/uploads/file", {
     method: "POST",
     headers: {
-      "Content-Type": file.type,
-      "X-File-Type": file.type,
+      "Content-Type": "image/jpeg",
+      "X-File-Type": "image/jpeg",
     },
     credentials: "include",
-    body: file,
+    body: compressed,
   });
   if (!res.ok) throw new Error("Upload failed");
   const { objectPath } = await res.json();
@@ -189,6 +222,8 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
         {post.photo_path && (
           <div className="mb-3 rounded-xl overflow-hidden relative" style={{ maxHeight: 360 }}>
             <img src={`/api/storage${post.photo_path}`} alt="Post photo"
+              loading="lazy"
+              decoding="async"
               className="w-full object-cover rounded-xl"
               style={{ maxHeight: 360 }} />
             {isAdmin && (
