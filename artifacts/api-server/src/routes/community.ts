@@ -71,10 +71,11 @@ router.get("/community/posts", async (req, res): Promise<void> => {
   let myReactions: Record<number, string[]> = {};
 
   if (myPlayerId && posts.length > 0) {
-    const ids = posts.map(p => p.id);
+    const ids = posts.map(p => p.id as number);
+    const idList = sql.raw(ids.join(","));
     const mr = await db.execute(sql`
       SELECT post_id, emoji FROM post_reactions
-      WHERE player_id = ${myPlayerId} AND post_id = ANY(${ids}::int[])
+      WHERE player_id = ${myPlayerId} AND post_id IN (${idList})
     `);
     for (const row of mr.rows as any[]) {
       (myReactions[row.post_id] ??= []).push(row.emoji);
