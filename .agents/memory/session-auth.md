@@ -12,5 +12,5 @@ The express-session (connect-pg-simple) must store three fields on login: `userI
 
 **How to apply:** A repair middleware in `artifacts/api-server/src/app.ts` (~line 63) auto-backfills `playerId` and `isAdmin` from the users table on every request where they're missing. If you ever see 401s on protected endpoints despite a user being "logged in", check the sessions table: `SELECT sess FROM sessions` — if it only shows `"userId":N` without the other fields, the session is stale and the repair middleware should handle it on the next request (or clear all sessions with `DELETE FROM sessions`).
 
-## Known credentials
-- Graeme: username=`graeme`, password=`darts0601`, userId=1, playerId=1, isAdmin=true
+## Known accounts
+- Graeme: username=`graeme`, userId=1, playerId=1, isAdmin=true. If locked out, reset password via DB using bcryptjs from artifacts/api-server/node_modules/bcryptjs.
