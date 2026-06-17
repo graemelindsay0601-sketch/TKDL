@@ -12,7 +12,7 @@ import { seedTourSystem } from "./lib/tourSeed";
 import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { playersTable, seasonsTable, matchesTable, seasonStandingsTable, settingsTable, gameTypesTable } from "@workspace/db";
+import { playersTable, seasonsTable, matchesTable, seasonStandingsTable, settingsTable, gameTypesTable, usersTable } from "@workspace/db";
 import { eq, count, sql } from "drizzle-orm";
 
 const app: Express = express();
@@ -56,6 +56,26 @@ app.use(session({
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Repair legacy sessions that only have userId — backfill playerId + isAdmin
+app.use(async (req, res, next) => {
+  const s = req.session as any;
+  if (s?.userId && (s.playerId == null || s.isAdmin == null)) {
+    try {
+      const [u] = await db.select({
+        playerId: usersTable.playerId,
+        isAdmin:  usersTable.isAdmin,
+      }).from(usersTable).where(eq(usersTable.id, s.userId));
+      if (u) {
+        s.playerId = u.playerId;
+        s.isAdmin  = u.isAdmin;
+        req.session.save(() => {});
+      }
+    } catch { /* non-fatal */ }
+  }
+  next();
+});
+
 app.use("/api", router);
 
 // In production, serve the built frontend and handle client-side routing

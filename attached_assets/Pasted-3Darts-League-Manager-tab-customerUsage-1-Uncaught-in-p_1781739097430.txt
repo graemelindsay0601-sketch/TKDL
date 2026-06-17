@@ -1,0 +1,239 @@
+3Darts-League-Manager…tab=customerUsage:1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received
+0v1brinmur5ts.js:21 
+      /////////////////////
+   ///////////////////////////
+  ////////@@@@@@@//////////////
+  ////////@@@@@@@//////////////
+  ////////@@@@@@@//////////////        Curious and driven?
+  ///////////////@@@@@@@///////        Work with us!
+  ///////////////@@@@@@@///////
+  ///////////////@@@@@@@///////        https://join.replit.com/hack.with.us
+  ////////@@@@@@@//////////////
+  ////////@@@@@@@//////////////
+  ////////@@@@@@@//////////////
+   ///////////////////////////
+      /////////////////////
+      
+0v1brinmur5ts.js:21 Download the Apollo DevTools for a better development experience: https://chrome.google.com/webstore/detail/apollo-client-developer-t/jdkknkkbebbapilgoeccciglkfbmbnfm
+0v1brinmur5ts.js:21 [LaunchDarkly] LaunchDarkly client initialized
+0v1brinmur5ts.js:21 Failed to create PluginFactory Object
+(anonymous) @ 0v1brinmur5ts.js:21
+0v1brinmur5ts.js:21 Failed to load Remote Plugin Error: Failed to load https://cdn.segment.com/next-integrations/actions/amplitude-plugins/f12a4347e1080fb88155.js
+    at HTMLScriptElement.<anonymous> (load-script.ts:53:24)
+(anonymous) @ 0v1brinmur5ts.js:21
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+944Unchecked runtime.lastError: Could not establish connection. Receiving end does not exist.
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+events.launchdarkly.com/events/diagnostic/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+r.stripe.com/b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Afetch%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=c239f4af-1e08-43ac-bd61-8cb6935c2cb4:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Axhr%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=2e998f9b-5236-42b6-8cce-c075fb3ed446:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Afetch%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=6d59d5f2-8910-4d7c-b384-f027601b11c0:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Axhr%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=f5fbbe1c-ec77-4fc2-b51f-1d89abab618b:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+6Error while parsing the 'sandbox' attribute: 'allow-downloads-without-user-activation' is an invalid sandbox flag.
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'ambient-light-sensor'.
+C @ 0i8wy8tbht2ow.js:2
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'battery'.
+C @ 0i8wy8tbht2ow.js:2
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'execution-while-not-rendered'.
+C @ 0i8wy8tbht2ow.js:2
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'execution-while-out-of-viewport'.
+C @ 0i8wy8tbht2ow.js:2
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'layout-animations'.
+C @ 0i8wy8tbht2ow.js:2
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'legacy-image-formats'.
+C @ 0i8wy8tbht2ow.js:2
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'navigation-override'.
+C @ 0i8wy8tbht2ow.js:2
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'oversized-images'.
+C @ 0i8wy8tbht2ow.js:2
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'publickey-credentials'.
+C @ 0i8wy8tbht2ow.js:2
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'speaker-selection'.
+C @ 0i8wy8tbht2ow.js:2
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'unoptimized-images'.
+C @ 0i8wy8tbht2ow.js:2
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'unsized-media'.
+C @ 0i8wy8tbht2ow.js:2
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'pointer-lock'.
+C @ 0i8wy8tbht2ow.js:2
+0i8wy8tbht2ow.js:2 Allow attribute will take precedence over 'allowfullscreen'.
+C @ 0i8wy8tbht2ow.js:2
+0i8wy8tbht2ow.js:2 Allow attribute will take precedence over 'allowpaymentrequest'.
+C @ 0i8wy8tbht2ow.js:2
+0-c8we~goqsxh.js:2 Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev') does not match the recipient window's origin ('https://replit.com').
+w @ 0-c8we~goqsxh.js:2
+0-c8we~goqsxh.js:2 Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev') does not match the recipient window's origin ('https://replit.com').
+w @ 0-c8we~goqsxh.js:2
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Afetch%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=8fb7a926-dcce-4dd9-be94-bbe2d1c6ca54:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Axhr%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=9bbb9e07-2e8e-49b6-b6e5-59eedc654545:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+0-c8we~goqsxh.js:2 Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev') does not match the recipient window's origin ('https://replit.com').
+w @ 0-c8we~goqsxh.js:2
+0-c8we~goqsxh.js:2 Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev') does not match the recipient window's origin ('https://replit.com').
+w @ 0-c8we~goqsxh.js:2
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'ambient-light-sensor'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'ambient-light-sensor'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'battery'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'battery'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'execution-while-not-rendered'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'execution-while-not-rendered'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'execution-while-out-of-viewport'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'execution-while-out-of-viewport'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'layout-animations'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'layout-animations'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'legacy-image-formats'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'legacy-image-formats'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'navigation-override'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'navigation-override'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'oversized-images'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'oversized-images'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'publickey-credentials'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'publickey-credentials'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'speaker-selection'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'speaker-selection'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'unoptimized-images'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'unoptimized-images'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'unsized-media'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Unrecognized feature: 'unsized-media'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Allow attribute will take precedence over 'allowfullscreen'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Allow attribute will take precedence over 'allowfullscreen'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Allow attribute will take precedence over 'allowpaymentrequest'.
+workspace_iframe.html?initialPath=%2F__mockup%2Fpreview%2Ftesco-theme%2FTescoDashboard&id=shape%3At…:32 Allow attribute will take precedence over 'allowpaymentrequest'.
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Afetch%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=081ec058-1a7a-4562-a625-490dd421f752:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Axhr%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=f0dd9be2-1271-4a25-b4b4-f62f1171d879:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/notifications:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/notifications:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/notifications:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/notifications:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/messages/conversations:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/messages/conversations:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/storagenull:1  Failed to load resource: the server responded with a status of 404 (Not Found)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/storagenull:1  Failed to load resource: the server responded with a status of 404 (Not Found)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/pending:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/pending:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/2/react:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/2/react:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Afetch%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=0980e466-ed7c-45c4-8d9f-58eafbe73a0a:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Axhr%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=cb4b9d29-16b9-4d53-83c4-07f807ceb413:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/2/react:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/2/react:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/2/react:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/2/react:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/2/react:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/2/react:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/2/react:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/2/react:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/notifications:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/notifications:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/messages/conversations:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/messages/conversations:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Afetch%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=955ad05a-46f9-4fcf-962b-3953fdfcdae4:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Axhr%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=9e0c45d2-c508-4687-ad91-9334ccc09c35:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+injected.js:37 [vite] server connection lost. Polling for restart...
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/notifications:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/notifications:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Afetch%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=7d1c144d-445c-4ead-909c-89d7afb905d5:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Axhr%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=532c6e47-72d3-4835-a5d6-b942a7ffc6bc:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/messages/conversations:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/messages/conversations:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/messages/conversations:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/messages/conversations:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/notifications:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/notifications:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/storagenull:1  Failed to load resource: the server responded with a status of 404 (Not Found)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/storagenull:1  Failed to load resource: the server responded with a status of 404 (Not Found)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/pending:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/pending:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/1/react:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/1/react:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/3:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/3:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/3:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/3:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/3:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/3:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/3:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/3:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/3:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/3:1  Failed to load resource: the server responded with a status of 403 (Forbidden)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/3/comments:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+876e67d2-8392-4661-aacb-509024a882dd-00-1xzv2141f7dvt.riker.replit.dev/api/community/posts/3/comments:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Afetch%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=d9ba0329-1e12-4add-9302-0b2f21c3ea22:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Axhr%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3A882d820b&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=543c4eb0-072a-429f-80eb-3ab44dfb69d3:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+14959 log entries are not shown.
