@@ -300,6 +300,8 @@ export default function AccountPage() {
   const [myPhotoPosts,     setMyPhotoPosts]    = useState<any[] | null>(null);
   const [photosLoading,    setPhotosLoading]   = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [allPlayers,       setAllPlayers]      = useState<any[]>([]);
+  const [showNewMsg,       setShowNewMsg]      = useState(false);
   const msgFileRef = useRef<HTMLInputElement>(null);
   const threadRef  = useRef<HTMLDivElement>(null);
 
@@ -343,11 +345,33 @@ export default function AccountPage() {
     if (r.ok) setThreadMessages(await r.json());
   }, []);
 
+  // ── Open DM from ?dm=<playerId> URL param ────────────────────────────────
+  useEffect(() => {
+    if (!user?.playerId) return;
+    const dmParam = new URLSearchParams(window.location.search).get("dm");
+    if (dmParam) {
+      const dmId = Number(dmParam);
+      if (!isNaN(dmId) && dmId > 0 && dmId !== user.playerId) {
+        setActiveTab("dms");
+        setActiveConvId(dmId);
+        void loadThread(dmId);
+        void loadConversations();
+        // Pre-fetch players so the thread header can show the name
+        fetch("/api/players").then(r => r.ok ? r.json() : []).then(setAllPlayers).catch(() => {});
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.playerId]);
+
   useEffect(() => {
     if (activeTab === "dms") {
       void loadConversations();
       setActiveConvId(null);
       setThreadMessages([]);
+      setShowNewMsg(false);
+      if (allPlayers.length === 0) {
+        fetch("/api/players").then(r => r.ok ? r.json() : []).then(setAllPlayers).catch(() => {});
+      }
     } else if (activeTab === "notifications") {
       setNotifsLoading(true);
       fetch("/api/notifications", { credentials: "include" })
@@ -1541,16 +1565,52 @@ export default function AccountPage() {
             </div>
           ) : activeConvId === null ? (
             <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                <MessageSquare className="w-4 h-4" style={{ color: "rgba(255,0,92,0.7)" }} />
-                <span className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", color: "#fff" }}>MESSAGES</span>
+              <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4" style={{ color: "rgba(255,0,92,0.7)" }} />
+                  <span className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", color: "#fff" }}>MESSAGES</span>
+                </div>
+                <button onClick={() => setShowNewMsg(v => !v)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-opacity hover:opacity-75"
+                  style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.28)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
+                  <Send className="w-3 h-3" /> New
+                </button>
               </div>
-              {conversations.length === 0 ? (
-                <div className="text-center py-10 text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>No conversations yet</div>
+              {showNewMsg && (
+                <div style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,0,92,0.03)" }}>
+                  <div className="px-4 py-2 text-xs font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.3)", letterSpacing: "0.12em" }}>
+                    START NEW CONVERSATION
+                  </div>
+                  {allPlayers
+                    .filter((p: any) => p.isActive && p.id !== user?.playerId)
+                    .map((p: any) => (
+                      <button key={p.id}
+                        onClick={() => { setActiveConvId(p.id); void loadThread(p.id); setShowNewMsg(false); }}
+                        className="w-full px-4 py-2.5 flex items-center gap-3 text-left transition-colors hover:bg-white/5"
+                        style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
+                          style={{ background: "rgba(0,102,255,0.15)", border: "1px solid rgba(0,102,255,0.3)", color: "#0066ff", fontFamily: "Oswald, sans-serif" }}>
+                          {p.name?.charAt(0)}
+                        </div>
+                        <span className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>{p.name}</span>
+                      </button>
+                    ))}
+                </div>
+              )}
+              {conversations.length === 0 && !showNewMsg ? (
+                <div className="flex flex-col items-center py-10 gap-3">
+                  <MessageSquare className="w-8 h-8" style={{ color: "rgba(255,255,255,0.08)" }} />
+                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>No conversations yet</p>
+                  <button onClick={() => setShowNewMsg(true)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold transition-opacity hover:opacity-75"
+                    style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.28)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                    Start a Conversation
+                  </button>
+                </div>
               ) : (
                 conversations.map((conv: any) => (
                   <button key={conv.playerId}
-                    onClick={() => { setActiveConvId(conv.playerId); void loadThread(conv.playerId); }}
+                    onClick={() => { setActiveConvId(conv.playerId); void loadThread(conv.playerId); setShowNewMsg(false); }}
                     className="w-full px-4 py-3 flex items-center gap-3 text-left transition-colors hover:bg-white/5"
                     style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                     <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-sm"

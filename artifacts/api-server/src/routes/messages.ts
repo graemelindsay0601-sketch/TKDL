@@ -25,19 +25,23 @@ router.get("/messages/conversations", async (req, res): Promise<void> => {
   const myId = requireAuth(req, res);
   if (!myId) return;
 
+  // Use sql.raw for the repeated player-id literal to avoid Drizzle emitting
+  // 6 separate bind parameters ($1–$6) which confuses pg in CASE/GROUP BY.
+  const me = sql.raw(String(myId));
+
   const rows = await db.execute(sql`
     SELECT
-      CASE WHEN sender_id = ${myId} THEN receiver_id ELSE sender_id END AS partner_id,
-      MAX(CASE WHEN sender_id = ${myId} THEN r.name ELSE s.name END)   AS partner_name,
-      (array_agg(dm.content    ORDER BY dm.created_at DESC))[1]        AS last_content,
-      (array_agg(dm.photo_path ORDER BY dm.created_at DESC))[1]        AS last_photo_path,
-      MAX(dm.created_at)                                                AS last_at,
-      COUNT(*) FILTER (WHERE dm.receiver_id = ${myId} AND dm.read_at IS NULL)::int AS unread_count
+      CASE WHEN dm.sender_id = ${me} THEN dm.receiver_id ELSE dm.sender_id END AS partner_id,
+      MAX(CASE WHEN dm.sender_id = ${me} THEN r.name ELSE s.name END)          AS partner_name,
+      (array_agg(dm.content    ORDER BY dm.created_at DESC))[1]                AS last_content,
+      (array_agg(dm.photo_path ORDER BY dm.created_at DESC))[1]                AS last_photo_path,
+      MAX(dm.created_at)                                                        AS last_at,
+      COUNT(*) FILTER (WHERE dm.receiver_id = ${me} AND dm.read_at IS NULL)::int AS unread_count
     FROM direct_messages dm
     JOIN players s ON s.id = dm.sender_id
     JOIN players r ON r.id = dm.receiver_id
-    WHERE dm.sender_id = ${myId} OR dm.receiver_id = ${myId}
-    GROUP BY CASE WHEN sender_id = ${myId} THEN receiver_id ELSE sender_id END
+    WHERE dm.sender_id = ${me} OR dm.receiver_id = ${me}
+    GROUP BY CASE WHEN dm.sender_id = ${me} THEN dm.receiver_id ELSE dm.sender_id END
     ORDER BY MAX(dm.created_at) DESC
   `);
   res.json(rows.rows.map((r: any) => ({

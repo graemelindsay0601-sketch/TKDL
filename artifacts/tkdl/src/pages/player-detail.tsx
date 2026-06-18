@@ -3,7 +3,8 @@ import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useState, useEffect, useRef } from "react";
-import { Trophy, Skull, Flame, ArrowLeft, CheckCircle, ChevronDown, Zap, Dumbbell, CircuitBoard, X } from "lucide-react";
+import { Trophy, Skull, Flame, ArrowLeft, CheckCircle, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare } from "lucide-react";
+import { useAuth } from "@/context/auth";
 
 function useCountUp(target: number, duration = 900) {
   const [value, setValue] = useState(0);
@@ -438,6 +439,7 @@ function ScorecardView({ session_data, game_type_key, p1_name, p2_name }: {
 export default function PlayerDetail() {
   const params = useParams();
   const playerId = parseInt(params.id || "0", 10);
+  const { user } = useAuth();
   const [achFilter, setAchFilter] = useState<"all" | "unlocked" | "locked" | "close">("all");
   const [achTab, setAchTab] = useState<"league" | "bot" | "tour" | "m501">("league");
   const [tourAchs, setTourAchs] = useState<any[]>([]);
@@ -617,10 +619,20 @@ export default function PlayerDetail() {
     <div className="space-y-5 pb-8">
       <div className="pdc-divider" />
 
-      <Link href="/players" className="inline-flex items-center gap-1.5 text-xs hover:underline"
-        style={{ color: "rgba(255,255,255,0.3)" }}>
-        <ArrowLeft className="w-3 h-3" /> All Players
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href="/players" className="inline-flex items-center gap-1.5 text-xs hover:underline"
+          style={{ color: "rgba(255,255,255,0.3)" }}>
+          <ArrowLeft className="w-3 h-3" /> All Players
+        </Link>
+        {user && user.playerId !== playerId && (
+          <Link href={`/account?dm=${playerId}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-opacity hover:opacity-75"
+            style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.28)",
+              color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+            <MessageSquare className="w-3.5 h-3.5" /> Message
+          </Link>
+        )}
+      </div>
 
       {/* ══ CINEMATIC HERO ══ */}
       <div className="relative overflow-hidden rounded-2xl"
