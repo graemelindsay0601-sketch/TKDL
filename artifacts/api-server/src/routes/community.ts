@@ -85,7 +85,12 @@ router.get("/community/posts", async (req, res): Promise<void> => {
 
     res.json(posts.map(p => ({ ...p, myReactions: myReactions[p.id] ?? [] })));
   } catch (err: any) {
-    res.status(500).json({ error: "community/posts failed", detail: err?.message ?? String(err) });
+    res.status(500).json({
+      error: "community/posts failed",
+      message: err?.message ?? String(err),
+      cause: err?.cause?.message ?? String(err?.cause ?? ""),
+      code: err?.code,
+    });
   }
 });
 
