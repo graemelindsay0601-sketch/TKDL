@@ -642,10 +642,10 @@ function FeatureFlags() {
             style={{ background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.3)", color: "#a78bfa", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
             <Dumbbell className="inline w-3.5 h-3.5 mr-1.5" />Practice →
           </a>
-          <a href="/auto-scorer"
+          <a href="/shadow-bot"
             className="flex-1 py-2.5 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
             style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.25)", color: "#00d4ff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
-            <Crosshair className="inline w-3.5 h-3.5 mr-1.5" />Auto-Scorer →
+            <Crosshair className="inline w-3.5 h-3.5 mr-1.5" />Shadow Bot →
           </a>
         </div>
       </div>

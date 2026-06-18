@@ -24,7 +24,6 @@ const master501Nav = [
 ];
 const botNav = [
   { href: "/shadow-bot",   label: "Shadow Bot",   icon: CircuitBoard    },
-  // auto-scorer removed
 ];
 const leagueNav = [
   { href: "/leaderboard",  label: "Standings",    icon: Trophy          },
@@ -65,7 +64,6 @@ function LiveTicker() {
   const [items, setItems]     = useState<TickerEntry[]>([]);
   const [feed, setFeed]       = useState<{ text: string; accent: string }[]>([]);
 
-  // Fetch rich live-feed from the API, refresh every 60s
   useEffect(() => {
     let alive = true;
     const load = () => {
@@ -82,7 +80,6 @@ function LiveTicker() {
   useEffect(() => {
     const entries: TickerEntry[] = [];
 
-    // Season header + top-3 standings
     if (summary?.currentSeasonName) {
       entries.push({ text: `⚡ ${summary.currentSeasonName.toUpperCase()}`, cls: "accent-red" });
     }
@@ -92,7 +89,6 @@ function LiveTicker() {
       entries.push({ text: `${medals[i]} ${p.playerName.toUpperCase()} · ${p.points}pts`, cls: i === 0 ? "accent-gold" : undefined });
     });
 
-    // Rich feed: matches, achievements, tour trophies, tour achievements
     for (const item of feed) {
       entries.push({ text: item.text, cls: ACCENT_CLS[item.accent] });
     }
@@ -193,7 +189,6 @@ export function Layout({ children }: { children: ReactNode }) {
       })
       .catch(() => {});
   }, []);
-  // Poll unread notification count when logged in
   useEffect(() => {
     if (!authUser) return;
     const load = () => {
@@ -372,19 +367,21 @@ export function Layout({ children }: { children: ReactNode }) {
       <div className="ambient-blob-red" />
       <div className="ambient-blob-blue" />
 
+      {/* Overlay — tablet/mobile drawer backdrop */}
       {drawerOpen && (
-        <div className="fixed inset-0 z-40 md:hidden" onClick={() => setDrawerOpen(false)}
+        <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setDrawerOpen(false)}
           style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }} />
       )}
 
+      {/* Sidebar — hidden off-screen on tablet/mobile, permanent on desktop (≥1024px) */}
       <aside className={`
-        fixed md:relative inset-y-0 left-0 z-50
-        w-64 md:w-56 flex flex-col shrink-0
+        fixed lg:relative inset-y-0 left-0 z-50
+        w-64 lg:w-56 flex flex-col shrink-0
         transition-transform duration-300 ease-in-out
-        ${drawerOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+        ${drawerOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
       `}
         style={{ background: "rgba(3,3,8,0.99)", borderRight: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(24px)" }}>
-        <button className="absolute top-4 right-4 md:hidden z-10 p-1 rounded-lg"
+        <button className="absolute top-4 right-4 lg:hidden z-10 p-1 rounded-lg"
           style={{ color: "rgba(255,255,255,0.5)", background: "rgba(255,255,255,0.05)" }}
           onClick={() => setDrawerOpen(false)}>
           <X className="w-4 h-4" />
@@ -393,7 +390,8 @@ export function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-        <header className="md:hidden flex items-center justify-between px-4 shrink-0"
+        {/* Top bar — visible on tablet/mobile (<1024px) */}
+        <header className="lg:hidden flex items-center justify-between px-4 shrink-0"
           style={{ height: "3.25rem", background: "rgba(4,4,10,0.95)", borderBottom: "1px solid rgba(255,255,255,0.07)", zIndex: 20 }}>
           <button onClick={() => setDrawerOpen(true)} className="p-2 rounded-lg transition-colors"
             style={{ color: "rgba(255,255,255,0.6)", background: "rgba(255,255,255,0.04)" }}>
@@ -408,7 +406,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <div style={{ width: "2.5rem" }} />
         </header>
 
-        <main className="flex-1 overflow-y-auto pb-20 md:pb-10" style={{ position: "relative", zIndex: 1 }}>
+        <main className="flex-1 overflow-y-auto pb-20 lg:pb-10" style={{ position: "relative", zIndex: 1 }}>
           <div className="max-w-5xl mx-auto p-4 md:p-6 lg:p-8">
             {children}
           </div>
@@ -417,7 +415,8 @@ export function Layout({ children }: { children: ReactNode }) {
 
       <LiveTicker />
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 flex"
+      {/* Bottom nav — tablet/mobile only (<1024px) */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 flex"
         style={{ background: "rgba(4,4,10,0.97)", borderTop: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {mobileNavItems.map(item => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));

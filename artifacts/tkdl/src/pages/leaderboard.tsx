@@ -163,7 +163,7 @@ function CareerRow({ entry, idx, maxElo, sortKey }: { entry: any; idx: number; m
         </div>
         <div className="hidden sm:block text-sm font-bold tabular-nums text-right shrink-0" style={{ minWidth: "3.5rem", color: entry.winRate >= 60 ? "#22c55e" : entry.winRate >= 45 ? "rgba(255,255,255,0.55)" : "#ff005c" }}>{entry.winRate}%</div>
         <div className="hidden sm:block shrink-0"><EloBar elo={entry.elo} maxElo={maxElo} /></div>
-        <div className="hidden md:block font-mono text-sm tabular-nums text-right shrink-0" style={{ minWidth: "3.5rem", color: "rgba(0,102,255,0.5)" }}>{entry.peakElo}</div>
+        <div className="hidden lg:block font-mono text-sm tabular-nums text-right shrink-0" style={{ minWidth: "3.5rem", color: "rgba(0,102,255,0.5)" }}>{entry.peakElo}</div>
         <div className="text-right shrink-0" style={{ minWidth: "4rem" }}>
           {sortKey === "points" ? (
             <span className="font-black text-lg tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color: entry.careerPoints >= 0 ? "#22c55e" : "#ff005c" }}>{entry.careerPoints > 0 ? "+" : ""}{entry.careerPoints}</span>
@@ -477,7 +477,7 @@ export default function Standings() {
           <div className="hidden sm:block text-center" style={{ minWidth: "4.5rem" }}>W-L</div>
           <div className="hidden sm:block text-right" style={{ minWidth: "3.5rem" }}>Win%</div>
           <div className="hidden sm:block" style={{ minWidth: "7rem" }}>ELO</div>
-          <div className="hidden md:block text-right" style={{ minWidth: "3.5rem" }}>Peak</div>
+          <div className="hidden lg:block text-right" style={{ minWidth: "3.5rem" }}>Peak</div>
           <div className="text-right" style={{ minWidth: "4rem" }}>
             {careerSort === "points" ? "Net Pts" : "Titles"}
           </div>
