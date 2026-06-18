@@ -1,8 +1,9 @@
 import { Link, useLocation } from "wouter";
 import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
-import { useGetStatsSummary, useGetRecentActivity, useGetLeaderboard } from "@workspace/api-client-react";
+import { useGetStatsSummary, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
+import { useSettings } from "@/hooks/use-settings";
 
 const hubNav = [
   { href: "/",             label: "Hub",          icon: LayoutDashboard },
@@ -177,18 +178,10 @@ export function Layout({ children }: { children: ReactNode }) {
   useEffect(() => { setDrawerOpen(false); }, [location]);
 
   const { user: authUser }              = useAuth();
-  const [liveScorer,       setLiveScorer]   = useState(false);
-  const [communityEnabled, setCommunityEnabled] = useState(false);
-  const [unreadCount,      setUnreadCount]  = useState(0);
-  useEffect(() => {
-    fetch("/api/settings")
-      .then(r => r.ok ? r.json() : {})
-      .then((s: Record<string, unknown>) => {
-        if (s.live_scorer_enabled === true) setLiveScorer(true);
-        if (s.community_enabled   === true) setCommunityEnabled(true);
-      })
-      .catch(() => {});
-  }, []);
+  const { data: appSettings }           = useSettings();
+  const liveScorer       = appSettings?.live_scorer_enabled ?? false;
+  const communityEnabled = appSettings?.community_enabled   ?? false;
+  const [unreadCount, setUnreadCount]   = useState(0);
   useEffect(() => {
     if (!authUser) return;
     const load = () => {
