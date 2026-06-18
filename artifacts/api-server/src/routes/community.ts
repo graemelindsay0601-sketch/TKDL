@@ -27,62 +27,66 @@ async function featureEnabled(key: string): Promise<boolean> {
 
 // ── GET /community/posts ─────────────────────────────────────────────────────
 router.get("/community/posts", async (req, res): Promise<void> => {
-  const limit        = Math.min(Number(req.query.limit)  || 20, 100);
-  const offset       = Math.max(Number(req.query.offset) || 0,  0);
-  const myPlayerId   = sessionPlayerId(req);
-  const filterPlayer = req.query.player_id ? Number(req.query.player_id) : null;
-  const photoOnly    = req.query.photo_only === "true";
+  try {
+    const limit        = Math.min(Number(req.query.limit)  || 20, 100);
+    const offset       = Math.max(Number(req.query.offset) || 0,  0);
+    const myPlayerId   = sessionPlayerId(req);
+    const filterPlayer = req.query.player_id ? Number(req.query.player_id) : null;
+    const photoOnly    = req.query.photo_only === "true";
 
-  const playerFilter = filterPlayer ? sql`AND cp.player_id = ${filterPlayer}` : sql``;
-  const photoFilter  = photoOnly    ? sql`AND cp.photo_path IS NOT NULL`       : sql``;
+    const playerFilter = filterPlayer ? sql`AND cp.player_id = ${filterPlayer}` : sql``;
+    const photoFilter  = photoOnly    ? sql`AND cp.photo_path IS NOT NULL`       : sql``;
 
-  const rows = await db.execute(sql`
-    SELECT
-      cp.id,
-      cp.player_id,
-      pl.name  AS player_name,
-      CASE WHEN pl.elo >= 1400 THEN 'Diamond'
-           WHEN pl.elo >= 1250 THEN 'Platinum'
-           WHEN pl.elo >= 1100 THEN 'Gold'
-           WHEN pl.elo >= 950  THEN 'Silver'
-           ELSE 'Bronze' END AS player_tier,
-      cp.content,
-      cp.photo_path,
-      cp.post_type,
-      cp.auto_meta,
-      cp.status,
-      cp.created_at,
-      COALESCE(
-        (SELECT jsonb_object_agg(emoji, cnt)
-         FROM (SELECT emoji, COUNT(*) AS cnt FROM post_reactions WHERE post_id = cp.id GROUP BY emoji) sub),
-        '{}'::jsonb
-      ) AS reactions,
-      (SELECT COUNT(*)::int FROM post_comments WHERE post_id = cp.id) AS comment_count
-    FROM community_posts cp
-    JOIN players pl ON pl.id = cp.player_id
-    WHERE cp.status = 'approved'
-    ${playerFilter}
-    ${photoFilter}
-    ORDER BY cp.created_at DESC
-    LIMIT ${limit} OFFSET ${offset}
-  `);
-
-  const posts = rows.rows as any[];
-  let myReactions: Record<number, string[]> = {};
-
-  if (myPlayerId && posts.length > 0) {
-    const ids = posts.map(p => p.id as number);
-    const idList = sql.raw(ids.join(","));
-    const mr = await db.execute(sql`
-      SELECT post_id, emoji FROM post_reactions
-      WHERE player_id = ${myPlayerId} AND post_id IN (${idList})
+    const rows = await db.execute(sql`
+      SELECT
+        cp.id,
+        cp.player_id,
+        pl.name  AS player_name,
+        CASE WHEN pl.elo >= 1400 THEN 'Diamond'
+             WHEN pl.elo >= 1250 THEN 'Platinum'
+             WHEN pl.elo >= 1100 THEN 'Gold'
+             WHEN pl.elo >= 950  THEN 'Silver'
+             ELSE 'Bronze' END AS player_tier,
+        cp.content,
+        cp.photo_path,
+        cp.post_type,
+        cp.auto_meta,
+        cp.status,
+        cp.created_at,
+        COALESCE(
+          (SELECT jsonb_object_agg(emoji, cnt)
+           FROM (SELECT emoji, COUNT(*) AS cnt FROM post_reactions WHERE post_id = cp.id GROUP BY emoji) sub),
+          '{}'::jsonb
+        ) AS reactions,
+        (SELECT COUNT(*)::int FROM post_comments WHERE post_id = cp.id) AS comment_count
+      FROM community_posts cp
+      JOIN players pl ON pl.id = cp.player_id
+      WHERE cp.status = 'approved'
+      ${playerFilter}
+      ${photoFilter}
+      ORDER BY cp.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
     `);
-    for (const row of mr.rows as any[]) {
-      (myReactions[row.post_id] ??= []).push(row.emoji);
-    }
-  }
 
-  res.json(posts.map(p => ({ ...p, myReactions: myReactions[p.id] ?? [] })));
+    const posts = rows.rows as any[];
+    let myReactions: Record<number, string[]> = {};
+
+    if (myPlayerId && posts.length > 0) {
+      const ids = posts.map(p => p.id as number);
+      const idList = sql.raw(ids.join(","));
+      const mr = await db.execute(sql`
+        SELECT post_id, emoji FROM post_reactions
+        WHERE player_id = ${myPlayerId} AND post_id IN (${idList})
+      `);
+      for (const row of mr.rows as any[]) {
+        (myReactions[row.post_id] ??= []).push(row.emoji);
+      }
+    }
+
+    res.json(posts.map(p => ({ ...p, myReactions: myReactions[p.id] ?? [] })));
+  } catch (err: any) {
+    res.status(500).json({ error: "community/posts failed", detail: err?.message ?? String(err) });
+  }
 });
 
 // ── GET /community/posts/pending — admin ─────────────────────────────────────

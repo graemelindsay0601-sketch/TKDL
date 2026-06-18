@@ -20,18 +20,22 @@ router.get("/notifications", async (req, res): Promise<void> => {
 
   const limit = Math.min(Number(req.query.limit) || 30, 50);
 
-  const rows = await db.execute(sql`
-    SELECT
-      n.id, n.type, n.actor_id, n.entity_id, n.entity_type,
-      n.message, n.read_at, n.created_at,
-      pl.name AS actor_name
-    FROM notifications n
-    LEFT JOIN players pl ON pl.id = n.actor_id
-    WHERE n.player_id = ${playerId}
-    ORDER BY n.created_at DESC
-    LIMIT ${limit}
-  `);
-  res.json(rows.rows);
+  try {
+    const rows = await db.execute(sql`
+      SELECT
+        n.id, n.type, n.actor_id, n.entity_id, n.entity_type,
+        n.message, n.read_at, n.created_at,
+        pl.name AS actor_name
+      FROM notifications n
+      LEFT JOIN players pl ON pl.id = n.actor_id
+      WHERE n.player_id = ${playerId}
+      ORDER BY n.created_at DESC
+      LIMIT ${limit}
+    `);
+    res.json(rows.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: "notifications failed", detail: err?.message ?? String(err) });
+  }
 });
 
 // ── GET /notifications/unread-count (must come before /:id) ──────────────────
