@@ -43,12 +43,16 @@ router.get("/notifications/unread-count", async (req, res): Promise<void> => {
   const playerId = sessionPlayerId(req);
   if (!playerId) { res.json({ count: 0 }); return; }
 
-  const rows = await db.execute(sql`
-    SELECT COUNT(*)::int AS count
-    FROM notifications
-    WHERE player_id = ${playerId} AND read_at IS NULL
-  `);
-  res.json(rows.rows[0] ?? { count: 0 });
+  try {
+    const rows = await db.execute(sql`
+      SELECT COUNT(*)::int AS count
+      FROM notifications
+      WHERE player_id = ${playerId} AND read_at IS NULL
+    `);
+    res.json(rows.rows[0] ?? { count: 0 });
+  } catch {
+    res.json({ count: 0 });
+  }
 });
 
 // ── POST /notifications/mark-all-read (alias used by account.tsx) ────────────
