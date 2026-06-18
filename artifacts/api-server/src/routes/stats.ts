@@ -325,6 +325,70 @@ router.get("/stats/checkout-records", async (req, res): Promise<void> => {
   }
 });
 
+router.get("/stats/h2h", async (req, res): Promise<void> => {
+  const p1 = parseInt(req.query.p1 as string, 10);
+  const p2 = parseInt(req.query.p2 as string, 10);
+  if (isNaN(p1) || isNaN(p2) || p1 === p2) { res.status(400).json({ error: "Invalid player IDs" }); return; }
+
+  const [players, matchResult] = await Promise.all([
+    db.select().from(playersTable).where(inArray(playersTable.id, [p1, p2])),
+    db.execute(drizzleSql`
+      SELECT m.id, m.played_at, m.winner_id, m.winner_name, m.loser_id, m.loser_name,
+             m.elo_change, m.stake, m.game_type,
+             m.winner_darts, m.winner_180s, m.loser_darts, m.loser_180s,
+             s.name AS season_name
+      FROM matches m
+      LEFT JOIN seasons s ON s.id = m.season_id
+      WHERE (m.winner_id = ${p1} AND m.loser_id = ${p2})
+         OR (m.winner_id = ${p2} AND m.loser_id = ${p1})
+      ORDER BY m.played_at DESC
+      LIMIT 100
+    `),
+  ]);
+
+  const player1 = players.find(p => p.id === p1);
+  const player2 = players.find(p => p.id === p2);
+  if (!player1 || !player2) { res.status(404).json({ error: "Player not found" }); return; }
+
+  const rows = matchResult.rows as any[];
+  const p1Wins = rows.filter(m => m.winner_id === p1).length;
+  const p2Wins = rows.filter(m => m.winner_id === p2).length;
+
+  let p1CurStreak = 0, p2CurStreak = 0;
+  for (const m of rows) {
+    if (p1CurStreak > 0 || p2CurStreak > 0) break;
+    if (m.winner_id === p1) p1CurStreak++;
+    else p2CurStreak++;
+  }
+  for (const m of rows.slice(1)) {
+    if (m.winner_id === p1 && p1CurStreak > 0) p1CurStreak++;
+    else if (m.winner_id === p2 && p2CurStreak > 0) p2CurStreak++;
+    else break;
+  }
+
+  res.json({
+    player1: { id: player1.id, name: player1.name, elo: player1.elo, tier: calcTier(player1.elo), wins: p1Wins, currentStreak: p1CurStreak },
+    player2: { id: player2.id, name: player2.name, elo: player2.elo, tier: calcTier(player2.elo), wins: p2Wins, currentStreak: p2CurStreak },
+    totalMatches: rows.length,
+    recentMatches: rows.slice(0, 25).map((m: any) => ({
+      id:          m.id,
+      playedAt:    m.played_at,
+      winnerId:    m.winner_id,
+      winnerName:  m.winner_name,
+      loserId:     m.loser_id,
+      loserName:   m.loser_name,
+      eloChange:   m.elo_change,
+      stake:       m.stake,
+      gameType:    m.game_type,
+      seasonName:  m.season_name,
+      winnerDarts: m.winner_darts,
+      winner180s:  m.winner_180s,
+      loserDarts:  m.loser_darts,
+      loser180s:   m.loser_180s,
+    })),
+  });
+});
+
 router.get("/stats/rivalries", async (_req, res): Promise<void> => {
   const rows = await db.execute(drizzleSql`
     SELECT

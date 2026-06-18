@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, jsonb, timestamp, index } from "drizzle-orm/pg-core";
 
 export const practiceSessionsTable = pgTable("practice_sessions", {
   id:                  serial("id").primaryKey(),
@@ -22,7 +22,11 @@ export const practiceSessionsTable = pgTable("practice_sessions", {
   p2_180s:             integer("p2_180s").default(0),
   p2CheckoutAttempts:  integer("p2_checkout_attempts").default(0),
   p2CheckoutHits:      integer("p2_checkout_hits").default(0),
-});
+}, (t) => [
+  index("ps_player1_id_idx").on(t.player1Id),
+  index("ps_player2_id_idx").on(t.player2Id),
+  index("ps_created_at_idx").on(t.createdAt),
+]);
 
 export type PracticeSession = typeof practiceSessionsTable.$inferSelect;
 export type InsertPracticeSession = typeof practiceSessionsTable.$inferInsert;

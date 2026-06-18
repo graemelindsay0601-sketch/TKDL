@@ -29,9 +29,7 @@ import Broadcast      from "@/pages/broadcast";
 import Login          from "@/pages/login";
 import Account        from "@/pages/account";
 import Community      from "@/pages/community";
-// import ScorerJoin     from "@/pages/scorer-join";    // auto-scorer disabled
-// import ScorerDisplay  from "@/pages/scorer-display"; // auto-scorer disabled
-// import AutoScorer     from "@/pages/auto-scorer";    // auto-scorer disabled
+import HeadToHead     from "@/pages/head-to-head";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -41,9 +39,6 @@ function AppRoutes() {
   return (
     <Switch>
       <Route path="/broadcast"           component={Broadcast}      />
-      {/* scorer routes disabled — auto-scorer removed */}
-      {/* <Route path="/scorer/join"          component={ScorerJoin}    /> */}
-      {/* <Route path="/scorer/display/:code" component={ScorerDisplay} /> */}
       <Route path="/login"               component={Login}          />
       <Route>
         <Layout>
@@ -68,7 +63,7 @@ function AppRoutes() {
             <Route path="/hall-of-fame"  component={HallOfFame}  />
             <Route path="/community"     component={Community}   />
             <Route path="/account"       component={Account}     />
-            {/* <Route path="/auto-scorer"   component={AutoScorer}  /> */}
+            <Route path="/h2h"           component={HeadToHead}  />
             <Route component={NotFound} />
           </Switch>
         </Layout>

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -24,7 +24,10 @@ export const playerAchievementsTable = pgTable("player_achievements", {
   playerId: integer("player_id").notNull(),
   achievementId: integer("achievement_id").notNull(),
   unlockedAt: timestamp("unlocked_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("pa_player_id_idx").on(t.playerId),
+  index("pa_achievement_id_idx").on(t.achievementId),
+]);
 
 export const seasonStandingsTable = pgTable("season_standings", {
   id: serial("id").primaryKey(),
@@ -36,7 +39,10 @@ export const seasonStandingsTable = pgTable("season_standings", {
   points: integer("points").notNull().default(0),
   elo: integer("elo").notNull().default(1000),
   isChampion: boolean("is_champion").notNull().default(false),
-});
+}, (t) => [
+  index("ss_season_id_idx").on(t.seasonId),
+  index("ss_player_id_idx").on(t.playerId),
+]);
 
 export const insertAchievementSchema = createInsertSchema(achievementsTable).omit({ id: true });
 export type InsertAchievement = z.infer<typeof insertAchievementSchema>;

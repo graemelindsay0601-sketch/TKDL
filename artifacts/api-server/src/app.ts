@@ -1,5 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import pinoHttp from "pino-http";
 import session from "express-session";
@@ -28,6 +30,18 @@ app.use(
 );
 
 app.set("trust proxy", 1);
+
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+
+const loginRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many login attempts — try again in 15 minutes" },
+  skip: () => process.env.NODE_ENV !== "production",
+});
+app.use("/api/auth/login", loginRateLimit);
 
 if (!process.env.SESSION_SECRET) {
   logger.error("SESSION_SECRET env var is not set — sessions will not work. Set it in Render/environment config.");

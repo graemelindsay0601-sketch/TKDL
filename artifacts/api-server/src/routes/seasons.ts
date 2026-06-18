@@ -110,6 +110,39 @@ router.get("/seasons/:id", async (req, res): Promise<void> => {
   res.json({ season, standings });
 });
 
+// ── Season match history ───────────────────────────────────────────────────────
+
+router.get("/seasons/:id/matches", async (req, res): Promise<void> => {
+  const params = GetSeasonParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const rows = await db.execute(sql`
+    SELECT m.id, m.played_at, m.stake, m.elo_change, m.game_type,
+           m.winner_id, m.winner_name, m.loser_id, m.loser_name,
+           m.winner_darts, m.winner_180s, m.loser_darts, m.loser_180s
+    FROM matches m
+    WHERE m.season_id = ${params.data.id}
+    ORDER BY m.played_at DESC
+    LIMIT 200
+  `);
+
+  res.json(rows.rows.map((r: any) => ({
+    id:          r.id,
+    playedAt:    r.played_at,
+    stake:       r.stake,
+    eloChange:   r.elo_change,
+    gameType:    r.game_type,
+    winnerId:    r.winner_id,
+    winnerName:  r.winner_name,
+    loserId:     r.loser_id,
+    loserName:   r.loser_name,
+    winnerDarts: r.winner_darts,
+    winner180s:  r.winner_180s,
+    loserDarts:  r.loser_darts,
+    loser180s:   r.loser_180s,
+  })));
+});
+
 // ── Playoff endpoints ──────────────────────────────────────────────────────────
 
 const ADMIN_PIN = process.env.ADMIN_PIN ?? "0601";

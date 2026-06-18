@@ -1003,12 +1003,20 @@ export default function PlayerDetail() {
                     <div style={{ background: "rgba(255,255,255,0.015)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                       {/* Rival header */}
                       <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-                        <Link href={`/players/${h.opponentId}`}
-                          className="text-xs font-bold uppercase tracking-widest hover:underline"
-                          style={{ fontFamily: "Oswald, sans-serif", color: barColor, letterSpacing: "0.1em" }}
-                          onClick={e => e.stopPropagation()}>
-                          vs {h.opponentName} →
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <Link href={`/players/${h.opponentId}`}
+                            className="text-xs font-bold uppercase tracking-widest hover:underline"
+                            style={{ fontFamily: "Oswald, sans-serif", color: barColor, letterSpacing: "0.1em" }}
+                            onClick={e => e.stopPropagation()}>
+                            vs {h.opponentName} →
+                          </Link>
+                          <Link href={`/h2h?p1=${playerId}&p2=${h.opponentId}`}
+                            className="text-xs font-bold uppercase tracking-widest hover:underline"
+                            style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.25)", letterSpacing: "0.1em" }}
+                            onClick={e => e.stopPropagation()}>
+                            Full H2H ↗
+                          </Link>
+                        </div>
                         <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
                           {total} match{total !== 1 ? "es" : ""}
                         </span>

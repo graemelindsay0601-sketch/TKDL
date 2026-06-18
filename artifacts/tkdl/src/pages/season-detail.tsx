@@ -2,15 +2,32 @@ import { useGetSeason, getGetSeasonQueryKey } from "@workspace/api-client-react"
 import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
-import { Trophy, Calendar, Hash, ArrowLeft, Medal, Flame, Zap, Crown, BarChart3 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Trophy, Calendar, Hash, ArrowLeft, Medal, Flame, Zap, Crown, BarChart3, Swords } from "lucide-react";
+
+function useSeasonMatches(seasonId: number) {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!seasonId) return;
+    setLoading(true);
+    fetch(`/api/seasons/${seasonId}/matches`)
+      .then(r => r.json())
+      .then(d => { setData(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [seasonId]);
+  return { data, loading };
+}
 
 export default function SeasonDetail() {
   const params = useParams();
   const seasonId = parseInt(params.id || "0", 10);
+  const [activeTab, setActiveTab] = useState<"standings" | "matches">("standings");
 
   const { data: seasonDetail, isLoading } = useGetSeason(seasonId, {
     query: { enabled: !!seasonId, queryKey: getGetSeasonQueryKey(seasonId) },
   });
+  const { data: matches, loading: matchesLoading } = useSeasonMatches(seasonId);
 
   if (isLoading) {
     return (
@@ -25,7 +42,6 @@ export default function SeasonDetail() {
   }
 
   const { season, standings } = seasonDetail;
-
   const posColors = ["#ffd24a", "#c0c8d8", "#cd7f32"];
 
   return (
@@ -61,7 +77,7 @@ export default function SeasonDetail() {
               </div>
               <div className="flex items-center gap-2">
                 <Hash className="w-3.5 h-3.5" />
-                {season.totalMatches ?? 0} matches
+                {matches.length > 0 ? matches.length : (season.totalMatches ?? 0)} matches
               </div>
             </div>
           </div>
@@ -134,83 +150,159 @@ export default function SeasonDetail() {
         );
       })()}
 
-      {/* Standings */}
-      <div className="pdc-card overflow-hidden">
-        <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-          <Medal className="w-4 h-4" style={{ color: "#ff005c" }} />
-          <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-            Final Standings
-          </h2>
-        </div>
-
-        {/* Table header */}
-        <div
-          className="grid text-xs uppercase font-bold px-4 py-2 border-b"
-          style={{ gridTemplateColumns: "3rem 1fr 7rem 5rem 5rem 5rem", borderColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}
-        >
-          <div className="text-center">#</div>
-          <div>Player</div>
-          <div className="text-center">Tier</div>
-          <div className="text-center">Record</div>
-          <div className="text-right">Elo</div>
-          <div className="text-right">Points</div>
-        </div>
-
-        {standings?.map((entry, idx) => (
-          <div
-            key={entry.playerId}
-            className="grid items-center px-4 py-3 border-b transition-colors hover:bg-white/[0.025]"
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        {(["standings", "matches"] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className="flex-1 py-2 px-4 rounded-lg text-sm font-bold uppercase tracking-wider transition-all"
             style={{
-              gridTemplateColumns: "3rem 1fr 7rem 5rem 5rem 5rem",
-              borderColor: "rgba(255,255,255,0.05)",
-              background: idx === 0 ? "rgba(255,210,74,0.04)" : undefined,
+              fontFamily: "Oswald, sans-serif",
+              background: activeTab === tab ? "#ff005c" : "transparent",
+              color: activeTab === tab ? "#fff" : "rgba(255,255,255,0.4)",
+              letterSpacing: "0.08em",
             }}
           >
-            <div className="text-center">
-              <span className="font-bold text-xl leading-none" style={{ fontFamily: "Oswald, sans-serif", color: posColors[idx] ?? "rgba(255,255,255,0.4)" }}>
-                {entry.position}
-              </span>
-              {(entry as any).isChampion && <div className="text-xs" style={{ color: "#ffd24a" }}>🏆</div>}
-            </div>
-
-            <div className="min-w-0 pr-2">
-              <Link href={`/players/${entry.playerId}`} className="font-bold text-base hover:underline truncate block" style={{ fontFamily: "Oswald, sans-serif", color: idx === 0 ? "#ffd24a" : "rgba(255,255,255,0.85)" }}>
-                {entry.playerName}
-              </Link>
-              {(entry as any).playerNickname && (
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontStyle: "italic" }}>"{(entry as any).playerNickname}"</div>
-              )}
-            </div>
-
-            <div className="flex justify-center">
-              <TierBadge tier={entry.tier} />
-            </div>
-
-            <div className="text-center text-sm font-mono" style={{ color: "rgba(255,255,255,0.5)" }}>
-              <span style={{ color: "#22c55e" }}>{entry.wins}</span>
-              <span style={{ color: "rgba(255,255,255,0.25)" }}>-</span>
-              <span style={{ color: "#ff005c" }}>{entry.losses}</span>
-            </div>
-
-            <div className="text-right font-mono text-sm tabular-nums" style={{ color: "#0066ff" }}>
-              {entry.elo}
-            </div>
-
-            <div className="text-right">
-              <span className="font-bold text-lg" style={{ fontFamily: "Oswald, sans-serif", color: idx === 0 ? "#ffd24a" : "#ff005c" }}>
-                {entry.points}
-              </span>
-              <span className="text-xs ml-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>pts</span>
-            </div>
-          </div>
+            {tab === "standings" ? "Standings" : `Matches${matches.length > 0 ? ` (${matches.length})` : ""}`}
+          </button>
         ))}
-
-        {(!standings || standings.length === 0) && (
-          <div className="px-4 py-10 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
-            No standings data yet — check back when the season ends.
-          </div>
-        )}
       </div>
+
+      {/* Standings tab */}
+      {activeTab === "standings" && (
+        <div className="pdc-card overflow-hidden">
+          <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+            <Medal className="w-4 h-4" style={{ color: "#ff005c" }} />
+            <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+              {season.isActive ? "Current Standings" : "Final Standings"}
+            </h2>
+          </div>
+
+          <div
+            className="grid text-xs uppercase font-bold px-4 py-2 border-b"
+            style={{ gridTemplateColumns: "3rem 1fr 7rem 5rem 5rem 5rem", borderColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}
+          >
+            <div className="text-center">#</div>
+            <div>Player</div>
+            <div className="text-center">Tier</div>
+            <div className="text-center">Record</div>
+            <div className="text-right">Elo</div>
+            <div className="text-right">Points</div>
+          </div>
+
+          {standings?.map((entry, idx) => (
+            <div
+              key={entry.playerId}
+              className="grid items-center px-4 py-3 border-b transition-colors hover:bg-white/[0.025]"
+              style={{
+                gridTemplateColumns: "3rem 1fr 7rem 5rem 5rem 5rem",
+                borderColor: "rgba(255,255,255,0.05)",
+                background: idx === 0 ? "rgba(255,210,74,0.04)" : undefined,
+              }}
+            >
+              <div className="text-center">
+                <span className="font-bold text-xl leading-none" style={{ fontFamily: "Oswald, sans-serif", color: posColors[idx] ?? "rgba(255,255,255,0.4)" }}>
+                  {entry.position}
+                </span>
+                {(entry as any).isChampion && <div className="text-xs" style={{ color: "#ffd24a" }}>🏆</div>}
+              </div>
+
+              <div className="min-w-0 pr-2">
+                <Link href={`/players/${entry.playerId}`} className="font-bold text-base hover:underline truncate block" style={{ fontFamily: "Oswald, sans-serif", color: idx === 0 ? "#ffd24a" : "rgba(255,255,255,0.85)" }}>
+                  {entry.playerName}
+                </Link>
+                {(entry as any).playerNickname && (
+                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontStyle: "italic" }}>"{(entry as any).playerNickname}"</div>
+                )}
+              </div>
+
+              <div className="flex justify-center">
+                <TierBadge tier={entry.tier} />
+              </div>
+
+              <div className="text-center text-sm font-mono" style={{ color: "rgba(255,255,255,0.5)" }}>
+                <span style={{ color: "#22c55e" }}>{entry.wins}</span>
+                <span style={{ color: "rgba(255,255,255,0.25)" }}>-</span>
+                <span style={{ color: "#ff005c" }}>{entry.losses}</span>
+              </div>
+
+              <div className="text-right font-mono text-sm tabular-nums" style={{ color: "#0066ff" }}>
+                {entry.elo}
+              </div>
+
+              <div className="text-right">
+                <span className="font-bold text-lg" style={{ fontFamily: "Oswald, sans-serif", color: idx === 0 ? "#ffd24a" : "#ff005c" }}>
+                  {entry.points}
+                </span>
+                <span className="text-xs ml-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>pts</span>
+              </div>
+            </div>
+          ))}
+
+          {(!standings || standings.length === 0) && (
+            <div className="px-4 py-10 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+              No standings data yet.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Matches tab */}
+      {activeTab === "matches" && (
+        <div className="pdc-card overflow-hidden">
+          <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+            <Swords className="w-4 h-4" style={{ color: "#ff005c" }} />
+            <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+              All Matches
+            </h2>
+          </div>
+
+          {matchesLoading ? (
+            <div className="py-10 flex justify-center">
+              <div className="w-6 h-6 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
+            </div>
+          ) : matches.length === 0 ? (
+            <div className="py-10 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No matches recorded yet.</div>
+          ) : (
+            <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+              {matches.map((m: any) => (
+                <div key={m.id} className="px-4 py-3 flex items-center gap-3 hover:bg-white/[0.02] transition-colors">
+                  <div className="shrink-0 w-14 text-xs font-mono" style={{ color: "rgba(255,255,255,0.3)" }}>
+                    {format(new Date(m.playedAt), "dd MMM")}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 text-sm flex-wrap">
+                      <Link href={`/players/${m.winnerId}`}>
+                        <span className="font-bold hover:underline" style={{ fontFamily: "Oswald, sans-serif", color: "#22c55e" }}>
+                          {m.winnerName}
+                        </span>
+                      </Link>
+                      <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>beat</span>
+                      <Link href={`/players/${m.loserId}`}>
+                        <span className="font-bold hover:underline" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.5)" }}>
+                          {m.loserName}
+                        </span>
+                      </Link>
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                      {m.gameType}
+                      {m.winnerDarts && ` · ${m.winnerDarts} darts`}
+                      {m.winner180s > 0 && ` · ${m.winner180s}×180`}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-xs font-bold font-mono" style={{ color: "#ffd24a" }}>±{m.eloChange}</div>
+                    {m.stake > 0 && (
+                      <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>{m.stake}pts</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
