@@ -457,19 +457,16 @@ export default function PlayerDetail() {
   });
 
   const [achProgress, setAchProgress] = useState<any[]>([]);
-  useEffect(() => {
-    if (!playerId) return;
-    fetch(`/api/players/${playerId}/achievement-progress`)
-      .then(r => r.json()).then(d => setAchProgress(Array.isArray(d) ? d : []))
-      .catch(() => {});
-  }, [playerId]);
-
   const [gameTypes, setGameTypes] = useState<any[]>([]);
   useEffect(() => {
     if (!playerId) return;
-    fetch(`/api/players/${playerId}/game-types`)
-      .then(r => r.json()).then(d => setGameTypes(Array.isArray(d) ? d : []))
-      .catch(() => {});
+    Promise.all([
+      fetch(`/api/players/${playerId}/achievement-progress`).then(r => r.json()),
+      fetch(`/api/players/${playerId}/game-types`).then(r => r.json()),
+    ]).then(([achData, gtData]) => {
+      setAchProgress(Array.isArray(achData) ? achData : []);
+      setGameTypes(Array.isArray(gtData) ? gtData : []);
+    }).catch(() => {});
   }, [playerId]);
 
   const [practiceAgg, setPracticeAgg] = useState<any>(null);
@@ -522,31 +519,23 @@ export default function PlayerDetail() {
   const [dartProfile, setDartProfile] = useState<any>(null);
   useEffect(() => {
     if (!playerId) return;
-    fetch(`/api/players/${playerId}/practice-stats`)
-      .then(r => r.json()).then(d => setPracticeAgg(d))
-      .catch(() => {});
-    fetch(`/api/players/${playerId}/practice-sessions`)
-      .then(r => r.json()).then(d => setPracticeSessions(Array.isArray(d) ? d : []))
-      .catch(() => {});
-    fetch(`/api/players/${playerId}/dart-profile`)
-      .then(r => r.json()).then(d => setDartProfile(d))
-      .catch(() => {});
-    fetch(`/api/players/${playerId}/gamerscore`)
-      .then(r => r.json()).then(d => setGamerscore(d))
-      .catch(() => {});
-    fetch(`/api/tour/trophies/${playerId}`)
-      .then(r => r.json()).then(d => setTourTrophies(Array.isArray(d) ? d : []))
-      .catch(() => {});
-  }, [playerId]);
-
-  useEffect(() => {
-    if (!playerId) return;
-    fetch(`/api/players/${playerId}/shadow-achievements`)
-      .then(r => r.json()).then(d => setShadowAchs(Array.isArray(d) ? d : []))
-      .catch(() => {});
-    fetch(`/api/tour/achievements/${playerId}`)
-      .then(r => r.json()).then(d => setTourAchs(Array.isArray(d) ? d : []))
-      .catch(() => {});
+    Promise.all([
+      fetch(`/api/players/${playerId}/practice-stats`).then(r => r.json()),
+      fetch(`/api/players/${playerId}/practice-sessions`).then(r => r.json()),
+      fetch(`/api/players/${playerId}/dart-profile`).then(r => r.json()),
+      fetch(`/api/players/${playerId}/gamerscore`).then(r => r.json()),
+      fetch(`/api/tour/trophies/${playerId}`).then(r => r.json()),
+      fetch(`/api/players/${playerId}/shadow-achievements`).then(r => r.json()),
+      fetch(`/api/tour/achievements/${playerId}`).then(r => r.json()),
+    ]).then(([practiceStats, sessions, dartProf, gScore, trophies, shadowA, tourA]) => {
+      setPracticeAgg(practiceStats);
+      setPracticeSessions(Array.isArray(sessions) ? sessions : []);
+      setDartProfile(dartProf);
+      setGamerscore(gScore);
+      setTourTrophies(Array.isArray(trophies) ? trophies : []);
+      setShadowAchs(Array.isArray(shadowA) ? shadowA : []);
+      setTourAchs(Array.isArray(tourA) ? tourA : []);
+    }).catch(() => {});
   }, [playerId]);
 
   if (isLoading) {

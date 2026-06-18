@@ -548,6 +548,11 @@ export default function CommunityPage() {
             rows={3} maxLength={1000}
             className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff", fontFamily: "inherit" }} />
+          <div className="flex justify-end">
+            <span className="text-xs tabular-nums" style={{ color: createText.length > 900 ? "#ff005c" : "rgba(255,255,255,0.2)" }}>
+              {createText.length}/1000
+            </span>
+          </div>
 
           {photoPreview && (
             <div className="relative rounded-xl overflow-hidden" style={{ maxHeight: 240 }}>
@@ -620,12 +625,23 @@ export default function CommunityPage() {
                 onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} />
             ))}
           </div>
-          {hasMore && (
+          <div className="text-xs text-center pb-1" style={{ color: "rgba(255,255,255,0.18)" }}>
+            {posts.length} post{posts.length !== 1 ? "s" : ""}
+          </div>
+          {hasMore ? (
             <button onClick={() => void loadPosts()} disabled={loadingMore}
               className="w-full py-3 rounded-xl text-sm font-bold transition-opacity disabled:opacity-50"
               style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
               {loadingMore ? "Loading…" : "LOAD MORE"}
             </button>
+          ) : (
+            <div className="flex items-center gap-3 py-2">
+              <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.18em" }}>
+                You're all caught up
+              </span>
+              <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+            </div>
           )}
         </>
       )}

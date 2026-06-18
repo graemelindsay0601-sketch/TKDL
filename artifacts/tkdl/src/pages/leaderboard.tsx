@@ -19,6 +19,17 @@ const CAREER_SORTS = [
 const TIER_BORDER: Record<string, string> = {
   Diamond: "#00d4ff", Platinum: "#e879f9", Gold: "#ffd24a", Silver: "#c0c8d8", Bronze: "#cd7f32",
 };
+
+function TierDot({ tier }: { tier: string }) {
+  const color = TIER_BORDER[tier] ?? "rgba(255,255,255,0.2)";
+  return (
+    <div
+      className="sm:hidden w-2.5 h-2.5 rounded-full shrink-0"
+      title={tier}
+      style={{ background: color, boxShadow: `0 0 5px ${color}80`, flexShrink: 0 }}
+    />
+  );
+}
 const POS_COLORS = ["#ffd24a", "#c0c8d8", "#cd7f32"];
 const POS_MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -117,6 +128,7 @@ function SeasonRow({ entry, idx, maxElo }: { entry: any; idx: number; maxElo: nu
           </div>
           {entry.title && <div className="text-xs truncate" style={{ color: "rgba(255,210,74,0.5)", fontStyle: "italic", lineHeight: 1.3 }}>{entry.title}</div>}
         </div>
+        <TierDot tier={entry.tier} />
         <div className="hidden sm:flex shrink-0"><TierBadge tier={entry.tier} /></div>
         <div className="hidden sm:block font-mono text-sm text-center shrink-0" style={{ minWidth: "4rem" }}>
           <span style={{ color: "#22c55e" }}>{entry.wins}</span><span style={{ color: "rgba(255,255,255,0.18)" }}>-</span><span style={{ color: "#ff005c" }}>{entry.losses}</span>

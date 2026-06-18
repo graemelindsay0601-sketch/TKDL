@@ -131,36 +131,48 @@ function KOBracketView({ bracket, onPlay }: { bracket: KOBracket; onPlay: () => 
         </div>
       )}
 
-      {/* Rounds */}
-      <div className="overflow-x-auto pb-2">
-        <div className="flex gap-4" style={{ minWidth: `${rounds.length * 180}px` }}>
-          {rounds.map((round, ri) => {
-            const isPastRound = round.roundNum < currentRound;
-            const isCurrentRound = round.roundNum === currentRound;
+      {/* Rounds — horizontally scrollable on mobile */}
+      <div className="relative">
+        {/* Right-edge fade hint */}
+        {rounds.length > 2 && (
+          <div className="pointer-events-none absolute right-0 top-0 bottom-2 w-10 z-10 sm:hidden"
+            style={{ background: "linear-gradient(to right, transparent, rgba(4,4,10,0.9))" }} />
+        )}
+        <div className="overflow-x-auto pb-2">
+          <div className="flex gap-4" style={{ minWidth: `${rounds.length * 180}px` }}>
+            {rounds.map((round, ri) => {
+              const isPastRound = round.roundNum < currentRound;
+              const isCurrentRound = round.roundNum === currentRound;
 
-            return (
-              <div key={round.roundNum} className="flex-1 min-w-[160px]">
-                <div className="text-center mb-2">
-                  <span className="text-xs font-bold uppercase tracking-widest"
-                    style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: isCurrentRound && status === "active" ? "#ff005c" : "rgba(255,255,255,0.3)" }}>
-                    {round.name}
-                  </span>
+              return (
+                <div key={round.roundNum} className="flex-1 min-w-[160px]">
+                  <div className="text-center mb-2">
+                    <span className="text-xs font-bold uppercase tracking-widest"
+                      style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: isCurrentRound && status === "active" ? "#ff005c" : "rgba(255,255,255,0.3)" }}>
+                      {round.name}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {round.matches.map((match, mi) => {
+                      const isFuture = !isPastRound && !isCurrentRound;
+                      const isPlayerMatch = match.p1Key === "player" || match.p2Key === "player";
+                      const isActive = isCurrentRound && isPlayerMatch && match.winnerKey === null;
+                      return (
+                        <KOMatchCard key={mi} match={match} participants={participants}
+                          isPlayer={isPlayerMatch} isActive={isActive} isFuture={isFuture} />
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  {round.matches.map((match, mi) => {
-                    const isFuture = !isPastRound && !isCurrentRound;
-                    const isPlayerMatch = match.p1Key === "player" || match.p2Key === "player";
-                    const isActive = isCurrentRound && isPlayerMatch && match.winnerKey === null;
-                    return (
-                      <KOMatchCard key={mi} match={match} participants={participants}
-                        isPlayer={isPlayerMatch} isActive={isActive} isFuture={isFuture} />
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
+        {rounds.length > 2 && (
+          <p className="sm:hidden text-center text-xs mt-1" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.1em" }}>
+            ← SWIPE TO SEE ALL ROUNDS →
+          </p>
+        )}
       </div>
     </div>
   );
@@ -326,6 +338,7 @@ export default function TourRun() {
   const [scoring, setScoring] = useState(false);
   const [lastResult, setLastResult] = useState<{ won: boolean; eliminated: boolean } | null>(null);
   const [advancing,   setAdvancing]   = useState(false);
+  const [advancingError, setAdvancingError] = useState<string | null>(null);
   const [bullup,      setBullup]      = useState(false);
   const [bullResult,  setBullResult]  = useState<{ playerScore: number; botScore: number; playerFirst: boolean } | null>(null);
 
@@ -421,7 +434,7 @@ export default function TourRun() {
         setLastResult({ won: data.won, eliminated: data.eliminated });
       }
     } catch {
-      alert("Failed to record result");
+      setAdvancingError("Failed to record result — check your connection and try again.");
     } finally {
       setAdvancing(false);
     }
@@ -614,6 +627,22 @@ export default function TourRun() {
         />
       )}
 
+      {/* Advancing error */}
+      {advancingError && (
+        <div className="pdc-card px-4 py-3 flex items-center gap-3"
+          style={{ background: "rgba(255,0,92,0.08)", border: "1px solid rgba(255,0,92,0.3)" }}>
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="#ff005c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span className="flex-1 text-sm font-bold" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+            {advancingError}
+          </span>
+          <button onClick={() => setAdvancingError(null)} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="#ff005c" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      )}
+
       {/* Bracket / PL view */}
       {advancing ? (
         <div className="py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>Recording result…</div>
@@ -622,7 +651,7 @@ export default function TourRun() {
           <KOBracketView
             bracket={bracket as KOBracket}
             onPlay={() => {
-              if (!gameType) { alert("Game type not found"); return; }
+              if (!gameType) return;
               matchStartRef.current = Date.now();
               setBullup(true);
             }}
@@ -632,7 +661,7 @@ export default function TourRun() {
         <PLBracketView
           bracket={bracket as PLBracket}
           onPlay={() => {
-            if (!gameType) { alert("Game type not found"); return; }
+            if (!gameType) return;
             matchStartRef.current = Date.now();
             setBullup(true);
           }}

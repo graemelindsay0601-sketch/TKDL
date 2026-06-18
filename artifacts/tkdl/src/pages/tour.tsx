@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useCurrentPlayer } from "@/context/auth";
-import { Trophy, Lock, ChevronRight, Star, Tv2, RotateCcw, Check, ChevronDown, Zap, Crown, Target, Flame } from "lucide-react";
+import { Trophy, Lock, ChevronRight, Star, Tv2, RotateCcw, Check, ChevronDown, Zap, Crown, Target, Flame, AlertCircle, X } from "lucide-react";
 
 const TIERS = [
   { num: 1, label: "Pub & Local",        color: "#94a3b8", bg: "rgba(148,163,184,0.07)"  },
@@ -82,6 +82,7 @@ export default function Tour() {
   const [diffs, setDiffs]                   = useState<Record<string, string>>({});
   const [loading, setLoading]               = useState(false);
   const [starting, setStarting]             = useState<string | null>(null);
+  const [startError, setStartError]         = useState<string | null>(null);
   const [openTiers, setOpenTiers]           = useState<Set<number>>(new Set([1]));
   const [tourLb, setTourLb]                 = useState<any[]>([]);
 
@@ -160,13 +161,13 @@ export default function Tour() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.error ?? "Failed to start tour");
+        setStartError(err.error ?? "Failed to start tour");
         return;
       }
       const { runId } = await res.json();
       navigate(`/tour/${runId}`);
     } catch {
-      alert("Failed to start tour");
+      setStartError("Failed to start tour");
     } finally {
       setStarting(null);
     }
@@ -174,6 +175,20 @@ export default function Tour() {
 
   return (
     <div className="space-y-4 pb-10">
+
+      {/* ── ERROR BANNER ── */}
+      {startError && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
+          style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.3)" }}>
+          <AlertCircle className="w-4 h-4 shrink-0" style={{ color: "#ff005c" }} />
+          <span className="flex-1 text-sm font-bold" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+            {startError}
+          </span>
+          <button onClick={() => setStartError(null)} className="shrink-0 hover:opacity-60 transition-opacity">
+            <X className="w-4 h-4" style={{ color: "#ff005c" }} />
+          </button>
+        </div>
+      )}
 
       {/* ── HERO / SALES PITCH ── */}
       <div className="relative overflow-hidden rounded-2xl"
