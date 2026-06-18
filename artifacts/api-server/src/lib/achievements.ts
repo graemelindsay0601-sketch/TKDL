@@ -2,6 +2,7 @@ import { db } from "@workspace/db";
 import { achievementsTable, playerAchievementsTable, playersTable, matchesTable, seasonStandingsTable, seasonsTable } from "@workspace/db";
 import { eq, and, count, sql, or } from "drizzle-orm";
 import { logger } from "./logger";
+import { createNotification } from "./communityNotify";
 import { PRACTICE_ACHIEVEMENT_DEFINITIONS, checkPracticeAchievements } from "./practice-achievements";
 import { FORMAT_AND_MEME_ACHIEVEMENT_DEFINITIONS } from "./format-and-meme-achievements";
 import { checkAndAwardShadowBotAchievements } from "./shadow-bot-achievements";
@@ -373,6 +374,13 @@ async function grantIfNotHas(playerId: number, key: string): Promise<boolean> {
   if (existing) return false;
   await db.insert(playerAchievementsTable).values({ playerId, achievementId: ach.id });
   logger.info({ playerId, key }, "Achievement unlocked");
+  void createNotification({
+    playerId,
+    type:       "achievement_unlocked",
+    entityId:   ach.id,
+    entityType: "achievement",
+    message:    `${ach.icon ?? "🏆"} Achievement unlocked: ${ach.name}`,
+  });
   return true;
 }
 
