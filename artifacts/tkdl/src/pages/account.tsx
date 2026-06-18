@@ -6,8 +6,9 @@ import {
   Shield, Target, LogOut, Lock, User, TrendingUp, TrendingDown,
   Zap, Trophy, Dumbbell, CircuitBoard, Star, ChevronDown, ChevronRight,
   Award, Flame, CheckCircle, Clock,
-  MessageSquare, Bell, Send, X, Image, ArrowLeft, MailOpen, Images, Camera,
+  MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera,
 } from "lucide-react";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 
 const TIER_COLORS: Record<string, string> = {
   Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
@@ -450,6 +451,8 @@ export default function AccountPage() {
     } catch { toast({ title: "Failed to update title", variant: "destructive" }); }
     setTitleSaving(false);
   };
+
+  const push = usePushNotifications(user?.playerId);
 
   const player     = stats?.player as any;
   const tier       = player?.tier ?? "Bronze";
@@ -1744,7 +1747,55 @@ export default function AccountPage() {
 
       {/* ── Notifications Tab ─────────────────────────────────────── */}
       {activeTab === "notifications" && (
-        <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="space-y-3">
+
+          {/* ── Push notification opt-in card ── */}
+          {push.supported && (
+            <div className="rounded-2xl px-5 py-4"
+              style={{ background: "rgba(8,6,18,0.9)", border: `1px solid ${push.state === "subscribed" ? "rgba(0,229,160,0.25)" : "rgba(255,255,255,0.07)"}` }}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: push.state === "subscribed" ? "rgba(0,229,160,0.12)" : push.state === "denied" ? "rgba(255,0,92,0.08)" : "rgba(255,0,92,0.08)", border: `1px solid ${push.state === "subscribed" ? "rgba(0,229,160,0.3)" : "rgba(255,0,92,0.2)"}` }}>
+                  {push.state === "subscribed"
+                    ? <BellRing className="w-4 h-4" style={{ color: "#00e5a0" }} />
+                    : push.state === "denied"
+                    ? <BellOff className="w-4 h-4" style={{ color: "#ff005c" }} />
+                    : <Bell className="w-4 h-4" style={{ color: "#ff005c" }} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.08em", color: "#fff" }}>
+                    PUSH NOTIFICATIONS
+                  </div>
+                  <div style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.35)", marginTop: "2px" }}>
+                    {push.state === "subscribed" && "Active — you'll get OS notifications for new alerts"}
+                    {push.state === "denied"     && "Blocked — allow notifications in your browser settings to enable"}
+                    {push.state === "default"    && "Get notified on your phone when something happens in the league"}
+                    {push.state === "granted"    && "Permission granted — tap Subscribe to finish setup"}
+                    {push.state === "unsupported" && "Not supported by this browser"}
+                  </div>
+                </div>
+                {push.state === "subscribed" ? (
+                  <button
+                    onClick={push.unsubscribe}
+                    disabled={push.loading}
+                    className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:opacity-80"
+                    style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.45)", fontSize: "0.6rem" }}>
+                    {push.loading ? "…" : "Turn Off"}
+                  </button>
+                ) : push.state !== "denied" && push.state !== "unsupported" ? (
+                  <button
+                    onClick={push.subscribe}
+                    disabled={push.loading}
+                    className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:opacity-90"
+                    style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", background: "#ff005c", color: "#fff", fontSize: "0.6rem" }}>
+                    {push.loading ? "…" : "Enable"}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
           {!notifsEnabled ? (
             <div className="text-center py-16 px-4">
               <Bell className="w-8 h-8 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.12)" }} />
@@ -1807,6 +1858,7 @@ export default function AccountPage() {
               )}
             </>
           )}
+        </div>
         </div>
       )}
 
