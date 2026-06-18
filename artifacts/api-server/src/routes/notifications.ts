@@ -103,4 +103,36 @@ router.patch("/notifications/:id/read", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
+// ── GET /notifications/vapid-public-key ──────────────────────────────────────
+router.get("/notifications/vapid-public-key", (_req, res): void => {
+  const key = process.env.VAPID_PUBLIC_KEY ?? "";
+  res.json({ publicKey: key, enabled: !!key });
+});
+
+// ── POST /notifications/subscribe — save push subscription ───────────────────
+router.post("/notifications/subscribe", async (req, res): Promise<void> => {
+  const playerId = requireAuth(req, res);
+  if (!playerId) return;
+
+  const { endpoint, keys } = req.body as any;
+  if (!endpoint || !keys?.p256dh || !keys?.auth) {
+    res.status(400).json({ error: "Invalid subscription" }); return;
+  }
+  await db.execute(sql`
+    INSERT INTO push_subscriptions (player_id, endpoint, p256dh, auth)
+    VALUES (${playerId}, ${endpoint}, ${keys.p256dh}, ${keys.auth})
+    ON CONFLICT (endpoint) DO UPDATE SET player_id = ${playerId}, p256dh = ${keys.p256dh}, auth = ${keys.auth}
+  `);
+  res.json({ ok: true });
+});
+
+// ── DELETE /notifications/subscribe — remove push subscription ────────────────
+router.delete("/notifications/subscribe", async (req, res): Promise<void> => {
+  const playerId = requireAuth(req, res);
+  if (!playerId) return;
+
+  await db.execute(sql`DELETE FROM push_subscriptions WHERE player_id = ${playerId}`);
+  res.json({ ok: true });
+});
+
 export default router;

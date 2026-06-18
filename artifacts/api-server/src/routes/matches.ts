@@ -6,6 +6,7 @@ import { applyEloChange, calcTier } from "../lib/elo";
 import { validateStake, applyWager } from "../lib/wager";
 import { checkMatchAchievements, checkStatAchievements } from "../lib/achievements";
 import { checkAndGrantTitles } from "../lib/titles";
+import { createAutoPost } from "../lib/communityNotify";
 
 const SubmitMatchBody = z.object({
   winnerId:                z.number().int().positive(),
@@ -159,6 +160,49 @@ router.post("/matches", async (req, res): Promise<void> => {
   await checkMatchAchievements(loserId,  winnerId, false, stake, loserPointsBefore, winnerPointsBefore, false);
   void checkAndGrantTitles(winnerId);
   void checkAndGrantTitles(loserId);
+
+  // Auto community posts (fire and forget — never delay the response)
+  void (async () => {
+    const winnerTierBefore = calcTier(winner.elo);
+    const winnerTierAfter  = calcTier(newWinnerElo);
+    const loserTierAfter   = calcTier(newLoserElo);
+
+    // Match result post
+    const parts: string[] = [`🎯 ${winner.name} defeated ${loser.name} (+${eloChange} Elo, +${stake} pts)`];
+    const winner180 = winner180s ?? 0;
+    const loser180  = loser180s  ?? 0;
+    if (winner180 > 0) parts.push(`${winner.name} scored ${winner180} × 180${winner180 > 1 ? "s" : ""}! 🏹`);
+    if (loser180  > 0) parts.push(`${loser.name} scored ${loser180} × 180${loser180 > 1 ? "s" : ""}! 🏹`);
+    if (loserEliminated) parts.push(`💀 ${loser.name} has been ELIMINATED!`);
+
+    await createAutoPost({
+      playerId:        winnerId,
+      content:         parts.join(" · "),
+      autoMeta:        { type: "match", matchId: match.id, winnerId, loserId, eloChange, stake, loserEliminated },
+      notifyPlayerIds: [loserId], // notify loser; winner submitted so they know
+    });
+
+    // Tier upgrade post
+    if (winnerTierAfter !== winnerTierBefore) {
+      await createAutoPost({
+        playerId:        winnerId,
+        content:         `🏆 ${winner.name} has reached ${winnerTierAfter} tier!`,
+        autoMeta:        { type: "tier_up", playerId: winnerId, from: winnerTierBefore, to: winnerTierAfter },
+        notifyPlayerIds: [winnerId],
+      });
+    }
+
+    // Tier drop post (losing can drop tier)
+    const loserTierBefore = calcTier(loser.elo);
+    if (loserTierAfter !== loserTierBefore && !loserEliminated) {
+      await createAutoPost({
+        playerId:        loserId,
+        content:         `📉 ${loser.name} dropped to ${loserTierAfter} tier`,
+        autoMeta:        { type: "tier_drop", playerId: loserId, from: loserTierBefore, to: loserTierAfter },
+        notifyPlayerIds: [loserId],
+      });
+    }
+  })();
 
   res.status(201).json({
     ...match,
