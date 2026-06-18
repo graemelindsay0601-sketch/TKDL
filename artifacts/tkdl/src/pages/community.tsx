@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/context/auth";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { MessageSquare, Image as ImageIcon, Send, X, Heart, ChevronDown, ChevronUp, Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { MessageSquare, Image as ImageIcon, Send, X, Heart, ChevronDown, ChevronUp, Clock, CheckCircle, AlertCircle, Pencil } from "lucide-react";
 
 const TIER_COLORS: Record<string, string> = {
   Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
@@ -102,7 +102,7 @@ function PlayerAvatar({ name, tier, size = 8 }: { name: string; tier: string; si
   );
 }
 
-function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDelete, onRemovePhoto, onDeleteComment }: {
+function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDelete, onRemovePhoto, onDeleteComment, onEdit }: {
   post: Post;
   onReact: (id: number, emoji: string) => void;
   onComment: (id: number, content: string) => void;
@@ -112,13 +112,40 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
   onDelete?: (id: number) => void;
   onRemovePhoto?: (id: number) => void;
   onDeleteComment?: (postId: number, commentId: number) => void;
+  onEdit?: (id: number, content: string) => void;
 }) {
   const { user } = useAuth();
   const [showComments, setShowComments]   = useState(false);
   const [comments, setComments]           = useState<Comment[] | null>(null);
   const [commentText, setCommentText]     = useState("");
   const [submittingComment, setSubmit]    = useState(false);
+  const [editing, setEditing]             = useState(false);
+  const [editText, setEditText]           = useState(post.content);
+  const [saving, setSaving]               = useState(false);
   const { toast } = useToast();
+
+  const isOwner = !!user?.playerId && user.playerId === post.player_id;
+  const canEdit = isOwner || isAdmin;
+
+  const saveEdit = async () => {
+    if (!editText.trim() || editText.trim() === post.content) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/community/posts/${post.id}`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editText.trim() }),
+      });
+      if (r.ok) {
+        onEdit?.(post.id, editText.trim());
+        setEditing(false);
+        toast({ title: "Post updated" });
+      } else {
+        const d = await r.json();
+        toast({ title: d.error ?? "Failed to save", variant: "destructive" });
+      }
+    } finally { setSaving(false); }
+  };
 
   const loadComments = useCallback(async () => {
     const r = await fetch(`/api/community/posts/${post.id}/comments`);
@@ -202,21 +229,55 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
               {relativeTime(post.created_at)}
             </div>
           </div>
-          {isAdmin && !isPending && (
-            <button onClick={() => onDelete?.(post.id)}
-              className="ml-auto p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity"
-              style={{ color: "#ff005c" }}>
-              <X className="w-4 h-4" />
-            </button>
-          )}
+          <div className="ml-auto flex items-center gap-1">
+            {canEdit && !isPending && (
+              <button onClick={() => { setEditing(v => !v); setEditText(post.content); }}
+                className="p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity"
+                style={{ color: editing ? "#ffd24a" : "rgba(255,255,255,0.6)" }}
+                title="Edit post">
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {isAdmin && !isPending && (
+              <button onClick={() => onDelete?.(post.id)}
+                className="p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity"
+                style={{ color: "#ff005c" }}>
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Content */}
-        {post.content && (
+        {/* Content / inline edit */}
+        {editing ? (
+          <div className="mb-3">
+            <textarea
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              rows={3}
+              maxLength={1000}
+              autoFocus
+              className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-none"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,200,0,0.4)", color: "#fff" }}
+            />
+            <div className="flex gap-2 mt-1.5">
+              <button onClick={saveEdit} disabled={saving || !editText.trim()}
+                className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition-opacity disabled:opacity-40"
+                style={{ background: "rgba(0,229,160,0.15)", border: "1px solid rgba(0,229,160,0.4)", color: "#00e5a0", fontFamily: "Oswald, sans-serif" }}>
+                <CheckCircle className="w-3 h-3" />{saving ? "SAVING…" : "SAVE"}
+              </button>
+              <button onClick={() => setEditing(false)}
+                className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition-opacity"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif" }}>
+                <X className="w-3 h-3" />CANCEL
+              </button>
+            </div>
+          </div>
+        ) : post.content ? (
           <p className="text-sm mb-3 leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>
             {post.content}
           </p>
-        )}
+        ) : null}
 
         {/* Photo */}
         {post.photo_path && (
@@ -496,6 +557,11 @@ export default function CommunityPage() {
     }
   };
 
+  const handleEdit = (id: number, content: string) => {
+    setPosts(prev => prev.map(p => p.id === id ? { ...p, content } : p));
+    setPending(prev => prev.map(p => p.id === id ? { ...p, content } : p));
+  };
+
   // Feature disabled for non-admin
   if (communityEnabled === false && !user?.isAdmin) {
     return (
@@ -595,7 +661,7 @@ export default function CommunityPage() {
           {pending.map(post => (
             <PostCard key={post.id} post={post} onReact={handleReact} onComment={handleComment}
               isAdmin={!!user?.isAdmin} onApprove={handleApprove} onReject={handleReject}
-              onDelete={handleDelete} onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} />
+              onDelete={handleDelete} onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} />
           ))}
           <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
         </div>
@@ -622,7 +688,7 @@ export default function CommunityPage() {
             {posts.map(post => (
               <PostCard key={post.id} post={post} onReact={handleReact} onComment={handleComment}
                 isAdmin={!!user?.isAdmin} onDelete={handleDelete}
-                onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} />
+                onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} />
             ))}
           </div>
           <div className="text-xs text-center pb-1" style={{ color: "rgba(255,255,255,0.18)" }}>

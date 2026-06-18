@@ -202,6 +202,26 @@ router.post("/community/posts/:id/reject", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
+// ── PATCH /community/posts/:id — owner or admin can edit content ─────────────
+router.patch("/community/posts/:id", async (req, res): Promise<void> => {
+  const playerId = sessionPlayerId(req);
+  const isAdmin  = sessionIsAdmin(req);
+  if (!playerId && !isAdmin) { res.status(401).json({ error: "Auth required" }); return; }
+
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const { content } = req.body as { content?: string };
+  if (!content?.trim()) { res.status(400).json({ error: "Content required" }); return; }
+
+  const post = (await db.execute(sql`SELECT player_id FROM community_posts WHERE id = ${id}`)).rows[0] as any;
+  if (!post) { res.status(404).json({ error: "Post not found" }); return; }
+  if (!isAdmin && post.player_id !== playerId) { res.status(403).json({ error: "Not your post" }); return; }
+
+  await db.execute(sql`UPDATE community_posts SET content = ${content.trim()} WHERE id = ${id}`);
+  res.json({ ok: true });
+});
+
 // ── DELETE /community/posts/:id — admin ──────────────────────────────────────
 router.delete("/community/posts/:id", async (req, res): Promise<void> => {
   if (!sessionIsAdmin(req)) { res.status(403).json({ error: "Admin required" }); return; }
