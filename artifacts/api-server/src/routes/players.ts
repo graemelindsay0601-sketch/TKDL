@@ -8,6 +8,12 @@ import { gamerscoreForRarity, SHADOW_BOT_ACHIEVEMENT_DEFS } from "../lib/shadow-
 import { logger } from "../lib/logger";
 import { TITLE_DEFINITIONS, getAllPlayerTitles, checkAndGrantTitles } from "../lib/titles";
 
+const progressCache = new Map<number, { data: unknown; expiresAt: number }>();
+const PROGRESS_TTL_MS = 60_000;
+export function invalidateProgressCache(playerIds: number[]): void {
+  for (const id of playerIds) progressCache.delete(id);
+}
+
 const CreatePlayerBody = z.object({
   name:     z.string().min(1),
   playerId: z.string().optional(),
@@ -290,6 +296,9 @@ router.get("/players/:id/achievement-progress", async (req, res): Promise<void> 
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const id = params.data.id;
 
+  const cached = progressCache.get(id);
+  if (cached && Date.now() < cached.expiresAt) { res.json(cached.data); return; }
+
   const [player] = await db.select().from(playersTable).where(eq(playersTable.id, id));
   if (!player) { res.status(404).json({ error: "Player not found" }); return; }
 
@@ -456,6 +465,7 @@ router.get("/players/:id/achievement-progress", async (req, res): Promise<void> 
     };
   });
 
+  progressCache.set(id, { data: result, expiresAt: Date.now() + PROGRESS_TTL_MS });
   res.json(result);
 });
 

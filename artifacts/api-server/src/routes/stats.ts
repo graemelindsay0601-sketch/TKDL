@@ -8,6 +8,9 @@ import { buildNarrativeCards } from "../lib/narrative";
 
 const router = Router();
 
+let liveFeedCache: { data: unknown; expiresAt: number } | null = null;
+const LIVE_FEED_TTL_MS = 15_000;
+
 router.get("/stats/summary", async (_req, res): Promise<void> => {
   const allPlayers   = await db.select().from(playersTable);
   const activePlayers = allPlayers.filter(p => p.isActive);
@@ -123,6 +126,11 @@ router.get("/stats/narrative", async (_req, res): Promise<void> => {
 });
 
 router.get("/stats/live-feed", async (req, res): Promise<void> => {
+  const now = Date.now();
+  if (liveFeedCache && now < liveFeedCache.expiresAt) {
+    res.json(liveFeedCache.data);
+    return;
+  }
   try {
     type FeedItem = { type: string; text: string; accent: string; ts: number };
     const items: FeedItem[] = [];
@@ -212,7 +220,9 @@ router.get("/stats/live-feed", async (req, res): Promise<void> => {
 
     // Sort by timestamp newest-first and return top 40
     items.sort((a, b) => b.ts - a.ts);
-    res.json(items.slice(0, 40));
+    const feed = items.slice(0, 40);
+    liveFeedCache = { data: feed, expiresAt: Date.now() + LIVE_FEED_TTL_MS };
+    res.json(feed);
   } catch (err) {
     req.log.error({ err }, "Failed to get live feed");
     res.status(500).json({ error: "Internal server error" });

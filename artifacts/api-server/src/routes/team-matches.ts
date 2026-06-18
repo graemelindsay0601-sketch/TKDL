@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, inArray } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable, matchParticipantsTable } from "@workspace/db";
 import { z } from "zod";
 import { calcEloChange } from "../lib/elo";
@@ -20,14 +20,16 @@ router.get("/team-matches", async (req, res): Promise<void> => {
     .where(sql`${matchesTable.gameType} LIKE 'team_%' OR ${matchesTable.gameType} = 'multi_killer'`)
     .orderBy(desc(matchesTable.playedAt))
     .limit(limit);
-  const withParticipants = await Promise.all(
-    matches.map(async m => {
-      const participants = await db.select().from(matchParticipantsTable)
-        .where(eq(matchParticipantsTable.matchId, m.id));
-      return { ...m, participants };
-    })
-  );
-  res.json(withParticipants);
+  if (matches.length === 0) { res.json([]); return; }
+  const matchIds = matches.map(m => m.id);
+  const allParticipants = await db.select().from(matchParticipantsTable)
+    .where(inArray(matchParticipantsTable.matchId, matchIds));
+  const byMatch = new Map<number, typeof allParticipants>();
+  for (const p of allParticipants) {
+    if (!byMatch.has(p.matchId)) byMatch.set(p.matchId, []);
+    byMatch.get(p.matchId)!.push(p);
+  }
+  res.json(matches.map(m => ({ ...m, participants: byMatch.get(m.id) ?? [] })));
 });
 
 router.post("/team-matches", async (req, res): Promise<void> => {
@@ -100,81 +102,85 @@ router.post("/team-matches", async (req, res): Promise<void> => {
   const winnerName = winnerPlayers.map(p => p.name).join(" & ");
   const loserName  = loserPlayers.map(p  => p.name).join(" & ");
 
-  // Insert match record (first player in each team is the "captain")
-  const [match] = await db.insert(matchesTable).values({
-    seasonId:   activeSeason.id,
-    winnerId:   winnerPlayers[0].id,
-    loserId:    loserPlayers[0].id,
-    winnerName,
-    loserName,
-    stake,
-    eloChange,
-    gameType:   gameType ?? "team_501",
-    notes:      notes ?? null,
-  }).returning();
+  const { match, loserResults } = await db.transaction(async (tx) => {
+    // Insert match record (first player in each team is the "captain")
+    const [newMatch] = await tx.insert(matchesTable).values({
+      seasonId:   activeSeason.id,
+      winnerId:   winnerPlayers[0].id,
+      loserId:    loserPlayers[0].id,
+      winnerName,
+      loserName,
+      stake,
+      eloChange,
+      gameType:   gameType ?? "team_501",
+      notes:      notes ?? null,
+    }).returning();
 
-  // Insert all participants
-  const participantRows = [
-    ...winnerPlayers.map((p, i) => ({ matchId: match.id, playerId: p.id, playerName: p.name, team: "winner" as const, position: i })),
-    ...loserPlayers.map((p, i)  => ({ matchId: match.id, playerId: p.id, playerName: p.name, team: "loser" as const,  position: i })),
-  ];
-  await db.insert(matchParticipantsTable).values(participantRows);
+    // Insert all participants
+    const participantRows = [
+      ...winnerPlayers.map((p, i) => ({ matchId: newMatch.id, playerId: p.id, playerName: p.name, team: "winner" as const, position: i })),
+      ...loserPlayers.map((p, i)  => ({ matchId: newMatch.id, playerId: p.id, playerName: p.name, team: "loser" as const,  position: i })),
+    ];
+    await tx.insert(matchParticipantsTable).values(participantRows);
 
-  // Update winner players
-  for (const p of winnerPlayers) {
-    const newElo = p.elo + eloChange;
-    const newPoints = p.points + stake;
-    const newWinStreak = p.currentWinStreak + 1;
-    await db.update(playersTable).set({
-      elo:               newElo,
-      careerPeakElo:     Math.max(p.careerPeakElo, newElo),
-      points:            newPoints,
-      peakPoints:        Math.max(p.peakPoints, newPoints),
-      seasonWins:        p.seasonWins + 1,
-      seasonGamesPlayed: p.seasonGamesPlayed + 1,
-      careerWins:        p.careerWins + 1,
-      careerGamesPlayed: p.careerGamesPlayed + 1,
-      careerPoints:      p.careerPoints + stake,
-      currentWinStreak:  newWinStreak,
-      longestWinStreak:  Math.max(p.longestWinStreak, newWinStreak),
-      currentLossStreak: 0,
-    }).where(eq(playersTable.id, p.id));
-  }
-
-  // Update loser players
-  const loserResults: { id: number; newPoints: number; eliminated: boolean }[] = [];
-  for (const p of loserPlayers) {
-    const newPoints = Math.max(0, p.points - stake);
-    const eliminated = newPoints === 0;
-    await db.update(playersTable).set({
-      elo:               Math.max(800, p.elo - eloChange),
-      points:            newPoints,
-      seasonLosses:      p.seasonLosses + 1,
-      seasonGamesPlayed: p.seasonGamesPlayed + 1,
-      careerLosses:      p.careerLosses + 1,
-      careerGamesPlayed: p.careerGamesPlayed + 1,
-      careerPoints:      p.careerPoints - stake,
-      currentWinStreak:  0,
-      currentLossStreak: p.currentLossStreak + 1,
-      status:            eliminated ? "ELIMINATED" : p.status,
-    }).where(eq(playersTable.id, p.id));
-    loserResults.push({ id: p.id, newPoints, eliminated });
-  }
-
-  // If any loser was eliminated, increment elimination count for all winners
-  const anyEliminated = loserResults.some(r => r.eliminated);
-  if (anyEliminated) {
+    // Update winner players
     for (const p of winnerPlayers) {
-      await db.update(playersTable).set({
-        eliminationsCount: p.eliminationsCount + 1,
+      const newElo = p.elo + eloChange;
+      const newPoints = p.points + stake;
+      const newWinStreak = p.currentWinStreak + 1;
+      await tx.update(playersTable).set({
+        elo:               newElo,
+        careerPeakElo:     Math.max(p.careerPeakElo, newElo),
+        points:            newPoints,
+        peakPoints:        Math.max(p.peakPoints, newPoints),
+        seasonWins:        p.seasonWins + 1,
+        seasonGamesPlayed: p.seasonGamesPlayed + 1,
+        careerWins:        p.careerWins + 1,
+        careerGamesPlayed: p.careerGamesPlayed + 1,
+        careerPoints:      p.careerPoints + stake,
+        currentWinStreak:  newWinStreak,
+        longestWinStreak:  Math.max(p.longestWinStreak, newWinStreak),
+        currentLossStreak: 0,
       }).where(eq(playersTable.id, p.id));
     }
-  }
 
-  // Update season match count
-  await db.update(seasonsTable).set({
-    totalMatches: activeSeason.totalMatches + 1,
-  }).where(eq(seasonsTable.id, activeSeason.id));
+    // Update loser players
+    const txLoserResults: { id: number; newPoints: number; eliminated: boolean }[] = [];
+    for (const p of loserPlayers) {
+      const newPoints = Math.max(0, p.points - stake);
+      const eliminated = newPoints === 0;
+      await tx.update(playersTable).set({
+        elo:               Math.max(800, p.elo - eloChange),
+        points:            newPoints,
+        seasonLosses:      p.seasonLosses + 1,
+        seasonGamesPlayed: p.seasonGamesPlayed + 1,
+        careerLosses:      p.careerLosses + 1,
+        careerGamesPlayed: p.careerGamesPlayed + 1,
+        careerPoints:      p.careerPoints - stake,
+        currentWinStreak:  0,
+        currentLossStreak: p.currentLossStreak + 1,
+        status:            eliminated ? "ELIMINATED" : p.status,
+      }).where(eq(playersTable.id, p.id));
+      txLoserResults.push({ id: p.id, newPoints, eliminated });
+    }
+
+    // If any loser was eliminated, increment elimination count for all winners
+    const anyEliminated = txLoserResults.some(r => r.eliminated);
+    if (anyEliminated) {
+      for (const p of winnerPlayers) {
+        await tx.update(playersTable).set({
+          eliminationsCount: p.eliminationsCount + 1,
+        }).where(eq(playersTable.id, p.id));
+      }
+    }
+
+    // Update season match count
+    await tx.update(seasonsTable).set({
+      totalMatches: activeSeason.totalMatches + 1,
+    }).where(eq(seasonsTable.id, activeSeason.id));
+
+    return { match: newMatch, loserResults: txLoserResults };
+  });
 
   res.status(201).json({
     match,

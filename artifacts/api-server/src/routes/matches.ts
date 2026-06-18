@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { eq, desc, and, sql, or } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable } from "@workspace/db";
+import { invalidateProgressCache } from "./players";
 import { z } from "zod";
 import { applyEloChange, calcTier } from "../lib/elo";
 import { validateStake, applyWager } from "../lib/wager";
@@ -90,70 +91,73 @@ router.post("/matches", async (req, res): Promise<void> => {
   const loserPointsBefore  = loser.points;
   const { newWinnerPoints, newLoserPoints, loserEliminated } = applyWager(stake, winner, loser);
 
-  // Insert match record
-  const [match] = await db.insert(matchesTable).values({
-    seasonId:               activeSeason.id,
-    winnerId,
-    loserId,
-    winnerName:             winner.name,
-    loserName:              loser.name,
-    stake,
-    eloChange,
-    gameType:               gameType ?? "501",
-    notes:                  notes ?? null,
-    winnerDarts:            winnerDarts ?? null,
-    winner180s:             winner180s ?? null,
-    winnerCheckoutAttempts: winnerCheckoutAttempts ?? null,
-    winnerCheckoutHits:     winnerCheckoutHits ?? null,
-    loserDarts:             loserDarts ?? null,
-    loser180s:              loser180s ?? null,
-    loserCheckoutAttempts:  loserCheckoutAttempts ?? null,
-    loserCheckoutHits:      loserCheckoutHits ?? null,
-  }).returning();
-
-  // Update winner
+  // Wrap all DB writes atomically
   const newWinnerStreak = winner.currentWinStreak + 1;
-  await db.update(playersTable).set({
-    elo:              newWinnerElo,
-    careerPeakElo:    Math.max(winner.careerPeakElo, newWinnerElo),
-    points:           newWinnerPoints,
-    peakPoints:       Math.max(winner.peakPoints, newWinnerPoints),
-    seasonWins:       winner.seasonWins + 1,
-    seasonGamesPlayed: winner.seasonGamesPlayed + 1,
-    careerWins:       winner.careerWins + 1,
-    careerGamesPlayed: winner.careerGamesPlayed + 1,
-    careerPoints:     winner.careerPoints + stake,
-    currentWinStreak: newWinnerStreak,
-    longestWinStreak: Math.max(winner.longestWinStreak, newWinnerStreak),
-    currentLossStreak: 0,
-  }).where(eq(playersTable.id, winnerId));
+  const match = await db.transaction(async (tx) => {
+    const [newMatch] = await tx.insert(matchesTable).values({
+      seasonId:               activeSeason.id,
+      winnerId,
+      loserId,
+      winnerName:             winner.name,
+      loserName:              loser.name,
+      stake,
+      eloChange,
+      gameType:               gameType ?? "501",
+      notes:                  notes ?? null,
+      winnerDarts:            winnerDarts ?? null,
+      winner180s:             winner180s ?? null,
+      winnerCheckoutAttempts: winnerCheckoutAttempts ?? null,
+      winnerCheckoutHits:     winnerCheckoutHits ?? null,
+      loserDarts:             loserDarts ?? null,
+      loser180s:              loser180s ?? null,
+      loserCheckoutAttempts:  loserCheckoutAttempts ?? null,
+      loserCheckoutHits:      loserCheckoutHits ?? null,
+    }).returning();
 
-  // Update loser
-  await db.update(playersTable).set({
-    elo:              newLoserElo,
-    points:           newLoserPoints,
-    seasonLosses:     loser.seasonLosses + 1,
-    seasonGamesPlayed: loser.seasonGamesPlayed + 1,
-    careerLosses:     loser.careerLosses + 1,
-    careerGamesPlayed: loser.careerGamesPlayed + 1,
-    careerPoints:     loser.careerPoints - stake,
-    currentWinStreak: 0,
-    currentLossStreak: loser.currentLossStreak + 1,
-    status:           loserEliminated ? "ELIMINATED" : loser.status,
-    eliminationsCount: loser.eliminationsCount,
-  }).where(eq(playersTable.id, loserId));
-
-  // If loser eliminated, increment winner's elimination count
-  if (loserEliminated) {
-    await db.update(playersTable).set({
-      eliminationsCount: winner.eliminationsCount + 1,
+    await tx.update(playersTable).set({
+      elo:              newWinnerElo,
+      careerPeakElo:    Math.max(winner.careerPeakElo, newWinnerElo),
+      points:           newWinnerPoints,
+      peakPoints:       Math.max(winner.peakPoints, newWinnerPoints),
+      seasonWins:       winner.seasonWins + 1,
+      seasonGamesPlayed: winner.seasonGamesPlayed + 1,
+      careerWins:       winner.careerWins + 1,
+      careerGamesPlayed: winner.careerGamesPlayed + 1,
+      careerPoints:     winner.careerPoints + stake,
+      currentWinStreak: newWinnerStreak,
+      longestWinStreak: Math.max(winner.longestWinStreak, newWinnerStreak),
+      currentLossStreak: 0,
     }).where(eq(playersTable.id, winnerId));
-  }
 
-  // Update season match count
-  await db.update(seasonsTable).set({
-    totalMatches: activeSeason.totalMatches + 1,
-  }).where(eq(seasonsTable.id, activeSeason.id));
+    await tx.update(playersTable).set({
+      elo:              newLoserElo,
+      points:           newLoserPoints,
+      seasonLosses:     loser.seasonLosses + 1,
+      seasonGamesPlayed: loser.seasonGamesPlayed + 1,
+      careerLosses:     loser.careerLosses + 1,
+      careerGamesPlayed: loser.careerGamesPlayed + 1,
+      careerPoints:     loser.careerPoints - stake,
+      currentWinStreak: 0,
+      currentLossStreak: loser.currentLossStreak + 1,
+      status:           loserEliminated ? "ELIMINATED" : loser.status,
+      eliminationsCount: loser.eliminationsCount,
+    }).where(eq(playersTable.id, loserId));
+
+    if (loserEliminated) {
+      await tx.update(playersTable).set({
+        eliminationsCount: winner.eliminationsCount + 1,
+      }).where(eq(playersTable.id, winnerId));
+    }
+
+    await tx.update(seasonsTable).set({
+      totalMatches: activeSeason.totalMatches + 1,
+    }).where(eq(seasonsTable.id, activeSeason.id));
+
+    return newMatch;
+  });
+
+  // Bust achievement-progress cache for both players
+  invalidateProgressCache([winnerId, loserId]);
 
   // Check achievements
   await checkMatchAchievements(winnerId, loserId, true,  stake, loserPointsBefore, winnerPointsBefore, loserEliminated);
