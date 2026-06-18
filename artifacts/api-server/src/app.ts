@@ -338,6 +338,10 @@ async function seedCommunityTables() {
       created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  // Patch columns that may be missing from older deployments
+  await db.execute(sql`ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS post_type   TEXT    NOT NULL DEFAULT 'manual'`);
+  await db.execute(sql`ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS auto_meta   JSONB   NOT NULL DEFAULT '{}'`);
+  await db.execute(sql`ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ`);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS post_reactions (
       id         SERIAL PRIMARY KEY,
