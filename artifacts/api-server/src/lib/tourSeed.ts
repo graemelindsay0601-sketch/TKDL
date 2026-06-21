@@ -38,8 +38,16 @@ export const TOUR_PERSONAS: TourPersona[] = [
   { key: "fallon_sherrick",     name: "Fallon Sherrick",     nickname: "Queen of the Oche",  flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", tagline: "First woman to beat a pro at Worlds. Don't sleep on her.", level: "amateur",  avg: 62  },
   { key: "lisa_ashford",        name: "Lisa Ashford",        nickname: "Lancashire Lass",    flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", tagline: "All heart, all grit.",                                      level: "amateur",  avg: 55  },
   { key: "ned_bankley",         name: "Ned Bankley",         nickname: "The Count",          flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", tagline: "Two-time BDO champ. A different era.",                       level: "amateur",  avg: 49  },
+  { key: "gary_blunt",          name: "Gary Blunt",          nickname: "The Builder",        flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", tagline: "Throws after a long shift. Still dangerous.",               level: "amateur",  avg: 58  },
+  { key: "tracey_stubbs",       name: "Tracey Stubbs",       nickname: "Comeback Queen",     flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", tagline: "Loses the first leg. Wins the next three.",                 level: "amateur",  avg: 52  },
+  { key: "paddy_obrien",        name: "Paddy O'Brien",       nickname: "The Shamrock",       flag: "🇮🇪",  tagline: "Dublin's finest amateur. Close enough.",                    level: "amateur",  avg: 46  },
+  { key: "darren_webb",         name: "Darren Webb",         nickname: "The Steady Hand",    flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", tagline: "Boring to watch. Impossible to beat.",                      level: "club",     avg: 73  },
+  { key: "nicky_cole",          name: "Nicky Cole",          nickname: "The Maverick",       flag: "🏴󠁧󠁢󠁷󠁬󠁳󠁿", tagline: "Unorthodox grip. Lethal finish.",                            level: "club",     avg: 68  },
+  { key: "roberto_fuentes",     name: "Roberto Fuentes",     nickname: "El Maestro",         flag: "🇪🇸",  tagline: "Spanish regional champion. Three years running.",           level: "club",     avg: 65  },
   { key: "andy_hamish",         name: "Andy Hamish",         nickname: "The Hammer",         flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", tagline: "Hits the board. Mostly.",                                   level: "beginner", avg: 32  },
   { key: "terry_jenkins_jr",    name: "Terry Jenkins Jr",    nickname: "Trincomalee",        flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", tagline: "Son of a journeyman. Still learning.",                       level: "beginner", avg: 28  },
+  { key: "mick_barton",         name: "Mick Barton",         nickname: "The Punter",         flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", tagline: "Down the local every Friday night. It shows.",              level: "beginner", avg: 35  },
+  { key: "wee_jimmy",           name: "Wee Jimmy Doyle",     nickname: "The Rookie",         flag: "🏴󠁧󠁢󠁳󠁣󠁴󠁿", tagline: "First season on the oche. Nerves of jelly.",                level: "beginner", avg: 24  },
 ];
 
 const DIFFICULTY_LEVELS: Record<string, string[]> = {
