@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useParams } from "wouter";
-import { ArrowLeft, CircuitBoard, Lock, Dumbbell, Target, Zap, Trophy, ChevronRight, Ghost, TrendingUp, TrendingDown, Minus, Brain } from "lucide-react";
+import { ArrowLeft, CircuitBoard, Lock, Dumbbell, Target, Zap, Trophy, ChevronRight, Ghost, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 type GameModeRow = { gameTypeKey: string; gameTypeName: string; sessions: number; darts: number };
 
@@ -547,10 +547,6 @@ export default function ShadowBotDetail() {
                 style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
                 <Ghost className="w-3.5 h-3.5" style={{ color: "#ff005c" }} />
                 Who Beats This Bot
-                <Link href="/coach" className="ml-auto flex items-center gap-1 text-xs font-normal normal-case"
-                  style={{ color: "rgba(167,139,250,0.6)", letterSpacing: "normal" }}>
-                  <Brain className="w-3 h-3" />Coach Drills
-                </Link>
               </h2>
               <div className="space-y-2">
                 {rivalry.map(r => {

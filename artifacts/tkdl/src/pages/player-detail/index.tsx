@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
-import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare } from "lucide-react";
+import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare, Brain } from "lucide-react";
 import { useAuth } from "@/context/auth";
 import {
   FormStrip, EloSparkline, AchievementCard,
@@ -15,6 +15,8 @@ export default function PlayerDetail() {
   const playerId = Number(params.id);
   const { user } = useAuth();
 
+  const isOwnProfile = !!user?.playerId && user.playerId === playerId;
+
   const { data: stats, isLoading } = useGetPlayerStats(playerId, {
     query: { staleTime: 5 * 60 * 1000, queryKey: getGetPlayerStatsQueryKey(playerId) },
   });
@@ -25,7 +27,7 @@ export default function PlayerDetail() {
   const [showAllAch, setShowAllAch] = useState(false);
   const [openAchievements, setOpenAchievements] = useState(true);
 
-  const [profileTab, setProfileTab] = useState<"matches" | "h2h" | "practice" | "shadowbot">("matches");
+  const [profileTab, setProfileTab] = useState<"matches" | "h2h" | "practice" | "shadowbot" | "coach">("matches");
   const [expandedH2H, setExpandedH2H] = useState<number | null>(null);
   const [openSeasonHistory, setOpenSeasonHistory] = useState(true);
   const [openPractice, setOpenPractice] = useState(true);
@@ -38,6 +40,11 @@ export default function PlayerDetail() {
   const [tourTrophies, setTourTrophies] = useState<any[]>([]);
   const [shadowAchs, setShadowAchs] = useState<any[]>([]);
   const [tourAchs, setTourAchs] = useState<any[]>([]);
+
+  const [coachDrills, setCoachDrills]     = useState<any[]>([]);
+  const [coachStats, setCoachStats]       = useState<any>(null);
+  const [coachLoading, setCoachLoading]   = useState(false);
+  const [openDrills, setOpenDrills]       = useState<Record<string, boolean>>({});
 
   const [expandedGame, setExpandedGame] = useState<string | null>(null);
   const [gameSessionsCache, setGameSessionsCache] = useState<Record<string, any[]>>({});
@@ -121,6 +128,19 @@ export default function PlayerDetail() {
       .then(d => { if (Array.isArray(d.gameTypes)) setGameTypes(d.gameTypes); })
       .catch(() => {});
   }, [playerId]);
+
+  useEffect(() => {
+    if (!isOwnProfile || !playerId) return;
+    setCoachLoading(true);
+    fetch(`/api/players/${playerId}/practice-routine`)
+      .then(r => r.json())
+      .then(d => {
+        setCoachDrills(Array.isArray(d.drills) ? d.drills : []);
+        setCoachStats(d.stats ?? null);
+      })
+      .catch(() => {})
+      .finally(() => setCoachLoading(false));
+  }, [isOwnProfile, playerId]);
 
   if (isLoading) {
     return (
@@ -452,11 +472,12 @@ export default function PlayerDetail() {
       {/* Mobile tab switcher */}
       <div className="lg:hidden flex rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
         {([
-          { key: "matches",  label: "Matches",  Icon: Zap,         activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"     },
-          { key: "h2h",      label: "H2H",      Icon: Trophy,      activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"     },
-          { key: "practice", label: "Practice", Icon: Dumbbell,    activeColor: "#a78bfa", activeBg: "rgba(167,139,250,0.12)"  },
-          { key: "shadowbot",label: "Bot",      Icon: CircuitBoard,activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"     },
-        ] as const).map(({ key, label, Icon, activeColor, activeBg }) => (
+          { key: "matches"  as const, label: "Matches",  Icon: Zap,         activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"     },
+          { key: "h2h"      as const, label: "H2H",      Icon: Trophy,      activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"     },
+          { key: "practice" as const, label: "Practice", Icon: Dumbbell,    activeColor: "#a78bfa", activeBg: "rgba(167,139,250,0.12)"  },
+          { key: "shadowbot"as const, label: "Bot",      Icon: CircuitBoard,activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"     },
+          ...(isOwnProfile ? [{ key: "coach" as const, label: "Coach", Icon: Brain, activeColor: "#00c8a0", activeBg: "rgba(0,200,160,0.12)" }] : []),
+        ]).map(({ key, label, Icon, activeColor, activeBg }) => (
           <button key={key} onClick={() => setProfileTab(key)}
             className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-black uppercase tracking-widest transition-all"
             style={{
@@ -1212,6 +1233,120 @@ export default function PlayerDetail() {
           )}
         </div>
       </div>
+
+      {/* ══ COACH ══ */}
+      {isOwnProfile && (
+        <div className={`pdc-card overflow-hidden col-span-1 lg:col-span-2 ${profileTab !== "coach" ? "hidden lg:block" : ""}`}>
+          <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="flex items-center gap-2">
+              <Brain className="w-3.5 h-3.5" style={{ color: "#00c8a0" }} />
+              <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+                Coach
+              </h2>
+            </div>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(0,200,160,0.1)", color: "#00c8a0", border: "1px solid rgba(0,200,160,0.25)" }}>
+              Personalised
+            </span>
+          </div>
+
+          {coachLoading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="w-7 h-7 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#00c8a0" }} />
+            </div>
+          ) : coachDrills.length === 0 ? (
+            <div className="py-10 text-center">
+              <Brain className="w-8 h-8 mx-auto mb-3 opacity-10" style={{ color: "#00c8a0" }} />
+              <p className="text-sm font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.25)" }}>No routine yet</p>
+              <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.18)" }}>Log some practice sessions to unlock your personalised drill plan.</p>
+            </div>
+          ) : (
+            <div className="p-3 space-y-2">
+              {coachStats && (
+                <div className="flex flex-wrap gap-2 pb-3 mb-1" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                  {coachStats.avg !== undefined && (
+                    <div className="px-3 py-1.5 rounded-lg text-center min-w-[72px]" style={{ background: "rgba(0,200,160,0.08)", border: "1px solid rgba(0,200,160,0.2)" }}>
+                      <div className="text-base font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color: "#00c8a0" }}>{coachStats.avg}</div>
+                      <div className="text-xs uppercase" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em" }}>Avg</div>
+                    </div>
+                  )}
+                  {coachStats.checkoutPct !== undefined && (
+                    <div className="px-3 py-1.5 rounded-lg text-center min-w-[72px]" style={{ background: "rgba(255,210,74,0.07)", border: "1px solid rgba(255,210,74,0.18)" }}>
+                      <div className="text-base font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a" }}>{coachStats.checkoutPct}%</div>
+                      <div className="text-xs uppercase" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em" }}>Checkout</div>
+                    </div>
+                  )}
+                  {coachStats.treblePct !== undefined && (
+                    <div className="px-3 py-1.5 rounded-lg text-center min-w-[72px]" style={{ background: "rgba(0,102,255,0.08)", border: "1px solid rgba(0,102,255,0.2)" }}>
+                      <div className="text-base font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color: "#0066ff" }}>{coachStats.treblePct}%</div>
+                      <div className="text-xs uppercase" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em" }}>Treble</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {coachDrills.map((drill: any, i: number) => {
+                const isOpen = openDrills[drill.name] ?? false;
+                const DIFF_COLOR: Record<string, string> = { easy: "#22c55e", medium: "#ffd24a", hard: "#ff005c" };
+                const diffColor = DIFF_COLOR[drill.difficulty?.toLowerCase()] ?? "#9ca3af";
+                return (
+                  <div key={i} className="rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <button
+                      className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left"
+                      onClick={() => setOpenDrills(prev => ({ ...prev, [drill.name]: !prev[drill.name] }))}>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-1.5 h-6 rounded-full shrink-0" style={{ background: diffColor }} />
+                        <div className="min-w-0">
+                          <div className="text-sm font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>{drill.name}</div>
+                          {drill.focus && (
+                            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em", textTransform: "uppercase", fontSize: "0.58rem" }}>
+                              {drill.focus}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {drill.difficulty && (
+                          <span className="px-2 py-0.5 rounded font-black text-xs uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", background: `${diffColor}18`, color: diffColor, border: `1px solid ${diffColor}30` }}>
+                            {drill.difficulty}
+                          </span>
+                        )}
+                        <ChevronDown className="w-3.5 h-3.5 shrink-0 transition-transform duration-200" style={{ color: "rgba(255,255,255,0.25)", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }} />
+                      </div>
+                    </button>
+                    {isOpen && (
+                      <div className="px-4 pb-4 space-y-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                        {drill.description && (
+                          <p className="text-sm pt-3" style={{ color: "rgba(255,255,255,0.55)", lineHeight: 1.6 }}>{drill.description}</p>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          {drill.sets !== undefined && (
+                            <div className="text-xs px-2.5 py-1 rounded-lg font-bold" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif" }}>
+                              {drill.sets} sets
+                            </div>
+                          )}
+                          {drill.legsPerSet !== undefined && (
+                            <div className="text-xs px-2.5 py-1 rounded-lg font-bold" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif" }}>
+                              {drill.legsPerSet} legs / set
+                            </div>
+                          )}
+                          {drill.warmup && (
+                            <div className="text-xs px-2.5 py-1 rounded-lg font-bold" style={{ background: "rgba(0,200,160,0.1)", color: "#00c8a0", fontFamily: "Oswald, sans-serif" }}>
+                              Warm-up drill
+                            </div>
+                          )}
+                        </div>
+                        {drill.notes && (
+                          <p className="text-xs italic" style={{ color: "rgba(255,255,255,0.3)", lineHeight: 1.5 }}>{drill.notes}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ══ FORMAT STATS ══ */}
       {gameTypes.length > 0 && (() => {

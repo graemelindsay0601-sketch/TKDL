@@ -22,7 +22,6 @@ const Practice        = lazy(() => import("@/pages/practice"));
 const ShadowBot       = lazy(() => import("@/pages/shadow-bot"));
 const ShadowBotDetail = lazy(() => import("@/pages/shadow-bot-detail"));
 const ShadowLeague    = lazy(() => import("@/pages/shadow-league"));
-const Coach           = lazy(() => import("@/pages/coach"));
 const Tour            = lazy(() => import("@/pages/tour"));
 const TourRun         = lazy(() => import("@/pages/tour-run"));
 const Master501       = lazy(() => import("@/pages/master501"));
@@ -137,9 +136,6 @@ function AppRoutes() {
             </Route>
             <Route path="/h2h">
               <RoutePage><HeadToHead /></RoutePage>
-            </Route>
-            <Route path="/coach">
-              <RoutePage><Coach /></RoutePage>
             </Route>
             <Route path="/shadow-league">
               <RoutePage><ShadowLeague /></RoutePage>

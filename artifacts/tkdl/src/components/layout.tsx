@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Brain } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 import { useGetStatsSummary, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
@@ -16,7 +16,6 @@ const playNav = [
 ];
 const practiceNav = [
   { href: "/practice",     label: "Practice",     icon: Dumbbell        },
-  { href: "/coach",        label: "Coach",        icon: Brain           },
 ];
 const tourModeNav = [
   { href: "/tour",         label: "Tour Mode",    icon: Star            },
