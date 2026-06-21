@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Lock, CircuitBoard, Trophy, Star, Ghost, Shield, ChevronRight, TrendingUp } from "lucide-react";
+import { Lock, CircuitBoard, Trophy, Star, Ghost, Shield, ChevronRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 type BotLeaderboardRow = {
   playerId: number;
@@ -331,6 +331,17 @@ export default function ShadowBot() {
                             <span className="font-black" style={{ fontFamily: "Oswald, sans-serif", color }}>{bot.computedAvg.toFixed(1)}</span> avg
                           </span>
                         )}
+                        {/* Form trend arrow */}
+                        {!bot.locked && (() => {
+                          const lvlIdx = LEVEL_STEPS.findIndex(s => s.key === bot.accuracyLevel);
+                          if (bot.progressToNext > 70 && lvlIdx < LEVEL_STEPS.length - 1) {
+                            return <TrendingUp className="w-3 h-3 ml-auto shrink-0" style={{ color: "#22c55e" }} />;
+                          } else if (bot.progressToNext < 20 && lvlIdx > 0) {
+                            return <TrendingDown className="w-3 h-3 ml-auto shrink-0" style={{ color: "#ff005c" }} />;
+                          } else {
+                            return <Minus className="w-3 h-3 ml-auto shrink-0" style={{ color: "rgba(255,255,255,0.2)" }} />;
+                          }
+                        })()}
                       </div>
 
                       {/* Progress bar */}

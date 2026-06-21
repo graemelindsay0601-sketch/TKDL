@@ -5,12 +5,13 @@ import { Switch } from "@/components/ui/switch";
 import { CollapsibleAdminSection } from "./collapsible-section";
 
 export function FeatureFlags() {
-  const [liveScorer,      setLiveScorer]      = useState<boolean | null>(null);
-  const [autoScorerOn,    setAutoScorerOn]     = useState<boolean | null>(null);
-  const [autoScorerTest,  setAutoScorerTest]   = useState<boolean | null>(null);
-  const [communityOn,     setCommunityOn]      = useState<boolean | null>(null);
-  const [messagingOn,     setMessagingOn]      = useState<boolean | null>(null);
-  const [notificationsOn, setNotificationsOn]  = useState<boolean | null>(null);
+  const [liveScorer,        setLiveScorer]        = useState<boolean | null>(null);
+  const [autoScorerOn,      setAutoScorerOn]       = useState<boolean | null>(null);
+  const [autoScorerTest,    setAutoScorerTest]     = useState<boolean | null>(null);
+  const [communityOn,       setCommunityOn]        = useState<boolean | null>(null);
+  const [messagingOn,       setMessagingOn]        = useState<boolean | null>(null);
+  const [notificationsOn,   setNotificationsOn]    = useState<boolean | null>(null);
+  const [shadowLeagueOn,    setShadowLeagueOn]     = useState<boolean | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -23,10 +24,11 @@ export function FeatureFlags() {
         setCommunityOn(s.community_enabled === true);
         setMessagingOn(s.messaging_enabled === true);
         setNotificationsOn(s.notifications_enabled === true);
+        setShadowLeagueOn(s.shadow_league_enabled === true);
       })
       .catch(() => {
         setLiveScorer(false); setAutoScorerOn(false); setAutoScorerTest(true);
-        setCommunityOn(false); setMessagingOn(false); setNotificationsOn(false);
+        setCommunityOn(false); setMessagingOn(false); setNotificationsOn(false); setShadowLeagueOn(false);
       });
   }, []);
 
@@ -69,6 +71,8 @@ export function FeatureFlags() {
         {row("Direct Messaging", "Allow players to send each other private messages via the Account page", messagingOn, setMessagingOn, "messaging_enabled", "Messaging enabled", "Messaging disabled")}
         {row("Notifications", "Fire in-app notifications for reactions, comments, messages, and match events", notificationsOn, setNotificationsOn, "notifications_enabled", "Notifications enabled", "Notifications disabled")}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+        {row("Shadow League", "Enable the /shadow-league page — shows all bots ranked by average. Enable once 4+ bots are active", shadowLeagueOn, setShadowLeagueOn, "shadow_league_enabled", "Shadow League live", "Shadow League hidden")}
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
         <div className="flex gap-2">
           <a href="/community" className="flex-1 py-2.5 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
             style={{ background: "rgba(0,229,160,0.08)", border: "1px solid rgba(0,229,160,0.25)", color: "#00e5a0", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
@@ -88,6 +92,10 @@ export function FeatureFlags() {
           <a href="/shadow-bot" className="flex-1 py-2.5 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
             style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.25)", color: "#00d4ff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
             <Crosshair className="inline w-3.5 h-3.5 mr-1.5" />Shadow Bot →
+          </a>
+          <a href="/shadow-league" className="flex-1 py-2.5 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
+            style={{ background: "rgba(255,210,74,0.08)", border: "1px solid rgba(255,210,74,0.25)", color: "#ffd24a", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
+            Shadow League →
           </a>
         </div>
       </div>

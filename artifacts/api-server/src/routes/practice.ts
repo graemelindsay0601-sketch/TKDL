@@ -1068,4 +1068,464 @@ router.get("/practice/game-leaderboard", async (req, res): Promise<void> => {
   }
 });
 
+// ─── GET /api/players/:id/bot-improvement-timeline ──────────────────────────
+// Monthly grouped stats for improvement chart on shadow bot detail page
+router.get("/players/:id/bot-improvement-timeline", async (req, res): Promise<void> => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+
+    const result = await db.execute(sql`
+      SELECT
+        TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM')         AS month,
+        TO_CHAR(DATE_TRUNC('month', created_at), 'Mon YY')          AS month_label,
+        COUNT(*)::int                                                 AS sessions,
+        COALESCE(SUM(p1_darts), 0)::int                              AS total_darts,
+        CASE WHEN SUM(p1_darts) > 0
+          THEN ROUND(SUM(p1_score)::numeric * 3.0 / SUM(p1_darts), 1)
+          ELSE NULL END::float                                        AS avg_three_dart,
+        COALESCE(SUM(p1_180s), 0)::int                               AS s180s,
+        CASE WHEN SUM(p1_checkout_attempts) > 0
+          THEN ROUND(SUM(p1_checkout_hits)::numeric / SUM(p1_checkout_attempts) * 100, 1)
+          ELSE NULL END::float                                        AS checkout_pct
+      FROM practice_sessions
+      WHERE player1_id = ${playerId} AND p1_darts IS NOT NULL AND p1_darts > 0
+      GROUP BY DATE_TRUNC('month', created_at)
+      ORDER BY month ASC
+      LIMIT 24
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get improvement timeline");
+    res.status(500).json({ error: "Failed to get timeline" });
+  }
+});
+
+// ─── GET /api/players/:id/practice-routine ────────────────────────────────────
+// Rule-based personalised practice routine from player DNA
+router.get("/players/:id/practice-routine", async (req, res): Promise<void> => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+
+    const [[agg], [vs], dartRows, gameRows] = await Promise.all([
+      db.execute(sql`
+        SELECT
+          COUNT(*)::int                                                               AS total_sessions,
+          COALESCE(SUM(p1_darts), 0)::int                                            AS total_darts,
+          COALESCE(SUM(p1_checkout_attempts), 0)::int                                AS co_attempts,
+          COALESCE(SUM(p1_checkout_hits), 0)::int                                    AS co_hits,
+          CASE WHEN SUM(p1_darts) > 0
+            THEN ROUND(SUM(p1_score)::numeric * 3.0 / SUM(p1_darts), 1)
+            ELSE NULL END::float                                                     AS avg_three_dart
+        FROM practice_sessions WHERE player1_id = ${playerId} AND p1_darts IS NOT NULL
+      `).then(r => r.rows),
+
+      db.execute(sql`
+        WITH raw_darts AS (
+          SELECT ordinality, dart
+          FROM practice_sessions ps,
+               jsonb_array_elements(ps.session_data->'dartLog') WITH ORDINALITY AS t(dart, ordinality)
+          WHERE ps.player1_id = ${playerId}
+            AND ps.session_data ? 'dartLog'
+            AND ps.game_type_key IN (SELECT key FROM game_types WHERE engine = 'X01')
+        ),
+        scoring_darts AS (
+          SELECT (dart->>'val')::int AS val,
+                 ROW_NUMBER() OVER (ORDER BY ordinality) AS rn
+          FROM raw_darts WHERE dart->>'phase' = 'scoring'
+        ),
+        visits AS (
+          SELECT CEIL(rn::numeric / 3)::int AS vn, SUM(val) AS vscore
+          FROM scoring_darts GROUP BY CEIL(rn::numeric / 3)::int
+        ),
+        f9 AS (SELECT ROUND(AVG(vscore)::numeric,1) AS first9 FROM visits WHERE vn <= 3)
+        SELECT
+          COUNT(CASE WHEN vscore=180  THEN 1 END)::int                       AS v180,
+          COUNT(CASE WHEN vscore>=140 AND vscore<180 THEN 1 END)::int        AS v140,
+          COUNT(CASE WHEN vscore>=100 AND vscore<140 THEN 1 END)::int        AS v100,
+          COUNT(CASE WHEN vscore>=60  AND vscore<100 THEN 1 END)::int        AS v60,
+          COUNT(*)::int                                                       AS total_visits,
+          MAX(f9.first9)                                                      AS first9_avg
+        FROM visits, f9
+      `).then(r => r.rows),
+
+      db.execute(sql`
+        WITH darts AS (
+          SELECT
+            (dart->>'seg')::int  AS seg,
+            (dart->>'mult')::int AS mult,
+            dart->>'phase'       AS phase
+          FROM practice_sessions ps,
+               jsonb_array_elements(ps.session_data->'dartLog') AS t(dart)
+          WHERE ps.player1_id = ${playerId}
+            AND ps.session_data ? 'dartLog'
+            AND ps.game_type_key IN (SELECT key FROM game_types WHERE engine = 'X01')
+        )
+        SELECT seg, mult, phase, COUNT(*) AS throws
+        FROM darts WHERE seg IS NOT NULL
+        GROUP BY seg, mult, phase
+        ORDER BY throws DESC
+      `).then(r => r.rows),
+
+      db.execute(sql`
+        SELECT game_type_key, game_type_name, COUNT(*)::int AS sessions
+        FROM practice_sessions WHERE player1_id = ${playerId}
+        GROUP BY game_type_key, game_type_name
+        ORDER BY sessions ASC
+        LIMIT 20
+      `).then(r => r.rows),
+    ]);
+
+    const avg        = Number(agg?.avg_three_dart ?? 0);
+    const coAtt      = Number(agg?.co_attempts ?? 0);
+    const coHits     = Number(agg?.co_hits ?? 0);
+    const coPct      = coAtt > 0 ? (coHits / coAtt) * 100 : 0;
+    const totalDarts = Number(agg?.total_darts ?? 0);
+    const totalSessions = Number(agg?.total_sessions ?? 0);
+
+    const totalVisits = Number(vs?.total_visits ?? 0);
+    const v180  = Number(vs?.v180 ?? 0);
+    const v140  = Number(vs?.v140 ?? 0);
+    const highRate = totalVisits > 0 ? ((v180 + v140) / totalVisits) * 100 : 0;
+    const first9  = Number(vs?.first9_avg ?? 0);
+
+    const scoringDarts = (dartRows as any[]).filter(r => r.phase === "scoring");
+    const t20 = scoringDarts.filter(r => Number(r.seg) === 20);
+    const t20Total   = t20.reduce((s: number, r: any) => s + Number(r.throws), 0);
+    const t20Trebles = t20.filter((r: any) => Number(r.mult) === 3).reduce((s: number, r: any) => s + Number(r.throws), 0);
+    const treblePct  = t20Total > 0 ? (t20Trebles / t20Total) * 100 : 0;
+
+    const coDoubles = (dartRows as any[]).filter(r => r.phase === "checkout" && Number(r.mult) === 2);
+    const topDouble = coDoubles.sort((a: any, b: any) => Number(b.throws) - Number(a.throws))[0];
+
+    const thinSpots = (gameRows as any[]).filter(r => Number(r.sessions) < 4 && Number(r.sessions) > 0).slice(0, 3);
+
+    const drills: any[] = [];
+
+    drills.push({
+      id: "warmup", title: "Warm-Up Round", icon: "🎯",
+      priority: "normal", focus: "general",
+      description: "5 minutes of relaxed throwing to find your natural release and loosen your wrist.",
+      drill: "3 visits at T20, 3 visits at D16. No pressure — just feel the rhythm.",
+      target: "Consistent release across all 6 visits",
+      duration: "5 min",
+    });
+
+    if (coPct < 30 || (coAtt < 30 && totalDarts > 200)) {
+      drills.push({
+        id: "doubles", title: "Double Assassin", icon: "🎱",
+        priority: coPct < 20 ? "critical" : "high", focus: "checkout",
+        description: coPct > 0
+          ? `Your checkout rate is ${Math.round(coPct)}% — games are slipping away on the doubles. This is the fastest way to win more legs.`
+          : "Not enough checkout data yet. Build your double confidence now.",
+        drill: topDouble
+          ? `Start with your go-to D${topDouble.seg}, then work round the clock D1→D20. 3 darts at each double, count hits.`
+          : "Round the clock doubles: D1 → D20 → D25. 3 darts at each double. Record how many you hit.",
+        target: coAtt > 20 ? `Beat your current ${Math.round(coPct)}% rate in a focused session` : "Hit 8+ doubles in one full clock round",
+        duration: "15 min",
+      });
+    }
+
+    if (treblePct < 24 && totalDarts > 150) {
+      drills.push({
+        id: "trebles", title: "Treble Zone", icon: "⚡",
+        priority: "high", focus: "scoring",
+        description: `You're hitting trebles ${Math.round(treblePct)}% of the time at T20. Pushing to 25%+ unlocks consistent 100+ visits.`,
+        drill: "40 darts at T20 only. Track: treble / single-20 / other. Don't adjust your aim — note your natural pattern.",
+        target: "25%+ treble hit rate across 40 darts",
+        duration: "10 min",
+      });
+    }
+
+    if (highRate < 8 && avg > 0 && avg < 72) {
+      drills.push({
+        id: "scoring", title: "Score Chaser", icon: "🔥",
+        priority: "high", focus: "scoring",
+        description: `Only ${Math.round(highRate)}% of your visits hit 140+. Improving this is the single biggest lever for winning legs faster.`,
+        drill: "Play 5-minute sets targeting only 100+ per visit. Start at 501, reset if any visit scores under 100 (except checkout attempt).",
+        target: "5 consecutive 100+ visits in a single leg",
+        duration: "15 min",
+      });
+    }
+
+    if (first9 > 0 && first9 < 62 && avg < 68) {
+      drills.push({
+        id: "first9", title: "First 9 Starter", icon: "🚀",
+        priority: "normal", focus: "opening",
+        description: `Your first-9 average is ${first9}. The opening 3 visits set the tone — a 65+ start forces your opponent to respond.`,
+        drill: "Throw exactly 9 darts (3 visits) from 501, record the total. Repeat 8 times. No finishing — scoring phase only.",
+        target: "65+ first-9 average across 8 sets",
+        duration: "10 min",
+      });
+    }
+
+    if (thinSpots.length > 0 && totalSessions >= 5) {
+      const spot = thinSpots[0] as any;
+      drills.push({
+        id: "variety", title: "Branch Out", icon: "🗺️",
+        priority: "normal", focus: "variety",
+        description: `Your bot has only ${spot.sessions} session${spot.sessions === 1 ? "" : "s"} of ${spot.game_type_name} data — thin spots limit how well it mimics your full game.`,
+        drill: `Play 3 sessions of ${spot.game_type_name} in Practice Mode this week. It feeds your bot's DNA and builds all-round skills.`,
+        target: "3 logged sessions of a new game type",
+        duration: "20 min",
+      });
+    }
+
+    if (avg >= 72 && coPct >= 28) {
+      drills.push({
+        id: "checkout_paths", title: "Checkout Surgeon", icon: "🏆",
+        priority: "advanced", focus: "checkout",
+        description: "You're throwing well — now make checkouts instinctive. Know your route from every score without thinking.",
+        drill: "Start at 5 different scores (170, 121, 100, 81, 62). Throw until you checkout or bust. Note which routes feel natural.",
+        target: "Complete 3 checkout paths without hesitating on the route",
+        duration: "15 min",
+      });
+    }
+
+    res.json({
+      drills,
+      stats: {
+        avg: avg > 0 ? avg : null,
+        coPct: coAtt > 5 ? Math.round(coPct) : null,
+        treblePct: totalDarts > 100 ? Math.round(treblePct) : null,
+        highScoringRate: totalVisits > 20 ? Math.round(highRate) : null,
+        first9: first9 > 0 ? first9 : null,
+        totalSessions,
+        totalDarts,
+      },
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to generate practice routine");
+    res.status(500).json({ error: "Failed to generate routine" });
+  }
+});
+
+// ─── GET /api/players/:id/shadow-rivalry ─────────────────────────────────────
+// W/L record against each shadow bot the player has faced
+router.get("/players/:id/shadow-rivalry", async (req, res): Promise<void> => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+
+    const result = await db.execute(sql`
+      SELECT
+        (ps.session_data->>'shadowPlayerId')::int                                        AS shadow_player_id,
+        p.name                                                                            AS shadow_player_name,
+        COUNT(*)::int                                                                     AS sessions_played,
+        SUM(CASE WHEN ps.winner_idx = 0 THEN 1 ELSE 0 END)::int                         AS wins,
+        SUM(CASE WHEN ps.winner_idx = 1 THEN 1 ELSE 0 END)::int                         AS losses,
+        ROUND(AVG(
+          CASE WHEN COALESCE(ps.p1_darts,0) > 0
+            THEN ps.p1_score::numeric * 3.0 / ps.p1_darts END
+        )::numeric, 1)::float                                                            AS avg_vs_bot,
+        MAX(ps.created_at)                                                               AS last_played
+      FROM practice_sessions ps
+      LEFT JOIN players p ON p.id = (ps.session_data->>'shadowPlayerId')::int
+      WHERE ps.player1_id = ${playerId}
+        AND ps.session_data ? 'shadowPlayerId'
+        AND (ps.session_data->>'shadowPlayerId') IS NOT NULL
+        AND (ps.session_data->>'shadowPlayerId')::text NOT IN ('0', 'null')
+      GROUP BY (ps.session_data->>'shadowPlayerId')::int, p.name
+      ORDER BY sessions_played DESC
+      LIMIT 10
+    `);
+
+    res.json(result.rows.map((r: any) => ({
+      shadowPlayerId: Number(r.shadow_player_id),
+      shadowPlayerName: r.shadow_player_name as string,
+      sessionsPlayed: Number(r.sessions_played),
+      wins: Number(r.wins),
+      losses: Number(r.losses),
+      avgVsBot: r.avg_vs_bot != null ? Number(r.avg_vs_bot) : null,
+      lastPlayed: r.last_played as string,
+    })));
+  } catch (err) {
+    req.log.error({ err }, "Failed to get shadow rivalry");
+    res.status(500).json({ error: "Failed to get rivalry" });
+  }
+});
+
+// ─── POST /api/shadow-bot/simulate ────────────────────────────────────────────
+// Simulate a best-of-7 legs 501 match between two shadow bots
+router.post("/shadow-bot/simulate", async (req, res): Promise<void> => {
+  try {
+    const { p1Id, p2Id } = req.body as { p1Id: number; p2Id: number };
+    if (!p1Id || !p2Id || p1Id === p2Id) {
+      res.status(400).json({ error: "Need two different player IDs" }); return;
+    }
+
+    const THRESHOLD = 250;
+    const getProfile = async (id: number) => {
+      const [row] = (await db.execute(sql`
+        WITH ranked AS (
+          SELECT p1_darts, p1_score, p1_checkout_hits, p1_checkout_attempts,
+                 ROW_NUMBER() OVER (ORDER BY created_at DESC) AS rn
+          FROM practice_sessions WHERE player1_id = ${id} AND p1_darts > 0
+        )
+        SELECT
+          pl.name,
+          COALESCE(SUM(r.p1_darts), 0)::int AS total_darts,
+          ROUND(
+            SUM(POWER(0.92, r.rn - 1) * r.p1_score) /
+            NULLIF(SUM(POWER(0.92, r.rn - 1) * r.p1_darts), 0) * 3
+          , 1)::float AS weighted_avg,
+          CASE WHEN SUM(r.p1_checkout_attempts) > 0
+            THEN ROUND(SUM(r.p1_checkout_hits)::numeric / SUM(r.p1_checkout_attempts) * 100, 1)
+            ELSE NULL END::float AS checkout_pct
+        FROM players pl
+        JOIN ranked r ON TRUE
+        WHERE pl.id = ${id}
+        GROUP BY pl.name
+      `)).rows;
+      return row ?? null;
+    };
+
+    const [p1, p2] = await Promise.all([getProfile(p1Id), getProfile(p2Id)]);
+    if (!p1 || !p2) { res.status(404).json({ error: "One or both players not found" }); return; }
+    if (Number(p1.total_darts) < THRESHOLD || Number(p2.total_darts) < THRESHOLD) {
+      res.status(400).json({ error: "One or both bots don't have enough data (250 darts required)" }); return;
+    }
+
+    const p1Avg = Number(p1.weighted_avg ?? 42);
+    const p2Avg = Number(p2.weighted_avg ?? 42);
+    const p1CoPct = Number(p1.checkout_pct ?? 20) / 100;
+    const p2CoPct = Number(p2.checkout_pct ?? 20) / 100;
+
+    function normalRand(mean: number, std: number) {
+      const u1 = Math.random() || 1e-10, u2 = Math.random() || 1e-10;
+      return mean + std * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    }
+
+    function simLeg(avg: number, coPct: number): { darts: number; won: boolean } {
+      let rem = 501, darts = 0;
+      for (let v = 0; v < 60; v++) {
+        const visit = Math.max(0, Math.round(normalRand(avg, avg * 0.38)));
+        if (rem - visit <= 1) {
+          darts += 3;
+          if (rem <= 170 && Math.random() < coPct * 0.85) { return { darts, won: true }; }
+          continue;
+        }
+        rem -= visit; darts += 3;
+        if (rem <= 170 && Math.random() < coPct) { return { darts, won: true }; }
+      }
+      return { darts, won: false };
+    }
+
+    const LEG_TARGET = 4;
+    let p1Legs = 0, p2Legs = 0;
+    let p1TotalDarts = 0, p2TotalDarts = 0;
+    const legLog: { leg: number; p1Won: boolean; p1Darts: number; p2Darts: number }[] = [];
+
+    for (let leg = 1; leg <= 7 && p1Legs < LEG_TARGET && p2Legs < LEG_TARGET; leg++) {
+      const l1 = simLeg(p1Avg, p1CoPct);
+      const l2 = simLeg(p2Avg, p2CoPct);
+      const p1WinsLeg = l1.darts <= l2.darts && l1.won;
+      if (p1WinsLeg || (!l2.won && l1.won)) p1Legs++;
+      else p2Legs++;
+      p1TotalDarts += l1.darts; p2TotalDarts += l2.darts;
+      legLog.push({ leg, p1Won: p1WinsLeg || (!l2.won && l1.won), p1Darts: l1.darts, p2Darts: l2.darts });
+    }
+
+    const totalLegs = p1Legs + p2Legs;
+    res.json({
+      p1: { id: p1Id, name: p1.name as string, avg: p1Avg, coPct: Math.round(p1CoPct * 100), legsWon: p1Legs, totalDarts: p1TotalDarts, avgDartsPerLeg: totalLegs > 0 ? Math.round(p1TotalDarts / totalLegs) : null },
+      p2: { id: p2Id, name: p2.name as string, avg: p2Avg, coPct: Math.round(p2CoPct * 100), legsWon: p2Legs, totalDarts: p2TotalDarts, avgDartsPerLeg: totalLegs > 0 ? Math.round(p2TotalDarts / totalLegs) : null },
+      winner: p1Legs > p2Legs ? p1.name as string : p2.name as string,
+      winnerId: p1Legs > p2Legs ? p1Id : p2Id,
+      score: `${p1Legs}-${p2Legs}`,
+      legs: legLog,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to simulate bot match");
+    res.status(500).json({ error: "Failed to simulate" });
+  }
+});
+
+// ─── GET /api/shadow-bot/league ───────────────────────────────────────────────
+// All shadow bots ranked by weighted avg (respects shadow_league_enabled setting)
+router.get("/shadow-bot/league", async (req, res): Promise<void> => {
+  try {
+    const [settingRow] = (await db.execute(sql`
+      SELECT value FROM settings WHERE key = 'shadow_league_enabled'
+    `)).rows;
+    const enabled = (settingRow as any)?.value === "true";
+
+    const result = await db.execute(sql`
+      WITH ranked AS (
+        SELECT player1_id, p1_darts, p1_score, p1_checkout_hits, p1_checkout_attempts, p1_180s,
+               ROW_NUMBER() OVER (PARTITION BY player1_id ORDER BY created_at DESC) AS rn
+        FROM practice_sessions
+        WHERE p1_darts IS NOT NULL AND p1_darts > 0 AND player1_id IS NOT NULL
+      ),
+      weighted AS (
+        SELECT
+          player1_id,
+          COUNT(*)::int AS sessions,
+          COALESCE(SUM(p1_darts), 0)::int AS total_darts,
+          COALESCE(SUM(p1_180s), 0)::int  AS total_180s,
+          COALESCE(SUM(p1_checkout_attempts), 0)::int AS co_att,
+          COALESCE(SUM(p1_checkout_hits), 0)::int     AS co_hits,
+          ROUND(
+            SUM(POWER(0.92, rn - 1) * p1_score) /
+            NULLIF(SUM(POWER(0.92, rn - 1) * p1_darts), 0) * 3
+          , 1)::float AS weighted_avg
+        FROM ranked
+        GROUP BY player1_id
+        HAVING COALESCE(SUM(p1_darts), 0) >= 250
+      )
+      SELECT
+        pl.id AS player_id, pl.name AS player_name,
+        w.sessions, w.total_darts, w.total_180s, w.co_att, w.co_hits,
+        w.weighted_avg,
+        CASE WHEN w.co_att > 0 THEN ROUND(w.co_hits::numeric / w.co_att * 100, 1) ELSE NULL END::float AS checkout_pct,
+        CASE
+          WHEN w.weighted_avg >= 108 THEN 'elite'
+          WHEN w.weighted_avg >= 95  THEN 'pro'
+          WHEN w.weighted_avg >= 80  THEN 'county'
+          WHEN w.weighted_avg >= 62  THEN 'club'
+          WHEN w.weighted_avg >= 45  THEN 'amateur'
+          ELSE 'beginner'
+        END AS level
+      FROM players pl
+      JOIN weighted w ON w.player1_id = pl.id
+      ORDER BY w.weighted_avg DESC NULLS LAST
+    `);
+
+    res.json({ enabled, rows: result.rows });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get shadow league");
+    res.status(500).json({ error: "Failed to get league" });
+  }
+});
+
+// ─── GET /api/players/:id/session-source-summary ─────────────────────────────
+// Count sessions by source (practice / tour / master501) for profile tabs
+router.get("/players/:id/session-source-summary", async (req, res): Promise<void> => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+
+    const result = await db.execute(sql`
+      SELECT
+        COALESCE(session_data->>'mode', 'practice')  AS source,
+        COUNT(*)::int                                 AS sessions,
+        COALESCE(SUM(p1_darts), 0)::int              AS total_darts,
+        CASE WHEN SUM(p1_darts) > 0
+          THEN ROUND(SUM(p1_score)::numeric * 3.0 / SUM(p1_darts), 1) ELSE NULL END::float AS avg,
+        COALESCE(SUM(p1_180s), 0)::int               AS s180s
+      FROM practice_sessions
+      WHERE player1_id = ${playerId}
+      GROUP BY COALESCE(session_data->>'mode', 'practice')
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get source summary");
+    res.status(500).json({ error: "Failed" });
+  }
+});
+
 export default router;
+

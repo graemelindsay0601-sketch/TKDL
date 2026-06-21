@@ -1531,17 +1531,31 @@ export default function PlayerDetail() {
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
         style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}
         onClick={() => setSelectedSession(null)}>
-        <div className="w-full max-w-md rounded-xl border overflow-hidden"
+        <div className="w-full max-w-2xl rounded-xl border overflow-hidden"
           style={{ background: "#0d0a1a", borderColor: "rgba(255,255,255,0.08)" }}
           onClick={e => e.stopPropagation()}>
 
           <div className="px-5 py-4 border-b flex items-center justify-between"
             style={{ borderColor: "rgba(255,255,255,0.06)" }}>
             <div>
-              <div className="text-xs font-bold uppercase tracking-widest"
-                style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.3)", fontSize: "0.5rem" }}>
-                Practice Session
-              </div>
+              {/* Source badge */}
+              {(() => {
+                const mode = (selectedSession as any)?.session_data?.mode ?? null;
+                const cfg: Record<string, { label: string; color: string }> = {
+                  tour:       { label: "Tour Mode",    color: "#ffd24a" },
+                  master501:  { label: "Master-501",   color: "#ff005c" },
+                  bot:        { label: "vs Shadow Bot", color: "#00d4ff" },
+                  "2p":       { label: "Head to Head", color: "#a78bfa" },
+                  solo:       { label: "Solo Practice", color: "#22c55e" },
+                };
+                const c = cfg[mode] ?? { label: "Practice Session", color: "rgba(255,255,255,0.3)" };
+                return (
+                  <div className="text-xs font-bold uppercase tracking-widest mb-0.5"
+                    style={{ fontFamily: "Oswald, sans-serif", color: c.color, fontSize: "0.5rem", letterSpacing: "0.14em" }}>
+                    {c.label}
+                  </div>
+                );
+              })()}
               <div className="text-base font-black uppercase mt-0.5"
                 style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.05em" }}>
                 {sessionDetailLoading ? "Loading…" : (selectedSession.game_type_name ?? "—")}

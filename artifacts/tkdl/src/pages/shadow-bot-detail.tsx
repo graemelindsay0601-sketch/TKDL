@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link, useParams } from "wouter";
-import { ArrowLeft, CircuitBoard, Lock, Dumbbell, Target, Zap, Trophy, ChevronRight, Ghost, TrendingUp } from "lucide-react";
+import { ArrowLeft, CircuitBoard, Lock, Dumbbell, Target, Zap, Trophy, ChevronRight, Ghost, TrendingUp, TrendingDown, Minus, Brain } from "lucide-react";
 
 type GameModeRow = { gameTypeKey: string; gameTypeName: string; sessions: number; darts: number };
+
+type TimelinePoint = { weekLabel: string; avg: number | null; darts: number };
+type RivalryRow = { playerId: number; playerName: string; wins: number; losses: number; lastPlayed: string };
 
 type ShadowBotStats = {
   playerName: string;
@@ -89,10 +92,12 @@ export default function ShadowBotDetail() {
   const params = useParams<{ playerId: string }>();
   const playerId = Number(params.playerId);
 
-  const [stats, setStats]     = useState<ShadowBotStats | null>(null);
-  const [matches, setMatches] = useState<MatchRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(false);
+  const [stats, setStats]         = useState<ShadowBotStats | null>(null);
+  const [matches, setMatches]     = useState<MatchRow[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState(false);
+  const [timeline, setTimeline]   = useState<TimelinePoint[]>([]);
+  const [rivalry, setRivalry]     = useState<RivalryRow[]>([]);
 
   useEffect(() => {
     if (!playerId) return;
@@ -101,10 +106,14 @@ export default function ShadowBotDetail() {
     Promise.all([
       fetch(`/api/players/${playerId}/shadow-bot-stats`).then(r => r.json()),
       fetch(`/api/shadow-bot/${playerId}/matches`).then(r => r.json()),
+      fetch(`/api/players/${playerId}/bot-improvement-timeline`).then(r => r.ok ? r.json() : { timeline: [] }),
+      fetch(`/api/players/${playerId}/shadow-rivalry`).then(r => r.ok ? r.json() : []),
     ])
-      .then(([s, m]) => {
+      .then(([s, m, tl, rv]) => {
         setStats(s as ShadowBotStats);
         setMatches(Array.isArray(m) ? m as MatchRow[] : []);
+        setTimeline(Array.isArray(tl?.timeline) ? tl.timeline : []);
+        setRivalry(Array.isArray(rv) ? rv as RivalryRow[] : []);
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
@@ -463,6 +472,109 @@ export default function ShadowBotDetail() {
                       <div className="w-20 text-right text-xs font-mono shrink-0"
                         style={{ color: isThin ? "#ffd24a" : "rgba(255,255,255,0.35)" }}>
                         {g.sessions} session{g.sessions !== 1 ? "s" : ""}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ══ IMPROVEMENT TIMELINE ══ */}
+          {timeline.filter(p => p.avg != null).length >= 2 && (
+            <div className="section-card">
+              <h2 className="font-black uppercase text-sm mb-4 flex items-center gap-2"
+                style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
+                <TrendingUp className="w-3.5 h-3.5" style={{ color: "#a78bfa" }} />
+                Form Trend
+                <span className="ml-auto text-xs font-normal normal-case" style={{ color: "rgba(255,255,255,0.25)", letterSpacing: "normal" }}>
+                  Last {timeline.length} weeks
+                </span>
+              </h2>
+              {(() => {
+                const points = timeline.filter(p => p.avg != null);
+                const maxAvg = Math.max(...points.map(p => p.avg!));
+                const minAvg = Math.min(...points.map(p => p.avg!));
+                const range  = Math.max(maxAvg - minAvg, 5);
+                const first  = points[0]?.avg ?? 0;
+                const last   = points[points.length - 1]?.avg ?? 0;
+                const delta  = last - first;
+                const TrendIcon = delta > 2 ? TrendingUp : delta < -2 ? TrendingDown : Minus;
+                const trendColor = delta > 2 ? "#22c55e" : delta < -2 ? "#ff005c" : "rgba(255,255,255,0.35)";
+                return (
+                  <>
+                    <div className="flex items-end gap-1.5 h-20 mb-3">
+                      {timeline.map((p, i) => {
+                        const pct = p.avg != null ? ((p.avg - minAvg + 2) / (range + 4)) * 100 : 8;
+                        const isLast = i === timeline.length - 1;
+                        const color = p.avg == null ? "rgba(255,255,255,0.06)"
+                          : isLast ? lvlColor : `${lvlColor}70`;
+                        return (
+                          <div key={i} className="flex-1 flex flex-col items-center gap-0.5 min-w-0">
+                            <div className="w-full rounded-t-sm transition-all duration-500"
+                              style={{ height: `${Math.max(pct, 8)}%`, background: color }} />
+                            {i % 2 === 0 && (
+                              <span className="text-center leading-none" style={{ fontSize: "0.42rem", color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif" }}>
+                                {p.weekLabel.replace("Wk ", "")}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <TrendIcon className="w-3.5 h-3.5" style={{ color: trendColor }} />
+                        <span className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: trendColor, letterSpacing: "0.08em", fontSize: "0.62rem" }}>
+                          {delta > 2 ? `+${delta.toFixed(1)} improving` : delta < -2 ? `${delta.toFixed(1)} declining` : "holding form"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+                        <span>Low <span className="font-bold" style={{ color: "rgba(255,255,255,0.55)" }}>{minAvg.toFixed(1)}</span></span>
+                        <span>Peak <span className="font-bold" style={{ color: lvlColor }}>{maxAvg.toFixed(1)}</span></span>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* ══ RIVALRY TRACKER ══ */}
+          {rivalry.length > 0 && (
+            <div className="section-card">
+              <h2 className="font-black uppercase text-sm mb-4 flex items-center gap-2"
+                style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
+                <Ghost className="w-3.5 h-3.5" style={{ color: "#ff005c" }} />
+                Who Beats This Bot
+                <Link href="/coach" className="ml-auto flex items-center gap-1 text-xs font-normal normal-case"
+                  style={{ color: "rgba(167,139,250,0.6)", letterSpacing: "normal" }}>
+                  <Brain className="w-3 h-3" />Coach Drills
+                </Link>
+              </h2>
+              <div className="space-y-2">
+                {rivalry.map(r => {
+                  const total = r.wins + r.losses;
+                  const winPct = total > 0 ? Math.round((r.wins / total) * 100) : 0;
+                  const isPositive = r.wins >= r.losses;
+                  return (
+                    <div key={r.playerId} className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+                      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                      <Link href={`/players/${r.playerId}`}
+                        className="flex-1 min-w-0 font-black text-sm truncate"
+                        style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.8)" }}>
+                        {r.playerName}
+                      </Link>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs font-bold" style={{ color: isPositive ? "#22c55e" : "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+                          {r.wins}W–{r.losses}L
+                        </span>
+                        <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                          <div className="h-full rounded-full" style={{ width: `${winPct}%`, background: isPositive ? "#22c55e" : "#ff005c" }} />
+                        </div>
+                        <span className="text-xs w-8 text-right" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+                          {winPct}%
+                        </span>
                       </div>
                     </div>
                   );
