@@ -44,29 +44,37 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
     const fetchAnalytics = async () => {
       setLoading(true);
       try {
-        // Fetch real league data from the leaderboard API
-        const leaderRes = await fetch("/api/leaderboard");
+        // Fetch real league data from the leaderboard API (correct endpoint path)
+        const leaderRes = await fetch("/leaderboard");
         const leaderboard = await leaderRes.json();
         
         if (leaderboard && Array.isArray(leaderboard) && leaderboard.length > 0) {
           const players = leaderboard.slice(0, 10); // Top 10 players
           
-          const totalMatches = leaderboard.reduce((sum: number, p: any) => sum + (p.matchCount || 0), 0);
+          // Calculate total matches across league (gamesPlayed, not matchCount)
+          const totalMatches = leaderboard.reduce((sum: number, p: any) => sum + (p.gamesPlayed || 0), 0);
           const topPlayer = leaderboard[0];
-          const activePlayers = leaderboard.filter((p: any) => p.matchCount > 0).length;
+          // Count players who have played at least 1 game
+          const activePlayers = leaderboard.filter((p: any) => (p.gamesPlayed || 0) > 0).length;
+          // Calculate average win rate from active players
+          const avgWinRate = activePlayers > 0 
+            ? leaderboard
+                .filter((p: any) => (p.gamesPlayed || 0) > 0)
+                .reduce((sum: number, p: any) => sum + (p.winRate || 0), 0) / activePlayers
+            : 0;
           
           // Create metrics from real data
           const realMetrics: LeagueMetrics = {
             totalMatches,
             totalPlayers: leaderboard.length,
-            averageWinRate: 0.5,
+            averageWinRate: avgWinRate,
             topPlayer: {
-              playerId: topPlayer.id,
-              playerName: topPlayer.name,
-              matches: topPlayer.matchCount || 0,
+              playerId: topPlayer.playerId,
+              playerName: topPlayer.playerName,
+              matches: topPlayer.gamesPlayed || 0,
               wins: topPlayer.wins || 0,
               losses: topPlayer.losses || 0,
-              winRate: topPlayer.matchCount ? (topPlayer.wins || 0) / topPlayer.matchCount : 0,
+              winRate: topPlayer.winRate || 0,
               eloRating: topPlayer.elo || 0,
               eloChange: 0,
               checkoutRate: 0,
@@ -77,13 +85,14 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
             activePlayers,
           };
           
-          const realPlayers: PlayerStats[] = leaderboard.slice(0, 15).map((p: any, idx: number) => ({
-            playerId: p.id,
-            playerName: p.name,
-            matches: p.matchCount || 0,
+          // Map leaderboard data to PlayerStats format
+          const realPlayers: PlayerStats[] = leaderboard.slice(0, 15).map((p: any) => ({
+            playerId: p.playerId,
+            playerName: p.playerName,
+            matches: p.gamesPlayed || 0,
             wins: p.wins || 0,
             losses: p.losses || 0,
-            winRate: p.matchCount ? (p.wins || 0) / p.matchCount : 0,
+            winRate: p.winRate || 0,
             eloRating: p.elo || 0,
             eloChange: 0,
             checkoutRate: 0,
