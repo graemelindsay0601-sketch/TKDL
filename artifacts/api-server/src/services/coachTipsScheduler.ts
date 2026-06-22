@@ -22,66 +22,93 @@ interface CoachTip {
  */
 async function generateCoachTips(playerId: number): Promise<CoachTip | null> {
   try {
-    // Get player's stats for the past 7 days
+    // Get player's stats for the past 7 days (both wins and losses)
     const stats = await db.execute(sql`
       SELECT 
-        AVG(average) as avg_average,
-        AVG(checkout_percentage) as avg_checkout,
-        AVG(treble_percentage) as avg_treble,
-        COUNT(*) as matches_played,
-        MAX(average) as best_average,
-        MIN(average) as worst_average
+        -- When player is winner
+        COUNT(CASE WHEN winner_id = ${playerId} THEN 1 END) as wins,
+        COUNT(CASE WHEN loser_id = ${playerId} THEN 1 END) as losses,
+        
+        -- Checkout stats (when winner)
+        AVG(CASE WHEN winner_id = ${playerId} AND winner_checkout_attempts > 0 
+            THEN (winner_checkout_hits::float / winner_checkout_attempts * 100) END) as avg_checkout_pct,
+        
+        -- Darts per turn (when winner - lower is better)
+        AVG(CASE WHEN winner_id = ${playerId} AND winner_darts > 0 
+            THEN (winner_darts::float / 3) END) as avg_darts_per_turn,
+        
+        -- 180s per match (when winner)
+        AVG(CASE WHEN winner_id = ${playerId} 
+            THEN winner_180s END) as avg_180s
       FROM matches
-      WHERE player_id = ${playerId}
-      AND created_at > NOW() - INTERVAL '7 days'
+      WHERE (winner_id = ${playerId} OR loser_id = ${playerId})
+      AND played_at > NOW() - INTERVAL '7 days'
     `);
 
     const row = (stats.rows[0] as any);
     
-    if (!row || row.matches_played === 0) {
+    if (!row) {
       return null; // No matches this week
     }
 
-    const avgAverage = parseFloat(row.avg_average || 0);
-    const avgCheckout = parseFloat(row.avg_checkout || 0);
-    const avgTreble = parseFloat(row.avg_treble || 0);
+    const wins = parseInt(row.wins || 0);
+    const losses = parseInt(row.losses || 0);
+    const totalMatches = wins + losses;
+
+    if (totalMatches === 0) {
+      return null; // No matches this week
+    }
+
+    const checkoutPct = parseFloat(row.avg_checkout_pct || 0);
+    const dartsPerTurn = parseFloat(row.avg_darts_per_turn || 0);
+    const avg180s = parseFloat(row.avg_180s || 0);
+    const winRate = (wins / totalMatches * 100);
 
     // Generate contextual tips
     const tips: string[] = [];
     const recommendations: string[] = [];
 
     // Checkout tips
-    if (avgCheckout < 20) {
-      tips.push("🎯 Your checkout percentage this week was " + avgCheckout.toFixed(1) + "%");
-      recommendations.push("Focus on finishing - practice your double outs consistently");
-    } else if (avgCheckout < 30) {
-      tips.push("💪 Checkout at " + avgCheckout.toFixed(1) + "% - getting better!");
-      recommendations.push("You're improving - keep building consistency on your doubles");
+    if (checkoutPct < 20 && checkoutPct > 0) {
+      tips.push("🎯 Checkout success at " + checkoutPct.toFixed(1) + "%");
+      recommendations.push("Focus on finishing - practice your double outs");
+    } else if (checkoutPct > 0 && checkoutPct < 30) {
+      tips.push("💪 Checkout at " + checkoutPct.toFixed(1) + "% - good progress!");
+      recommendations.push("Keep improving your doubles consistency");
+    } else if (checkoutPct > 40) {
+      tips.push("⭐ Excellent checkout technique at " + checkoutPct.toFixed(1) + "%!");
+      recommendations.push("Your finishing is sharp - maintain this form");
     }
 
-    // Treble tips
-    if (avgTreble < 22) {
-      tips.push("📊 Treble accuracy at " + avgTreble.toFixed(1) + "%");
-      recommendations.push("Build treble zone accuracy with focused practice");
+    // Scoring efficiency (darts per turn)
+    if (dartsPerTurn > 0) {
+      if (dartsPerTurn > 2.8) {
+        recommendations.push("Try to be more aggressive early in your round - aim for trebles");
+      } else if (dartsPerTurn < 2.3) {
+        recommendations.push("Excellent scoring efficiency - you're hitting high-value areas");
+      }
     }
 
-    // Scoring tips
-    if (avgAverage < 30) {
-      recommendations.push("Work on scoring patterns - aim for higher-value areas early in your round");
-    } else if (avgAverage > 50) {
-      recommendations.push("Excellent scoring this week! Maintain your rhythm and focus");
+    // 180s frequency
+    if (avg180s > 0) {
+      tips.push("🎯 Average " + avg180s.toFixed(1) + " maximum scores per match");
+      if (avg180s < 0.5) {
+        recommendations.push("Try to consistently hit the treble 20 area");
+      }
     }
 
-    // Consistency tips
-    const consistency = row.best_average - row.worst_average;
-    if (consistency > 30) {
-      recommendations.push("Your form has been variable - find what works and repeat it");
+    // Win rate
+    tips.push(`📊 Win rate: ${winRate.toFixed(0)}% (${wins}W-${losses}L this week)`);
+    if (winRate < 40) {
+      recommendations.push("Review your recent losses - identify patterns in what's not working");
+    } else if (winRate > 70) {
+      recommendations.push("Great form this week! Keep this momentum going");
     }
 
     // Build the message
     const title = "🎯 Your Weekly Coach Tip";
     const body = 
-      (tips.length > 0 ? tips[0] : "Great effort this week!") + "\n\n" +
+      (tips.length > 0 ? tips.slice(0, 2).join("\n") : "Great effort this week!") + "\n\n" +
       recommendations[0];
 
     return {
