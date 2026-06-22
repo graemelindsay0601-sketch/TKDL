@@ -9,7 +9,7 @@ import {
   MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera,
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
-import { OverallStats, ByGameType, Trends, DartAnalysis, SessionHistory } from "@/components/stats";
+import { OverallStats, ByGameType, Trends, DartAnalysis, SessionHistory, CategoryStats } from "@/components/stats";
 
 const TIER_COLORS: Record<string, string> = {
   Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
@@ -288,7 +288,6 @@ export default function AccountPage() {
 
   // ── Tab + Community state ────────────────────────────────────────────
   const [activeTab,        setActiveTab]       = useState<"overview" | "activity" | "achievements" | "coach" | "social" | "stats">("overview");
-  const [selectedStatTab,  setSelectedStatTab] = useState<"overall" | "gametype" | "trends" | "darts" | "sessions">("overall");
   const [socialTab,        setSocialTab]       = useState<"dms" | "notifications" | "photos">("dms");
   const [achSource,        setAchSource]       = useState<"league" | "bot" | "tour" | "m501">("league");
   const [coachDrills,      setCoachDrills]     = useState<any[]>([]);
@@ -2017,33 +2016,8 @@ export default function AccountPage() {
 
       {/* ── Stats Tab ─────────────────────────────────────────────── */}
       {activeTab === "stats" && user?.playerId && (
-        <div className="space-y-4">
-          {/* Sub-tab bar */}
-          <div className="flex gap-1 p-1 rounded-xl overflow-x-auto" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            {([
-              { id: "overall"  as const, label: "Overall"  },
-              { id: "gametype" as const, label: "By Game"  },
-              { id: "trends"   as const, label: "Trends"   },
-              { id: "darts"    as const, label: "Darts"    },
-              { id: "sessions" as const, label: "Sessions" },
-            ]).map(t => (
-              <button key={t.id} onClick={() => setSelectedStatTab(t.id)}
-                className="flex-1 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap px-2"
-                style={{
-                  background: selectedStatTab === t.id ? "rgba(255,0,92,0.18)" : "transparent",
-                  border:     selectedStatTab === t.id ? "1px solid rgba(255,0,92,0.35)" : "1px solid transparent",
-                  color:      selectedStatTab === t.id ? "#ff005c" : "rgba(255,255,255,0.35)",
-                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em",
-                }}>
-                {t.label.toUpperCase()}
-              </button>
-            ))}
-          </div>
-          {selectedStatTab === "overall"  && <OverallStats  playerId={user.playerId} />}
-          {selectedStatTab === "gametype" && <ByGameType    playerId={user.playerId} />}
-          {selectedStatTab === "trends"   && <Trends        playerId={user.playerId} />}
-          {selectedStatTab === "darts"    && <DartAnalysis  playerId={user.playerId} />}
-          {selectedStatTab === "sessions" && <SessionHistory playerId={user.playerId} />}
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <CategoryStats playerId={parseInt(user.playerId)} />
         </div>
       )}
 
