@@ -1403,12 +1403,12 @@ export default function AccountPage() {
               <div className="flex items-center gap-2">
                 <Brain className="w-3.5 h-3.5" style={{ color: "#00c8a0" }} />
                 <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.18em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase" }}>
-                  Personalised Drill Plan
+                  Your Personalised Improvement Plan
                 </span>
               </div>
               <span className="px-2 py-0.5 rounded-full"
                 style={{ background: "rgba(0,200,160,0.1)", color: "#00c8a0", border: "1px solid rgba(0,200,160,0.25)", fontSize: "0.55rem", fontFamily: "Oswald, sans-serif", fontWeight: 700 }}>
-                Based on your sessions
+                Based on your actual game
               </span>
             </div>
 
@@ -1461,69 +1461,71 @@ export default function AccountPage() {
                   </div>
                 )}
                 {coachDrills.map((drill: any, i: number) => {
-                  const isOpen = openDrills[drill.name] ?? false;
-                  const DIFF_COLOR: Record<string, string> = { easy: "#22c55e", medium: "#ffd24a", hard: "#ff005c" };
-                  const diffColor = DIFF_COLOR[drill.difficulty?.toLowerCase()] ?? "#9ca3af";
+                  const isOpen = openDrills[drill.id] ?? false;
+                  const DIFF_COLOR: Record<string, string> = { easy: "#22c55e", medium: "#ffd24a", hard: "#ff005c", critical: "#ff005c" };
+                  const diffColor = DIFF_COLOR[drill.priority?.toLowerCase()] ?? "#9ca3af";
+                  const priorityLabel: Record<string, string> = { critical: "🔴 Critical", high: "🟠 High", normal: "🟢 Normal", advanced: "⭐ Advanced" };
+                  
                   return (
                     <div key={i} className="rounded-xl overflow-hidden"
                       style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}>
                       <button className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left"
-                        onClick={() => setOpenDrills(prev => ({ ...prev, [drill.name]: !prev[drill.name] }))}>
+                        onClick={() => setOpenDrills(prev => ({ ...prev, [drill.id]: !prev[drill.id] }))}>
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-1.5 h-6 rounded-full shrink-0" style={{ background: diffColor }} />
                           <div className="min-w-0">
                             <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.75rem", fontWeight: 800,
-                              color: "rgba(255,255,255,0.9)", letterSpacing: "0.04em", lineHeight: 1.2 }}>{drill.name}</div>
-                            {drill.focus && (
-                              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.3)",
-                                letterSpacing: "0.08em", textTransform: "uppercase", marginTop: "2px" }}>{drill.focus}</div>
-                            )}
+                              color: "rgba(255,255,255,0.9)", letterSpacing: "0.04em", lineHeight: 1.2 }}>
+                              {drill.title || drill.name}
+                            </div>
+                            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.3)",
+                              letterSpacing: "0.08em", textTransform: "uppercase", marginTop: "2px" }}>
+                              {priorityLabel[drill.priority] || drill.priority} • {drill.focus}
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {drill.difficulty && (
-                            <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.1em",
-                              fontWeight: 800, textTransform: "uppercase",
-                              background: `${diffColor}18`, color: diffColor, border: `1px solid ${diffColor}30`,
-                              borderRadius: 4, padding: "2px 6px" }}>
-                              {drill.difficulty}
-                            </span>
-                          )}
-                          <ChevronDown className="w-3.5 h-3.5 shrink-0 transition-transform duration-200"
-                            style={{ color: "rgba(255,255,255,0.25)", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }} />
-                        </div>
+                        <ChevronDown className="w-3.5 h-3.5 shrink-0 transition-transform duration-200"
+                          style={{ color: "rgba(255,255,255,0.25)", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }} />
                       </button>
                       {isOpen && (
                         <div className="px-4 pb-4 space-y-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                           {drill.description && (
-                            <p className="pt-3" style={{ color: "rgba(255,255,255,0.5)", lineHeight: 1.6, fontSize: "0.7rem" }}>{drill.description}</p>
+                            <p style={{ fontSize: "0.62rem", color: "rgba(255,255,255,0.6)", lineHeight: 1.5, margin: "12px 0 0 0" }}>
+                              {drill.description}
+                            </p>
                           )}
-                          <div className="flex flex-wrap gap-2">
-                            {drill.sets !== undefined && (
-                              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", fontWeight: 700,
-                                background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.1)",
-                                borderRadius: 6, padding: "3px 8px" }}>{drill.sets} sets</span>
-                            )}
-                            {drill.legsPerSet !== undefined && (
-                              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", fontWeight: 700,
-                                background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.1)",
-                                borderRadius: 6, padding: "3px 8px" }}>{drill.legsPerSet} legs / set</span>
-                            )}
-                            {drill.warmup && (
-                              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", fontWeight: 700,
-                                background: "rgba(0,200,160,0.1)", color: "#00c8a0", border: "1px solid rgba(0,200,160,0.25)",
-                                borderRadius: 6, padding: "3px 8px" }}>Warm-up drill</span>
-                            )}
-                          </div>
-                          {drill.notes && (
-                            <p style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.28)", lineHeight: 1.5, fontStyle: "italic" }}>{drill.notes}</p>
+                          {drill.drill && (
+                            <div>
+                              <div style={{ fontSize: "0.5rem", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px" }}>
+                                The Drill
+                              </div>
+                              <p style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.5)", lineHeight: 1.6, margin: 0 }}>
+                                {drill.drill}
+                              </p>
+                            </div>
                           )}
-                          <Link href={`/practice?drill=${encodeURIComponent(drill.name)}`}
+                          {drill.target && (
+                            <div>
+                              <div style={{ fontSize: "0.5rem", fontWeight: 700, color: "#00c8a0", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px" }}>
+                                Your Target for This Session
+                              </div>
+                              <p style={{ fontSize: "0.6rem", color: "#00c8a0", lineHeight: 1.6, margin: 0 }}>
+                                {drill.target}
+                              </p>
+                            </div>
+                          )}
+                          {drill.duration && (
+                            <div style={{ fontSize: "0.55rem", color: "rgba(255,255,255,0.3)", display: "flex", alignItems: "center", gap: "4px" }}>
+                              <Clock className="w-3 h-3" />
+                              {drill.duration}
+                            </div>
+                          )}
+                          <Link href={`/practice?drill=${encodeURIComponent(drill.title || drill.name)}`}
                             className="inline-flex items-center gap-2 mt-3 px-3 py-2 rounded-lg transition-opacity hover:opacity-75"
                             style={{ background: "rgba(0,200,160,0.1)", border: "1px solid rgba(0,200,160,0.25)",
                               color: "#00c8a0", fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", letterSpacing: "0.08em", fontWeight: 700 }}>
                             <Dumbbell className="w-3 h-3" />
-                            Start Practice Session
+                            Start This Drill
                           </Link>
                         </div>
                       )}
