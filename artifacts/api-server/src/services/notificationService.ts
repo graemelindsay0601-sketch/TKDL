@@ -5,7 +5,7 @@
 
 import { db } from "@workspace/db";
 import { sql, eq, and } from "drizzle-orm";
-import { logger } from "./logger";
+import { logger } from "../lib/logger";
 import { checkBatchingRules, queueNotificationForBatching } from "./batchingService";
 
 export interface NotificationPayload {
