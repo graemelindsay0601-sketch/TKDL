@@ -142,6 +142,13 @@ const CACHE_STRATEGIES = {
   '/api/players/:id/drills/milestones': 600,
   '/api/players/:id/drills/adaptive': 600,
   
+  // Community - cache posts for 30 seconds (frequently updated)
+  '/api/community/posts': 30,
+  '/api/community/posts/pending': 15,  // Admin posts update frequently
+  
+  // Settings - cache for 2 minutes (doesn't change often)
+  '/api/settings': 120,
+  
   // Default for any GET endpoint not listed above
   default: 60,
 };
