@@ -9,6 +9,7 @@ import {
   FormStrip, EloSparkline, AchievementCard,
   BigStat, SmallStat, TIER_GLOW, CollapsibleSection, ScorecardView,
 } from "./helpers";
+import { CategoryStats } from "@/components/stats";
 
 export default function PlayerDetail() {
   const params = useParams<{ id: string }>();
@@ -25,7 +26,7 @@ export default function PlayerDetail() {
   const [showAllAch, setShowAllAch] = useState(false);
   const [openAchievements, setOpenAchievements] = useState(true);
 
-  const [profileTab, setProfileTab] = useState<"matches" | "h2h" | "practice" | "shadowbot">("matches");
+  const [profileTab, setProfileTab] = useState<"matches" | "h2h" | "practice" | "shadowbot" | "stats">("matches");
   const [expandedH2H, setExpandedH2H] = useState<number | null>(null);
   const [openSeasonHistory, setOpenSeasonHistory] = useState(true);
   const [openPractice, setOpenPractice] = useState(true);
@@ -456,6 +457,7 @@ export default function PlayerDetail() {
           { key: "h2h",      label: "H2H",      Icon: Trophy,      activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"     },
           { key: "practice", label: "Practice", Icon: Dumbbell,    activeColor: "#a78bfa", activeBg: "rgba(167,139,250,0.12)"  },
           { key: "shadowbot",label: "Bot",      Icon: CircuitBoard,activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"     },
+          { key: "stats",    label: "Stats",    Icon: Flame,       activeColor: "#ffd24a", activeBg: "rgba(255,210,74,0.12)"   },
         ] as const).map(({ key, label, Icon, activeColor, activeBg }) => (
           <button key={key} onClick={() => setProfileTab(key)}
             className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-black uppercase tracking-widest transition-all"
@@ -1210,6 +1212,21 @@ export default function PlayerDetail() {
               })}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Stats Tab */}
+      <div className={`pdc-card overflow-hidden ${profileTab !== "stats" ? "hidden lg:block" : ""}`} style={{ gridColumn: "1 / -1" }}>
+        <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex items-center gap-2">
+            <Flame className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />
+            <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+              Performance Stats
+            </h2>
+          </div>
+        </div>
+        <div className="p-4">
+          <CategoryStats playerId={playerId} />
         </div>
       </div>
 
