@@ -625,6 +625,40 @@ export default function AccountPage() {
     return { strengths, focuses };
   }, [player, games, winRate, eloTrend, eloHistory, practiceStats, shadowStats, m501, tourTrophies, nearMissAchievements, tier]);
 
+  // ── Sample preview data (shown when no real sessions exist yet) ──────────
+  const SAMPLE_DRILLS = [
+    {
+      name: "Warm-Up Routine",       focus: "Rhythm & Confidence", difficulty: "easy",   warmup: true,
+      description: "3 visits at T20, 3 visits at D16. No pressure — just feel the rhythm. The goal is loosening up your throw mechanics before anything competitive.",
+      notes: "Don't track score here. Pure feel.",
+    },
+    {
+      name: "Double Out Mastery",    focus: "Checkout",            difficulty: "medium", warmup: false,
+      description: "Start at 5 different scores (170, 121, 100, 81, 62). Throw until you checkout or bust. Note which routes feel natural.",
+      notes: "Track your top missed double and add 10 extra attempts on that bed each session.",
+    },
+    {
+      name: "T20 Calibration",       focus: "Scoring",             difficulty: "medium", warmup: false,
+      description: "40 darts at T20 only. Track: treble / single-20 / other. Don't adjust your aim — note your natural pattern.",
+      sets: undefined, notes: "Averaging ~54 per visit? Getting consistent to 60+ moves you into Gold-tier territory.",
+    },
+    {
+      name: "Pressure 501",          focus: "Match Simulation",    difficulty: "hard",   warmup: false,
+      description: "Throw exactly 9 darts (3 visits) from 501, record the total. Repeat 8 times. No finishing — scoring phase only. Builds your opening-leg average under a fixed commitment.",
+      sets: 8, notes: "Aim for 270+ total across 9 darts (90/visit avg). Don't overthink the checkout.",
+    },
+    {
+      name: "Game Type Discovery",   focus: "All-Round Development", difficulty: "easy", warmup: false,
+      description: "Play 3 sessions of Cricket in Practice Mode this week. It feeds your shadow bot's DNA and builds all-round skills across different scoring mechanics.",
+      sets: 3, notes: "Playing multiple game types increases your shadow bot's adaptability rating.",
+    },
+  ];
+  const SAMPLE_STATS  = { avg: 54, checkoutPct: 31, treblePct: 18 };
+  const SAMPLE_INSIGHTS = {
+    strengths: ["62% win rate this season 🎯", "Elo up 48 across your last 6 matches", "Master 501 Bronze tier reached"],
+    focuses:   ["No practice sessions logged yet — solo time sharpens your game", "Close to \"Perfect Leg\" — need 1 more 180", "8-dart legs creeping in — work the double-out routes"],
+  };
+
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center py-32 gap-5">
@@ -944,10 +978,24 @@ export default function AccountPage() {
       )}
 
       {/* ── Coach's Corner ────────────────────────────────────── */}
-      {(insights.strengths.length > 0 || insights.focuses.length > 0) && (
+      {(() => {
+        const display = (insights.strengths.length > 0 || insights.focuses.length > 0)
+          ? insights : SAMPLE_INSIGHTS;
+        const isSample = display === SAMPLE_INSIGHTS;
+        return (
         <SectionCard title="Coach's Corner" icon={Zap} accent="#ffd24a">
+          {isSample && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl mb-3"
+              style={{ background: "rgba(255,210,74,0.06)", border: "1px solid rgba(255,210,74,0.14)" }}>
+              <span style={{ fontSize: "0.8rem" }}>👁</span>
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.1em",
+                color: "rgba(255,210,74,0.6)", textTransform: "uppercase" }}>
+                Preview — updates automatically as you play
+              </span>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
-            {insights.strengths.length > 0 && (
+            {display.strengths.length > 0 && (
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
                   <TrendingUp className="w-3 h-3" style={{ color: "#00e5a0" }} />
@@ -956,7 +1004,7 @@ export default function AccountPage() {
                   </span>
                 </div>
                 <div className="space-y-1.5">
-                  {insights.strengths.map((s, i) => (
+                  {display.strengths.map((s, i) => (
                     <div key={i} className="flex items-start gap-1.5">
                       <CheckCircle className="w-3 h-3 shrink-0 mt-0.5" style={{ color: "#00e5a0" }} />
                       <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.65)", lineHeight: 1.4 }}>{s}</span>
@@ -965,7 +1013,7 @@ export default function AccountPage() {
                 </div>
               </div>
             )}
-            {insights.focuses.length > 0 && (
+            {display.focuses.length > 0 && (
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
                   <TrendingDown className="w-3 h-3" style={{ color: "#f59e0b" }} />
@@ -974,7 +1022,7 @@ export default function AccountPage() {
                   </span>
                 </div>
                 <div className="space-y-1.5">
-                  {insights.focuses.map((f, i) => (
+                  {display.focuses.map((f, i) => (
                     <div key={i} className="flex items-start gap-1.5">
                       <Flame className="w-3 h-3 shrink-0 mt-0.5" style={{ color: "#f59e0b" }} />
                       <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.65)", lineHeight: 1.4 }}>{f}</span>
@@ -985,7 +1033,8 @@ export default function AccountPage() {
             )}
           </div>
         </SectionCard>
-      )}
+        );
+      })()}
 
       {/* ── League / Season ──────────────────────────────────── */}
       <SectionCard title="This Season" icon={Trophy} accent="#ffd24a">
@@ -1413,20 +1462,90 @@ export default function AccountPage() {
                 <div className="w-7 h-7 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#00c8a0" }} />
               </div>
             ) : coachDrills.length === 0 ? (
-              <div className="py-10 text-center px-5">
-                <Brain className="w-8 h-8 mx-auto mb-3 opacity-10" style={{ color: "#00c8a0" }} />
-                <p style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", letterSpacing: "0.08em", color: "rgba(255,255,255,0.25)", textTransform: "uppercase", marginBottom: "6px" }}>
-                  No routine yet
-                </p>
-                <p style={{ fontSize: "0.62rem", color: "rgba(255,255,255,0.18)", lineHeight: 1.5 }}>
-                  Log some practice sessions to unlock your personalised drill plan.
-                </p>
+              <div className="p-3 space-y-2">
+                {/* Preview banner */}
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl mb-1"
+                  style={{ background: "rgba(255,210,74,0.06)", border: "1px solid rgba(255,210,74,0.18)" }}>
+                  <span style={{ fontSize: "0.85rem" }}>👁</span>
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.52rem", letterSpacing: "0.1em",
+                    color: "rgba(255,210,74,0.7)", textTransform: "uppercase" }}>
+                    Preview — drills personalise once you log practice sessions
+                  </span>
+                </div>
+                {/* Sample stats strip */}
+                <div className="flex flex-wrap gap-2 pb-3 mb-1" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                  {[
+                    { val: SAMPLE_STATS.avg,         label: "Avg",      col: "#00c8a0" },
+                    { val: `${SAMPLE_STATS.checkoutPct}%`, label: "Checkout", col: "#ffd24a" },
+                    { val: `${SAMPLE_STATS.treblePct}%`,  label: "Treble",   col: "#4d94ff" },
+                  ].map(({ val, label, col }) => (
+                    <div key={label} className="px-3 py-1.5 rounded-lg text-center min-w-[68px]"
+                      style={{ background: `${col}0c`, border: `1px solid ${col}22` }}>
+                      <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", fontWeight: 900, color: col, lineHeight: 1 }}>{val}</div>
+                      <div style={{ fontSize: "0.48rem", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", marginTop: "2px", textTransform: "uppercase" }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Sample drill cards */}
+                {SAMPLE_DRILLS.map((drill, i) => {
+                  const isOpen = openDrills[drill.name] ?? false;
+                  const DIFF_COLOR: Record<string, string> = { easy: "#22c55e", medium: "#ffd24a", hard: "#ff005c" };
+                  const diffColor = DIFF_COLOR[drill.difficulty?.toLowerCase()] ?? "#9ca3af";
+                  return (
+                    <div key={i} className="rounded-xl overflow-hidden"
+                      style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <button className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left"
+                        onClick={() => setOpenDrills(prev => ({ ...prev, [drill.name]: !prev[drill.name] }))}>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-1.5 h-6 rounded-full shrink-0" style={{ background: diffColor }} />
+                          <div className="min-w-0">
+                            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.75rem", fontWeight: 800,
+                              color: "rgba(255,255,255,0.9)", letterSpacing: "0.04em", lineHeight: 1.2 }}>{drill.name}</div>
+                            {drill.focus && (
+                              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.3)",
+                                letterSpacing: "0.08em", textTransform: "uppercase", marginTop: "2px" }}>{drill.focus}</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {drill.warmup && (
+                            <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.1em",
+                              fontWeight: 800, textTransform: "uppercase",
+                              background: "rgba(0,200,160,0.1)", color: "#00c8a0", border: "1px solid rgba(0,200,160,0.25)",
+                              borderRadius: 4, padding: "2px 6px" }}>Warm-up</span>
+                          )}
+                          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.1em",
+                            fontWeight: 800, textTransform: "uppercase",
+                            background: `${diffColor}18`, color: diffColor, border: `1px solid ${diffColor}30`,
+                            borderRadius: 4, padding: "2px 6px" }}>{drill.difficulty}</span>
+                          <ChevronDown className="w-3.5 h-3.5 shrink-0 transition-transform duration-200"
+                            style={{ color: "rgba(255,255,255,0.25)", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }} />
+                        </div>
+                      </button>
+                      {isOpen && (
+                        <div className="px-4 pb-4 space-y-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                          <p className="pt-3" style={{ color: "rgba(255,255,255,0.5)", lineHeight: 1.6, fontSize: "0.7rem" }}>{drill.description}</p>
+                          {(drill as any).sets !== undefined && (
+                            <div className="flex flex-wrap gap-2">
+                              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", fontWeight: 700,
+                                background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.1)",
+                                borderRadius: 6, padding: "3px 8px" }}>{(drill as any).sets} sets</span>
+                            </div>
+                          )}
+                          {drill.notes && (
+                            <p style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.28)", lineHeight: 1.5, fontStyle: "italic" }}>{drill.notes}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
                 <Link href="/practice"
-                  className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl transition-opacity hover:opacity-75"
-                  style={{ background: "rgba(0,200,160,0.08)", border: "1px solid rgba(0,200,160,0.22)",
-                    color: "#00c8a0", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.1em" }}>
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl mt-1 transition-opacity hover:opacity-75"
+                  style={{ background: "rgba(0,200,160,0.06)", border: "1px solid rgba(0,200,160,0.18)",
+                    color: "rgba(0,200,160,0.7)", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.1em" }}>
                   <Dumbbell className="w-3.5 h-3.5" />
-                  Start Practising
+                  Start Practising to Unlock Your Real Plan
                 </Link>
               </div>
             ) : (
