@@ -44,110 +44,65 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
     const fetchAnalytics = async () => {
       setLoading(true);
       try {
-        // Simulate fetching league-wide analytics
-        // In real implementation, these would be actual API endpoints
+        // Fetch real league data from the leaderboard API
+        const leaderRes = await fetch("/api/leaderboard");
+        const leaderboard = await leaderRes.json();
         
-        // Mock data - replace with real API calls
-        const mockMetrics: LeagueMetrics = {
-          totalMatches: 487,
-          totalPlayers: 15,
-          averageWinRate: 0.5,
-          topPlayer: {
-            playerId: 3,
-            playerName: "Alex T.",
-            matches: 48,
-            wins: 35,
-            losses: 13,
-            winRate: 0.7292,
-            eloRating: 2145,
-            eloChange: +142,
-            checkoutRate: 0.68,
-            avg180s: 2.8,
-            tier: "Legend",
-          },
-          mostImproved: {
-            playerId: 16,
-            playerName: "Graeme L.",
-            matches: 42,
-            wins: 26,
-            losses: 16,
-            winRate: 0.619,
-            eloRating: 1987,
-            eloChange: +89,
-            checkoutRate: 0.56,
-            avg180s: 1.2,
-            tier: "Elite",
-          },
-          activePlayers: 12,
-        };
-
-        const mockPlayers: PlayerStats[] = [
-          mockMetrics.topPlayer,
-          mockMetrics.mostImproved,
-          {
-            playerId: 5,
-            playerName: "Jordan P.",
-            matches: 35,
-            wins: 19,
-            losses: 16,
-            winRate: 0.5429,
-            eloRating: 1856,
-            eloChange: +23,
-            checkoutRate: 0.52,
-            avg180s: 1.5,
-            tier: "Pro",
-          },
-          {
-            playerId: 8,
-            playerName: "Casey R.",
-            matches: 28,
-            wins: 15,
-            losses: 13,
-            winRate: 0.5357,
-            eloRating: 1823,
-            eloChange: -15,
-            checkoutRate: 0.48,
-            avg180s: 1.3,
-            tier: "Pro",
-          },
-          {
-            playerId: 12,
-            playerName: "Sam K.",
-            matches: 22,
-            wins: 11,
-            losses: 11,
-            winRate: 0.5,
-            eloRating: 1700,
-            eloChange: +12,
-            checkoutRate: 0.45,
-            avg180s: 1.0,
-            tier: "Challenger",
-          },
-        ];
-
-        const mockFormats: GameTypeStats[] = [
-          {
-            gameType: "League 501",
-            totalMatches: 215,
-            popularity: 44.2,
-            avgCheckoutRate: 0.54,
-            winRateStd: 0.18,
-          },
-          {
-            gameType: "Master 501",
-            totalMatches: 142,
-            popularity: 29.2,
-            avgCheckoutRate: 0.61,
-            winRateStd: 0.22,
-          },
-          {
-            gameType: "Cricket",
-            totalMatches: 86,
-            popularity: 17.7,
-            avgCheckoutRate: 0,
-            winRateStd: 0.16,
-          },
-          {
+        if (leaderboard && Array.isArray(leaderboard) && leaderboard.length > 0) {
+          const players = leaderboard.slice(0, 10); // Top 10 players
+          
+          const totalMatches = leaderboard.reduce((sum: number, p: any) => sum + (p.matchCount || 0), 0);
+          const topPlayer = leaderboard[0];
+          const activePlayers = leaderboard.filter((p: any) => p.matchCount > 0).length;
+          
+          // Create metrics from real data
+          const realMetrics: LeagueMetrics = {
+            totalMatches,
+            totalPlayers: leaderboard.length,
+            averageWinRate: 0.5,
+            topPlayer: {
+              playerId: topPlayer.id,
+              playerName: topPlayer.name,
+              matches: topPlayer.matchCount || 0,
+              wins: topPlayer.wins || 0,
+              losses: topPlayer.losses || 0,
+              winRate: topPlayer.matchCount ? (topPlayer.wins || 0) / topPlayer.matchCount : 0,
+              eloRating: topPlayer.elo || 0,
+              eloChange: 0,
+              checkoutRate: 0,
+              avg180s: 0,
+              tier: topPlayer.tier || "Unranked",
+            },
+            mostImproved: players[1] || topPlayer,
+            activePlayers,
+          };
+          
+          const realPlayers: PlayerStats[] = leaderboard.slice(0, 15).map((p: any, idx: number) => ({
+            playerId: p.id,
+            playerName: p.name,
+            matches: p.matchCount || 0,
+            wins: p.wins || 0,
+            losses: p.losses || 0,
+            winRate: p.matchCount ? (p.wins || 0) / p.matchCount : 0,
+            eloRating: p.elo || 0,
+            eloChange: 0,
+            checkoutRate: 0,
+            avg180s: 0,
+            tier: p.tier || "Unranked",
+          }));
+          
+          setMetrics(realMetrics);
+          setPlayerRanking(realPlayers);
+        }
+      } catch (err) {
+        console.error("Failed to load analytics", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAnalytics();
+  }, []);
             gameType: "Around the World",
             totalMatches: 44,
             popularity: 9.0,
@@ -156,18 +111,8 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
           },
         ];
 
-        const mockTrends = [
-          { month: "Apr 2026", matches: 38, avgCheckout: 0.51, topWinRate: 0.72 },
-          { month: "May 2026", matches: 52, avgCheckout: 0.53, topWinRate: 0.74 },
-          { month: "Jun 2026", matches: 42, avgCheckout: 0.54, topWinRate: 0.71 },
-        ];
-
-        setMetrics(mockMetrics);
-        setPlayerRanking(mockPlayers);
-        setFormatStats(mockFormats);
-        setMonthlyTrends(mockTrends);
       } catch (err) {
-        console.error("Failed to load analytics:", err);
+        console.error("Failed to load analytics", err);
       } finally {
         setLoading(false);
       }
