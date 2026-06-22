@@ -112,9 +112,12 @@ router.post("/match/start", async (req: Request, res: Response) => {
 // Finish match
 router.post("/match/finish", async (req: Request, res: Response) => {
   try {
-    const { matchId, winnerId, player1PointsEarned, player2PointsEarned } = req.body;
-    await finishCardClashMatch(matchId, winnerId, player1PointsEarned, player2PointsEarned);
-    res.json({ success: true });
+    const { matchId, winnerId, cardsUsedInMatch } = req.body;
+    if (!matchId || !winnerId) {
+      return res.status(400).json({ error: "matchId and winnerId required" });
+    }
+    const result = await finishCardClashMatch(matchId, winnerId, cardsUsedInMatch);
+    res.json({ success: true, match: result });
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
