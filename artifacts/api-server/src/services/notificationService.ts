@@ -6,6 +6,7 @@
 import { db } from "@workspace/db";
 import { sql, eq, and } from "drizzle-orm";
 import { logger } from "./logger";
+import { checkBatchingRules, queueNotificationForBatching } from "./batchingService";
 
 export interface NotificationPayload {
   playerId: number;
@@ -72,27 +73,24 @@ async function shouldSendNotification(payload: NotificationPayload, prefs: any):
   const typeKey = `${payload.type.replace(/-/g, "_")}` as keyof typeof prefs;
   if (typeKey in prefs && !prefs[typeKey]) return false;
 
-  // Check quiet hours (11pm-8am)
-  const hour = new Date().getHours();
-  if (hour >= 23 || hour < 8) {
-    // Queue for morning instead of sending now
-    // For now, skip. This should be handled by batch system
-    return false;
-  }
+  // Critical notifications always go through
+  const isCritical = payload.type === "threat_alert" || payload.type === "announcement";
+  
+  // Check batching rules
+  const batchingResult = await checkBatchingRules({
+    playerId: payload.playerId,
+    notificationType: payload.type,
+    isUrgent: isCritical,
+    currentHour: new Date().getHours()
+  });
 
-  // Check daily limit (max 3 non-critical notifications per day)
-  if (payload.type !== "announcement") {
-    const today = new Date().toDateString();
-    const [{ count }] = await db.execute(sql`
-      SELECT COUNT(*)::int as count FROM notifications
-      WHERE player_id = ${payload.playerId}
-        AND type != 'announcement'
-        AND created_at::date = ${today}::date
-    `);
-    
-    if ((count as any) >= 3) {
-      return false; // Too many notifications today
-    }
+  if (!batchingResult.shouldSend) {
+    logger.info("Notification batched/queued", {
+      playerId: payload.playerId,
+      type: payload.type,
+      reason: batchingResult.reason
+    });
+    return false;
   }
 
   return true;
@@ -395,6 +393,11 @@ export async function sendThreatAlertNotifications(
     logger.error({ err }, "Failed to send threat alert notifications");
   }
 }
+
+/**
+ * Create and send an admin announcement to selected players
+ */
+export async function createAnnouncement(
   adminId: number,
   title: string,
   body: string,

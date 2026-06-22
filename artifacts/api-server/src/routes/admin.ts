@@ -4,6 +4,8 @@ import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable, ach
 import { z } from "zod";
 import { checkStatAchievements, checkMatchAchievements, retroactiveSweep } from "../lib/achievements";
 import { applyEloChange, calcTier } from "../lib/elo";
+import { getBatchingStats } from "../services/batchingService";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -344,6 +346,60 @@ router.post("/admin/test-comms", async (req, res): Promise<void> => {
       communityPost: { id: postId, status: "approved" },
     },
   });
+});
+
+// ── Test Coach Tips (manually trigger) ────────────────────────────────────────
+router.post("/admin/test-coach-tips", async (req, res): Promise<void> => {
+  try {
+    // Get global test function (set by coachTipsScheduler)
+    const testFn = (global as any).TKDL_testCoachTips;
+    
+    if (!testFn) {
+      res.status(500).json({
+        error: "Coach tips scheduler not initialized"
+      });
+      return;
+    }
+
+    // Run the coach tips generator immediately
+    await testFn();
+
+    res.json({
+      ok: true,
+      message: "Coach tips generated and sent to eligible players",
+      triggered_at: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error("Error in test-coach-tips", { error });
+    res.status(500).json({
+      error: "Failed to generate coach tips",
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// ── Notification Batching Stats ──────────────────────────────────────────────
+router.get("/admin/batching-stats", async (_req, res): Promise<void> => {
+  try {
+    const stats = await getBatchingStats();
+    res.json({
+      ok: true,
+      batching: stats,
+      quiet_hours: {
+        start: "23:00",
+        end: "08:00",
+        description: "11 PM to 8 AM UTC"
+      },
+      daily_limit: 3,
+      note: "Critical notifications (threat_alert, announcement) bypass all batching rules"
+    });
+  } catch (error) {
+    logger.error("Error getting batching stats", { error });
+    res.status(500).json({
+      error: "Failed to fetch batching stats",
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
 });
 
 // ── Full data export (JSON backup) ────────────────────────────────────────────

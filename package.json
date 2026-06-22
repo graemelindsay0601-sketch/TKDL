@@ -15,6 +15,10 @@
   "private": true,
   "devDependencies": {
     "prettier": "^3.8.3",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "web-push": "^3.6.7"
+  },
+  "dependencies": {
+    "node-cron": "^4.5.0"
   }
 }

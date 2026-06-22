@@ -13,6 +13,7 @@ import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetSeason } from "./lib/seasonReset";
 import { seedTourSystem } from "./lib/tourSeed";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
+import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
 import webpush from "web-push";
 
 // Configure VAPID keys for push notifications
@@ -732,6 +733,10 @@ async function init() {
     await seedRealData();
     await maybeAutoResetSeason();
     await seedPlayoffMatches();
+    await maybeAutoResetSeason();
+    
+    // Initialize scheduled systems
+    initializeCoachTipsScheduler();
     await seedSessions();
     await seedUsers();
     await seedTitles();
