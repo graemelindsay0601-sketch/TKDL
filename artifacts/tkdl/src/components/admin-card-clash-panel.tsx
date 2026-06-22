@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { Trash2, Plus, Minus } from "lucide-react";
 
+const getAdminHeaders = () => {
+  const pin = sessionStorage.getItem("tkdl_admin_pin");
+  return {
+    "Content-Type": "application/json",
+    ...(pin ? { "x-admin-pin": pin } : {}),
+  };
+};
+
 export default function AdminCardClashPanel() {
   const [cards, setCards] = useState<any[]>([]);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
@@ -48,7 +56,7 @@ export default function AdminCardClashPanel() {
     try {
       const res = await fetch("/api/card-clash/admin/card/toggle", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminHeaders(),
         body: JSON.stringify({ cardId, enabled: !currentEnabled }),
       });
 
@@ -70,7 +78,7 @@ export default function AdminCardClashPanel() {
     try {
       const res = await fetch("/api/card-clash/admin/coins/give", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminHeaders(),
         body: JSON.stringify({ playerId: parseInt(playerId), amount: parseInt(coinAmount) }),
       });
 
@@ -93,7 +101,7 @@ export default function AdminCardClashPanel() {
     try {
       const res = await fetch("/api/card-clash/admin/coins/remove", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminHeaders(),
         body: JSON.stringify({ playerId: parseInt(playerId), amount: parseInt(coinAmount) }),
       });
 
@@ -115,7 +123,7 @@ export default function AdminCardClashPanel() {
     try {
       const res = await fetch("/api/card-clash/admin/card/give", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminHeaders(),
         body: JSON.stringify({
           playerId: parseInt(playerId),
           cardId: selectedCard,
@@ -141,7 +149,7 @@ export default function AdminCardClashPanel() {
     try {
       const res = await fetch("/api/card-clash/admin/card/remove", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminHeaders(),
         body: JSON.stringify({
           playerId: parseInt(playerId),
           cardId: selectedCard,
@@ -169,7 +177,7 @@ export default function AdminCardClashPanel() {
     try {
       const res = await fetch("/api/card-clash/admin/match/delete", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminHeaders(),
         body: JSON.stringify({ matchId: parseInt(matchId) }),
       });
 
@@ -193,7 +201,7 @@ export default function AdminCardClashPanel() {
     try {
       const res = await fetch("/api/card-clash/admin/player/reset", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminHeaders(),
         body: JSON.stringify({ playerId: parseInt(playerId) }),
       });
 

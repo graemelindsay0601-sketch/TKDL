@@ -12,6 +12,7 @@ export function FeatureFlags() {
   const [messagingOn,       setMessagingOn]        = useState<boolean | null>(null);
   const [notificationsOn,   setNotificationsOn]    = useState<boolean | null>(null);
   const [shadowLeagueOn,    setShadowLeagueOn]     = useState<boolean | null>(null);
+  const [cardClashOn,       setCardClashOn]        = useState<boolean | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -25,10 +26,11 @@ export function FeatureFlags() {
         setMessagingOn(s.messaging_enabled === true);
         setNotificationsOn(s.notifications_enabled === true);
         setShadowLeagueOn(s.shadow_league_enabled === true);
+        setCardClashOn(s.card_clash_enabled === true);
       })
       .catch(() => {
         setLiveScorer(false); setAutoScorerOn(false); setAutoScorerTest(true);
-        setCommunityOn(false); setMessagingOn(false); setNotificationsOn(false); setShadowLeagueOn(false);
+        setCommunityOn(false); setMessagingOn(false); setNotificationsOn(false); setShadowLeagueOn(false); setCardClashOn(false);
       });
   }, []);
 
@@ -72,6 +74,8 @@ export function FeatureFlags() {
         {row("Notifications", "Fire in-app notifications for reactions, comments, messages, and match events", notificationsOn, setNotificationsOn, "notifications_enabled", "Notifications enabled", "Notifications disabled")}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
         {row("Shadow League", "Enable the /shadow-league page — shows all bots ranked by average. Enable once 4+ bots are active", shadowLeagueOn, setShadowLeagueOn, "shadow_league_enabled", "Shadow League live", "Shadow League hidden")}
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+        {row("Card Clash", "Enable the Card Clash game mode with card collecting, packs, and seasons", cardClashOn, setCardClashOn, "card_clash_enabled", "Card Clash live", "Card Clash hidden")}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
         <div className="flex gap-2">
           <a href="/community" className="flex-1 py-2.5 text-center text-xs font-bold uppercase rounded-lg tracking-wider"

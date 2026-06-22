@@ -27,6 +27,9 @@ const botNav = [
   { href: "/shadow-bot",   label: "Shadow Bot",   icon: CircuitBoard    },
   { href: "/shadow-league", label: "Shadow League", icon: Trophy        },
 ];
+const cardClashNav = [
+  { href: "/card-clash",   label: "Card Clash",   icon: Medal           },
+];
 const leagueNav = [
   { href: "/leaderboard",  label: "Standings",    icon: Trophy          },
   { href: "/players",      label: "Players",      icon: Users           },
@@ -182,6 +185,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const { data: appSettings }           = useSettings();
   const liveScorer       = appSettings?.live_scorer_enabled ?? false;
   const communityEnabled = appSettings?.community_enabled   ?? false;
+  const cardClashEnabled = appSettings?.card_clash_enabled  ?? false;
   const [unreadCount, setUnreadCount]   = useState(0);
   useEffect(() => {
     if (!authUser) return;
@@ -201,6 +205,7 @@ export function Layout({ children }: { children: ReactNode }) {
     ? [...playNav, { href: "/play", label: "Live Scorer", icon: Swords }]
     : playNav;
   const dynamicBotNav: NavItem[] = botNav;
+  const dynamicCardClashNav: NavItem[] = cardClashEnabled ? cardClashNav : [];
 
   function NavLink({ item }: { item: NavItem }) {
     const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
@@ -328,6 +333,12 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
         <NavSection label="Bot"          items={dynamicBotNav}   />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
+        {dynamicCardClashNav.length > 0 && (
+          <>
+            <NavSection label="Card Clash"   items={dynamicCardClashNav} />
+            <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
+          </>
+        )}
         <NavSection label="League"       items={leagueNav}       />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
         <NavSection label="Achievements" items={achievementsNav} />

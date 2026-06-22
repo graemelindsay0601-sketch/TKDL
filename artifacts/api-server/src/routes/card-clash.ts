@@ -23,6 +23,18 @@ import { seedCardDefinitions, getAllCardDefinitions, toggleCardAvailability } fr
 
 const router = Router();
 
+// Admin PIN for protecting card-clash admin routes
+const ADMIN_PIN = process.env.ADMIN_PIN ?? "0601";
+
+// Middleware to verify admin PIN
+const verifyAdminPin = (req: Request, res: Response, next: Function) => {
+  const pin = req.headers["x-admin-pin"] as string;
+  if (pin !== ADMIN_PIN) {
+    return res.status(403).json({ error: "Unauthorized: Invalid admin PIN" });
+  }
+  next();
+};
+
 // === CARD SHOP ROUTES ===
 
 // Get player currency balance
@@ -131,12 +143,11 @@ router.get("/matches/:playerId", async (req: Request, res: Response) => {
   }
 });
 
-// === ADMIN ROUTES ===
+// === ADMIN ROUTES (all require valid admin PIN) ===
 
 // Seed card definitions (one-time)
-router.post("/admin/seed-cards", async (req: Request, res: Response) => {
+router.post("/admin/seed-cards", verifyAdminPin, async (req: Request, res: Response) => {
   try {
-    // TODO: Add admin check
     await seedCardDefinitions();
     res.json({ success: true, message: "Cards seeded" });
   } catch (error) {
@@ -145,7 +156,7 @@ router.post("/admin/seed-cards", async (req: Request, res: Response) => {
 });
 
 // Get all cards
-router.get("/admin/cards", async (req: Request, res: Response) => {
+router.get("/admin/cards", verifyAdminPin, async (req: Request, res: Response) => {
   try {
     const cards = await getAllCardDefinitions();
     res.json(cards);
@@ -155,7 +166,7 @@ router.get("/admin/cards", async (req: Request, res: Response) => {
 });
 
 // Toggle card availability
-router.post("/admin/card/toggle", async (req: Request, res: Response) => {
+router.post("/admin/card/toggle", verifyAdminPin, async (req: Request, res: Response) => {
   try {
     const { cardId, enabled } = req.body;
     await toggleCardAvailability(cardId, enabled);
@@ -166,7 +177,7 @@ router.post("/admin/card/toggle", async (req: Request, res: Response) => {
 });
 
 // Give coins to player (admin)
-router.post("/admin/coins/give", async (req: Request, res: Response) => {
+router.post("/admin/coins/give", verifyAdminPin, async (req: Request, res: Response) => {
   try {
     const { playerId, amount } = req.body;
     await addCoinsToPlayer(playerId, amount);
@@ -178,7 +189,7 @@ router.post("/admin/coins/give", async (req: Request, res: Response) => {
 });
 
 // Remove coins from player (admin)
-router.post("/admin/coins/remove", async (req: Request, res: Response) => {
+router.post("/admin/coins/remove", verifyAdminPin, async (req: Request, res: Response) => {
   try {
     const { playerId, amount } = req.body;
     await removeCoinsFromPlayer(playerId, amount);
@@ -190,7 +201,7 @@ router.post("/admin/coins/remove", async (req: Request, res: Response) => {
 });
 
 // Give card to player (admin)
-router.post("/admin/card/give", async (req: Request, res: Response) => {
+router.post("/admin/card/give", verifyAdminPin, async (req: Request, res: Response) => {
   try {
     const { playerId, cardId, quantity } = req.body;
     await giveCardToPlayer(playerId, cardId, quantity || 1);
@@ -202,7 +213,7 @@ router.post("/admin/card/give", async (req: Request, res: Response) => {
 });
 
 // Remove card from player (admin)
-router.post("/admin/card/remove", async (req: Request, res: Response) => {
+router.post("/admin/card/remove", verifyAdminPin, async (req: Request, res: Response) => {
   try {
     const { playerId, cardId, quantity } = req.body;
     await removeCardFromPlayer(playerId, cardId, quantity || 1);
@@ -214,7 +225,7 @@ router.post("/admin/card/remove", async (req: Request, res: Response) => {
 });
 
 // Delete match (admin)
-router.post("/admin/match/delete", async (req: Request, res: Response) => {
+router.post("/admin/match/delete", verifyAdminPin, async (req: Request, res: Response) => {
   try {
     const { matchId } = req.body;
     await deleteCardClashMatch(matchId);
@@ -225,7 +236,7 @@ router.post("/admin/match/delete", async (req: Request, res: Response) => {
 });
 
 // Reset player card data (admin)
-router.post("/admin/player/reset", async (req: Request, res: Response) => {
+router.post("/admin/player/reset", verifyAdminPin, async (req: Request, res: Response) => {
   try {
     const { playerId } = req.body;
     await resetPlayerCardData(playerId);

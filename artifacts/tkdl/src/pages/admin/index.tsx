@@ -27,6 +27,7 @@ import { TestComms } from "./test-comms";
 import { DataManagement } from "./data-management";
 import { AnnouncementsManager } from "./announcements-manager";
 import { NotificationAnalytics } from "./notification-analytics";
+import AdminCardClashPanel from "@/components/admin-card-clash-panel";
 
 type ModeKey = "isActive" | "practiceEnabled" | "tourEnabled" | "m501Enabled" | "shadowBotEnabled";
 const PLAYER_MODES: { key: ModeKey; label: string; desc: string; color: string; emoji: string }[] = [
@@ -478,6 +479,7 @@ export default function Admin() {
       <DataManagement />
       <AnnouncementsManager />
       <NotificationAnalytics />
+      <AdminCardClashPanel />
       <SweepTool />
       <PracticeAnalytics />
     </div>
