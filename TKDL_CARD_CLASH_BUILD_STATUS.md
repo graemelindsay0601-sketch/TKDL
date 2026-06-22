@@ -15,10 +15,13 @@ Card Clash is a **parallel card collection game mode** built on top of TKDL. Pla
 ### 🚀 CURRENT SESSION PROGRESS
 - ✅ Deploy fix: Added missing boolean import (commit 9f1bade)
 - ✅ BUILD_STATUS audit: Verified 65% complete (commit cae7085)
-- ✅ Equipment Selector component built (commit 890ae0c)
-- 🔄 **NEXT:** Integrate selector into Play flow
-- 🔄 **THEN:** Wire card-effects.ts into scoring
-- 🔄 **THEN:** Build scoring screen UI
+- ✅ Equipment Selector component built (commit 890ae0c, 289 lines)
+- ✅ Play flow integration complete (commit 9e33df4, 49 lines added)
+  - Routes setup → equipment → playing when Card Clash enabled
+  - Passes equippedCards through to match submission
+  - Only shows for X01 and CRICKET modes
+- 🔄 **NEXT:** Wire card-effects.ts into match finish endpoint
+- 🔄 **THEN:** Build scoring screen UI (visual feedback)
 
 ### What Works ✅
 - **Backend:** All 7 database tables, 3 services, card effects engine
@@ -594,13 +597,13 @@ curl https://tkdl-wt7y-onrender.com/api/settings/feature-flags
 | Card Clash Page | ✅ 100% | 3 tabs (overview, shop, standings) |
 | Account Cards Tab | ✅ 100% | Tab exists, needs inventory UI |
 | Navigation Tab | ✅ 100% | Tab added to main layout |
-| **Equipment Selector UI** | ❌ 0% | Need to build component |
-| **Play Flow Integration** | ❌ 0% | Need to call selector before match |
-| **Scoring Effect Wiring** | ❌ 0% | Need to call card-effects.ts |
-| **Scoring Screen UI** | ❌ 0% | Need visual feedback during match |
-| **Popup Handlers** | ❌ 0% | Need Instant Mark, Sniper Lock, etc. |
+| **Equipment Selector Component** | ✅ 100% | Built, 289 lines, fully functional |
+| **Play Flow Integration** | ✅ 100% | Routes setup → equipment → playing |
+| **Scoring Effect Wiring** | 🔄 30% | About to start this task |
+| **Scoring Screen UI** | ❌ 0% | Visual feedback during match |
+| **Popup Handlers** | ❌ 0% | Instant Mark, Sniper Lock, etc. |
 
-**Overall:** ~65% Complete (was 75%, adjusted for accuracy)
+**Overall:** ~72% Complete (up from 65%)
 **Deploy Status:** ✅ FIXED (boolean import added, ready for Render)
 
 ---
