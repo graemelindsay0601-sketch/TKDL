@@ -9,6 +9,7 @@ import {
   MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera,
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
+import { NotificationCenter } from "@/components/notification-center";
 import { OverallStats, ByGameType, Trends, DartAnalysis, SessionHistory, CategoryStats, CategoryStatsEnhanced, AdvancedAnalyticsDashboard } from "@/components/stats";
 
 const TIER_COLORS: Record<string, string> = {
@@ -1846,68 +1847,8 @@ export default function AccountPage() {
           )}
 
           <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
-          {!notifsEnabled ? (
-            <div className="text-center py-16 px-4">
-              <Bell className="w-8 h-8 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.12)" }} />
-              <p className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>NOTIFICATIONS COMING SOON</p>
-              <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.15)" }}>In-app notifications aren't live yet.</p>
-            </div>
-          ) : (
-            <>
-              <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                <Bell className="w-4 h-4" style={{ color: "rgba(255,0,92,0.7)" }} />
-                <span className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", color: "#fff" }}>NOTIFICATIONS</span>
-                {notifs.some((n: any) => !n.read_at) && (
-                  <button
-                    onClick={async () => {
-                      await fetch("/api/notifications/mark-all-read", { method: "POST", credentials: "include" });
-                      setNotifs(prev => prev.map((n: any) => ({ ...n, read_at: n.read_at ?? new Date().toISOString() })));
-                    }}
-                    className="ml-auto text-xs font-bold px-2.5 py-1 rounded-lg"
-                    style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.3)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
-                    <MailOpen className="inline w-3 h-3 mr-1" />Mark all read
-                  </button>
-                )}
-              </div>
-              {notifsLoading ? (
-                <div className="py-8 text-center text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Loading…</div>
-              ) : notifs.length === 0 ? (
-                <div className="py-10 text-center text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>No notifications yet</div>
-              ) : (
-                notifs.map((n: any) => (
-                  <button key={n.id}
-                    onClick={async () => {
-                      if (!n.read_at) {
-                        await fetch(`/api/notifications/${n.id}/read`, { method: "POST", credentials: "include" });
-                        setNotifs(prev => prev.map((x: any) => x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x));
-                      }
-                    }}
-                    className="w-full px-4 py-3 flex items-start gap-3 text-left transition-colors hover:bg-white/5"
-                    style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", opacity: n.read_at ? 0.5 : 1 }}>
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5"
-                      style={{ background: !n.read_at ? "rgba(255,0,92,0.18)" : "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                      <Bell className="w-3.5 h-3.5" style={{ color: !n.read_at ? "#ff005c" : "rgba(255,255,255,0.3)" }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm" style={{ color: n.read_at ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.85)" }}>
-                        {n.message}
-                      </p>
-                      <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
-                        {(() => {
-                          const diff = (Date.now() - new Date(n.created_at).getTime()) / 1000;
-                          if (diff < 60) return "just now";
-                          if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-                          if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-                          return `${Math.floor(diff / 86400)}d ago`;
-                        })()}
-                      </p>
-                    </div>
-                    {!n.read_at && <div className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ background: "#ff005c" }} />}
-                  </button>
-                ))
-              )}
-            </>
-          )}
+            <NotificationCenter playerId={parseInt(user.playerId)} />
+          </div>
         </div>
         </div>
       )}
