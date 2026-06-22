@@ -757,13 +757,36 @@ export default function AccountPage() {
           </div>
         </div>
 
+        {/* ── Quick Actions strip ──────────────────────────────── */}
+        {(() => {
+          const actions = [
+            { href: "/practice",                    icon: Dumbbell,     label: "Practice", col: "#4d94ff" },
+            { href: `/shadow-bot/${user.playerId}`, icon: CircuitBoard, label: "My Bot",   col: "#00e5a0" },
+            { href: "/master501",                   icon: Target,       label: "M·501",    col: "#00e5a0" },
+            { href: "/tour",                        icon: Star,         label: "Tour",     col: "#a855f7" },
+            ...(user.isAdmin ? [{ href: "/admin",   icon: Shield,       label: "Admin",    col: "#ffd24a" }] : []),
+          ];
+          return (
+            <div className={`grid gap-2 px-4 pb-4`} style={{ gridTemplateColumns: `repeat(${actions.length}, 1fr)` }}>
+              {actions.map(({ href, icon: Icon, label, col }) => (
+                <Link key={href} href={href}
+                  className="rounded-xl py-3 flex flex-col items-center gap-1.5 transition-all hover:opacity-85 active:scale-95"
+                  style={{ background: `${col}10`, border: `1px solid ${col}28` }}>
+                  <Icon className="w-4 h-4" style={{ color: col }} />
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.12em",
+                    color: col, textTransform: "uppercase", fontWeight: 700 }}>{label}</span>
+                </Link>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Account Tabs ────────────────────────────────────────── */}
       <div className="flex gap-1 p-1 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
         {([
-          { id: "overview"      as const, label: "Home",      Icon: User                               },
-          { id: "activity"      as const, label: "Play",      Icon: Zap                              },
+          { id: "overview"      as const, label: "Overview",  Icon: User                               },
+          { id: "activity"      as const, label: "Activity",  Icon: Zap                              },
           { id: "achievements"  as const, label: "Earned",    Icon: Award                            },
           { id: "coach"         as const, label: "Coach",     Icon: Brain                            },
           { id: "social"        as const, label: "Social",    Icon: MessageSquare, badge: unreadNotifCount },
@@ -1260,56 +1283,6 @@ export default function AccountPage() {
       {/* ── Achievements Tab ─────────────────────────────────────── */}
       {activeTab === "achievements" && (
         <div className="space-y-3">
-
-        {/* ── Titles ───────────────────────────────────────────── */}
-        {user?.playerId && titleList.length > 0 && (
-          <SectionCard title="Titles" icon={Award} accent="#a855f7" collapsible>
-            {(() => {
-              const RC: Record<string,string> = { Common:"#9ca3af", Rare:"#3b82f6", Epic:"#a855f7", Legendary:"#ffd24a" };
-              const earnedTitles = titleList.filter((t: any) => t.earned);
-              return (
-                <div className="space-y-3">
-                  <div style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
-                    {earnedTitles.length > 0
-                      ? `${earnedTitles.length} earned · tap to equip`
-                      : "Earn titles through league matches, M501, Practice & Shadow Bot"}
-                  </div>
-                  {earnedTitles.length > 0 && (
-                    <div className="grid grid-cols-2 gap-2">
-                      {earnedTitles.map((t: any) => {
-                        const c = RC[t.rarity as string] ?? "#9ca3af";
-                        return (
-                          <button key={t.key}
-                            disabled={titleSaving}
-                            onClick={() => handleSetTitle(t.isActive ? null : t.key)}
-                            className="text-left rounded-xl p-3 transition-all"
-                            style={{
-                              background: t.isActive ? `${c}18` : "rgba(255,255,255,0.03)",
-                              border: `1px solid ${t.isActive ? c + "55" : "rgba(255,255,255,0.1)"}`,
-                              boxShadow: t.isActive ? `0 0 14px ${c}22` : undefined,
-                            }}>
-                            <div style={{ fontSize: "1rem", lineHeight: 1, marginBottom: "4px" }}>{t.icon}</div>
-                            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem", color: c, fontWeight: 800, letterSpacing: "0.06em", lineHeight: 1.2 }}>
-                              {t.title}
-                            </div>
-                            <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.2)", marginTop: "3px", letterSpacing: "0.08em", fontFamily: "Oswald, sans-serif" }}>
-                              {t.rarity}
-                            </div>
-                            {t.isActive && (
-                              <div style={{ fontSize: "0.45rem", color: c, marginTop: "3px", letterSpacing: "0.12em", fontFamily: "Oswald, sans-serif", fontWeight: 700 }}>
-                                ✓ ACTIVE
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </SectionCard>
-        )}
 
         {/* Source selector */}
         <div className="flex gap-1 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
