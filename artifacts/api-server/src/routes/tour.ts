@@ -412,6 +412,16 @@ router.patch("/tour/runs/:runId", async (req, res): Promise<void> => {
 
       // Check broader achievements after awarding trophy
       await checkAndAwardTourAchievements(playerId, run.slug, run.difficulty).catch(() => {});
+
+      // Fire-and-forget: Award tour completion coins (10 coins per win)
+      void (async () => {
+        try {
+          const { addCoinsToPlayer } = await import("../services/card-shop-service");
+          await addCoinsToPlayer(playerId, 10);
+        } catch (err) {
+          console.error("Tour coin award error:", err);
+        }
+      })();
     }
 
     res.json({ bracket: result.bracket, won: result.won, eliminated: result.eliminated, status: newStatus });

@@ -89,10 +89,27 @@ router.post("/practice/sessions", async (req, res): Promise<void> => {
          ${body.p2_180s ?? 0}, ${body.p2CheckoutAttempts ?? 0}, ${body.p2CheckoutHits ?? 0})
     `);
     res.json({ ok: true });
-    // Fire-and-forget shadow bot achievement check for P1
+    
+    // Fire-and-forget: shadow bot achievement check for P1
     if (body.player1Id) {
       checkAndAwardShadowBotAchievements(body.player1Id).catch(() => {});
     }
+
+    // Fire-and-forget: award practice coins
+    void (async () => {
+      try {
+        const { addCoinsToPlayer } = await import("../services/card-shop-service");
+        // Award 10 coins per practice win
+        if (body.winnerIdx === 0 && body.player1Id) {
+          await addCoinsToPlayer(body.player1Id, 10);
+        } else if (body.winnerIdx === 1 && body.player2Id) {
+          await addCoinsToPlayer(body.player2Id, 10);
+        }
+      } catch (err) {
+        // Silently fail - don't disrupt practice session
+        console.error("Practice coin award error:", err);
+      }
+    })();
   } catch (err) {
     req.log.error({ err }, "Failed to save practice session");
     res.status(500).json({ error: "Failed to save session" });

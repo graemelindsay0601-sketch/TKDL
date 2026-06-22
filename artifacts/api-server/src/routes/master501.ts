@@ -265,6 +265,16 @@ router.patch("/master501/runs/:runId", async (req, res): Promise<void> => {
         legsFormat:  legsFormatVal,
       });
       await checkAndGrantTitles(Number(run.player_id));
+
+      // Award coins on M-501 completion (10 coins per win)
+      try {
+        const { addCoinsToPlayer } = await import("../services/card-shop-service");
+        if (result === "win") {
+          await addCoinsToPlayer(Number(run.player_id), 10);
+        }
+      } catch (err) {
+        console.error("M-501 coin award error:", err);
+      }
     })();
 
     res.json({
