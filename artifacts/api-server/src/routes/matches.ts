@@ -25,6 +25,17 @@ const SubmitMatchBody = z.object({
   loser180s:               z.number().int().optional(),
   loserCheckoutAttempts:   z.number().int().optional(),
   loserCheckoutHits:       z.number().int().optional(),
+  // Card Clash integration: cards used in this match
+  cardsUsedInMatch:        z.object({
+    goodCards: z.array(z.object({
+      id: z.string(),
+      name: z.string(),
+    })).optional().default([]),
+    badCards: z.array(z.object({
+      id: z.string(),
+      name: z.string(),
+    })).optional().default([]),
+  }).optional(),
 });
 
 const router = Router();
@@ -58,6 +69,7 @@ router.post("/matches", async (req, res): Promise<void> => {
     winnerId, loserId, stake, gameType, notes,
     winnerDarts, winner180s, winnerCheckoutAttempts, winnerCheckoutHits,
     loserDarts, loser180s, loserCheckoutAttempts, loserCheckoutHits,
+    cardsUsedInMatch,
   } = parsed.data;
 
   if (winnerId === loserId) {
@@ -160,6 +172,44 @@ router.post("/matches", async (req, res): Promise<void> => {
 
   // Bust achievement-progress cache for both players
   invalidateProgressCache([winnerId, loserId]);
+
+  // Handle Card Clash integration (fire and forget — never delay the response)
+  void (async () => {
+    if (!cardsUsedInMatch || (cardsUsedInMatch.goodCards.length === 0 && cardsUsedInMatch.badCards.length === 0)) {
+      return; // No cards used
+    }
+
+    try {
+      // Import here to avoid circular dependencies
+      const { finishCardClashMatch } = await import("@/services/card-clash-service");
+      const { addCoinsToPlayer, removeCardFromPlayer } = await import("@/services/card-shop-service");
+
+      // Convert cards to internal format
+      const allCards = [
+        ...cardsUsedInMatch.goodCards.map(c => ({ cardId: c.id, usedBy: winnerId })),
+        ...cardsUsedInMatch.badCards.map(c => ({ cardId: c.id, usedBy: winnerId })),
+      ];
+
+      // Award coins for Card Clash match
+      const winnerCoins = 50 + (allCards.length * 10); // Winner: 50 base + 10 per card
+      const loserCoins = 25 + (allCards.length * 10);  // Loser: 25 base + 10 per card
+      
+      await addCoinsToPlayer(winnerId, winnerCoins);
+      await addCoinsToPlayer(loserId, loserCoins);
+
+      // Consume cards from inventory
+      for (const card of allCards) {
+        try {
+          await removeCardFromPlayer(card.usedBy, card.cardId, 1);
+        } catch (e) {
+          console.error(`Failed to consume card ${card.cardId} for player ${card.usedBy}:`, e);
+        }
+      }
+    } catch (e) {
+      console.error("Card Clash integration error:", e);
+      // Silently fail — don't disrupt match submission
+    }
+  })();
 
   // Check achievements
   await checkMatchAchievements(winnerId, loserId, true,  stake, loserPointsBefore, winnerPointsBefore, loserEliminated);
