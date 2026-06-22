@@ -108,7 +108,7 @@ async function sendPushNotification(
     // Get push subscriptions for this player
     const subs = await db.execute(sql`
       SELECT endpoint, auth, p256dh FROM push_subscriptions
-      WHERE player_id = ${playerId} AND active = true
+      WHERE player_id = ${playerId}
     `);
 
     if (subs.rows.length === 0) {
@@ -163,10 +163,10 @@ async function sendPushNotification(
           VALUES (${notificationId}, ${playerId}, NOW())
         `);
       } catch (err: any) {
-        // If subscription is invalid, mark as inactive
+        // If subscription is invalid (410 = Gone), delete it
         if (err.statusCode === 410) {
           await db.execute(sql`
-            UPDATE push_subscriptions SET active = false WHERE endpoint = ${sub.endpoint}
+            DELETE FROM push_subscriptions WHERE endpoint = ${sub.endpoint}
           `);
         }
         logger.error({ err }, `Failed to send push to ${sub.endpoint}`);
@@ -263,9 +263,7 @@ export async function subscribeToPush(
       ON CONFLICT (endpoint) DO UPDATE SET
         player_id = ${playerId},
         auth = ${subscription.keys.auth},
-        p256dh = ${subscription.keys.p256dh},
-        active = true,
-        last_used = NOW()
+        p256dh = ${subscription.keys.p256dh}
     `);
 
     logger.info(`Player ${playerId} subscribed to push notifications`);
