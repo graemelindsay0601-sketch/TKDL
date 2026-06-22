@@ -130,11 +130,13 @@ async function sendWeeklyCoachTips(): Promise<void> {
   try {
     logger.info("Starting weekly coach tips generation...");
 
-    // Get all active players
+    // Get all active players (who have played in last 30 days)
     const players = await db.execute(sql`
-      SELECT DISTINCT player_id 
-      FROM matches 
-      WHERE created_at > NOW() - INTERVAL '30 days'
+      SELECT DISTINCT player_id FROM (
+        SELECT winner_id as player_id FROM matches WHERE played_at > NOW() - INTERVAL '30 days'
+        UNION
+        SELECT loser_id as player_id FROM matches WHERE played_at > NOW() - INTERVAL '30 days'
+      ) active_players
       ORDER BY player_id
     `);
 
