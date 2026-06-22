@@ -19,6 +19,7 @@ import communityRouter     from "./community";
 import messagesRouter      from "./messages";
 import notificationsRouter from "./notifications";
 import statsDetailedRouter from "./stats-detailed";
+import cardClashRouter     from "./card-clash";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(communityRouter);
 router.use(messagesRouter);
 router.use(notificationsRouter);
 router.use(statsDetailedRouter);
+router.use("/api/card-clash", cardClashRouter);
 
 export default router;
