@@ -103,23 +103,6 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
     
     fetchAnalytics();
   }, []);
-            gameType: "Around the World",
-            totalMatches: 44,
-            popularity: 9.0,
-            avgCheckoutRate: 0.42,
-            winRateStd: 0.2,
-          },
-        ];
-
-      } catch (err) {
-        console.error("Failed to load analytics", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAnalytics();
-  }, []);
 
   if (loading) {
     return <div style={{ padding: "40px", textAlign: "center", color: "rgba(255,255,255,0.5)" }}>Loading analytics...</div>;
