@@ -72,8 +72,8 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// API response caching middleware - cache GET requests
-app.use("/api", cacheMiddleware());
+// TEMPORARILY DISABLED: API response caching middleware - testing if it causes match submission to fail
+// app.use("/api", cacheMiddleware());
 
 // Repair legacy sessions that only have userId — backfill playerId + isAdmin
 app.use(async (req, res, next) => {
