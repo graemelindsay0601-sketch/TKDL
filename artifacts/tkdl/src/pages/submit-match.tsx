@@ -30,7 +30,7 @@ const TIER_COLOR: Record<string, string> = {
 const formSchema = z.object({
   winnerId: z.coerce.number().min(1, "Select a winner"),
   loserId:  z.coerce.number().min(1, "Select a loser"),
-  stake:    z.coerce.number().min(1, "Stake must be at least 1").max(25),
+  stake:    z.coerce.number().min(1, "Stake must be at least 1"),
   gameType: z.string().optional(),
   notes:    z.string().optional(),
 }).refine(d => d.winnerId !== d.loserId, {
@@ -94,6 +94,16 @@ export default function SubmitMatch() {
   }
 
   function onSubmit(values: FormValues) {
+    // Validate stake against maxStake
+    if (values.stake > maxStake) {
+      toast({
+        title: "Stake Too High",
+        description: `Maximum stake is ${maxStake} points for this match`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     submitMutation.mutate(
       { data: { winnerId: values.winnerId, loserId: values.loserId, stake: values.stake, gameType: values.gameType || undefined, notes: values.notes } },
       {
@@ -127,7 +137,7 @@ export default function SubmitMatch() {
           Submit Match
         </h1>
         <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
-          Tap a player to pick winner, tap another to pick loser
+          Tap a player to pick winner, tap another to pick loser. Tap again to deselect.
         </p>
       </div>
 
