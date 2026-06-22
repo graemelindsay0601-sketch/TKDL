@@ -6,7 +6,7 @@ import {
   Shield, Target, LogOut, Lock, User, TrendingUp, TrendingDown,
   Zap, Trophy, Dumbbell, CircuitBoard, Star, ChevronDown, ChevronRight,
   Award, Flame, CheckCircle, Clock, Brain, BarChart3,
-  MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera,
+  MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera, Sparkles,
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { NotificationCenter } from "@/components/notification-center";
@@ -288,7 +288,7 @@ export default function AccountPage() {
   const [expandedCats,    setExpandedCats]    = useState<Set<string>>(new Set(["Career"]));
 
   // ── Tab + Community state ────────────────────────────────────────────
-  const [activeTab,        setActiveTab]       = useState<"overview" | "activity" | "achievements" | "coach" | "social" | "stats" | "analytics">("overview");
+  const [activeTab,        setActiveTab]       = useState<"overview" | "activity" | "achievements" | "coach" | "social" | "stats" | "analytics" | "card-clash">("overview");
   const [socialTab,        setSocialTab]       = useState<"dms" | "notifications" | "photos">("dms");
   const [achSource,        setAchSource]       = useState<"league" | "bot" | "tour" | "m501">("league");
   const [coachDrills,      setCoachDrills]     = useState<any[]>([]);
@@ -791,6 +791,7 @@ export default function AccountPage() {
           { id: "activity"      as const, label: "Activity",  Icon: Zap                              },
           { id: "achievements"  as const, label: "Earned",    Icon: Award                            },
           { id: "coach"         as const, label: "Coach",     Icon: Brain                            },
+          { id: "card-clash"    as const, label: "Cards",     Icon: Sparkles                         },
           { id: "social"        as const, label: "Social",    Icon: MessageSquare, badge: unreadNotifCount },
           { id: "stats"         as const, label: "Stats",     Icon: TrendingUp                             },
           { id: "analytics"     as const, label: "Analytics", Icon: BarChart3                        },
@@ -1974,6 +1975,36 @@ export default function AccountPage() {
       {activeTab === "analytics" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <AdvancedAnalyticsDashboard playerId={parseInt(user.playerId)} />
+        </div>
+      )}
+
+      {activeTab === "card-clash" && user?.playerId && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{
+            padding: "20px",
+            borderRadius: "16px",
+            background: "linear-gradient(135deg, rgba(167,139,250,0.1) 0%, rgba(167,139,250,0.04) 100%)",
+            border: "1px solid rgba(167,139,250,0.2)",
+          }}>
+            <h3 style={{ fontFamily: "Oswald, sans-serif", color: "#a78bfa", marginBottom: "16px", letterSpacing: "0.08em", fontSize: "1rem" }}>CARD CLASH INVENTORY</h3>
+            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.9rem", marginBottom: "16px" }}>
+              Head to the Card Clash tab in the main navigation to view your full card inventory, purchase packs, and check the leaderboard.
+            </p>
+            <Link href="/card-clash"
+              style={{
+                display: "inline-block",
+                padding: "10px 20px",
+                background: "rgba(167,139,250,0.2)",
+                border: "1px solid rgba(167,139,250,0.35)",
+                borderRadius: "8px",
+                color: "#a78bfa",
+                fontFamily: "Oswald, sans-serif",
+                cursor: "pointer",
+                letterSpacing: "0.06em",
+              }}>
+              Open Card Clash →
+            </Link>
+          </div>
         </div>
       )}
 

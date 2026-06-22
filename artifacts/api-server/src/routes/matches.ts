@@ -9,6 +9,7 @@ import { checkMatchAchievements, checkStatAchievements } from "../lib/achievemen
 import { checkAndGrantTitles } from "../lib/titles";
 import { createAutoPost } from "../lib/communityNotify";
 import { sendMatchResultNotification, sendRankChangeNotifications, sendThreatAlertNotifications } from "../services/notificationService";
+import { addCoinsToPlayer } from "../services/card-shop-service";
 
 const SubmitMatchBody = z.object({
   winnerId:                z.number().int().positive(),
@@ -227,6 +228,17 @@ router.post("/matches", async (req, res): Promise<void> => {
       
       // Threat alert notifications (if gap < 15 points)
       await sendThreatAlertNotifications(winnerId, loserId, newWinnerElo, newLoserElo);
+
+      // Award Card Clash coins (fire and forget)
+      try {
+        const winCoins = 20; // League win bonus
+        const lossCoins = 10; // League loss bonus
+        await addCoinsToPlayer(winnerId, winCoins);
+        await addCoinsToPlayer(loserId, lossCoins);
+      } catch (coinErr) {
+        // Log coin errors but don't fail the match
+        console.error("Card Clash coin awarding error:", coinErr);
+      }
     } catch (err) {
       // Log notification errors but don't fail the match submission
       console.error("Notification send error:", err);

@@ -1,4 +1,4 @@
-import { db } from "@workspace/db";
+import { db, playerCurrencyTable } from "@workspace/db";
 import {
   cardClashMatchesTable,
   cardClashStandingsTable,
@@ -6,10 +6,17 @@ import {
   cardInventoryTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { addCoinsToPlayer, removeCardFromPlayer } from "./card-shop-service";
 
 const CARD_CLASH_WAGER_POINTS = {
   WIN: 50,
   LOSS: 10,
+};
+
+const COIN_REWARDS = {
+  WIN_BASE: 50,
+  LOSS_BASE: 25,
+  PER_CARD_USED: 10,
 };
 
 export async function getActiveCardClashSeason() {
@@ -83,6 +90,7 @@ export async function recordCardUsedInMatch(
 export async function finishCardClashMatch(
   matchId: number,
   winnerId: number,
+  cardsUsedInMatch?: Array<{ cardId: string; usedBy: number }>,
   player1PointsEarned: number = 0,
   player2PointsEarned: number = 0
 ) {
@@ -95,8 +103,19 @@ export async function finishCardClashMatch(
   if (!match[0]) throw new Error("Match not found");
 
   const loser = match[0].player1Id === winnerId ? match[0].player2Id : match[0].player1Id;
-  const winnerCardPoints = CARD_CLASH_WAGER_POINTS.WIN;
-  const loserCardPoints = CARD_CLASH_WAGER_POINTS.LOSS;
+  
+  // Count cards used
+  const cardsUsed = cardsUsedInMatch || [];
+  const winnerCardsUsed = cardsUsed.filter(c => c.usedBy === winnerId).length;
+  const loserCardsUsed = cardsUsed.filter(c => c.usedBy === loser).length;
+
+  // Calculate points: base + 10 per card used
+  const winnerCardPoints = CARD_CLASH_WAGER_POINTS.WIN + (winnerCardsUsed * 10);
+  const loserCardPoints = CARD_CLASH_WAGER_POINTS.LOSS + (loserCardsUsed * 10);
+
+  // Calculate coin rewards
+  const winnerCoins = COIN_REWARDS.WIN_BASE + (winnerCardsUsed * COIN_REWARDS.PER_CARD_USED);
+  const loserCoins = COIN_REWARDS.LOSS_BASE + (loserCardsUsed * COIN_REWARDS.PER_CARD_USED);
 
   // Update match
   await db
@@ -107,8 +126,22 @@ export async function finishCardClashMatch(
         match[0].player1Id === winnerId ? winnerCardPoints : loserCardPoints,
       player2PointsEarned:
         match[0].player2Id === winnerId ? winnerCardPoints : loserCardPoints,
+      cardsUsedInMatch: JSON.stringify(cardsUsed),
     })
     .where(eq(cardClashMatchesTable.id, matchId));
+
+  // Award coins to both players
+  await addCoinsToPlayer(winnerId, winnerCoins);
+  await addCoinsToPlayer(loser, loserCoins);
+
+  // Consume cards (remove from inventory)
+  for (const card of cardsUsed) {
+    try {
+      await removeCardFromPlayer(card.usedBy, card.cardId, 1);
+    } catch (e) {
+      console.error(`Failed to consume card ${card.cardId} for player ${card.usedBy}:`, e);
+    }
+  }
 
   // Update standings
   const season = await db
@@ -189,21 +222,14 @@ export async function finishCardClashMatch(
     });
   }
 
-  // Consume cards used
-  const cardsUsed = JSON.parse(match[0].cardsUsedInMatch as string);
-  for (const cardUsage of cardsUsed) {
-    await db
-      .update(cardInventoryTable)
-      .set({
-        quantity: db.sql`GREATEST(0, ${cardInventoryTable.quantity} - 1)`,
-      })
-      .where(
-        and(
-          eq(cardInventoryTable.playerId, cardUsage.usedBy),
-          eq(cardInventoryTable.cardId, cardUsage.cardId)
-        )
-      );
-  }
+  // Return match with updated data
+  const updatedMatch = await db
+    .select()
+    .from(cardClashMatchesTable)
+    .where(eq(cardClashMatchesTable.id, matchId))
+    .limit(1);
+
+  return updatedMatch[0];
 }
 
 export async function deleteCardClashMatch(matchId: number) {
