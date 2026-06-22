@@ -3,8 +3,8 @@ import { statsService } from "../services/stats-service";
 
 const router = Router();
 
-// GET /api/players/:id/stats/overview
-router.get("/players/:id/stats/overview", async (req, res) => {
+// GET /api/players/:id/stats/categories - Game type breakdown
+router.get("/players/:id/stats/categories", async (req, res) => {
   try {
     const playerId = parseInt(req.params.id, 10);
     const window = (req.query.window as any) || "all";
@@ -14,82 +14,80 @@ router.get("/players/:id/stats/overview", async (req, res) => {
       return;
     }
 
-    const stats = await statsService.getOverallStats(playerId, window);
+    const breakdown = await statsService.getGameTypeBreakdown(playerId, window);
+    res.json(breakdown);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get category breakdown");
+    res.status(500).json({ error: "Failed to get stats" });
+  }
+});
+
+// GET /api/players/:id/stats/category/:category - Detailed stats for M501, Tour, Practice, League
+router.get("/players/:id/stats/category/:category", async (req, res) => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    const category = req.params.category as any;
+    const window = (req.query.window as any) || "all";
+    
+    if (isNaN(playerId)) {
+      res.status(400).json({ error: "Invalid player ID" });
+      return;
+    }
+
+    if (!["M501", "Tour", "Practice", "League"].includes(category)) {
+      res.status(400).json({ error: "Invalid category. Must be M501, Tour, Practice, or League" });
+      return;
+    }
+
+    const stats = await statsService.getCategoryStats(playerId, category, window);
     res.json(stats);
   } catch (err) {
-    req.log.error({ err }, "Failed to get overall stats");
+    req.log.error({ err }, "Failed to get category stats");
     res.status(500).json({ error: "Failed to get stats" });
   }
 });
 
-// GET /api/players/:id/stats/by-game-type
-router.get("/players/:id/stats/by-game-type", async (req, res) => {
+// GET /api/players/:id/stats/category/:category/trends - Monthly trends for category
+router.get("/players/:id/stats/category/:category/trends", async (req, res) => {
   try {
     const playerId = parseInt(req.params.id, 10);
-    const window = (req.query.window as any) || "all";
+    const category = req.params.category as any;
     
     if (isNaN(playerId)) {
       res.status(400).json({ error: "Invalid player ID" });
       return;
     }
 
-    const stats = await statsService.getByGameType(playerId, window);
-    res.json(stats);
-  } catch (err) {
-    req.log.error({ err }, "Failed to get game type stats");
-    res.status(500).json({ error: "Failed to get stats" });
-  }
-});
-
-// GET /api/players/:id/stats/game-type/:key/detail
-router.get("/players/:id/stats/game-type/:key/detail", async (req, res) => {
-  try {
-    const playerId = parseInt(req.params.id, 10);
-    const gameTypeKey = req.params.key;
-    const window = (req.query.window as any) || "all";
-    
-    if (isNaN(playerId) || !gameTypeKey) {
-      res.status(400).json({ error: "Invalid parameters" });
+    if (!["M501", "Tour", "Practice", "League"].includes(category)) {
+      res.status(400).json({ error: "Invalid category" });
       return;
     }
 
-    const detail = await statsService.getGameTypeDetail(playerId, gameTypeKey, window);
-    res.json(detail);
-  } catch (err) {
-    req.log.error({ err }, "Failed to get game type detail");
-    res.status(500).json({ error: "Failed to get stats" });
-  }
-});
-
-// GET /api/players/:id/stats/trends
-router.get("/players/:id/stats/trends", async (req, res) => {
-  try {
-    const playerId = parseInt(req.params.id, 10);
-    
-    if (isNaN(playerId)) {
-      res.status(400).json({ error: "Invalid player ID" });
-      return;
-    }
-
-    const trends = await statsService.getTrends(playerId);
+    const trends = await statsService.getCategoryTrends(playerId, category);
     res.json(trends);
   } catch (err) {
-    req.log.error({ err }, "Failed to get trends");
+    req.log.error({ err }, "Failed to get category trends");
     res.status(500).json({ error: "Failed to get trends" });
   }
 });
 
-// GET /api/players/:id/stats/dart-profile
-router.get("/players/:id/stats/dart-profile", async (req, res) => {
+// GET /api/players/:id/stats/category/:category/darts - Dart profile for category
+router.get("/players/:id/stats/category/:category/darts", async (req, res) => {
   try {
     const playerId = parseInt(req.params.id, 10);
+    const category = req.params.category as any;
     
     if (isNaN(playerId)) {
       res.status(400).json({ error: "Invalid player ID" });
       return;
     }
 
-    const profile = await statsService.getDartProfile(playerId);
+    if (!["M501", "Tour", "Practice", "League"].includes(category)) {
+      res.status(400).json({ error: "Invalid category" });
+      return;
+    }
+
+    const profile = await statsService.getCategoryDartProfile(playerId, category);
     res.json(profile);
   } catch (err) {
     req.log.error({ err }, "Failed to get dart profile");
@@ -97,10 +95,11 @@ router.get("/players/:id/stats/dart-profile", async (req, res) => {
   }
 });
 
-// GET /api/players/:id/stats/sessions
-router.get("/players/:id/stats/sessions", async (req, res) => {
+// GET /api/players/:id/stats/category/:category/sessions - Sessions for category
+router.get("/players/:id/stats/category/:category/sessions", async (req, res) => {
   try {
     const playerId = parseInt(req.params.id, 10);
+    const category = req.params.category as any;
     const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 100);
     
     if (isNaN(playerId)) {
@@ -108,15 +107,20 @@ router.get("/players/:id/stats/sessions", async (req, res) => {
       return;
     }
 
-    const sessions = await statsService.getSessionHistory(playerId, limit);
+    if (!["M501", "Tour", "Practice", "League"].includes(category)) {
+      res.status(400).json({ error: "Invalid category" });
+      return;
+    }
+
+    const sessions = await statsService.getCategorySessions(playerId, category, limit);
     res.json(sessions);
   } catch (err) {
-    req.log.error({ err }, "Failed to get session history");
+    req.log.error({ err }, "Failed to get sessions");
     res.status(500).json({ error: "Failed to get sessions" });
   }
 });
 
-// GET /api/players/:id/stats/sessions/:sessionId
+// GET /api/players/:id/stats/sessions/:sessionId - Session detail
 router.get("/players/:id/stats/sessions/:sessionId", async (req, res) => {
   try {
     const playerId = parseInt(req.params.id, 10);
@@ -137,6 +141,24 @@ router.get("/players/:id/stats/sessions/:sessionId", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to get session detail");
     res.status(500).json({ error: "Failed to get session detail" });
+  }
+});
+
+// GET /api/players/:id/stats/coach-feed - Data for coach integration
+router.get("/players/:id/stats/coach-feed", async (req, res) => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    
+    if (isNaN(playerId)) {
+      res.status(400).json({ error: "Invalid player ID" });
+      return;
+    }
+
+    const coachData = await statsService.getCoachFeedData(playerId);
+    res.json(coachData);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get coach feed");
+    res.status(500).json({ error: "Failed to get coach feed" });
   }
 });
 

@@ -2,6 +2,7 @@ import { db, matchesTable, practiceSessionsTable, playersTable } from "@workspac
 import { eq, and, desc, gte, sql as drizzleSql } from "drizzle-orm";
 
 type TimeWindow = "7days" | "30days" | "90days" | "all";
+type GameTypeCategory = "M501" | "Tour" | "Practice" | "League";
 
 const getDateFilter = (window: TimeWindow): Date => {
   const now = new Date();
@@ -13,138 +14,160 @@ const getDateFilter = (window: TimeWindow): Date => {
   }
 };
 
-const normalizeGameType = (gameType: string): string => {
-  const normalized = gameType.toUpperCase().replace(/_/g, "");
-  if (normalized.startsWith("X01") || normalized === "501" || normalized === "301" || normalized === "1001") {
-    return "X01";
-  }
-  if (normalized === "CRICKET") return "CRICKET";
-  return normalized;
+// Categorize game types into M501, Tour, Practice, League
+const categorizeGameType = (gameTypeKey: string): GameTypeCategory => {
+  const key = gameTypeKey?.toUpperCase() || "";
+  
+  if (key.includes("M501") || key.includes("MASTER")) return "M501";
+  if (key.includes("TOUR") || key.includes("CAREER")) return "Tour";
+  if (key.includes("PRACTICE") || key.includes("SOLO")) return "Practice";
+  
+  // Default to League for regular competitive games (501, cricket, etc)
+  return "League";
+};
+
+const getGameTypeCategory = (gameType: string): GameTypeCategory => {
+  const normalized = gameType?.toUpperCase() || "";
+  
+  if (normalized.includes("M501") || normalized.includes("MASTER")) return "M501";
+  if (normalized.includes("TOUR") || normalized.includes("CAREER")) return "Tour";
+  if (normalized.includes("PRACTICE") || normalized.includes("SOLO")) return "Practice";
+  
+  return "League";
 };
 
 export const statsService = {
-  async getOverallStats(playerId: number, window: TimeWindow = "all") {
-    const cutoff = getDateFilter(window);
-    
-    const [matchResults, practiceData] = await Promise.all([
-      db.execute(drizzleSql`
-        SELECT 
-          COUNT(*)::int as total_matches,
-          SUM(CASE WHEN winner_id = ${playerId} THEN 1 ELSE 0 END)::int as wins,
-          SUM(CASE WHEN loser_id = ${playerId} THEN 1 ELSE 0 END)::int as losses,
-          COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_darts ELSE loser_darts END), 0)::int as total_darts,
-          COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_180s ELSE loser_180s END), 0)::int as total_180s,
-          COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_checkout_hits ELSE loser_checkout_hits END), 0)::int as checkout_hits,
-          COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_checkout_attempts ELSE loser_checkout_attempts END), 0)::int as checkout_attempts,
-          COALESCE(AVG(CASE WHEN winner_id = ${playerId} OR loser_id = ${playerId} THEN CASE WHEN winner_darts > 0 OR loser_darts > 0 THEN CASE WHEN winner_id = ${playerId} THEN winner_darts ELSE loser_darts END ELSE NULL END END), 0)::numeric as avg_darts_per_match
-        FROM matches 
-        WHERE (winner_id = ${playerId} OR loser_id = ${playerId}) 
-          AND played_at >= ${cutoff}
-      `),
-      db.execute(drizzleSql`
-        SELECT 
-          COUNT(*)::int as sessions,
-          COALESCE(SUM(darts_thrown), 0)::int as total_darts_practice,
-          COALESCE(SUM(p1_180s), 0)::int as p1_180s,
-          COALESCE(SUM(p1_checkout_hits), 0)::int as p1_checkouts
-        FROM practice_sessions 
-        WHERE player1_id = ${playerId} 
-          AND created_at >= ${cutoff}
-      `),
-    ]);
-
-    const matches = matchResults.rows[0] as any;
-    const practice = practiceData.rows[0] as any;
-
-    return {
-      competitive: {
-        matches: matches.total_matches || 0,
-        wins: matches.wins || 0,
-        losses: matches.losses || 0,
-        winRate: matches.total_matches ? (matches.wins || 0) / matches.total_matches : 0,
-        totalDarts: matches.total_darts || 0,
-        total180s: matches.total_180s || 0,
-        checkoutHits: matches.checkout_hits || 0,
-        checkoutAttempts: matches.checkout_attempts || 0,
-        checkoutRate: matches.checkout_attempts ? (matches.checkout_hits || 0) / matches.checkout_attempts : 0,
-        avgDartsPerMatch: matches.avg_darts_per_match ? parseFloat(matches.avg_darts_per_match) : 0,
-      },
-      practice: {
-        sessions: practice.sessions || 0,
-        totalDarts: practice.total_darts_practice || 0,
-        total180s: practice.p1_180s || 0,
-        checkoutHits: practice.p1_checkouts || 0,
-      },
-    };
-  },
-
-  async getByGameType(playerId: number, window: TimeWindow = "all") {
+  // Get all game type categories with high-level stats
+  async getGameTypeBreakdown(playerId: number, window: TimeWindow = "all") {
     const cutoff = getDateFilter(window);
     
     const result = await db.execute(drizzleSql`
       SELECT 
         game_type,
-        COUNT(*)::int as total,
+        game_type_name,
+        COUNT(*)::int as total_matches,
         SUM(CASE WHEN winner_id = ${playerId} THEN 1 ELSE 0 END)::int as wins,
         COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_darts ELSE loser_darts END), 0)::int as total_darts,
-        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_180s ELSE loser_180s END), 0)::int as total_180s
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_180s ELSE loser_180s END), 0)::int as total_180s,
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_checkout_hits ELSE loser_checkout_hits END), 0)::int as checkout_hits,
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_checkout_attempts ELSE loser_checkout_attempts END), 0)::int as checkout_attempts
       FROM matches 
       WHERE (winner_id = ${playerId} OR loser_id = ${playerId}) 
         AND played_at >= ${cutoff}
-      GROUP BY game_type
-      ORDER BY total DESC
+      GROUP BY game_type, game_type_name
+      ORDER BY total_matches DESC
     `);
 
     return (result.rows as any[]).map(row => ({
-      gameType: normalizeGameType(row.game_type),
-      matches: row.total,
+      gameType: row.game_type,
+      gameTypeName: row.game_type_name,
+      category: getGameTypeCategory(row.game_type),
+      matches: row.total_matches,
       wins: row.wins,
-      losses: row.total - row.wins,
-      winRate: row.total ? row.wins / row.total : 0,
+      losses: row.total_matches - row.wins,
+      winRate: row.total_matches ? row.wins / row.total_matches : 0,
       totalDarts: row.total_darts,
       total180s: row.total_180s,
+      checkoutHits: row.checkout_hits,
+      checkoutAttempts: row.checkout_attempts,
+      checkoutRate: row.checkout_attempts ? row.checkout_hits / row.checkout_attempts : 0,
     }));
   },
 
-  async getGameTypeDetail(playerId: number, gameType: string, window: TimeWindow = "all") {
+  // Get detailed stats for a specific category (M501, Tour, Practice, League)
+  async getCategoryStats(playerId: number, category: GameTypeCategory, window: TimeWindow = "all") {
     const cutoff = getDateFilter(window);
-    const normalized = normalizeGameType(gameType);
     
-    const result = await db.execute(drizzleSql`
-      SELECT 
-        m.id,
-        m.winner_id,
-        m.winner_name,
-        m.loser_name,
-        m.winner_darts,
-        m.winner_180s,
-        m.loser_darts,
-        m.loser_180s,
-        m.played_at,
-        m.game_type,
-        m.stake,
-        m.elo_change
-      FROM matches m
-      WHERE (m.winner_id = ${playerId} OR m.loser_id = ${playerId})
-        AND UPPER(REPLACE(m.game_type, '_', '')) LIKE ${'%' + normalized.replace(/[_]/g, '') + '%'}
-        AND m.played_at >= ${cutoff}
-      ORDER BY m.played_at DESC
-      LIMIT 50
-    `);
+    let whereClause = "";
+    if (category === "M501") {
+      whereClause = `AND (game_type ILIKE '%M501%' OR game_type ILIKE '%MASTER%')`;
+    } else if (category === "Tour") {
+      whereClause = `AND (game_type ILIKE '%TOUR%' OR game_type ILIKE '%CAREER%')`;
+    } else if (category === "Practice") {
+      whereClause = `AND (game_type ILIKE '%PRACTICE%' OR game_type ILIKE '%SOLO%')`;
+    } else {
+      // League: everything else
+      whereClause = `AND game_type NOT ILIKE '%M501%' AND game_type NOT ILIKE '%MASTER%' 
+                      AND game_type NOT ILIKE '%TOUR%' AND game_type NOT ILIKE '%CAREER%'
+                      AND game_type NOT ILIKE '%PRACTICE%' AND game_type NOT ILIKE '%SOLO%'`;
+    }
 
-    return (result.rows as any[]).map(match => ({
-      id: match.id,
-      opponent: match.winner_id === playerId ? match.loser_name : match.winner_name,
-      won: match.winner_id === playerId,
-      dartsUsed: match.winner_id === playerId ? match.winner_darts : match.loser_darts,
-      opponent180s: match.winner_id === playerId ? match.loser_180s : match.winner_180s,
-      playedAt: match.played_at,
-      eloChange: match.elo_change,
-      stake: match.stake,
-    }));
+    const [matchStats, practiceStats] = await Promise.all([
+      // Competitive matches for this category
+      db.execute(drizzleSql`
+        SELECT 
+          COUNT(*)::int as total_matches,
+          SUM(CASE WHEN winner_id = ${playerId} THEN 1 ELSE 0 END)::int as wins,
+          COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_darts ELSE loser_darts END), 0)::int as total_darts,
+          COALESCE(AVG(CASE WHEN winner_id = ${playerId} OR loser_id = ${playerId} THEN CASE WHEN winner_id = ${playerId} THEN winner_darts ELSE loser_darts END ELSE NULL END), 0)::numeric as avg_darts,
+          COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_180s ELSE loser_180s END), 0)::int as total_180s,
+          COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_checkout_hits ELSE loser_checkout_hits END), 0)::int as checkout_hits,
+          COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_checkout_attempts ELSE loser_checkout_attempts END), 0)::int as checkout_attempts
+        FROM matches 
+        WHERE (winner_id = ${playerId} OR loser_id = ${playerId}) 
+          AND played_at >= ${cutoff}
+          ${whereClause}
+      `),
+      // Practice sessions (only for Practice category or general)
+      category === "Practice" ? db.execute(drizzleSql`
+        SELECT 
+          COUNT(*)::int as sessions,
+          COALESCE(SUM(darts_thrown), 0)::int as total_darts_practice,
+          COALESCE(SUM(p1_180s), 0)::int as total_180s,
+          COALESCE(SUM(p1_checkout_hits), 0)::int as checkout_hits,
+          COALESCE(AVG(p1_darts), 0)::numeric as avg_darts
+        FROM practice_sessions 
+        WHERE player1_id = ${playerId} 
+          AND created_at >= ${cutoff}
+      `) : Promise.resolve({ rows: [{ sessions: 0, total_darts_practice: 0, total_180s: 0, checkout_hits: 0, avg_darts: 0 }] }),
+    ]);
+
+    const matches = matchStats.rows[0] as any;
+    const practice = (practiceStats as any).rows[0] as any;
+
+    if (category === "Practice") {
+      return {
+        category: "Practice",
+        source: "practice",
+        sessions: practice.sessions || 0,
+        totalDarts: practice.total_darts_practice || 0,
+        avgDartsPerSession: practice.avg_darts ? parseFloat(practice.avg_darts) : 0,
+        total180s: practice.total_180s || 0,
+        checkoutHits: practice.checkout_hits || 0,
+      };
+    }
+
+    return {
+      category,
+      source: "competitive",
+      matches: matches.total_matches || 0,
+      wins: matches.wins || 0,
+      losses: (matches.total_matches || 0) - (matches.wins || 0),
+      winRate: matches.total_matches ? (matches.wins || 0) / matches.total_matches : 0,
+      totalDarts: matches.total_darts || 0,
+      avgDartsPerMatch: matches.avg_darts ? parseFloat(matches.avg_darts) : 0,
+      total180s: matches.total_180s || 0,
+      checkoutHits: matches.checkout_hits || 0,
+      checkoutAttempts: matches.checkout_attempts || 0,
+      checkoutRate: matches.checkout_attempts ? (matches.checkout_hits || 0) / matches.checkout_attempts : 0,
+    };
   },
 
-  async getTrends(playerId: number) {
+  // Get monthly trends for a category
+  async getCategoryTrends(playerId: number, category: GameTypeCategory) {
+    let whereClause = "";
+    if (category === "M501") {
+      whereClause = `AND (game_type ILIKE '%M501%' OR game_type ILIKE '%MASTER%')`;
+    } else if (category === "Tour") {
+      whereClause = `AND (game_type ILIKE '%TOUR%' OR game_type ILIKE '%CAREER%')`;
+    } else if (category === "Practice") {
+      whereClause = `AND (game_type ILIKE '%PRACTICE%' OR game_type ILIKE '%SOLO%')`;
+    } else {
+      whereClause = `AND game_type NOT ILIKE '%M501%' AND game_type NOT ILIKE '%MASTER%' 
+                      AND game_type NOT ILIKE '%TOUR%' AND game_type NOT ILIKE '%CAREER%'
+                      AND game_type NOT ILIKE '%PRACTICE%' AND game_type NOT ILIKE '%SOLO%'`;
+    }
+
     const result = await db.execute(drizzleSql`
       WITH monthly_stats AS (
         SELECT 
@@ -153,6 +176,7 @@ export const statsService = {
           SUM(CASE WHEN winner_id = ${playerId} THEN 1 ELSE 0 END)::int as wins
         FROM matches 
         WHERE (winner_id = ${playerId} OR loser_id = ${playerId})
+          ${whereClause}
         GROUP BY DATE_TRUNC('month', played_at)
         ORDER BY month DESC
         LIMIT 12
@@ -168,7 +192,8 @@ export const statsService = {
     }));
   },
 
-  async getDartProfile(playerId: number) {
+  // Get dart profile for a category (from practice sessions)
+  async getCategoryDartProfile(playerId: number, category: GameTypeCategory) {
     const result = await db.execute(drizzleSql`
       WITH dart_analysis AS (
         SELECT 
@@ -191,12 +216,13 @@ export const statsService = {
       dartFrequency.set(row.val, row.frequency);
     }
 
-    // Calculate hit rates for common targets
     const targets = [20, 19, 18, 17, 16, 15, 25];
     const hitRates = targets.map(target => ({
       target,
       hits: dartFrequency.get(target) || 0,
-      frequency: ((dartFrequency.get(target) || 0) / Array.from(dartFrequency.values()).reduce((a, b) => a + b, 1)) * 100,
+      frequency: dartFrequency.size > 0 
+        ? ((dartFrequency.get(target) || 0) / Array.from(dartFrequency.values()).reduce((a, b) => a + b, 1)) * 100
+        : 0,
     }));
 
     return {
@@ -205,7 +231,8 @@ export const statsService = {
     };
   },
 
-  async getSessionHistory(playerId: number, limit: number = 50) {
+  // Get sessions for a category
+  async getCategorySessions(playerId: number, category: GameTypeCategory, limit: number = 50) {
     const sessions = await db
       .select()
       .from(practiceSessionsTable)
@@ -216,6 +243,7 @@ export const statsService = {
     return sessions.map(session => ({
       id: session.id,
       gameType: session.gameTypeName,
+      category: categorizeGameType(session.gameTypeKey || ""),
       dartsThrown: session.dartsThrown,
       durationSeconds: session.durationSeconds,
       p1Score: session.p1Score,
@@ -224,10 +252,10 @@ export const statsService = {
       p1CheckoutAttempts: session.p1CheckoutAttempts,
       createdAt: session.createdAt,
       detail: session.detail,
-      opponent: session.player2Id ? `Player ${session.player2Id}` : "Solo",
-    }));
+    })).filter(s => s.category === category);
   },
 
+  // Get session detail
   async getSessionDetail(playerId: number, sessionId: number) {
     const [session] = await db
       .select()
@@ -243,6 +271,7 @@ export const statsService = {
     return {
       id: session.id,
       gameType: session.gameTypeName,
+      category: categorizeGameType(session.gameTypeKey || ""),
       dartsThrown: session.dartsThrown,
       durationSeconds: session.durationSeconds,
       p1Score: session.p1Score,
@@ -252,6 +281,33 @@ export const statsService = {
       createdAt: session.createdAt,
       dartLog: dartLog.slice(0, 100).map((d: any) => d.val || d),
       avgDartValue: dartLog.length ? dartLog.reduce((sum: number, d: any) => sum + (d.val || 0), 0) / dartLog.length : 0,
+    };
+  },
+
+  // Get stats for coach integration (calculates metrics coach needs for drill generation)
+  async getCoachFeedData(playerId: number) {
+    const result = await db.execute(drizzleSql`
+      SELECT
+        COALESCE(SUM(p1_darts), 0)::int as total_darts,
+        COALESCE(SUM(p1_checkout_attempts), 0)::int as co_attempts,
+        COALESCE(SUM(p1_checkout_hits), 0)::int as co_hits,
+        COUNT(*)::int as total_sessions,
+        CASE WHEN SUM(p1_darts) > 0
+          THEN ROUND(SUM(p1_score)::numeric * 3.0 / SUM(p1_darts), 1)
+          ELSE NULL END::float as avg_three_dart
+      FROM practice_sessions 
+      WHERE player1_id = ${playerId} AND p1_darts IS NOT NULL
+    `);
+
+    const row = result.rows[0] as any;
+    
+    return {
+      totalDarts: row.total_darts || 0,
+      checkoutAttempts: row.co_attempts || 0,
+      checkoutHits: row.co_hits || 0,
+      checkoutRate: row.co_attempts ? (row.co_hits / row.co_attempts) * 100 : 0,
+      totalSessions: row.total_sessions || 0,
+      avgThreeDart: row.avg_three_dart ? parseFloat(row.avg_three_dart) : 0,
     };
   },
 };
