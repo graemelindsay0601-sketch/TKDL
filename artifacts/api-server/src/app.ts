@@ -15,6 +15,11 @@ import { seedTourSystem } from "./lib/tourSeed";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
 import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
 import webpush from "web-push";
+import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
+import bcrypt from "bcryptjs";
+import { db } from "@workspace/db";
+import { playersTable, seasonsTable, matchesTable, seasonStandingsTable, settingsTable, gameTypesTable, usersTable } from "@workspace/db";
+import { eq, count, sql } from "drizzle-orm";
 
 // Configure VAPID keys for push notifications
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
@@ -27,11 +32,6 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 } else {
   logger.warn("VAPID keys not configured - push notifications will not work");
 }
-import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
-import bcrypt from "bcryptjs";
-import { db } from "@workspace/db";
-import { playersTable, seasonsTable, matchesTable, seasonStandingsTable, settingsTable, gameTypesTable, usersTable } from "@workspace/db";
-import { eq, count, sql } from "drizzle-orm";
 
 const app: Express = express();
 
