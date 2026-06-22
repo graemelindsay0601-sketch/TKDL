@@ -296,9 +296,105 @@ export async function getNotificationAnalytics(): Promise<any> {
 }
 
 /**
- * Create admin announcement
+ * Send match result notification to winner and loser
  */
-export async function createAnnouncement(
+export async function sendMatchResultNotification(
+  winnerId: number,
+  loserId: number,
+  winnerName: string,
+  loserName: string,
+  stake: number,
+  eloChange: number
+): Promise<void> {
+  try {
+    // Winner notification
+    await createNotification({
+      playerId: winnerId,
+      type: "match_result",
+      title: `Victory!`,
+      body: `You beat ${loserName} • +${eloChange} ELO • ±${stake} pts`,
+      data: {
+        matchWinnerId: winnerId,
+        matchLoserId: loserId,
+        eloChange,
+        stake,
+        result: "win",
+      },
+    });
+
+    // Loser notification
+    await createNotification({
+      playerId: loserId,
+      type: "match_result",
+      title: `Match Loss`,
+      body: `Lost to ${winnerName} • -${eloChange} ELO • ±${stake} pts`,
+      data: {
+        matchWinnerId: winnerId,
+        matchLoserId: loserId,
+        eloChange,
+        stake,
+        result: "loss",
+      },
+    });
+  } catch (err) {
+    logger.error({ err }, "Failed to send match result notifications");
+  }
+}
+
+/**
+ * Send rank change notifications to affected players
+ */
+export async function sendRankChangeNotifications(
+  affectedPlayers: Array<{ id: number; name: string; newRank: number; oldRank: number }>
+): Promise<void> {
+  try {
+    for (const player of affectedPlayers) {
+      const rankChange = player.oldRank - player.newRank; // positive = moved up, negative = moved down
+
+      await createNotification({
+        playerId: player.id,
+        type: "rank_change",
+        title: rankChange > 0 ? `🎉 Rank Up!` : `📍 Rank Changed`,
+        body: rankChange > 0
+          ? `You moved up to #${player.newRank}`
+          : `You dropped to #${player.newRank}`,
+        data: {
+          newRank: player.newRank,
+          oldRank: player.oldRank,
+          rankChange,
+        },
+      });
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to send rank change notifications");
+  }
+}
+
+/**
+ * Send threat alert if someone gets close to a player's rank
+ */
+export async function sendThreatAlertNotifications(
+  threatData: Array<{ playerId: number; playerName: string; threatenerId: number; threateningPlayerName: string; pointGap: number }>
+): Promise<void> {
+  try {
+    for (const threat of threatData) {
+      if (threat.pointGap < 15 && threat.pointGap > 0) {
+        await createNotification({
+          playerId: threat.playerId,
+          type: "threat_alert",
+          title: `⚠️ Getting Close`,
+          body: `${threat.threateningPlayerName} is ${threat.pointGap}pts away`,
+          data: {
+            threatSource: threat.threateningPlayerName,
+            pointGap: threat.pointGap,
+          },
+        });
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to send threat alert notifications");
+  }
+}
   adminId: number,
   title: string,
   body: string,

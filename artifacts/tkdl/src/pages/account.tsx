@@ -1850,7 +1850,6 @@ export default function AccountPage() {
             <NotificationCenter playerId={parseInt(user.playerId)} />
           </div>
         </div>
-        </div>
       )}
 
         {socialTab === "photos" && (
