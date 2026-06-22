@@ -1,5 +1,4 @@
 import { Router, Request, Response } from "express";
-import { authenticateToken } from "../middlewares/auth";
 import {
   purchasePack,
   getPlayerInventory,
@@ -27,7 +26,7 @@ const router = Router();
 // === CARD SHOP ROUTES ===
 
 // Get player currency balance
-router.get("/shop/currency/:playerId", authenticateToken, async (req: Request, res: Response) => {
+router.get("/shop/currency/:playerId", async (req: Request, res: Response) => {
   try {
     const playerId = parseInt(req.params.playerId);
     const currency = await getPlayerCurrency(playerId);
@@ -38,7 +37,7 @@ router.get("/shop/currency/:playerId", authenticateToken, async (req: Request, r
 });
 
 // Purchase pack
-router.post("/shop/purchase", authenticateToken, async (req: Request, res: Response) => {
+router.post("/shop/purchase", async (req: Request, res: Response) => {
   try {
     const { playerId, packType } = req.body;
 
@@ -54,7 +53,7 @@ router.post("/shop/purchase", authenticateToken, async (req: Request, res: Respo
 });
 
 // Get player card inventory
-router.get("/inventory/:playerId", authenticateToken, async (req: Request, res: Response) => {
+router.get("/inventory/:playerId", async (req: Request, res: Response) => {
   try {
     const playerId = parseInt(req.params.playerId);
     const inventory = await getPlayerInventory(playerId);
@@ -65,7 +64,7 @@ router.get("/inventory/:playerId", authenticateToken, async (req: Request, res: 
 });
 
 // Get player pity status
-router.get("/pity/:playerId", authenticateToken, async (req: Request, res: Response) => {
+router.get("/pity/:playerId", async (req: Request, res: Response) => {
   try {
     const playerId = parseInt(req.params.playerId);
     const pityStatus = await getPlayerPityStatus(playerId);
@@ -78,7 +77,7 @@ router.get("/pity/:playerId", authenticateToken, async (req: Request, res: Respo
 // === CARD CLASH MATCH ROUTES ===
 
 // Get active season
-router.get("/season/active", authenticateToken, async (req: Request, res: Response) => {
+router.get("/season/active", async (req: Request, res: Response) => {
   try {
     const season = await getActiveCardClashSeason();
     res.json(season);
@@ -88,7 +87,7 @@ router.get("/season/active", authenticateToken, async (req: Request, res: Respon
 });
 
 // Start match
-router.post("/match/start", authenticateToken, async (req: Request, res: Response) => {
+router.post("/match/start", async (req: Request, res: Response) => {
   try {
     const { gameMode, player1Id, player2Id, equippedCards } = req.body;
     const match = await startCardClashMatch(gameMode, player1Id, player2Id, equippedCards);
@@ -99,7 +98,7 @@ router.post("/match/start", authenticateToken, async (req: Request, res: Respons
 });
 
 // Finish match
-router.post("/match/finish", authenticateToken, async (req: Request, res: Response) => {
+router.post("/match/finish", async (req: Request, res: Response) => {
   try {
     const { matchId, winnerId, player1PointsEarned, player2PointsEarned } = req.body;
     await finishCardClashMatch(matchId, winnerId, player1PointsEarned, player2PointsEarned);
@@ -110,7 +109,7 @@ router.post("/match/finish", authenticateToken, async (req: Request, res: Respon
 });
 
 // Get standings
-router.get("/standings/:seasonId", authenticateToken, async (req: Request, res: Response) => {
+router.get("/standings/:seasonId", async (req: Request, res: Response) => {
   try {
     const seasonId = parseInt(req.params.seasonId);
     const standings = await getCardClashStandings(seasonId);
@@ -121,7 +120,7 @@ router.get("/standings/:seasonId", authenticateToken, async (req: Request, res: 
 });
 
 // Get match history
-router.get("/matches/:playerId", authenticateToken, async (req: Request, res: Response) => {
+router.get("/matches/:playerId", async (req: Request, res: Response) => {
   try {
     const playerId = parseInt(req.params.playerId);
     const seasonId = req.query.seasonId ? parseInt(req.query.seasonId as string) : undefined;
@@ -135,7 +134,7 @@ router.get("/matches/:playerId", authenticateToken, async (req: Request, res: Re
 // === ADMIN ROUTES ===
 
 // Seed card definitions (one-time)
-router.post("/admin/seed-cards", authenticateToken, async (req: Request, res: Response) => {
+router.post("/admin/seed-cards", async (req: Request, res: Response) => {
   try {
     // TODO: Add admin check
     await seedCardDefinitions();
@@ -146,7 +145,7 @@ router.post("/admin/seed-cards", authenticateToken, async (req: Request, res: Re
 });
 
 // Get all cards
-router.get("/admin/cards", authenticateToken, async (req: Request, res: Response) => {
+router.get("/admin/cards", async (req: Request, res: Response) => {
   try {
     const cards = await getAllCardDefinitions();
     res.json(cards);
@@ -156,7 +155,7 @@ router.get("/admin/cards", authenticateToken, async (req: Request, res: Response
 });
 
 // Toggle card availability
-router.post("/admin/card/toggle", authenticateToken, async (req: Request, res: Response) => {
+router.post("/admin/card/toggle", async (req: Request, res: Response) => {
   try {
     const { cardId, enabled } = req.body;
     await toggleCardAvailability(cardId, enabled);
@@ -167,7 +166,7 @@ router.post("/admin/card/toggle", authenticateToken, async (req: Request, res: R
 });
 
 // Give coins to player (admin)
-router.post("/admin/coins/give", authenticateToken, async (req: Request, res: Response) => {
+router.post("/admin/coins/give", async (req: Request, res: Response) => {
   try {
     const { playerId, amount } = req.body;
     await addCoinsToPlayer(playerId, amount);
@@ -179,7 +178,7 @@ router.post("/admin/coins/give", authenticateToken, async (req: Request, res: Re
 });
 
 // Remove coins from player (admin)
-router.post("/admin/coins/remove", authenticateToken, async (req: Request, res: Response) => {
+router.post("/admin/coins/remove", async (req: Request, res: Response) => {
   try {
     const { playerId, amount } = req.body;
     await removeCoinsFromPlayer(playerId, amount);
@@ -191,7 +190,7 @@ router.post("/admin/coins/remove", authenticateToken, async (req: Request, res: 
 });
 
 // Give card to player (admin)
-router.post("/admin/card/give", authenticateToken, async (req: Request, res: Response) => {
+router.post("/admin/card/give", async (req: Request, res: Response) => {
   try {
     const { playerId, cardId, quantity } = req.body;
     await giveCardToPlayer(playerId, cardId, quantity || 1);
@@ -203,7 +202,7 @@ router.post("/admin/card/give", authenticateToken, async (req: Request, res: Res
 });
 
 // Remove card from player (admin)
-router.post("/admin/card/remove", authenticateToken, async (req: Request, res: Response) => {
+router.post("/admin/card/remove", async (req: Request, res: Response) => {
   try {
     const { playerId, cardId, quantity } = req.body;
     await removeCardFromPlayer(playerId, cardId, quantity || 1);
@@ -215,7 +214,7 @@ router.post("/admin/card/remove", authenticateToken, async (req: Request, res: R
 });
 
 // Delete match (admin)
-router.post("/admin/match/delete", authenticateToken, async (req: Request, res: Response) => {
+router.post("/admin/match/delete", async (req: Request, res: Response) => {
   try {
     const { matchId } = req.body;
     await deleteCardClashMatch(matchId);
@@ -226,7 +225,7 @@ router.post("/admin/match/delete", authenticateToken, async (req: Request, res: 
 });
 
 // Reset player card data (admin)
-router.post("/admin/player/reset", authenticateToken, async (req: Request, res: Response) => {
+router.post("/admin/player/reset", async (req: Request, res: Response) => {
   try {
     const { playerId } = req.body;
     await resetPlayerCardData(playerId);
