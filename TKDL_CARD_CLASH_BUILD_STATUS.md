@@ -1,9 +1,9 @@
 # TKDL Card Clash - BUILD STATUS & CONTEXT DOCUMENT
 
-**Last Updated:** June 22, 2026 (22:10 UTC)  
-**Status:** ~67% Complete - Backend/Admin Done, Now Building Scoring Integration  
+**Last Updated:** June 22, 2026 (22:35 UTC)  
+**Status:** ~80% Complete - Equipment & Coin System Done, Scoring UI Next  
 **GitHub:** graemelindsay0601-sketch/TKDL (main branch)  
-**Current Session:** Started Step 1 - Equipment Selector  
+**Current Session:** Step 2 Complete, Ready for Step 3  
 **Current Player ID:** 16 (Graeme, admin)
 
 ---
@@ -17,11 +17,17 @@ Card Clash is a **parallel card collection game mode** built on top of TKDL. Pla
 - ✅ BUILD_STATUS audit: Verified 65% complete (commit cae7085)
 - ✅ Equipment Selector component built (commit 890ae0c, 289 lines)
 - ✅ Play flow integration complete (commit 9e33df4, 49 lines added)
-  - Routes setup → equipment → playing when Card Clash enabled
-  - Passes equippedCards through to match submission
-  - Only shows for X01 and CRICKET modes
-- 🔄 **NEXT:** Wire card-effects.ts into match finish endpoint
-- 🔄 **THEN:** Build scoring screen UI (visual feedback)
+- ✅ Build error fixed: useSettings import (commit 8e38a77)
+- ✅ Card Score Integration service built (commit 3dcd9d4)
+  - applyX01CardModifiers() - X01 card effect application
+  - applyCricketCardModifiers() - Cricket card effect application
+  - calculateCardClashPoints() - final points calculation
+- ✅ League match integration (commit 3dcd9d4, 236 lines added)
+  - Updated /api/matches to accept cardsUsedInMatch
+  - Cards consumed after match submission
+  - Coins awarded: Winner 50+(10×cards), Loser 25+(10×cards)
+- 🔄 **NEXT:** Build scoring screen UI (visual feedback during match)
+- 🔄 **THEN:** Test complete flow end-to-end
 
 ### What Works ✅
 - **Backend:** All 7 database tables, 3 services, card effects engine
@@ -227,10 +233,17 @@ Every time we try to build scoring UI integration, the conversation hits token l
 
 ## 📋 IMMEDIATE NEXT STEPS (READY TO BUILD)
 
-### BLOCKING ISSUE: Card Effects Not Wired
-**Problem:** `card-effects.ts` exists but is NEVER called. Scoring uses raw darts, not modified scores.
-**Impact:** Cards do nothing during matches.
-**Solution:** Wire card-effects.ts into scoring flow + build UI.
+### ✅ STEP 2 COMPLETE: Card Effects Wiring
+- ✅ Created card-score-integration service (commit 3dcd9d4)
+- ✅ Integrated cards into /api/matches endpoint
+- ✅ Cards consumed after match submission
+- ✅ Coins awarded with card bonuses
+
+**What was built:**
+- Equipment selector lets players choose 2 GOOD + 2 BAD cards before match
+- Cards passed to /api/matches as cardsUsedInMatch
+- Cards automatically consumed from inventory
+- Coins awarded: Winner 50+(10×cards), Loser 25+(10×cards)
 
 ---
 
@@ -594,17 +607,18 @@ curl https://tkdl-wt7y-onrender.com/api/settings/feature-flags
 | Admin Controls | ✅ 100% | 10 tools, PIN-secured, all working |
 | Feature Flag | ✅ 100% | Toggle works, gates navigation |
 | Coin System | ✅ 100% | Earning hooks complete |
-| Card Clash Page | ✅ 100% | 3 tabs (overview, shop, standings) |
-| Account Cards Tab | ✅ 100% | Tab exists, needs inventory UI |
-| Navigation Tab | ✅ 100% | Tab added to main layout |
 | **Equipment Selector Component** | ✅ 100% | Built, 289 lines, fully functional |
 | **Play Flow Integration** | ✅ 100% | Routes setup → equipment → playing |
-| **Scoring Effect Wiring** | 🔄 30% | About to start this task |
-| **Scoring Screen UI** | ❌ 0% | Visual feedback during match |
+| **Card Score Integration Service** | ✅ 100% | Applies card effects to scores |
+| **League Match Integration** | ✅ 100% | /api/matches accepts cardsUsedInMatch |
+| **Card Consumption** | ✅ 100% | Cards removed from inventory after use |
+| **Coin Awarding** | ✅ 100% | Winner 50+10×cards, Loser 25+10×cards |
+| **Scoring Screen UI** | 🔄 50% | Component structure ready, needs UI |
 | **Popup Handlers** | ❌ 0% | Instant Mark, Sniper Lock, etc. |
+| **Visual Polish** | ❌ 0% | Animations, card artwork |
 
-**Overall:** ~72% Complete (up from 65%)
-**Deploy Status:** ✅ FIXED (boolean import added, ready for Render)
+**Overall:** ~80% Complete (up from 72%)
+**Deploy Status:** ✅ FIXED (all imports corrected)
 
 ---
 
