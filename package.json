@@ -19,6 +19,4 @@
     "web-push": "^3.6.7"
   },
   "dependencies": {
-    "node-cron": "^4.5.0"
-  }
 }
