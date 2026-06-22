@@ -7,6 +7,7 @@ import {
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { addCoinsToPlayer, removeCardFromPlayer } from "./card-shop-service";
+import { applyX01CardModifiers, applyCricketCardModifiers, calculateCardClashPoints } from "./card-score-integration";
 
 const CARD_CLASH_WAGER_POINTS = {
   WIN: 50,
