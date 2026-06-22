@@ -12,6 +12,7 @@ import cacheMiddleware from "./middleware/cache";
 import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetSeason } from "./lib/seasonReset";
 import { seedTourSystem } from "./lib/tourSeed";
+import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
 import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
@@ -705,6 +706,8 @@ async function seedUsers() {
 async function init() {
   try {
     await seedSettings();
+    await seedNotificationTables();
+    await initializeNotificationPreferences();
     await seedCommunityTables();
     await seedPractice();
     await seedMaster501();
