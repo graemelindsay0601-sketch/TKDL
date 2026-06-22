@@ -1,9 +1,9 @@
 # TKDL Card Clash - BUILD STATUS & CONTEXT DOCUMENT
 
-**Last Updated:** June 22, 2026 (22:35 UTC)  
-**Status:** ~80% Complete - Equipment & Coin System Done, Scoring UI Next  
+**Last Updated:** June 22, 2026 (22:50 UTC)  
+**Status:** ~85% Complete - Nearly Done, Final Integration Pending  
 **GitHub:** graemelindsay0601-sketch/TKDL (main branch)  
-**Current Session:** Step 2 Complete, Ready for Step 3  
+**Current Session:** Step 3 Complete, Ready for Final Integration  
 **Current Player ID:** 16 (Graeme, admin)
 
 ---
@@ -19,15 +19,13 @@ Card Clash is a **parallel card collection game mode** built on top of TKDL. Pla
 - ✅ Play flow integration complete (commit 9e33df4, 49 lines added)
 - ✅ Build error fixed: useSettings import (commit 8e38a77)
 - ✅ Card Score Integration service built (commit 3dcd9d4)
-  - applyX01CardModifiers() - X01 card effect application
-  - applyCricketCardModifiers() - Cricket card effect application
-  - calculateCardClashPoints() - final points calculation
 - ✅ League match integration (commit 3dcd9d4, 236 lines added)
-  - Updated /api/matches to accept cardsUsedInMatch
-  - Cards consumed after match submission
-  - Coins awarded: Winner 50+(10×cards), Loser 25+(10×cards)
-- 🔄 **NEXT:** Build scoring screen UI (visual feedback during match)
-- 🔄 **THEN:** Test complete flow end-to-end
+- ✅ CardActivationOverlay component built (commit 35bbd33, 263 lines)
+  - Equipment status display
+  - Score modifier feedback
+  - Card input modals for popup cards
+- 🔄 **READY FOR FINAL STEP:** Integrate CardActivationOverlay into GameScorer
+- 🔄 **FINAL:** Test complete flow end-to-end
 
 ### What Works ✅
 - **Backend:** All 7 database tables, 3 services, card effects engine
@@ -37,10 +35,11 @@ Card Clash is a **parallel card collection game mode** built on top of TKDL. Pla
 - **Navigation:** Card Clash tab visible when enabled
 
 ### What's Broken 🚨
-- **CONTEXT WINDOW EXPLOSION** — Chats keep hitting token limits while building scoring UI
-- Cards not integrated into match scoring flow
-- No equipment selector UI before matches
-- No visual feedback during matches
+- **GameScorer Integration Pending** — CardActivationOverlay built but not wired into GameScorer yet
+- **Minor Issues:**
+  - Card artwork still placeholder (AI generation not done)
+  - Sound effects for card activation not implemented
+  - Animation transitions pending
 
 ### Why Context Explodes
 Card Clash is a massive feature spanning:
@@ -607,18 +606,17 @@ curl https://tkdl-wt7y-onrender.com/api/settings/feature-flags
 | Admin Controls | ✅ 100% | 10 tools, PIN-secured, all working |
 | Feature Flag | ✅ 100% | Toggle works, gates navigation |
 | Coin System | ✅ 100% | Earning hooks complete |
-| **Equipment Selector Component** | ✅ 100% | Built, 289 lines, fully functional |
-| **Play Flow Integration** | ✅ 100% | Routes setup → equipment → playing |
 | **Card Score Integration Service** | ✅ 100% | Applies card effects to scores |
 | **League Match Integration** | ✅ 100% | /api/matches accepts cardsUsedInMatch |
 | **Card Consumption** | ✅ 100% | Cards removed from inventory after use |
 | **Coin Awarding** | ✅ 100% | Winner 50+10×cards, Loser 25+10×cards |
-| **Scoring Screen UI** | 🔄 50% | Component structure ready, needs UI |
-| **Popup Handlers** | ❌ 0% | Instant Mark, Sniper Lock, etc. |
-| **Visual Polish** | ❌ 0% | Animations, card artwork |
+| **Scoring Screen Overlay** | ✅ 100% | CardActivationOverlay, 263 lines |
+| **GameScorer Integration** | 🔄 90% | Ready to integrate, final wiring needed |
+| **Popup Handlers** | ✅ 90% | Built in overlay, needs GameScorer integration |
+| **Visual Polish** | ⏳ 50% | Component structure done, animations pending |
 
-**Overall:** ~80% Complete (up from 72%)
-**Deploy Status:** ✅ FIXED (all imports corrected)
+**Overall:** ~85% Complete (up from 80%)
+**Deploy Status:** ✅ READY (all imports fixed, CardActivationOverlay built)
 
 ---
 
