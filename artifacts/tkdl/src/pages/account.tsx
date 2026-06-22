@@ -796,7 +796,7 @@ export default function AccountPage() {
           { id: "analytics"     as const, label: "Analytics", Icon: BarChart3                        },
         ]).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className="flex-1 relative flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all"
+            className="flex-1 relative flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all"
             style={{
               background: activeTab === tab.id ? "rgba(255,0,92,0.18)" : "transparent",
               border:     activeTab === tab.id ? "1px solid rgba(255,0,92,0.35)" : "1px solid transparent",
@@ -804,7 +804,7 @@ export default function AccountPage() {
               fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em",
             }}>
             <tab.Icon className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden xs:inline">{tab.label.toUpperCase()}</span>
+            <span style={{ fontSize: "0.55rem", lineHeight: 1 }}>{tab.label.toUpperCase()}</span>
             {"badge" in tab && (tab as any).badge > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white"
                 style={{ background: "#ff005c", fontSize: "0.45rem", fontFamily: "Oswald, sans-serif", fontWeight: 900 }}>
@@ -1518,6 +1518,13 @@ export default function AccountPage() {
                           {drill.notes && (
                             <p style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.28)", lineHeight: 1.5, fontStyle: "italic" }}>{drill.notes}</p>
                           )}
+                          <Link href={`/practice?drill=${encodeURIComponent(drill.name)}`}
+                            className="inline-flex items-center gap-2 mt-3 px-3 py-2 rounded-lg transition-opacity hover:opacity-75"
+                            style={{ background: "rgba(0,200,160,0.1)", border: "1px solid rgba(0,200,160,0.25)",
+                              color: "#00c8a0", fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", letterSpacing: "0.08em", fontWeight: 700 }}>
+                            <Dumbbell className="w-3 h-3" />
+                            Start Practice Session
+                          </Link>
                         </div>
                       )}
                     </div>
