@@ -25,6 +25,8 @@ import { PracticeAnalytics } from "./practice-analytics";
 import { SweepTool } from "./sweep-tool";
 import { TestComms } from "./test-comms";
 import { DataManagement } from "./data-management";
+import { AnnouncementsManager } from "./announcements-manager";
+import { NotificationAnalytics } from "./notification-analytics";
 
 type ModeKey = "isActive" | "practiceEnabled" | "tourEnabled" | "m501Enabled" | "shadowBotEnabled";
 const PLAYER_MODES: { key: ModeKey; label: string; desc: string; color: string; emoji: string }[] = [
@@ -474,6 +476,8 @@ export default function Admin() {
 
       <TestComms />
       <DataManagement />
+      <AnnouncementsManager />
+      <NotificationAnalytics />
       <SweepTool />
       <PracticeAnalytics />
     </div>
