@@ -38,6 +38,24 @@ function isAdmin(req: any): boolean {
  * POST /api/notifications/subscribe
  * Subscribe to web push notifications
  */
+router.get("/notifications/vapid-public-key", async (req, res): Promise<void> => {
+  try {
+    const publicKey = process.env.VAPID_PUBLIC_KEY;
+    if (!publicKey) {
+      res.status(500).json({ error: "VAPID not configured" });
+      return;
+    }
+    res.json({ publicKey });
+  } catch (err: any) {
+    logger.error({ err }, "Failed to get VAPID public key");
+    res.status(500).json({ error: "Failed to get VAPID public key" });
+  }
+});
+
+/**
+ * POST /api/notifications/subscribe
+ * Subscribe to web push notifications
+ */
 router.post("/notifications/subscribe", async (req, res): Promise<void> => {
   const playerId = requireAuth(req, res);
   if (!playerId) return;

@@ -11,6 +11,16 @@ export function usePushNotifications(playerId: number | null | undefined) {
     && "PushManager" in window
     && "Notification" in window;
 
+  // Register service worker on mount
+  useEffect(() => {
+    if (!supported) return;
+
+    navigator.serviceWorker
+      .register("/service-worker.js")
+      .catch((err) => console.error("Service Worker registration failed:", err));
+  }, [supported]);
+
+  // Check subscription status
   useEffect(() => {
     if (!supported || !playerId) return;
     if (Notification.permission === "denied") { setState("denied"); return; }
