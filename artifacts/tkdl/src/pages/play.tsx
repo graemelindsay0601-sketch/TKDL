@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { useListPlayers, useSubmitMatch, getGetLeaderboardQueryKey, getGetStatsSummaryQueryKey, getGetRecentActivityQueryKey, getListMatchesQueryKey } from "@workspace/api-client-react";
+import { useListPlayers, useSubmitMatch, getGetLeaderboardQueryKey, getGetStatsSummaryQueryKey, getGetRecentActivityQueryKey, getListMatchesQueryKey, useSettings } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Swords, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, AlertCircle, Users, User } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
 import { RulesModal } from "@/components/rules-modal";
 import { MatchStatsCard } from "@/components/match-stats-card";
+import { CardEquipmentSelector } from "@/components/CardEquipmentSelector";
 import { useCurrentPlayer } from "@/context/auth";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -19,6 +20,11 @@ type SetupData = {
   gameType: GameTypeOption;
   stake: number;
   bullUp?: boolean;
+};
+
+type EquippedCards = {
+  goodCards: Array<{ id: string; name: string }>;
+  badCards: Array<{ id: string; name: string }>;
 };
 
 // ── Format config ───────────────────────────────────────────────────────────────
@@ -437,8 +443,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
 }
 
 // ── Game Over Screen ───────────────────────────────────────────────────────────
-function GameOverScreen({ result, data, stats, onBack }: {
-  result: GameResult; data: SetupData; stats: PracticeStats | null; onBack: () => void;
+function GameOverScreen({ result, data, stats, equippedCards, onBack }: {
+  result: GameResult; data: SetupData; stats: PracticeStats | null; equippedCards: EquippedCards | null; onBack: () => void;
 }) {
   const { toast }   = useToast();
   const qc          = useQueryClient();
@@ -489,6 +495,8 @@ function GameOverScreen({ result, data, stats, onBack }: {
           ...(lStats.s180s !== undefined ? { loser180s:              lStats.s180s  } : {}),
           ...(lStats.ca    !== undefined ? { loserCheckoutAttempts:  lStats.ca     } : {}),
           ...(lStats.ch    !== undefined ? { loserCheckoutHits:      lStats.ch     } : {}),
+          // Include equipped cards if Card Clash match
+          ...(equippedCards ? { cardsUsedInMatch: equippedCards } : {}),
         } });
       } else {
         await fetch("/api/team-matches", {
@@ -594,15 +602,49 @@ function GameOverScreen({ result, data, stats, onBack }: {
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function Play() {
-  const [phase, setPhase]           = useState<"setup" | "playing" | "gameover">("setup");
+  const { data: appSettings }       = useSettings();
+  const { user: currentUser }       = useCurrentPlayer();
+  const cardClashEnabled            = appSettings?.card_clash_enabled ?? false;
+
+  const [phase, setPhase]           = useState<"setup" | "equipment" | "playing" | "gameover">("setup");
   const [setupData, setSetupData]   = useState<SetupData | null>(null);
+  const [equippedCards, setEquippedCards] = useState<EquippedCards | null>(null);
   const [gameResult, setResult]     = useState<GameResult | null>(null);
   const [matchStats, setMatchStats] = useState<PracticeStats | null>(null);
 
-  const reset = () => { setPhase("setup"); setSetupData(null); setResult(null); setMatchStats(null); };
+  const reset = () => { 
+    setPhase("setup"); 
+    setSetupData(null); 
+    setEquippedCards(null);
+    setResult(null); 
+    setMatchStats(null); 
+  };
 
   if (phase === "setup") {
-    return <SetupScreen onStart={d => { setSetupData(d); setPhase("playing"); }} />;
+    return <SetupScreen onStart={d => { 
+      setSetupData(d);
+      // Route to equipment selection if Card Clash is enabled and game type is X01 or CRICKET
+      if (cardClashEnabled && (d.gameType.key === "x01" || d.gameType.key === "cricket")) {
+        setPhase("equipment");
+      } else {
+        setPhase("playing");
+      }
+    }} />;
+  }
+
+  // ── Equipment Selection Phase ──
+  if (phase === "equipment" && setupData && currentUser) {
+    return (
+      <CardEquipmentSelector
+        playerId={currentUser.id}
+        gameMode={setupData.gameType.key === "x01" ? "X01" : "CRICKET"}
+        onSelect={(equipment) => {
+          setEquippedCards(equipment);
+          setPhase("playing");
+        }}
+        onCancel={() => setPhase("setup")}
+      />
+    );
   }
 
   if (phase === "playing" && setupData) {
@@ -649,7 +691,7 @@ export default function Play() {
   }
 
   if (phase === "gameover" && gameResult && setupData) {
-    return <GameOverScreen result={gameResult} data={setupData} stats={matchStats} onBack={reset} />;
+    return <GameOverScreen result={gameResult} data={setupData} stats={matchStats} equippedCards={equippedCards} onBack={reset} />;
   }
 
   return null;
