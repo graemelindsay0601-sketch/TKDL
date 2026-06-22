@@ -18,6 +18,7 @@ import storageRouter       from "./storage";
 import communityRouter     from "./community";
 import messagesRouter      from "./messages";
 import notificationsRouter from "./notifications";
+import statsDetailedRouter from "./stats-detailed";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(storageRouter);
 router.use(communityRouter);
 router.use(messagesRouter);
 router.use(notificationsRouter);
+router.use(statsDetailedRouter);
 
 export default router;
