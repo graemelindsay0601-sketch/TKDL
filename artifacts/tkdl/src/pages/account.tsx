@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Shield, Target, LogOut, Lock, User, TrendingUp, TrendingDown,
   Zap, Trophy, Dumbbell, CircuitBoard, Star, ChevronDown, ChevronRight,
-  Award, Flame, CheckCircle, Clock,
+  Award, Flame, CheckCircle, Clock, Brain,
   MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera,
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
@@ -286,7 +286,13 @@ export default function AccountPage() {
   const [expandedCats,    setExpandedCats]    = useState<Set<string>>(new Set(["Career"]));
 
   // ── Tab + Community state ────────────────────────────────────────────
-  const [activeTab,        setActiveTab]       = useState<"profile" | "dms" | "notifications" | "photos">("profile");
+  const [activeTab,        setActiveTab]       = useState<"overview" | "activity" | "achievements" | "coach" | "social">("overview");
+  const [socialTab,        setSocialTab]       = useState<"dms" | "notifications" | "photos">("dms");
+  const [achSource,        setAchSource]       = useState<"league" | "bot" | "tour" | "m501">("league");
+  const [coachDrills,      setCoachDrills]     = useState<any[]>([]);
+  const [coachStats,       setCoachStats]      = useState<any>(null);
+  const [coachLoading,     setCoachLoading]    = useState(false);
+  const [openDrills,       setOpenDrills]      = useState<Record<string, boolean>>({});
   const [conversations,    setConversations]   = useState<any[]>([]);
   const [activeConvId,     setActiveConvId]    = useState<number | null>(null);
   const [threadMessages,   setThreadMessages]  = useState<any[]>([]);
@@ -353,7 +359,7 @@ export default function AccountPage() {
     if (dmParam) {
       const dmId = Number(dmParam);
       if (!isNaN(dmId) && dmId > 0 && dmId !== user.playerId) {
-        setActiveTab("dms");
+        setActiveTab("social"); setSocialTab("dms");
         setActiveConvId(dmId);
         void loadThread(dmId);
         void loadConversations();
@@ -365,7 +371,8 @@ export default function AccountPage() {
   }, [user?.playerId]);
 
   useEffect(() => {
-    if (activeTab === "dms") {
+    if (activeTab !== "social") return;
+    if (socialTab === "dms") {
       void loadConversations();
       setActiveConvId(null);
       setThreadMessages([]);
@@ -373,13 +380,13 @@ export default function AccountPage() {
       if (allPlayers.length === 0) {
         fetch("/api/players").then(r => r.ok ? r.json() : []).then(setAllPlayers).catch(() => {});
       }
-    } else if (activeTab === "notifications") {
+    } else if (socialTab === "notifications") {
       setNotifsLoading(true);
       fetch("/api/notifications", { credentials: "include" })
         .then(r => r.ok ? r.json() : [])
         .then(data => { setNotifs(data); setUnreadNotifCount(0); })
         .finally(() => setNotifsLoading(false));
-    } else if (activeTab === "photos" && myPhotoPosts === null) {
+    } else if (socialTab === "photos" && myPhotoPosts === null) {
       if (!user?.playerId) return;
       setPhotosLoading(true);
       fetch(`/api/community/posts?player_id=${user.playerId}&photo_only=true&limit=100`)
@@ -387,7 +394,7 @@ export default function AccountPage() {
         .then(setMyPhotoPosts)
         .finally(() => setPhotosLoading(false));
     }
-  }, [activeTab, loadConversations, user?.playerId, myPhotoPosts]);
+  }, [activeTab, socialTab, loadConversations, user?.playerId, myPhotoPosts]);
 
   useEffect(() => {
     if (!user?.playerId) return;
@@ -396,6 +403,18 @@ export default function AccountPage() {
       .then((data: any[]) => setUnreadNotifCount(data.filter((n: any) => !n.read_at).length))
       .catch(() => {});
   }, [user?.playerId]);
+
+  useEffect(() => {
+    if (!user?.playerId || activeTab !== "coach") return;
+    if (coachDrills.length > 0 || coachLoading) return;
+    setCoachLoading(true);
+    fetch(`/api/players/${user.playerId}/practice-routine`)
+      .then(r => r.ok ? r.json() : {})
+      .then((d: any) => { setCoachDrills(Array.isArray(d.drills) ? d.drills : []); setCoachStats(d.stats ?? null); })
+      .catch(() => {})
+      .finally(() => setCoachLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, user?.playerId]);
 
   useEffect(() => {
     if (activeConvId === null) return;
@@ -766,10 +785,11 @@ export default function AccountPage() {
       {/* ── Account Tabs ────────────────────────────────────────── */}
       <div className="flex gap-1 p-1 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
         {([
-          { id: "profile"       as const, label: "Profile", Icon: User          },
-          { id: "dms"           as const, label: "Msgs",    Icon: MessageSquare },
-          { id: "notifications" as const, label: "Notifs",  Icon: Bell,  badge: unreadNotifCount },
-          { id: "photos"        as const, label: "Photos",  Icon: Images },
+          { id: "overview"      as const, label: "Overview",  Icon: User                               },
+          { id: "activity"      as const, label: "Activity",  Icon: Zap                              },
+          { id: "achievements"  as const, label: "Earned",    Icon: Award                            },
+          { id: "coach"         as const, label: "Coach",     Icon: Brain                            },
+          { id: "social"        as const, label: "Social",    Icon: MessageSquare, badge: unreadNotifCount },
         ]).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className="flex-1 relative flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all"
@@ -791,7 +811,7 @@ export default function AccountPage() {
         ))}
       </div>
 
-      {activeTab === "profile" && (<>
+      {activeTab === "overview" && (<>
 
       {/* ── Gamerscore ─────────────────────────────────────────── */}
       <div className="rounded-2xl p-4"
@@ -1035,6 +1055,12 @@ export default function AccountPage() {
         )}
       </SectionCard>
 
+      </>)}
+
+      {/* ── Activity Tab ─────────────────────────────────────────── */}
+      {activeTab === "activity" && (
+        <div className="space-y-3">
+
       {/* ── Master 501 ───────────────────────────────────────── */}
       <SectionCard title="Master 501" icon={Target} accent="#00e5a0">
         {m501 ? (
@@ -1069,39 +1095,6 @@ export default function AccountPage() {
           <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>Loading…</div>
         )}
       </SectionCard>
-
-      {/* ── Master 501 Achievements ──────────────────────────── */}
-      {m501AchCategories.length > 0 && (
-        <SectionCard title="Master 501 Achievements" icon={Target} accent="#00e5a0" collapsible>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.15em", color: "rgba(255,255,255,0.18)", textTransform: "uppercase" }}>
-                Challenge Progress
-              </span>
-              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.8rem", fontWeight: 900, color: "#00e5a0" }}>
-                {m501AchCategories[0].achievements.filter(a => a.isUnlocked).length} / {m501AchCategories[0].achievements.length}
-              </span>
-            </div>
-            <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
-              <div style={{ height: "100%", borderRadius: 2, transition: "width 0.8s ease",
-                background: "linear-gradient(90deg,#00e5a0,rgba(0,229,160,0.4))",
-                width: `${Math.round((m501AchCategories[0].achievements.filter(a => a.isUnlocked).length / m501AchCategories[0].achievements.length) * 100)}%` }} />
-            </div>
-            <AchievementPortal
-              categories={m501AchCategories}
-              cfgMap={{ "Master-501": { label: "Master 501", accent: "#00e5a0", emoji: "🎯" } }}
-              defaultOpen={["Master-501"]}
-            />
-            <Link href="/master501"
-              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl transition-opacity hover:opacity-75"
-              style={{ background: "rgba(0,229,160,0.06)", border: "1px solid rgba(0,229,160,0.18)",
-                color: "#00e5a0", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.12em" }}>
-              <Target className="w-3.5 h-3.5" />
-              Play Master 501
-            </Link>
-          </div>
-        </SectionCard>
-      )}
 
       {/* ── Tour ─────────────────────────────────────────────── */}
       <SectionCard title="Tour Mode" icon={Star} accent="#a855f7">
@@ -1171,36 +1164,6 @@ export default function AccountPage() {
         )}
       </SectionCard>
 
-      {/* ── Tour Achievements ────────────────────────────────── */}
-      {tourAchsByCategory.length > 0 && (
-        <SectionCard title="Tour Achievements" icon={Star} accent="#a855f7" collapsible>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.15em", color: "rgba(255,255,255,0.18)", textTransform: "uppercase" }}>
-                Total Unlocked
-              </span>
-              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.8rem", fontWeight: 900, color: "#a855f7" }}>
-                {tourAchs.filter(a => a.unlocked).length} / {tourAchs.length}
-              </span>
-            </div>
-            <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
-              <div style={{ height: "100%", borderRadius: 2, transition: "width 0.8s ease",
-                background: "linear-gradient(90deg,#a855f7,rgba(168,85,247,0.4))",
-                width: `${tourAchs.length > 0 ? Math.round((tourAchs.filter(a => a.unlocked).length / tourAchs.length) * 100) : 0}%` }} />
-            </div>
-            <AchievementPortal
-              categories={tourAchsByCategory}
-              cfgMap={TOUR_CAT}
-              defaultOpen={["career"]}
-              unlockedField="unlocked"
-              progressField="_noProgress"
-              valueField="criteriaValue"
-              gsField="gamerscore"
-            />
-          </div>
-        </SectionCard>
-      )}
-
       {/* ── Shadow Bot ───────────────────────────────────────── */}
       <SectionCard title="Shadow Bot" icon={CircuitBoard} accent="#00e5a0">
         {shadowStats ? (
@@ -1265,36 +1228,6 @@ export default function AccountPage() {
         )}
       </SectionCard>
 
-      {/* ── Shadow Bot Achievements ───────────────────────────── */}
-      {shadowAchsByCategory.length > 0 && (
-        <SectionCard title="Shadow Bot Achievements" icon={CircuitBoard} accent="#00e5a0" collapsible>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.15em", color: "rgba(255,255,255,0.18)", textTransform: "uppercase" }}>
-                Total Unlocked
-              </span>
-              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.8rem", fontWeight: 900, color: "#00e5a0" }}>
-                {shadowAchs.filter(a => a.unlocked).length} / {shadowAchs.length}
-              </span>
-            </div>
-            <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
-              <div style={{ height: "100%", borderRadius: 2, transition: "width 0.8s ease",
-                background: "linear-gradient(90deg,#00e5a0,rgba(0,229,160,0.4))",
-                width: `${shadowAchs.length > 0 ? Math.round((shadowAchs.filter(a => a.unlocked).length / shadowAchs.length) * 100) : 0}%` }} />
-            </div>
-            <AchievementPortal
-              categories={shadowAchsByCategory}
-              cfgMap={SHADOW_CAT}
-              defaultOpen={["Darts Thrown"]}
-              unlockedField="unlocked"
-              progressField="currentValue"
-              valueField="criteriaValue"
-              gsField="gamerscore"
-            />
-          </div>
-        </SectionCard>
-      )}
-
       {/* ── Practice ─────────────────────────────────────────── */}
       <SectionCard title="Practice" icon={Dumbbell} accent="#0066ff">
         {practiceStats ? (
@@ -1344,8 +1277,275 @@ export default function AccountPage() {
         )}
       </SectionCard>
 
-      {/* ── My Achievements Portal ───────────────────────────── */}
-      <SectionCard title="My Achievements" icon={Award} accent="#a855f7" collapsible>
+        </div>
+      )}
+
+      {/* ── Achievements Tab ─────────────────────────────────────── */}
+      {activeTab === "achievements" && (
+        <div className="space-y-3">
+
+        {/* Source selector */}
+        <div className="flex gap-1 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          {([
+            { key: "league" as const, label: "League", accent: "#ff005c",
+              unlocked: achTotals.unlocked, total: achTotals.total },
+            { key: "bot"    as const, label: "Bot",    accent: "#00e5a0",
+              unlocked: shadowAchs.filter((a: any) => a.unlocked).length, total: shadowAchs.length },
+            { key: "tour"   as const, label: "Tour",   accent: "#a855f7",
+              unlocked: tourAchs.filter((a: any) => a.unlocked).length, total: tourAchs.length },
+            { key: "m501"   as const, label: "M·501",  accent: "#00c8a0",
+              unlocked: m501AchCategories.flatMap(c => c.achievements).filter((a: any) => a.isUnlocked).length,
+              total:    m501AchCategories.flatMap(c => c.achievements).length },
+          ]).map(({ key, label, accent, unlocked, total }) => (
+            <button key={key} onClick={() => setAchSource(key)}
+              className="flex-1 flex flex-col items-center py-2 rounded-lg transition-all"
+              style={{
+                background: achSource === key ? `${accent}18` : "transparent",
+                border: achSource === key ? `1px solid ${accent}40` : "1px solid transparent",
+                color: achSource === key ? accent : "rgba(255,255,255,0.35)",
+              }}>
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", fontWeight: 800, letterSpacing: "0.08em" }}>{label}</span>
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: achSource === key ? `${accent}cc` : "rgba(255,255,255,0.2)", marginTop: "1px" }}>
+                {unlocked}/{total}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Near-miss */}
+        {achSource === "league" && nearMissAchievements.length > 0 && (
+          <div className="rounded-xl p-3 space-y-1.5" style={{ background: "rgba(245,158,11,0.05)", border: "1px solid rgba(245,158,11,0.2)" }}>
+            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.52rem", letterSpacing: "0.14em", color: "#f59e0b", marginBottom: "0.5rem" }}>
+              ⚡ WITHIN REACH
+            </div>
+            {nearMissAchievements.slice(0, 3).map((a: any) => {
+              const pct = Math.round((a.currentProgress / a.criteriaValue) * 100);
+              return (
+                <div key={a.key} className="flex items-center gap-2">
+                  <span style={{ fontSize: "0.75rem" }}>{a.icon ?? "🏆"}</span>
+                  <div className="flex-1 min-w-0">
+                    <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", color: "rgba(255,255,255,0.75)", letterSpacing: "0.04em" }}>{a.name}</div>
+                    <div style={{ height: 3, background: "rgba(255,255,255,0.08)", borderRadius: 2, overflow: "hidden", marginTop: 2 }}>
+                      <div style={{ height: "100%", borderRadius: 2, background: "linear-gradient(90deg,#f59e0b,rgba(245,158,11,0.4))", width: `${pct}%` }} />
+                    </div>
+                  </div>
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "#f59e0b", fontWeight: 700 }}>{pct}%</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {achSource === "league" && (
+          achByCategory.length > 0 ? (
+            <AchievementPortal categories={achByCategory} cfgMap={CATEGORY_CFG} defaultOpen={["Career"]} />
+          ) : (
+            <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", textAlign: "center", padding: "24px 0" }}>
+              No achievements yet — play some matches to get started
+            </div>
+          )
+        )}
+
+        {achSource === "bot" && (
+          shadowAchsByCategory.length > 0 ? (
+            <AchievementPortal categories={shadowAchsByCategory} cfgMap={SHADOW_CAT} defaultOpen={["Darts Thrown"]}
+              unlockedField="unlocked" progressField="currentValue" valueField="criteriaValue" gsField="gamerscore" />
+          ) : (
+            <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", textAlign: "center", padding: "24px 0" }}>
+              No Shadow Bot achievements yet
+            </div>
+          )
+        )}
+
+        {achSource === "tour" && (
+          tourAchsByCategory.length > 0 ? (
+            <AchievementPortal categories={tourAchsByCategory} cfgMap={TOUR_CAT} defaultOpen={["career"]}
+              unlockedField="unlocked" progressField="_noProgress" valueField="criteriaValue" gsField="gamerscore" />
+          ) : (
+            <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", textAlign: "center", padding: "24px 0" }}>
+              No Tour achievements yet — enter a tour to get started
+            </div>
+          )
+        )}
+
+        {achSource === "m501" && (
+          m501AchCategories.length > 0 ? (
+            <AchievementPortal categories={m501AchCategories}
+              cfgMap={{ "Master-501": { label: "Master 501", accent: "#00e5a0", emoji: "🎯" } }}
+              defaultOpen={["Master-501"]} />
+          ) : (
+            <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", textAlign: "center", padding: "24px 0" }}>
+              No M·501 achievements yet — start playing to unlock them
+            </div>
+          )
+        )}
+
+        <Link href="/achievements"
+          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl transition-opacity hover:opacity-70"
+          style={{ background: "rgba(168,85,247,0.05)", border: "1px solid rgba(168,85,247,0.15)",
+            color: "rgba(168,85,247,0.6)", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.1em" }}>
+          View Full Achievement List
+          <ChevronRight className="w-3.5 h-3.5" />
+        </Link>
+
+        </div>
+      )}
+
+      {/* ── Coach Tab ─────────────────────────────────────────────── */}
+      {activeTab === "coach" && (
+        <div className="space-y-3">
+          <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(8,6,18,0.9)", border: "1px solid rgba(0,200,160,0.2)" }}>
+            <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(0,200,160,0.1)" }}>
+              <div className="flex items-center gap-2">
+                <Brain className="w-3.5 h-3.5" style={{ color: "#00c8a0" }} />
+                <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.18em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase" }}>
+                  Personalised Drill Plan
+                </span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full"
+                style={{ background: "rgba(0,200,160,0.1)", color: "#00c8a0", border: "1px solid rgba(0,200,160,0.25)", fontSize: "0.55rem", fontFamily: "Oswald, sans-serif", fontWeight: 700 }}>
+                Based on your sessions
+              </span>
+            </div>
+
+            {coachLoading ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="w-7 h-7 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#00c8a0" }} />
+              </div>
+            ) : coachDrills.length === 0 ? (
+              <div className="py-10 text-center px-5">
+                <Brain className="w-8 h-8 mx-auto mb-3 opacity-10" style={{ color: "#00c8a0" }} />
+                <p style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", letterSpacing: "0.08em", color: "rgba(255,255,255,0.25)", textTransform: "uppercase", marginBottom: "6px" }}>
+                  No routine yet
+                </p>
+                <p style={{ fontSize: "0.62rem", color: "rgba(255,255,255,0.18)", lineHeight: 1.5 }}>
+                  Log some practice sessions to unlock your personalised drill plan.
+                </p>
+                <Link href="/practice"
+                  className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl transition-opacity hover:opacity-75"
+                  style={{ background: "rgba(0,200,160,0.08)", border: "1px solid rgba(0,200,160,0.22)",
+                    color: "#00c8a0", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.1em" }}>
+                  <Dumbbell className="w-3.5 h-3.5" />
+                  Start Practising
+                </Link>
+              </div>
+            ) : (
+              <div className="p-3 space-y-2">
+                {coachStats && (
+                  <div className="flex flex-wrap gap-2 pb-3 mb-1" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                    {coachStats.avg !== undefined && (
+                      <div className="px-3 py-1.5 rounded-lg text-center min-w-[68px]"
+                        style={{ background: "rgba(0,200,160,0.08)", border: "1px solid rgba(0,200,160,0.2)" }}>
+                        <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", fontWeight: 900, color: "#00c8a0", lineHeight: 1 }}>{coachStats.avg}</div>
+                        <div style={{ fontSize: "0.48rem", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", marginTop: "2px", textTransform: "uppercase" }}>Avg</div>
+                      </div>
+                    )}
+                    {coachStats.checkoutPct !== undefined && (
+                      <div className="px-3 py-1.5 rounded-lg text-center min-w-[68px]"
+                        style={{ background: "rgba(255,210,74,0.07)", border: "1px solid rgba(255,210,74,0.18)" }}>
+                        <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", fontWeight: 900, color: "#ffd24a", lineHeight: 1 }}>{coachStats.checkoutPct}%</div>
+                        <div style={{ fontSize: "0.48rem", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", marginTop: "2px", textTransform: "uppercase" }}>Checkout</div>
+                      </div>
+                    )}
+                    {coachStats.treblePct !== undefined && (
+                      <div className="px-3 py-1.5 rounded-lg text-center min-w-[68px]"
+                        style={{ background: "rgba(0,102,255,0.08)", border: "1px solid rgba(0,102,255,0.2)" }}>
+                        <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", fontWeight: 900, color: "#0066ff", lineHeight: 1 }}>{coachStats.treblePct}%</div>
+                        <div style={{ fontSize: "0.48rem", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", marginTop: "2px", textTransform: "uppercase" }}>Treble</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {coachDrills.map((drill: any, i: number) => {
+                  const isOpen = openDrills[drill.name] ?? false;
+                  const DIFF_COLOR: Record<string, string> = { easy: "#22c55e", medium: "#ffd24a", hard: "#ff005c" };
+                  const diffColor = DIFF_COLOR[drill.difficulty?.toLowerCase()] ?? "#9ca3af";
+                  return (
+                    <div key={i} className="rounded-xl overflow-hidden"
+                      style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <button className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left"
+                        onClick={() => setOpenDrills(prev => ({ ...prev, [drill.name]: !prev[drill.name] }))}>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-1.5 h-6 rounded-full shrink-0" style={{ background: diffColor }} />
+                          <div className="min-w-0">
+                            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.75rem", fontWeight: 800,
+                              color: "rgba(255,255,255,0.9)", letterSpacing: "0.04em", lineHeight: 1.2 }}>{drill.name}</div>
+                            {drill.focus && (
+                              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.3)",
+                                letterSpacing: "0.08em", textTransform: "uppercase", marginTop: "2px" }}>{drill.focus}</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {drill.difficulty && (
+                            <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.1em",
+                              fontWeight: 800, textTransform: "uppercase",
+                              background: `${diffColor}18`, color: diffColor, border: `1px solid ${diffColor}30`,
+                              borderRadius: 4, padding: "2px 6px" }}>
+                              {drill.difficulty}
+                            </span>
+                          )}
+                          <ChevronDown className="w-3.5 h-3.5 shrink-0 transition-transform duration-200"
+                            style={{ color: "rgba(255,255,255,0.25)", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }} />
+                        </div>
+                      </button>
+                      {isOpen && (
+                        <div className="px-4 pb-4 space-y-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                          {drill.description && (
+                            <p className="pt-3" style={{ color: "rgba(255,255,255,0.5)", lineHeight: 1.6, fontSize: "0.7rem" }}>{drill.description}</p>
+                          )}
+                          <div className="flex flex-wrap gap-2">
+                            {drill.sets !== undefined && (
+                              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", fontWeight: 700,
+                                background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.1)",
+                                borderRadius: 6, padding: "3px 8px" }}>{drill.sets} sets</span>
+                            )}
+                            {drill.legsPerSet !== undefined && (
+                              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", fontWeight: 700,
+                                background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.1)",
+                                borderRadius: 6, padding: "3px 8px" }}>{drill.legsPerSet} legs / set</span>
+                            )}
+                            {drill.warmup && (
+                              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", fontWeight: 700,
+                                background: "rgba(0,200,160,0.1)", color: "#00c8a0", border: "1px solid rgba(0,200,160,0.25)",
+                                borderRadius: 6, padding: "3px 8px" }}>Warm-up drill</span>
+                            )}
+                          </div>
+                          {drill.notes && (
+                            <p style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.28)", lineHeight: 1.5, fontStyle: "italic" }}>{drill.notes}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Admin Panel ───────────────────────────────────────── */}
+      {user.isAdmin && (
+        <SectionCard title="Admin Panel" icon={Shield} accent="#ffd24a">
+          <div className="space-y-3">
+            <p style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.35)" }}>
+              Season management, player accounts, game types, achievement sweeps, Elo overrides, and more.
+            </p>
+            <Link href="/admin"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl transition-opacity hover:opacity-80"
+              style={{ background: "linear-gradient(135deg, rgba(255,210,74,0.18), rgba(255,210,74,0.07))",
+                border: "1px solid rgba(255,210,74,0.35)", color: "#ffd24a",
+                fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", letterSpacing: "0.14em", fontWeight: 800 }}>
+              <Shield className="w-3.5 h-3.5" />
+              OPEN ADMIN PANEL ⚡
+            </Link>
+          </div>
+        </SectionCard>
+      )}
+
+      {/* ── Change Password ──────────────────────────────────── */}
+      <SectionCard title="Change Password" icon={Lock} accent="rgba(255,255,255,0.2)" collapsible>
         <div className="space-y-4">
 
           {/* Overall progress */}
@@ -1555,10 +1755,38 @@ export default function AccountPage() {
         </form>
       </SectionCard>
 
-      </>)}
+      {/* ── Social Tab ──────────────────────────────────────────── */}
+      {activeTab === "social" && (
+        <div className="space-y-3">
 
-      {/* ── Messages Tab ─────────────────────────────────────────── */}
-      {activeTab === "dms" && (
+        {/* Social sub-nav */}
+        <div className="flex gap-1 p-1 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          {([
+            { id: "dms"           as const, label: "Messages", Icon: MessageSquare                      },
+            { id: "notifications" as const, label: "Notifs",   Icon: Bell, badge: unreadNotifCount      },
+            { id: "photos"        as const, label: "Photos",   Icon: Images                             },
+          ]).map(stab => (
+            <button key={stab.id} onClick={() => setSocialTab(stab.id)}
+              className="flex-1 relative flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all"
+              style={{
+                background: socialTab === stab.id ? "rgba(255,0,92,0.12)" : "transparent",
+                border:     socialTab === stab.id ? "1px solid rgba(255,0,92,0.25)" : "1px solid transparent",
+                color:      socialTab === stab.id ? "#ff005c" : "rgba(255,255,255,0.35)",
+                fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em",
+              }}>
+              <stab.Icon className="w-3.5 h-3.5 shrink-0" />
+              <span>{stab.label.toUpperCase()}</span>
+              {"badge" in stab && (stab as any).badge > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white"
+                  style={{ background: "#ff005c", fontSize: "0.45rem", fontFamily: "Oswald, sans-serif", fontWeight: 900 }}>
+                  {(stab as any).badge > 9 ? "9+" : (stab as any).badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {socialTab === "dms" && (
         <div className="space-y-3">
           {!messagingEnabled ? (
             <div className="text-center py-16 rounded-2xl" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
@@ -1745,8 +1973,7 @@ export default function AccountPage() {
         </div>
       )}
 
-      {/* ── Notifications Tab ─────────────────────────────────────── */}
-      {activeTab === "notifications" && (
+        {socialTab === "notifications" && (
         <div className="space-y-3">
 
           {/* ── Push notification opt-in card ── */}
@@ -1862,8 +2089,7 @@ export default function AccountPage() {
         </div>
       )}
 
-      {/* ── Photos Tab ──────────────────────────────────────────── */}
-      {activeTab === "photos" && (
+        {socialTab === "photos" && (
         <div className="space-y-4">
           {/* Header */}
           <div className="rounded-2xl px-5 py-4 flex items-center justify-between"
@@ -1963,7 +2189,10 @@ export default function AccountPage() {
           ) : null}
         </div>
       )}
+        </div>
+      )}
 
     </div>
   );
 }
+
