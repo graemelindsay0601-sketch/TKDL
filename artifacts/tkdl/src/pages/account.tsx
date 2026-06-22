@@ -757,36 +757,13 @@ export default function AccountPage() {
           </div>
         </div>
 
-        {/* ── Quick Actions strip ──────────────────────────────── */}
-        {(() => {
-          const actions = [
-            { href: "/practice",                    icon: Dumbbell,     label: "Practice", col: "#4d94ff" },
-            { href: `/shadow-bot/${user.playerId}`, icon: CircuitBoard, label: "My Bot",   col: "#00e5a0" },
-            { href: "/master501",                   icon: Target,       label: "M·501",    col: "#00e5a0" },
-            { href: "/tour",                        icon: Star,         label: "Tour",     col: "#a855f7" },
-            ...(user.isAdmin ? [{ href: "/admin",   icon: Shield,       label: "Admin",    col: "#ffd24a" }] : []),
-          ];
-          return (
-            <div className={`grid gap-2 px-4 pb-4`} style={{ gridTemplateColumns: `repeat(${actions.length}, 1fr)` }}>
-              {actions.map(({ href, icon: Icon, label, col }) => (
-                <Link key={href} href={href}
-                  className="rounded-xl py-3 flex flex-col items-center gap-1.5 transition-all hover:opacity-85 active:scale-95"
-                  style={{ background: `${col}10`, border: `1px solid ${col}28` }}>
-                  <Icon className="w-4 h-4" style={{ color: col }} />
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.12em",
-                    color: col, textTransform: "uppercase", fontWeight: 700 }}>{label}</span>
-                </Link>
-              ))}
-            </div>
-          );
-        })()}
       </div>
 
       {/* ── Account Tabs ────────────────────────────────────────── */}
       <div className="flex gap-1 p-1 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
         {([
-          { id: "overview"      as const, label: "Overview",  Icon: User                               },
-          { id: "activity"      as const, label: "Activity",  Icon: Zap                              },
+          { id: "overview"      as const, label: "Home",      Icon: User                               },
+          { id: "activity"      as const, label: "Play",      Icon: Zap                              },
           { id: "achievements"  as const, label: "Earned",    Icon: Award                            },
           { id: "coach"         as const, label: "Coach",     Icon: Brain                            },
           { id: "social"        as const, label: "Social",    Icon: MessageSquare, badge: unreadNotifCount },
@@ -843,149 +820,6 @@ export default function AccountPage() {
           ))}
         </div>
       </div>
-
-      {/* ── Titles ───────────────────────────────────────────── */}
-      {user?.playerId && (
-        <SectionCard title="Titles" icon={Award} accent="#a855f7" collapsible>
-          {(() => {
-            const RC: Record<string,string> = { Common:"#9ca3af", Rare:"#3b82f6", Epic:"#a855f7", Legendary:"#ffd24a" };
-            const earnedCount = titleList.filter((t: any) => t.earned).length;
-            const FILTERS = [
-              { key:"earned", label:"Earned" },
-              { key:"all",    label:"All" },
-              { key:"league", label:"League" },
-              { key:"practice", label:"Practice" },
-              { key:"game",   label:"Games" },
-              { key:"master501", label:"M501" },
-              { key:"bot",    label:"Shadow Bot" },
-            ];
-            const visible = titleList.filter((t: any) =>
-              titleFilter === "earned" ? t.earned :
-              titleFilter === "all"    ? true :
-              t.category === titleFilter
-            );
-            return (
-              <div className="space-y-3">
-                {/* Header row */}
-                <div className="flex items-center justify-between">
-                  <div style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
-                    {earnedCount > 0
-                      ? `${earnedCount} earned · tap to equip`
-                      : "Earn titles through league matches, M501, Practice & Shadow Bot"}
-                  </div>
-                  {earnedCount > 0 && (
-                    <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "#a855f7", fontWeight: 800, letterSpacing: "0.06em" }}>
-                      {earnedCount}/{titleList.length}
-                    </div>
-                  )}
-                </div>
-
-                {/* Filter tabs */}
-                <div className="flex flex-wrap gap-1.5">
-                  {FILTERS.map(f => (
-                    <button key={f.key} onClick={() => setTitleFilter(f.key)}
-                      style={{
-                        fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", fontWeight: 700,
-                        letterSpacing: "0.1em", padding: "3px 8px", borderRadius: "6px",
-                        background: titleFilter === f.key ? "rgba(168,85,247,0.2)" : "rgba(255,255,255,0.04)",
-                        border: `1px solid ${titleFilter === f.key ? "#a855f780" : "rgba(255,255,255,0.08)"}`,
-                        color: titleFilter === f.key ? "#a855f7" : "rgba(255,255,255,0.35)",
-                        cursor: "pointer",
-                      }}>
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Grid */}
-                {visible.length === 0 ? (
-                  <div style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.2)", textAlign: "center", padding: "16px 0" }}>
-                    No titles here yet
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {visible.map((t: any) => {
-                      const c = t.earned ? (RC[t.rarity as string] ?? "#9ca3af") : "rgba(255,255,255,0.12)";
-                      return (
-                        <button key={t.key}
-                          disabled={!t.earned || titleSaving}
-                          onClick={() => t.earned && handleSetTitle(t.isActive ? null : t.key)}
-                          className="text-left rounded-xl p-3 transition-all"
-                          style={{
-                            background: t.isActive ? `${RC[t.rarity]}18` : t.earned ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.015)",
-                            border: `1px solid ${t.isActive ? (RC[t.rarity] + "55") : t.earned ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.04)"}`,
-                            boxShadow: t.isActive ? `0 0 14px ${RC[t.rarity]}22` : undefined,
-                            cursor: t.earned ? "pointer" : "default",
-                            opacity: t.earned ? 1 : 0.4,
-                          }}>
-                          <div style={{ fontSize: "1rem", lineHeight: 1, marginBottom: "4px", filter: t.earned ? undefined : "grayscale(1)" }}>
-                            {t.earned ? t.icon : "🔒"}
-                          </div>
-                          <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem", color: c, fontWeight: 800, letterSpacing: "0.06em", lineHeight: 1.2 }}>
-                            {t.title}
-                          </div>
-                          <div style={{ fontSize: "0.5rem", color: t.earned ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.12)", marginTop: "3px", letterSpacing: "0.08em", fontFamily: "Oswald, sans-serif" }}>
-                            {t.earned ? t.rarity : t.description}
-                          </div>
-                          {t.isActive && (
-                            <div style={{ fontSize: "0.45rem", color: RC[t.rarity], marginTop: "3px", letterSpacing: "0.12em", fontFamily: "Oswald, sans-serif", fontWeight: 700 }}>
-                              ✓ ACTIVE
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </SectionCard>
-      )}
-
-      {/* ── Coach ─────────────────────────────────────────────── */}
-      {(insights.strengths.length > 0 || insights.focuses.length > 0) && (
-        <SectionCard title="Coach's Corner" icon={Zap} accent="#ffd24a">
-          <div className="grid grid-cols-2 gap-3">
-            {insights.strengths.length > 0 && (
-              <div>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <TrendingUp className="w-3 h-3" style={{ color: "#00e5a0" }} />
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.18em", color: "#00e5a0", textTransform: "uppercase" }}>
-                    Strengths
-                  </span>
-                </div>
-                <div className="space-y-1.5">
-                  {insights.strengths.map((s, i) => (
-                    <div key={i} className="flex items-start gap-1.5">
-                      <CheckCircle className="w-3 h-3 shrink-0 mt-0.5" style={{ color: "#00e5a0" }} />
-                      <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.65)", lineHeight: 1.4 }}>{s}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {insights.focuses.length > 0 && (
-              <div>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <TrendingDown className="w-3 h-3" style={{ color: "#f59e0b" }} />
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.18em", color: "#f59e0b", textTransform: "uppercase" }}>
-                    Focus On
-                  </span>
-                </div>
-                <div className="space-y-1.5">
-                  {insights.focuses.map((f, i) => (
-                    <div key={i} className="flex items-start gap-1.5">
-                      <Flame className="w-3 h-3 shrink-0 mt-0.5" style={{ color: "#f59e0b" }} />
-                      <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.65)", lineHeight: 1.4 }}>{f}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </SectionCard>
-      )}
 
       {/* ── League / Season ──────────────────────────────────── */}
       <SectionCard title="This Season" icon={Trophy} accent="#ffd24a">
@@ -1284,6 +1118,56 @@ export default function AccountPage() {
       {activeTab === "achievements" && (
         <div className="space-y-3">
 
+        {/* ── Titles ───────────────────────────────────────────── */}
+        {user?.playerId && titleList.length > 0 && (
+          <SectionCard title="Titles" icon={Award} accent="#a855f7" collapsible>
+            {(() => {
+              const RC: Record<string,string> = { Common:"#9ca3af", Rare:"#3b82f6", Epic:"#a855f7", Legendary:"#ffd24a" };
+              const earnedTitles = titleList.filter((t: any) => t.earned);
+              return (
+                <div className="space-y-3">
+                  <div style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
+                    {earnedTitles.length > 0
+                      ? `${earnedTitles.length} earned · tap to equip`
+                      : "Earn titles through league matches, M501, Practice & Shadow Bot"}
+                  </div>
+                  {earnedTitles.length > 0 && (
+                    <div className="grid grid-cols-2 gap-2">
+                      {earnedTitles.map((t: any) => {
+                        const c = RC[t.rarity as string] ?? "#9ca3af";
+                        return (
+                          <button key={t.key}
+                            disabled={titleSaving}
+                            onClick={() => handleSetTitle(t.isActive ? null : t.key)}
+                            className="text-left rounded-xl p-3 transition-all"
+                            style={{
+                              background: t.isActive ? `${c}18` : "rgba(255,255,255,0.03)",
+                              border: `1px solid ${t.isActive ? c + "55" : "rgba(255,255,255,0.1)"}`,
+                              boxShadow: t.isActive ? `0 0 14px ${c}22` : undefined,
+                            }}>
+                            <div style={{ fontSize: "1rem", lineHeight: 1, marginBottom: "4px" }}>{t.icon}</div>
+                            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem", color: c, fontWeight: 800, letterSpacing: "0.06em", lineHeight: 1.2 }}>
+                              {t.title}
+                            </div>
+                            <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.2)", marginTop: "3px", letterSpacing: "0.08em", fontFamily: "Oswald, sans-serif" }}>
+                              {t.rarity}
+                            </div>
+                            {t.isActive && (
+                              <div style={{ fontSize: "0.45rem", color: c, marginTop: "3px", letterSpacing: "0.12em", fontFamily: "Oswald, sans-serif", fontWeight: 700 }}>
+                                ✓ ACTIVE
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </SectionCard>
+        )}
+
         {/* Source selector */}
         <div className="flex gap-1 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
           {([
@@ -1522,238 +1406,58 @@ export default function AccountPage() {
               </div>
             )}
           </div>
-        </div>
-      )}
 
-      {/* ── Admin Panel ───────────────────────────────────────── */}
-      {user.isAdmin && (
-        <SectionCard title="Admin Panel" icon={Shield} accent="#ffd24a">
-          <div className="space-y-3">
-            <p style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.35)" }}>
-              Season management, player accounts, game types, achievement sweeps, Elo overrides, and more.
-            </p>
-            <Link href="/admin"
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl transition-opacity hover:opacity-80"
-              style={{ background: "linear-gradient(135deg, rgba(255,210,74,0.18), rgba(255,210,74,0.07))",
-                border: "1px solid rgba(255,210,74,0.35)", color: "#ffd24a",
-                fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", letterSpacing: "0.14em", fontWeight: 800 }}>
-              <Shield className="w-3.5 h-3.5" />
-              OPEN ADMIN PANEL ⚡
-            </Link>
-          </div>
-        </SectionCard>
-      )}
+          {/* ── Change Password ──────────────────────────────────── */}
+          <SectionCard title="Change Password" icon={Lock} accent="rgba(255,255,255,0.2)" collapsible>
+            <form onSubmit={handleChangePassword} className="space-y-3">
+              {[
+                { label: "Current password", val: curPwd,     set: setCurPwd,   id: "cur",  auto: "current-password" },
+                { label: "New password",      val: newPwd,     set: setNewPwd,   id: "new",  auto: "new-password" },
+                { label: "Confirm new",       val: confirmPwd, set: setConfirm,  id: "conf", auto: "new-password" },
+              ].map(({ label, val, set, id, auto }) => (
+                <div key={id}>
+                  <label className="block mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.54rem",
+                    letterSpacing: "0.14em", color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>
+                    {label}
+                  </label>
+                  <input type="password" autoComplete={auto} value={val} onChange={e => set(e.target.value)}
+                    className="w-full rounded-xl px-4 py-2.5 text-sm outline-none transition-all"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                      color: "#fff", fontFamily: "inherit" }}
+                    onFocus={e => (e.target.style.borderColor = "rgba(255,0,92,0.4)")}
+                    onBlur={e =>  (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
+                    required />
+                </div>
+              ))}
+              <button type="submit" disabled={pwdLoading}
+                className="w-full py-2.5 rounded-xl font-bold transition-opacity disabled:opacity-50"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                  color: "rgba(255,255,255,0.7)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em", fontSize: "0.78rem" }}>
+                {pwdLoading ? "Saving…" : "Update Password"}
+              </button>
+            </form>
+          </SectionCard>
 
-      {/* ── Change Password ──────────────────────────────────── */}
-      <SectionCard title="Change Password" icon={Lock} accent="rgba(255,255,255,0.2)" collapsible>
-        <div className="space-y-4">
-
-          {/* Overall progress */}
-          {achTotals.total > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.15em", color: "rgba(255,255,255,0.18)", textTransform: "uppercase" }}>
-                  League Achievements
-                </span>
-                <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.8rem", fontWeight: 900,
-                  color: achTotals.unlocked === achTotals.total && achTotals.total > 0 ? "#ffd24a" : "#a855f7" }}>
-                  {achTotals.unlocked} / {achTotals.total}
-                </span>
+          {/* ── Admin Panel ──────────────────────────────────────── */}
+          {user.isAdmin && (
+            <SectionCard title="Admin Panel" icon={Shield} accent="#ffd24a">
+              <div className="space-y-3">
+                <p style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.35)" }}>
+                  Season management, player accounts, game types, achievement sweeps, Elo overrides, and more.
+                </p>
+                <Link href="/admin"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl transition-opacity hover:opacity-80"
+                  style={{ background: "linear-gradient(135deg, rgba(255,210,74,0.18), rgba(255,210,74,0.07))",
+                    border: "1px solid rgba(255,210,74,0.35)", color: "#ffd24a",
+                    fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", letterSpacing: "0.14em", fontWeight: 800 }}>
+                  <Shield className="w-3.5 h-3.5" />
+                  OPEN ADMIN PANEL ⚡
+                </Link>
               </div>
-              <div style={{ height: 5, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden" }}>
-                <div style={{ height: "100%", borderRadius: 3, transition: "width 0.8s ease",
-                  background: "linear-gradient(90deg, #a855f7, rgba(168,85,247,0.4))",
-                  width: `${Math.round((achTotals.unlocked / achTotals.total) * 100)}%` }} />
-              </div>
-            </div>
+            </SectionCard>
           )}
-
-          {/* Expandable category rows */}
-          {achByCategory.length > 0 ? (
-            <div className="space-y-1.5">
-              {achByCategory.map(({ category, achievements }) => {
-                const cfg   = CATEGORY_CFG[category] ?? { label: category, accent: "#9ca3af", emoji: "🎯" };
-                const total = achievements.length;
-                const done  = achievements.filter(a => a.isUnlocked).length;
-                const gs    = achievements.filter(a => a.isUnlocked).reduce((s, a) => s + gamerscoreForRarity(a.rarity), 0);
-                const open  = expandedCats.has(category);
-                const toggle = () => setExpandedCats(prev => {
-                  const next = new Set(prev);
-                  open ? next.delete(category) : next.add(category);
-                  return next;
-                });
-                const sorted = [...achievements].sort((a, b) => {
-                  if (a.isUnlocked !== b.isUnlocked) return a.isUnlocked ? -1 : 1;
-                  const ap = (a.currentProgress ?? 0) / (a.criteriaValue ?? 1);
-                  const bp = (b.currentProgress ?? 0) / (b.criteriaValue ?? 1);
-                  return bp - ap;
-                });
-                return (
-                  <div key={category} className="rounded-xl overflow-hidden"
-                    style={{ border: `1px solid ${open ? cfg.accent + "30" : "rgba(255,255,255,0.06)"}`,
-                      background: open ? `${cfg.accent}08` : "rgba(255,255,255,0.02)", transition: "border-color 0.2s" }}>
-
-                    {/* Category header */}
-                    <button onClick={toggle} className="w-full flex items-center gap-2.5 px-3 py-2.5"
-                      style={{ borderBottom: open ? `1px solid ${cfg.accent}18` : undefined }}>
-                      <span style={{ fontSize: "0.9rem" }}>{cfg.emoji}</span>
-                      <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", fontWeight: 700,
-                        letterSpacing: "0.08em", color: open ? "#fff" : "rgba(255,255,255,0.55)", flex: 1, textAlign: "left" }}>
-                        {cfg.label}
-                      </span>
-                      <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "rgba(255,255,255,0.3)", marginRight: "6px" }}>
-                        {done}/{total}
-                      </span>
-                      {gs > 0 && (
-                        <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", fontWeight: 800,
-                          color: cfg.accent, marginRight: "6px" }}>{gs}G</span>
-                      )}
-                      {open
-                        ? <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: cfg.accent }} />
-                        : <ChevronRight className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.2)" }} />}
-                    </button>
-
-                    {/* Achievement list */}
-                    {open && (
-                      <div className="p-2 space-y-1">
-                        {sorted.map((a: any) => {
-                          const pct       = a.criteriaValue > 0 ? Math.min(100, Math.round(((a.currentProgress ?? 0) / a.criteriaValue) * 100)) : 0;
-                          const hasProgress = !a.isUnlocked && (a.currentProgress ?? 0) > 0 && a.criteriaValue != null;
-                          const isClose   = !a.isUnlocked && pct >= 60;
-                          const gs        = gamerscoreForRarity(a.rarity);
-                          const rCol      = RARITY_COL[a.rarity] ?? "#9ca3af";
-                          return (
-                            <div key={a.key ?? a.id}
-                              className="flex items-start gap-2.5 px-2.5 py-2 rounded-lg"
-                              style={{
-                                background: a.isUnlocked ? `${cfg.accent}0a` : isClose ? "rgba(245,158,11,0.05)" : "rgba(255,255,255,0.02)",
-                                border: `1px solid ${a.isUnlocked ? cfg.accent + "25" : isClose ? "rgba(245,158,11,0.2)" : "rgba(255,255,255,0.04)"}`,
-                              }}>
-                              <span style={{ fontSize: "0.95rem", marginTop: "1px",
-                                filter: a.isUnlocked ? "none" : "grayscale(1) opacity(0.35)", flexShrink: 0 }}>{a.icon ?? "🏆"}</span>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 mb-0.5">
-                                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem",
-                                    letterSpacing: "0.04em",
-                                    color: a.isUnlocked ? "#fff" : isClose ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.32)" }}>
-                                    {a.name}
-                                  </span>
-                                  <span style={{ fontSize: "0.44rem", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em",
-                                    color: rCol, border: `1px solid ${rCol}55`, borderRadius: 4, padding: "1px 4px",
-                                    opacity: a.isUnlocked ? 1 : 0.5, flexShrink: 0 }}>
-                                    {a.rarity?.toUpperCase()}
-                                  </span>
-                                </div>
-                                <div style={{ fontSize: "0.55rem", color: a.isUnlocked ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.2)",
-                                  lineHeight: 1.3, marginBottom: hasProgress ? "5px" : 0 }}>
-                                  {a.description}
-                                </div>
-                                {hasProgress && (
-                                  <div>
-                                    <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
-                                      <div style={{ height: "100%", borderRadius: 2, transition: "width 0.6s ease",
-                                        width: `${pct}%`,
-                                        background: pct >= 80
-                                          ? "linear-gradient(90deg, #22c55e, rgba(34,197,94,0.5))"
-                                          : isClose
-                                            ? "linear-gradient(90deg, #f59e0b, rgba(245,158,11,0.45))"
-                                            : "linear-gradient(90deg, rgba(255,255,255,0.25), rgba(255,255,255,0.1))" }} />
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex flex-col items-end gap-0.5 shrink-0" style={{ minWidth: "36px" }}>
-                                {a.isUnlocked ? (
-                                  <>
-                                    <CheckCircle className="w-3.5 h-3.5" style={{ color: cfg.accent }} />
-                                    <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "#ffd24a", fontWeight: 700 }}>{gs}G</span>
-                                  </>
-                                ) : hasProgress ? (
-                                  <>
-                                    <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: isClose ? "#f59e0b" : "rgba(255,255,255,0.2)", fontWeight: 700 }}>
-                                      {a.currentProgress}/{a.criteriaValue}
-                                    </span>
-                                    <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.15)" }}>{gs}G</span>
-                                  </>
-                                ) : (
-                                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.12)" }}>{gs}G</span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : achProgress.length === 0 ? (
-            <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
-              No achievements yet — play some matches to get started
-            </div>
-          ) : null}
-
-          <div className="pt-1 border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-            <Link href="/achievements"
-              className="flex items-center gap-1.5 transition-opacity hover:opacity-70 pt-2"
-              style={{ color: "rgba(168,85,247,0.6)", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.1em" }}>
-              View full achievement list
-              <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
         </div>
-      </SectionCard>
-
-      {/* ── Admin Panel ───────────────────────────────────────── */}
-      {user.isAdmin && (
-        <SectionCard title="Admin Panel" icon={Shield} accent="#ffd24a">
-          <div className="space-y-3">
-            <p style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.35)" }}>
-              Season management, player accounts, game types, achievement sweeps, Elo overrides, and more.
-            </p>
-            <Link href="/admin"
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl transition-opacity hover:opacity-80"
-              style={{ background: "linear-gradient(135deg, rgba(255,210,74,0.18), rgba(255,210,74,0.07))",
-                border: "1px solid rgba(255,210,74,0.35)", color: "#ffd24a",
-                fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", letterSpacing: "0.14em", fontWeight: 800 }}>
-              <Shield className="w-3.5 h-3.5" />
-              OPEN ADMIN PANEL ⚡
-            </Link>
-          </div>
-        </SectionCard>
       )}
-
-      {/* ── Change Password ──────────────────────────────────── */}
-      <SectionCard title="Change Password" icon={Lock} accent="rgba(255,255,255,0.2)" collapsible>
-        <form onSubmit={handleChangePassword} className="space-y-3">
-          {[
-            { label: "Current password",  val: curPwd,     set: setCurPwd,    id: "cur",  auto: "current-password" },
-            { label: "New password",       val: newPwd,     set: setNewPwd,    id: "new",  auto: "new-password" },
-            { label: "Confirm new",        val: confirmPwd, set: setConfirm,   id: "conf", auto: "new-password" },
-          ].map(({ label, val, set, id, auto }) => (
-            <div key={id}>
-              <label className="block mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.54rem",
-                letterSpacing: "0.14em", color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>
-                {label}
-              </label>
-              <input type="password" autoComplete={auto} value={val} onChange={e => set(e.target.value)}
-                className="w-full rounded-xl px-4 py-2.5 text-sm outline-none transition-all"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-                  color: "#fff", fontFamily: "inherit" }}
-                onFocus={e => (e.target.style.borderColor = "rgba(255,0,92,0.4)")}
-                onBlur={e =>  (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
-                required />
-            </div>
-          ))}
-          <button type="submit" disabled={pwdLoading}
-            className="w-full py-2.5 rounded-xl font-bold transition-opacity disabled:opacity-50"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-              color: "rgba(255,255,255,0.7)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em", fontSize: "0.78rem" }}>
-            {pwdLoading ? "Saving…" : "Update Password"}
-          </button>
-        </form>
-      </SectionCard>
 
       {/* ── Social Tab ──────────────────────────────────────────── */}
       {activeTab === "social" && (
