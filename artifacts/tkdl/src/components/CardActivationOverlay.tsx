@@ -142,7 +142,7 @@ function CardInputModal({
  * 2. Score modifier feedback when cards are played
  * 3. Popup modals for cards needing input
  */
-export default function CardActivationOverlay({
+export function CardActivationOverlay({
   equippedCards,
   isVisible,
   activatedCard,

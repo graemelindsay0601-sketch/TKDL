@@ -34,7 +34,7 @@ const RarityBg: Record<string, string> = {
   LEGENDARY: "bg-yellow-500/10",
 };
 
-export default function CardEquipmentSelector({
+export function CardEquipmentSelector({
   playerId,
   gameMode,
   onSelect,
