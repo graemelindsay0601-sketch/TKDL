@@ -821,6 +821,149 @@ export default function AccountPage() {
         </div>
       </div>
 
+      {/* ── Titles ───────────────────────────────────────────── */}
+      {user?.playerId && (
+        <SectionCard title="Titles" icon={Award} accent="#a855f7" collapsible>
+          {(() => {
+            const RC: Record<string,string> = { Common:"#9ca3af", Rare:"#3b82f6", Epic:"#a855f7", Legendary:"#ffd24a" };
+            const earnedCount = titleList.filter((t: any) => t.earned).length;
+            const FILTERS = [
+              { key:"earned", label:"Earned" },
+              { key:"all",    label:"All" },
+              { key:"league", label:"League" },
+              { key:"practice", label:"Practice" },
+              { key:"game",   label:"Games" },
+              { key:"master501", label:"M501" },
+              { key:"bot",    label:"Shadow Bot" },
+            ];
+            const visible = titleList.filter((t: any) =>
+              titleFilter === "earned" ? t.earned :
+              titleFilter === "all"    ? true :
+              t.category === titleFilter
+            );
+            return (
+              <div className="space-y-3">
+                {/* Header row */}
+                <div className="flex items-center justify-between">
+                  <div style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
+                    {earnedCount > 0
+                      ? `${earnedCount} earned · tap to equip`
+                      : "Earn titles through league matches, M501, Practice & Shadow Bot"}
+                  </div>
+                  {earnedCount > 0 && (
+                    <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "#a855f7", fontWeight: 800, letterSpacing: "0.06em" }}>
+                      {earnedCount}/{titleList.length}
+                    </div>
+                  )}
+                </div>
+
+                {/* Filter tabs */}
+                <div className="flex flex-wrap gap-1.5">
+                  {FILTERS.map(f => (
+                    <button key={f.key} onClick={() => setTitleFilter(f.key)}
+                      style={{
+                        fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", fontWeight: 700,
+                        letterSpacing: "0.1em", padding: "3px 8px", borderRadius: "6px",
+                        background: titleFilter === f.key ? "rgba(168,85,247,0.2)" : "rgba(255,255,255,0.04)",
+                        border: `1px solid ${titleFilter === f.key ? "#a855f780" : "rgba(255,255,255,0.08)"}`,
+                        color: titleFilter === f.key ? "#a855f7" : "rgba(255,255,255,0.35)",
+                        cursor: "pointer",
+                      }}>
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Grid */}
+                {visible.length === 0 ? (
+                  <div style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.2)", textAlign: "center", padding: "16px 0" }}>
+                    No titles here yet
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {visible.map((t: any) => {
+                      const c = t.earned ? (RC[t.rarity as string] ?? "#9ca3af") : "rgba(255,255,255,0.12)";
+                      return (
+                        <button key={t.key}
+                          disabled={!t.earned || titleSaving}
+                          onClick={() => t.earned && handleSetTitle(t.isActive ? null : t.key)}
+                          className="text-left rounded-xl p-3 transition-all"
+                          style={{
+                            background: t.isActive ? `${RC[t.rarity]}18` : t.earned ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.015)",
+                            border: `1px solid ${t.isActive ? (RC[t.rarity] + "55") : t.earned ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.04)"}`,
+                            boxShadow: t.isActive ? `0 0 14px ${RC[t.rarity]}22` : undefined,
+                            cursor: t.earned ? "pointer" : "default",
+                            opacity: t.earned ? 1 : 0.4,
+                          }}>
+                          <div style={{ fontSize: "1rem", lineHeight: 1, marginBottom: "4px", filter: t.earned ? undefined : "grayscale(1)" }}>
+                            {t.earned ? t.icon : "🔒"}
+                          </div>
+                          <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem", color: c, fontWeight: 800, letterSpacing: "0.06em", lineHeight: 1.2 }}>
+                            {t.title}
+                          </div>
+                          <div style={{ fontSize: "0.5rem", color: t.earned ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.12)", marginTop: "3px", letterSpacing: "0.08em", fontFamily: "Oswald, sans-serif" }}>
+                            {t.earned ? t.rarity : t.description}
+                          </div>
+                          {t.isActive && (
+                            <div style={{ fontSize: "0.45rem", color: RC[t.rarity], marginTop: "3px", letterSpacing: "0.12em", fontFamily: "Oswald, sans-serif", fontWeight: 700 }}>
+                              ✓ ACTIVE
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </SectionCard>
+      )}
+
+      {/* ── Coach's Corner ────────────────────────────────────── */}
+      {(insights.strengths.length > 0 || insights.focuses.length > 0) && (
+        <SectionCard title="Coach's Corner" icon={Zap} accent="#ffd24a">
+          <div className="grid grid-cols-2 gap-3">
+            {insights.strengths.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <TrendingUp className="w-3 h-3" style={{ color: "#00e5a0" }} />
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.18em", color: "#00e5a0", textTransform: "uppercase" }}>
+                    Strengths
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {insights.strengths.map((s, i) => (
+                    <div key={i} className="flex items-start gap-1.5">
+                      <CheckCircle className="w-3 h-3 shrink-0 mt-0.5" style={{ color: "#00e5a0" }} />
+                      <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.65)", lineHeight: 1.4 }}>{s}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {insights.focuses.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <TrendingDown className="w-3 h-3" style={{ color: "#f59e0b" }} />
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.18em", color: "#f59e0b", textTransform: "uppercase" }}>
+                    Focus On
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {insights.focuses.map((f, i) => (
+                    <div key={i} className="flex items-start gap-1.5">
+                      <Flame className="w-3 h-3 shrink-0 mt-0.5" style={{ color: "#f59e0b" }} />
+                      <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.65)", lineHeight: 1.4 }}>{f}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </SectionCard>
+      )}
+
       {/* ── League / Season ──────────────────────────────────── */}
       <SectionCard title="This Season" icon={Trophy} accent="#ffd24a">
         <div className="grid grid-cols-3 gap-3 mb-4">
