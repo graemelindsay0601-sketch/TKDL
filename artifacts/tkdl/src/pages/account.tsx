@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/context/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -9,7 +9,47 @@ import {
   MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera,
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
-import { OverallStats, ByGameType, Trends, DartAnalysis, SessionHistory, CategoryStats, CategoryStatsEnhanced, AdvancedAnalyticsDashboard } from "@/components/stats";
+import { OverallStats, ByGameType, Trends, DartAnalysis, SessionHistory, CategoryStats } from "@/components/stats";
+
+// Lazy load heavy stats components - load only when tab opens
+const CategoryStatsEnhanced = lazy(() =>
+  import("@/components/stats").then(m => ({ default: m.CategoryStatsEnhanced }))
+);
+
+const AdvancedAnalyticsDashboard = lazy(() =>
+  import("@/components/stats").then(m => ({ default: m.AdvancedAnalyticsDashboard }))
+);
+
+// Loading spinner for lazy-loaded components
+function TabContentLoading() {
+  return (
+    <div style={{
+      padding: "40px",
+      textAlign: "center",
+      color: "rgba(255,255,255,0.6)",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: "20px",
+    }}>
+      <div style={{
+        width: "40px",
+        height: "40px",
+        border: "3px solid rgba(255,0,92,0.2)",
+        borderTopColor: "#ff005c",
+        borderRadius: "50%",
+        animation: "spin 0.8s linear infinite",
+      }} />
+      <div style={{ fontSize: "14px" }}>Loading...</div>
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
 
 const TIER_COLORS: Record<string, string> = {
   Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
@@ -2018,13 +2058,17 @@ export default function AccountPage() {
       {/* ── Stats Tab ─────────────────────────────────────────────── */}
       {activeTab === "stats" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <CategoryStatsEnhanced playerId={parseInt(user.playerId)} />
+          <Suspense fallback={<TabContentLoading />}>
+            <CategoryStatsEnhanced playerId={parseInt(user.playerId)} />
+          </Suspense>
         </div>
       )}
 
       {activeTab === "analytics" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <AdvancedAnalyticsDashboard playerId={parseInt(user.playerId)} />
+          <Suspense fallback={<TabContentLoading />}>
+            <AdvancedAnalyticsDashboard playerId={parseInt(user.playerId)} />
+          </Suspense>
         </div>
       )}
 

@@ -2,14 +2,49 @@ import { useGetPlayerStats, getGetPlayerStatsQueryKey } from "@workspace/api-cli
 import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare } from "lucide-react";
 import { useAuth } from "@/context/auth";
 import {
   FormStrip, EloSparkline, AchievementCard,
   BigStat, SmallStat, TIER_GLOW, CollapsibleSection, ScorecardView,
 } from "./helpers";
-import { CategoryStatsEnhanced } from "@/components/stats";
+
+// Lazy load heavy stats component
+const CategoryStatsEnhanced = lazy(() =>
+  import("@/components/stats").then(m => ({ default: m.CategoryStatsEnhanced }))
+);
+
+// Loading spinner for lazy-loaded components
+function TabContentLoading() {
+  return (
+    <div style={{
+      padding: "40px",
+      textAlign: "center",
+      color: "rgba(255,255,255,0.6)",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: "20px",
+    }}>
+      <div style={{
+        width: "40px",
+        height: "40px",
+        border: "3px solid rgba(255,0,92,0.2)",
+        borderTopColor: "#ff005c",
+        borderRadius: "50%",
+        animation: "spin 0.8s linear infinite",
+      }} />
+      <div style={{ fontSize: "14px" }}>Loading...</div>
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
 
 export default function PlayerDetail() {
   const params = useParams<{ id: string }>();
@@ -1226,7 +1261,9 @@ export default function PlayerDetail() {
           </div>
         </div>
         <div className="p-4">
-          <CategoryStatsEnhanced playerId={playerId} />
+          <Suspense fallback={<TabContentLoading />}>
+            <CategoryStatsEnhanced playerId={playerId} />
+          </Suspense>
         </div>
       </div>
 
