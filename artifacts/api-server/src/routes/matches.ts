@@ -8,6 +8,7 @@ import { validateStake, applyWager } from "../lib/wager";
 import { checkMatchAchievements, checkStatAchievements } from "../lib/achievements";
 import { checkAndGrantTitles } from "../lib/titles";
 import { createAutoPost } from "../lib/communityNotify";
+import { sendMatchResultNotification, sendRankChangeNotifications, sendThreatAlertNotifications } from "../services/notificationService";
 
 const SubmitMatchBody = z.object({
   winnerId:                z.number().int().positive(),
@@ -205,6 +206,30 @@ router.post("/matches", async (req, res): Promise<void> => {
         autoMeta:        { type: "tier_drop", playerId: loserId, from: loserTierBefore, to: loserTierAfter },
         notifyPlayerIds: [loserId],
       });
+    }
+  })();
+
+  // Send push notifications (fire and forget)
+  void (async () => {
+    try {
+      // Match result notification
+      await sendMatchResultNotification(winnerId, loserId, match.id, stake, eloChange);
+      
+      // Rank change notifications (batched daily)
+      const winnerRankBefore = winner.elo;
+      const loserRankBefore = loser.elo;
+      if (newWinnerElo !== winnerRankBefore || newLoserElo !== loserRankBefore) {
+        await sendRankChangeNotifications([
+          { playerId: winnerId, eloChange: newWinnerElo - winnerRankBefore },
+          { playerId: loserId, eloChange: newLoserElo - loserRankBefore },
+        ]);
+      }
+      
+      // Threat alert notifications (if gap < 15 points)
+      await sendThreatAlertNotifications(winnerId, loserId, newWinnerElo, newLoserElo);
+    } catch (err) {
+      // Log notification errors but don't fail the match submission
+      console.error("Notification send error:", err);
     }
   })();
 
