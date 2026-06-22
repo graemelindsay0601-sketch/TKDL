@@ -203,20 +203,17 @@ export async function getBatchingStats(): Promise<{
   exceededDailyLimit: number;
 }> {
   try {
-    // Count notifications created but not yet sent (pending)
+    // Count recent notifications (created in last hour - potential queuing indicators)
     const result = await db.execute(sql`
-      SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN created_at >= NOW() - INTERVAL '1 hour' 
-            AND is_sent = false THEN 1 ELSE 0 END) as recently_queued
+      SELECT COUNT(*) as total
       FROM notifications
-      WHERE is_sent = false
+      WHERE created_at >= NOW() - INTERVAL '1 hour'
     `);
 
     return {
       totalQueued: parseInt((result.rows[0] as any).total || 0),
-      inQuietHours: 0, // Would need more complex logic to track
-      exceededDailyLimit: 0 // Would need more complex logic to track
+      inQuietHours: 0, // Would need separate tracking table
+      exceededDailyLimit: 0 // Would need separate tracking table
     };
   } catch (error) {
     logger.error("Error getting batching stats", { error });
