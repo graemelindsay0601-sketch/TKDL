@@ -4,3 +4,5 @@ export { Trends } from "./trends";
 export { DartAnalysis } from "./dart-analysis";
 export { SessionHistory } from "./session-history";
 export { CategoryStats } from "./category-stats";
+export { CategoryStatsEnhanced } from "./category-stats-enhanced";
+export { AdvancedAnalyticsDashboard } from "./advanced-analytics";

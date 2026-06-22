@@ -5,11 +5,11 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Shield, Target, LogOut, Lock, User, TrendingUp, TrendingDown,
   Zap, Trophy, Dumbbell, CircuitBoard, Star, ChevronDown, ChevronRight,
-  Award, Flame, CheckCircle, Clock, Brain,
+  Award, Flame, CheckCircle, Clock, Brain, BarChart3,
   MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera,
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
-import { OverallStats, ByGameType, Trends, DartAnalysis, SessionHistory, CategoryStats } from "@/components/stats";
+import { OverallStats, ByGameType, Trends, DartAnalysis, SessionHistory, CategoryStats, CategoryStatsEnhanced, AdvancedAnalyticsDashboard } from "@/components/stats";
 
 const TIER_COLORS: Record<string, string> = {
   Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
@@ -287,7 +287,7 @@ export default function AccountPage() {
   const [expandedCats,    setExpandedCats]    = useState<Set<string>>(new Set(["Career"]));
 
   // ── Tab + Community state ────────────────────────────────────────────
-  const [activeTab,        setActiveTab]       = useState<"overview" | "activity" | "achievements" | "coach" | "social" | "stats">("overview");
+  const [activeTab,        setActiveTab]       = useState<"overview" | "activity" | "achievements" | "coach" | "social" | "stats" | "analytics">("overview");
   const [socialTab,        setSocialTab]       = useState<"dms" | "notifications" | "photos">("dms");
   const [achSource,        setAchSource]       = useState<"league" | "bot" | "tour" | "m501">("league");
   const [coachDrills,      setCoachDrills]     = useState<any[]>([]);
@@ -792,6 +792,7 @@ export default function AccountPage() {
           { id: "coach"         as const, label: "Coach",     Icon: Brain                            },
           { id: "social"        as const, label: "Social",    Icon: MessageSquare, badge: unreadNotifCount },
           { id: "stats"         as const, label: "Stats",     Icon: TrendingUp                             },
+          { id: "analytics"     as const, label: "Analytics", Icon: BarChart3                        },
         ]).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className="flex-1 relative flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all"
@@ -2017,7 +2018,13 @@ export default function AccountPage() {
       {/* ── Stats Tab ─────────────────────────────────────────────── */}
       {activeTab === "stats" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <CategoryStats playerId={parseInt(user.playerId)} />
+          <CategoryStatsEnhanced playerId={parseInt(user.playerId)} />
+        </div>
+      )}
+
+      {activeTab === "analytics" && user?.playerId && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <AdvancedAnalyticsDashboard playerId={parseInt(user.playerId)} />
         </div>
       )}
 

@@ -9,7 +9,7 @@ import {
   FormStrip, EloSparkline, AchievementCard,
   BigStat, SmallStat, TIER_GLOW, CollapsibleSection, ScorecardView,
 } from "./helpers";
-import { CategoryStats } from "@/components/stats";
+import { CategoryStatsEnhanced } from "@/components/stats";
 
 export default function PlayerDetail() {
   const params = useParams<{ id: string }>();
@@ -1226,7 +1226,7 @@ export default function PlayerDetail() {
           </div>
         </div>
         <div className="p-4">
-          <CategoryStats playerId={playerId} />
+          <CategoryStatsEnhanced playerId={playerId} />
         </div>
       </div>
 
