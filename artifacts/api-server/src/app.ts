@@ -8,6 +8,7 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import cacheMiddleware from "./middleware/cache";
 import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetSeason } from "./lib/seasonReset";
 import { seedTourSystem } from "./lib/tourSeed";
@@ -70,6 +71,9 @@ app.use(session({
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// API response caching middleware - cache GET requests
+app.use("/api", cacheMiddleware());
 
 // Repair legacy sessions that only have userId — backfill playerId + isAdmin
 app.use(async (req, res, next) => {
