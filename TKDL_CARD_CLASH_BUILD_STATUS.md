@@ -45,32 +45,38 @@ Card Clash is a massive feature spanning:
 - ✅ 10 API endpoints (public + admin)
 - ✅ 100 cards seeded and working
 
-### ✅ Phase 2A: Admin & Security (COMPLETE - TODAY)
+### ✅ Phase 2A: Admin & Security (COMPLETE)
 - ✅ Admin PIN verification middleware (routes secured)
 - ✅ Card Clash feature flag (toggles visibility)
 - ✅ 10 admin testing tools in UI
-- ✅ Card Clash nav tab (conditional on flag)
+- ✅ Card Clash nav tab added to layout
 - ✅ Admin panel integrated into admin/index.tsx
 
-### ✅ Phase 2B: Coin System (COMPLETE - TODAY)
+### ✅ Phase 2B: Coin System (COMPLETE)
 - ✅ Coin earning hooks in match endpoints
 - ✅ League matches: Win=20, Loss=10 coins
 - ✅ Card Clash matches: Win=50+(10×cards), Loss=25+(10×cards)
 - ✅ Daily login bonus hook
 - ✅ Account page "Cards" tab added
 
-### 🔴 Phase 2C: Scoring Integration (BLOCKED - THIS IS THE ROADBLOCK)
+### 🔴 Phase 2C: Scoring Integration (NOT STARTED - CRITICAL BLOCKER)
 - ❌ Equipment selector UI (before match)
+- ❌ Card effects wired into scoring calculation
 - ❌ Card activation UI (during scoring)
 - ❌ Popup card handlers (Instant Mark, Sniper Lock, etc.)
 - ❌ Visual feedback (glow, animations)
-- ⚠️ **Card effects engine exists but NOT CALLED in scoring**
 
-**Why it's blocked:** Each attempt to build scoring UI causes context window overload because:
-1. Need to understand current scorer implementation
-2. Need to modify scoring to apply card effects
-3. Need to add UI components for card selection
-4. Document gets too long to fit in one chat
+**Current State:** 
+- card-effects.ts: 100% built, 0% integrated
+- scorers.tsx: 3856 lines, zero Card Clash references
+- play.tsx: no Card Clash integration yet
+
+**What needs to happen:**
+1. Equipment selector component (new file)
+2. Play flow integration (show selector when Card Clash enabled)
+3. Wire card-effects.ts into match submission
+4. Build scoring screen UI integration
+5. Handle popup card interactions
 
 ---
 
@@ -207,74 +213,103 @@ Every time we try to build scoring UI integration, the conversation hits token l
 
 ---
 
-## 📋 IMMEDIATE NEXT STEPS (DO NOT START YET)
+## 📋 IMMEDIATE NEXT STEPS (READY TO BUILD)
 
-### Step 1: Build Equipment Selector (1-2 hours)
-**Goal:** Before match starts, player can select 2 GOOD + 2 BAD cards
-
-**What to build:**
-- New component: `CardEquipmentSelector.tsx`
-  - Shows player's owned cards
-  - Allows selection of exactly 2 GOOD + 2 BAD
-  - Saves to match record
-
-**Where it goes:**
-- Call from Play flow when "Card Clash" toggle is ON
-- Pass selected cards to match/start endpoint
-- Store in `cardsEquippedInMatch` parameter
-
-**API endpoint exists:** `POST /api/card-clash/match/start`
-- Already accepts `cardsEquippedInMatch: CardEquipment[]`
+### BLOCKING ISSUE: Card Effects Not Wired
+**Problem:** `card-effects.ts` exists but is NEVER called. Scoring uses raw darts, not modified scores.
+**Impact:** Cards do nothing during matches.
+**Solution:** Wire card-effects.ts into scoring flow + build UI.
 
 ---
 
-### Step 2: Integrate Card Effects into Scorer (2-3 hours)
-**Goal:** Cards actually modify scoring during matches
+### Step 1: Build Equipment Selector Component (1-2 hours)
+**File to create:** `artifacts/tkdl/src/components/CardEquipmentSelector.tsx`
 
-**What to modify:**
-- `artifacts/api-server/src/lib/card-effects.ts` — Already 100% built, just needs to be called
-- Scoring context needs to:
-  1. Load equipped cards for current player
-  2. Before turn score calculation: Apply GOOD cards
-  3. After turn score calculation: Apply BAD cards from opponent
-  4. Return modified score
+**What it does:**
+- Shows player's inventory of cards
+- Allows selection of EXACTLY 2 GOOD + 2 BAD cards
+- Validates selection (won't let proceed without 2+2)
+- Returns selected cards as array
 
-**How card-effects.ts works:**
+**How it integrates:**
+- Appears in Play flow BEFORE match starts
+- Only shows if Card Clash feature flag is enabled
+- Calls `/api/card-clash/match/start` with selected cards
+- Cards stored in match record as `cardsEquippedInMatch`
+
+**API Already Ready:** `POST /api/card-clash/match/start`
 ```typescript
-// Already implemented:
-applyX01GoodCard(cardEffect: string, context: ScoringContext): number
-applyX01BadCard(cardEffect: string, context: ScoringContext): number
-applyCricketGoodCard(cardEffect: string, context: ScoringContext): number
-applyCricketBadCard(cardEffect: string, context: ScoringContext): number
-
-// These return a score modifier (positive or negative)
-// Just call them and apply the result
+Body: {
+  playerId: number,
+  opponentId: number,
+  gameType: "X01" | "CRICKET",
+  cardsEquippedInMatch: {  // THIS IS NEW, needs to be filled by component
+    goodCards: [{ cardId: string, cardName: string }, ...]
+    badCards: [{ cardId: string, cardName: string }, ...]
+  }
+}
 ```
 
-**Where scoring happens:**
-- Probably in `artifacts/api-server/src/services/` or similar
-- Look for where X01/Cricket scores are calculated
-- Before final score returned, apply card effects
+---
+
+### Step 2: Wire Card Effects Into Match Finish (2-3 hours)
+**File to modify:** `artifacts/api-server/src/routes/card-clash.ts`
+
+**What needs to happen:**
+1. When match finishes, call card-effects.ts functions
+2. For each card equipped by active player:
+   - Apply effect to scoring context
+   - Get score modifier back
+   - Add to final score calculation
+3. Consume cards from inventory
+4. Award coins with modified points
+
+**Code structure needed:**
+```typescript
+// In match/finish endpoint:
+import { applyX01GoodCard, applyX01BadCard, /* ... */ } from "@/lib/card-effects";
+
+// For each card in cardsUsedInMatch:
+if (card.cardType === "GOOD") {
+  const modifier = applyX01GoodCard(card.effect, scoringContext);
+  finalScore += modifier;
+} else if (card.cardType === "BAD") {
+  const modifier = applyX01BadCard(card.effect, scoringContext);
+  finalScore += modifier;
+}
+```
 
 ---
 
-### Step 3: Build Scoring Screen UI (2-3 hours)
-**Goal:** Visual feedback when cards are played during match
+### Step 3: Build Scoring Screen UI Integration (2-3 hours)
+**Files to modify:** `artifacts/tkdl/src/lib/scorers.tsx` (3856 lines)
 
-**What to build:**
-- Show which cards are equipped at match start
-- Highlight when a GOOD card is played (visual feedback)
-- Popup for cards needing input (Instant Mark → "which number?")
-- Show score modifier ("+50 from Power Surge")
-- Mobile responsive
+**What to add:**
+- Before X01/Cricket scoring turns: Show equipped cards
+- After player plays: Show which cards are active
+- Visual feedback: Highlight, glow, slide animation
+- Score modifier display: "+50 from Power Surge" text
+- Popup handler for cards needing input
+
+**These cards need popups:**
+- Instant Mark (Cricket): "Which number to mark?" → 15-20,25,50
+- Sniper Lock (Cricket): "Lock which 3 numbers?"
+- Target Master (X01): "Boost which segment?"
+- Focus Fire (X01): "Boost which 2 segments?"
 
 ---
 
-### Step 4: Test & Polish (2-3 hours)
-- Test all 100 cards with various scoring scenarios
-- Verify coin awarding works
-- Check standings calculation
-- Mobile responsiveness
+### Step 4: Test & Verify (1-2 hours)
+- [ ] Enable Card Clash in admin feature flags
+- [ ] Seed 100 cards via admin panel
+- [ ] Give test account coins
+- [ ] Buy packs, get cards
+- [ ] Play a Card Clash match with equipment
+- [ ] Verify cards are consumed
+- [ ] Verify score is modified correctly
+- [ ] Verify coins awarded with bonuses
+- [ ] Check standings updated
+- [ ] Test popup cards work
 
 ---
 
@@ -538,22 +573,26 @@ curl https://tkdl-wt7y-onrender.com/api/settings/feature-flags
 
 ## 📊 PROJECT METRICS
 
-| Aspect | Status |
-|--------|--------|
-| Backend Infrastructure | ✅ 100% |
-| Database Schema | ✅ 100% |
-| Card Definitions | ✅ 100% (100 cards) |
-| Card Effects Engine | ✅ 100% (not called) |
-| Admin Controls | ✅ 100% |
-| Feature Flag | ✅ 100% |
-| Coin System | ✅ 100% |
-| Navigation Integration | ✅ 100% |
-| **Equipment Selector UI** | ❌ 0% |
-| **Scoring Integration** | ❌ 0% |
-| **Scoring Screen UI** | ❌ 0% |
-| **Visual Polish** | ❌ 0% |
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| Backend Infrastructure | ✅ 100% | 3 services, 10 API endpoints |
+| Database Schema | ✅ 100% | 7 tables deployed to Neon |
+| Card Definitions | ✅ 100% | 100 cards designed, seeded, working |
+| Card Effects Engine | ✅ 100% | BUILT but NOT called/integrated |
+| Admin Controls | ✅ 100% | 10 tools, PIN-secured, all working |
+| Feature Flag | ✅ 100% | Toggle works, gates navigation |
+| Coin System | ✅ 100% | Earning hooks complete |
+| Card Clash Page | ✅ 100% | 3 tabs (overview, shop, standings) |
+| Account Cards Tab | ✅ 100% | Tab exists, needs inventory UI |
+| Navigation Tab | ✅ 100% | Tab added to main layout |
+| **Equipment Selector UI** | ❌ 0% | Need to build component |
+| **Play Flow Integration** | ❌ 0% | Need to call selector before match |
+| **Scoring Effect Wiring** | ❌ 0% | Need to call card-effects.ts |
+| **Scoring Screen UI** | ❌ 0% | Need visual feedback during match |
+| **Popup Handlers** | ❌ 0% | Need Instant Mark, Sniper Lock, etc. |
 
-**Overall:** ~75% Complete
+**Overall:** ~65% Complete (was 75%, adjusted for accuracy)
+**Deploy Status:** ✅ FIXED (boolean import added, ready for Render)
 
 ---
 
