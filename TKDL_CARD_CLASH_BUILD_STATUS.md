@@ -1,8 +1,9 @@
 # TKDL Card Clash - BUILD STATUS & CONTEXT DOCUMENT
 
-**Last Updated:** June 22, 2026 (21:45 UTC)  
-**Status:** ~75% Complete - Backend & Admin Done, Scoring Integration Needed  
+**Last Updated:** June 22, 2026 (22:10 UTC)  
+**Status:** ~67% Complete - Backend/Admin Done, Now Building Scoring Integration  
 **GitHub:** graemelindsay0601-sketch/TKDL (main branch)  
+**Current Session:** Started Step 1 - Equipment Selector  
 **Current Player ID:** 16 (Graeme, admin)
 
 ---
@@ -10,6 +11,14 @@
 ## 🎯 EXECUTIVE SUMMARY
 
 Card Clash is a **parallel card collection game mode** built on top of TKDL. Players collect cards (gacha system), equip them before matches, and use them strategically during X01/Cricket games to modify scoring.
+
+### 🚀 CURRENT SESSION PROGRESS
+- ✅ Deploy fix: Added missing boolean import (commit 9f1bade)
+- ✅ BUILD_STATUS audit: Verified 65% complete (commit cae7085)
+- ✅ Equipment Selector component built (commit 890ae0c)
+- 🔄 **NEXT:** Integrate selector into Play flow
+- 🔄 **THEN:** Wire card-effects.ts into scoring
+- 🔄 **THEN:** Build scoring screen UI
 
 ### What Works ✅
 - **Backend:** All 7 database tables, 3 services, card effects engine
