@@ -416,6 +416,12 @@ If Card Clash isn't showing:
 
 ## 🐛 KNOWN ISSUES
 
+### Deploy Failing - Missing Boolean Import 🔴 CRITICAL (FIXED)
+- ✅ FIXED in commit 9f1bade
+- Was: `card-definitions.ts` missing `boolean` from imports
+- Solution: Added `boolean` to drizzle-orm/pg-core imports
+- Action: Redeploy on Render
+
 ### Context Window Explosion 🔴 CRITICAL
 - Every chat discussing full feature hits limits
 - Solution: This document + smaller focused chats
