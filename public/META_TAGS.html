@@ -1,0 +1,165 @@
+<!-- TKDL - Optimized Meta Tags for PWA & Tablet Support -->
+
+<!-- VIEWPORT CONFIGURATION -->
+<!-- Critical for responsive design and proper scaling on all devices -->
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0" />
+<meta name="theme-color" content="#ff005c" />
+<meta name="color-scheme" content="dark light" />
+
+<!-- ORIENTATION SUPPORT -->
+<meta name="screen-orientation" content="portaitLandscape" />
+
+<!-- PWA MANIFEST & INSTALLATION -->
+<link rel="manifest" href="/manifest.json" />
+<link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+<link rel="icon" type="image/png" sizes="any" href="/icons/icon-192x192.png" />
+<link rel="shortcut icon" href="/icons/icon-192x192.png" />
+
+<!-- APPLE-SPECIFIC PWA SETTINGS (iOS) -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="TKDL" />
+
+<!-- SPLASH SCREENS FOR iOS (different sizes for different devices) -->
+<link rel="apple-touch-startup-image" href="/splash/splash-640x1136.png" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)" />
+<link rel="apple-touch-startup-image" href="/splash/splash-750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" />
+<link rel="apple-touch-startup-image" href="/splash/splash-1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
+
+<!-- iPad Splash Screens -->
+<link rel="apple-touch-startup-image" href="/splash/splash-ipad-1024x768.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 1)" />
+<link rel="apple-touch-startup-image" href="/splash/splash-ipad-1024x768-2x.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" />
+<link rel="apple-touch-startup-image" href="/splash/splash-ipad-pro-1366x1024.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" />
+
+<!-- ANDROID-SPECIFIC SETTINGS -->
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="application-name" content="TKDL" />
+
+<!-- WINDOWS TILES (for PWA on Windows) -->
+<meta name="msapplication-TileColor" content="#ff005c" />
+<meta name="msapplication-TileImage" content="/icons/icon-144x144.png" />
+<meta name="msapplication-config" content="/browserconfig.xml" />
+
+<!-- SEO & GENERAL META -->
+<meta name="description" content="Advanced darts league management with real-time stats, AI coaching, and tournament modes" />
+<meta name="keywords" content="darts, league, stats, coaching, games, sports" />
+<meta name="author" content="TKDL" />
+
+<!-- SOCIAL MEDIA / SHARING -->
+<meta property="og:title" content="TKDL - Darts League Companion" />
+<meta property="og:description" content="Advanced darts league management with real-time stats and AI coaching" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://tkdl-wt7y.onrender.com" />
+<meta property="og:image" content="/icons/icon-512x512.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="TKDL - Darts League Companion" />
+<meta name="twitter:description" content="Advanced darts league management with real-time stats and AI coaching" />
+<meta name="twitter:image" content="/icons/icon-512x512.png" />
+
+<!-- DISABLE UNWANTED FEATURES ON MOBILE/TABLET -->
+<!-- Prevent automatic phone number detection (avoid blue links) -->
+<meta name="format-detection" content="telephone=no" />
+
+<!-- Prevent email detection -->
+<meta name="format-detection" content="email=no" />
+
+<!-- PERFORMANCE OPTIMIZATIONS -->
+<!-- Preconnect to API if different domain -->
+<!-- <link rel="preconnect" href="https://api.example.com" /> -->
+
+<!-- DNS prefetch for faster external resources -->
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
+
+<!-- SECURITY HEADERS (if inline) -->
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta http-equiv="x-ua-compatible" content="ie=edge" />
+
+<!-- CACHE CONTROL (set via server headers preferably) -->
+<!-- <meta http-equiv="Cache-Control" content="max-age=31536000" /> -->
+
+<!-- PRELOAD CRITICAL RESOURCES -->
+<link rel="preload" as="style" href="/styles/responsive.css" />
+
+<!-- STYLES -->
+<link rel="stylesheet" href="/styles/responsive.css" />
+
+<!-- DARK MODE SUPPORT -->
+<meta name="color-scheme" content="dark" />
+<style>
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+    }
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+    }
+  }
+</style>
+
+<!-- PREVENT ZOOM ON LANDSCAPE (optional, can improve UX on mobile) -->
+<script>
+  // Prevent double-tap zoom on devices that support it
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', function(event) {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+      event.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, false);
+</script>
+
+<!-- PWA DETECTION & INSTALLATION PROMPTS -->
+<script>
+  // Detect if app is installed
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    // Show install button here if desired
+  });
+
+  window.addEventListener('appinstalled', () => {
+    console.log('TKDL app installed');
+    // Analytics or confirmation
+  });
+
+  // Handle standalone mode (app opened as installed app)
+  window.addEventListener('load', () => {
+    if (window.navigator.standalone === true) {
+      document.body.classList.add('pwa-standalone');
+    }
+  });
+</script>
+
+<!-- REGISTER SERVICE WORKER FOR OFFLINE SUPPORT -->
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(err => {
+      console.error('Service Worker registration failed:', err);
+    });
+  }
+</script>
+
+<!-- ORIENTATION CHANGE HANDLING -->
+<script>
+  // Handle orientation changes for tablets
+  window.addEventListener('orientationchange', () => {
+    // Redraw layouts that depend on orientation
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 100);
+  });
+
+  // Lock orientation on portrait if needed (iOS 16.4+)
+  if (screen.orientation && screen.orientation.lock) {
+    // Only on mobile devices, not tablets
+    const isMobile = window.innerWidth < 600;
+    if (isMobile) {
+      screen.orientation.lock('portrait-primary').catch(err => {
+        console.log('Cannot lock orientation:', err);
+      });
+    }
+  }
+</script>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<browserconfig>
+  <msapplication>
+    <tile>
+      <square70x70logo src="/icons/icon-72x72.png"/>
+      <square150x150logo src="/icons/icon-150x150.png"/>
+      <square310x310logo src="/icons/icon-310x310.png"/>
+      <TileColor>#ff005c</TileColor>
+    </tile>
+    <notification>
+      <frequency_ms>60000</frequency_ms>
+      <cycling_enabled>true</cycling_enabled>
+    </notification>
+  </msapplication>
+</browserconfig>
