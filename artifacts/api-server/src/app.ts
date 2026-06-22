@@ -13,6 +13,19 @@ import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetSeason } from "./lib/seasonReset";
 import { seedTourSystem } from "./lib/tourSeed";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
+import webpush from "web-push";
+
+// Configure VAPID keys for push notifications
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    "mailto:support@tkdl.local",
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+  logger.info("Push notification VAPID keys configured");
+} else {
+  logger.warn("VAPID keys not configured - push notifications will not work");
+}
 import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
