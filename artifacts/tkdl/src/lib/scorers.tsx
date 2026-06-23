@@ -9,6 +9,7 @@ import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalv
 import { type PracticeStats, type DartThrow } from "./stats-types";
 import { CardActivationOverlay } from "@/components/CardActivationOverlay";
 import { cardDebugLog } from "./card-debug";
+import { calculateX01CardEffect, applyX01Effect, formatCardEffectDisplay } from "./x01-card-effects";
 
 function useFullscreen() {
   const [fs, setFs] = useState(false);
@@ -436,12 +437,23 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
     cardDebugLog("X01Scorer", "Card activated", { card: card.name, cardId });
     
+    // Calculate the effect
+    const effect = calculateX01CardEffect(card);
+    if (effect) {
+      // Apply effect to scores
+      setScores(prev => applyX01Effect(prev, effect, turn));
+      cardDebugLog("X01Scorer", "Card effect applied", {
+        card: card.name,
+        effect: formatCardEffectDisplay(effect, card.name),
+      });
+    }
+    
     // Mark card as used
     if (!cardsUsed.some((c: any) => c.id === card.id)) {
       setCardsUsed(prev => [...prev, card]);
       cardDebugLog("X01Scorer", "Card marked as used", { card: card.name });
     }
-  }, [equippedCards, cardsUsed]);
+  }, [equippedCards, cardsUsed, turn]);
 
   const handleDartRef = useRef(handleDart);
   useEffect(() => { handleDartRef.current = handleDart; });
