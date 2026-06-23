@@ -43,6 +43,6 @@ router.use(communityRouter);
 router.use(messagesRouter);
 router.use(notificationsRouter);
 router.use(statsDetailedRouter);
-router.use("/api/card-clash", cardClashRouter);
+router.use("/card-clash", cardClashRouter);
 
 export default router;
