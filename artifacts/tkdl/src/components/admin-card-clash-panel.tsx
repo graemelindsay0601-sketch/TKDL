@@ -53,10 +53,21 @@ export default function AdminCardClashPanel() {
         headers: getAdminHeaders(),
       });
       const data = await res.json();
-      setCards(data);
+      
+      // Handle both successful and error responses
+      if (!res.ok) {
+        console.error("API error:", data);
+        showMessage(`Failed to load cards: ${data.error || "Unknown error"}`, "error");
+        setCards([]);
+        return;
+      }
+      
+      // Ensure data is an array
+      setCards(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to load cards:", error);
       showMessage("Failed to load cards", "error");
+      setCards([]);
     } finally {
       setLoading(false);
     }

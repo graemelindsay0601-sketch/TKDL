@@ -20,6 +20,7 @@ import {
   getCardClashMatchHistory,
 } from "../services/card-clash-service";
 import { seedCardDefinitions, getAllCardDefinitions, toggleCardAvailability } from "../services/card-definitions-service";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -162,8 +163,10 @@ router.post("/admin/seed-cards", verifyAdminPin, async (req: Request, res: Respo
 router.get("/admin/cards", verifyAdminPin, async (req: Request, res: Response) => {
   try {
     const cards = await getAllCardDefinitions();
-    res.json(cards);
+    // Always ensure we return an array, even if undefined
+    res.json(Array.isArray(cards) ? cards : []);
   } catch (error) {
+    logger.error({ error }, "Failed to get all cards");
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
