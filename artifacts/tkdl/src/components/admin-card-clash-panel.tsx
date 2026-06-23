@@ -39,6 +39,7 @@ export default function AdminCardClashPanel() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "info">("info");
+  const [expanded, setExpanded] = useState(true);
 
   // Load data on mount
   useEffect(() => {
@@ -300,11 +301,28 @@ export default function AdminCardClashPanel() {
 
   return (
     <div style={{ padding: "1.5rem", maxWidth: "1200px", margin: "0 auto", backgroundColor: colors.bg, color: colors.text }}>
-      <h2 style={{ fontSize: "24px", fontWeight: "600", marginBottom: "1.5rem", color: colors.text }}>
-        🎴 Card Clash Admin Panel
-      </h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+        <h2 style={{ fontSize: "24px", fontWeight: "600", margin: 0, color: colors.text }}>
+          🎴 Card Clash Admin Panel
+        </h2>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: colors.text,
+            cursor: "pointer",
+            fontSize: "20px",
+            padding: "4px 8px",
+          }}
+        >
+          {expanded ? "▼" : "▶"}
+        </button>
+      </div>
 
-      {/* Message Display */}
+      {expanded && (
+        <>
+          {/* Message Display */}
       {message && (
         <div
           style={{
@@ -514,7 +532,8 @@ export default function AdminCardClashPanel() {
             </Button>
           </Section>
         </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

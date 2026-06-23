@@ -71,8 +71,9 @@ export async function initializeCardTables() {
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS player_currency (
         id SERIAL PRIMARY KEY,
-        player_id INTEGER NOT NULL UNIQUE REFERENCES players(id) ON DELETE CASCADE,
-        coins INTEGER NOT NULL DEFAULT 0,
+        player_id INTEGER UNIQUE NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+        coin_balance INTEGER NOT NULL DEFAULT 0,
+        lifetime_coins_earned INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
@@ -148,10 +149,10 @@ export async function ensurePlayerCurrency(playerId: number) {
     `);
 
     if (existing.rows.length === 0) {
-      // Create new currency record with 100 starting coins
+      // Create new currency record with 0 starting coins
       await db.execute(sql`
-        INSERT INTO player_currency (player_id, coins) 
-        VALUES (${playerId}, 100)
+        INSERT INTO player_currency (player_id, coin_balance, lifetime_coins_earned) 
+        VALUES (${playerId}, 0, 0)
         ON CONFLICT (player_id) DO NOTHING
       `);
     }
