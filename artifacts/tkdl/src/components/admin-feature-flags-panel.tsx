@@ -61,6 +61,28 @@ export default function AdminFeatureFlagsPanel() {
     setTimeout(() => setMessage(""), 4000);
   };
 
+  const initializeFlags = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/admin/feature-flags/initialize", {
+        method: "POST",
+        headers: getAdminHeaders(),
+      });
+
+      if (res.ok) {
+        showMessage("Feature flags initialized successfully!", "success");
+        await loadFlags();
+      } else {
+        showMessage("Failed to initialize feature flags", "error");
+      }
+    } catch (error) {
+      console.error("Initialization error:", error);
+      showMessage("Failed to initialize feature flags", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleAdminTest = async (featureName: string, currentTestMode: boolean) => {
     try {
       const res = await fetch(`/api/admin/feature-flags/${featureName}/admin-test`, {
@@ -134,7 +156,26 @@ export default function AdminFeatureFlagsPanel() {
       {loading ? (
         <p>Loading feature flags...</p>
       ) : flags.length === 0 ? (
-        <p style={{ color: colors.textSecondary }}>No feature flags found</p>
+        <div style={{ textAlign: "center", padding: "2rem" }}>
+          <p style={{ color: colors.textSecondary, marginBottom: "1.5rem" }}>No feature flags found</p>
+          <button
+            onClick={initializeFlags}
+            disabled={loading}
+            style={{
+              padding: "10px 20px",
+              background: colors.success,
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.6 : 1,
+              fontSize: "14px",
+              fontWeight: "600",
+            }}
+          >
+            {loading ? "Initializing..." : "Initialize Feature Flags"}
+          </button>
+        </div>
       ) : (
         <div style={{ display: "grid", gap: "12px" }}>
           {flags.map((flag) => (
