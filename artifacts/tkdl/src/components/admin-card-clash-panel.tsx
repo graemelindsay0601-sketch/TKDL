@@ -321,9 +321,9 @@ export default function AdminCardClashPanel() {
       </div>
 
       {expanded && (
-        <>
+        <div style={{ width: "100%" }}>
           {/* Message Display */}
-      {message && (
+          {message && (
         <div
           style={{
             background: messageType === "success" ? colors.successBg : messageType === "error" ? colors.dangerBg : colors.infoBg,
@@ -532,7 +532,7 @@ export default function AdminCardClashPanel() {
             </Button>
           </Section>
         </div>
-        </>
+      </div>
       )}
     </div>
   );
