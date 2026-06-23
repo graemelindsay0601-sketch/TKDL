@@ -107,6 +107,21 @@ export async function initializeCardTables() {
       )
     `);
 
+    // Create notifications table if it doesn't exist
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+        type VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        body TEXT,
+        data JSONB,
+        read BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create card_clash_standings table if it doesn't exist
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS card_clash_standings (
