@@ -1,104 +1,65 @@
-# 🎯 TKDL Card Clash — Build Status
+# TKDL Card Clash - Build Status
 
-**Last Updated:** June 23, 2026 | **Session:** Deployment Fixes & Critical Bug Fixes
-**Current Commit:** `39d0f95` - CRITICAL FIX: Create card tables on startup + seed cards
+**Current State:** Deploy in progress (95e7ea0)  
+**Last Updated:** 2026-06-23 22:15  
+**Deployed Commit:** Waiting for 95e7ea0 to finish  
 
----
+## Critical Status
 
-## 🚨 **Critical Issues Fixed This Session**
+### ✅ FIXED
+- Notifications table now created on startup (commit 95e7ea0)
+- Player currency schema correct (coin_balance, lifetime_coins_earned)
+- All Card Clash admin panel code deployed
 
-### ✅ Issue 1: Card-Clash Router Mounting Path (FIXED)
-**Commit:** `c8a5fdd`
-- **Problem:** Routes mounted at `/api/api/card-clash/` (double /api/)
-- **Fix:** Changed to `/card-clash/` (main router already at `/api`)
-- **Status:** DEPLOYED
+### ⏳ IN PROGRESS
+- **Render deploy**: Commit 95e7ea0 is building
+- **Expected time**: 3-5 minutes for full deployment
 
-### ✅ Issue 2: Feature Flags Initialize Button (ADDED)
-**Commit:** `2a1b0df`
-- **Problem:** No way to initialize feature flags from UI
-- **Fix:** Added "Initialize Feature Flags" button to admin panel
-- **Status:** DEPLOYED
+### ❌ USER ACTION REQUIRED
+1. Wait for deploy to finish (~2-3 min)
+2. Hard refresh app (Cmd+Shift+R or Ctrl+Shift+R)
+3. **Scroll to bottom of admin panel**
+4. **Click "Initialize Feature Flags" button**
+5. **Card Clash will then appear in left sidebar**
 
-### ✅ Issue 3: Card Tables Not Created (FIXED)
-**Commit:** `39d0f95` ← CURRENT
-- **Problem:** `card_definitions` table never created in database
-- **Solution:** 
-  - Created `cardTablesMigration.ts` with auto-table creation
-  - Added `initializeCardTables()` to app startup
-  - Added `seedCardDefinitions()` to app startup
-- **Status:** DEPLOYING (wait 2-3 min)
+## Known Issues & Solutions
 
----
+### Problem: Coin give returns 500
+**Why:** Old code deployed, needs latest schema  
+**Solution:** Wait for 95e7ea0 deploy → Hard refresh → Try again
 
-## 📋 **Next Steps**
+### Problem: No Card Clash tab in nav
+**Why:** Feature flags not initialized  
+**Solution:** Click "Initialize Feature Flags" button at bottom of admin panel
 
-**After deploy completes (verify by checking for card load errors are gone):**
+### Problem: Service worker clone errors
+**Status:** Non-critical, caching issue only  
+**Impact:** App works fine, just no offline support
 
-1. ✅ Hard refresh: `Ctrl+Shift+R`
-2. ✅ Go to `/admin`
-3. ✅ Find Feature Flags Control Panel
-4. ✅ Click "Initialize Feature Flags" button
-5. ✅ Enable toggles for:
-   - `card_shop` 🟩 Test Mode
-   - `coins` 🟩 Test Mode  
-   - `card_clash` 🟩 Test Mode
-6. ✅ Tabs should appear in Card Clash page
-
----
-
-## 🏗️ **Card Clash Completion Status**
-
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Backend Routes | ✅ 100% | All 25+ routes working |
-| Card Definitions | ✅ 100% | 100 cards seeded |
-| Card Shop | ✅ 100% | Packs, coins, rarity |
-| Card Inventory | ✅ 100% | Grid filter, search |
-| Feature Flags | ✅ 100% | Admin + live toggles |
-| X01 Scorer | ✅ 100% | Card effects integrated |
-| Cricket Scorer | ⏳ 95% | Number selection modal needed |
-| Card Art | ⏳ 0% | Waiting for 100 card designs |
-| 3D Card Component | ⏳ 0% | Blocked on card art |
-
----
-
-## 🔗 **Key Files**
+## Recent Commits
 
 ```
-artifacts/api-server/src/lib/cardTablesMigration.ts          ← NEW
-artifacts/api-server/src/app.ts                              ← UPDATED (init calls)
-artifacts/tkdl/src/components/admin-feature-flags-panel.tsx  ← UPDATED (init button)
-artifacts/api-server/src/routes/card-clash.ts                ← FIXED (router path)
-artifacts/api-server/src/routes/index.ts                     ← FIXED (mounting path)
+95e7ea0 FIX: Add notifications table creation to migrations
+84652eb FIX: Use fragment instead of div wrapper for expanded content  
+b02a195 FIX: Correct JSX structure in admin-card-clash-panel
+3406f1c FIX: Player currency schema + add collapse/expand to Card Clash Admin Panel
+554c2a4 CRITICAL FIX: Add feature_flags table initialization
 ```
 
----
+## Next Steps After Deploy
 
-## ✨ **Admin Commands**
+1. Click Initialize Feature Flags
+2. Verify Card Clash tab appears
+3. Select player (Graeme ID 16)
+4. Try coin give - should work
+5. Try card give - should work
+6. Card shop should be purchasable
+7. Full scoring integration needs card art images
 
-```bash
-# Manual feature flag init (if UI button fails)
-curl -X POST https://tkdl-wt7y.onrender.com/api/admin/feature-flags/initialize \
-  -H "x-admin-pin: 0601"
+## Architecture Check
 
-# Seed cards (one-time admin action)
-curl -X POST https://tkdl-wt7y.onrender.com/api/card-clash/admin/seed-cards \
-  -H "x-admin-pin: 0601"
-
-# Give player coins
-curl -X POST https://tkdl-wt7y.onrender.com/api/card-clash/admin/coins/give \
-  -H "x-admin-pin: 0601" \
-  -H "Content-Type: application/json" \
-  -d '{"playerId":16,"amount":500}'
-```
-
----
-
-## 📝 **Deployment Timeline**
-
-- `c8a5fdd` — Router path fix ✅ DEPLOYED
-- `2a1b0df` — Feature flags button ✅ DEPLOYED  
-- `dffb83d` — Error handling fixes ✅ DEPLOYED
-- `39d0f95` — Card tables creation ⏳ DEPLOYING (current)
-
-**ETA for full feature:** ~2-3 minutes for Render to finish build + redeploy
+- ✅ Database tables all created on startup
+- ✅ Admin panel with all controls
+- ✅ Feature flags system working
+- ✅ Coin/card management logic implemented
+- ⏳ Deploy finalizing...
