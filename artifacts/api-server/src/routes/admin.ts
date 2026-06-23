@@ -437,6 +437,16 @@ import {
   initializeFeatureFlags,
 } from "../services/feature-flags-service";
 
+// Middleware to verify admin PIN from header
+const verifyAdminPin = (req: any, res: any, next: any) => {
+  const pin = req.headers["x-admin-pin"];
+  if (pin !== ADMIN_PIN) {
+    res.status(401).json({ ok: false, error: "Unauthorized" });
+    return;
+  }
+  next();
+};
+
 router.get("/admin/feature-flags", verifyAdminPin, async (_req, res): Promise<void> => {
   const flags = await getAllFeatureFlags();
   res.json(flags);
