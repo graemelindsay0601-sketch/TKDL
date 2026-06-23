@@ -13,6 +13,8 @@ import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetSeason } from "./lib/seasonReset";
 import { seedTourSystem } from "./lib/tourSeed";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
+import { initializeCardTables } from "./lib/cardTablesMigration";
+import { seedCardDefinitions } from "./services/card-definitions-service";
 import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
 import webpush from "web-push";
 import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
@@ -720,6 +722,8 @@ async function seedUsers() {
 async function init() {
   try {
     await seedSettings();
+    await initializeCardTables();
+    await seedCardDefinitions();
     await seedNotificationTables();
     await initializeNotificationPreferences();
     await seedCommunityTables();
