@@ -426,6 +426,23 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     }
   };
 
+  // ── Card Clash: Handle card activation ──
+  const handleCardActivation = useCallback((cardId: string) => {
+    const card = equippedCards.find((c: any) => c.id?.toString() === cardId);
+    if (!card) {
+      cardDebugLog("X01Scorer", "Card not found", { cardId });
+      return;
+    }
+
+    cardDebugLog("X01Scorer", "Card activated", { card: card.name, cardId });
+    
+    // Mark card as used
+    if (!cardsUsed.some((c: any) => c.id === card.id)) {
+      setCardsUsed(prev => [...prev, card]);
+      cardDebugLog("X01Scorer", "Card marked as used", { card: card.name });
+    }
+  }, [equippedCards, cardsUsed]);
+
   const handleDartRef = useRef(handleDart);
   useEffect(() => { handleDartRef.current = handleDart; });
   const isBotTurnX01 = !!botConfig && turn === 1;
@@ -569,6 +586,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         isActive: cardsUsed.some((used: any) => used.id === c.id),
       }))}
       isVisible={equippedCards.length > 0}
+      onCardActivate={handleCardActivation}
       onClose={() => cardDebugLog("X01Scorer", "Card overlay closed")}
     />
     </>

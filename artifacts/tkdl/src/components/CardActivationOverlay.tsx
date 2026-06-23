@@ -184,15 +184,17 @@ export function CardActivationOverlay({
 
           <div className="space-y-1.5">
             {equippedCards.map((card) => (
-              <div
+              <button
                 key={card.id}
-                className={`flex items-start gap-2 p-2 rounded text-xs transition-all ${
+                onClick={() => onCardActivate?.(card.id)}
+                disabled={card.isActive}
+                className={`w-full flex items-start gap-2 p-2 rounded text-xs transition-all cursor-pointer disabled:cursor-default ${
                   card.isActive
-                    ? "bg-amber-500/20 border border-amber-500/50"
-                    : "bg-gray-800/50 border border-gray-700/50"
+                    ? "bg-amber-500/20 border border-amber-500/50 opacity-50"
+                    : "bg-gray-800/50 border border-gray-700/50 hover:bg-gray-700/70 active:scale-98"
                 }`}
               >
-                <div className="flex-1">
+                <div className="flex-1 text-left">
                   <p className={`font-semibold ${
                     card.cardType === "GOOD" ? "text-green-400" : "text-red-400"
                   }`}>
@@ -204,7 +206,7 @@ export function CardActivationOverlay({
                     </p>
                   )}
                 </div>
-              </div>
+              </button>
             ))}
           </div>
 
