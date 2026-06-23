@@ -321,7 +321,7 @@ export default function AdminCardClashPanel() {
       </div>
 
       {expanded && (
-        <div style={{ width: "100%" }}>
+        <>
           {/* Message Display */}
           {message && (
         <div
@@ -533,6 +533,7 @@ export default function AdminCardClashPanel() {
           </Section>
         </div>
       </div>
+        </>
       )}
     </div>
   );
