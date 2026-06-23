@@ -10,6 +10,7 @@ import { type PracticeStats, type DartThrow } from "./stats-types";
 import { CardActivationOverlay } from "@/components/CardActivationOverlay";
 import { cardDebugLog } from "./card-debug";
 import { calculateX01CardEffect, applyX01Effect, formatCardEffectDisplay } from "./x01-card-effects";
+import { calculateCricketCardEffect, applyCricketEffect, formatCricketEffectDisplay } from "./cricket-card-effects";
 
 function useFullscreen() {
   const [fs, setFs] = useState(false);
@@ -642,7 +643,56 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [lastHit, setLastHit]   = useState<string>("");
   const [snapHistory, setSnapHistory] = useState<{marks: [[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]], scores: [number,number], turn: 0|1, visitDarts: Dart[]}[]>([]);
 
+  // Card Clash state
+  const [equippedCards, setEquippedCards] = useState<any[]>([]);
+  const [cardsUsed, setCardsUsed]         = useState<any[]>([]);
+
   const names = [p1Name, p2Name];
+
+  // ── Card Clash: Load equipped cards from sessionStorage ──
+  useEffect(() => {
+    const stored = sessionStorage.getItem('cricket_equipped_cards');
+    if (stored) {
+      try {
+        const cards = JSON.parse(stored);
+        setEquippedCards(cards);
+        cardDebugLog("CricketScorer", "Loaded equipped cards from sessionStorage", {
+          count: cards.length,
+          cards: cards.map((c: any) => c.name),
+        });
+      } catch (e) {
+        cardDebugLog("CricketScorer", "Failed to parse equipped cards", e);
+      }
+    } else {
+      cardDebugLog("CricketScorer", "No equipped cards found - Card Clash disabled");
+    }
+  }, []);
+
+  // ── Card Clash: Handle card activation ──
+  const handleCardActivation = useCallback((cardId: string) => {
+    const card = equippedCards.find((c: any) => c.id?.toString() === cardId);
+    if (!card) {
+      cardDebugLog("CricketScorer", "Card not found", { cardId });
+      return;
+    }
+
+    cardDebugLog("CricketScorer", "Card activated", { card: card.name });
+    
+    // Cricket cards need number selection - will be handled in Phase 3.3
+    const effect = calculateCricketCardEffect(card);
+    if (effect) {
+      cardDebugLog("CricketScorer", "Cricket effect ready", {
+        card: card.name,
+        effect: formatCricketEffectDisplay(effect, card.name),
+      });
+    }
+    
+    // Mark as used
+    if (!cardsUsed.some((c: any) => c.id === card.id)) {
+      setCardsUsed(prev => [...prev, card]);
+      cardDebugLog("CricketScorer", "Card marked used", { card: card.name });
+    }
+  }, [equippedCards, cardsUsed]);
 
   const checkWin = (m: typeof marks, sc: [number,number]): 0|1|null => {
     for (const p of [0,1] as const) {
@@ -752,6 +802,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
+    <>
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider" />
@@ -819,6 +870,19 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         <AbandonBtn onAbandon={onAbandon} />
       </div>}
     />
+    <CardActivationOverlay 
+      equippedCards={equippedCards.map(c => ({
+        id: c.id?.toString() || "",
+        name: c.name || "Unknown Card",
+        effect: c.effect_text || "Card effect",
+        cardType: (c.good_or_bad === "GOOD" ? "GOOD" : "BAD") as "GOOD" | "BAD",
+        isActive: cardsUsed.some((used: any) => used.id === c.id),
+      }))}
+      isVisible={equippedCards.length > 0}
+      onCardActivate={handleCardActivation}
+      onClose={() => cardDebugLog("CricketScorer", "Card overlay closed")}
+    />
+    </>
   );
 }
 
