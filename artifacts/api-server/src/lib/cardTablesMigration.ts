@@ -11,6 +11,19 @@ export async function initializeCardTables() {
   try {
     logger.info("Initializing card tables...");
 
+    // Create feature_flags table if it doesn't exist
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS feature_flags (
+        id SERIAL PRIMARY KEY,
+        feature_name TEXT UNIQUE NOT NULL,
+        enabled BOOLEAN NOT NULL DEFAULT false,
+        admin_test_mode BOOLEAN NOT NULL DEFAULT false,
+        description TEXT,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create card_definitions table if it doesn't exist
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS card_definitions (
@@ -145,5 +158,33 @@ export async function ensurePlayerCurrency(playerId: number) {
   } catch (error) {
     logger.error({ error, playerId }, "Failed to ensure player currency");
     // Don't throw - this is not critical for app startup
+  }
+}
+
+/**
+ * Initialize default feature flags if they don't exist
+ */
+export async function initializeFeatureFlags() {
+  try {
+    logger.info("Initializing feature flags...");
+
+    const flags = [
+      { featureName: "card_shop", description: "Card Shop - Pack purchases and card collection" },
+      { featureName: "coins", description: "Coin earning system - Rewards for matches and challenges" },
+      { featureName: "card_clash", description: "Card Clash game mode with card collecting, packs, and seasons" },
+    ];
+
+    for (const flag of flags) {
+      await db.execute(sql`
+        INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)
+        VALUES (${flag.featureName}, false, false, ${flag.description})
+        ON CONFLICT (feature_name) DO NOTHING
+      `);
+    }
+
+    logger.info("Feature flags initialized successfully");
+  } catch (error) {
+    logger.error({ error }, "Failed to initialize feature flags");
+    // Don't throw - this is not critical
   }
 }

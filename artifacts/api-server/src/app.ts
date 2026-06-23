@@ -13,7 +13,7 @@ import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetSeason } from "./lib/seasonReset";
 import { seedTourSystem } from "./lib/tourSeed";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
-import { initializeCardTables } from "./lib/cardTablesMigration";
+import { initializeCardTables, initializeFeatureFlags } from "./lib/cardTablesMigration";
 import { seedCardDefinitions } from "./services/card-definitions-service";
 import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
 import webpush from "web-push";
@@ -723,6 +723,7 @@ async function init() {
   try {
     await seedSettings();
     await initializeCardTables();
+    await initializeFeatureFlags();
     await seedCardDefinitions();
     await seedNotificationTables();
     await initializeNotificationPreferences();
