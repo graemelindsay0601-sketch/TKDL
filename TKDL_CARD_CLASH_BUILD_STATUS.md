@@ -363,25 +363,34 @@ card_usage_log
 
 ---
 
-## 🚀 Next Steps (Clear & Simple)
+## 🚀 Next Steps — DETAILED PLAN AVAILABLE
 
-**Immediate (Next Chat/Session):**
-1. Deploy commit f4f534f
-2. Verify app loads without errors
-3. Confirm admin panel works
+**⭐ READ THIS FIRST:** `CARD_CLASH_IMPLEMENTATION_PLAN.md`
 
-**Then (Focused Work):**
-1. Review `scorers.tsx` file structure
-2. Add CardActivationOverlay to X01Scorer
-3. Add CardActivationOverlay to CricketScorer
-4. Wire up card activation handlers
-5. Test with real match
-6. Celebrate working Card Clash! 🎉
+That file contains:
+- Phase-by-phase breakdown (5 days, 22 hours)
+- Safety guardrails to prevent deploy errors
+- Testing strategy at each step
+- How to commit properly
+- What to do if something breaks
+- How to resume if interrupted
 
-**After That:**
-1. End-to-end testing
-2. UI polish
-3. Documentation for players
+**Quick Summary:**
+- Phase 1 (Day 1): Setup & foundation
+- Phase 2 (Day 2-3): X01 scorer integration
+- Phase 3 (Day 4): Cricket scorer integration
+- Phase 4 (Day 5): Polish & final testing
+
+**Key Files to Edit:**
+- `artifacts/tkdl/src/lib/scorers.tsx` — Only major file change needed
+- `artifacts/tkdl/src/components/CardActivationOverlay.tsx` — Already exists, just integrate
+
+**Why This Plan Works:**
+- One small change at a time
+- Test after each change (locally first)
+- Commit each working change
+- Deploy with confidence
+- Avoids cascade failures we saw today
 
 ---
 
