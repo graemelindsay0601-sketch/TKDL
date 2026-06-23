@@ -29,5 +29,12 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-self.addEventListener("install", () => self.skipWaiting());
+// Cache busting - increment when you need to force app refresh
+const CACHE_VERSION = "v2";
+
+self.addEventListener("install", () => {
+  self.skipWaiting();
+  // Clear all old caches
+  caches.keys().then(names => names.forEach(name => caches.delete(name)));
+});
 self.addEventListener("activate", (event) => event.waitUntil(clients.claim()));
