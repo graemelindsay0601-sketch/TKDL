@@ -281,6 +281,12 @@ router.get("/admin/seasons", async (_req, res): Promise<void> => {
   res.json(result);
 });
 
+// ── Get all players (id + name) for admin dropdowns ────────────────────────────
+router.get("/admin/players-list", async (_req, res): Promise<void> => {
+  const players = await db.select({ id: playersTable.id, name: playersTable.name }).from(playersTable).orderBy(playersTable.name);
+  res.json(players);
+});
+
 // ── Test comms: fire fake DM + notifications to Graeme (player 1) ────────────
 router.post("/admin/test-comms", async (req, res): Promise<void> => {
   const GRAEME_ID = 1;

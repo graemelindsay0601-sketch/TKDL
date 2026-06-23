@@ -1,5 +1,6 @@
 import { db } from "@workspace/db";
 import { cardDefinitionsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 
 // Seed all 100 card definitions
 const CARD_DEFINITIONS = [
@@ -136,17 +137,17 @@ export async function seedCardDefinitions() {
 }
 
 export async function getAllCardDefinitions() {
-  return await db.select().from(cardDefinitionsTable).where({ enabled: true });
+  return await db.select().from(cardDefinitionsTable).where(eq(cardDefinitionsTable.enabled, true));
 }
 
 export async function getCardsByGameMode(gameMode: "X01" | "CRICKET" | "WILDCARD") {
-  return await db.select().from(cardDefinitionsTable).where({ gameMode, enabled: true });
+  return await db.select().from(cardDefinitionsTable).where(and(eq(cardDefinitionsTable.gameMode, gameMode), eq(cardDefinitionsTable.enabled, true)));
 }
 
 export async function getCardById(cardId: string) {
-  return await db.select().from(cardDefinitionsTable).where({ cardId }).limit(1);
+  return await db.select().from(cardDefinitionsTable).where(eq(cardDefinitionsTable.cardId, cardId)).limit(1);
 }
 
 export async function toggleCardAvailability(cardId: string, enabled: boolean) {
-  await db.update(cardDefinitionsTable).set({ enabled }).where({ cardId });
+  await db.update(cardDefinitionsTable).set({ enabled }).where(eq(cardDefinitionsTable.cardId, cardId));
 }
