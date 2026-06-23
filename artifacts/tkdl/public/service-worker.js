@@ -3,8 +3,8 @@
  * Handles web push notifications, offline support, and caching
  */
 
-const CACHE_NAME = "tkdl-v1";
-const API_CACHE = "tkdl-api-v1";
+const CACHE_NAME = "tkdl-v2";
+const API_CACHE = "tkdl-api-v2";
 
 // Files to cache for offline support
 const STATIC_ASSETS = [
