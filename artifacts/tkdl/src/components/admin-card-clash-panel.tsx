@@ -49,7 +49,9 @@ export default function AdminCardClashPanel() {
   const loadAllCards = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/card-clash/admin/cards");
+      const res = await fetch("/api/card-clash/admin/cards", {
+        headers: getAdminHeaders(),
+      });
       const data = await res.json();
       setCards(data);
     } catch (error) {
@@ -62,7 +64,9 @@ export default function AdminCardClashPanel() {
 
   const loadPlayers = async () => {
     try {
-      const res = await fetch("/api/admin/players-list");
+      const res = await fetch("/api/admin/players-list", {
+        headers: getAdminHeaders(),
+      });
       const data = await res.json();
       setPlayers(data);
     } catch (error) {
