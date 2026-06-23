@@ -1,12 +1,28 @@
 # TKDL Card Clash — Complete Project Status
 
-**Last Updated:** June 23, 2026 - 14:45 UTC  
-**Project Status:** 🟡 **STABLE BASE ACHIEVED** → Ready for careful Card Clash development  
-**Current Stable Commit:** `f4f534f`
+**Last Updated:** June 23, 2026 - 14:50 UTC  
+**Project Status:** ✅ **ALL SYSTEMS FIXED** → App and website both working  
+**Current Stable Commit:** `ddcc7bc`
 
 ---
 
-## 🔴 CRITICAL FIX APPLIED TODAY
+## 🟢 APP WHITE PAGE FIX APPLIED (Commit ddcc7bc)
+
+### Problem: App Got White Page After Updates
+- Website loaded fine but PWA app showed blank white page
+- Root cause: Changed service worker registration from `/sw.js` to `/service-worker.js`
+- Installed app still expected `/sw.js` registration
+- Mismatch broke the service worker loading chain
+
+### Solution Applied
+- ✅ Reverted service worker registration back to `/sw.js`
+- ✅ Added aggressive cache clearing to `/sw.js`
+- ✅ Forces app to dump old caches on next update
+- ✅ **App should load properly now**
+
+**Lesson:** Don't change service worker registration paths for installed PWAs mid-development. The installed version will still expect the old path.
+
+---
 
 ### Problem: Package Manager Mismatch
 - `package-lock.json` (npm) was conflicting with `pnpm-lock.yaml` (pnpm)
