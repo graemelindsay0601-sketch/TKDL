@@ -249,4 +249,32 @@ router.post("/admin/player/reset", verifyAdminPin, async (req: Request, res: Res
   }
 });
 
+// Get feature status (public endpoint - everyone can check)
+import { getFeatureStatus, FEATURES } from "../services/feature-flags-service";
+
+router.get("/feature-status", async (req: Request, res: Response) => {
+  try {
+    // Get player ID from session/auth if available
+    const userId = (req as any).user?.playerId;
+    const isAdmin = (req as any).user?.isAdmin ?? false;
+
+    // Return all feature statuses
+    const [cardShop, coins, cardClash] = await Promise.all([
+      getFeatureStatus(FEATURES.CARD_SHOP, isAdmin),
+      getFeatureStatus(FEATURES.COINS, isAdmin),
+      getFeatureStatus(FEATURES.CARD_CLASH, isAdmin),
+    ]);
+
+    res.json({
+      cardShop,
+      coins,
+      cardClash,
+      isAdmin,
+      userId,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
 export default router;

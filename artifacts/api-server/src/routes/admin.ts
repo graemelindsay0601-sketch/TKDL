@@ -427,4 +427,58 @@ router.get("/admin/export", async (_req, res): Promise<void> => {
   });
 });
 
+// ── Feature Flags Management (admin only) ──────────────────────────────────────
+import {
+  getAllFeatureFlags,
+  getFeatureStatus,
+  enableFeatureForAll,
+  disableFeature,
+  setAdminTestMode,
+  initializeFeatureFlags,
+} from "../services/feature-flags-service";
+
+router.get("/admin/feature-flags", verifyAdminPin, async (_req, res): Promise<void> => {
+  const flags = await getAllFeatureFlags();
+  res.json(flags);
+});
+
+router.post("/admin/feature-flags/:feature/enable-all", verifyAdminPin, async (req, res): Promise<void> => {
+  const { feature } = req.params;
+  const success = await enableFeatureForAll(feature);
+  if (success) {
+    res.json({ ok: true, message: `Feature ${feature} enabled for all users` });
+  } else {
+    res.status(500).json({ ok: false, error: "Failed to enable feature" });
+  }
+});
+
+router.post("/admin/feature-flags/:feature/disable", verifyAdminPin, async (req, res): Promise<void> => {
+  const { feature } = req.params;
+  const success = await disableFeature(feature);
+  if (success) {
+    res.json({ ok: true, message: `Feature ${feature} disabled` });
+  } else {
+    res.status(500).json({ ok: false, error: "Failed to disable feature" });
+  }
+});
+
+router.post("/admin/feature-flags/:feature/admin-test", verifyAdminPin, async (req, res): Promise<void> => {
+  const { feature } = req.params;
+  const { enabled } = req.body;
+  const success = await setAdminTestMode(feature, enabled === true);
+  if (success) {
+    res.json({
+      ok: true,
+      message: `Feature ${feature} admin test mode set to ${enabled}`,
+    });
+  } else {
+    res.status(500).json({ ok: false, error: "Failed to update admin test mode" });
+  }
+});
+
+router.post("/admin/feature-flags/initialize", verifyAdminPin, async (_req, res): Promise<void> => {
+  await initializeFeatureFlags();
+  res.json({ ok: true, message: "Feature flags initialized" });
+});
+
 export default router;

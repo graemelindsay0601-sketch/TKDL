@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Banknote, Gamepad2, TrendingUp } from "lucide-react";
+import { useFeatureFlags, FeatureGate } from "@/lib/useFeatureFlags";
 
 interface CardClashPageProps {
   playerId: number;
@@ -27,6 +28,7 @@ interface SeasonStats {
 }
 
 export default function CardClashPage({ playerId, playerName }: CardClashPageProps) {
+  const { isCardClashAvailable, isCoinsAvailable, isCardShopAvailable, isLoading } = useFeatureFlags();
   const [activeSeason, setActiveSeason] = useState<Season | null>(null);
   const [currency, setCurrency] = useState<Currency>({ coinBalance: 0, lifetimeCoinsEarned: 0 });
   const [seasonStats, setSeasonStats] = useState<SeasonStats | null>(null);
@@ -65,10 +67,34 @@ export default function CardClashPage({ playerId, playerName }: CardClashPagePro
     }
   };
 
-  if (loading) {
+  if (loading || isLoading) {
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
         <p>Loading Card Clash data...</p>
+      </div>
+    );
+  }
+
+  // Check if Card Clash is available
+  if (!isCardClashAvailable) {
+    return (
+      <div style={{ padding: "2rem" }}>
+        <div
+          style={{
+            padding: "2rem",
+            textAlign: "center",
+            background: "var(--color-background-secondary)",
+            borderRadius: "var(--border-radius-lg)",
+            border: "1px dashed var(--color-border-tertiary)",
+          }}
+        >
+          <h2 style={{ fontSize: "24px", fontWeight: "600", margin: "0 0 12px 0" }}>
+            🎴 Card Clash
+          </h2>
+          <p style={{ fontSize: "16px", color: "var(--color-text-secondary)", margin: 0 }}>
+            This feature is coming soon! Check back later.
+          </p>
+        </div>
       </div>
     );
   }
@@ -136,7 +162,15 @@ export default function CardClashPage({ playerId, playerName }: CardClashPagePro
       {/* Tab Content */}
       <div>
         {activeTab === "overview" && <OverviewTab season={activeSeason} stats={seasonStats} />}
-        {activeTab === "shop" && <ShopTab playerId={playerId} onPurchase={loadData} />}
+        {activeTab === "shop" && (
+          <FeatureGate
+            featureName="Card Shop"
+            isAvailable={isCardShopAvailable}
+            fallback="The Card Shop is not yet available. Check back soon!"
+          >
+            <ShopTab playerId={playerId} onPurchase={loadData} />
+          </FeatureGate>
+        )}
         {activeTab === "standings" && activeSeason && <StandingsTab seasonId={activeSeason.id} />}
       </div>
     </div>
