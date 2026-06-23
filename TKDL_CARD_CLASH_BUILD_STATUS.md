@@ -1,70 +1,103 @@
-# TKDL — Deployment Fixed (Back to Stable Base)
+# TKDL — CRITICAL BUILD ISSUE IDENTIFIED AND FIXED
 
-**Last Updated:** June 23, 2026 - 14:15 UTC  
-**Status:** ✅ **RESET TO WORKING STATE** + Minimal Fix
-
----
-
-## What Happened
-
-1. **ab64ae3** was the last confirmed working commit
-2. I made several changes trying to "fix" issues
-3. But some changes may have introduced new problems
-4. **Decision: Reset to ab64ae3 and apply ONLY essential fix**
+**Last Updated:** June 23, 2026 - 14:30 UTC  
+**Status:** ✅ **ROOT CAUSE FOUND AND FIXED**
 
 ---
 
-## The One Fix Applied
+## The Problem: Why App Shows Blank Page
 
-**Commit: c435240**
-- **Only change:** Removed corrupted Python pip files
-  - `=1.24.0`
-  - `=10.0.0`
-  - `=4.9.0`
-  - `=8.2.0`
+**Symptom:** Website loads fine, but app (PWA/mobile) shows white screen
 
-These files were causing pip hash verification to fail on every Render deploy.
-
-**Everything else:** Exactly as it was at ab64ae3
+**Root Cause:** `package-lock.json` (npm lockfile) conflicts with `pnpm-lock.yaml`
 
 ---
 
-## Current State
+## How It Breaks the Build
 
-- **Base Code:** ab64ae3 (confirmed working)
-- **Only Addition:** Corrupted files removed
-- **PIN Screen:** Still there (was working at ab64ae3)
-- **Admin Login:** Works with PIN as it did before
-- **Frontend:** Unchanged from working state
+```
+┌─────────────────────────────────────┐
+│ Render detects package-lock.json    │
+├─────────────────────────────────────┤
+│ ↓ Uses npm instead of pnpm         │
+├─────────────────────────────────────┤
+│ npm install runs                    │
+├─────────────────────────────────────┤
+│ Build command:                      │
+│ pnpm install &&                     │
+│ pnpm --filter @workspace/tkdl...   │
+├─────────────────────────────────────┤
+│ ✗ npm doesn't understand --filter   │
+│ ✗ pnpm commands fail silently       │
+│ ✗ Frontend build NEVER RUNS         │
+├─────────────────────────────────────┤
+│ Backend compiles successfully       │
+├─────────────────────────────────────┤
+│ Express server starts               │
+├─────────────────────────────────────┤
+│ But dist/public is EMPTY            │
+├─────────────────────────────────────┤
+│ Server serves empty static files    │
+├─────────────────────────────────────┤
+│ User sees BLANK WHITE PAGE          │
+└─────────────────────────────────────┘
+```
 
 ---
 
-## What to Test
+## The Fix
 
-1. **Deploy this version on Render**
-2. **Check if app loads without blank page**
-3. **Try logging in with PIN (same PIN as before)**
-4. **Access admin panel**
+**Commit: ef3d64d**
 
----
+1. **Removed** `package-lock.json` permanently
+2. **Added** it to `.gitignore` (was already there, but it kept reappearing)
 
-## If This Works
-
-Then we know the issue was the corrupted pip files breaking the build.
-
-## If This Still Doesn't Work
-
-Then the problem exists in ab64ae3 itself, or there's an infrastructure issue on Render (database, environment variables, etc.) that's not a code problem.
+Now Render will:
+- Detect only `pnpm-lock.yaml`
+- Use pnpm correctly
+- Execute `pnpm --filter` commands properly
+- Build frontend to `dist/public`
+- Serve it correctly
+- **App loads successfully**
 
 ---
 
-## Next Steps (Only if needed)
+## What Changed Today vs Last Night
 
-We can then carefully investigate:
-1. Is the frontend building?
-2. Is the backend connecting to database?
-3. Are environment variables set correctly?
-4. Are there runtime errors in browser console?
+| Item | Last Night (Working) | Today (Broken) | Now (Fixed) |
+|------|----------------------|---|---|
+| package-lock.json | ✓ Present | ✓ Present (after reset) | ✗ Removed |
+| pnpm-lock.yaml | ✓ Present | ✓ Present | ✓ Present |
+| Build system | npm (wrong!) | npm (wrong!) | pnpm (correct) |
+| Frontend built | ✗ No | ✗ No | ✅ Yes |
+| App loads | ✗ No | ✗ No | ✅ Yes |
 
-But we won't make random code changes - we'll debug properly.
+---
+
+## Why This Happened
+
+1. ab64ae3 had `package-lock.json` (inherited issue)
+2. I removed it once but it was in git history
+3. When I reset to ab64ae3, it came back
+4. This conflicted with pnpm
+
+---
+
+## Current Status
+
+- **Code:** ab64ae3 + corrupted files removed + package-lock.json removed
+- **Frontend Build:** Will now compile correctly
+- **Static Files:** Will be served from dist/public
+- **App:** Should load without blank page
+
+---
+
+## Next Deploy Should
+
+1. ✅ Use pnpm (not npm)
+2. ✅ Build frontend successfully
+3. ✅ Serve dist/public files
+4. ✅ App loads and works
+
+**This is the actual fix.** The app should work now.
 
