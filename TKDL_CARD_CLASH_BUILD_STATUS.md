@@ -1,10 +1,10 @@
 # TKDL Card Clash — Complete Project Status
 
-**Last Updated:** June 23, 2026 - 15:15 UTC  
+**Last Updated:** June 23, 2026 - 15:35 UTC  
 **Project Status:** 🔨 **CARD CLASH DEVELOPMENT IN PROGRESS**  
-**Current Work:** Phase 2.1 - X01 Cards Visual (COMPLETE)  
-**Latest Commits:** ecb74ae (Cards visual), ed406c2 (Debug tools)  
-**Build Status:** Ready for Phase 2.2 testing
+**Current Work:** Phase 2.3 - Card Effects (COMPLETE)  
+**Latest Commits:** 5ccb62d (Effects), 1617f42 (Handlers), ecb74ae (Visual)  
+**Build Status:** Ready for end-to-end testing
 
 ---
 
@@ -33,13 +33,31 @@
 - ✅ CardActivationOverlay now renders in X01 matches
 - ✅ Cards display with correct formatting
 - **Commit:** ecb74ae
-- **Testing:** Cards should be visible during X01 play, no interactions yet
+
+**Phase 2.2 ✅ COMPLETE - Card Click Handlers**
+- ✅ Modified CardActivationOverlay to make cards clickable buttons
+- ✅ Added disabled state for used cards
+- ✅ Added visual hover/click feedback
+- ✅ Created handleCardActivation callback in X01Scorer
+- ✅ Wired onCardActivate to CardActivationOverlay
+- ✅ Cards can now be clicked to activate
+- **Commit:** 1617f42
+
+**Phase 2.3 ✅ COMPLETE - Card Effects Implementation**
+- ✅ Created x01-card-effects.ts effect calculator
+- ✅ Implemented calculateX01CardEffect() function
+- ✅ Implemented applyX01Effect() to modify scores
+- ✅ Created GOOD card effects (lower, close-out, double-finish)
+- ✅ Created BAD card effects (higher, bust)
+- ✅ Integrated effect calculation into handleCardActivation
+- ✅ Effects apply immediately when card is clicked
+- ✅ Debug logging for all effect applications
+- **Commit:** 5ccb62d
 
 ### What's Next (NOT YET STARTED)
 
-- Phase 2.2: Wire up card click handlers (NOT STARTED)
-- Phase 2.3: Apply card effects (NOT STARTED)
-- Phase 2.5: Deploy X01 phase (NOT STARTED)
+- Phase 2.4: End-to-end testing for X01 (NOT STARTED)
+- Phase 2.5: Deploy X01 phase (NOT STARTED - USER REQUESTED NO DEPLOY YET)
 - Phase 3: Cricket integration (NOT STARTED)
 - Phase 4: Polish (NOT STARTED)
 
