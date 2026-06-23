@@ -7,6 +7,8 @@ import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize } from "lucide-react";
 import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart } from "./bot-engine";
 import { type PracticeStats, type DartThrow } from "./stats-types";
+import { CardActivationOverlay } from "@/components/CardActivationOverlay";
+import { cardDebugLog } from "./card-debug";
 
 function useFullscreen() {
   const [fs, setFs] = useState(false);
@@ -205,6 +207,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [bust, setBust]             = useState(false);
   const [bustMsg, setBustMsg]       = useState("");
   const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number; darts: Dart[] }[]>([]);
+  
+  // Card Clash state
+  const [equippedCards, setEquippedCards] = useState<any[]>([]);
+  const [cardsUsed, setCardsUsed]         = useState<any[]>([]);
 
   const names = [p1Name, p2Name];
 
@@ -438,6 +444,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
   return (
+    <>
     <ScorerLayout
       top={<div className="space-y-3">
         {/* Fullscreen toggle — always shown on mobile, hover-visible on desktop */}
@@ -553,6 +560,18 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         <AbandonBtn onAbandon={onAbandon} />
       </div>}
     />
+    <CardActivationOverlay 
+      equippedCards={equippedCards.map(c => ({
+        id: c.id?.toString() || "",
+        name: c.name || "Unknown Card",
+        effect: c.effect_text || "Card effect",
+        cardType: (c.good_or_bad === "GOOD" ? "GOOD" : "BAD") as "GOOD" | "BAD",
+        isActive: cardsUsed.some((used: any) => used.id === c.id),
+      }))}
+      isVisible={equippedCards.length > 0}
+      onClose={() => cardDebugLog("X01Scorer", "Card overlay closed")}
+    />
+    </>
   );
 }
 
