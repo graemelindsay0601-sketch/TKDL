@@ -89,7 +89,10 @@ export default function AdminCardClashPanel() {
   const seedCards = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/card-clash/admin/seed-cards", { method: "POST" });
+      const res = await fetch("/api/card-clash/admin/seed-cards", {
+        method: "POST",
+        headers: getAdminHeaders(),
+      });
       if (res.ok) {
         showMessage("✅ Cards seeded successfully! (100 cards)", "success");
         await new Promise(r => setTimeout(r, 500));
