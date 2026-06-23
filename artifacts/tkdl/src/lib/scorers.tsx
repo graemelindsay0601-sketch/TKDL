@@ -472,6 +472,25 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const { fs, toggle: toggleFs } = useFullscreen();
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
+  // ── Card Clash: Load equipped cards from sessionStorage ──
+  useEffect(() => {
+    const stored = sessionStorage.getItem('x01_equipped_cards');
+    if (stored) {
+      try {
+        const cards = JSON.parse(stored);
+        setEquippedCards(cards);
+        cardDebugLog("X01Scorer", "Loaded equipped cards from sessionStorage", {
+          count: cards.length,
+          cards: cards.map((c: any) => c.name),
+        });
+      } catch (e) {
+        cardDebugLog("X01Scorer", "Failed to parse equipped cards from sessionStorage", e);
+      }
+    } else {
+      cardDebugLog("X01Scorer", "No equipped cards found in sessionStorage - Card Clash disabled");
+    }
+  }, []);
+
   return (
     <>
     <ScorerLayout
