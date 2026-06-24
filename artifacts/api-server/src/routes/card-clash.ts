@@ -20,6 +20,8 @@ import {
   getCardClashMatchHistory,
 } from "../services/card-clash-service";
 import { seedCardDefinitions, getAllCardDefinitions, toggleCardAvailability } from "../services/card-definitions-service";
+import { challengeService } from "../services/challenge-service";
+import { seasonalQuestService } from "../services/seasonal-quest-service";
 import { logger } from "../lib/logger";
 import { db, cardClashMatchesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -156,6 +158,26 @@ router.post("/admin/seed-cards", verifyAdminPin, async (req: Request, res: Respo
   try {
     await seedCardDefinitions();
     res.json({ success: true, message: "Cards seeded" });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// Seed challenges (daily + weekly)
+router.post("/admin/challenges/seed", verifyAdminPin, async (req: Request, res: Response) => {
+  try {
+    await challengeService.seedDefaultChallenges();
+    res.json({ success: true, message: "Challenges seeded (8 daily + 6 weekly)" });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// Seed seasonal quests
+router.post("/admin/quests/seed", verifyAdminPin, async (req: Request, res: Response) => {
+  try {
+    await seasonalQuestService.seedDefaultSeasonalQuests();
+    res.json({ success: true, message: "Seasonal quests seeded" });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }

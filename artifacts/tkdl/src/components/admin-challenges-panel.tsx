@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, RotateCcw, Check, Trash2 } from "lucide-react";
+import { Plus, RotateCcw, Check, Trash2, ChevronDown } from "lucide-react";
 
 const getAdminHeaders = () => {
   const pin = sessionStorage.getItem("tkdl_admin_pin");
@@ -17,9 +17,15 @@ interface Challenge {
   reward_coins: number;
 }
 
+interface Player {
+  id: number;
+  name: string;
+}
+
 export default function AdminChallengesPanel() {
   const [adminPin, setAdminPin] = useState(sessionStorage.getItem("tkdl_admin_pin") || "");
   const [selectedPlayerId, setSelectedPlayerId] = useState("");
+  const [players, setPlayers] = useState<Player[]>([]);
   const [dailyChallenges, setDailyChallenges] = useState<Challenge[]>([]);
   const [weeklyChallenges, setWeeklyChallenges] = useState<Challenge[]>([]);
   const [message, setMessage] = useState("");
@@ -30,6 +36,7 @@ export default function AdminChallengesPanel() {
     if (adminPin) {
       sessionStorage.setItem("tkdl_admin_pin", adminPin);
       loadChallengeDefs();
+      loadPlayers();
     }
   }, [adminPin]);
 
@@ -37,6 +44,18 @@ export default function AdminChallengesPanel() {
     setMessage(msg);
     setMessageType(type);
     setTimeout(() => setMessage(""), 4000);
+  };
+
+  const loadPlayers = async () => {
+    try {
+      const res = await fetch("/api/players");
+      if (res.ok) {
+        const data = await res.json();
+        setPlayers(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error("Failed to load players:", error);
+    }
   };
 
   const loadChallengeDefs = async () => {
@@ -50,6 +69,25 @@ export default function AdminChallengesPanel() {
       if (weeklyRes.ok) setWeeklyChallenges(await weeklyRes.json());
     } catch (error) {
       showMessage("Failed to load challenge definitions", "error");
+    }
+  };
+
+  const seedChallenges = async () => {
+    try {
+      const res = await fetch("/api/card-clash/admin/challenges/seed", {
+        method: "POST",
+        headers: getAdminHeaders(),
+      });
+
+      if (res.ok) {
+        showMessage("✅ Challenges seeded successfully");
+        loadChallengeDefs();
+      } else {
+        const error = await res.json();
+        showMessage(`Failed: ${error.error}`, "error");
+      }
+    } catch (error) {
+      showMessage(`Failed: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
     }
   };
 
@@ -147,6 +185,11 @@ export default function AdminChallengesPanel() {
     }
   };
 
+  const getPlayerName = (id: string) => {
+    const player = players.find(p => p.id === parseInt(id));
+    return player ? player.name : `Player ${id}`;
+  };
+
   return (
     <div
       style={{
@@ -213,23 +256,55 @@ export default function AdminChallengesPanel() {
           {/* Player Selection */}
           <div style={{ marginBottom: "1.5rem" }}>
             <label style={{ display: "block", fontWeight: 600, marginBottom: "0.5rem" }}>
-              Player ID
+              👤 Player
             </label>
-            <input
-              type="number"
+            <select
               value={selectedPlayerId}
               onChange={(e) => setSelectedPlayerId(e.target.value)}
-              placeholder="Enter player ID"
               style={{
                 width: "100%",
                 padding: "0.5rem",
                 border: "1px solid #ccc",
                 borderRadius: "0.5rem",
+                fontFamily: "inherit",
               }}
-            />
+            >
+              <option value="">-- Select a player --</option>
+              {players.map((player) => (
+                <option key={player.id} value={player.id}>
+                  {player.name} (ID: {player.id})
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* Message */}
+          {/* Seed Section */}
+          <div
+            style={{
+              background: "#f0f0f0",
+              border: "2px solid #10b981",
+              borderRadius: "0.75rem",
+              padding: "1rem",
+              marginBottom: "1.5rem",
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: "0.75rem", color: "#059669" }}>🌱 Seed Challenges</div>
+            <button
+              onClick={seedChallenges}
+              style={{
+                background: "#10b981",
+                color: "white",
+                border: "none",
+                padding: "0.5rem 1rem",
+                borderRadius: "0.5rem",
+                cursor: "pointer",
+                fontWeight: 600,
+                width: "100%",
+              }}
+            >
+              Seed All Challenges (8 Daily + 6 Weekly)
+            </button>
+          </div>
           {message && (
             <div
               style={{
