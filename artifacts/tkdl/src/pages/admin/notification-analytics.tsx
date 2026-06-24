@@ -80,11 +80,12 @@ export function NotificationAnalytics() {
 
       {/* Stats Grid */}
       {expanded && (
-      {loading ? (
-        <div style={{ textAlign: "center", padding: "20px", color: "rgba(255,255,255,0.4)" }}>
-          Loading analytics...
-        </div>
-      ) : stats ? (
+        <>
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "20px", color: "rgba(255,255,255,0.4)" }}>
+            Loading analytics...
+          </div>
+        ) : stats ? (
         <div style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
@@ -193,7 +194,6 @@ export function NotificationAnalytics() {
       )}
 
       {/* Refresh Button */}
-      {expanded && (
       <button
         onClick={fetchAnalytics}
         style={{
@@ -224,6 +224,7 @@ export function NotificationAnalytics() {
         💡 Open Rate shows what % of sent notifications were opened. Click Rate shows what % led to engagement.
         Higher rates = more effective notifications.
       </div>
+        </>
       )}
     </div>
   );
