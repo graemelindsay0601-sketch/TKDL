@@ -28,6 +28,9 @@ const colors = {
 };
 
 export default function AdminCardClashPanel() {
+  // PIN state
+  const [adminPin, setAdminPin] = useState(sessionStorage.getItem("tkdl_admin_pin") || "");
+  
   // Data state
   const [cards, setCards] = useState<any[]>([]);
   const [players, setPlayers] = useState<any[]>([]);
@@ -91,6 +94,15 @@ export default function AdminCardClashPanel() {
     setMessage(msg);
     setMessageType(type);
     setTimeout(() => setMessage(""), 5000);
+  };
+
+  const handlePinChange = (pin: string) => {
+    setAdminPin(pin);
+    if (pin) {
+      sessionStorage.setItem("tkdl_admin_pin", pin);
+    } else {
+      sessionStorage.removeItem("tkdl_admin_pin");
+    }
   };
 
   const getSelectedPlayerName = () => {
@@ -322,6 +334,36 @@ export default function AdminCardClashPanel() {
 
       {expanded && (
         <>
+          {/* PIN Authentication Section */}
+          <div style={{
+            background: colors.infoBg,
+            border: `1px solid ${colors.info}`,
+            borderRadius: "6px",
+            padding: "12px 16px",
+            marginBottom: "1.5rem"
+          }}>
+            <label style={{ fontSize: "13px", fontWeight: "600", color: colors.text, display: "block", marginBottom: "8px" }}>
+              🔐 Admin PIN (0601)
+            </label>
+            <input
+              type="password"
+              value={adminPin}
+              onChange={(e) => handlePinChange(e.target.value)}
+              placeholder="Enter admin PIN"
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: "4px",
+                border: `1px solid ${colors.border}`,
+                fontSize: "14px",
+                boxSizing: "border-box",
+                backgroundColor: colors.bg,
+                color: colors.text,
+              }}
+            />
+            {adminPin && <p style={{ fontSize: "12px", color: colors.success, margin: "4px 0 0 0" }}>✅ PIN saved in session</p>}
+          </div>
+
           {/* Message Display */}
           {message && (
         <div
