@@ -21,6 +21,8 @@ import {
 } from "../services/card-clash-service";
 import { seedCardDefinitions, getAllCardDefinitions, toggleCardAvailability } from "../services/card-definitions-service";
 import { logger } from "../lib/logger";
+import { db, cardClashMatchesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const router = Router();
 
@@ -121,6 +123,26 @@ router.post("/match/finish", async (req: Request, res: Response) => {
     res.json({ success: true, match: result });
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// Get specific match
+router.get("/match/:matchId", async (req: Request, res: Response) => {
+  try {
+    const matchId = parseInt(req.params.matchId);
+    const match = await db
+      .select()
+      .from(cardClashMatchesTable)
+      .where(eq(cardClashMatchesTable.matchId, matchId))
+      .limit(1);
+
+    if (!match || match.length === 0) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    res.json(match[0]);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
 

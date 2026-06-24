@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Banknote, Gamepad2, TrendingUp } from "lucide-react";
 import { useFeatureFlags, FeatureGate } from "@/lib/useFeatureFlags";
 import { useCurrentPlayer } from "@/context/auth";
@@ -525,6 +526,7 @@ function PlayTab({
   setMatchStarting: (bool: boolean) => void;
   seasonId?: number;
 }) {
+  const [, setLocation] = useLocation();
   const [showEquipment, setShowEquipment] = useState(false);
   const [equippedCards, setEquippedCards] = useState<any>(null);
 
@@ -566,8 +568,8 @@ function PlayTab({
       }
 
       const match = await res.json();
-      // TODO: Navigate to match/scoring screen with matchId
-      alert(`Match started! ID: ${match.id}`);
+      // Navigate to match scoring screen
+      setLocation(`/card-clash/match/${match.id}`);
       // Reset selections
       setSelectedOpponent(null);
       setSelectedGameMode(null);

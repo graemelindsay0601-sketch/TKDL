@@ -19,6 +19,7 @@ const Admin           = lazy(() => import("@/pages/admin"));
 const Rules           = lazy(() => import("@/pages/rules"));
 const Play            = lazy(() => import("@/pages/play"));
 const CardClash       = lazy(() => import("@/pages/card-clash"));
+const CardClashMatch  = lazy(() => import("@/pages/card-clash-match"));
 const Practice        = lazy(() => import("@/pages/practice"));
 const ShadowBot       = lazy(() => import("@/pages/shadow-bot"));
 const ShadowBotDetail = lazy(() => import("@/pages/shadow-bot-detail"));
@@ -110,6 +111,9 @@ function AppRoutes() {
             </Route>
             <Route path="/card-clash">
               <RoutePage><CardClash /></RoutePage>
+            </Route>
+            <Route path="/card-clash/match/:matchId">
+              <RoutePage><CardClashMatch /></RoutePage>
             </Route>
             <Route path="/practice">
               <RoutePage><Practice /></RoutePage>
