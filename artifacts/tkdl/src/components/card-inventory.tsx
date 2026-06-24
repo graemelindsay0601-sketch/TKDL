@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown, Grid3x3, List } from "lucide-react";
+import { CardDisplay } from "./CardDisplay";
 
 interface CardInventoryProps {
   playerId: number;
@@ -23,6 +24,7 @@ export default function CardInventory({ playerId }: CardInventoryProps) {
   const [filterType, setFilterType] = useState<"ALL" | "GOOD" | "BAD">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   useEffect(() => {
     loadInventory();
