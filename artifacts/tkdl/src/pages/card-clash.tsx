@@ -778,7 +778,9 @@ function StandingsTab({ seasonId }: { seasonId: number }) {
               <td style={{ padding: "8px" }}>
                 {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : index + 1}
               </td>
-              <td style={{ padding: "8px" }}>Player #{standing.playerId}</td>
+              <td style={{ padding: "8px" }}>
+                {standing.playerName || `Player ${standing.playerId}`}
+              </td>
               <td style={{ textAlign: "center", padding: "8px" }}>{standing.cardPoints}</td>
               <td style={{ textAlign: "center", padding: "8px" }}>{standing.wins}</td>
               <td style={{ textAlign: "center", padding: "8px" }}>{standing.losses}</td>

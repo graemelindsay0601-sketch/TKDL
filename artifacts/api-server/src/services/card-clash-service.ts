@@ -1,11 +1,11 @@
-import { db, playerCurrencyTable } from "@workspace/db";
+import { db, playerCurrencyTable, playersTable } from "@workspace/db";
 import {
   cardClashMatchesTable,
   cardClashStandingsTable,
   cardClashSeasonsTable,
   cardInventoryTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, leftJoin, desc } from "drizzle-orm";
 import { addCoinsToPlayer, removeCardFromPlayer } from "./card-shop-service";
 import { applyX01CardModifiers, applyCricketCardModifiers, calculateCardClashPoints } from "./card-score-integration";
 
@@ -367,10 +367,19 @@ export async function deleteCardClashMatch(matchId: number) {
 
 export async function getCardClashStandings(seasonId: number) {
   const standings = await db
-    .select()
+    .select({
+      id: cardClashStandingsTable.id,
+      seasonId: cardClashStandingsTable.seasonId,
+      playerId: cardClashStandingsTable.playerId,
+      cardPoints: cardClashStandingsTable.cardPoints,
+      wins: cardClashStandingsTable.wins,
+      losses: cardClashStandingsTable.losses,
+      playerName: playersTable.name,
+    })
     .from(cardClashStandingsTable)
+    .leftJoin(playersTable, eq(cardClashStandingsTable.playerId, playersTable.id))
     .where(eq(cardClashStandingsTable.seasonId, seasonId))
-    .orderBy(cardClashStandingsTable.cardPoints);
+    .orderBy(desc(cardClashStandingsTable.cardPoints));
 
   return standings;
 }
