@@ -2,7 +2,7 @@ import { db } from "@workspace/db";
 import {
   seasonalQuests,
   playerSeasonalQuests,
-  playerCurrency,
+  playerCurrencyTable,
   cardClashSeasonsTable,
 } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -185,23 +185,23 @@ export const seasonalQuestService = {
    */
   async awardCoins(playerId: number, amount: number): Promise<void> {
     try {
-      const currency = await db.query.playerCurrency.findFirst({
-        where: eq(playerCurrency.playerId, playerId),
+      const currency = await db.query.playerCurrencyTable.findFirst({
+        where: eq(playerCurrencyTable.playerId, playerId),
       });
 
       if (!currency) {
-        await db.insert(playerCurrency).values({
+        await db.insert(playerCurrencyTable).values({
           playerId,
           cardPoints: amount,
         });
       } else {
         await db
-          .update(playerCurrency)
+          .update(playerCurrencyTable)
           .set({
             cardPoints: (currency.cardPoints || 0) + amount,
             updatedAt: new Date(),
           })
-          .where(eq(playerCurrency.playerId, playerId));
+          .where(eq(playerCurrencyTable.playerId, playerId));
       }
     } catch (error) {
       console.error(`[CardClash] Failed to award ${amount} coins to player ${playerId}:`, error);

@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { playerLoginStreaks, playerCurrency } from "@workspace/db/schema";
+import { playerLoginStreaks, playerCurrencyTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 
 export interface LoginReward {
@@ -134,25 +134,25 @@ export const cardClashLoginService = {
   async awardCoins(playerId: number, amount: number): Promise<void> {
     try {
       // Get current balance or create entry
-      let currency = await db.query.playerCurrency.findFirst({
-        where: eq(playerCurrency.playerId, playerId),
+      let currency = await db.query.playerCurrencyTable.findFirst({
+        where: eq(playerCurrencyTable.playerId, playerId),
       });
 
       if (!currency) {
         // Create new currency entry
-        await db.insert(playerCurrency).values({
+        await db.insert(playerCurrencyTable).values({
           playerId,
           cardPoints: amount,
         });
       } else {
         // Update existing entry
         await db
-          .update(playerCurrency)
+          .update(playerCurrencyTable)
           .set({
             cardPoints: (currency.cardPoints || 0) + amount,
             updatedAt: new Date(),
           })
-          .where(eq(playerCurrency.playerId, playerId));
+          .where(eq(playerCurrencyTable.playerId, playerId));
       }
     } catch (error) {
       // Fire-and-forget: log but don't fail

@@ -21,7 +21,11 @@ const RARITY_RATES = {
 
 const PITY_THRESHOLD = 50; // Guaranteed legendary after 50 pulls without one
 
-export async function purchasePack(playerId: number, packType: "SINGLE" | "FIVE" | "TEN") {
+export async function purchasePack(
+  playerId: number,
+  packType: "SINGLE" | "FIVE" | "TEN",
+  paymentMethod: "coins" | "packTokens" = "coins"
+) {
   const pack = PACK_TYPES[packType];
   if (!pack) throw new Error("Invalid pack type");
 
@@ -32,24 +36,45 @@ export async function purchasePack(playerId: number, packType: "SINGLE" | "FIVE"
     .where(eq(playerCurrencyTable.playerId, playerId))
     .limit(1);
 
-  if (!playerCurrency[0] || playerCurrency[0].coinBalance < pack.coins) {
-    throw new Error("Insufficient coins");
+  if (!playerCurrency[0]) {
+    throw new Error("Player currency record not found");
   }
 
-  // Deduct coins
-  await db
-    .update(playerCurrencyTable)
-    .set({
-      coinBalance: playerCurrency[0].coinBalance - pack.coins,
-    })
-    .where(eq(playerCurrencyTable.playerId, playerId));
+  // Validate payment method and deduct currency
+  if (paymentMethod === "packTokens") {
+    if ((playerCurrency[0].packTokens || 0) < 1) {
+      throw new Error("Insufficient pack tokens");
+    }
+    // Deduct 1 pack token (regardless of pack size - tokens are all worth 1 pack)
+    await db
+      .update(playerCurrencyTable)
+      .set({
+        packTokens: (playerCurrency[0].packTokens || 0) - 1,
+        updatedAt: new Date(),
+      })
+      .where(eq(playerCurrencyTable.playerId, playerId));
+  } else {
+    // Use coins
+    if ((playerCurrency[0].cardPoints || 0) < pack.coins) {
+      throw new Error("Insufficient coins");
+    }
+    // Deduct coins
+    await db
+      .update(playerCurrencyTable)
+      .set({
+        cardPoints: (playerCurrency[0].cardPoints || 0) - pack.coins,
+        updatedAt: new Date(),
+      })
+      .where(eq(playerCurrencyTable.playerId, playerId));
+  }
 
   // Generate cards
   const cards = await generateCards(playerId, pack.cards);
 
   return {
     packType,
-    costCoins: pack.coins,
+    costCoins: paymentMethod === "coins" ? pack.coins : 0,
+    costPackTokens: paymentMethod === "packTokens" ? 1 : 0,
     cardsGenerated: cards,
     timestamp: new Date(),
   };
@@ -205,15 +230,35 @@ export async function addCoinsToPlayer(playerId: number, amount: number) {
   if (!playerCurrency.id) {
     await db.insert(playerCurrencyTable).values({
       playerId,
-      coinBalance: amount,
+      cardPoints: amount,
       lifetimeCoinsEarned: amount,
     });
   } else {
     await db
       .update(playerCurrencyTable)
       .set({
-        coinBalance: playerCurrency.coinBalance + amount,
-        lifetimeCoinsEarned: playerCurrency.lifetimeCoinsEarned + amount,
+        cardPoints: (playerCurrency.cardPoints || 0) + amount,
+        lifetimeCoinsEarned: (playerCurrency.lifetimeCoinsEarned || 0) + amount,
+        updatedAt: new Date(),
+      })
+      .where(eq(playerCurrencyTable.playerId, playerId));
+  }
+}
+
+export async function awardPackTokens(playerId: number, amount: number) {
+  const playerCurrency = await getPlayerCurrency(playerId);
+
+  if (!playerCurrency.id) {
+    await db.insert(playerCurrencyTable).values({
+      playerId,
+      packTokens: amount,
+    });
+  } else {
+    await db
+      .update(playerCurrencyTable)
+      .set({
+        packTokens: (playerCurrency.packTokens || 0) + amount,
+        updatedAt: new Date(),
       })
       .where(eq(playerCurrencyTable.playerId, playerId));
   }
@@ -222,13 +267,16 @@ export async function addCoinsToPlayer(playerId: number, amount: number) {
 export async function removeCoinsFromPlayer(playerId: number, amount: number) {
   const playerCurrency = await getPlayerCurrency(playerId);
 
-  if (playerCurrency.coinBalance < amount) {
+  if ((playerCurrency.cardPoints || 0) < amount) {
     throw new Error("Insufficient coins");
   }
 
   await db
     .update(playerCurrencyTable)
-    .set({ coinBalance: playerCurrency.coinBalance - amount })
+    .set({
+      cardPoints: (playerCurrency.cardPoints || 0) - amount,
+      updatedAt: new Date(),
+    })
     .where(eq(playerCurrencyTable.playerId, playerId));
 }
 
