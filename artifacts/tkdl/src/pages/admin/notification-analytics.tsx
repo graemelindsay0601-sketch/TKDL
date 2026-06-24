@@ -191,7 +191,6 @@ export function NotificationAnalytics() {
           No data available
         </div>
       )}
-      )}
 
       {/* Refresh Button */}
       <button
