@@ -752,6 +752,13 @@ async function init() {
   }
 }
 
-init();
+export async function initApp() {
+  try {
+    await init();
+  } catch (err) {
+    logger.error({ err }, "Critical: Startup init failed");
+    throw err;
+  }
+}
 
 export default app;
