@@ -52,24 +52,31 @@ export default function CardClashPage() {
 
       // Get active season
       const seasonRes = await fetch("/api/card-clash/season/active");
+      if (!seasonRes.ok) throw new Error(`Season fetch failed: ${seasonRes.status}`);
       const season = await seasonRes.json();
+      if (!season) throw new Error("No season data received");
       setActiveSeason(season);
 
       // Get player currency
+      if (!playerId) throw new Error("No playerId available");
       const currencyRes = await fetch(`/api/card-clash/shop/currency/${playerId}`);
+      if (!currencyRes.ok) throw new Error(`Currency fetch failed: ${currencyRes.status}`);
       const curr = await currencyRes.json();
       setCurrency(curr);
 
       // Get player season stats
       if (season?.id) {
         const statsRes = await fetch(`/api/card-clash/standings/${season.id}`);
+        if (!statsRes.ok) throw new Error(`Standings fetch failed: ${statsRes.status}`);
         const standings = await statsRes.json();
         const playerStats = standings.find((s: any) => s.playerId === playerId);
         setSeasonStats(playerStats || { cardPoints: 0, wins: 0, losses: 0 });
       }
+      
+      console.log("✅ Card Clash data loaded successfully");
+      setLoading(false);
     } catch (error) {
-      console.error("Failed to load Card Clash data:", error);
-    } finally {
+      console.error("❌ Failed to load Card Clash data:", error);
       setLoading(false);
     }
   };

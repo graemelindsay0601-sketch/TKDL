@@ -11,6 +11,7 @@ import { RankChange } from "@/components/rank-change";
 import { ChallengesBar } from "@/components/ChallengesBar";
 import { CoinBalance } from "@/components/CoinBalance";
 import { CardInventoryDashboard } from "@/components/CardInventoryDashboard";
+import { useAuth } from "@/context/auth";
 import { Link } from "wouter";
 import {
   Trophy, Swords, Flame, Skull, Zap, Target, AlertTriangle,
@@ -524,6 +525,8 @@ function RivalriesSection() {
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<"leaderboard" | "recent">("leaderboard");
+  const { user } = useAuth();
+  const playerId = user?.id;
 
   const { data: summary }   = useGetStatsSummary();
   const { data: leaderboard } = useGetLeaderboard();
@@ -544,13 +547,13 @@ export default function Dashboard() {
       <div className="pdc-divider" />
 
       {/* ── CHALLENGES BAR ── */}
-      {summary && summary.playerId && <ChallengesBar playerId={summary.playerId} />}
+      {playerId && <ChallengesBar playerId={playerId} />}
 
       {/* ── COIN BALANCE ── */}
-      {summary && summary.playerId && <CoinBalance playerId={summary.playerId} />}
+      {playerId && <CoinBalance playerId={playerId} />}
 
       {/* ── CARD INVENTORY ── */}
-      {summary && summary.playerId && <CardInventoryDashboard playerId={summary.playerId} />}
+      {playerId && <CardInventoryDashboard playerId={playerId} />}
 
       {/* ── CINEMATIC HERO ── */}
       <div className="relative overflow-hidden fade-in-up" style={{
