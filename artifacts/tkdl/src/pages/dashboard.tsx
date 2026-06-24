@@ -8,9 +8,6 @@ import {
 } from "@workspace/api-client-react";
 import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
-import { ChallengesBar } from "@/components/ChallengesBar";
-import { CoinBalance } from "@/components/CoinBalance";
-import { CardInventoryDashboard } from "@/components/CardInventoryDashboard";
 import { useAuth } from "@/context/auth";
 import { Link } from "wouter";
 import {
@@ -545,15 +542,6 @@ export default function Dashboard() {
   return (
     <div className="space-y-4">
       <div className="pdc-divider" />
-
-      {/* ── CHALLENGES BAR ── */}
-      {playerId && <ChallengesBar playerId={playerId} />}
-
-      {/* ── COIN BALANCE ── */}
-      {playerId && <CoinBalance playerId={playerId} />}
-
-      {/* ── CARD INVENTORY ── */}
-      {playerId && <CardInventoryDashboard playerId={playerId} />}
 
       {/* ── CINEMATIC HERO ── */}
       <div className="relative overflow-hidden fade-in-up" style={{
