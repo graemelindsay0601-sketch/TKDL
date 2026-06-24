@@ -12,6 +12,7 @@ export * from "./push_subscriptions";
 export * from "./card-definitions";
 export * from "./card-inventory";
 export * from "./player-currency";
+export * from "./player-login-streaks";
 export * from "./card-clash-seasons";
 export * from "./card-clash-standings";
 export * from "./card-clash-matches";

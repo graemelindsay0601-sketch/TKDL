@@ -280,4 +280,50 @@ router.get("/feature-status", async (req: Request, res: Response) => {
   }
 });
 
+// === DAILY LOGIN ROUTES ===
+
+router.post("/login/daily", async (req: Request, res: Response) => {
+  try {
+    const { playerId } = req.body;
+    if (!playerId) {
+      return res.status(400).json({ error: "playerId required" });
+    }
+
+    const { cardClashLoginService } = await import("../services/card-clash-login-service");
+    const reward = await cardClashLoginService.handleDailyLogin(playerId);
+
+    res.json({
+      success: true,
+      reward,
+    });
+  } catch (error) {
+    logger.error("Daily login error:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+router.get("/login/streak/:playerId", async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.playerId);
+    const { cardClashLoginService } = await import("../services/card-clash-login-service");
+    const streak = await cardClashLoginService.getStreakInfo(playerId);
+
+    res.json(streak || { currentStreak: 0, bestStreak: 0, totalLogins: 0, lastLoginDate: null });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+router.post("/admin/login/reset/:playerId", verifyAdminPin, async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.playerId);
+    const { cardClashLoginService } = await import("../services/card-clash-login-service");
+    await cardClashLoginService.resetStreak(playerId);
+
+    res.json({ success: true, message: `Login streak reset for player ${playerId}` });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
 export default router;
