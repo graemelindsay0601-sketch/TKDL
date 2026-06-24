@@ -6,6 +6,7 @@ import { useCurrentPlayer } from "@/context/auth";
 import { CardEquipmentSelector } from "@/components/CardEquipmentSelector";
 import { CardShopUI } from "@/components/CardShopUI";
 import { CardInventory } from "@/components/CardInventory";
+import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
 
 interface Season {
   id: number;
@@ -38,12 +39,6 @@ export default function CardClashPage() {
   const [seasonStats, setSeasonStats] = useState<SeasonStats | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "play" | "shop" | "standings">("overview");
   const [loading, setLoading] = useState(true);
-  
-  // Match flow state
-  const [availablePlayers, setAvailablePlayers] = useState<any[]>([]);
-  const [selectedOpponent, setSelectedOpponent] = useState<number | null>(null);
-  const [selectedGameMode, setSelectedGameMode] = useState<"X01" | "CRICKET" | null>(null);
-  const [matchStarting, setMatchStarting] = useState(false);
 
   useEffect(() => {
     if (playerId) {
@@ -65,16 +60,12 @@ export default function CardClashPage() {
       const curr = await currencyRes.json();
       setCurrency(curr);
 
-      // Get player season stats and available opponents
+      // Get player season stats
       if (season?.id) {
         const statsRes = await fetch(`/api/card-clash/standings/${season.id}`);
         const standings = await statsRes.json();
         const playerStats = standings.find((s: any) => s.playerId === playerId);
         setSeasonStats(playerStats || { cardPoints: 0, wins: 0, losses: 0 });
-        
-        // Set available players (all except self)
-        const otherPlayers = standings.filter((s: any) => s.playerId !== playerId);
-        setAvailablePlayers(otherPlayers.slice(0, 20)); // Show top 20
       }
     } catch (error) {
       console.error("Failed to load Card Clash data:", error);
@@ -264,16 +255,13 @@ export default function CardClashPage() {
       <div style={{ paddingBottom: "2rem" }}>
         {activeTab === "overview" && <OverviewTab season={activeSeason} stats={seasonStats} />}
         {activeTab === "play" && (
-          <PlayTab 
-            playerId={playerId} 
-            availablePlayers={availablePlayers}
-            selectedOpponent={selectedOpponent}
-            setSelectedOpponent={setSelectedOpponent}
-            selectedGameMode={selectedGameMode}
-            setSelectedGameMode={setSelectedGameMode}
-            matchStarting={matchStarting}
-            setMatchStarting={setMatchStarting}
-            seasonId={activeSeason?.id}
+          <CardClashMatchLauncher
+            currentPlayerId={playerId}
+            currentPlayerName={playerName}
+            onMatchComplete={() => {
+              setActiveTab("standings");
+              loadData();
+            }}
           />
         )}
         {activeTab === "shop" && (
@@ -505,232 +493,6 @@ function ShopTab({
   );
 }
 
-function PlayTab({
-  playerId,
-  availablePlayers,
-  selectedOpponent,
-  setSelectedOpponent,
-  selectedGameMode,
-  setSelectedGameMode,
-  matchStarting,
-  setMatchStarting,
-  seasonId,
-}: {
-  playerId: number;
-  availablePlayers: any[];
-  selectedOpponent: number | null;
-  setSelectedOpponent: (id: number | null) => void;
-  selectedGameMode: "X01" | "CRICKET" | null;
-  setSelectedGameMode: (mode: "X01" | "CRICKET" | null) => void;
-  matchStarting: boolean;
-  setMatchStarting: (bool: boolean) => void;
-  seasonId?: number;
-}) {
-  const [, setLocation] = useLocation();
-  const [showEquipment, setShowEquipment] = useState(false);
-  const [equippedCards, setEquippedCards] = useState<any>(null);
-
-  const handleReadyToPlay = () => {
-    if (!selectedOpponent || !selectedGameMode) {
-      alert("Please select an opponent and game mode");
-      return;
-    }
-    setShowEquipment(true);
-  };
-
-  const handleEquipmentSelected = async (equipment: any) => {
-    setEquippedCards(equipment);
-    setShowEquipment(false);
-    await startMatch(equipment);
-  };
-
-  const startMatch = async (equipment: any) => {
-    if (!selectedOpponent || !selectedGameMode) {
-      alert("Please select an opponent and game mode");
-      return;
-    }
-
-    setMatchStarting(true);
-    try {
-      const res = await fetch("/api/card-clash/match/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          player1Id: playerId,
-          player2Id: selectedOpponent,
-          gameMode: selectedGameMode,
-          equippedCards: equipment || [],
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to start match");
-      }
-
-      const match = await res.json();
-      // Navigate to match scoring screen
-      setLocation(`/card-clash/match/${match.id}`);
-      // Reset selections
-      setSelectedOpponent(null);
-      setSelectedGameMode(null);
-    } catch (error) {
-      console.error("Error starting match:", error);
-      alert("Failed to start match. Try again.");
-    } finally {
-      setMatchStarting(false);
-    }
-  };
-
-  return (
-    <div style={{ maxWidth: "800px" }}>
-      {/* Equipment Selector Modal */}
-      {showEquipment && selectedGameMode && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "rgba(0,0,0,0.7)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 1000,
-        }}>
-          <div style={{
-            background: "var(--color-background-primary)",
-            borderRadius: "12px",
-            maxHeight: "90vh",
-            overflowY: "auto",
-            maxWidth: "600px",
-            width: "90%",
-          }}>
-            <CardEquipmentSelector
-              playerId={playerId}
-              gameMode={selectedGameMode}
-              onSelect={handleEquipmentSelected}
-              onCancel={() => setShowEquipment(false)}
-            />
-          </div>
-        </div>
-      )}
-
-      <div style={{ marginBottom: "2rem", padding: "1.5rem", background: "var(--color-background-secondary)", borderRadius: "8px" }}>
-        <h3 style={{ marginBottom: "1.5rem", fontSize: "18px", fontWeight: 600 }}>Start a Match</h3>
-
-        {/* Select Opponent */}
-        <div style={{ marginBottom: "2rem" }}>
-          <label style={{ display: "block", marginBottom: "0.75rem", fontSize: "14px", fontWeight: 500 }}>
-            Select Opponent
-          </label>
-          <div style={{
-            maxHeight: "300px",
-            overflowY: "auto",
-            border: "1px solid var(--color-border-tertiary)",
-            borderRadius: "6px",
-          }}>
-            {availablePlayers.length === 0 ? (
-              <div style={{ padding: "1rem", textAlign: "center", color: "var(--color-text-secondary)" }}>
-                No other players in Card Clash yet
-              </div>
-            ) : (
-              availablePlayers.map((player) => (
-                <button
-                  key={player.playerId}
-                  onClick={() => setSelectedOpponent(player.playerId)}
-                  style={{
-                    width: "100%",
-                    padding: "12px 1rem",
-                    textAlign: "left",
-                    border: "none",
-                    borderBottom: "1px solid var(--color-border-tertiary)",
-                    background: selectedOpponent === player.playerId 
-                      ? "var(--color-background-info)" 
-                      : "transparent",
-                    cursor: "pointer",
-                    transition: "background 0.2s",
-                    fontSize: "14px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <span>Player #{player.playerId}</span>
-                  <span style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>
-                    {player.wins}W-{player.losses}L
-                  </span>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Select Game Mode */}
-        <div style={{ marginBottom: "2rem" }}>
-          <label style={{ display: "block", marginBottom: "0.75rem", fontSize: "14px", fontWeight: 500 }}>
-            Select Game Mode
-          </label>
-          <div style={{ display: "flex", gap: "12px" }}>
-            {["X01", "CRICKET"].map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setSelectedGameMode(mode as "X01" | "CRICKET")}
-                style={{
-                  flex: 1,
-                  padding: "12px 1rem",
-                  borderRadius: "6px",
-                  border: selectedGameMode === mode 
-                    ? "2px solid #0066ff" 
-                    : "1px solid var(--color-border-tertiary)",
-                  background: selectedGameMode === mode 
-                    ? "rgba(0, 102, 255, 0.1)" 
-                    : "transparent",
-                  color: selectedGameMode === mode ? "#0066ff" : "var(--color-text-primary)",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: 500,
-                  transition: "all 0.2s",
-                }}
-              >
-                {mode}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Start Button */}
-        <button
-          onClick={handleReadyToPlay}
-          disabled={!selectedOpponent || !selectedGameMode || matchStarting}
-          style={{
-            width: "100%",
-            padding: "12px 1rem",
-            borderRadius: "6px",
-            border: "none",
-            background: selectedOpponent && selectedGameMode && !matchStarting ? "#0066ff" : "#0066ff80",
-            color: "white",
-            fontSize: "14px",
-            fontWeight: 600,
-            cursor: selectedOpponent && selectedGameMode && !matchStarting ? "pointer" : "not-allowed",
-            transition: "all 0.2s",
-          }}
-        >
-          {matchStarting ? "Starting Match..." : "Equip Cards & Play"}
-        </button>
-      </div>
-
-      {/* Info */}
-      <div style={{ padding: "1rem", background: "var(--color-background-tertiary)", borderRadius: "6px", fontSize: "12px" }}>
-        <p style={{ margin: "0 0 0.5rem 0" }}>
-          <strong>Note:</strong> Cards are consumed when used in a match.
-        </p>
-        <p style={{ margin: 0 }}>
-          Win or lose, you earn coins based on performance.
-        </p>
-      </div>
-    </div>
-  );
-}
 
 function StandingsTab({ seasonId }: { seasonId: number }) {
   const [standings, setStandings] = useState<any[]>([]);
