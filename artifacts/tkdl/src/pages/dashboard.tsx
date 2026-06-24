@@ -9,6 +9,7 @@ import {
 import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
 import { ChallengesBar } from "@/components/ChallengesBar";
+import { CoinBalance } from "@/components/CoinBalance";
 import { CardInventoryDashboard } from "@/components/CardInventoryDashboard";
 import { Link } from "wouter";
 import {
@@ -544,6 +545,9 @@ export default function Dashboard() {
 
       {/* ── CHALLENGES BAR ── */}
       {summary && summary.playerId && <ChallengesBar playerId={summary.playerId} />}
+
+      {/* ── COIN BALANCE ── */}
+      {summary && summary.playerId && <CoinBalance playerId={summary.playerId} />}
 
       {/* ── CARD INVENTORY ── */}
       {summary && summary.playerId && <CardInventoryDashboard playerId={summary.playerId} />}

@@ -74,7 +74,7 @@ export default function CardClashPage() {
     }
   };
 
-  if (loading || isLoading) {
+  if (loading) {
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
         <p>Loading Card Clash data...</p>
