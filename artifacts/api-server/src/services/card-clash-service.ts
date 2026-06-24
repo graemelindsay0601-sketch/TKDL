@@ -154,8 +154,13 @@ export async function finishCardClashMatch(
     
     await challengeService.updateWeeklyProgress(loser, "weekly_wins_5", 0);
     await challengeService.updateWeeklyProgress(loser, "weekly_card_clash_3", 0);
+
+    // Update seasonal quests
+    const { seasonalQuestService } = await import("../services/seasonal-quest-service");
+    await seasonalQuestService.updateSeasonalProgress(winnerId, "card_clash_wins_20", 1);
+    // Loser doesn't progress card clash quest (only winners count)
   } catch (err) {
-    console.error("Card Clash challenge update error:", err);
+    console.error("Card Clash challenge/quest update error:", err);
     // Don't fail the match if challenges fail
   }
 

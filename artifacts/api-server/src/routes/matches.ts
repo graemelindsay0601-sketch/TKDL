@@ -304,9 +304,13 @@ router.post("/matches", async (req, res): Promise<void> => {
         
         await challengeService.updateWeeklyProgress(loserId, "weekly_wins_5", 0);
         await challengeService.updateWeeklyProgress(loserId, "weekly_card_clash_3", 0);
+
+        // Update seasonal quests
+        const { seasonalQuestService } = await import("../services/seasonal-quest-service");
+        await seasonalQuestService.updateSeasonalProgress(winnerId, "league_dominator", 1);
       } catch (coinErr) {
         // Log coin errors but don't fail the match
-        console.error("Card Clash coin/challenge awarding error:", coinErr);
+        console.error("Card Clash coin/challenge/quest awarding error:", coinErr);
       }
     } catch (err) {
       // Log notification errors but don't fail the match submission

@@ -405,4 +405,50 @@ router.post("/admin/challenges/seed", verifyAdminPin, async (req: Request, res: 
   }
 });
 
+// === SEASONAL QUEST ROUTES ===
+
+router.get("/quests/seasonal/:playerId", async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.playerId);
+    const { seasonalQuestService } = await import("../services/seasonal-quest-service");
+    const quests = await seasonalQuestService.getSeasonalQuestsForPlayer(playerId);
+
+    res.json({ quests, period: "seasonal" });
+  } catch (error) {
+    logger.error("Get seasonal quests error:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+router.post("/quests/update-seasonal", async (req: Request, res: Response) => {
+  try {
+    const { playerId, questKey, incrementBy = 1 } = req.body;
+    if (!playerId || !questKey) {
+      return res.status(400).json({ error: "playerId and questKey required" });
+    }
+
+    const { seasonalQuestService } = await import("../services/seasonal-quest-service");
+    const result = await seasonalQuestService.updateSeasonalProgress(playerId, questKey, incrementBy);
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    logger.error("Update seasonal quest error:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+router.post("/admin/quests/seed", verifyAdminPin, async (req: Request, res: Response) => {
+  try {
+    const { seasonalQuestService } = await import("../services/seasonal-quest-service");
+    await seasonalQuestService.seedDefaultSeasonalQuests();
+
+    res.json({ success: true, message: "Default seasonal quests seeded" });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
 export default router;

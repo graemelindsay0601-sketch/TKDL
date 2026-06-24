@@ -15,6 +15,7 @@ export * from "./player-currency";
 export * from "./player-login-streaks";
 export * from "./daily-challenges";
 export * from "./weekly-challenges";
+export * from "./seasonal-quests";
 export * from "./card-clash-seasons";
 export * from "./card-clash-standings";
 export * from "./card-clash-matches";
