@@ -169,10 +169,11 @@ export default function AdminCardClashPanel() {
         showMessage(`✅ Gave ${coinAmount} coins to ${getSelectedPlayerName()} (Balance: ${data.cardPoints})`, "success");
         setCoinAmount("50");
       } else {
-        showMessage("Failed to give coins", "error");
+        const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+        showMessage(`Failed to give coins: ${errorData.error || res.statusText}`, "error");
       }
     } catch (error) {
-      showMessage("Failed to give coins", "error");
+      showMessage(`Failed to give coins: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
     }
   };
 
@@ -194,10 +195,11 @@ export default function AdminCardClashPanel() {
         showMessage(`✅ Removed ${coinAmount} coins from ${getSelectedPlayerName()} (Balance: ${data.cardPoints})`, "success");
         setCoinAmount("50");
       } else {
-        showMessage("Failed to remove coins", "error");
+        const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+        showMessage(`Failed to remove coins: ${errorData.error || res.statusText}`, "error");
       }
     } catch (error) {
-      showMessage("Failed to remove coins", "error");
+      showMessage(`Failed to remove coins: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
     }
   };
 
@@ -223,10 +225,11 @@ export default function AdminCardClashPanel() {
         showMessage(`✅ Gave ${cardQuantity}x "${card?.name}" to ${getSelectedPlayerName()}`, "success");
         setCardQuantity("1");
       } else {
-        showMessage("Failed to give card", "error");
+        const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+        showMessage(`Failed to give card: ${errorData.error || res.statusText}`, "error");
       }
     } catch (error) {
-      showMessage("Failed to give card", "error");
+      showMessage(`Failed to give card: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
     }
   };
 
@@ -252,10 +255,11 @@ export default function AdminCardClashPanel() {
         showMessage(`✅ Removed ${cardQuantity}x "${card?.name}" from ${getSelectedPlayerName()}`, "success");
         setCardQuantity("1");
       } else {
-        showMessage("Failed to remove card", "error");
+        const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+        showMessage(`Failed to remove card: ${errorData.error || res.statusText}`, "error");
       }
     } catch (error) {
-      showMessage("Failed to remove card", "error");
+      showMessage(`Failed to remove card: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
     }
   };
 
