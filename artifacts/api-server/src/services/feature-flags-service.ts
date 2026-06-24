@@ -22,24 +22,24 @@ export async function initializeFeatureFlags() {
       return;
     }
 
-    // Create default flags (all disabled, admin test mode on)
+    // Create default flags (all enabled for testing)
     await db.insert(featureFlagsTable).values([
       {
         featureName: FEATURES.CARD_SHOP,
-        enabled: false,
-        adminTestMode: true,
+        enabled: true,
+        adminTestMode: false,
         description: "Card Shop - Players can purchase card packs",
       },
       {
         featureName: FEATURES.COINS,
-        enabled: false,
-        adminTestMode: true,
+        enabled: true,
+        adminTestMode: false,
         description: "Coins System - Players can earn and spend coins",
       },
       {
         featureName: FEATURES.CARD_CLASH,
-        enabled: false,
-        adminTestMode: true,
+        enabled: true,
+        adminTestMode: false,
         description: "Card Clash - Full card clash mode and seasonal features",
       },
     ]);

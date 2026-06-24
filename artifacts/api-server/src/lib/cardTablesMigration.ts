@@ -193,12 +193,15 @@ export async function initializeFeatureFlags() {
     for (const flag of flags) {
       await db.execute(sql`
         INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)
-        VALUES (${flag.featureName}, false, false, ${flag.description})
-        ON CONFLICT (feature_name) DO NOTHING
+        VALUES (${flag.featureName}, true, false, ${flag.description})
+        ON CONFLICT (feature_name) DO UPDATE SET
+          enabled = true,
+          admin_test_mode = false,
+          description = ${flag.description}
       `);
     }
 
-    logger.info("Feature flags initialized successfully");
+    logger.info("Feature flags initialized successfully - all features enabled");
   } catch (error) {
     logger.error({ error }, "Failed to initialize feature flags");
     // Don't throw - this is not critical
