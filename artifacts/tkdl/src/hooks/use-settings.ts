@@ -7,6 +7,9 @@ export type AppSettings = {
   community_enabled: boolean;
   messaging_enabled: boolean;
   notifications_enabled: boolean;
+  card_clash_enabled: boolean;
+  card_shop_enabled: boolean;
+  coins_enabled: boolean;
 };
 
 async function fetchSettings(): Promise<AppSettings> {
@@ -18,6 +21,9 @@ async function fetchSettings(): Promise<AppSettings> {
     community_enabled: false,
     messaging_enabled: false,
     notifications_enabled: false,
+    card_clash_enabled: true,
+    card_shop_enabled: true,
+    coins_enabled: true,
   };
   return res.json() as Promise<AppSettings>;
 }

@@ -1,15 +1,27 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
-import { db, settingsTable } from "@workspace/db";
+import { db, settingsTable, featureFlagsTable } from "@workspace/db";
 
 const router = Router();
 
 router.get("/settings", async (_req, res): Promise<void> => {
   const rows = await db.select().from(settingsTable);
+  const flags = await db.select().from(featureFlagsTable);
+  
   const out: Record<string, boolean | string> = {};
+  
+  // Add settings table values
   for (const r of rows) {
     out[r.key] = r.value === "true" ? true : r.value === "false" ? false : r.value;
   }
+  
+  // Add feature flags
+  for (const flag of flags) {
+    if (flag.featureName === "card_clash") out["card_clash_enabled"] = flag.enabled;
+    if (flag.featureName === "card_shop") out["card_shop_enabled"] = flag.enabled;
+    if (flag.featureName === "coins") out["coins_enabled"] = flag.enabled;
+  }
+  
   res.json(out);
 });
 
