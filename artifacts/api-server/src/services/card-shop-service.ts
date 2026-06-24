@@ -189,7 +189,14 @@ export async function getPlayerCurrency(playerId: number) {
     .where(eq(playerCurrencyTable.playerId, playerId))
     .limit(1);
 
-  return currency[0] || { coinBalance: 0, lifetimeCoinsEarned: 0 };
+  return currency[0] || { 
+    id: undefined,
+    playerId,
+    coinBalance: 0, 
+    lifetimeCoinsEarned: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
 }
 
 export async function addCoinsToPlayer(playerId: number, amount: number) {
