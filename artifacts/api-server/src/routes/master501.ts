@@ -266,14 +266,21 @@ router.patch("/master501/runs/:runId", async (req, res): Promise<void> => {
       });
       await checkAndGrantTitles(Number(run.player_id));
 
-      // Award coins on M-501 completion (10 coins per win)
+      // Award coins on M-501 completion (10 coins per win) + update challenges
       try {
         const { addCoinsToPlayer } = await import("../services/card-shop-service");
         if (result === "win") {
           await addCoinsToPlayer(Number(run.player_id), 10);
+          
+          // Update challenges
+          const { challengeService } = await import("../services/challenge-service");
+          await challengeService.updateDailyProgress(Number(run.player_id), "master501_wins_2", 1);
+          await challengeService.updateDailyProgress(Number(run.player_id), "matches_5", 1);
+          await challengeService.updateWeeklyProgress(Number(run.player_id), "weekly_501_3", 1);
+          await challengeService.updateWeeklyProgress(Number(run.player_id), "weekly_wins_5", 1);
         }
       } catch (err) {
-        console.error("M-501 coin award error:", err);
+        console.error("M-501 coin/challenge award error:", err);
       }
     })();
 

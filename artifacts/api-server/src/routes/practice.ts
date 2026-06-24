@@ -112,7 +112,11 @@ router.post("/practice/sessions", async (req, res): Promise<void> => {
         // Update challenge progress for winner
         if (winnerId) {
           const { challengeService } = await import("../services/challenge-service");
-          await challengeService.updateDailyProgress(winnerId, "matches_3", 1);
+          // Daily
+          await challengeService.updateDailyProgress(winnerId, "practice_wins_2", 1);
+          await challengeService.updateDailyProgress(winnerId, "matches_5", 1);
+          // Weekly
+          await challengeService.updateWeeklyProgress(winnerId, "weekly_practice_3", 1);
           await challengeService.updateWeeklyProgress(winnerId, "weekly_wins_5", 1);
         }
       } catch (err) {
