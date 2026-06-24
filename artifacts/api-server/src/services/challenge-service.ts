@@ -1,0 +1,442 @@
+import { db } from "@workspace/db";
+import {
+  dailyChallenges,
+  playerDailyChallenges,
+  weeklyChallenges,
+  playerWeeklyChallenges,
+  playerCurrency,
+} from "@workspace/db/schema";
+import { eq, and, gte, lte, isNull } from "drizzle-orm";
+
+export interface ChallengeProgress {
+  id: number;
+  title: string;
+  description: string | null;
+  challenge_key: string;
+  progress: number;
+  requirement_value: number;
+  requirement_type: string;
+  reward_coins: number;
+  reward_pack_tokens: number;
+  is_completed: boolean;
+  completed_at: Date | null;
+}
+
+export const challengeService = {
+  /**
+   * Get or create today's daily challenges for a player
+   */
+  async getDailyChallengesForPlayer(playerId: number): Promise<ChallengeProgress[]> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Get all active daily challenge definitions
+    const challenges = await db.query.dailyChallenges.findMany({
+      where: eq(dailyChallenges.is_active, true),
+    });
+
+    // For each challenge, get or create player's progress
+    const results: ChallengeProgress[] = [];
+
+    for (const challenge of challenges) {
+      let playerChallenge = await db.query.playerDailyChallenges.findFirst({
+        where: and(
+          eq(playerDailyChallenges.player_id, playerId),
+          eq(playerDailyChallenges.challenge_id, challenge.id),
+          gte(playerDailyChallenges.date_assigned, today),
+          lte(playerDailyChallenges.date_assigned, tomorrow)
+        ),
+      });
+
+      // Create if doesn't exist for today
+      if (!playerChallenge) {
+        const [created] = await db
+          .insert(playerDailyChallenges)
+          .values({
+            player_id: playerId,
+            challenge_id: challenge.id,
+            challenge_key: challenge.challenge_key,
+            progress: 0,
+            is_completed: false,
+            date_assigned: new Date(),
+          })
+          .returning();
+
+        playerChallenge = created;
+      }
+
+      results.push({
+        id: challenge.id,
+        title: challenge.title,
+        description: challenge.description,
+        challenge_key: challenge.challenge_key,
+        progress: playerChallenge.progress,
+        requirement_value: challenge.requirement_value,
+        requirement_type: challenge.requirement_type,
+        reward_coins: challenge.reward_coins,
+        reward_pack_tokens: challenge.reward_pack_tokens || 0,
+        is_completed: playerChallenge.is_completed,
+        completed_at: playerChallenge.completed_at,
+      });
+    }
+
+    return results;
+  },
+
+  /**
+   * Get this week's weekly challenges for a player
+   */
+  async getWeeklyChallengesForPlayer(playerId: number): Promise<ChallengeProgress[]> {
+    // Monday of this week
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is Sunday
+    const monday = new Date(today.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+
+    const nextMonday = new Date(monday);
+    nextMonday.setDate(nextMonday.getDate() + 7);
+
+    // Get all active weekly challenge definitions
+    const challenges = await db.query.weeklyChallenges.findMany({
+      where: eq(weeklyChallenges.is_active, true),
+    });
+
+    // For each challenge, get or create player's progress
+    const results: ChallengeProgress[] = [];
+
+    for (const challenge of challenges) {
+      let playerChallenge = await db.query.playerWeeklyChallenges.findFirst({
+        where: and(
+          eq(playerWeeklyChallenges.player_id, playerId),
+          eq(playerWeeklyChallenges.challenge_id, challenge.id),
+          gte(playerWeeklyChallenges.week_of, monday),
+          lte(playerWeeklyChallenges.week_of, nextMonday)
+        ),
+      });
+
+      // Create if doesn't exist for this week
+      if (!playerChallenge) {
+        const [created] = await db
+          .insert(playerWeeklyChallenges)
+          .values({
+            player_id: playerId,
+            challenge_id: challenge.id,
+            challenge_key: challenge.challenge_key,
+            progress: 0,
+            is_completed: false,
+            week_of: new Date(monday),
+          })
+          .returning();
+
+        playerChallenge = created;
+      }
+
+      results.push({
+        id: challenge.id,
+        title: challenge.title,
+        description: challenge.description,
+        challenge_key: challenge.challenge_key,
+        progress: playerChallenge.progress,
+        requirement_value: challenge.requirement_value,
+        requirement_type: challenge.requirement_type,
+        reward_coins: challenge.reward_coins,
+        reward_pack_tokens: challenge.reward_pack_tokens || 0,
+        is_completed: playerChallenge.is_completed,
+        completed_at: playerChallenge.completed_at,
+      });
+    }
+
+    return results;
+  },
+
+  /**
+   * Update progress on a daily challenge
+   * Returns: { completed: boolean, coinsAwarded: number }
+   */
+  async updateDailyProgress(
+    playerId: number,
+    challengeKey: string,
+    incrementBy: number = 1
+  ): Promise<{ completed: boolean; coinsAwarded: number }> {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Get challenge definition
+      const challengeDef = await db.query.dailyChallenges.findFirst({
+        where: eq(dailyChallenges.challenge_key, challengeKey),
+      });
+
+      if (!challengeDef) {
+        throw new Error(`Daily challenge not found: ${challengeKey}`);
+      }
+
+      // Get player's progress
+      let playerChallenge = await db.query.playerDailyChallenges.findFirst({
+        where: and(
+          eq(playerDailyChallenges.player_id, playerId),
+          eq(playerDailyChallenges.challenge_key, challengeKey),
+          gte(playerDailyChallenges.date_assigned, today),
+          lte(playerDailyChallenges.date_assigned, tomorrow)
+        ),
+      });
+
+      if (!playerChallenge) {
+        // Create if missing
+        const [created] = await db
+          .insert(playerDailyChallenges)
+          .values({
+            player_id: playerId,
+            challenge_id: challengeDef.id,
+            challenge_key: challengeKey,
+            progress: incrementBy,
+            is_completed: incrementBy >= challengeDef.requirement_value,
+            completed_at:
+              incrementBy >= challengeDef.requirement_value ? new Date() : null,
+          })
+          .returning();
+
+        playerChallenge = created;
+      } else {
+        // Update progress
+        const newProgress = (playerChallenge.progress || 0) + incrementBy;
+        const isCompleted = newProgress >= challengeDef.requirement_value;
+
+        const [updated] = await db
+          .update(playerDailyChallenges)
+          .set({
+            progress: newProgress,
+            is_completed: isCompleted,
+            completed_at: isCompleted && !playerChallenge.is_completed ? new Date() : playerChallenge.completed_at,
+            updated_at: new Date(),
+          })
+          .where(eq(playerDailyChallenges.id, playerChallenge.id))
+          .returning();
+
+        playerChallenge = updated;
+      }
+
+      // If newly completed, award coins
+      let coinsAwarded = 0;
+      if (playerChallenge.is_completed && !playerChallenge.completed_at) {
+        coinsAwarded = challengeDef.reward_coins;
+        await this.awardCoins(playerId, coinsAwarded);
+      }
+
+      return {
+        completed: playerChallenge.is_completed,
+        coinsAwarded,
+      };
+    } catch (error) {
+      console.error(`[CardClash] Failed to update daily challenge ${challengeKey}:`, error);
+      return { completed: false, coinsAwarded: 0 };
+    }
+  },
+
+  /**
+   * Update progress on a weekly challenge
+   */
+  async updateWeeklyProgress(
+    playerId: number,
+    challengeKey: string,
+    incrementBy: number = 1
+  ): Promise<{ completed: boolean; coinsAwarded: number }> {
+    try {
+      const today = new Date();
+      const day = today.getDay();
+      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(today.setDate(diff));
+      monday.setHours(0, 0, 0, 0);
+
+      const nextMonday = new Date(monday);
+      nextMonday.setDate(nextMonday.getDate() + 7);
+
+      // Get challenge definition
+      const challengeDef = await db.query.weeklyChallenges.findFirst({
+        where: eq(weeklyChallenges.challenge_key, challengeKey),
+      });
+
+      if (!challengeDef) {
+        throw new Error(`Weekly challenge not found: ${challengeKey}`);
+      }
+
+      // Get player's progress
+      let playerChallenge = await db.query.playerWeeklyChallenges.findFirst({
+        where: and(
+          eq(playerWeeklyChallenges.player_id, playerId),
+          eq(playerWeeklyChallenges.challenge_key, challengeKey),
+          gte(playerWeeklyChallenges.week_of, monday),
+          lte(playerWeeklyChallenges.week_of, nextMonday)
+        ),
+      });
+
+      if (!playerChallenge) {
+        // Create if missing
+        const [created] = await db
+          .insert(playerWeeklyChallenges)
+          .values({
+            player_id: playerId,
+            challenge_id: challengeDef.id,
+            challenge_key: challengeKey,
+            progress: incrementBy,
+            is_completed: incrementBy >= challengeDef.requirement_value,
+            completed_at:
+              incrementBy >= challengeDef.requirement_value ? new Date() : null,
+            week_of: new Date(monday),
+          })
+          .returning();
+
+        playerChallenge = created;
+      } else {
+        // Update progress
+        const newProgress = (playerChallenge.progress || 0) + incrementBy;
+        const isCompleted = newProgress >= challengeDef.requirement_value;
+
+        const [updated] = await db
+          .update(playerWeeklyChallenges)
+          .set({
+            progress: newProgress,
+            is_completed: isCompleted,
+            completed_at: isCompleted && !playerChallenge.is_completed ? new Date() : playerChallenge.completed_at,
+            updated_at: new Date(),
+          })
+          .where(eq(playerWeeklyChallenges.id, playerChallenge.id))
+          .returning();
+
+        playerChallenge = updated;
+      }
+
+      // If newly completed, award coins
+      let coinsAwarded = 0;
+      if (playerChallenge.is_completed && !playerChallenge.completed_at) {
+        coinsAwarded = challengeDef.reward_coins;
+        await this.awardCoins(playerId, coinsAwarded);
+      }
+
+      return {
+        completed: playerChallenge.is_completed,
+        coinsAwarded,
+      };
+    } catch (error) {
+      console.error(`[CardClash] Failed to update weekly challenge ${challengeKey}:`, error);
+      return { completed: false, coinsAwarded: 0 };
+    }
+  },
+
+  /**
+   * Award coins to player (fire-and-forget)
+   */
+  async awardCoins(playerId: number, amount: number): Promise<void> {
+    try {
+      const currency = await db.query.playerCurrency.findFirst({
+        where: eq(playerCurrency.playerId, playerId),
+      });
+
+      if (!currency) {
+        await db.insert(playerCurrency).values({
+          playerId,
+          cardPoints: amount,
+        });
+      } else {
+        await db
+          .update(playerCurrency)
+          .set({
+            cardPoints: (currency.cardPoints || 0) + amount,
+            updatedAt: new Date(),
+          })
+          .where(eq(playerCurrency.playerId, playerId));
+      }
+    } catch (error) {
+      console.error(`[CardClash] Failed to award ${amount} coins to player ${playerId}:`, error);
+    }
+  },
+
+  /**
+   * Seed default challenges (call once on setup)
+   */
+  async seedDefaultChallenges(): Promise<void> {
+    try {
+      // Daily challenges
+      const defaultDailyTasks = [
+        {
+          challenge_key: "x01_wins_2",
+          title: "X01 Master",
+          description: "Win 2 X01 matches",
+          requirement_type: "x01_wins",
+          requirement_value: 2,
+          reward_coins: 15,
+          reward_pack_tokens: 0,
+        },
+        {
+          challenge_key: "cricket_wins_2",
+          title: "Cricket Champion",
+          description: "Win 2 Cricket matches",
+          requirement_type: "cricket_wins",
+          requirement_value: 2,
+          reward_coins: 15,
+          reward_pack_tokens: 0,
+        },
+        {
+          challenge_key: "matches_3",
+          title: "Play 3 Matches",
+          description: "Play any 3 matches",
+          requirement_type: "total_matches",
+          requirement_value: 3,
+          reward_coins: 15,
+          reward_pack_tokens: 0,
+        },
+      ];
+
+      for (const task of defaultDailyTasks) {
+        const existing = await db.query.dailyChallenges.findFirst({
+          where: eq(dailyChallenges.challenge_key, task.challenge_key),
+        });
+
+        if (!existing) {
+          await db.insert(dailyChallenges).values(task);
+        }
+      }
+
+      // Weekly challenges
+      const defaultWeeklyTasks = [
+        {
+          challenge_key: "weekly_wins_5",
+          title: "Champion Week",
+          description: "Win 5 matches this week",
+          requirement_type: "total_wins",
+          requirement_value: 5,
+          reward_coins: 50,
+          reward_pack_tokens: 0,
+        },
+        {
+          challenge_key: "weekly_card_clash_3",
+          title: "Card Clash Dominator",
+          description: "Win 3 Card Clash matches",
+          requirement_type: "card_clash_wins",
+          requirement_value: 3,
+          reward_coins: 50,
+          reward_pack_tokens: 1, // 1 pack token reward
+        },
+      ];
+
+      for (const task of defaultWeeklyTasks) {
+        const existing = await db.query.weeklyChallenges.findFirst({
+          where: eq(weeklyChallenges.challenge_key, task.challenge_key),
+        });
+
+        if (!existing) {
+          await db.insert(weeklyChallenges).values(task);
+        }
+      }
+
+      console.log("[CardClash] Default challenges seeded");
+    } catch (error) {
+      console.error("[CardClash] Failed to seed default challenges:", error);
+    }
+  },
+};

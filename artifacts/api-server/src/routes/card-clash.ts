@@ -326,4 +326,83 @@ router.post("/admin/login/reset/:playerId", verifyAdminPin, async (req: Request,
   }
 });
 
+// === CHALLENGE ROUTES ===
+
+router.get("/challenges/daily/:playerId", async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.playerId);
+    const { challengeService } = await import("../services/challenge-service");
+    const challenges = await challengeService.getDailyChallengesForPlayer(playerId);
+
+    res.json({ challenges, period: "daily" });
+  } catch (error) {
+    logger.error("Get daily challenges error:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+router.get("/challenges/weekly/:playerId", async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.playerId);
+    const { challengeService } = await import("../services/challenge-service");
+    const challenges = await challengeService.getWeeklyChallengesForPlayer(playerId);
+
+    res.json({ challenges, period: "weekly" });
+  } catch (error) {
+    logger.error("Get weekly challenges error:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+router.post("/challenges/update-daily", async (req: Request, res: Response) => {
+  try {
+    const { playerId, challengeKey, incrementBy = 1 } = req.body;
+    if (!playerId || !challengeKey) {
+      return res.status(400).json({ error: "playerId and challengeKey required" });
+    }
+
+    const { challengeService } = await import("../services/challenge-service");
+    const result = await challengeService.updateDailyProgress(playerId, challengeKey, incrementBy);
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    logger.error("Update daily challenge error:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+router.post("/challenges/update-weekly", async (req: Request, res: Response) => {
+  try {
+    const { playerId, challengeKey, incrementBy = 1 } = req.body;
+    if (!playerId || !challengeKey) {
+      return res.status(400).json({ error: "playerId and challengeKey required" });
+    }
+
+    const { challengeService } = await import("../services/challenge-service");
+    const result = await challengeService.updateWeeklyProgress(playerId, challengeKey, incrementBy);
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    logger.error("Update weekly challenge error:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+router.post("/admin/challenges/seed", verifyAdminPin, async (req: Request, res: Response) => {
+  try {
+    const { challengeService } = await import("../services/challenge-service");
+    await challengeService.seedDefaultChallenges();
+
+    res.json({ success: true, message: "Default challenges seeded" });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
 export default router;
