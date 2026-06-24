@@ -24,15 +24,16 @@ export default function AdminFeatureFlagsPanel() {
   const [messageType, setMessageType] = useState<"success" | "error">("success");
 
   const colors = {
-    bg: "#ffffff",
-    bgSecondary: "#f5f5f5",
-    text: "#1a1a1a",
-    textSecondary: "#555555",
-    border: "#d0d0d0",
+    bg: "#1a1a1a",
+    bgSecondary: "#2a2a2a",
+    bgTertiary: "#333333",
+    text: "#ffffff",
+    textSecondary: "#cccccc",
+    border: "#404040",
     success: "#10b981",
     danger: "#ef4444",
-    successBg: "#ecfdf5",
-    dangerBg: "#fef2f2",
+    successBg: "rgba(16,185,129,0.1)",
+    dangerBg: "rgba(239,68,68,0.1)",
   };
 
   useEffect(() => {

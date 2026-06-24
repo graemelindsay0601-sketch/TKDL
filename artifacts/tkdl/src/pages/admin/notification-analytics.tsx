@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { BarChart3, TrendingUp } from "lucide-react";
+import { BarChart3, TrendingUp, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface NotificationStats {
@@ -18,6 +18,7 @@ interface NotificationStats {
 export function NotificationAnalytics() {
   const [stats, setStats] = useState<NotificationStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -46,14 +47,39 @@ export function NotificationAnalytics() {
       color: "#fff",
     }}>
       {/* Header */}
-      <div style={{ marginBottom: "20px", display: "flex", alignItems: "center", gap: "10px" }}>
-        <BarChart3 size={18} style={{ color: "#4d94ff" }} />
-        <h3 style={{ fontSize: "16px", fontWeight: "bold", margin: 0 }}>
-          📊 Notification Analytics (Last 30 Days)
-        </h3>
-      </div>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          width: "100%",
+          textAlign: "left",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: expanded ? "20px" : 0,
+          padding: 0,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <BarChart3 size={18} style={{ color: "#4d94ff" }} />
+          <h3 style={{ fontSize: "16px", fontWeight: "bold", margin: 0 }}>
+            📊 Notification Analytics (Last 30 Days)
+          </h3>
+        </div>
+        <ChevronDown
+          size={20}
+          style={{
+            transform: expanded ? "rotate(0deg)" : "rotate(-90deg)",
+            transition: "transform 0.2s",
+            flexShrink: 0,
+          }}
+        />
+      </button>
 
       {/* Stats Grid */}
+      {expanded && (
       {loading ? (
         <div style={{ textAlign: "center", padding: "20px", color: "rgba(255,255,255,0.4)" }}>
           Loading analytics...
@@ -164,8 +190,10 @@ export function NotificationAnalytics() {
           No data available
         </div>
       )}
+      )}
 
       {/* Refresh Button */}
+      {expanded && (
       <button
         onClick={fetchAnalytics}
         style={{
@@ -178,6 +206,7 @@ export function NotificationAnalytics() {
           fontSize: "12px",
           fontWeight: "bold",
           cursor: "pointer",
+          marginBottom: "15px",
         }}
       >
         🔄 Refresh
@@ -185,7 +214,6 @@ export function NotificationAnalytics() {
 
       {/* Info */}
       <div style={{
-        marginTop: "15px",
         padding: "10px",
         background: "rgba(74,158,255,0.05)",
         border: "1px solid rgba(74,158,255,0.2)",
@@ -196,6 +224,7 @@ export function NotificationAnalytics() {
         💡 Open Rate shows what % of sent notifications were opened. Click Rate shows what % led to engagement.
         Higher rates = more effective notifications.
       </div>
+      )}
     </div>
   );
 }
