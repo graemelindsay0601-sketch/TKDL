@@ -285,9 +285,28 @@ router.post("/matches", async (req, res): Promise<void> => {
         const lossCoins = 10; // League loss bonus
         await addCoinsToPlayer(winnerId, winCoins);
         await addCoinsToPlayer(loserId, lossCoins);
+
+        // Update challenge progress (fire and forget)
+        const { challengeService } = await import("../services/challenge-service");
+        
+        // Update daily & weekly for winner
+        await challengeService.updateDailyProgress(winnerId, "matches_3", 1);
+        await challengeService.updateDailyProgress(winnerId, "x01_wins_2", gameType === "501" ? 1 : 0);
+        await challengeService.updateDailyProgress(winnerId, "cricket_wins_2", gameType === "Cricket" ? 1 : 0);
+        
+        await challengeService.updateWeeklyProgress(winnerId, "weekly_wins_5", 1);
+        await challengeService.updateWeeklyProgress(winnerId, "weekly_card_clash_3", 0); // Only for card clash matches
+        
+        // Update daily & weekly for loser
+        await challengeService.updateDailyProgress(loserId, "matches_3", 1);
+        await challengeService.updateDailyProgress(loserId, "x01_wins_2", 0);
+        await challengeService.updateDailyProgress(loserId, "cricket_wins_2", 0);
+        
+        await challengeService.updateWeeklyProgress(loserId, "weekly_wins_5", 0);
+        await challengeService.updateWeeklyProgress(loserId, "weekly_card_clash_3", 0);
       } catch (coinErr) {
         // Log coin errors but don't fail the match
-        console.error("Card Clash coin awarding error:", coinErr);
+        console.error("Card Clash coin/challenge awarding error:", coinErr);
       }
     } catch (err) {
       // Log notification errors but don't fail the match submission

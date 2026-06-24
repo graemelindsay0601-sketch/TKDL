@@ -135,6 +135,30 @@ export async function finishCardClashMatch(
   await addCoinsToPlayer(winnerId, winnerCoins);
   await addCoinsToPlayer(loser, loserCoins);
 
+  // Update challenge progress (fire and forget)
+  try {
+    const { challengeService } = await import("../services/challenge-service");
+    
+    // Update daily challenges
+    await challengeService.updateDailyProgress(winnerId, "matches_3", 1);
+    await challengeService.updateDailyProgress(winnerId, "x01_wins_2", 0);
+    await challengeService.updateDailyProgress(winnerId, "cricket_wins_2", 0);
+    
+    await challengeService.updateDailyProgress(loser, "matches_3", 1);
+    await challengeService.updateDailyProgress(loser, "x01_wins_2", 0);
+    await challengeService.updateDailyProgress(loser, "cricket_wins_2", 0);
+    
+    // Update weekly challenges
+    await challengeService.updateWeeklyProgress(winnerId, "weekly_wins_5", 1);
+    await challengeService.updateWeeklyProgress(winnerId, "weekly_card_clash_3", 1);
+    
+    await challengeService.updateWeeklyProgress(loser, "weekly_wins_5", 0);
+    await challengeService.updateWeeklyProgress(loser, "weekly_card_clash_3", 0);
+  } catch (err) {
+    console.error("Card Clash challenge update error:", err);
+    // Don't fail the match if challenges fail
+  }
+
   // Consume cards (remove from inventory)
   for (const card of cardsUsed) {
     try {

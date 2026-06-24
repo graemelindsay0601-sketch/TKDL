@@ -100,14 +100,24 @@ router.post("/practice/sessions", async (req, res): Promise<void> => {
       try {
         const { addCoinsToPlayer } = await import("../services/card-shop-service");
         // Award 10 coins per practice win
+        let winnerId: number | null = null;
         if (body.winnerIdx === 0 && body.player1Id) {
           await addCoinsToPlayer(body.player1Id, 10);
+          winnerId = body.player1Id;
         } else if (body.winnerIdx === 1 && body.player2Id) {
           await addCoinsToPlayer(body.player2Id, 10);
+          winnerId = body.player2Id;
+        }
+
+        // Update challenge progress for winner
+        if (winnerId) {
+          const { challengeService } = await import("../services/challenge-service");
+          await challengeService.updateDailyProgress(winnerId, "matches_3", 1);
+          await challengeService.updateWeeklyProgress(winnerId, "weekly_wins_5", 1);
         }
       } catch (err) {
         // Silently fail - don't disrupt practice session
-        console.error("Practice coin award error:", err);
+        console.error("Practice coin/challenge award error:", err);
       }
     })();
   } catch (err) {
