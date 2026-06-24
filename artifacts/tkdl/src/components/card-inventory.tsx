@@ -151,7 +151,20 @@ export default function CardInventory({ playerId }: CardInventoryProps) {
         <div style={{ textAlign: "center", padding: "2rem", color: "var(--color-text-secondary)" }}>
           <p>No cards matching your search</p>
         </div>
+      ) : viewMode === "grid" ? (
+        // GRID VIEW: Show cards with images
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "12px", padding: "8px" }}>
+          {filteredCards.map((card) => {
+            const cardNum = parseInt(card.cardId) || 0;
+            return (
+              <div key={card.cardId} style={{ cursor: "pointer" }} onClick={() => setExpandedCard(expandedCard === card.cardId ? null : card.cardId)}>
+                <CardDisplay cardId={cardNum} cardName={card.cardName} size="medium" />
+              </div>
+            );
+          })}
+        </div>
       ) : (
+        // LIST VIEW: Show cards in list format
         <div style={{ display: "grid", gap: "8px" }}>
           {filteredCards.map((card) => (
             <CardRow

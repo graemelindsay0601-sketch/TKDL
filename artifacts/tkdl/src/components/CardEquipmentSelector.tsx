@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { AlertCircle, CheckCircle, Sparkles } from "lucide-react";
+import { CardDisplay } from "./CardDisplay";
 
 interface Card {
   id: string;
@@ -174,15 +175,16 @@ export function CardEquipmentSelector({
                 No good cards available for {gameMode}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {goodCardsAvailable.map((card) => {
                   const isSelected = selectedGood.find((c) => c.id === card.id);
+                  const cardNum = parseInt(card.id) || 0;
                   return (
                     <button
                       key={card.id}
                       onClick={() => toggleGoodCard(card)}
                       disabled={selectedGood.length === 2 && !isSelected}
-                      className={`p-3 rounded-lg border-2 text-left transition-all ${
+                      className={`rounded-lg border-2 p-3 transition-all overflow-hidden ${
                         isSelected
                           ? "border-green-500 bg-green-500/10"
                           : selectedGood.length === 2
@@ -190,16 +192,26 @@ export function CardEquipmentSelector({
                             : "border-gray-600 bg-gray-800/50 hover:border-green-500/50 hover:bg-gray-700/50"
                       }`}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-semibold text-white text-sm">{card.name}</p>
-                          <p className={`text-xs mt-1 ${RarityColor[card.rarity]}`}>
-                            {card.rarity} • Qty: {card.quantity}
-                          </p>
+                      <div className="flex gap-3">
+                        {/* Card Image */}
+                        <div style={{ flexShrink: 0 }}>
+                          <CardDisplay cardId={cardNum} size="small" />
                         </div>
-                        {isSelected && <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 ml-2" />}
+                        
+                        {/* Card Info */}
+                        <div className="flex-1 text-left">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-semibold text-white text-sm">{card.name}</p>
+                              <p className={`text-xs mt-1 ${RarityColor[card.rarity]}`}>
+                                {card.rarity} • Qty: {card.quantity}
+                              </p>
+                            </div>
+                            {isSelected && <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 ml-2 mt-1" />}
+                          </div>
+                          <p className="text-xs text-gray-300 mt-2 line-clamp-2">{card.effect}</p>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-300 mt-2 line-clamp-2">{card.effect}</p>
                     </button>
                   );
                 })}
@@ -221,15 +233,16 @@ export function CardEquipmentSelector({
                 No bad cards available for {gameMode}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {badCardsAvailable.map((card) => {
                   const isSelected = selectedBad.find((c) => c.id === card.id);
+                  const cardNum = parseInt(card.id) || 0;
                   return (
                     <button
                       key={card.id}
                       onClick={() => toggleBadCard(card)}
                       disabled={selectedBad.length === 2 && !isSelected}
-                      className={`p-3 rounded-lg border-2 text-left transition-all ${
+                      className={`rounded-lg border-2 p-3 transition-all overflow-hidden ${
                         isSelected
                           ? "border-red-500 bg-red-500/10"
                           : selectedBad.length === 2
@@ -237,16 +250,26 @@ export function CardEquipmentSelector({
                             : "border-gray-600 bg-gray-800/50 hover:border-red-500/50 hover:bg-gray-700/50"
                       }`}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-semibold text-white text-sm">{card.name}</p>
-                          <p className={`text-xs mt-1 ${RarityColor[card.rarity]}`}>
-                            {card.rarity} • Qty: {card.quantity}
-                          </p>
+                      <div className="flex gap-3">
+                        {/* Card Image */}
+                        <div style={{ flexShrink: 0 }}>
+                          <CardDisplay cardId={cardNum} size="small" />
                         </div>
-                        {isSelected && <CheckCircle className="w-4 h-4 text-red-400 flex-shrink-0 ml-2" />}
+                        
+                        {/* Card Info */}
+                        <div className="flex-1 text-left">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-semibold text-white text-sm">{card.name}</p>
+                              <p className={`text-xs mt-1 ${RarityColor[card.rarity]}`}>
+                                {card.rarity} • Qty: {card.quantity}
+                              </p>
+                            </div>
+                            {isSelected && <CheckCircle className="w-4 h-4 text-red-400 flex-shrink-0 ml-2 mt-1" />}
+                          </div>
+                          <p className="text-xs text-gray-300 mt-2 line-clamp-2">{card.effect}</p>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-300 mt-2 line-clamp-2">{card.effect}</p>
                     </button>
                   );
                 })}
