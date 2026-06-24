@@ -49,6 +49,25 @@ function MiniStat({ label, value, accent }: { label: string; value: string | num
   );
 }
 
+function CoinDisplay({ playerId }: { playerId: number }) {
+  const [coins, setCoins] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/card-clash/shop/currency/${playerId}`)
+      .then(r => r.json())
+      .then(data => setCoins(data.cardPoints ?? 0))
+      .catch(() => setCoins(0));
+  }, [playerId]);
+
+  if (coins === null) return null;
+  return (
+    <>
+      <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
+      <MiniStat label="Coins" value={coins} accent="#ffd24a" />
+    </>
+  );
+}
+
 function SectionHeader({
   icon, label, accent, href, linkLabel = "View All →",
 }: {
@@ -608,6 +627,7 @@ export default function Dashboard() {
                   <MiniStat label="ELO" value={leader.elo ?? 0} accent="#0066ff" />
                   <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
                   <MiniStat label="W–L" value={`${leader.wins}–${leader.losses}`} />
+                  <CoinDisplay playerId={leader.id} />
                   {second && (
                     <>
                       <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />

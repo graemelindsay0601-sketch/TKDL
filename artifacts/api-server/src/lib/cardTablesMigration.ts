@@ -11,6 +11,17 @@ export async function initializeCardTables() {
   try {
     logger.info("Initializing card tables...");
 
+    // FIX existing player_currency table if it has wrong columns
+    try {
+      await db.execute(sql`
+        ALTER TABLE player_currency 
+        RENAME COLUMN coin_balance TO card_points
+      `);
+      logger.info("Fixed player_currency: renamed coin_balance → card_points");
+    } catch (e) {
+      // Column might already be named correctly, ignore
+    }
+
     // Create feature_flags table if it doesn't exist
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS feature_flags (
