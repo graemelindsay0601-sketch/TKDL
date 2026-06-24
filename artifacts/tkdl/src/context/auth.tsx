@@ -27,7 +27,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch("/api/auth/me", { credentials: "include" });
       if (res.ok) {
-        setUser(await res.json());
+        const userData = await res.json();
+        setUser(userData);
+        
+        // Trigger daily login bonus (fire and forget)
+        if (userData.playerId) {
+          fetch("/api/card-clash/login/daily", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ playerId: userData.playerId }),
+          }).catch(() => {
+            // Silently fail - login bonus is non-critical
+          });
+        }
       } else {
         setUser(null);
       }
