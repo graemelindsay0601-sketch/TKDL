@@ -9,6 +9,7 @@ import {
 import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
 import { ChallengesBar } from "@/components/ChallengesBar";
+import { CardInventoryDashboard } from "@/components/CardInventoryDashboard";
 import { Link } from "wouter";
 import {
   Trophy, Swords, Flame, Skull, Zap, Target, AlertTriangle,
@@ -543,6 +544,9 @@ export default function Dashboard() {
 
       {/* ── CHALLENGES BAR ── */}
       {summary && summary.playerId && <ChallengesBar playerId={summary.playerId} />}
+
+      {/* ── CARD INVENTORY ── */}
+      {summary && summary.playerId && <CardInventoryDashboard playerId={summary.playerId} />}
 
       {/* ── CINEMATIC HERO ── */}
       <div className="relative overflow-hidden fade-in-up" style={{
