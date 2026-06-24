@@ -72,7 +72,7 @@ export async function initializeCardTables() {
       CREATE TABLE IF NOT EXISTS player_currency (
         id SERIAL PRIMARY KEY,
         player_id INTEGER UNIQUE NOT NULL REFERENCES players(id) ON DELETE CASCADE,
-        coin_balance INTEGER NOT NULL DEFAULT 0,
+        card_points INTEGER NOT NULL DEFAULT 0,
         lifetime_coins_earned INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -83,10 +83,12 @@ export async function initializeCardTables() {
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS card_clash_seasons (
         id SERIAL PRIMARY KEY,
-        season_number INTEGER NOT NULL UNIQUE,
-        start_date TIMESTAMP WITH TIME ZONE NOT NULL,
-        end_date TIMESTAMP WITH TIME ZONE,
+        name TEXT NOT NULL,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
         is_active BOOLEAN NOT NULL DEFAULT true,
+        is_locked BOOLEAN NOT NULL DEFAULT false,
+        total_matches INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
@@ -128,8 +130,10 @@ export async function initializeCardTables() {
         id SERIAL PRIMARY KEY,
         season_id INTEGER NOT NULL REFERENCES card_clash_seasons(id) ON DELETE CASCADE,
         player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+        card_points INTEGER NOT NULL DEFAULT 0,
         wins INTEGER NOT NULL DEFAULT 0,
         losses INTEGER NOT NULL DEFAULT 0,
+        cards_owned_count INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(season_id, player_id)
@@ -166,7 +170,7 @@ export async function ensurePlayerCurrency(playerId: number) {
     if (existing.rows.length === 0) {
       // Create new currency record with 0 starting coins
       await db.execute(sql`
-        INSERT INTO player_currency (player_id, coin_balance, lifetime_coins_earned) 
+        INSERT INTO player_currency (player_id, card_points, lifetime_coins_earned) 
         VALUES (${playerId}, 0, 0)
         ON CONFLICT (player_id) DO NOTHING
       `);
