@@ -105,7 +105,7 @@ export async function recordCardUsedInMatch(
 export async function finishCardClashMatch(
   matchId: number,
   winnerId: number,
-  cardsUsedInMatch?: Array<{ cardId: string; usedBy: number }>,
+  cardsUsedInMatch?: string[] | Array<{ cardId: string; usedBy: number }>,
   player1PointsEarned: number = 0,
   player2PointsEarned: number = 0
 ) {
@@ -119,8 +119,26 @@ export async function finishCardClashMatch(
 
   const loser = match[0].player1Id === winnerId ? match[0].player2Id : match[0].player1Id;
   
-  // Count cards used
-  const cardsUsed = cardsUsedInMatch || [];
+  // Parse cards - handle both string format ("cardId:pPlayerId") and object format
+  let parsedCards: Array<{ cardId: string; usedBy: number }> = [];
+  
+  if (cardsUsedInMatch && Array.isArray(cardsUsedInMatch)) {
+    if (cardsUsedInMatch.length > 0) {
+      if (typeof cardsUsedInMatch[0] === "string") {
+        // Parse string format: "cardId:pPlayerId"
+        parsedCards = cardsUsedInMatch.map((card: any) => {
+          const [cardId, playerStr] = card.split(":");
+          const playerId = parseInt(playerStr.replace("p", ""));
+          return { cardId, usedBy: playerId };
+        });
+      } else {
+        // Already in object format
+        parsedCards = cardsUsedInMatch as Array<{ cardId: string; usedBy: number }>;
+      }
+    }
+  }
+  
+  const cardsUsed = parsedCards;
   const winnerCardsUsed = cardsUsed.filter(c => c.usedBy === winnerId).length;
   const loserCardsUsed = cardsUsed.filter(c => c.usedBy === loser).length;
 
