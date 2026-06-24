@@ -166,7 +166,7 @@ export default function AdminCardClashPanel() {
 
       if (res.ok) {
         const data = await res.json();
-        showMessage(`✅ Gave ${coinAmount} coins to ${getSelectedPlayerName()} (Balance: ${data.coinBalance})`, "success");
+        showMessage(`✅ Gave ${coinAmount} coins to ${getSelectedPlayerName()} (Balance: ${data.cardPoints})`, "success");
         setCoinAmount("50");
       } else {
         showMessage("Failed to give coins", "error");
@@ -191,7 +191,7 @@ export default function AdminCardClashPanel() {
 
       if (res.ok) {
         const data = await res.json();
-        showMessage(`✅ Removed ${coinAmount} coins from ${getSelectedPlayerName()} (Balance: ${data.coinBalance})`, "success");
+        showMessage(`✅ Removed ${coinAmount} coins from ${getSelectedPlayerName()} (Balance: ${data.cardPoints})`, "success");
         setCoinAmount("50");
       } else {
         showMessage("Failed to remove coins", "error");
