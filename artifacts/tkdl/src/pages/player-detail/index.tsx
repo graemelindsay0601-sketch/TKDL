@@ -86,6 +86,7 @@ export default function PlayerDetail() {
   };
 
   const [dartProfile, setDartProfile] = useState<any>(null);
+  const [playerCurrency, setPlayerCurrency] = useState<any>(null);
   useEffect(() => {
     if (!playerId) return;
     Promise.all([
@@ -96,7 +97,8 @@ export default function PlayerDetail() {
       fetch(`/api/tour/trophies/${playerId}`).then(r => r.json()),
       fetch(`/api/players/${playerId}/shadow-achievements`).then(r => r.json()),
       fetch(`/api/tour/achievements/${playerId}`).then(r => r.json()),
-    ]).then(([practiceStats, sessions, dartProf, gScore, trophies, shadowA, tourA]) => {
+      fetch(`/api/card-clash/shop/currency/${playerId}`).then(r => r.json()).catch(() => null),
+    ]).then(([practiceStats, sessions, dartProf, gScore, trophies, shadowA, tourA, currency]) => {
       setPracticeAgg(practiceStats);
       setPracticeSessions(Array.isArray(sessions) ? sessions : []);
       setDartProfile(dartProf);
@@ -104,6 +106,7 @@ export default function PlayerDetail() {
       setTourTrophies(Array.isArray(trophies) ? trophies : []);
       setShadowAchs(Array.isArray(shadowA) ? shadowA : []);
       setTourAchs(Array.isArray(tourA) ? tourA : []);
+      setPlayerCurrency(currency);
     }).catch(() => {});
   }, [playerId]);
 
@@ -300,6 +303,14 @@ export default function PlayerDetail() {
               <div className="hidden sm:flex">
                 <BigStat value={gamerscore?.total ?? 0} label="Gamerscore" color="#ffd24a" suffix="G" />
               </div>
+              {playerCurrency && (
+                <>
+                  <div className="w-px h-12 rounded-full hidden sm:block" style={{ background: "rgba(255,255,255,0.08)" }} />
+                  <div className="hidden sm:flex">
+                    <BigStat value={playerCurrency.cardPoints ?? 0} label="Clash Coins" color="#00d9ff" suffix="₡" />
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

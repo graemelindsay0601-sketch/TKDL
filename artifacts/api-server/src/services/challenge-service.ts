@@ -361,34 +361,87 @@ export const challengeService = {
    */
   async seedDefaultChallenges(): Promise<void> {
     try {
-      // Daily challenges
+      // Daily challenges - one for each game mode
       const defaultDailyTasks = [
+        // Practice
+        {
+          challenge_key: "practice_wins_2",
+          title: "Practice Perfect",
+          description: "Win 2 Practice matches",
+          requirement_type: "practice_wins",
+          requirement_value: 2,
+          reward_coins: 15,
+          is_active: true,
+        },
+        // M-501
+        {
+          challenge_key: "master501_wins_2",
+          title: "501 Master",
+          description: "Win 2 M-501 matches",
+          requirement_type: "master501_wins",
+          requirement_value: 2,
+          reward_coins: 15,
+          is_active: true,
+        },
+        // Tour
+        {
+          challenge_key: "tour_wins_2",
+          title: "Tour Champion",
+          description: "Complete 2 Tour rounds",
+          requirement_type: "tour_wins",
+          requirement_value: 2,
+          reward_coins: 15,
+          is_active: true,
+        },
+        // League
+        {
+          challenge_key: "league_wins_3",
+          title: "League Legend",
+          description: "Win 3 League matches",
+          requirement_type: "league_wins",
+          requirement_value: 3,
+          reward_coins: 20,
+          is_active: true,
+        },
+        // X01
         {
           challenge_key: "x01_wins_2",
-          title: "X01 Master",
+          title: "X01 Dominator",
           description: "Win 2 X01 matches",
           requirement_type: "x01_wins",
           requirement_value: 2,
           reward_coins: 15,
-          reward_pack_tokens: 0,
+          is_active: true,
         },
+        // Cricket
         {
           challenge_key: "cricket_wins_2",
-          title: "Cricket Champion",
+          title: "Cricket Master",
           description: "Win 2 Cricket matches",
           requirement_type: "cricket_wins",
           requirement_value: 2,
           reward_coins: 15,
-          reward_pack_tokens: 0,
+          is_active: true,
         },
+        // Card Clash
         {
-          challenge_key: "matches_3",
-          title: "Play 3 Matches",
-          description: "Play any 3 matches",
+          challenge_key: "card_clash_wins_2",
+          title: "Card Clash Winner",
+          description: "Win 2 Card Clash matches",
+          requirement_type: "card_clash_wins",
+          requirement_value: 2,
+          reward_coins: 20,
+          is_active: true,
+        },
+        // General
+        {
+          challenge_key: "matches_5",
+          title: "Match Grinder",
+          description: "Play any 5 matches",
           requirement_type: "total_matches",
-          requirement_value: 3,
-          reward_coins: 15,
-          reward_pack_tokens: 0,
+          requirement_value: 5,
+          reward_coins: 25,
+          is_active: true,
         },
       ];
 
@@ -410,17 +463,53 @@ export const challengeService = {
           description: "Win 5 matches this week",
           requirement_type: "total_wins",
           requirement_value: 5,
+          reward_coins: 75,
+          is_active: true,
+        },
+        {
+          challenge_key: "weekly_practice_3",
+          title: "Practice Warrior",
+          description: "Win 3 Practice matches this week",
+          requirement_type: "practice_wins",
+          requirement_value: 3,
           reward_coins: 50,
-          reward_pack_tokens: 0,
+          is_active: true,
+        },
+        {
+          challenge_key: "weekly_501_3",
+          title: "501 Specialist",
+          description: "Win 3 M-501 matches this week",
+          requirement_type: "master501_wins",
+          requirement_value: 3,
+          reward_coins: 50,
+          is_active: true,
+        },
+        {
+          challenge_key: "weekly_tour_2",
+          title: "Tour Conqueror",
+          description: "Win 2 Tour rounds this week",
+          requirement_type: "tour_wins",
+          requirement_value: 2,
+          reward_coins: 60,
+          is_active: true,
+        },
+        {
+          challenge_key: "weekly_league_3",
+          title: "League Dominator",
+          description: "Win 3 League matches this week",
+          requirement_type: "league_wins",
+          requirement_value: 3,
+          reward_coins: 75,
+          is_active: true,
         },
         {
           challenge_key: "weekly_card_clash_3",
           title: "Card Clash Dominator",
-          description: "Win 3 Card Clash matches",
+          description: "Win 3 Card Clash matches this week",
           requirement_type: "card_clash_wins",
           requirement_value: 3,
-          reward_coins: 50,
-          reward_pack_tokens: 1, // 1 pack token reward
+          reward_coins: 100,
+          is_active: true,
         },
       ];
 
@@ -434,7 +523,7 @@ export const challengeService = {
         }
       }
 
-      console.log("[CardClash] Default challenges seeded");
+      console.log("[CardClash] Default challenges seeded (8 daily + 6 weekly)");
     } catch (error) {
       console.error("[CardClash] Failed to seed default challenges:", error);
     }
