@@ -262,6 +262,7 @@ export function AnnouncementsManager() {
             Announcement will be sent to all active players. Critical announcements bypass quiet hours (11pm-8am) and daily notification limits.
           </div>
         </div>
+      </div>
       )}
     </div>
   );
