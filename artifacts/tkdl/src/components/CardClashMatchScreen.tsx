@@ -74,9 +74,11 @@ export function CardClashMatchScreen({
     newCards[cardIndex] = { ...card, used: true, quantity: card.quantity - 1 };
     setCards(newCards);
 
+    // Track card usage with player info for backend
+    newState.appliedCards.push(`${card.id}:p${gameState.currentTurn === 0 ? player1Id : player2Id}`);
+
     // Switch turn
     newState.currentTurn = newState.currentTurn === 0 ? 1 : 0;
-    newState.appliedCards.push(card.id);
 
     // Check win condition
     if (gameMode === "X01" && newState.player1Score === 0) {
@@ -108,14 +110,20 @@ export function CardClashMatchScreen({
         body: JSON.stringify({
           matchId,
           winnerId: gameState.winner,
-          cardsUsedInMatch: gameState.appliedCards,
+          cardsUsedInMatch: gameState.appliedCards, // Send card IDs
+          finalScores: {
+            player1: gameState.player1Score,
+            player2: gameState.player2Score,
+          },
         }),
       });
 
       if (res.ok) {
         const result = await res.json();
-        setMessage(`Match finished! ${result.message}`);
-        setTimeout(() => onBack(), 2000);
+        setMessage(
+          `Match finished! Winner earned ${result.winnerCoinsAwarded} coins and ${result.winnerPointsAwarded} points!`
+        );
+        setTimeout(() => onBack(), 3000);
       } else {
         setMessage("Failed to finish match");
       }
