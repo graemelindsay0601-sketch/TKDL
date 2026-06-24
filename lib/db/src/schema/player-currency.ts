@@ -6,8 +6,7 @@ import { playersTable } from "./players";
 export const playerCurrencyTable = pgTable("player_currency", {
   id: serial("id").primaryKey(),
   playerId: integer("player_id").notNull().unique().references(() => playersTable.id),
-  coinBalance: integer("coin_balance").notNull().default(0),
-  cardPoints: integer("card_points").notNull().default(0), // Card Clash coins (separate system)
+  cardPoints: integer("card_points").notNull().default(0), // Card Clash coins (currency for shop)
   packTokens: integer("pack_tokens").notNull().default(0), // Earned pack tokens from challenges/quests
   lifetimeCoinsEarned: integer("lifetime_coins_earned").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

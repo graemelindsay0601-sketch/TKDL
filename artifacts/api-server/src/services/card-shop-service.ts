@@ -217,7 +217,8 @@ export async function getPlayerCurrency(playerId: number) {
   return currency[0] || { 
     id: undefined,
     playerId,
-    coinBalance: 0, 
+    cardPoints: 0, 
+    packTokens: 0,
     lifetimeCoinsEarned: 0,
     createdAt: new Date(),
     updatedAt: new Date(),

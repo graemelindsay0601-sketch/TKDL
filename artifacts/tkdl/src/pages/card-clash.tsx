@@ -1,11 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Banknote, Gamepad2, TrendingUp } from "lucide-react";
 import { useFeatureFlags, FeatureGate } from "@/lib/useFeatureFlags";
-
-interface CardClashPageProps {
-  playerId: number;
-  playerName: string;
-}
+import { useCurrentPlayer } from "@/context/auth";
 
 interface Season {
   id: number;
@@ -16,7 +12,7 @@ interface Season {
 }
 
 interface Currency {
-  coinBalance: number;
+  cardPoints: number;
   lifetimeCoinsEarned: number;
 }
 
@@ -27,16 +23,22 @@ interface SeasonStats {
   rank?: number;
 }
 
-export default function CardClashPage({ playerId, playerName }: CardClashPageProps) {
+export default function CardClashPage() {
+  const currentPlayer = useCurrentPlayer();
+  const playerId = currentPlayer?.id;
+  const playerName = currentPlayer?.name || "Player";
+  
   const { isCardClashAvailable, isCoinsAvailable, isCardShopAvailable, isLoading } = useFeatureFlags();
   const [activeSeason, setActiveSeason] = useState<Season | null>(null);
-  const [currency, setCurrency] = useState<Currency>({ coinBalance: 0, lifetimeCoinsEarned: 0 });
+  const [currency, setCurrency] = useState<Currency>({ cardPoints: 0, lifetimeCoinsEarned: 0 });
   const [seasonStats, setSeasonStats] = useState<SeasonStats | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "shop" | "standings">("overview");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
+    if (playerId) {
+      loadData();
+    }
   }, [playerId]);
 
   const loadData = async () => {
@@ -128,7 +130,7 @@ export default function CardClashPage({ playerId, playerName }: CardClashPagePro
           marginBottom: "2rem",
         }}
       >
-        <StatCard label="Coins" value={currency.coinBalance} icon={<Banknote size={20} />} />
+        <StatCard label="Coins" value={currency.cardPoints} icon={<Banknote size={20} />} />
         <StatCard label="Season Points" value={seasonStats?.cardPoints || 0} icon={<TrendingUp size={20} />} />
         <StatCard label="Wins" value={seasonStats?.wins || 0} icon={<Gamepad2 size={20} />} />
         <StatCard

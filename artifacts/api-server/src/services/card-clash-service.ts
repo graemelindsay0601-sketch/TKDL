@@ -21,11 +21,25 @@ const COIN_REWARDS = {
 };
 
 export async function getActiveCardClashSeason() {
-  const season = await db
+  let season = await db
     .select()
     .from(cardClashSeasonsTable)
     .where(eq(cardClashSeasonsTable.isActive, true))
     .limit(1);
+
+  if (season.length === 0) {
+    // Create a new season if none exists
+    const [newSeason] = await db
+      .insert(cardClashSeasonsTable)
+      .values({
+        name: `Season ${new Date().getFullYear()}-${new Date().getMonth() + 1}`,
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+        isActive: true,
+      })
+      .returning();
+    return newSeason;
+  }
 
   return season[0];
 }
