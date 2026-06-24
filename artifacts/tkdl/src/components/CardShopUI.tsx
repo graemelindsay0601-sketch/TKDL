@@ -241,7 +241,6 @@ export function CardShopUI({ playerCoins, onPurchase, loading = false }: CardSho
                   <div
                     style={{
                       marginBottom: "1rem",
-                      display: "inline-block",
                       background: isSelected ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 102, 255, 0.1)",
                       color: isSelected ? "white" : "#0066ff",
                       padding: "6px 12px",
