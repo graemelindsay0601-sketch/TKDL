@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Banknote, Gamepad2, TrendingUp } from "lucide-react";
 import { useFeatureFlags, FeatureGate } from "@/lib/useFeatureFlags";
 import { useCurrentPlayer } from "@/context/auth";
+import { CardEquipmentSelector } from "@/components/CardEquipmentSelector";
 
 interface Season {
   id: number;
@@ -477,8 +478,25 @@ function PlayTab({
   setMatchStarting: (bool: boolean) => void;
   seasonId?: number;
 }) {
-  const handleStartMatch = async () => {
-    if (!selectedOpponent || !selectedGameMode || !seasonId) {
+  const [showEquipment, setShowEquipment] = useState(false);
+  const [equippedCards, setEquippedCards] = useState<any>(null);
+
+  const handleReadyToPlay = () => {
+    if (!selectedOpponent || !selectedGameMode) {
+      alert("Please select an opponent and game mode");
+      return;
+    }
+    setShowEquipment(true);
+  };
+
+  const handleEquipmentSelected = async (equipment: any) => {
+    setEquippedCards(equipment);
+    setShowEquipment(false);
+    await startMatch(equipment);
+  };
+
+  const startMatch = async (equipment: any) => {
+    if (!selectedOpponent || !selectedGameMode) {
       alert("Please select an opponent and game mode");
       return;
     }
@@ -492,7 +510,7 @@ function PlayTab({
           player1Id: playerId,
           player2Id: selectedOpponent,
           gameMode: selectedGameMode,
-          equippedCards: [], // TODO: Get from equipment selector
+          equippedCards: equipment || [],
         }),
       });
 
@@ -503,6 +521,9 @@ function PlayTab({
       const match = await res.json();
       // TODO: Navigate to match/scoring screen with matchId
       alert(`Match started! ID: ${match.id}`);
+      // Reset selections
+      setSelectedOpponent(null);
+      setSelectedGameMode(null);
     } catch (error) {
       console.error("Error starting match:", error);
       alert("Failed to start match. Try again.");
@@ -513,6 +534,38 @@ function PlayTab({
 
   return (
     <div style={{ maxWidth: "800px" }}>
+      {/* Equipment Selector Modal */}
+      {showEquipment && selectedGameMode && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0,0,0,0.7)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: "var(--color-background-primary)",
+            borderRadius: "12px",
+            maxHeight: "90vh",
+            overflowY: "auto",
+            maxWidth: "600px",
+            width: "90%",
+          }}>
+            <CardEquipmentSelector
+              playerId={playerId}
+              gameMode={selectedGameMode}
+              onSelect={handleEquipmentSelected}
+              onCancel={() => setShowEquipment(false)}
+            />
+          </div>
+        </div>
+      )}
+
       <div style={{ marginBottom: "2rem", padding: "1.5rem", background: "var(--color-background-secondary)", borderRadius: "8px" }}>
         <h3 style={{ marginBottom: "1.5rem", fontSize: "18px", fontWeight: 600 }}>Start a Match</h3>
 
@@ -598,7 +651,7 @@ function PlayTab({
 
         {/* Start Button */}
         <button
-          onClick={handleStartMatch}
+          onClick={handleReadyToPlay}
           disabled={!selectedOpponent || !selectedGameMode || matchStarting}
           style={{
             width: "100%",
@@ -613,7 +666,7 @@ function PlayTab({
             transition: "all 0.2s",
           }}
         >
-          {matchStarting ? "Starting Match..." : "Start Match"}
+          {matchStarting ? "Starting Match..." : "Equip Cards & Play"}
         </button>
       </div>
 
