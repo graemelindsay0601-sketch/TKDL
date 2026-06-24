@@ -1,5 +1,5 @@
 services:
-  # ── Node.js web app + API ──────────────────────────────────────────────────
+  # ── Node.js web app + API (Card Clash ready) ───────────────────────────────
   - type: web
     name: tkdl
     runtime: node
