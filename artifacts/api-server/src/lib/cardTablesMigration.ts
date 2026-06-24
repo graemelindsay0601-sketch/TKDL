@@ -42,13 +42,13 @@ export async function initializeCardTables() {
       )
     `);
 
-    // Create card_inventory table if it doesn't exist
+    // Create card_inventory table if it doesn't exist (Drizzle schema expects "player_card_inventory")
     await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS card_inventory (
+      CREATE TABLE IF NOT EXISTS player_card_inventory (
         id SERIAL PRIMARY KEY,
         player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
         card_id UUID NOT NULL REFERENCES card_definitions(card_id) ON DELETE CASCADE,
-        quantity_owned INTEGER NOT NULL DEFAULT 0,
+        quantity INTEGER NOT NULL DEFAULT 1,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(player_id, card_id)
@@ -141,8 +141,8 @@ export async function initializeCardTables() {
     `);
 
     // Create indexes
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_inventory_player ON card_inventory(player_id)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_inventory_card ON card_inventory(card_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_inventory_player ON player_card_inventory(player_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_inventory_card ON player_card_inventory(card_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_pity_player ON card_pity(player_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_player_currency_player ON player_currency(player_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_clash_matches_player ON card_clash_matches(player_id)`);
