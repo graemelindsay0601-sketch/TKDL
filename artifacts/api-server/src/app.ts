@@ -15,6 +15,7 @@ import { seedTourSystem } from "./lib/tourSeed";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
 import { initializeCardTables, initializeFeatureFlags } from "./lib/cardTablesMigration";
 import { seedCardDefinitions } from "./services/card-definitions-service";
+import { challengeService } from "./services/challenge-service";
 import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
 import webpush from "web-push";
 import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
@@ -725,6 +726,7 @@ async function init() {
     await initializeCardTables();
     await initializeFeatureFlags();
     await seedCardDefinitions();
+    await challengeService.seedDefaultChallenges();
     await seedNotificationTables();
     await initializeNotificationPreferences();
     await seedCommunityTables();

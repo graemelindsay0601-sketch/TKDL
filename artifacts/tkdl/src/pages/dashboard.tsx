@@ -8,6 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
+import { ChallengesBar } from "@/components/ChallengesBar";
 import { Link } from "wouter";
 import {
   Trophy, Swords, Flame, Skull, Zap, Target, AlertTriangle,
@@ -539,6 +540,9 @@ export default function Dashboard() {
   return (
     <div className="space-y-4">
       <div className="pdc-divider" />
+
+      {/* ── CHALLENGES BAR ── */}
+      {summary && summary.playerId && <ChallengesBar playerId={summary.playerId} />}
 
       {/* ── CINEMATIC HERO ── */}
       <div className="relative overflow-hidden fade-in-up" style={{

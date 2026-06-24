@@ -67,13 +67,22 @@ export async function initializeCardTables() {
       )
     `);
 
-    // Create player_currency table if it doesn't exist
+    // Drop and recreate player_currency table to ensure correct schema
+    try {
+      await db.execute(sql`DROP TABLE IF EXISTS player_currency CASCADE`);
+      logger.info("Dropped old player_currency table");
+    } catch (e) {
+      logger.info("player_currency not found or already dropped");
+    }
+
+    // Create player_currency table with correct schema
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS player_currency (
         id SERIAL PRIMARY KEY,
         player_id INTEGER UNIQUE NOT NULL REFERENCES players(id) ON DELETE CASCADE,
         card_points INTEGER NOT NULL DEFAULT 0,
         lifetime_coins_earned INTEGER NOT NULL DEFAULT 0,
+        pack_tokens INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
       )

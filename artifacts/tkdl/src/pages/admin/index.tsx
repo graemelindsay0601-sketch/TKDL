@@ -28,6 +28,7 @@ import { DataManagement } from "./data-management";
 import { AnnouncementsManager } from "./announcements-manager";
 import { NotificationAnalytics } from "./notification-analytics";
 import AdminCardClashPanel from "@/components/admin-card-clash-panel";
+import AdminChallengesPanel from "@/components/admin-challenges-panel";
 import AdminFeatureFlagsPanel from "@/components/admin-feature-flags-panel";
 
 type ModeKey = "isActive" | "practiceEnabled" | "tourEnabled" | "m501Enabled" | "shadowBotEnabled";
@@ -481,6 +482,7 @@ export default function Admin() {
       <AnnouncementsManager />
       <NotificationAnalytics />
       <AdminCardClashPanel />
+      <AdminChallengesPanel />
       <AdminFeatureFlagsPanel />
       <SweepTool />
       <PracticeAnalytics />
