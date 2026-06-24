@@ -24,7 +24,7 @@ services:
     runtime: python
     region: oregon
     rootDir: artifacts/dart-scorer
-    buildCommand: python -m pip install --upgrade pip && python -m pip install --no-cache-dir --ignore-installed -r requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
