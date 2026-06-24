@@ -68,10 +68,14 @@ export function CardClashMatchLauncher({
 
   const handleMatchComplete = async (result: GameResult, cardsUsed: string[]) => {
     try {
-      // Record match result to backend
+      // Calculate if card effects changed the outcome
+      // (In a full implementation, card effects would modify live scoring)
+      // For now, we record the cards used and the base result
+      
       const winnerId = result.winnerIdx === 0 ? currentPlayerId : selectedOpponent!.id;
       
-      await fetch("/api/card-clash/match/finish", {
+      // Record match result to backend
+      const matchRes = await fetch("/api/card-clash/match/finish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -81,9 +85,15 @@ export function CardClashMatchLauncher({
         }),
       });
 
+      if (!matchRes.ok) {
+        throw new Error("Failed to record match");
+      }
+
       onMatchComplete();
     } catch (err) {
       console.error("Failed to record match:", err);
+      // Still notify completion even on error
+      onMatchComplete();
     }
   };
 
