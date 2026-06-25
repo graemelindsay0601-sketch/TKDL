@@ -519,13 +519,29 @@ router.post("/mock-game/start", async (req: Request, res: Response) => {
     try { await db.execute(sql`ALTER TABLE card_clash_matches ALTER COLUMN season_id DROP NOT NULL`); } catch (_) {}
     try { await db.execute(sql`ALTER TABLE card_clash_matches DROP CONSTRAINT IF EXISTS card_clash_matches_season_id_card_clash_seasons_id_fk`); } catch (_) {}
 
-    // Omit season_id (now nullable) and is_mock (may not exist yet — defaults to false)
+    // Resolve season_id (may still be NOT NULL in prod even after ALTER attempt)
+    let mockSeasonId: number | null = null;
+    try {
+      const sR = await db.execute(sql`SELECT id FROM card_clash_seasons WHERE is_active = true LIMIT 1`);
+      if (sR.rows.length > 0) {
+        mockSeasonId = (sR.rows[0] as any).id;
+      } else {
+        const now = new Date();
+        const ins = await db.execute(sql`
+          INSERT INTO card_clash_seasons (name, start_date, end_date, is_active)
+          VALUES (${`Season ${now.getFullYear()}-${now.getMonth() + 1}`}, CURRENT_DATE, CURRENT_DATE + INTERVAL '30 days', true)
+          RETURNING id
+        `);
+        mockSeasonId = (ins.rows[0] as any)?.id ?? null;
+      }
+    } catch (_) {}
+
     const result = await db.execute(sql`
       INSERT INTO card_clash_matches
-        (game_mode, player_1_id, player_2_id, winner_id,
+        (season_id, game_mode, player_1_id, player_2_id, winner_id,
          player_1_equipped_cards, player_2_equipped_cards, cards_used_in_match)
       VALUES
-        ('MOCK', ${player1Id}, ${p2Id}, ${player1Id},
+        (${mockSeasonId}, 'MOCK', ${player1Id}, ${p2Id}, ${player1Id},
          ${JSON.stringify(p1Cards)}::jsonb, ${JSON.stringify(botCards)}::jsonb, '[]'::jsonb)
       RETURNING *
     `);
