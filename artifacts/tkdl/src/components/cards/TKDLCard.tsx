@@ -161,7 +161,7 @@ export function TKDLCard({ card, size = "lg" }: TKDLCardProps) {
             height: "100%",
             backfaceVisibility: "hidden",
             transform: "rotateY(180deg)",
-            backgroundImage: "url('/card-backs.jpg')",
+            backgroundImage: "url('/cards/card-backs.png')",
             backgroundPosition: backBgPosition,
             backgroundSize: backBgSize,
             backgroundRepeat: "no-repeat",

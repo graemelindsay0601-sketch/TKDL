@@ -52,26 +52,46 @@ export function CardImage({ card, size = "medium", showBack = false }: CardImage
 
   // Get front card image
   const getFrontImage = (): string => {
+    // For wildcards, use individual card images from /card-artwork/
+    if (gameMode === "WILDCARD" && card.name) {
+      const cardName = card.name
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^\w-]/g, "");
+      return `/card-artwork/${cardName}.jpg`;
+    }
+    
+    // For X01 and Cricket, use grid images
     if (gameMode === "X01") {
       return cardType === "GOOD" ? "/cards/x01-good-grid.png" : "/cards/x01-bad-grid.png";
     } else if (gameMode === "CRICKET") {
       return cardType === "GOOD" ? "/cards/cricket-good-grid.png" : "/cards/cricket-bad-grid.png";
-    } else if (gameMode === "WILDCARD") {
-      return cardType === "GOOD" ? "/cards/wildcard-good-grid.png" : "/cards/wildcard-bad-grid.png";
     }
     return "/cards/card-back.png";
   };
 
   // Calculate position in front card grid (5 cols x 4 rows)
+  // For wildcards with individual images, show full image (no grid extraction)
   const gridIndex = card.gridIndex ?? 0;
-  const colIndex = gridIndex % 5;
-  const rowIndex = Math.floor(gridIndex / 5);
-
-  // Position as percentages
-  const bgPosX = colIndex * 20; // 5 columns = 20% each
-  const bgPosY = rowIndex * 25; // 4 rows = 25% each
-  const bgSizeX = 500; // 5 columns = 500%
-  const bgSizeY = 400; // 4 rows = 400%
+  
+  let bgPosX = 0;
+  let bgPosY = 0;
+  let bgSizeX = 500; // 5 columns = 500%
+  let bgSizeY = 400; // 4 rows = 400%
+  
+  if (gameMode !== "WILDCARD") {
+    // Grid-based positioning for X01 and Cricket
+    const colIndex = gridIndex % 5;
+    const rowIndex = Math.floor(gridIndex / 5);
+    bgPosX = colIndex * 20; // 5 columns = 20% each
+    bgPosY = rowIndex * 25; // 4 rows = 25% each
+  } else {
+    // Full image for individual wildcard images
+    bgPosX = 0;
+    bgPosY = 0;
+    bgSizeX = 100;
+    bgSizeY = 100;
+  }
 
   // Get back card image and position
   const getBackImagePosition = (): { image: string; x: number; y: number } => {
