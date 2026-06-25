@@ -480,6 +480,34 @@ router.get("/standings/:seasonId", async (req: Request, res: Response) => {
   }
 });
 
+// Card Clash leaderboard - all-time rankings (no seasons)
+router.get("/leaderboard", async (req: Request, res: Response) => {
+  try {
+    const result = await db.execute(sql`
+      SELECT
+        l.player_id,
+        p.name AS player_name,
+        l.wins,
+        l.losses,
+        (l.wins + l.losses)::int AS total_matches,
+        l.cards_unlocked_count,
+        l.updated_at,
+        CASE 
+          WHEN (l.wins + l.losses) > 0 
+          THEN ROUND((l.wins::float / (l.wins + l.losses)) * 100, 1)
+          ELSE 0
+        END AS win_percentage
+      FROM card_clash_leaderboard l
+      JOIN players p ON l.player_id = p.id
+      ORDER BY l.wins DESC, total_matches DESC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    logger.warn({ error }, "Card Clash leaderboard endpoint - table may not exist yet");
+    res.json([]); // Return empty leaderboard if table doesn't exist
+  }
+});
+
 // Mock game: get available players (for selecting opponent)
 router.get("/mock-game/players", async (req: Request, res: Response) => {
   try {
