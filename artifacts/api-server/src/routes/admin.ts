@@ -5,6 +5,7 @@ import { z } from "zod";
 import { checkStatAchievements, checkMatchAchievements, retroactiveSweep } from "../lib/achievements";
 import { applyEloChange, calcTier } from "../lib/elo";
 import { getBatchingStats } from "../services/batchingService";
+import { initializeFeatureFlags } from "../services/feature-flags-service";
 import { logger } from "../lib/logger";
 
 const router = Router();
