@@ -150,11 +150,22 @@ export function TKDLCard({ card, size = "md", locked = false }: TKDLCardProps) {
                 />
               );
             })()}
-            <div style={{ width: "100%", height: "100%", display: locked ? "flex" : "none", alignItems: "center", justifyContent: "center", background: `radial-gradient(ellipse at center,${cfg.primaryDim}88 0%,#050810 100%)`, position: locked ? "relative" : "absolute", inset: locked ? "auto" : 0 }}>
-              {locked
-                ? <span style={{ fontSize: "2.5rem", opacity: 0.4 }}>🔒</span>
-                : <span style={{ color: cfg.primary, fontSize: "2rem", opacity: 0.3 }}>🎯</span>
-              }
+            <div style={{ width: "100%", height: "100%", display: locked ? "flex" : "none", alignItems: "center", justifyContent: "center", background: `radial-gradient(ellipse at center,${cfg.primaryDim}cc 0%,#050810 100%)`, position: locked ? "relative" : "absolute", inset: locked ? "auto" : 0, flexDirection: "column", gap: "6px" }}>
+              {locked ? (
+                <span style={{ fontSize: "2.5rem", opacity: 0.4 }}>🔒</span>
+              ) : (
+                <>
+                  <span style={{ fontSize: size === "lg" ? "3rem" : "2rem", filter: `drop-shadow(0 0 12px ${cfg.primary})`, lineHeight: 1 }}>
+                    {card.category === "X01 GOOD" ? "🎯"
+                      : card.category === "X01 BAD" ? "⚡"
+                      : card.category === "CRICKET GOOD" ? "🏏"
+                      : card.category === "CRICKET BAD" ? "💀"
+                      : card.category === "WILDCARD GOOD" ? "⭐"
+                      : "🌩️"}
+                  </span>
+                  <span style={{ fontSize: size === "lg" ? "9px" : "7px", color: cfg.primary, fontWeight: 700, letterSpacing: "0.12em", opacity: 0.6, textAlign: "center", padding: "0 4px" }}>{card.category}</span>
+                </>
+              )}
             </div>
             <div style={{ position: "absolute", inset: "auto 0 0 0", height: "33%", background: "linear-gradient(to top,#060912,transparent)", pointerEvents: "none" }} />
             {(isRare || isLegendary) && !locked && (
