@@ -83,29 +83,24 @@ const RARITY_GLOW:  Record<string,string> = { LEGENDARY: "#ffaa00", RARE: "#a855
 const RARITY_LABEL: Record<string,string> = { LEGENDARY: "✦ LEGENDARY ✦", RARE: "◆ RARE ◆", COMMON: "COMMON" };
 
 // ── SVG pack art — proper TCG-style metallic packs ─────────────────────────────
-  // ── Pack art from reference image (packs-sheet.png: 1536×1024px) ──────────────
-    function PackArt({ packId, isPreview }: { packId: string; isPreview: boolean }) {
-      const W = isPreview ? 174 : 108;
-      const H = isPreview ? 280 : 174;
-      // Tier rows: single→League(blue,y≈40), five→Elite(gold,y≈335), ten→Champion(purple,y≈630)
-      const PACK_W_SRC = 90, PACK_H_SRC = 270, CROP_X = 135;
-      const CROP_Y: Record<string, number> = { single: 40, five: 335, ten: 630 };
-      const cropY = CROP_Y[packId] ?? 40;
-      const s = H / PACK_H_SRC;
-      const imgW = Math.round(1536 * s);
-      const imgH = Math.round(1024 * s);
-      const left = Math.round(W / 2 - (CROP_X + PACK_W_SRC / 2) * s);
-      const top  = Math.round(-cropY * s);
-      return (
-        <div style={{ width: W, height: H, position: "relative", overflow: "hidden", borderRadius: 8, display: "block" }}>
-          <img
-            src="/assets/packs-sheet.png"
-            alt={packId}
-            style={{ position: "absolute", width: imgW, height: imgH, left, top, maxWidth: "none" }}
-          />
-        </div>
-      );
-    }
+  // ── Pack art (per-tier images) ─────────────────────────────────────────────────
+function PackArt({ packId, isPreview }: { packId: string; isPreview: boolean }) {
+  const W = isPreview ? 174 : 108;
+  const H = isPreview ? 280 : 174;
+  const PACK_IMGS: Record<string,string> = {
+    single: "/assets/pack-league-front.png",
+    five:   "/assets/pack-gold-front.png",
+    ten:    "/assets/pack-purple-front.png",
+  };
+  const src = PACK_IMGS[packId] ?? PACK_IMGS.single;
+  return (
+    <div style={{ width: W, height: H, position: "relative", overflow: "hidden", borderRadius: 8 }}>
+      <img src={src} alt={packId}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", maxWidth: "none" }}
+      />
+    </div>
+  );
+}
 
 // ── TKDL card back ─────────────────────────────────────────────────────────────
 function CardBack({ accent = "#7eb8d4" }: { accent?: string }) {
