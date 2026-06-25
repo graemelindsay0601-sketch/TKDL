@@ -299,7 +299,7 @@ export const ALL_CARDS_UNIFIED: CardDefinition[] = [
     effect: "Double zone hits score as single",
     flavourText: "Halved finish zone",
     energyCost: 2,
-    artworkUrl: "/card-artwork/doubles-don-t-count.jpg",
+    artworkUrl: "/card-artwork/doubles-dont-count.jpg",
   },
   {
     id: "x01b05",
@@ -420,7 +420,7 @@ export const ALL_CARDS_UNIFIED: CardDefinition[] = [
     effect: "-15 on all throws under 40",
     flavourText: "Rusty accuracy",
     energyCost: 1,
-    artworkUrl: "/card-artwork/rust-hands-40.jpg",
+    artworkUrl: "/card-artwork/rust-hands.jpg",
   },
   {
     id: "x01b16",
