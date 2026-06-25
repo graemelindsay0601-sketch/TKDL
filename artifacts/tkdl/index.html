@@ -2,14 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes" />
     <meta name="theme-color" content="#04040a" />
+    <meta name="color-scheme" content="dark" />
+    
+    <!-- Apple / iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="TKDL" />
+    <meta name="apple-mobile-web-app-status-bar" content="black-translucent" />
+    
+    <!-- Android / General Mobile -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="TKDL" />
+    
+    <!-- Open Graph / Social -->
     <title>TKDL – Tesco Kilbirnie Darts League</title>
     <meta name="description" content="TKDL – Tesco Kilbirnie Darts League. Live Elo rankings, match results, achievements and stats." />
+    <meta name="keywords" content="darts, league, competition, TKDL, Kilbirnie, Tesco" />
     <meta name="robots" content="index, follow" />
     <meta property="og:title" content="TKDL – Tesco Kilbirnie Darts League" />
     <meta property="og:description" content="TKDL – Tesco Kilbirnie Darts League. Live Elo rankings, match results, achievements and stats." />
@@ -17,12 +27,28 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="TKDL – Tesco Kilbirnie Darts League" />
     <meta name="twitter:description" content="TKDL – Tesco Kilbirnie Darts League. Live Elo rankings, match results, achievements and stats." />
+    
+    <!-- Icons & Manifest -->
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="mask-icon" href="/favicon.svg" color="#04040a" />
+    
+    <!-- Preconnect / DNS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="https://api.anthropic.com" />
+    
+    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@700;800;900&family=Nunito:wght@900&display=swap" rel="stylesheet">
+    
+    <style>
+      /* Prevent layout shift while loading */
+      html { background-color: #04040a; color: #fff; }
+      body { margin: 0; padding: 0; background-color: #04040a; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
