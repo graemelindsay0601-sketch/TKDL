@@ -44,7 +44,6 @@ export const statsService = {
     const result = await db.execute(drizzleSql`
       SELECT 
         game_type,
-        game_type_name,
         COUNT(*)::int as total_matches,
         SUM(CASE WHEN winner_id = ${playerId} THEN 1 ELSE 0 END)::int as wins,
         COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_darts ELSE loser_darts END), 0)::int as total_darts,
@@ -54,13 +53,13 @@ export const statsService = {
       FROM matches 
       WHERE (winner_id = ${playerId} OR loser_id = ${playerId}) 
         AND played_at >= ${cutoff}
-      GROUP BY game_type, game_type_name
+      GROUP BY game_type
       ORDER BY total_matches DESC
     `);
 
     return (result.rows as any[]).map(row => ({
       gameType: row.game_type,
-      gameTypeName: row.game_type_name,
+      gameTypeName: row.game_type || "Unknown",
       category: getGameTypeCategory(row.game_type),
       matches: row.total_matches,
       wins: row.wins,
