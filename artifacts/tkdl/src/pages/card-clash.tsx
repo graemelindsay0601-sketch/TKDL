@@ -65,20 +65,9 @@ const PACKS = [
     return `M${x1},${y1} A${ro},${ro} 0 0,1 ${x2},${y2} L${x3},${y3} A${ri},${ri} 0 0,0 ${x4},${y4}Z`;
   }
 
-  // ── Premium foil pack SVG ─────────────────────────────────────────────────────
-  // ── Pack image crop (uses packs-sheet.png: 1536×1024px) ──────────────────────
-    // Tier rows: single→League(blue,y≈40), five→Elite(gold,y≈335), ten→Champion(purple,y≈630)
+  // ── Pack image ────────────────────────────────────────────────────────────────
     function PackSVG({ packId, scale = 1 }: { packId: string; scale?: number }) {
       const W = Math.round(148 * scale), H = Math.round(236 * scale);
-      const PACK_W_SRC = 90, PACK_H_SRC = 270, CROP_X = 135;
-      const CROP_Y: Record<string, number> = { single: 40, five: 335, ten: 630 };
-      const cropY = CROP_Y[packId] ?? 40;
-      // Fit full pack height into container, center horizontally
-      const s = H / PACK_H_SRC;
-      const imgW = Math.round(1536 * s);
-      const imgH = Math.round(1024 * s);
-      const left = Math.round(W / 2 - (CROP_X + PACK_W_SRC / 2) * s);
-      const top  = Math.round(-cropY * s);
       return (
         <div style={{
           width: W, height: H, position: "relative", overflow: "hidden",
@@ -86,9 +75,9 @@ const PACKS = [
           boxShadow: `0 ${Math.round(8*scale)}px ${Math.round(32*scale)}px rgba(0,0,0,0.7)`,
         }}>
           <img
-            src="/assets/packs-sheet.png"
+            src="/assets/pack-league-front.png"
             alt={packId}
-            style={{ position: "absolute", width: imgW, height: imgH, left, top, maxWidth: "none" }}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", maxWidth: "none" }}
           />
         </div>
       );
@@ -131,24 +120,22 @@ const PACKS = [
       </div>
     );
   }
-
   // ── Hub card ─────────────────────────────────────────────────────────────────
-    // translateX(-cropX/852*100%) translateY(-cropY/1846*100%) positions correctly at any scale
-    const HUB_CROPS: Record<string,{tx:string,ty:string}> = {
-      collection:   {tx:"-0.94%",  ty:"-35.21%"},
-      shop:         {tx:"-50.70%", ty:"-35.21%"},
-      play:         {tx:"-0.94%",  ty:"-50.27%"},
-      practice:     {tx:"-50.70%", ty:"-50.27%"},
-      standings:    {tx:"-0.94%",  ty:"-65.33%"},
-      achievements: {tx:"-50.70%", ty:"-65.33%"},
-      rules:        {tx:"-0.94%",  ty:"-80.39%"},
-      admin:        {tx:"-50.70%", ty:"-80.39%"},
+    const HUB_IMGS: Record<string,string> = {
+      collection:   "/assets/hub-collection.png",
+      shop:         "/assets/hub-shop.png",
+      play:         "/assets/hub-play.png",
+      practice:     "/assets/hub-practice.png",
+      standings:    "/assets/hub-standings.png",
+      achievements: "/assets/hub-achievements.png",
+      rules:        "/assets/hub-rules.png",
+      admin:        "/assets/hub-admin.png",
     };
 
     function HubCard({label,sublabel,color,glow,onClick,badge,disabled=false,delay=0}:{label:string;sublabel:string;color:string;glow:string;onClick:()=>void;badge?:number|string;disabled?:boolean;delay?:number;icon?:React.ReactNode}){
       const [hov,setHov]=React.useState(false);
       const key=label.toLowerCase().replace(/[\s/]+/g,"");
-      const crop=HUB_CROPS[key]||{tx:"0%",ty:"0%"};
+      const imgSrc=HUB_IMGS[key];
       return(
         <button onClick={disabled?undefined:onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
           style={{
@@ -163,18 +150,15 @@ const PACKS = [
             opacity:disabled?0.3:1,minHeight:"158px",
             animation:`hubCardFloat 4s ease-in-out infinite ${delay}s`,
           }}>
-          <div style={{position:"absolute",inset:0,overflow:"hidden",borderRadius:"inherit"}}>
-            <img src="/assets/hub-reference.png" alt="" aria-hidden="true"
-              style={{
-                position:"absolute",
-                width:"206.8%",
-                maxWidth:"none",
-                height:"auto",
-                transform:`translateX(${crop.tx}) translateY(${crop.ty})`,
-                transformOrigin:"0 0",
-                opacity:hov?0.92:0.82,
-                transition:"opacity 0.22s",
-              }}/>
+          <div style={{position:"absolute",inset:0,borderRadius:"14px",overflow:"hidden"}}>
+            {imgSrc&&<div style={{
+              position:"absolute",inset:0,
+              backgroundImage:`url(${imgSrc})`,
+              backgroundSize:"cover",
+              backgroundPosition:"center center",
+              opacity:hov?0.92:0.82,
+              transition:"opacity 0.22s",
+            }}/>}
             <div style={{position:"absolute",inset:0,background:"linear-gradient(0deg,rgba(0,0,0,0.88) 0%,rgba(0,0,0,0.05) 45%,rgba(0,0,0,0.38) 100%)"}}/>
             <div style={{position:"absolute",inset:0,background:`radial-gradient(ellipse at 50% 110%,${color}28 0%,transparent 65%)`}}/>
           </div>
@@ -185,6 +169,7 @@ const PACKS = [
           <div style={{fontSize:"9px",fontWeight:600,letterSpacing:"0.07em",color:"rgba(255,255,255,0.3)",textTransform:"uppercase",textAlign:"center",lineHeight:1.5,zIndex:1,position:"relative"}}>{sublabel}</div>
         </button>
       );
+    }
     }
 
     export default function CardClashPage() {
