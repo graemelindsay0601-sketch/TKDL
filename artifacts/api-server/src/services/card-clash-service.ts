@@ -97,12 +97,11 @@ export async function startCardClashMatch(
          player_1_equipped_cards, player_2_equipped_cards, cards_used_in_match,
          player_1_points_earned, player_2_points_earned)
       VALUES
-        (${gameMode}, ${player1Id}, ${player2Id}, ${player1Id},
+        (${gameMode}, ${player1Id}, ${player2Id}, NULL,
          ${JSON.stringify(p1Cards)}::jsonb, ${JSON.stringify(p2Cards)}::jsonb,
          '[]'::jsonb, 0, 0)
       RETURNING *
-    `);
-    
+    `);    
     logger.info({ matchId: result.rows[0]?.id }, "Match created successfully");
     return result.rows[0];
   } catch (error) {
