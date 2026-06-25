@@ -64,7 +64,7 @@ import React, { useState, useEffect } from "react";
     );
   }
 
-  export function CardEquipmentSelector({ currentPlayerId, gameMode, onConfirm, onBack, submitError }: CardEquipmentSelectorProps) {
+  export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, opponentName, gameMode, onConfirm, onBack, submitError }: CardEquipmentSelectorProps) {
     const playerId = currentPlayerId;
     const [inventory, setInventory] = useState<Card[]>([]);
     const [selectedGood, setSelectedGood] = useState<Card[]>([]);
