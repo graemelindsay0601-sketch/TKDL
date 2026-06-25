@@ -488,13 +488,19 @@ router.post("/mock-game/start", async (req: Request, res: Response) => {
     // For bots, pick random cards from catalog
     let botCards: any[] = [];
     if (isBotOpponent) {
-      const allCards = await getAllCardDefinitions();
-      const shuffled = [...allCards].sort(() => Math.random() - 0.5);
-      botCards = shuffled.slice(0, 4).map((c: any) => ({ cardId: c.id, cardType: c.type === "BUFF" ? "GOOD" : "BAD" }));
+      try {
+        const allCards = await getAllCardDefinitions();
+        const shuffled = [...allCards].sort(() => Math.random() - 0.5);
+        botCards = shuffled.slice(0, 4).map((c: any) => ({ cardId: c.id, cardType: c.type === "BUFF" ? "GOOD" : "BAD" }));
+      } catch (e) {
+        logger.warn({ e }, "Could not load card catalog for bot — bot will have no cards");
+      }
     }
 
     const p1Cards = Array.isArray(player1Cards) ? player1Cards : [];
-    const p2Id = player2Id || 0;
+    // Use player1Id as the placeholder for player_2_id when playing against a bot,
+    // because player_2_id has a NOT NULL FK constraint referencing the players table.
+    const p2Id = player2Id || player1Id;
 
     const result = await db.execute(sql`
       INSERT INTO card_clash_matches
@@ -503,13 +509,14 @@ router.post("/mock-game/start", async (req: Request, res: Response) => {
          player_1_points_earned, player_2_points_earned, is_mock)
       VALUES
         ('MOCK', ${player1Id}, ${p2Id}, ${player1Id},
-         ${JSON.stringify(p1Cards)}, ${JSON.stringify(botCards)}, ${JSON.stringify([])},
+         ${JSON.stringify(p1Cards)}::json, ${JSON.stringify(botCards)}::json, '[]'::json,
          0, 0, true)
       RETURNING *
     `);
 
-    res.json({ success: true, match: result.rows[0], botCards });
+    res.json({ success: true, match: result.rows[0], botCards, isBotOpponent: !!isBotOpponent });
   } catch (error) {
+    logger.error({ error }, "Mock game start failed");
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
