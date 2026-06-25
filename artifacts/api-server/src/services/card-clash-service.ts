@@ -8,6 +8,7 @@ import {
 import { eq, and, leftJoin, desc } from "drizzle-orm";
 import { addCoinsToPlayer, removeCardFromPlayer } from "./card-shop-service";
 import { applyX01CardModifiers, applyCricketCardModifiers, calculateCardClashPoints } from "./card-score-integration";
+import { logger } from "../lib/logger";
 
 const CARD_CLASH_WAGER_POINTS = {
   WIN: 50,
@@ -74,7 +75,7 @@ export async function startCardClashMatch(
   const season = await getActiveCardClashSeason();
   if (!season) throw new Error("No active Card Clash season");
 
-  const match = await db.insert(cardClashMatchesTable).values({
+  const [createdMatch] = await db.insert(cardClashMatchesTable).values({
     seasonId: season.id,
     gameMode,
     player1Id,
@@ -85,16 +86,9 @@ export async function startCardClashMatch(
     cardsUsedInMatch: JSON.stringify([]),
     player1PointsEarned: 0,
     player2PointsEarned: 0,
-  });
+  }).returning();
 
-  const matchId = match[0];
-  const createdMatch = await db
-    .select()
-    .from(cardClashMatchesTable)
-    .where(eq(cardClashMatchesTable.id, matchId))
-    .limit(1);
-
-  return createdMatch[0];
+  return createdMatch;
 }
 
 export async function recordCardUsedInMatch(
