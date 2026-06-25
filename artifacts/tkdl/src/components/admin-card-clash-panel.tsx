@@ -119,6 +119,90 @@ export default function AdminCardClashPanel() {
     return player ? player.name : "Unknown";
   };
 
+  const initializeFeatureFlags = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/admin/feature-flags/initialize", {
+        method: "POST",
+        headers: getAdminHeaders(),
+      });
+      if (res.ok) {
+        showMessage("✅ Feature flags initialized", "success");
+      } else {
+        const err = await res.json();
+        showMessage(`Failed: ${err.error || "Unknown error"}`, "error");
+      }
+    } catch (error) {
+      console.error("Init flags error:", error);
+      showMessage("Failed to initialize feature flags", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const seedChallenges = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/card-clash/admin/challenges/seed", {
+        method: "POST",
+        headers: getAdminHeaders(),
+      });
+      if (res.ok) {
+        showMessage("✅ Challenges seeded", "success");
+      } else {
+        const err = await res.json();
+        showMessage(`Failed: ${err.error || "Unknown error"}`, "error");
+      }
+    } catch (error) {
+      console.error("Seed challenges error:", error);
+      showMessage("Failed to seed challenges", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const seedQuests = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/card-clash/admin/quests/seed", {
+        method: "POST",
+        headers: getAdminHeaders(),
+      });
+      if (res.ok) {
+        showMessage("✅ Seasonal quests seeded", "success");
+      } else {
+        const err = await res.json();
+        showMessage(`Failed: ${err.error || "Unknown error"}`, "error");
+      }
+    } catch (error) {
+      console.error("Seed quests error:", error);
+      showMessage("Failed to seed quests", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createActiveSeason = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/card-clash/admin/season/create", {
+        method: "POST",
+        headers: getAdminHeaders(),
+      });
+      if (res.ok) {
+        showMessage("✅ Active Card Clash season created", "success");
+      } else {
+        const err = await res.json();
+        showMessage(`Failed: ${err.error || "Unknown error"}`, "error");
+      }
+    } catch (error) {
+      console.error("Create season error:", error);
+      showMessage("Failed to create season", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const seedCards = async () => {
     try {
       setLoading(true);
@@ -397,6 +481,27 @@ export default function AdminCardClashPanel() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}>
         {/* Left Column */}
         <div>
+          {/* INITIALIZATION Section */}
+          <Section title="⚙️ INITIALIZATION (Run First!)">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <Button onClick={initializeFeatureFlags} disabled={loading} style={{ background: colors.danger, fontSize: "12px", padding: "8px" }}>
+                🚩 Init Feature Flags
+              </Button>
+              <Button onClick={seedChallenges} disabled={loading} style={{ background: colors.danger, fontSize: "12px", padding: "8px" }}>
+                📍 Seed Challenges
+              </Button>
+              <Button onClick={seedQuests} disabled={loading} style={{ background: colors.danger, fontSize: "12px", padding: "8px" }}>
+                🎯 Seed Quests
+              </Button>
+              <Button onClick={createActiveSeason} disabled={loading} style={{ background: colors.danger, fontSize: "12px", padding: "8px" }}>
+                📅 Create Season
+              </Button>
+            </div>
+            <div style={{ marginTop: "12px", padding: "10px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "6px", fontSize: "12px", color: colors.textSecondary }}>
+              ⚠️ <strong>Run in order:</strong> Flags → Challenges → Quests → Season, then seed cards
+            </div>
+          </Section>
+
           {/* Card Management Section */}
           <Section title="📋 Card Management">
             <Button onClick={seedCards} disabled={loading} style={{ background: colors.success }}>
