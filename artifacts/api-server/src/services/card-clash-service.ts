@@ -38,44 +38,8 @@ async function ensureSeasonSchema() {
 }
 
 export async function getActiveCardClashSeason() {
-  const doQuery = () =>
-    db.select().from(cardClashSeasonsTable).where(eq(cardClashSeasonsTable.isActive, true)).limit(1);
-
-  let season: any[];
-  try {
-    logger.info("[SEASON_SERVICE] Querying active season...");
-    season = await doQuery();
-  } catch (firstError) {
-    // Most likely cause: is_locked / total_matches columns missing from production DB.
-    // Add them and retry once before giving up.
-    logger.warn("[SEASON_SERVICE] Query failed — attempting schema fix and retry");
-    await ensureSeasonSchema();
-    season = await doQuery(); // throws if still broken — caller will 500
-  }
-
-  logger.info("[SEASON_SERVICE] Query returned:", season.length, "rows");
-
-  if (season.length === 0) {
-    logger.info("[SEASON_SERVICE] No season found, creating new one...");
-    const now = new Date();
-    const startDate = now.toISOString().split("T")[0];
-    const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-    logger.info("[SEASON_SERVICE] Inserting season:", { startDate, endDate });
-    const [newSeason] = await db
-      .insert(cardClashSeasonsTable)
-      .values({
-        name: `Season ${now.getFullYear()}-${now.getMonth() + 1}`,
-        startDate,
-        endDate,
-        isActive: true,
-      })
-      .returning();
-    logger.info("[SEASON_SERVICE] New season created:", newSeason);
-    return newSeason;
-  }
-
-  logger.info("[SEASON_SERVICE] Found existing season:", season[0]);
-  return season[0];
+  // Season system removed — no DB query needed
+  return null;
 }
 
 export async function startCardClashMatch(
@@ -87,23 +51,19 @@ export async function startCardClashMatch(
     player2: Array<{ cardId: string; cardType: "GOOD" | "BAD" }>;
   }
 ) {
-  const season = await getActiveCardClashSeason();
-  if (!season) throw new Error("No active Card Clash season");
-
-  const [createdMatch] = await db.insert(cardClashMatchesTable).values({
-    seasonId: season.id,
-    gameMode,
-    player1Id,
-    player2Id,
-    winnerId: player1Id, // Placeholder, will be updated on finish
-    player1EquippedCards: JSON.stringify(equippedCards.player1),
-    player2EquippedCards: JSON.stringify(equippedCards.player2),
-    cardsUsedInMatch: JSON.stringify([]),
-    player1PointsEarned: 0,
-    player2PointsEarned: 0,
-  }).returning();
-
-  return createdMatch;
+  // Use raw SQL so season_id (now nullable) can be omitted entirely
+  const result = await db.execute(sql`
+    INSERT INTO card_clash_matches
+      (game_mode, player_1_id, player_2_id, winner_id,
+       player_1_equipped_cards, player_2_equipped_cards, cards_used_in_match,
+       player_1_points_earned, player_2_points_earned)
+    VALUES
+      (${gameMode}, ${player1Id}, ${player2Id}, ${player1Id},
+       ${JSON.stringify(equippedCards.player1)}, ${JSON.stringify(equippedCards.player2)},
+       ${JSON.stringify([])}, 0, 0)
+    RETURNING *
+  `);
+  return result.rows[0];
 }
 
 export async function recordCardUsedInMatch(
@@ -231,84 +191,7 @@ export async function finishCardClashMatch(
     }
   }
 
-  // Update standings
-  const season = await db
-    .select()
-    .from(cardClashSeasonsTable)
-    .where(eq(cardClashSeasonsTable.id, match[0].seasonId))
-    .limit(1);
-
-  if (!season[0]) throw new Error("Season not found");
-
-  // Update winner standing
-  const winnerStanding = await db
-    .select()
-    .from(cardClashStandingsTable)
-    .where(
-      and(
-        eq(cardClashStandingsTable.seasonId, season[0].id),
-        eq(cardClashStandingsTable.playerId, winnerId)
-      )
-    )
-    .limit(1);
-
-  if (winnerStanding[0]) {
-    await db
-      .update(cardClashStandingsTable)
-      .set({
-        cardPoints: winnerStanding[0].cardPoints + winnerCardPoints,
-        wins: winnerStanding[0].wins + 1,
-      })
-      .where(
-        and(
-          eq(cardClashStandingsTable.seasonId, season[0].id),
-          eq(cardClashStandingsTable.playerId, winnerId)
-        )
-      );
-  } else {
-    await db.insert(cardClashStandingsTable).values({
-      seasonId: season[0].id,
-      playerId: winnerId,
-      cardPoints: winnerCardPoints,
-      wins: 1,
-      losses: 0,
-    });
-  }
-
-  // Update loser standing
-  const loserStanding = await db
-    .select()
-    .from(cardClashStandingsTable)
-    .where(
-      and(
-        eq(cardClashStandingsTable.seasonId, season[0].id),
-        eq(cardClashStandingsTable.playerId, loser)
-      )
-    )
-    .limit(1);
-
-  if (loserStanding[0]) {
-    await db
-      .update(cardClashStandingsTable)
-      .set({
-        cardPoints: loserStanding[0].cardPoints + loserCardPoints,
-        losses: loserStanding[0].losses + 1,
-      })
-      .where(
-        and(
-          eq(cardClashStandingsTable.seasonId, season[0].id),
-          eq(cardClashStandingsTable.playerId, loser)
-        )
-      );
-  } else {
-    await db.insert(cardClashStandingsTable).values({
-      seasonId: season[0].id,
-      playerId: loser,
-      cardPoints: loserCardPoints,
-      wins: 0,
-      losses: 1,
-    });
-  }
+  // Standings are now computed live from card_clash_matches — no separate standings table needed
 
   // Return match with updated data
   const updatedMatch = await db
