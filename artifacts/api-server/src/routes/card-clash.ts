@@ -37,10 +37,17 @@ async function autoFixCardClash() {
   try {
     logger.info("🔧 [STARTUP] Running Card Clash auto-fix...");
 
-    // Fix 0a: Add missing columns to card_clash_seasons
+    // Fix 0a: Add ALL potentially missing columns to card_clash_seasons
+    // Production table was created with old schema — we add everything with IF NOT EXISTS
     for (const alter of [
+      sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT 'Season'`,
+      sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS start_date DATE NOT NULL DEFAULT CURRENT_DATE`,
+      sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS end_date DATE NOT NULL DEFAULT (CURRENT_DATE + INTERVAL '30 days')`,
+      sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`,
       sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT false`,
       sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS total_matches INTEGER NOT NULL DEFAULT 0`,
+      sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+      sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP`,
     ]) {
       try { await db.execute(alter); } catch (e) { logger.warn({ e }, "seasons column alter skipped"); }
     }
