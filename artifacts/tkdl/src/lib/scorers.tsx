@@ -210,9 +210,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [bustMsg, setBustMsg]       = useState("");
   const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number; darts: Dart[] }[]>([]);
   
-  // Card Clash state
-  const [equippedCards, setEquippedCards] = useState<any[]>([]);
-  const [cardsUsed, setCardsUsed]         = useState<any[]>([]);
+  // Card Clash state (populated from sessionStorage by CardClashMatchScorer)
+  const [p1Cards, setP1Cards]         = useState<any[]>([]);
+  const [p2Cards, setP2Cards]         = useState<any[]>([]);
+  const [cardsUsed, setCardsUsed]     = useState<any[]>([]);
+  const [isCardClash, setIsCardClash] = useState(false);
 
   const names = [p1Name, p2Name];
 
@@ -430,31 +432,32 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
   // ── Card Clash: Handle card activation ──
   const handleCardActivation = useCallback((cardId: string) => {
-    const card = equippedCards.find((c: any) => c.id?.toString() === cardId);
+    // Only the current player can play their own cards
+    const currentCards = turn === 0 ? p1Cards : p2Cards;
+    const card = currentCards.find((c: any) => c.id?.toString() === cardId);
     if (!card) {
       cardDebugLog("X01Scorer", "Card not found", { cardId });
       return;
     }
 
     cardDebugLog("X01Scorer", "Card activated", { card: card.name, cardId });
-    
-    // Calculate the effect
+
+    // Apply effect immediately — mid-game score change
     const effect = calculateX01CardEffect(card);
     if (effect) {
-      // Apply effect to scores
       setScores(prev => applyX01Effect(prev, effect, turn));
       cardDebugLog("X01Scorer", "Card effect applied", {
         card: card.name,
         effect: formatCardEffectDisplay(effect, card.name),
       });
     }
-    
-    // Mark card as used
+
+    // Mark card as used so it greys out in the panel
     if (!cardsUsed.some((c: any) => c.id === card.id)) {
       setCardsUsed(prev => [...prev, card]);
       cardDebugLog("X01Scorer", "Card marked as used", { card: card.name });
     }
-  }, [equippedCards, cardsUsed, turn]);
+  }, [p1Cards, p2Cards, cardsUsed, turn]);
 
   const handleDartRef = useRef(handleDart);
   useEffect(() => { handleDartRef.current = handleDart; });
@@ -473,22 +476,18 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const { fs, toggle: toggleFs } = useFullscreen();
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
-  // ── Card Clash: Load equipped cards from sessionStorage ──
+  // ── Card Clash: Load per-player cards written by CardClashMatchScorer ──
   useEffect(() => {
-    const stored = sessionStorage.getItem('x01_equipped_cards');
-    if (stored) {
-      try {
-        const cards = JSON.parse(stored);
-        setEquippedCards(cards);
-        cardDebugLog("X01Scorer", "Loaded equipped cards from sessionStorage", {
-          count: cards.length,
-          cards: cards.map((c: any) => c.name),
-        });
-      } catch (e) {
-        cardDebugLog("X01Scorer", "Failed to parse equipped cards from sessionStorage", e);
-      }
-    } else {
-      cardDebugLog("X01Scorer", "No equipped cards found in sessionStorage - Card Clash disabled");
+    if (sessionStorage.getItem("card_clash_mode") !== "true") return;
+    setIsCardClash(true);
+    try {
+      const p1 = JSON.parse(sessionStorage.getItem("card_clash_p1_cards") || "[]");
+      const p2 = JSON.parse(sessionStorage.getItem("card_clash_p2_cards") || "[]");
+      setP1Cards(p1);
+      setP2Cards(p2);
+      cardDebugLog("X01Scorer", "Card Clash mode active", { p1Cards: p1.length, p2Cards: p2.length });
+    } catch (e) {
+      cardDebugLog("X01Scorer", "Failed to load Card Clash cards from sessionStorage", e);
     }
   }, []);
 
@@ -610,14 +609,14 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       </div>}
     />
     <CardActivationOverlay 
-      equippedCards={equippedCards.map(c => ({
+      equippedCards={(turn === 0 ? p1Cards : p2Cards).map(c => ({
         id: c.id?.toString() || "",
         name: c.name || "Unknown Card",
         effect: c.effect_text || "Card effect",
         cardType: (c.good_or_bad === "GOOD" ? "GOOD" : "BAD") as "GOOD" | "BAD",
         isActive: cardsUsed.some((used: any) => used.id === c.id),
       }))}
-      isVisible={equippedCards.length > 0}
+      isVisible={isCardClash && (turn === 0 ? p1Cards : p2Cards).length > 0}
       onCardActivate={handleCardActivation}
       onClose={() => cardDebugLog("X01Scorer", "Card overlay closed")}
     />
@@ -643,56 +642,68 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [lastHit, setLastHit]   = useState<string>("");
   const [snapHistory, setSnapHistory] = useState<{marks: [[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]], scores: [number,number], turn: 0|1, visitDarts: Dart[]}[]>([]);
 
-  // Card Clash state
-  const [equippedCards, setEquippedCards] = useState<any[]>([]);
-  const [cardsUsed, setCardsUsed]         = useState<any[]>([]);
+  // Card Clash state (populated from sessionStorage by CardClashMatchScorer)
+  const [p1Cards, setP1Cards]         = useState<any[]>([]);
+  const [p2Cards, setP2Cards]         = useState<any[]>([]);
+  const [cardsUsed, setCardsUsed]     = useState<any[]>([]);
+  const [isCardClash, setIsCardClash] = useState(false);
 
   const names = [p1Name, p2Name];
 
-  // ── Card Clash: Load equipped cards from sessionStorage ──
+  // ── Card Clash: Load per-player cards written by CardClashMatchScorer ──
   useEffect(() => {
-    const stored = sessionStorage.getItem('cricket_equipped_cards');
-    if (stored) {
-      try {
-        const cards = JSON.parse(stored);
-        setEquippedCards(cards);
-        cardDebugLog("CricketScorer", "Loaded equipped cards from sessionStorage", {
-          count: cards.length,
-          cards: cards.map((c: any) => c.name),
-        });
-      } catch (e) {
-        cardDebugLog("CricketScorer", "Failed to parse equipped cards", e);
-      }
-    } else {
-      cardDebugLog("CricketScorer", "No equipped cards found - Card Clash disabled");
+    if (sessionStorage.getItem("card_clash_mode") !== "true") return;
+    setIsCardClash(true);
+    try {
+      const p1 = JSON.parse(sessionStorage.getItem("card_clash_p1_cards") || "[]");
+      const p2 = JSON.parse(sessionStorage.getItem("card_clash_p2_cards") || "[]");
+      setP1Cards(p1);
+      setP2Cards(p2);
+      cardDebugLog("CricketScorer", "Card Clash mode active", { p1Cards: p1.length, p2Cards: p2.length });
+    } catch (e) {
+      cardDebugLog("CricketScorer", "Failed to load Card Clash cards from sessionStorage", e);
     }
   }, []);
 
   // ── Card Clash: Handle card activation ──
   const handleCardActivation = useCallback((cardId: string) => {
-    const card = equippedCards.find((c: any) => c.id?.toString() === cardId);
+    // Only the current player can play their own cards
+    const currentCards = turn === 0 ? p1Cards : p2Cards;
+    const card = currentCards.find((c: any) => c.id?.toString() === cardId);
     if (!card) {
       cardDebugLog("CricketScorer", "Card not found", { cardId });
       return;
     }
 
     cardDebugLog("CricketScorer", "Card activated", { card: card.name });
-    
-    // Cricket cards need number selection - will be handled in Phase 3.3
+
+    // Apply cricket card effect immediately as a score adjustment.
+    // GOOD cards: add points to current player's score.
+    // BAD cards: add points to opponent's score (harder for them to maintain lead).
     const effect = calculateCricketCardEffect(card);
     if (effect) {
-      cardDebugLog("CricketScorer", "Cricket effect ready", {
+      const opponent: 0 | 1 = turn === 0 ? 1 : 0;
+      setScores(prev => {
+        const n: [number, number] = [...prev] as [number, number];
+        if (effect.target === "player") {
+          n[turn] = Math.max(0, n[turn] + Math.abs(effect.value) * 10);
+        } else {
+          n[opponent] = Math.max(0, n[opponent] + Math.abs(effect.value) * 10);
+        }
+        return n;
+      });
+      cardDebugLog("CricketScorer", "Card effect applied", {
         card: card.name,
         effect: formatCricketEffectDisplay(effect, card.name),
       });
     }
-    
-    // Mark as used
+
+    // Mark as used so it greys out in the panel
     if (!cardsUsed.some((c: any) => c.id === card.id)) {
       setCardsUsed(prev => [...prev, card]);
       cardDebugLog("CricketScorer", "Card marked used", { card: card.name });
     }
-  }, [equippedCards, cardsUsed]);
+  }, [p1Cards, p2Cards, cardsUsed, turn]);
 
   const checkWin = (m: typeof marks, sc: [number,number]): 0|1|null => {
     for (const p of [0,1] as const) {
@@ -871,14 +882,14 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       </div>}
     />
     <CardActivationOverlay 
-      equippedCards={equippedCards.map(c => ({
+      equippedCards={(turn === 0 ? p1Cards : p2Cards).map(c => ({
         id: c.id?.toString() || "",
         name: c.name || "Unknown Card",
         effect: c.effect_text || "Card effect",
         cardType: (c.good_or_bad === "GOOD" ? "GOOD" : "BAD") as "GOOD" | "BAD",
         isActive: cardsUsed.some((used: any) => used.id === c.id),
       }))}
-      isVisible={equippedCards.length > 0}
+      isVisible={isCardClash && (turn === 0 ? p1Cards : p2Cards).length > 0}
       onCardActivate={handleCardActivation}
       onClose={() => cardDebugLog("CricketScorer", "Card overlay closed")}
     />
