@@ -520,7 +520,7 @@ const PACKS = [
             {activeTab==="standings" && (
               <div>
                 <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:"12px",marginBottom:"1.75rem"}}>
-                  <SectionHeader title="🏆 Standings" subtitle="Ranked by total Card Clash wins" noMargin/>
+                  <SectionHeader title="🏆 Leaderboard" subtitle="All-time Card Clash rankings" noMargin/>
                   <button onClick={loadData} style={{padding:"8px 16px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:"7px",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:"12px"}}>↻ Refresh</button>
                 </div>
                 {standings.length>0?(
@@ -528,7 +528,7 @@ const PACKS = [
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:"14px"}}>
                       <thead>
                         <tr style={{background:"rgba(255,255,255,0.03)"}}>
-                          {["#","Player","W","L","Played","Pts"].map(h=>(
+                          {["#","Player","W","L","Played","Win %"].map(h=>(
                             <th key={h} style={{padding:"12px 18px",textAlign:h==="Player"||h==="#"?"left":"center",color:"rgba(255,255,255,0.3)",fontWeight:700,fontSize:"10px",letterSpacing:"0.12em",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>{h}</th>
                           ))}
                         </tr>
@@ -536,6 +536,7 @@ const PACKS = [
                       <tbody>
                         {standings.map((row,idx)=>{
                           const isMe=row.player_id===playerId;
+                          const winPct = row.total_matches > 0 ? ((row.wins / row.total_matches) * 100).toFixed(1) : "0.0";
                           return (
                             <tr key={row.player_id} style={{borderBottom:"1px solid rgba(255,255,255,0.04)",background:isMe?"rgba(0,180,255,0.06)":idx%2===0?"rgba(255,255,255,0.01)":"transparent"}}>
                               <td style={{padding:"14px 18px",color:idx<3?["#ffd24a","#c0c0c0","#cd7f32"][idx]:"rgba(255,255,255,0.3)",fontWeight:900,fontSize:"15px"}}>{idx===0?"🥇":idx===1?"🥈":idx===2?"🥉":idx+1}</td>
@@ -543,7 +544,7 @@ const PACKS = [
                               <td style={{padding:"14px 18px",textAlign:"center",color:"#00ff88",fontWeight:700}}>{row.wins}</td>
                               <td style={{padding:"14px 18px",textAlign:"center",color:"#ff6b6b"}}>{row.losses}</td>
                               <td style={{padding:"14px 18px",textAlign:"center",color:"rgba(255,255,255,0.4)"}}>{row.total_matches}</td>
-                              <td style={{padding:"14px 18px",textAlign:"center",color:"#00e5ff",fontWeight:700}}>{row.points??0}</td>
+                              <td style={{padding:"14px 18px",textAlign:"center",color:"#00e5ff",fontWeight:700}}>{winPct}%</td>
                             </tr>
                           );
                         })}
