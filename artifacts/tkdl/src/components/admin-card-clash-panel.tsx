@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Trash2, Plus, Minus } from "lucide-react";
+import { ALL_CARDS } from "@/lib/cards-data";
 
 const getAdminHeaders = () => {
   const pin = sessionStorage.getItem("tkdl_admin_pin");
@@ -379,6 +380,26 @@ export default function AdminCardClashPanel() {
     }
   };
 
+  const giveAllCards = async () => {
+    if (!selectedPlayerId) { showMessage("Select a player first", "error"); return; }
+    if (!window.confirm(`Give ALL ${ALL_CARDS.length} cards to ${getSelectedPlayerName()}? This may take a moment.`)) return;
+    try {
+      const res = await fetch("/api/card-clash/admin/give-all-cards", {
+        method: "POST", headers: getAdminHeaders(),
+        body: JSON.stringify({ playerId: parseInt(selectedPlayerId) }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showMessage(`✅ Gave all ${data.given ?? ALL_CARDS.length} cards to ${getSelectedPlayerName()}`, "success");
+      } else {
+        const err = await res.json().catch(() => ({ error: "Unknown error" }));
+        showMessage(`Failed: ${err.error ?? res.statusText}`, "error");
+      }
+    } catch (error) {
+      showMessage(`Failed: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+    }
+  };
+
   const deleteMatch = async () => {
     if (!matchId) {
       showMessage("Enter match ID", "error");
@@ -685,6 +706,14 @@ export default function AdminCardClashPanel() {
               <Button onClick={removeCard} style={{ background: colors.danger }}>
                 <Trash2 size={16} /> Remove
               </Button>
+            </div>
+            <div style={{ marginTop: "12px", borderTop: `1px solid ${colors.border}`, paddingTop: "12px" }}>
+              <Button onClick={giveAllCards} style={{ background: "linear-gradient(135deg,#7c3aed,#4c1d95)", width: "100%" }}>
+                <Plus size={16} /> Give ALL Cards (Preview Mode)
+              </Button>
+              <p style={{ fontSize: "11px", color: colors.textSecondary, margin: "6px 0 0", textAlign: "center" }}>
+                Gives all {ALL_CARDS.length} cards to the selected player instantly
+              </p>
             </div>
           </Section>
 
