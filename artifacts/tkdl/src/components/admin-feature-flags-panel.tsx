@@ -47,10 +47,19 @@ export default function AdminFeatureFlagsPanel() {
         headers: getAdminHeaders(),
       });
       const data = await res.json();
-      setFlags(data);
+      
+      if (!res.ok) {
+        console.error("API error:", data);
+        showMessage(`Failed to load flags: ${data.error || "Unknown error"}`, "error");
+        setFlags([]);
+        return;
+      }
+      
+      setFlags(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to load feature flags:", error);
       showMessage("Failed to load feature flags", "error");
+      setFlags([]);
     } finally {
       setLoading(false);
     }

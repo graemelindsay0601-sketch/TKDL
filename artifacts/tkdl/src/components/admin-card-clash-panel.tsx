@@ -83,10 +83,19 @@ export default function AdminCardClashPanel() {
         headers: getAdminHeaders(),
       });
       const data = await res.json();
-      setPlayers(data);
+      
+      if (!res.ok) {
+        console.error("API error:", data);
+        showMessage(`Failed to load players: ${data.error || "Unknown error"}`, "error");
+        setPlayers([]);
+        return;
+      }
+      
+      setPlayers(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to load players:", error);
       showMessage("Failed to load players", "error");
+      setPlayers([]);
     }
   };
 
