@@ -23,7 +23,7 @@ import { seedCardDefinitions, getAllCardDefinitions, toggleCardAvailability } fr
 import { challengeService } from "../services/challenge-service";
 import { seasonalQuestService } from "../services/seasonal-quest-service";
 import { logger } from "../lib/logger";
-import { db, cardClashMatchesTable } from "@workspace/db";
+import { db, cardClashMatchesTable, cardClashSeasonsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router = Router();
@@ -100,6 +100,47 @@ router.get("/season/active", async (req: Request, res: Response) => {
     res.json(season);
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// Admin: Create active season
+router.post("/admin/season/create", async (req: Request, res: Response) => {
+  try {
+    // Check admin PIN
+    const adminPin = req.headers["x-admin-pin"] as string;
+    if (adminPin !== (process.env.ADMIN_PIN ?? "0601")) {
+      return res.status(403).json({ error: "Unauthorized: Invalid admin PIN" });
+    }
+
+    // Check if season already exists
+    const existing = await getActiveCardClashSeason();
+    if (existing) {
+      return res.status(400).json({ error: "Active season already exists" });
+    }
+
+    // Create new season (monthly based on current month)
+    const now = new Date();
+    const monthName = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    
+    // Season runs from 1st to last day of month
+    const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
+
+    const season = await db
+      .insert(cardClashSeasonsTable)
+      .values({
+        name: `${monthName} Season`,
+        startDate,
+        endDate,
+        isActive: true,
+        isLocked: false,
+      })
+      .returning();
+
+    res.json({ success: true, season: season[0], message: `Created active season: ${monthName}` });
+  } catch (error) {
+    logger.error({ err: error }, "Failed to create season");
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create season" });
   }
 });
 
