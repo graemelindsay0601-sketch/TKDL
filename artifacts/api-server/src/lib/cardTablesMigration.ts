@@ -110,19 +110,54 @@ export async function initializeCardTables() {
     }
 
     // Create card_clash_matches table if it doesn't exist
+    // NOTE: Card Clash is standalone (no seasons) - season_id is legacy/unused
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS card_clash_matches (
         id SERIAL PRIMARY KEY,
-        season_id INTEGER NOT NULL REFERENCES card_clash_seasons(id) ON DELETE CASCADE,
-        player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
-        opponent_id INTEGER REFERENCES players(id) ON DELETE SET NULL,
+        match_id UUID UNIQUE DEFAULT gen_random_uuid(),
+        season_id INTEGER REFERENCES card_clash_seasons(id) ON DELETE CASCADE,
         game_mode TEXT NOT NULL,
-        result TEXT,
-        cards_used TEXT,
+        player_1_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+        player_2_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+        winner_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+        player_1_equipped_cards JSONB DEFAULT '[]'::jsonb,
+        player_2_equipped_cards JSONB DEFAULT '[]'::jsonb,
+        cards_used_in_match JSONB DEFAULT '[]'::jsonb,
+        player_1_points_earned INTEGER DEFAULT 0,
+        player_2_points_earned INTEGER DEFAULT 0,
+        is_mock INTEGER DEFAULT 0,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // MIGRATION: Make season_id nullable (Card Clash no longer requires seasons)
+    try {
+      await db.execute(sql`ALTER TABLE card_clash_matches ALTER COLUMN season_id DROP NOT NULL`);
+      logger.info("✓ Made season_id nullable in card_clash_matches");
+    } catch (e) {
+      logger.debug("season_id already nullable or other error (this is OK)");
+    }
+
+    // MIGRATION: Drop foreign key constraint if it exists
+    try {
+      await db.execute(sql`ALTER TABLE card_clash_matches DROP CONSTRAINT IF EXISTS card_clash_matches_season_id_card_clash_seasons_id_fk`);
+      logger.info("✓ Dropped season_id FK constraint");
+    } catch (e) {
+      logger.debug("FK already dropped or doesn't exist (this is OK)");
+    }
+
+    // Create card_clash_leaderboard table for all-time stats (no seasons)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS card_clash_leaderboard (
+        player_id INTEGER PRIMARY KEY UNIQUE REFERENCES players(id) ON DELETE CASCADE,
+        wins INTEGER NOT NULL DEFAULT 0,
+        losses INTEGER NOT NULL DEFAULT 0,
+        cards_unlocked_count INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    logger.info("✓ card_clash_leaderboard table ready");
 
     // Create notifications table if it doesn't exist
     await db.execute(sql`
