@@ -80,6 +80,16 @@ router.get("/inventory/:playerId", async (req: Request, res: Response) => {
   }
 });
 
+// Get all card definitions
+router.get("/cards/all", async (req: Request, res: Response) => {
+  try {
+    const cards = await getAllCardDefinitions();
+    res.json(cards || []);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
 // Get player pity status
 router.get("/pity/:playerId", async (req: Request, res: Response) => {
   try {

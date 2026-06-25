@@ -1,33 +1,29 @@
 import { useState, useEffect } from "react";
 import { CardDetailModal } from "./CardDetailModal";
 
-const ALL_CARD_TYPES = [
-  { id: "x01g", name: "X01 GOOD", color: "#00e5ff", count: 20 },
-  { id: "x01b", name: "X01 BAD", color: "#ff6b6b", count: 20 },
-  { id: "cg", name: "CRICKET GOOD", color: "#00ff88", count: 20 },
-  { id: "cb", name: "CRICKET BAD", color: "#ff00ff", count: 20 },
-  { id: "wg", name: "WILDCARD GOOD", color: "#ffd24a", count: 10 },
-  { id: "wb", name: "WILDCARD BAD", color: "#ff8844", count: 10 },
-];
-
 export function CardCollectionBook({ playerId }: { playerId: number }) {
   const [inventory, setInventory] = useState<any[]>([]);
+  const [allCards, setAllCards] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedType, setExpandedType] = useState<string>("x01g");
+  const [expandedType, setExpandedType] = useState<string>("x01-good");
   const [selectedCard, setSelectedCard] = useState<any>(null);
 
   useEffect(() => {
     if (!playerId) return;
     setLoading(true);
-    fetch(`/api/card-clash/inventory/${playerId}`)
-      .then((r) => r.json())
-      .then((d) => {
-        setInventory(Array.isArray(d) ? d : []);
+    
+    Promise.all([
+      fetch(`/api/card-clash/inventory/${playerId}`).then((r) => r.json()),
+      fetch(`/api/card-clash/cards/all`).then((r) => r.json()),
+    ])
+      .then(([inv, cards]) => {
+        setInventory(Array.isArray(inv) ? inv : []);
+        setAllCards(Array.isArray(cards) ? cards : []);
         setLoading(false);
       })
       .catch((err) => {
-        console.error("Failed to load inventory:", err);
+        console.error("Failed to load data:", err);
         setError(err.message);
         setLoading(false);
       });
@@ -36,22 +32,22 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
   if (loading) return <div style={{ color: "rgba(255,255,255,0.5)" }}>Loading collection...</div>;
   if (error) return <div style={{ color: "#ff6b6b" }}>Error: {error}</div>;
 
-  const ownedCards = new Map(inventory.map((c) => [c.cardId, c]));
+  const ownedCardMap = new Map(inventory.map((c) => [c.cardId, c]));
   const totalOwned = inventory.length;
   const completionPercent = Math.round((totalOwned / 100) * 100);
 
-  // Get all possible card IDs for each type
-  const getCardIdsForType = (typeId: string) => {
-    const cardType = ALL_CARD_TYPES.find(t => t.id === typeId);
-    if (!cardType) return [];
-    
-    if (typeId === "x01g") return Array.from({ length: 20 }, (_, i) => `x01g${String(i + 1).padStart(2, "0")}`);
-    if (typeId === "x01b") return Array.from({ length: 20 }, (_, i) => `x01b${String(i + 1).padStart(2, "0")}`);
-    if (typeId === "cg") return Array.from({ length: 20 }, (_, i) => `cg${String(i + 1).padStart(2, "0")}`);
-    if (typeId === "cb") return Array.from({ length: 20 }, (_, i) => `cb${String(i + 1).padStart(2, "0")}`);
-    if (typeId === "wg") return Array.from({ length: 10 }, (_, i) => `wg${String(i + 1).padStart(2, "0")}`);
-    if (typeId === "wb") return Array.from({ length: 10 }, (_, i) => `wb${String(i + 1).padStart(2, "0")}`);
-    return [];
+  // Define card types with colors
+  const typeGroups = [
+    { id: "x01-good", name: "X01 GOOD", gameMode: "X01", cardType: "GOOD", color: "#00e5ff" },
+    { id: "x01-bad", name: "X01 BAD", gameMode: "X01", cardType: "BAD", color: "#ff6b6b" },
+    { id: "cricket-good", name: "CRICKET GOOD", gameMode: "CRICKET", cardType: "GOOD", color: "#00ff88" },
+    { id: "cricket-bad", name: "CRICKET BAD", gameMode: "CRICKET", cardType: "BAD", color: "#ff00ff" },
+    { id: "wildcard-good", name: "WILDCARD GOOD", gameMode: "WILDCARD", cardType: "GOOD", color: "#ffd24a" },
+    { id: "wildcard-bad", name: "WILDCARD BAD", gameMode: "WILDCARD", cardType: "BAD", color: "#ff8844" },
+  ];
+
+  const getCardsByType = (gameMode: string, cardType: string) => {
+    return allCards.filter((c) => c.gameMode === gameMode && c.cardType === cardType);
   };
 
   return (
@@ -61,6 +57,7 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
         isOpen={!!selectedCard} 
         onClose={() => setSelectedCard(null)} 
       />
+
       {/* Overall Progress */}
       <div style={{
         padding: "16px",
@@ -90,9 +87,9 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
 
       {/* Card Type Sections */}
       <div style={{ display: "grid", gap: "16px" }}>
-        {ALL_CARD_TYPES.map((typeInfo) => {
-          const cardIds = getCardIdsForType(typeInfo.id);
-          const ownedCount = cardIds.filter(id => ownedCards.has(id)).length;
+        {typeGroups.map((typeInfo) => {
+          const cardsOfType = getCardsByType(typeInfo.gameMode, typeInfo.cardType);
+          const ownedCount = cardsOfType.filter((c) => ownedCardMap.has(c.cardId)).length;
           const isExpanded = expandedType === typeInfo.id;
 
           return (
@@ -125,7 +122,7 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
                     {typeInfo.name}
                   </div>
                   <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>
-                    {ownedCount} / {typeInfo.count} Cards
+                    {ownedCount} / {cardsOfType.length} Cards
                   </div>
                 </div>
                 <div style={{
@@ -149,30 +146,30 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
                   background: "rgba(0,0,0,0.2)",
                   borderRadius: "8px",
                 }}>
-                  {cardIds.map((cardId, idx) => {
-                    const isOwned = ownedCards.has(cardId);
-                    const card = isOwned ? ownedCards.get(cardId) : null;
+                  {cardsOfType.map((card, idx) => {
+                    const isOwned = ownedCardMap.has(card.cardId);
+                    const ownedData = isOwned ? ownedCardMap.get(card.cardId) : null;
 
                     return (
                       <div
-                        key={cardId}
+                        key={card.cardId}
                         onClick={() => {
                           if (isOwned) {
                             setSelectedCard({
-                              ...card,
-                              cardId,
-                              gameMode: typeInfo.id.includes("x01") ? "X01" : typeInfo.id.includes("cg") || typeInfo.id.includes("cb") ? "Cricket" : "Wildcard",
+                              cardId: card.cardId,
+                              cardName: card.name,
+                              gameMode: typeInfo.gameMode,
+                              rarity: card.rarity,
+                              quantity: ownedData?.quantity || 0,
+                              image: card.imageUrl || "/cards/default-card.png",
+                              effect: card.description || card.effect,
                             });
                           }
                         }}
                         style={{
                           position: "relative",
                           aspectRatio: "2/3",
-                          background: isOwned
-                            ? `linear-gradient(135deg, rgba(0,0,0,0.4), rgba(0,0,0,0.1)), url('${card?.image || "/cards/x01-good-grid.png"}')`
-                            : "rgba(0,0,0,0.3)",
-                          backgroundSize: "cover",
-                          backgroundPosition: "center",
+                          background: isOwned ? "rgba(0,150,255,0.2)" : "rgba(0,0,0,0.3)",
                           border: isOwned ? `2px solid ${typeInfo.color}` : "2px solid rgba(255,255,255,0.1)",
                           borderRadius: "6px",
                           display: "flex",
@@ -200,14 +197,17 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
                           }
                         }}
                       >
-                        {/* Card Number */}
+                        {/* Card Name */}
                         <div style={{
-                          fontSize: "10px",
+                          fontSize: "9px",
                           fontWeight: "700",
                           color: isOwned ? typeInfo.color : "rgba(255,255,255,0.3)",
                           textShadow: "0 1px 3px rgba(0,0,0,0.8)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
                         }}>
-                          #{idx + 1}
+                          {card.name}
                         </div>
 
                         {/* Center content */}
@@ -231,7 +231,7 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
                             textShadow: "0 2px 4px rgba(0,0,0,0.8)",
                             textAlign: "right",
                           }}>
-                            ×{card?.quantity}
+                            ×{ownedData?.quantity || 1}
                           </div>
                         )}
                       </div>
