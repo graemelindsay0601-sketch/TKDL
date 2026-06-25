@@ -29,12 +29,16 @@ export async function getActiveCardClashSeason() {
 
   if (season.length === 0) {
     // Create a new season if none exists
+    const now = new Date();
+    const startDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
+    const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]; // YYYY-MM-DD
+    
     const [newSeason] = await db
       .insert(cardClashSeasonsTable)
       .values({
-        name: `Season ${new Date().getFullYear()}-${new Date().getMonth() + 1}`,
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+        name: `Season ${now.getFullYear()}-${now.getMonth() + 1}`,
+        startDate,
+        endDate,
         isActive: true,
       })
       .returning();
