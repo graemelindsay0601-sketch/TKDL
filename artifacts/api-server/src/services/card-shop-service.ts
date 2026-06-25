@@ -333,6 +333,10 @@ export async function removeCardFromPlayer(playerId: number, cardId: string, qua
         and(eq(cardInventoryTable.playerId, playerId), eq(cardInventoryTable.cardId, cardId))
       );
   }
+
+  // Award coins for selling cards (10 coins per card)
+  const coinsEarned = quantity * 10;
+  await addCoinsToPlayer(playerId, coinsEarned);
 }
 
 export async function getPlayerPityStatus(playerId: number) {

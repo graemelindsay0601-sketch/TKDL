@@ -9,14 +9,25 @@ export function CoinBalance({ playerId }: CoinBalanceProps) {
   const [coins, setCoins] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadCoins = () => {
     fetch(`/api/card-clash/shop/currency/${playerId}`)
       .then((r) => r.json())
       .then((data) => {
+        console.log("Coins loaded:", data);
         setCoins(data.cardPoints ?? 0);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((e) => {
+        console.error("Failed to load coins:", e);
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    loadCoins();
+    // Refresh every 2 seconds to catch updates
+    const interval = setInterval(loadCoins, 2000);
+    return () => clearInterval(interval);
   }, [playerId]);
 
   if (loading) return null;
