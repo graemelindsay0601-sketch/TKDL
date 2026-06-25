@@ -5,7 +5,7 @@ import {
   cardClashSeasonsTable,
   cardInventoryTable,
 } from "@workspace/db";
-import { eq, and, leftJoin, desc } from "drizzle-orm";
+import { eq, and, leftJoin, desc, sql } from "drizzle-orm";
 import { addCoinsToPlayer, removeCardFromPlayer } from "./card-shop-service";
 import { applyX01CardModifiers, applyCricketCardModifiers, calculateCardClashPoints } from "./card-score-integration";
 import { logger } from "../lib/logger";
@@ -21,46 +21,55 @@ const COIN_REWARDS = {
   PER_CARD_USED: 10,
 };
 
+async function ensureSeasonSchema() {
+  try {
+    await db.execute(sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT false`);
+    await db.execute(sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS total_matches INTEGER NOT NULL DEFAULT 0`);
+    logger.info("[SEASON_SERVICE] Schema columns verified/added");
+  } catch (e) {
+    logger.warn({ e }, "[SEASON_SERVICE] Schema fix attempt failed — table may not exist yet");
+  }
+}
+
 export async function getActiveCardClashSeason() {
+  const doQuery = () =>
+    db.select().from(cardClashSeasonsTable).where(eq(cardClashSeasonsTable.isActive, true)).limit(1);
+
+  let season: any[];
   try {
     logger.info("[SEASON_SERVICE] Querying active season...");
-    let season = await db
-      .select()
-      .from(cardClashSeasonsTable)
-      .where(eq(cardClashSeasonsTable.isActive, true))
-      .limit(1);
-
-    logger.info("[SEASON_SERVICE] Query returned:", season.length, "rows");
-
-    if (season.length === 0) {
-      logger.info("[SEASON_SERVICE] No season found, creating new one...");
-      // Create a new season if none exists
-      const now = new Date();
-      const startDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
-      const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]; // YYYY-MM-DD
-      
-      logger.info("[SEASON_SERVICE] Inserting season:", { startDate, endDate });
-      
-      const [newSeason] = await db
-        .insert(cardClashSeasonsTable)
-        .values({
-          name: `Season ${now.getFullYear()}-${now.getMonth() + 1}`,
-          startDate,
-          endDate,
-          isActive: true,
-        })
-        .returning();
-      
-      logger.info("[SEASON_SERVICE] New season created:", newSeason);
-      return newSeason;
-    }
-
-    logger.info("[SEASON_SERVICE] Found existing season:", season[0]);
-    return season[0];
-  } catch (error) {
-    logger.error("[SEASON_SERVICE] Error:", error);
-    throw error;
+    season = await doQuery();
+  } catch (firstError) {
+    // Most likely cause: is_locked / total_matches columns missing from production DB.
+    // Add them and retry once before giving up.
+    logger.warn("[SEASON_SERVICE] Query failed — attempting schema fix and retry");
+    await ensureSeasonSchema();
+    season = await doQuery(); // throws if still broken — caller will 500
   }
+
+  logger.info("[SEASON_SERVICE] Query returned:", season.length, "rows");
+
+  if (season.length === 0) {
+    logger.info("[SEASON_SERVICE] No season found, creating new one...");
+    const now = new Date();
+    const startDate = now.toISOString().split("T")[0];
+    const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    logger.info("[SEASON_SERVICE] Inserting season:", { startDate, endDate });
+    const [newSeason] = await db
+      .insert(cardClashSeasonsTable)
+      .values({
+        name: `Season ${now.getFullYear()}-${now.getMonth() + 1}`,
+        startDate,
+        endDate,
+        isActive: true,
+      })
+      .returning();
+    logger.info("[SEASON_SERVICE] New season created:", newSeason);
+    return newSeason;
+  }
+
+  logger.info("[SEASON_SERVICE] Found existing season:", season[0]);
+  return season[0];
 }
 
 export async function startCardClashMatch(
