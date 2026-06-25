@@ -133,46 +133,24 @@ const PACKS = [
   }
 
   // ── Hub card ─────────────────────────────────────────────────────────────────
-
-    // Hub reference image crop map (852×1846px, card≈411×257px)
-    // Formula: translateX(-cropX/imgW%) translateY(-cropY/imgH%) — fully responsive
-    // Hub reference image (852×1846px) — top-left of each card region
-      const HUB_CROPS: Record<string,{x:number,y:number}> = {
-        collection:   {x:8,   y:650},
-        shop:         {x:432, y:650},
-        play:         {x:8,   y:928},
-        practice:     {x:432, y:928},
-        standings:    {x:8,   y:1206},
-        achievements: {x:432, y:1206},
-        rules:        {x:8,   y:1484},
-        admin:        {x:432, y:1484},
-      };
-      const HUB_IMG_W=852, HUB_IMG_H=1846, HUB_CARD_W=412, HUB_CARD_H=266;
+    // translateX(-cropX/852*100%) translateY(-cropY/1846*100%) positions correctly at any scale
+    const HUB_CROPS: Record<string,{tx:string,ty:string}> = {
+      collection:   {tx:"-0.94%",  ty:"-35.21%"},
+      shop:         {tx:"-50.70%", ty:"-35.21%"},
+      play:         {tx:"-0.94%",  ty:"-50.27%"},
+      practice:     {tx:"-50.70%", ty:"-50.27%"},
+      standings:    {tx:"-0.94%",  ty:"-65.33%"},
+      achievements: {tx:"-50.70%", ty:"-65.33%"},
+      rules:        {tx:"-0.94%",  ty:"-80.39%"},
+      admin:        {tx:"-50.70%", ty:"-80.39%"},
+    };
 
     function HubCard({label,sublabel,color,glow,onClick,badge,disabled=false,delay=0}:{label:string;sublabel:string;color:string;glow:string;onClick:()=>void;badge?:number|string;disabled?:boolean;delay?:number;icon?:React.ReactNode}){
       const [hov,setHov]=React.useState(false);
-      const btnRef=React.useRef<HTMLButtonElement>(null);
-      const [pos,setPos]=React.useState({w:0,h:0,left:0,top:0});
-      const key=label.toLowerCase().replace(/[\s\/]+/g,"");
-      const crop=HUB_CROPS[key]||{x:0,y:0};
-      React.useLayoutEffect(()=>{
-        const el=btnRef.current; if(!el) return;
-        const compute=()=>{
-          const W=el.offsetWidth||1, H=el.offsetHeight||1;
-          const s=H/HUB_CARD_H;
-          setPos({
-            w:Math.round(HUB_IMG_W*s),
-            h:Math.round(HUB_IMG_H*s),
-            left:Math.round(W/2-(crop.x+HUB_CARD_W/2)*s),
-            top:Math.round(-crop.y*s),
-          });
-        };
-        compute();
-        const ro=new ResizeObserver(compute); ro.observe(el);
-        return()=>ro.disconnect();
-      },[crop.x,crop.y]);
+      const key=label.toLowerCase().replace(/[\s/]+/g,"");
+      const crop=HUB_CROPS[key]||{tx:"0%",ty:"0%"};
       return(
-        <button ref={btnRef} onClick={disabled?undefined:onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
+        <button onClick={disabled?undefined:onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
           style={{
             all:"unset",display:"flex",flexDirection:"column",alignItems:"center",
             justifyContent:"flex-end",gap:"4px",padding:"0 10px 12px",
@@ -186,9 +164,18 @@ const PACKS = [
             animation:`hubCardFloat 4s ease-in-out infinite ${delay}s`,
           }}>
           <div style={{position:"absolute",inset:0,overflow:"hidden",borderRadius:"inherit"}}>
-            {pos.w>0&&<img src="/assets/hub-reference.png" alt="" aria-hidden="true"
-              style={{position:"absolute",width:pos.w,height:pos.h,left:pos.left,top:pos.top,maxWidth:"none",opacity:hov?0.95:0.85,transition:"opacity 0.22s"}}/>}
-            <div style={{position:"absolute",inset:0,background:"linear-gradient(0deg,rgba(0,0,0,0.9) 0%,rgba(0,0,0,0.06) 45%,rgba(0,0,0,0.4) 100%)"}}/>
+            <img src="/assets/hub-reference.png" alt="" aria-hidden="true"
+              style={{
+                position:"absolute",
+                width:"206.8%",
+                maxWidth:"none",
+                height:"auto",
+                transform:`translateX(${crop.tx}) translateY(${crop.ty})`,
+                transformOrigin:"0 0",
+                opacity:hov?0.92:0.82,
+                transition:"opacity 0.22s",
+              }}/>
+            <div style={{position:"absolute",inset:0,background:"linear-gradient(0deg,rgba(0,0,0,0.88) 0%,rgba(0,0,0,0.05) 45%,rgba(0,0,0,0.38) 100%)"}}/>
             <div style={{position:"absolute",inset:0,background:`radial-gradient(ellipse at 50% 110%,${color}28 0%,transparent 65%)`}}/>
           </div>
           {badge!==undefined&&(
@@ -200,7 +187,7 @@ const PACKS = [
       );
     }
 
-  export default function CardClashPage() {
+    export default function CardClashPage() {
   const currentPlayer = useCurrentPlayer();
   const playerId = currentPlayer?.playerId;
 
