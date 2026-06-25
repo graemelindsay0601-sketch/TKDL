@@ -136,7 +136,7 @@ const PACKS = [
 
     // Hub reference image crop map (852×1846px, card≈411×257px)
     // Formula: translateX(-cropX/imgW%) translateY(-cropY/imgH%) — fully responsive
-    // Hub reference image (852×1846px) — top-left corner of each card section
+    // Hub reference image (852×1846px) — top-left of each card region
       const HUB_CROPS: Record<string,{x:number,y:number}> = {
         collection:   {x:8,   y:650},
         shop:         {x:432, y:650},
@@ -151,10 +151,28 @@ const PACKS = [
 
     function HubCard({label,sublabel,color,glow,onClick,badge,disabled=false,delay=0}:{label:string;sublabel:string;color:string;glow:string;onClick:()=>void;badge?:number|string;disabled?:boolean;delay?:number;icon?:React.ReactNode}){
       const [hov,setHov]=React.useState(false);
+      const btnRef=React.useRef<HTMLButtonElement>(null);
+      const [pos,setPos]=React.useState({w:0,h:0,left:0,top:0});
       const key=label.toLowerCase().replace(/[\s\/]+/g,"");
-      const crop=HUB_CROPS[key]||{tx:"0%",ty:"0%"};
+      const crop=HUB_CROPS[key]||{x:0,y:0};
+      React.useLayoutEffect(()=>{
+        const el=btnRef.current; if(!el) return;
+        const compute=()=>{
+          const W=el.offsetWidth||1, H=el.offsetHeight||1;
+          const s=H/HUB_CARD_H;
+          setPos({
+            w:Math.round(HUB_IMG_W*s),
+            h:Math.round(HUB_IMG_H*s),
+            left:Math.round(W/2-(crop.x+HUB_CARD_W/2)*s),
+            top:Math.round(-crop.y*s),
+          });
+        };
+        compute();
+        const ro=new ResizeObserver(compute); ro.observe(el);
+        return()=>ro.disconnect();
+      },[crop.x,crop.y]);
       return(
-        <button onClick={disabled?undefined:onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
+        <button ref={btnRef} onClick={disabled?undefined:onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
           style={{
             all:"unset",display:"flex",flexDirection:"column",alignItems:"center",
             justifyContent:"flex-end",gap:"4px",padding:"0 10px 12px",
@@ -162,42 +180,27 @@ const PACKS = [
             position:"relative",overflow:"hidden",
             transition:"all 0.22s cubic-bezier(0.34,1.56,0.64,1)",
             border:`1px solid ${hov?color+"55":color+"22"}`,
-            boxShadow:hov
-              ?`0 0 0 1px ${color}28,0 0 35px 6px ${glow},0 18px 40px rgba(0,0,0,0.75)`
-              :`0 0 0 1px ${color}12,0 8px 28px rgba(0,0,0,0.55)`,
+            boxShadow:hov?`0 0 0 1px ${color}28,0 0 35px 6px ${glow},0 18px 40px rgba(0,0,0,0.75)`:`0 0 0 1px ${color}12,0 8px 28px rgba(0,0,0,0.55)`,
             transform:hov?"translateY(-5px) scale(1.025)":"scale(1)",
             opacity:disabled?0.3:1,minHeight:"158px",
             animation:`hubCardFloat 4s ease-in-out infinite ${delay}s`,
           }}>
-          {/* Hub reference image background — crops to this card's section */}
           <div style={{position:"absolute",inset:0,overflow:"hidden",borderRadius:"inherit"}}>
-            <img src="/assets/hub-reference.png" alt="" aria-hidden="true"
-              style={{
-                position:"absolute",
-                width:"203%",   /* 852/420×100 ≈ 203% — one card fills container width */
-                maxWidth:"none",height:"auto",
-                transform:`translateX(${crop.tx}) translateY(${crop.ty})`,
-                transformOrigin:"0 0",
-                opacity:hov?0.92:0.82,transition:"opacity 0.22s",
-              }}/>
-            {/* Bottom gradient for label readability */}
-            <div style={{position:"absolute",inset:0,background:"linear-gradient(0deg,rgba(0,0,0,0.9) 0%,rgba(0,0,0,0.08) 45%,rgba(0,0,0,0.45) 100%)"}}/>
-            {/* Colour-matched glow from bottom */}
+            {pos.w>0&&<img src="/assets/hub-reference.png" alt="" aria-hidden="true"
+              style={{position:"absolute",width:pos.w,height:pos.h,left:pos.left,top:pos.top,maxWidth:"none",opacity:hov?0.95:0.85,transition:"opacity 0.22s"}}/>}
+            <div style={{position:"absolute",inset:0,background:"linear-gradient(0deg,rgba(0,0,0,0.9) 0%,rgba(0,0,0,0.06) 45%,rgba(0,0,0,0.4) 100%)"}}/>
             <div style={{position:"absolute",inset:0,background:`radial-gradient(ellipse at 50% 110%,${color}28 0%,transparent 65%)`}}/>
           </div>
-          {/* Badge */}
           {badge!==undefined&&(
             <div style={{position:"absolute",top:"10px",right:"10px",zIndex:10,background:"linear-gradient(135deg,#ff3a5c,#dd0028)",color:"#fff",fontSize:"11px",fontWeight:900,minWidth:"22px",height:"22px",borderRadius:"11px",display:"flex",alignItems:"center",justifyContent:"center",padding:"0 5px",boxShadow:"0 0 14px rgba(255,50,80,0.7)",border:"1.5px solid rgba(255,255,255,0.25)"}}>{badge}</div>
           )}
-          {/* Labels sit on top of gradient */}
           <div style={{fontSize:"13px",fontWeight:900,letterSpacing:"0.13em",color:hov?"#fff":color,fontFamily:"'Arial Black',Impact,Arial,sans-serif",textTransform:"uppercase",textShadow:hov?`0 0 22px ${glow},0 0 44px ${glow}`:`0 0 12px ${glow}`,transition:"all 0.2s",zIndex:1,position:"relative"}}>{label}</div>
           <div style={{fontSize:"9px",fontWeight:600,letterSpacing:"0.07em",color:"rgba(255,255,255,0.3)",textTransform:"uppercase",textAlign:"center",lineHeight:1.5,zIndex:1,position:"relative"}}>{sublabel}</div>
         </button>
       );
     }
-  
 
-export default function CardClashPage() {
+  export default function CardClashPage() {
   const currentPlayer = useCurrentPlayer();
   const playerId = currentPlayer?.playerId;
 
