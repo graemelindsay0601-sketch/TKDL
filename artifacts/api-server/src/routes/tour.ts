@@ -413,18 +413,22 @@ router.patch("/tour/runs/:runId", async (req, res): Promise<void> => {
       // Check broader achievements after awarding trophy
       await checkAndAwardTourAchievements(playerId, run.slug, run.difficulty).catch(() => {});
 
-      // Fire-and-forget: Award tour completion coins (10 coins per win) + update challenges
+      // Fire-and-forget: Award tour round completion coins + update challenges
       void (async () => {
         try {
           const { addCoinsToPlayer } = await import("../services/card-shop-service");
-          await addCoinsToPlayer(playerId, 10);
+          const { challengeManager } = await import("../services/challenge-manager");
           
-          // Update challenges
-          const { challengeService } = await import("../services/challenge-service");
-          await challengeService.updateDailyProgress(playerId, "tour_wins_2", 1);
-          await challengeService.updateDailyProgress(playerId, "matches_5", 1);
-          await challengeService.updateWeeklyProgress(playerId, "weekly_tour_2", 1);
-          await challengeService.updateWeeklyProgress(playerId, "weekly_wins_5", 1);
+          // Award 10 coins per win
+          if (playerWon) {
+            await addCoinsToPlayer(playerId, 10);
+          }
+          
+          // Update challenges for each match/round result
+          await challengeManager.updateProgressFromGameResult(playerId, {
+            gameMode: "TOUR",
+            won: playerWon,
+          });
         } catch (err) {
           console.error("Tour coin/challenge award error:", err);
         }
