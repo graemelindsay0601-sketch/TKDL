@@ -8,7 +8,7 @@ import { TKDLCard } from "@/components/TKDLCard";
 import { ALL_CARDS } from "@/lib/cards-data";
 import type { CardData, Category, Rarity } from "@/lib/cards-data";
 
-type Tab = "collection" | "shop" | "play" | "practice" | "standings" | "achievements" | "rules";
+type Tab = "collection" | "shop" | "play" | "practice" | "standings" | "achievements" | "rules" | "admin";
 
 const CATEGORIES: Category[] = ["X01 GOOD", "X01 BAD", "CRICKET GOOD", "CRICKET BAD", "WILDCARD GOOD", "WILDCARD BAD"];
 const RARITIES: Rarity[] = ["COMMON", "RARE", "LEGENDARY"];
@@ -52,6 +52,12 @@ export default function CardClashPage() {
   const [rarFilter, setRarFilter] = useState<Rarity | "ALL">("ALL");
   const [showOwned, setShowOwned] = useState<"all" | "owned" | "unowned">("all");
   const [enlargedCard, setEnlargedCard] = useState<CardData | null>(null);
+    const [adminPin, setAdminPin] = useState("");
+    const [adminAuthed, setAdminAuthed] = useState(false);
+    const [adminPinError, setAdminPinError] = useState(false);
+    const [adminAction, setAdminAction] = useState<string | null>(null);
+    const [adminResult, setAdminResult] = useState<{ ok: boolean; message: string; details?: string[] } | null>(null);
+    const [confirmText, setConfirmText] = useState("");
 
   useEffect(() => {
     if (!playerId) return;
@@ -540,6 +546,161 @@ export default function CardClashPage() {
           </div>
         )}
       </div>
+
+
+          {/* ── ADMIN ── */}
+          {activeTab === "admin" && (
+            <div style={{ animation: "tabFadeIn 0.25s ease", maxWidth: "560px", margin: "0 auto" }}>
+              <SectionHeader title="⚙️ Admin Panel" subtitle="Launch prep tools — PIN protected" />
+
+              {!adminAuthed ? (
+                <Panel>
+                  <div style={{ textAlign: "center", padding: "16px 0" }}>
+                    <div style={{ fontSize: "40px", marginBottom: "18px" }}>🔐</div>
+                    <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)", marginBottom: "18px", fontFamily: "Arial,sans-serif" }}>Enter admin PIN to continue</div>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      placeholder="••••"
+                      value={adminPin}
+                      onChange={e => { setAdminPin(e.target.value); setAdminPinError(false); }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") {
+                          if (adminPin === "0601") { setAdminAuthed(true); setAdminPinError(false); }
+                          else { setAdminPinError(true); setAdminPin(""); }
+                        }
+                      }}
+                      style={{ padding: "12px 20px", background: adminPinError ? "rgba(255,60,60,0.08)" : "rgba(255,255,255,0.06)", border: `1px solid ${adminPinError ? "rgba(255,60,60,0.4)" : "rgba(255,255,255,0.14)"}`, borderRadius: "8px", color: "#fff", fontSize: "22px", textAlign: "center", outline: "none", width: "140px", letterSpacing: "0.3em", marginBottom: "12px" }}
+                    />
+                    {adminPinError && <div style={{ fontSize: "12px", color: "#ff5566", marginBottom: "12px", fontFamily: "Arial,sans-serif" }}>Incorrect PIN</div>}
+                    <br />
+                    <button
+                      onClick={() => {
+                        if (adminPin === "0601") { setAdminAuthed(true); setAdminPinError(false); }
+                        else { setAdminPinError(true); setAdminPin(""); }
+                      }}
+                      style={{ padding: "10px 28px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: "8px", color: "#fff", fontSize: "13px", fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em" }}
+                    >
+                      Unlock
+                    </button>
+                  </div>
+                </Panel>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+
+                  {/* Success/error result banner */}
+                  {adminResult && (
+                    <div style={{ padding: "14px 18px", borderRadius: "10px", background: adminResult.ok ? "rgba(0,255,136,0.07)" : "rgba(255,60,60,0.07)", border: `1px solid ${adminResult.ok ? "rgba(0,255,136,0.28)" : "rgba(255,60,60,0.28)"}` }}>
+                      <div style={{ fontWeight: 700, color: adminResult.ok ? "#00ff88" : "#ff5566", marginBottom: "6px", fontFamily: "Arial,sans-serif" }}>
+                        {adminResult.ok ? "✅" : "❌"} {adminResult.message}
+                      </div>
+                      {adminResult.details?.map((d, i) => (
+                        <div key={i} style={{ fontSize: "12px", color: "rgba(255,255,255,0.36)", fontFamily: "Arial,sans-serif", lineHeight: 1.6 }}>{d}</div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Challenge reset */}
+                  <Panel>
+                    <PanelTitle color="#00b4ff">🗑️ Clear Challenges</PanelTitle>
+                    <p style={{ margin: "0 0 14px", fontSize: "12px", color: "rgba(255,255,255,0.36)", lineHeight: 1.6, fontFamily: "Arial,sans-serif" }}>
+                      Removes all daily &amp; weekly challenge progress. Definitions (the challenge templates) are preserved — players will get fresh challenges next time they visit.
+                    </p>
+                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                      <button
+                        disabled={adminAction === "clearMyChallenge"}
+                        onClick={async () => {
+                          setAdminAction("clearMyChallenge"); setAdminResult(null);
+                          try {
+                            const r = await fetch("/api/card-clash/admin/challenges/clear", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json", "x-admin-pin": "0601" },
+                              body: JSON.stringify({ playerId })
+                            });
+                            const d = await r.json();
+                            setAdminResult({ ok: r.ok, message: d.message ?? (r.ok ? "Done" : d.error), details: [] });
+                            if (r.ok) loadData();
+                          } catch (e: any) { setAdminResult({ ok: false, message: e.message }); }
+                          finally { setAdminAction(null); }
+                        }}
+                        style={{ padding: "10px 20px", background: "rgba(0,180,255,0.08)", border: "1px solid rgba(0,180,255,0.3)", borderRadius: "8px", color: "#00b4ff", fontWeight: 700, fontSize: "12px", cursor: adminAction ? "not-allowed" : "pointer", letterSpacing: "0.06em" }}
+                      >
+                        {adminAction === "clearMyChallenge" ? "Clearing…" : "Clear MY Challenges"}
+                      </button>
+                      <button
+                        disabled={!!adminAction}
+                        onClick={async () => {
+                          if (!window.confirm("Clear challenges for ALL players?")) return;
+                          setAdminAction("clearAllChallenges"); setAdminResult(null);
+                          try {
+                            const r = await fetch("/api/card-clash/admin/challenges/clear", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json", "x-admin-pin": "0601" },
+                              body: JSON.stringify({})
+                            });
+                            const d = await r.json();
+                            setAdminResult({ ok: r.ok, message: d.message ?? (r.ok ? "Done" : d.error), details: [] });
+                          } catch (e: any) { setAdminResult({ ok: false, message: e.message }); }
+                          finally { setAdminAction(null); }
+                        }}
+                        style={{ padding: "10px 20px", background: "rgba(255,165,0,0.08)", border: "1px solid rgba(255,165,0,0.3)", borderRadius: "8px", color: "#ffaa00", fontWeight: 700, fontSize: "12px", cursor: adminAction ? "not-allowed" : "pointer", letterSpacing: "0.06em" }}
+                      >
+                        {adminAction === "clearAllChallenges" ? "Clearing…" : "Clear ALL Players' Challenges"}
+                      </button>
+                    </div>
+                  </Panel>
+
+                  {/* Full nuclear reset */}
+                  <Panel style={{ border: "1px solid rgba(255,60,60,0.25)", background: "rgba(255,30,30,0.03)" }}>
+                    <PanelTitle color="#ff5566">☢️ Full Nuclear Reset</PanelTitle>
+                    <p style={{ margin: "0 0 10px", fontSize: "12px", color: "rgba(255,255,255,0.36)", lineHeight: 1.6, fontFamily: "Arial,sans-serif" }}>
+                      Wipes <strong style={{ color: "rgba(255,255,255,0.55)" }}>all</strong> Card Clash player data: card inventories, matches, achievements, packs, challenges, login streaks. Everyone's coin balance resets to <strong style={{ color: "#ffd24a" }}>200 starter coins</strong>. Card definitions and challenge templates are preserved.
+                    </p>
+                    <p style={{ margin: "0 0 14px", fontSize: "12px", color: "#ff9999", fontFamily: "Arial,sans-serif" }}>
+                      Use this immediately before your real launch so everyone starts fresh.
+                    </p>
+                    <div style={{ marginBottom: "12px" }}>
+                      <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginBottom: "6px", fontFamily: "Arial,sans-serif" }}>Type LAUNCH to confirm:</div>
+                      <input
+                        type="text"
+                        placeholder="LAUNCH"
+                        value={confirmText}
+                        onChange={e => setConfirmText(e.target.value.toUpperCase())}
+                        style={{ padding: "9px 14px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,60,60,0.25)", borderRadius: "7px", color: "#fff", fontSize: "14px", outline: "none", width: "140px", letterSpacing: "0.14em" }}
+                      />
+                    </div>
+                    <button
+                      disabled={confirmText !== "LAUNCH" || !!adminAction}
+                      onClick={async () => {
+                        setAdminAction("fullReset"); setAdminResult(null); setConfirmText("");
+                        try {
+                          const r = await fetch("/api/card-clash/admin/full-reset", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", "x-admin-pin": "0601" },
+                            body: JSON.stringify({})
+                          });
+                          const d = await r.json();
+                          setAdminResult({ ok: r.ok, message: d.message ?? (r.ok ? "Reset complete" : d.error), details: d.results });
+                          if (r.ok) loadData();
+                        } catch (e: any) { setAdminResult({ ok: false, message: e.message }); }
+                        finally { setAdminAction(null); }
+                      }}
+                      style={{ padding: "12px 28px", background: confirmText === "LAUNCH" ? "linear-gradient(135deg,#c0392b,#e74c3c)" : "rgba(255,255,255,0.04)", border: `1px solid ${confirmText === "LAUNCH" ? "rgba(255,60,60,0.6)" : "rgba(255,255,255,0.08)"}`, borderRadius: "9px", color: confirmText === "LAUNCH" ? "#fff" : "rgba(255,255,255,0.2)", fontWeight: 900, fontSize: "13px", cursor: confirmText === "LAUNCH" && !adminAction ? "pointer" : "not-allowed", letterSpacing: "0.08em", boxShadow: confirmText === "LAUNCH" ? "0 4px 22px rgba(231,76,60,0.35)" : "none", transition: "all 0.2s" }}
+                    >
+                      {adminAction === "fullReset" ? "⏳ Resetting everything…" : "☢️ NUCLEAR RESET — LAUNCH READY"}
+                    </button>
+                  </Panel>
+
+                  <button
+                    onClick={() => { setAdminAuthed(false); setAdminPin(""); setAdminResult(null); setConfirmText(""); }}
+                    style={{ padding: "8px 18px", background: "transparent", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "7px", color: "rgba(255,255,255,0.28)", fontSize: "12px", cursor: "pointer" }}
+                  >
+                    🔒 Lock Admin Panel
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
       {/* ── CARD ENLARGE MODAL ── */}
       {enlargedCard && (
