@@ -83,145 +83,29 @@ const RARITY_GLOW:  Record<string,string> = { LEGENDARY: "#ffaa00", RARE: "#a855
 const RARITY_LABEL: Record<string,string> = { LEGENDARY: "✦ LEGENDARY ✦", RARE: "◆ RARE ◆", COMMON: "COMMON" };
 
 // ── SVG pack art — proper TCG-style metallic packs ─────────────────────────────
-function PackArt({ packId, isPreview }: { packId: string; isPreview: boolean }) {
-  const p = PACK_DEFS.find(x => x.id === packId) ?? PACK_DEFS[1];
-  const W = isPreview ? 174 : 108;
-  const H = isPreview ? 280 : 174;
-  const uid = `${packId}${isPreview?"L":"S"}`;
-
-  return (
-    <svg width={W} height={H} viewBox="0 0 174 280" style={{ display: "block", overflow: "visible" }}>
-      <defs>
-        <linearGradient id={`bd${uid}`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%"   stopColor={p.bodyDark} />
-          <stop offset="45%"  stopColor={p.bodyMid}  />
-          <stop offset="75%"  stopColor={p.bodyHigh} />
-          <stop offset="100%" stopColor={p.bodyDark} />
-        </linearGradient>
-        <linearGradient id={`st${uid}`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%"   stopColor={p.stripDark} />
-          <stop offset="50%"  stopColor={p.stripMid}  />
-          <stop offset="100%" stopColor={p.stripDark} />
-        </linearGradient>
-        <linearGradient id={`sh${uid}`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="rgba(255,255,255,0)"  />
-          <stop offset="30%"  stopColor="rgba(255,255,255,0.06)"  />
-          <stop offset="50%"  stopColor="rgba(255,255,255,0.22)" />
-          <stop offset="70%"  stopColor="rgba(255,255,255,0.06)"  />
-          <stop offset="100%" stopColor="rgba(255,255,255,0)"  />
-        </linearGradient>
-        <linearGradient id={`eg${uid}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="rgba(255,255,255,0.28)" />
-          <stop offset="6%"   stopColor="rgba(255,255,255,0.07)" />
-          <stop offset="94%"  stopColor="rgba(255,255,255,0.04)" />
-          <stop offset="100%" stopColor="rgba(255,255,255,0.16)" />
-        </linearGradient>
-        <radialGradient id={`ag${uid}`} cx="50%" cy="38%" r="55%">
-          <stop offset="0%"   stopColor={p.accent} stopOpacity="0.22" />
-          <stop offset="100%" stopColor={p.accent} stopOpacity="0"    />
-        </radialGradient>
-        {p.tier === "legendary" && (
-          <linearGradient id={`rb${uid}`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%"   stopColor="rgba(255,0,80,0.28)"   />
-            <stop offset="20%"  stopColor="rgba(255,140,0,0.22)"  />
-            <stop offset="40%"  stopColor="rgba(0,255,100,0.18)"  />
-            <stop offset="60%"  stopColor="rgba(0,180,255,0.22)"  />
-            <stop offset="80%"  stopColor="rgba(180,0,255,0.26)"  />
-            <stop offset="100%" stopColor="rgba(255,0,80,0.28)"   />
-          </linearGradient>
-        )}
-        <clipPath id={`cl${uid}`}><rect x="2" y="2" width="170" height="276" rx="10"/></clipPath>
-        <clipPath id={`cs${uid}`}><rect x="2" y="2" width="170" height="60"  rx="10"/></clipPath>
-        <pattern id={`dm${uid}`} x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-          <path d="M0,10 L10,0 L20,10 L10,20Z" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.5"/>
-        </pattern>
-      </defs>
-
-      {/* Body */}
-      <rect x="2" y="2" width="170" height="276" rx="10" fill={`url(#bd${uid})`} />
-      {/* Ambient glow */}
-      <rect x="2" y="2" width="170" height="276" rx="10" fill={`url(#ag${uid})`} />
-      {/* Diamond texture */}
-      <g clipPath={`url(#cl${uid})`} opacity="0.04">
-        <rect x="0" y="0" width="174" height="280" fill={`url(#dm${uid})`} />
-      </g>
-      {/* Legendary rainbow foil */}
-      {p.tier === "legendary" && (
-        <rect x="2" y="2" width="170" height="276" rx="10" fill={`url(#rb${uid})`} />
-      )}
-      {/* Metallic sheen */}
-      <rect x="2" y="2" width="170" height="276" rx="10" fill={`url(#sh${uid})`} />
-
-      {/* Tear strip */}
-      <g clipPath={`url(#cs${uid})`}>
-        <rect x="2" y="2" width="170" height="60" rx="10" fill={`url(#st${uid})`} />
-      </g>
-      {/* Strip border line */}
-      <line x1="2" y1="60" x2="172" y2="60" stroke={p.accent} strokeWidth="1.2" opacity="0.55" />
-      {/* Perforation dots */}
-      {Array.from({ length: 22 }, (_, i) => (
-        <rect key={i} x={5 + i * 7.5} y="57" width="4.5" height="2" rx="1" fill={p.accent} opacity="0.48" />
-      ))}
-      {/* TKDL text in strip */}
-      <text x="87" y="30" textAnchor="middle" fontSize="14" fontWeight="900"
-        fill={p.accentBright} letterSpacing="5"
-        fontFamily="'Arial Black',Impact,Arial,sans-serif"
-        style={{ filter: `drop-shadow(0 0 6px ${p.accent})` }}>
-        TKDL
-      </text>
-      <text x="87" y="47" textAnchor="middle" fontSize="8" fill={p.accent} opacity="0.65"
-        letterSpacing="2.5" fontFamily="Arial,sans-serif">CARD CLASH</text>
-
-      {/* Inner content frame */}
-      <rect x="12" y="72" width="150" height="170" rx="6"
-        fill="rgba(0,0,0,0.28)"
-        stroke={p.accent} strokeWidth="0.8" strokeOpacity="0.28" />
-
-      {/* Dart graphic — rotated 45° pointing top-right */}
-      <g transform="translate(87,152) rotate(-35)">
-        {/* Flight */}
-        <path d="M-30,3 L-46,-16 L-30,-2 L-46,22 L-30,8Z" fill={p.accent} opacity="0.5" />
-        {/* Shaft */}
-        <rect x="-30" y="-2" width="20" height="8" rx="1.5" fill={p.accent} opacity="0.38" />
-        {/* Barrel */}
-        <rect x="-12" y="-5.5" width="26" height="15" rx="3.5"
-          fill={p.accentBright} opacity="0.82"
-          style={{ filter: `drop-shadow(0 0 5px ${p.accent})` }} />
-        {/* Grip rings on barrel */}
-        <line x1="-5"  y1="-5.5" x2="-5"  y2="9.5" stroke="rgba(0,0,0,0.45)" strokeWidth="1.8" />
-        <line x1="2"   y1="-5.5" x2="2"   y2="9.5" stroke="rgba(0,0,0,0.45)" strokeWidth="1.8" />
-        <line x1="9"   y1="-5.5" x2="9"   y2="9.5" stroke="rgba(0,0,0,0.45)" strokeWidth="1.8" />
-        {/* Barrel sheen */}
-        <rect x="-12" y="-5.5" width="26" height="5" rx="2" fill="rgba(255,255,255,0.28)" />
-        {/* Neck */}
-        <rect x="14" y="-2" width="7" height="8" rx="1.5" fill={p.accent} opacity="0.68" />
-        {/* Tip */}
-        <path d="M21,-2 L32,2 L21,10Z" fill={p.accentBright} opacity="0.95" />
-      </g>
-
-      {/* Pack tier badge */}
-      {p.tier !== "silver" && (
-        <rect x="62" y="248" width="50" height="14" rx="7"
-          fill={p.accent} opacity="0.18" />
-      )}
-
-      {/* Pack name & sub */}
-      <text x="87" y="262" textAnchor="middle" fontSize="9.5" fontWeight="900"
-        fill={p.accentBright} letterSpacing="2.5"
-        fontFamily="'Arial Black',Impact,Arial,sans-serif">
-        {p.label}
-      </text>
-      <text x="87" y="274" textAnchor="middle" fontSize="7.5" fill={p.accent} opacity="0.55"
-        letterSpacing="2" fontFamily="Arial,sans-serif">{p.sub}</text>
-
-      {/* Border */}
-      <rect x="2" y="2" width="170" height="276" rx="10" fill="none"
-        stroke={p.accent} strokeWidth="1.3" opacity="0.5" />
-      {/* Edge highlight */}
-      <rect x="2" y="2" width="170" height="276" rx="10" fill={`url(#eg${uid})`} />
-    </svg>
-  );
-}
+  // ── Pack art from reference image (packs-sheet.png: 1536×1024px) ──────────────
+    function PackArt({ packId, isPreview }: { packId: string; isPreview: boolean }) {
+      const W = isPreview ? 174 : 108;
+      const H = isPreview ? 280 : 174;
+      // Tier rows: single→League(blue,y≈40), five→Elite(gold,y≈335), ten→Champion(purple,y≈630)
+      const PACK_W_SRC = 90, PACK_H_SRC = 270, CROP_X = 135;
+      const CROP_Y: Record<string, number> = { single: 40, five: 335, ten: 630 };
+      const cropY = CROP_Y[packId] ?? 40;
+      const s = H / PACK_H_SRC;
+      const imgW = Math.round(1536 * s);
+      const imgH = Math.round(1024 * s);
+      const left = Math.round(W / 2 - (CROP_X + PACK_W_SRC / 2) * s);
+      const top  = Math.round(-cropY * s);
+      return (
+        <div style={{ width: W, height: H, position: "relative", overflow: "hidden", borderRadius: 8, display: "block" }}>
+          <img
+            src="/assets/packs-sheet.png"
+            alt={packId}
+            style={{ position: "absolute", width: imgW, height: imgH, left, top, maxWidth: "none" }}
+          />
+        </div>
+      );
+    }
 
 // ── TKDL card back ─────────────────────────────────────────────────────────────
 function CardBack({ accent = "#7eb8d4" }: { accent?: string }) {
