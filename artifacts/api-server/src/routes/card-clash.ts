@@ -171,9 +171,12 @@ router.get("/pity/:playerId", async (req: Request, res: Response) => {
 // Get active season
 router.get("/season/active", async (req: Request, res: Response) => {
   try {
+    console.log("[SEASON] Fetching active season...");
     const season = await getActiveCardClashSeason();
+    console.log("[SEASON] Got season:", season);
     res.json(season);
   } catch (error) {
+    console.error("[SEASON] Error getting season:", error);
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });

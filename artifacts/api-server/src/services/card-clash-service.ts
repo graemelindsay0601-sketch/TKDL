@@ -21,31 +21,45 @@ const COIN_REWARDS = {
 };
 
 export async function getActiveCardClashSeason() {
-  let season = await db
-    .select()
-    .from(cardClashSeasonsTable)
-    .where(eq(cardClashSeasonsTable.isActive, true))
-    .limit(1);
+  try {
+    console.log("[SEASON_SERVICE] Querying active season...");
+    let season = await db
+      .select()
+      .from(cardClashSeasonsTable)
+      .where(eq(cardClashSeasonsTable.isActive, true))
+      .limit(1);
 
-  if (season.length === 0) {
-    // Create a new season if none exists
-    const now = new Date();
-    const startDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
-    const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]; // YYYY-MM-DD
-    
-    const [newSeason] = await db
-      .insert(cardClashSeasonsTable)
-      .values({
-        name: `Season ${now.getFullYear()}-${now.getMonth() + 1}`,
-        startDate,
-        endDate,
-        isActive: true,
-      })
-      .returning();
-    return newSeason;
+    console.log("[SEASON_SERVICE] Query returned:", season.length, "rows");
+
+    if (season.length === 0) {
+      console.log("[SEASON_SERVICE] No season found, creating new one...");
+      // Create a new season if none exists
+      const now = new Date();
+      const startDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
+      const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]; // YYYY-MM-DD
+      
+      console.log("[SEASON_SERVICE] Inserting season:", { startDate, endDate });
+      
+      const [newSeason] = await db
+        .insert(cardClashSeasonsTable)
+        .values({
+          name: `Season ${now.getFullYear()}-${now.getMonth() + 1}`,
+          startDate,
+          endDate,
+          isActive: true,
+        })
+        .returning();
+      
+      console.log("[SEASON_SERVICE] New season created:", newSeason);
+      return newSeason;
+    }
+
+    console.log("[SEASON_SERVICE] Found existing season:", season[0]);
+    return season[0];
+  } catch (error) {
+    console.error("[SEASON_SERVICE] Error:", error);
+    throw error;
   }
-
-  return season[0];
 }
 
 export async function startCardClashMatch(
