@@ -19,7 +19,7 @@ interface CardClashMatchLauncherProps {
   onMatchComplete: () => void;
 }
 
-type Step = "opponent" | "gamemode" | "equipment" | "match";
+type Step = "opponent" | "gamemode" | "equipment-p1" | "equipment-p2" | "match";
 
 const D = {
   border:  "rgba(255,255,255,0.08)",
@@ -65,8 +65,12 @@ export function CardClashMatchLauncher({
     setSelectedOpponent(players.find(pl => pl.id === id) ?? null);
   };
 
-  const handleEquipmentConfirm = async (p1Cards: any[], p2Cards: any[]) => {
+  const handlePlayer1Equip = (p1Cards: any[], _: any[]) => {
     setPlayer1Cards(p1Cards);
+    setStep("equipment-p2");
+  };
+
+  const handlePlayer2Equip = async (p2Cards: any[], _: any[]) => {
     setPlayer2Cards(p2Cards);
     setMatchError(null);
     try {
@@ -78,7 +82,7 @@ export function CardClashMatchLauncher({
           player1Id: currentPlayerId,
           player2Id: selectedOpponent!.id,
           equippedCards: {
-            player1: p1Cards.map((c: any) => ({ cardId: c.id || c.cardId || c.name, cardType: c.cardType || "GOOD" })),
+            player1: player1Cards.map((c: any) => ({ cardId: c.id || c.cardId || c.name, cardType: c.cardType || "GOOD" })),
             player2: p2Cards.map((c: any) => ({ cardId: c.id || c.cardId || c.name, cardType: c.cardType || "GOOD" })),
           },
         }),
@@ -90,7 +94,7 @@ export function CardClashMatchLauncher({
       } else {
         const err = await res.json().catch(() => ({}));
         setMatchError(err.error ?? `Failed to start match (${res.status})`);
-        setStep("equipment"); // stay on equipment step so user can try again
+        setStep("equipment-p2");
       }
     } catch (e) {
       setMatchError("Network error — check your connection and try again");
@@ -200,7 +204,7 @@ export function CardClashMatchLauncher({
         </div>
         <button
           disabled={!gameMode}
-          onClick={() => gameMode && setStep("equipment")}
+          onClick={() => gameMode && setStep("equipment-p1")}
           style={{
             width: "100%", padding: "13px 24px", borderRadius: "10px", border: "none",
             fontWeight: 800, fontSize: "15px", letterSpacing: "0.06em",
@@ -217,8 +221,8 @@ export function CardClashMatchLauncher({
     );
   }
 
-  // ── STEP 3: Equipment Selection ───────────────────────────────────────────
-  if (step === "equipment") {
+  // ── STEP 3a: Player 1 Equipment Selection ────────────────────────────────
+  if (step === "equipment-p1") {
     return (
       <CardEquipmentSelector
         currentPlayerId={currentPlayerId}
@@ -226,8 +230,24 @@ export function CardClashMatchLauncher({
         opponentId={selectedOpponent!.id}
         opponentName={selectedOpponent!.name}
         gameMode={gameMode!}
-        onConfirm={handleEquipmentConfirm}
+        onConfirm={handlePlayer1Equip}
         onBack={() => { setMatchError(null); setStep("gamemode"); }}
+        submitError={matchError}
+      />
+    );
+  }
+
+  // ── STEP 3b: Player 2 Equipment Selection ────────────────────────────────
+  if (step === "equipment-p2") {
+    return (
+      <CardEquipmentSelector
+        currentPlayerId={selectedOpponent!.id}
+        currentPlayerName={selectedOpponent!.name}
+        opponentId={currentPlayerId}
+        opponentName={currentPlayerName}
+        gameMode={gameMode!}
+        onConfirm={handlePlayer2Equip}
+        onBack={() => { setMatchError(null); setStep("equipment-p1"); }}
         submitError={matchError}
       />
     );
