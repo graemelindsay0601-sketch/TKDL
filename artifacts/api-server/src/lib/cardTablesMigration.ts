@@ -159,6 +159,17 @@ export async function initializeCardTables() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_clash_standings_season ON card_clash_standings(season_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_clash_standings_player ON card_clash_standings(player_id)`);
 
+    // Migrate: Add grid_index column to card_definitions if it doesn't exist
+    try {
+      await db.execute(sql`
+        ALTER TABLE card_definitions
+        ADD COLUMN IF NOT EXISTS grid_index INTEGER
+      `);
+      logger.info("Added grid_index column to card_definitions (or column already exists)");
+    } catch (error) {
+      logger.warn({ error }, "Could not add grid_index column to card_definitions - may already exist");
+    }
+
     logger.info("Card tables initialized successfully");
   } catch (error) {
     logger.error({ error }, "Failed to initialize card tables");
