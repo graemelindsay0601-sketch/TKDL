@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useCurrentPlayer } from "@/context/auth";
 import { CardShopUI } from "@/components/CardShopUI";
 import { CoinBalance } from "@/components/CoinBalance";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
+import { CardClashMockGame } from "@/components/CardClashMockGame";
 import { PlayerChallenges } from "@/components/PlayerChallenges";
 import { TKDLCard } from "@/components/TKDLCard";
 import { ALL_CARDS } from "@/lib/cards-data";
@@ -22,7 +23,6 @@ const RAR_COLOR: Record<Rarity, string> = { COMMON: "#9ab0c4", RARE: "#00b4ff", 
 
 interface Stats { coins: number; cardsOwned: number; matchesPlayed: number; wins: number; losses: number; }
 interface Standing { player_id: number; player_name: string; wins: number; losses: number; total_matches: number; points: number; }
-interface Player { id: number; name: string; }
 
 export default function CardClashPage() {
   const currentPlayer = useCurrentPlayer();
@@ -74,13 +74,6 @@ export default function CardClashPage() {
   const [showOwned, setShowOwned] = useState<"all" | "owned" | "unowned">("all");
   const [enlargedCard, setEnlargedCard] = useState<CardData | null>(null);
 
-  // Mock game
-  const [mockPlayers, setMockPlayers] = useState<Player[]>([]);
-  const [mockOpponentType, setMockOpponentType] = useState<"bot" | "player">("bot");
-  const [mockOpponentId, setMockOpponentId] = useState<number | null>(null);
-  const [mockStarted, setMockStarted] = useState(false);
-  const [mockMatch, setMockMatch] = useState<any>(null);
-  const [mockLoading, setMockLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!playerId) return;
@@ -98,37 +91,6 @@ export default function CardClashPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  useEffect(() => {
-    if (activeTab !== "mock") return;
-    fetch("/api/card-clash/mock-game/players")
-      .then(r => r.ok ? r.json() : [])
-      .then((p: Player[]) => setMockPlayers(p.filter((pl: Player) => pl.id !== playerId)))
-      .catch(() => {});
-  }, [activeTab, playerId]);
-
-  const handleMockStart = async () => {
-    if (!playerId) return;
-    setMockLoading(true);
-    try {
-      const r = await fetch("/api/card-clash/mock-game/start", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ player1Id: playerId, player2Id: mockOpponentType === "player" ? mockOpponentId : null, isBotOpponent: mockOpponentType === "bot", player1Cards: [] }),
-      });
-      if (r.ok) { setMockMatch(await r.json()); setMockStarted(true); }
-      else { const e = await r.json(); alert(e.error ?? "Failed to start mock game"); }
-    } catch {} finally { setMockLoading(false); }
-  };
-
-  const handleMockFinish = async (winnerId: number | null) => {
-    if (mockMatch?.match?.id) {
-      await fetch("/api/card-clash/match/finish", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId: mockMatch.match.id, winnerId: winnerId ?? playerId, cardsUsedInMatch: [] }),
-      }).catch(() => {});
-    }
-    setMockStarted(false); setMockMatch(null); setMockOpponentId(null);
-    loadData();
-  };
 
   if (!currentPlayer || !playerId) {
     return (
@@ -286,12 +248,27 @@ export default function CardClashPage() {
         {/* ── SHOP ── */}
         {activeTab === "shop" && (
           <div>
-            <div style={{ marginBottom: "1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
-              <div>
-                <h2 style={sectionH2}>Card Shop</h2>
-                <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: 0 }}>Buy card packs to expand your collection and equip cards in matches</p>
+            <div style={{ marginBottom: "2rem" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginBottom: "1rem" }}>
+                <div>
+                  <h2 style={{ ...sectionH2, fontSize: "24px" }}>🛍️ TKDL Card Shop</h2>
+                  <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "4px 0 0", lineHeight: 1.5 }}>
+                    Build your arsenal. Every card is a weapon — collect them all.
+                  </p>
+                </div>
+                <CoinBalance playerId={playerId} />
               </div>
-              <CoinBalance playerId={playerId} />
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                {[
+                  { icon: "⚡", text: "Instant boost effects" },
+                  { icon: "🎲", text: "100 unique cards" },
+                  { icon: "🏆", text: "Rare & Legendary drops" },
+                ].map(({ icon, text }) => (
+                  <div key={text} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "5px 12px", borderRadius: "20px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
+                    {icon} {text}
+                  </div>
+                ))}
+              </div>
             </div>
             <CardShopUI playerId={playerId} onCardsReceived={handleCardsReceived} />
           </div>
@@ -366,97 +343,11 @@ export default function CardClashPage() {
 
         {/* ── MOCK GAME ── */}
         {activeTab === "mock" && (
-          <div style={{ maxWidth: "600px" }}>
-            <h2 style={sectionH2}>🎲 Mock Game</h2>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", marginBottom: "2rem" }}>
-              Practice mode — no coins spent, no cards consumed. Test strategies or have a casual game.
-            </p>
-
-            {!mockStarted ? (
-              <div style={{ display: "grid", gap: "1.5rem" }}>
-                {/* Opponent type */}
-                <div>
-                  <label style={fieldLabel}>Opponent</label>
-                  <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
-                    {(["bot", "player"] as const).map(t => (
-                      <button key={t} onClick={() => setMockOpponentType(t)} style={{
-                        flex: 1, padding: "14px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "14px", transition: "all 0.2s",
-                        background: mockOpponentType === t ? "rgba(0,180,255,0.15)" : "rgba(255,255,255,0.04)",
-                        color: mockOpponentType === t ? "#00b4ff" : "rgba(255,255,255,0.5)",
-                        border: mockOpponentType === t ? "1px solid rgba(0,180,255,0.5)" : "1px solid rgba(255,255,255,0.08)",
-                      }}>
-                        {t === "bot" ? "🤖 Bot" : "👤 Player"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {mockOpponentType === "bot" && (
-                  <div style={{ padding: "14px 16px", background: "rgba(0,180,255,0.06)", border: "1px solid rgba(0,180,255,0.2)", borderRadius: "10px", fontSize: "13px", color: "rgba(255,255,255,0.6)" }}>
-                    The bot will receive 4 random cards from the full catalog.
-                  </div>
-                )}
-
-                {mockOpponentType === "player" && (
-                  <div>
-                    <label style={fieldLabel}>Select opponent</label>
-                    <div style={{ position: "relative", marginTop: "8px" }}>
-                      <select
-                        value={mockOpponentId ?? ""}
-                        onChange={e => setMockOpponentId(Number(e.target.value) || null)}
-                        style={{
-                          width: "100%", padding: "12px 16px", borderRadius: "10px", appearance: "none",
-                          background: "rgba(255,255,255,0.06)", color: mockOpponentId ? "#fff" : "rgba(255,255,255,0.4)",
-                          border: "1px solid rgba(255,255,255,0.12)", fontSize: "14px", outline: "none", cursor: "pointer",
-                        }}
-                      >
-                        <option value="" style={{ background: "#0a0e18", color: "#fff" }}>Choose a player…</option>
-                        {mockPlayers.map(p => (
-                          <option key={p.id} value={p.id} style={{ background: "#0a0e18", color: "#fff" }}>{p.name}</option>
-                        ))}
-                      </select>
-                      <span style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.4)", pointerEvents: "none" }}>▾</span>
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  onClick={handleMockStart}
-                  disabled={mockLoading || (mockOpponentType === "player" && !mockOpponentId)}
-                  style={{ ...glowBtn("#00b4ff"), opacity: (mockLoading || (mockOpponentType === "player" && !mockOpponentId)) ? 0.5 : 1 }}
-                >
-                  {mockLoading ? "Starting…" : "🎲 Start Mock Game"}
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: "grid", gap: "1.5rem" }}>
-                <div style={{ padding: "20px 24px", background: "rgba(0,255,136,0.06)", border: "1px solid rgba(0,255,136,0.25)", borderRadius: "12px" }}>
-                  <div style={{ fontWeight: 700, color: "#00ff88", fontSize: "16px", marginBottom: "8px" }}>✅ Mock Game Running</div>
-                  <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.6)", lineHeight: 1.6 }}>
-                    Go play your darts match, then come back and record the result below.
-                  </div>
-                  {mockMatch?.botCards?.length > 0 && (
-                    <div style={{ marginTop: "10px", fontSize: "12px", color: "rgba(255,255,255,0.35)" }}>
-                      Bot equipped {mockMatch.botCards.length} random card{mockMatch.botCards.length > 1 ? "s" : ""}.
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label style={fieldLabel}>Who won?</label>
-                  <div style={{ display: "flex", gap: "12px", marginTop: "10px", flexWrap: "wrap" }}>
-                    <button onClick={() => handleMockFinish(playerId)} style={glowBtn("#00ff88")}>🏆 I Won</button>
-                    <button onClick={() => handleMockFinish(mockMatch?.match?.player_2_id && mockMatch.match.player_2_id !== playerId ? mockMatch.match.player_2_id : 0)} style={{ ...glowBtn("#ff6b6b"), background: "rgba(255,107,107,0.15)" }}>
-                      😔 {mockOpponentType === "bot" ? "Bot" : "Opponent"} Won
-                    </button>
-                    <button onClick={() => { setMockStarted(false); setMockMatch(null); }} style={{ padding: "10px 20px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}>
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          <CardClashMockGame
+            playerId={playerId}
+            playerName={(currentPlayer as any)?.name || (currentPlayer as any)?.playerName || "Player"}
+            onDone={() => { setActiveTab("collection"); loadData(); }}
+          />
         )}
       </div>
 
