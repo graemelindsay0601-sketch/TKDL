@@ -3,6 +3,7 @@ export { default as BankingStrategy } from './x01-good/banking-strategy';
 export { default as BigGamePlayer } from './x01-good/big-game-player';
 export { default as CenturyMaker } from './x01-good/century-maker';
 export { default as CheckoutConfidence } from './x01-good/checkout-confidence';
+export { default as CheckoutSpecialist } from './x01-good/checkout-specialist';
 export { default as CloseControl } from './x01-good/close-control';
 export { default as ExactFinish } from './x01-good/exact-finish';
 export { default as FinishingBonus } from './x01-good/finishing-bonus';
