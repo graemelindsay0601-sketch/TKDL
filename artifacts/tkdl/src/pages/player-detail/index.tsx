@@ -1,6 +1,8 @@
 import { useGetPlayerStats, getGetPlayerStatsQueryKey } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
+import { CardCollection } from "@/components/CardCollection";
+import { PlayerChallenges } from "@/components/PlayerChallenges";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
 import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare } from "lucide-react";
@@ -1366,6 +1368,16 @@ export default function PlayerDetail() {
           ))}
         </CollapsibleSection>
       )}
+
+      {/* ══ CARD CLASH CHALLENGES ══ */}
+      <div style={{ marginBottom: "2rem", padding: "1.5rem", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "8px" }}>
+        <PlayerChallenges playerId={playerId} />
+      </div>
+
+      {/* ══ CARD COLLECTION ══ */}
+      <div style={{ marginBottom: "2rem", padding: "1.5rem", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "8px" }}>
+        <CardCollection playerId={playerId} />
+      </div>
 
       {/* ══ ACHIEVEMENTS ══ */}
       <div>
