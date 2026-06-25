@@ -387,7 +387,7 @@ router.post("/match/finish", async (req: Request, res: Response) => {
     await challengeManager.updateProgressFromGameResult(winnerId, {
       gameMode: "CARD_CLASH",
       won: true,
-      cardsUsed: cardsUsedInMatch || 0,
+      cardsUsed: Array.isArray(cardsUsedInMatch) ? cardsUsedInMatch.length : (cardsUsedInMatch || 0),
     });
     
     // Update loser's challenges
@@ -395,7 +395,7 @@ router.post("/match/finish", async (req: Request, res: Response) => {
       await challengeManager.updateProgressFromGameResult(loserId, {
         gameMode: "CARD_CLASH",
         won: false,
-        cardsUsed: cardsUsedInMatch || 0,
+        cardsUsed: Array.isArray(cardsUsedInMatch) ? cardsUsedInMatch.length : (cardsUsedInMatch || 0),
       });
     }
     
