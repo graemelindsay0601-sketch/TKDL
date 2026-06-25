@@ -108,12 +108,11 @@ export function CardEquipmentSelector({
     }
   };
 
-  const isReady = selectedGood.length === 2 && selectedBad.length === 2;
+  // Cards are optional — players can always start a match with 0 cards
+  const isReady = true;
 
   const handleConfirm = () => {
-    if (isReady) {
-      onConfirm([...selectedGood, ...selectedBad], []);
-    }
+    onConfirm([...selectedGood, ...selectedBad], []);
   };
 
   if (loading) {
@@ -161,7 +160,7 @@ export function CardEquipmentSelector({
             <h2 className="text-xl font-bold text-white">Equip Cards for {gameMode}</h2>
           </div>
           <p className="text-sm text-gray-400">
-            Select 2 GOOD cards and 2 BAD cards to use in this match
+            Optionally equip cards for bonus effects — cards are not required to play
           </p>
         </div>
 
@@ -302,14 +301,11 @@ export function CardEquipmentSelector({
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!isReady}
-            className={`px-6 py-2 rounded-lg font-semibold transition-all ${
-              isReady
-                ? "bg-amber-500 hover:bg-amber-600 text-black cursor-pointer"
-                : "bg-gray-600 text-gray-400 cursor-not-allowed opacity-50"
-            }`}
+            className="px-6 py-2 rounded-lg font-semibold transition-all bg-amber-500 hover:bg-amber-600 text-black cursor-pointer"
           >
-            {isReady ? "Start Match with Cards" : `Select 2 GOOD + 2 BAD (${selectedGood.length + selectedBad.length}/4)`}
+            {selectedGood.length + selectedBad.length > 0
+              ? `Start Match (${selectedGood.length + selectedBad.length} card${selectedGood.length + selectedBad.length !== 1 ? "s" : ""} equipped)`
+              : "Start Match (no cards)"}
           </button>
         </div>
       </div>
