@@ -25,6 +25,27 @@ export function CardImage({ card, size = "medium" }: CardImageProps) {
     large: 180,
   };
 
+  if (!card || !card.gameMode) {
+    return (
+      <div
+        style={{
+          width: `${sizeMap[size]}px`,
+          height: `${(sizeMap[size] * 3) / 2}px`,
+          background: "rgba(0,0,0,0.3)",
+          border: "2px dashed rgba(255,255,255,0.2)",
+          borderRadius: "8px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "rgba(255,255,255,0.5)",
+          fontSize: "12px",
+        }}
+      >
+        Card Not Available
+      </div>
+    );
+  }
+
   const width = sizeMap[size];
   const height = (width * 3) / 2; // 2:3 aspect ratio (card aspect)
 
@@ -45,12 +66,12 @@ export function CardImage({ card, size = "medium" }: CardImageProps) {
 
   // Calculate card position in grid (0-indexed)
   const getCardPosition = (): { col: number; row: number } => {
-    // Extract card number from name (e.g., "X01 Good 1" -> 0)
-    // Or use a hash of the card name to determine position
-    const hash = card.name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    // Extract card number from name or use default
+    const cardName = card.name || card.cardName || "Unknown";
+    const hash = cardName.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
     
-    const gameMode = card.gameMode.toUpperCase();
-    const cardType = card.cardType.toUpperCase();
+    const gameMode = (card.gameMode || "X01").toUpperCase();
+    const cardType = (card.cardType || "GOOD").toUpperCase();
     
     // Determine max rows based on type
     const maxCols = 5;
