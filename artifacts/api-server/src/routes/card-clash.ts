@@ -279,6 +279,57 @@ router.post("/admin/card/toggle", verifyAdminPin, async (req: Request, res: Resp
   }
 });
 
+// Populate gridIndex for all cards (for image extraction from grid sheets)
+router.post("/admin/cards/populate-grid-index", verifyAdminPin, async (req: Request, res: Response) => {
+  try {
+    const { cardDefinitionsTable } = await import("@workspace/db");
+    
+    // Fetch all cards ordered by creation
+    const allCards = await db.select().from(cardDefinitionsTable).orderBy(cardDefinitionsTable.createdAt);
+    
+    let updated = 0;
+    
+    // Assign gridIndex based on gameMode + cardType + order within that group
+    const groupedCards: { [key: string]: any[] } = {};
+    
+    for (const card of allCards) {
+      const groupKey = `${card.gameMode}_${card.cardType}`;
+      if (!groupedCards[groupKey]) {
+        groupedCards[groupKey] = [];
+      }
+      groupedCards[groupKey].push(card);
+    }
+    
+    // Update each card with gridIndex
+    for (const group of Object.values(groupedCards)) {
+      for (let i = 0; i < group.length; i++) {
+        const card = group[i];
+        // Limit to 20 cards per group (5x4 grid max)
+        const gridIndex = i < 20 ? i : i % 20;
+        
+        await db
+          .update(cardDefinitionsTable)
+          .set({ gridIndex })
+          .where(eq(cardDefinitionsTable.cardId, card.cardId));
+        
+        updated++;
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Updated ${updated} cards with gridIndex`,
+      groupedCards: Object.keys(groupedCards).map(key => ({
+        group: key,
+        count: groupedCards[key].length
+      }))
+    });
+  } catch (error) {
+    logger.error({ error }, "Failed to populate gridIndex");
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
 // Give coins to player (admin)
 router.post("/admin/coins/give", verifyAdminPin, async (req: Request, res: Response) => {
   try {
