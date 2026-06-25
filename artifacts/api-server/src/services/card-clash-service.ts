@@ -139,6 +139,51 @@ export async function recordCardUsedInMatch(
     .where(eq(cardClashMatchesTable.id, matchId));
 }
 
+/**
+ * Update Card Clash leaderboard - all-time win/loss tracking (no seasons)
+ */
+async function updateCardClashLeaderboard(playerId: number, won: boolean) {
+  try {
+    // Ensure table exists
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS card_clash_leaderboard (
+        player_id INTEGER PRIMARY KEY UNIQUE REFERENCES players(id) ON DELETE CASCADE,
+        wins INTEGER NOT NULL DEFAULT 0,
+        losses INTEGER NOT NULL DEFAULT 0,
+        cards_unlocked_count INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Try to update existing entry
+    const updateResult = await db.execute(sql`
+      UPDATE card_clash_leaderboard
+      SET 
+        wins = CASE WHEN ${won} THEN wins + 1 ELSE wins END,
+        losses = CASE WHEN NOT ${won} THEN losses + 1 ELSE losses END,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE player_id = ${playerId}
+      RETURNING *
+    `);
+
+    // If no rows updated, insert new entry
+    if (updateResult.rowCount === 0) {
+      await db.execute(sql`
+        INSERT INTO card_clash_leaderboard (player_id, wins, losses, cards_unlocked_count)
+        VALUES (${playerId}, ${won ? 1 : 0}, ${won ? 0 : 1}, 0)
+        ON CONFLICT (player_id) DO UPDATE SET
+          wins = CASE WHEN ${won} THEN card_clash_leaderboard.wins + 1 ELSE card_clash_leaderboard.wins END,
+          losses = CASE WHEN NOT ${won} THEN card_clash_leaderboard.losses + 1 ELSE card_clash_leaderboard.losses END,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+    }
+
+    logger.info({ playerId, won }, "Updated Card Clash leaderboard");
+  } catch (error) {
+    logger.error({ error, playerId, won }, "Failed to update leaderboard");
+  }
+}
+
 export async function finishCardClashMatch(
   matchId: number,
   winnerId: number,
@@ -239,6 +284,14 @@ export async function finishCardClashMatch(
     } catch (e) {
       logger.error(`Failed to consume card ${card.cardId} for player ${card.usedBy}:`, e);
     }
+  }
+
+  // Update Card Clash leaderboard (all-time wins/losses tracking)
+  try {
+    await updateCardClashLeaderboard(winnerId, true);
+    await updateCardClashLeaderboard(loser, false);
+  } catch (err) {
+    logger.warn({ err }, "Failed to update Card Clash leaderboard");
   }
 
   // Standings are now computed live from card_clash_matches — no separate standings table needed

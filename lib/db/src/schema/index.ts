@@ -19,5 +19,6 @@ export * from "./seasonal-quests";
 export * from "./card-clash-seasons";
 export * from "./card-clash-standings";
 export * from "./card-clash-matches";
+export * from "./card-clash-leaderboard";
 export * from "./card-pity";
 export * from "./feature-flags";
