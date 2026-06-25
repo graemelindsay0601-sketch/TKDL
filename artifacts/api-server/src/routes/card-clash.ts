@@ -23,6 +23,7 @@ import { seedCardDefinitions, getAllCardDefinitions, toggleCardAvailability } fr
 import { challengeService } from "../services/challenge-service";
 import { seasonalQuestService } from "../services/seasonal-quest-service";
 import { logger } from "../lib/logger";
+import { ensurePlayerCurrency } from "../lib/cardTablesMigration";
 import { db, cardClashMatchesTable, cardClashSeasonsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -46,6 +47,8 @@ const verifyAdminPin = (req: Request, res: Response, next: Function) => {
 router.get("/shop/currency/:playerId", async (req: Request, res: Response) => {
   try {
     const playerId = parseInt(req.params.playerId);
+    // Ensure player has a currency record (creates if doesn't exist)
+    await ensurePlayerCurrency(playerId);
     const currency = await getPlayerCurrency(playerId);
     res.json(currency);
   } catch (error) {
@@ -62,6 +65,9 @@ router.post("/shop/purchase", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid pack type" });
     }
 
+    // Ensure player has a currency record
+    await ensurePlayerCurrency(playerId);
+    
     const result = await purchasePack(playerId, packType);
     res.json(result);
   } catch (error) {
