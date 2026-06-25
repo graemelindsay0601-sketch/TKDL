@@ -126,65 +126,127 @@ export default function CardClashPage() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "radial-gradient(ellipse at top,#07101f 0%,#030508 80%)", color: "#fff" }}>
+    <div style={{ minHeight: "100vh", background: "#03050d", color: "#fff", fontFamily: "'Arial Black', Impact, Arial, sans-serif" }}>
 
       {/* ─── HERO HEADER ─── */}
-      <div style={{ padding: "2rem 2rem 0", maxWidth: "1400px", margin: "0 auto" }}>
-        <div style={{ marginBottom: "2rem" }}>
-          <h1 style={{ fontSize: "clamp(1.8rem,4vw,2.8rem)", fontWeight: 900, margin: 0, fontFamily: "'Arial Black',Impact,sans-serif", letterSpacing: "0.15em", textShadow: "0 0 30px rgba(0,180,255,0.7)" }}>
-            TKDL <span style={{ color: "#00b4ff" }}>CARD CLASH</span>
-          </h1>
-          <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", margin: "6px 0 0", letterSpacing: "0.15em" }}>
-            {ALL_CARDS.length} CARDS · COLLECT · EQUIP · COMPETE
-          </p>
-        </div>
+      <div style={{ position: "relative", overflow: "hidden", paddingBottom: "0" }}>
+        {/* Background image layer */}
+        <div style={{
+          position: "absolute", inset: 0,
+          backgroundImage: "url('https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=1400&q=80')",
+          backgroundSize: "cover", backgroundPosition: "center",
+          filter: "brightness(0.12) saturate(0.4)",
+        }} />
+        {/* Radial glow overlays */}
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "radial-gradient(ellipse 70% 80% at 20% 40%, rgba(0,180,255,0.08), transparent 70%), radial-gradient(ellipse 50% 70% at 80% 60%, rgba(255,170,0,0.06), transparent 70%)",
+        }} />
+        {/* Bottom fade to page bg */}
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "80px", background: "linear-gradient(to bottom, transparent, #03050d)" }} />
 
-        {/* Stats row */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "1.5rem" }}>
-          {[
-            { label: "COINS", value: stats?.coins ?? "—", color: "#ffd24a", icon: "🪙" },
-            { label: "CARDS", value: `${totalOwned}/${ALL_CARDS.length}`, color: "#00e5ff", icon: "🃏" },
-            { label: "WINS", value: stats?.wins ?? "—", color: "#00ff88", icon: "🏆" },
-            { label: "WIN RATE", value: stats ? `${winRate}%` : "—", color: "#c084fc", icon: "📊" },
-          ].map(s => (
-            <div key={s.label} style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.04)", border: `1px solid ${s.color}22`, borderRadius: "10px", padding: "10px 16px" }}>
-              <span style={{ fontSize: "18px" }}>{s.icon}</span>
-              <div>
-                <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", letterSpacing: "0.1em" }}>{s.label}</div>
-                <div style={{ fontSize: "18px", fontWeight: 800, color: s.color, lineHeight: 1.2 }}>{String(s.value)}</div>
+        <div style={{ position: "relative", zIndex: 2, maxWidth: "1400px", margin: "0 auto", padding: "2.5rem 2rem 0" }}>
+          {/* Badge */}
+          <div style={{
+            display: "inline-flex", alignItems: "center", gap: "7px",
+            background: "rgba(255,212,74,0.1)", border: "1px solid rgba(255,212,74,0.35)",
+            borderRadius: "24px", padding: "5px 16px", marginBottom: "18px",
+          }}>
+            <span style={{ color: "#ffd24a", fontSize: "10px", fontWeight: 900, letterSpacing: "0.2em" }}>⚡ TKDL EXCLUSIVE GAME MODE</span>
+          </div>
+
+          {/* Giant title */}
+          <div style={{ lineHeight: 0.88, marginBottom: "16px" }}>
+            <div style={{
+              fontSize: "clamp(48px, 7vw, 96px)", fontWeight: 900, letterSpacing: "0.07em",
+              textTransform: "uppercase",
+              background: "linear-gradient(135deg, #ffffff 0%, #00d4ff 40%, #ffffff 60%, #aaddff 100%)",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
+            }}>CARD</div>
+            <div style={{
+              fontSize: "clamp(48px, 7vw, 96px)", fontWeight: 900, letterSpacing: "0.07em",
+              textTransform: "uppercase",
+              background: "linear-gradient(135deg, #ffaa00, #ffd24a 50%, #ff6b00)",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
+            }}>CLASH</div>
+          </div>
+
+          {/* Subtitle */}
+          <p style={{ fontSize: "15px", color: "rgba(255,255,255,0.65)", fontFamily: "Arial, sans-serif", fontWeight: 400, letterSpacing: "0.03em", lineHeight: 1.6, marginBottom: "22px", maxWidth: "480px" }}>
+            100 cards. Real dart matches. Mid-game chaos.<br />
+            <span style={{ color: "#00d4ff" }}>Darts has never played like this.</span>
+          </p>
+
+          {/* CTA quick-action buttons */}
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "28px" }}>
+            <button onClick={() => setActiveTab("play")} style={{
+              padding: "12px 28px", background: "linear-gradient(135deg,#ffd24a,#ff8c00)",
+              border: "none", borderRadius: "4px", color: "#000", fontSize: "12px", fontWeight: 900,
+              letterSpacing: "0.15em", textTransform: "uppercase", cursor: "pointer",
+              boxShadow: "0 0 28px rgba(255,212,74,0.45), 0 4px 14px rgba(0,0,0,0.4)",
+            }}>⚡ ENTER THE CLASH</button>
+            <button onClick={() => setActiveTab("shop")} style={{
+              padding: "12px 22px", background: "transparent",
+              border: "2px solid rgba(255,255,255,0.18)", borderRadius: "4px",
+              color: "rgba(255,255,255,0.7)", fontSize: "12px", fontWeight: 900,
+              letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer",
+            }}>🛍️ OPEN PACKS</button>
+            <button onClick={() => setActiveTab("collection")} style={{
+              padding: "12px 22px", background: "transparent",
+              border: "2px solid rgba(0,212,255,0.2)", borderRadius: "4px",
+              color: "rgba(0,212,255,0.7)", fontSize: "12px", fontWeight: 900,
+              letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer",
+            }}>🃏 COLLECTION</button>
+          </div>
+
+          {/* Stats strip */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "24px" }}>
+            {[
+              { label: "COINS", value: stats?.coins ?? "—", color: "#ffd24a", icon: "🪙" },
+              { label: "CARDS", value: `${totalOwned}/${ALL_CARDS.length}`, color: "#00e5ff", icon: "🃏" },
+              { label: "WINS", value: stats?.wins ?? "—", color: "#00ff88", icon: "🏆" },
+              { label: "WIN RATE", value: stats ? `${winRate}%` : "—", color: "#c084fc", icon: "📊" },
+            ].map(s => (
+              <div key={s.label} style={{ display: "flex", alignItems: "center", gap: "9px", background: "rgba(255,255,255,0.05)", border: `1px solid ${s.color}20`, borderRadius: "8px", padding: "8px 14px" }}>
+                <span style={{ fontSize: "16px" }}>{s.icon}</span>
+                <div>
+                  <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.35)", letterSpacing: "0.12em", fontFamily: "Arial, sans-serif" }}>{s.label}</div>
+                  <div style={{ fontSize: "16px", fontWeight: 800, color: s.color, lineHeight: 1.2 }}>{String(s.value)}</div>
+                </div>
               </div>
-            </div>
-          ))}
-          {/* Collection progress */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "10px 16px", flex: 1, minWidth: "200px" }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", letterSpacing: "0.1em", marginBottom: "6px" }}>COLLECTION</div>
-              <div style={{ height: "6px", background: "rgba(255,255,255,0.1)", borderRadius: "3px", overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${completionPct}%`, background: "linear-gradient(90deg,#00e5ff,#ffd24a)", transition: "width 0.5s" }} />
+            ))}
+            {/* Progress bar */}
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "8px", padding: "8px 14px", flex: 1, minWidth: "180px" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.35)", letterSpacing: "0.12em", fontFamily: "Arial, sans-serif", marginBottom: "5px" }}>COLLECTION</div>
+                <div style={{ height: "5px", background: "rgba(255,255,255,0.08)", borderRadius: "3px", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${completionPct}%`, background: "linear-gradient(90deg,#00e5ff,#ffd24a)", transition: "width 0.5s" }} />
+                </div>
+                <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", marginTop: "4px", fontFamily: "Arial, sans-serif" }}>{completionPct}% complete</div>
               </div>
-              <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginTop: "4px" }}>{completionPct}% complete</div>
             </div>
           </div>
-        </div>
 
-        {/* Tab navigation */}
-        <div style={{ display: "flex", gap: "4px", borderBottom: "1px solid rgba(255,255,255,0.07)", paddingBottom: "0", overflowX: "auto" }}>
-          {tabs.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-              padding: "10px 20px", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "13px",
-              letterSpacing: "0.05em", background: "transparent", whiteSpace: "nowrap", transition: "all 0.2s",
-              color: activeTab === tab.id ? "#00b4ff" : "rgba(255,255,255,0.4)",
-              borderBottom: activeTab === tab.id ? "2px solid #00b4ff" : "2px solid transparent",
-              marginBottom: "-1px",
-            }}>
-              {tab.icon} {tab.label}
-            </button>
-          ))}
+          {/* Tab navigation */}
+          <div style={{ display: "flex", gap: "2px", borderBottom: "1px solid rgba(255,255,255,0.08)", overflowX: "auto" }}>
+            {tabs.map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+                padding: "11px 22px", border: "none", cursor: "pointer", fontWeight: 800, fontSize: "12px",
+                letterSpacing: "0.1em", background: "transparent", whiteSpace: "nowrap", transition: "all 0.2s",
+                textTransform: "uppercase", fontFamily: "'Arial Black', Impact, Arial, sans-serif",
+                color: activeTab === tab.id ? "#ffd24a" : "rgba(255,255,255,0.35)",
+                borderBottom: activeTab === tab.id ? "3px solid #ffd24a" : "3px solid transparent",
+                marginBottom: "-1px",
+              }}>
+                {tab.icon} {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* ─── TAB CONTENT ─── */}
-      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "1.5rem 2rem 3rem" }}>
+      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "2rem 2rem 4rem" }}>
 
         {/* ── COLLECTION ── */}
         {activeTab === "collection" && (
