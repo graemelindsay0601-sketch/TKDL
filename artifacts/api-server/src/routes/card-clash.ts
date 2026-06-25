@@ -23,6 +23,13 @@ import { seedCardDefinitions, getAllCardDefinitions, toggleCardAvailability } fr
 import { challengeService } from "../services/challenge-service";
 import { seasonalQuestService } from "../services/seasonal-quest-service";
 import { logger } from "../lib/logger";
+import {
+  checkAndAwardCCAchievements,
+  getCCAchievementsForPlayer,
+  getPlayerPackInventory,
+  markPackOpened,
+  incrementPacksOpened,
+} from "../lib/card-clash-achievements";
 import { ensurePlayerCurrency } from "../lib/cardTablesMigration";
 import { db, cardClashMatchesTable, cardClashSeasonsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
@@ -237,6 +244,9 @@ router.post("/shop/purchase", async (req: Request, res: Response) => {
     await ensurePlayerCurrency(playerId);
     
     const result = await purchasePack(playerId, packType);
+    // Track packs opened and check achievements (fire-and-forget)
+    incrementPacksOpened(playerId, 1).catch(() => {});
+    checkAndAwardCCAchievements(playerId).catch(() => {});
     res.json(result);
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : "Unknown error" });
@@ -425,6 +435,9 @@ router.post("/match/finish", async (req: Request, res: Response) => {
       });
     }
     
+    // Check achievements for both players (fire-and-forget)
+    checkAndAwardCCAchievements(winnerId).catch(() => {});
+    if (loserId) checkAndAwardCCAchievements(loserId).catch(() => {});
     res.json({ success: true, match: result });
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : "Unknown error" });
@@ -777,10 +790,9 @@ router.post("/login/daily", async (req: Request, res: Response) => {
     const { cardClashLoginService } = await import("../services/card-clash-login-service");
     const reward = await cardClashLoginService.handleDailyLogin(playerId);
 
-    res.json({
-      success: true,
-      reward,
-    });
+    // Check login-streak achievements (fire-and-forget)
+    checkAndAwardCCAchievements(playerId).catch(() => {});
+    res.json({ success: true, reward });
   } catch (error) {
     logger.error("Daily login error:", error);
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
@@ -956,6 +968,101 @@ router.post("/admin/quests/seed", verifyAdminPin, async (req: Request, res: Resp
     res.json({ success: true, message: "Default seasonal quests seeded" });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// === CARD CLASH ACHIEVEMENTS ===
+
+router.get("/achievements/:playerId", async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.playerId);
+    const data = await getCCAchievementsForPlayer(playerId);
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+router.post("/achievements/check/:playerId", async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.playerId);
+    const newly = await checkAndAwardCCAchievements(playerId);
+    res.json({ newlyAwarded: newly, count: newly.length });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// === PACK INVENTORY (earned from achievements) ===
+
+router.get("/pack-inventory/:playerId", async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.playerId);
+    const packs = await getPlayerPackInventory(playerId);
+    res.json(packs);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+router.post("/pack-inventory/:inventoryId/open", async (req: Request, res: Response) => {
+  try {
+    const inventoryId = parseInt(req.params.inventoryId);
+    const { playerId } = req.body;
+    if (!playerId) return res.status(400).json({ error: "playerId required" });
+
+    // Get the pack type before marking as opened
+    const { db: dbConn } = await import("@workspace/db");
+    const { sql: sqlFn } = await import("drizzle-orm");
+    const packRow = await dbConn.execute(sqlFn`
+      SELECT pack_type FROM card_clash_pack_inventory
+      WHERE id = ${inventoryId} AND player_id = ${playerId} AND is_opened = FALSE
+    `);
+    const row = packRow.rows[0] as any;
+    if (!row) return res.status(404).json({ error: "Pack not found or already opened" });
+
+    const packType = row.pack_type as "SINGLE" | "FIVE" | "TEN";
+
+    // Mark opened first
+    const ok = await markPackOpened(inventoryId, parseInt(playerId));
+    if (!ok) return res.status(400).json({ error: "Could not open pack" });
+
+    // Award coins to cover the pack cost, then purchase (so no coin balance needed)
+    const PACK_COSTS: Record<string, number> = { SINGLE: 50, FIVE: 200, TEN: 350 };
+    await addCoinsToPlayer(parseInt(playerId), PACK_COSTS[packType] ?? 200);
+    const result = await purchasePack(parseInt(playerId), packType);
+
+    // Track packs opened + re-check achievements
+    incrementPacksOpened(parseInt(playerId), 1).catch(() => {});
+    checkAndAwardCCAchievements(parseInt(playerId)).catch(() => {});
+
+    res.json({ success: true, packType, cards: result.cardsGenerated });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// === SELL DUPLICATE CARDS ===
+
+router.post("/sell-card", async (req: Request, res: Response) => {
+  try {
+    const { playerId, cardId } = req.body;
+    if (!playerId || !cardId) return res.status(400).json({ error: "playerId and cardId required" });
+
+    // Check the card rarity for dynamic pricing
+    const cardDef = await db.execute(sql`
+      SELECT rarity FROM card_definitions WHERE card_id = ${cardId} AND enabled = TRUE LIMIT 1
+    `);
+    const rarity = (cardDef.rows[0] as any)?.rarity ?? "COMMON";
+    const SELL_PRICES: Record<string, number> = { COMMON: 10, RARE: 30, LEGENDARY: 100 };
+    const coinsEarned = SELL_PRICES[rarity.toUpperCase()] ?? 10;
+
+    await removeCardFromPlayer(parseInt(playerId), String(cardId), 1);
+    await addCoinsToPlayer(parseInt(playerId), coinsEarned);
+
+    res.json({ success: true, coinsEarned, rarity });
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
 
