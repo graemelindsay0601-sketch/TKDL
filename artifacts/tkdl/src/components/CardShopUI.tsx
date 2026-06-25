@@ -19,7 +19,7 @@ type Phase = "shop" | "preview" | "tearing" | "cards" | "done";
 
 const PACK_DEFS = [
   {
-    id: "single", name: "Arrow Pack", cards: 1, cost: 30,
+    id: "single", name: "Arrow Pack", cards: 1, cost: 50,
     accent: "#00b4ff", glow: "rgba(0,180,255,0.55)",
     icon: "🎯", label: "ARROW PACK", sub: "1 CARD", ribbon: null,
     desc: "One dart from the oche. One card. Quick draw.",
@@ -27,7 +27,7 @@ const PACK_DEFS = [
     stripGrad: "linear-gradient(90deg,#041830 0%,#0a3570 50%,#041830 100%)",
   },
   {
-    id: "five", name: "League Night Pack", cards: 5, cost: 175,
+    id: "five", name: "League Night Pack", cards: 5, cost: 200,
     accent: "#ffd24a", glow: "rgba(255,210,74,0.55)",
     icon: "🏹", label: "LEAGUE NIGHT", sub: "5 CARDS", ribbon: "BESTSELLER",
     desc: "Five cards from a Kilbirnie league night. Anything could drop.",
@@ -35,10 +35,10 @@ const PACK_DEFS = [
     stripGrad: "linear-gradient(90deg,#2a1500 0%,#5c3000 50%,#2a1500 100%)",
   },
   {
-    id: "ten", name: "Kilbirnie Elite", cards: 10, cost: 325,
+    id: "ten", name: "Kilbirnie Elite", cards: 10, cost: 350,
     accent: "#cc44ff", glow: "rgba(204,68,255,0.55)",
-    icon: "⚡", label: "KILBIRNIE ELITE", sub: "10 CARDS", ribbon: "RARE GUARANTEED",
-    desc: "Ten cards. Rare guaranteed. The full TKDL championship arsenal.",
+    icon: "⚡", label: "KILBIRNIE ELITE", sub: "10 CARDS", ribbon: "BEST VALUE",
+    desc: "Ten cards. 20% Rare rate per card. Pity system active.",
     bodyGrad: "linear-gradient(155deg,#0a0020 0%,#1f0050 55%,#0a0020 100%)",
     stripGrad: "linear-gradient(90deg,#14004a 0%,#2d0080 50%,#14004a 100%)",
   },
