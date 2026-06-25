@@ -12,6 +12,7 @@ export const cardDefinitionsTable = pgTable("card_definitions", {
   rarity: text("rarity").notNull(), // COMMON, RARE, LEGENDARY
   effect: text("effect").notNull(), // Detailed effect text
   imageUrl: text("image_url"), // AI-generated image URL
+  gridIndex: integer("grid_index"), // 0-19 position in grid for image extraction
   enabled: boolean("enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

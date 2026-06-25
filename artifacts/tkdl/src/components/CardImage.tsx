@@ -1,24 +1,22 @@
-/**
- * CardImage Component
- * Extracts individual cards from composite grid images using CSS background-position
- * 
- * Grid structure:
- * - X01 Good/Bad: 5 columns × 4 rows = 20 cards per grid
- * - Cricket Good/Bad: 5 columns × 4 rows = 20 cards per grid
- * - Wildcard Good/Bad: 5 columns × 2 rows = 10 cards per grid
- */
+import { useState } from "react";
 
 interface CardImageProps {
   card: {
-    name: string;
-    gameMode: string;  // X01, CRICKET, WILDCARD
-    cardType: string;  // GOOD, BAD
+    name?: string;
     cardId?: string;
+    gameMode?: string;
+    cardType?: string;
+    rarity?: string;
+    effect?: string;
+    gridIndex?: number;
   };
-  size?: "small" | "medium" | "large";  // 80px, 120px, 180px
+  size?: "small" | "medium" | "large";
+  showBack?: boolean;
 }
 
-export function CardImage({ card, size = "medium" }: CardImageProps) {
+export function CardImage({ card, size = "medium", showBack = false }: CardImageProps) {
+  const [isFlipped, setIsFlipped] = useState(showBack);
+
   const sizeMap = {
     small: 80,
     medium: 120,
@@ -47,13 +45,13 @@ export function CardImage({ card, size = "medium" }: CardImageProps) {
   }
 
   const width = sizeMap[size];
-  const height = (width * 3) / 2; // 2:3 aspect ratio (card aspect)
+  const height = (width * 3) / 2;
 
-  // Determine grid image URL
-  const getGridImage = (): string => {
-    const gameMode = (card?.gameMode || "X01").toUpperCase();
-    const cardType = (card?.cardType || "GOOD").toUpperCase();
+  const gameMode = (card.gameMode || "X01").toUpperCase();
+  const cardType = (card.cardType || "GOOD").toUpperCase();
 
+  // Get front card image
+  const getFrontImage = (): string => {
     if (gameMode === "X01") {
       return cardType === "GOOD" ? "/cards/x01-good-grid.png" : "/cards/x01-bad-grid.png";
     } else if (gameMode === "CRICKET") {
@@ -64,90 +62,154 @@ export function CardImage({ card, size = "medium" }: CardImageProps) {
     return "/cards/card-back.png";
   };
 
-  // Calculate card position in grid (0-indexed)
-  const getCardPosition = (): { col: number; row: number } => {
-    // Extract card number from name or use default
-    const cardName = card.name || card.cardName || "Unknown";
-    const hash = cardName.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    
-    const gameMode = (card.gameMode || "X01").toUpperCase();
-    const cardType = (card.cardType || "GOOD").toUpperCase();
-    
-    // Determine max rows based on type
-    const maxCols = 5;
-    const maxRows = gameMode === "WILDCARD" ? 2 : 4;
-    const maxCards = maxCols * maxRows;
-    
-    const index = hash % maxCards;
+  // Calculate position in front card grid (5 cols x 4 rows)
+  const gridIndex = card.gridIndex ?? 0;
+  const colIndex = gridIndex % 5;
+  const rowIndex = Math.floor(gridIndex / 5);
+
+  // Position as percentages
+  const bgPosX = colIndex * 20; // 5 columns = 20% each
+  const bgPosY = rowIndex * 25; // 4 rows = 25% each
+  const bgSizeX = 500; // 5 columns = 500%
+  const bgSizeY = 400; // 4 rows = 400%
+
+  // Get back card image and position
+  const getBackImagePosition = (): { image: string; x: number; y: number } => {
+    // Card backs are 3x2 grid (3 columns, 2 rows)
+    // X01 GOOD = 0,0; X01 BAD = 1,0; CRICKET GOOD = 2,0
+    // CRICKET BAD = 0,1; WILDCARD GOOD = 1,1; WILDCARD BAD = 2,1
+
+    let backCol = 0,
+      backRow = 0;
+
+    if (gameMode === "X01") {
+      backCol = cardType === "GOOD" ? 0 : 1;
+      backRow = 0;
+    } else if (gameMode === "CRICKET") {
+      backCol = cardType === "GOOD" ? 2 : 0;
+      backRow = cardType === "GOOD" ? 0 : 1;
+    } else if (gameMode === "WILDCARD") {
+      backCol = 1;
+      backRow = cardType === "GOOD" ? 1 : 1;
+      if (cardType === "BAD") backCol = 2;
+    }
+
     return {
-      col: index % maxCols,
-      row: Math.floor(index / maxCols),
+      image: "/cards/card-backs.png",
+      x: backCol * 33.33, // 3 columns = 33.33% each
+      y: backRow * 50, // 2 rows = 50% each
     };
   };
 
-  const position = getCardPosition();
-  const gridImage = getGridImage();
+  const backImagePos = getBackImagePosition();
 
-  // Calculate background-position percentages
-  // Each column is 20% wide, each row is 25% (or 50% for wildcard)
-  const gameMode = (card?.gameMode || "X01").toUpperCase();
-  const isWildcard = gameMode === "WILDCARD";
-  const rowPercent = isWildcard ? 50 : 25;
-  
-  const bgPosX = (position.col * 20);
-  const bgPosY = (position.row * rowPercent);
-  const bgSizeX = 500; // 5 columns = 500%
-  const bgSizeY = isWildcard ? 200 : 400; // 2 or 4 rows = 200% or 400%
+  const flipStyle: React.CSSProperties = {
+    perspective: "1000px",
+    width: `${width}px`,
+    height: `${height}px`,
+    cursor: "pointer",
+    position: "relative",
+  };
+
+  const flipInnerStyle: React.CSSProperties = {
+    position: "relative",
+    width: "100%",
+    height: "100%",
+    transition: "transform 0.6s",
+    transformStyle: "preserve-3d",
+    transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+  };
+
+  const cardSideStyle: React.CSSProperties = {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    backfaceVisibility: "hidden",
+    borderRadius: "8px",
+    overflow: "hidden",
+  };
+
+  const frontStyle: React.CSSProperties = {
+    ...cardSideStyle,
+    backgroundImage: `url('${getFrontImage()}')`,
+    backgroundPosition: `${bgPosX}% ${bgPosY}%`,
+    backgroundSize: `${bgSizeX}% ${bgSizeY}%`,
+    backgroundRepeat: "no-repeat",
+  };
+
+  const backStyle: React.CSSProperties = {
+    ...cardSideStyle,
+    transform: "rotateY(180deg)",
+    backgroundImage: `url('${backImagePos.image}')`,
+    backgroundPosition: `${backImagePos.x}% ${backImagePos.y}%`,
+    backgroundSize: "300% 200%",
+    backgroundRepeat: "no-repeat",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
 
   return (
-    <div
-      style={{
-        width: `${width}px`,
-        height: `${height}px`,
-        backgroundImage: `url('${gridImage}')`,
-        backgroundPosition: `${bgPosX}% ${bgPosY}%`,
-        backgroundSize: `${bgSizeX}% ${bgSizeY}%`,
-        backgroundRepeat: "no-repeat",
-        borderRadius: "8px",
-        border: "2px solid rgba(255,255,255,0.2)",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)",
-        cursor: "pointer",
-        transition: "all 0.2s",
-      }}
-      onMouseEnter={(e) => {
-        const el = e.currentTarget as HTMLElement;
-        el.style.transform = "scale(1.05) translateY(-2px)";
-        el.style.boxShadow = "0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)";
-      }}
-      onMouseLeave={(e) => {
-        const el = e.currentTarget as HTMLElement;
-        el.style.transform = "scale(1) translateY(0)";
-        el.style.boxShadow = "0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)";
-      }}
-      title={card.name}
-    />
+    <div style={flipStyle} onClick={() => setIsFlipped(!isFlipped)}>
+      <div style={flipInnerStyle}>
+        <div style={frontStyle} />
+        <div style={backStyle}>
+          <div
+            style={{
+              position: "absolute",
+              bottom: "8px",
+              left: "8px",
+              right: "8px",
+              color: "rgba(255,255,255,0.8)",
+              fontSize: "10px",
+              textAlign: "left",
+              background: "rgba(0,0,0,0.5)",
+              padding: "6px",
+              borderRadius: "4px",
+              maxHeight: "60%",
+              overflow: "hidden",
+            }}
+          >
+            <div style={{ fontWeight: "bold", marginBottom: "4px" }}>EFFECT:</div>
+            <div style={{ fontSize: "9px", lineHeight: "1.2" }}>{card.effect || "No effect"}</div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
-/**
- * CardImageWithSpinner - Card with 3D rotation animation
- */
-interface CardImageWithSpinnerProps extends CardImageProps {
-  isActive?: boolean;
-}
+// Export card image with 3D rotation spinner for activation
+export function CardImageWithSpinner({
+  card,
+  size = "medium",
+  isActivating = false,
+}: CardImageProps & { isActivating?: boolean }) {
+  const sizeMap = {
+    small: 80,
+    medium: 120,
+    large: 180,
+  };
 
-export function CardImageWithSpinner({ card, size = "medium", isActive = false }: CardImageWithSpinnerProps) {
+  const width = sizeMap[size];
+
   return (
     <div
       style={{
-        perspective: "1000px",
+        position: "relative",
+        width: `${width}px`,
+        height: `${(width * 3) / 2}px`,
       }}
     >
       <div
         style={{
-          transition: "transform 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55)",
-          transformStyle: "preserve-3d",
-          transform: isActive ? "rotateY(360deg)" : "rotateY(0deg)",
+          width: "100%",
+          height: "100%",
+          animation: isActivating ? "spin3d 0.6s ease-out" : "none",
+          "@keyframes spin3d": {
+            "0%": { transform: "rotateY(0deg)" },
+            "100%": { transform: "rotateY(360deg)" },
+          },
         }}
       >
         <CardImage card={card} size={size} />
