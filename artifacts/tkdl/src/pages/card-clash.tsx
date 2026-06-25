@@ -21,11 +21,20 @@ export default function CardClashPage() {
     if (!playerId) return;
     setLoading(true);
 
-    Promise.all([
-      fetch("/api/card-clash/season/active").then((r) => r.json()),
-      fetch(`/api/card-clash/standings?season=current`).then((r) => r.json()).catch(() => []),
-      fetch(`/api/card-clash/player/${playerId}/stats`).then((r) => r.json()).catch(() => ({})),
-    ])
+    // First get active season
+    fetch("/api/card-clash/season/active")
+      .then((r) => r.json())
+      .then((season) => {
+        setSeason(season);
+        // Then fetch standings using the season ID
+        return Promise.all([
+          Promise.resolve(season),
+          season?.id 
+            ? fetch(`/api/card-clash/standings/${season.id}`).then((r) => r.json()).catch(() => [])
+            : Promise.resolve([]),
+          fetch(`/api/card-clash/player/${playerId}/stats`).then((r) => r.json()).catch(() => ({})),
+        ]);
+      })
       .then(([s, st, stats]) => {
         setSeason(s);
         setStandings(Array.isArray(st) ? st : st?.standings || []);

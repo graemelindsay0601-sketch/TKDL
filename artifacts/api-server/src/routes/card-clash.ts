@@ -109,6 +109,46 @@ router.get("/shop/currency/:playerId", async (req: Request, res: Response) => {
   }
 });
 
+// Get player Card Clash stats
+router.get("/player/:playerId/stats", async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.playerId);
+    
+    // Get currency
+    await ensurePlayerCurrency(playerId);
+    const currency = await getPlayerCurrency(playerId);
+    
+    // Get inventory (card count)
+    const inventory = await getPlayerInventory(playerId);
+    
+    // Get current season standings
+    const season = await getActiveCardClashSeason();
+    let matchesPlayed = 0;
+    let wins = 0;
+    
+    if (season?.id) {
+      const standings = await getCardClashStandings(season.id);
+      const playerStanding = standings.find((s: any) => s.player_id === playerId);
+      if (playerStanding) {
+        matchesPlayed = (playerStanding.wins || 0) + (playerStanding.losses || 0);
+        wins = playerStanding.wins || 0;
+      }
+    }
+    
+    res.json({
+      playerId,
+      coins: currency?.cardPoints || 0,
+      cardsOwned: inventory?.length || 0,
+      matchesPlayed,
+      wins,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logger.error({ error, playerId: req.params.playerId }, "Failed to get player stats");
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to get player stats" });
+  }
+});
+
 // Debug endpoint to check seasons table
 router.get("/admin/debug/seasons", async (req: Request, res: Response) => {
   try {
