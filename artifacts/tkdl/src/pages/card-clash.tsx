@@ -170,7 +170,6 @@ const PACKS = [
         </button>
       );
     }
-    }
 
     export default function CardClashPage() {
   const currentPlayer = useCurrentPlayer();
