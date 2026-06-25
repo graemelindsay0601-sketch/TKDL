@@ -51,8 +51,8 @@ export function CardImage({ card, size = "medium" }: CardImageProps) {
 
   // Determine grid image URL
   const getGridImage = (): string => {
-    const gameMode = card.gameMode.toUpperCase();
-    const cardType = card.cardType.toUpperCase();
+    const gameMode = (card?.gameMode || "X01").toUpperCase();
+    const cardType = (card?.cardType || "GOOD").toUpperCase();
 
     if (gameMode === "X01") {
       return cardType === "GOOD" ? "/cards/x01-good-grid.png" : "/cards/x01-bad-grid.png";
@@ -90,7 +90,7 @@ export function CardImage({ card, size = "medium" }: CardImageProps) {
 
   // Calculate background-position percentages
   // Each column is 20% wide, each row is 25% (or 50% for wildcard)
-  const gameMode = card.gameMode.toUpperCase();
+  const gameMode = (card?.gameMode || "X01").toUpperCase();
   const isWildcard = gameMode === "WILDCARD";
   const rowPercent = isWildcard ? 50 : 25;
   
