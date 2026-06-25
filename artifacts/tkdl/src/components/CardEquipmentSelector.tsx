@@ -1,334 +1,207 @@
 import React, { useState, useEffect } from "react";
-import { AlertCircle, CheckCircle, Sparkles } from "lucide-react";
-import { CardDisplay } from "./CardDisplay";
 
-interface Card {
-  id: string;
-  name: string;
-  cardType: "GOOD" | "BAD";
-  rarity: "COMMON" | "RARE" | "LEGENDARY";
-  effect: string;
-  quantity: number;
-}
-
-interface EquippedCards {
-  goodCards: Card[];
-  badCards: Card[];
-}
-
-interface CardEquipmentSelectorProps {
-  currentPlayerId: number;
-  currentPlayerName?: string;
-  opponentId?: number;
-  opponentName?: string;
-  gameMode: "X01" | "CRICKET";
-  onConfirm: (p1Cards: any[], p2Cards: any[]) => void;
-  onBack: () => void;
-  submitError?: string | null;
-  // Legacy aliases kept for backwards compat
-  playerId?: number;
-  onSelect?: (equipment: EquippedCards) => void;
-  onCancel?: () => void;
-}
-
-const RarityColor: Record<string, string> = {
-  COMMON: "text-gray-400",
-  RARE: "text-blue-400",
-  LEGENDARY: "text-yellow-400",
-};
-
-const RarityBg: Record<string, string> = {
-  COMMON: "bg-gray-500/10",
-  RARE: "bg-blue-500/10",
-  LEGENDARY: "bg-yellow-500/10",
-};
-
-export function CardEquipmentSelector({
-  currentPlayerId,
-  gameMode,
-  onConfirm,
-  onBack,
-  submitError,
-}: CardEquipmentSelectorProps) {
-  const playerId = currentPlayerId;
-  const [inventory, setInventory] = useState<Card[]>([]);
-  const [selectedGood, setSelectedGood] = useState<Card[]>([]);
-  const [selectedBad, setSelectedBad] = useState<Card[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!playerId) return;
-    loadInventory();
-  }, [playerId]);
-
-  const loadInventory = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch(`/api/card-clash/inventory/${playerId}`);
-      if (!response.ok) throw new Error("Failed to load inventory");
-
-      const data = await response.json();
-      // API returns array directly with cardId/cardName fields
-      const raw: any[] = Array.isArray(data) ? data : (data.cards ?? []);
-      setInventory(raw.map((c: any) => ({
-        id: String(c.cardId ?? c.id ?? ""),
-        name: c.cardName ?? c.name ?? "",
-        cardType: c.cardType ?? (c.type === "BAD" ? "BAD" : "GOOD"),
-        rarity: c.rarity ?? "COMMON",
-        effect: c.effect ?? "",
-        quantity: c.quantity ?? 1,
-        gameMode: c.gameMode ?? c.game_mode ?? "WILDCARD",
-      })));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load cards");
-      console.error("Inventory load error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Filter cards by type and game mode
-  const goodCardsAvailable = inventory.filter(
-    (c) => c.cardType === "GOOD" && 
-            (c.gameMode === gameMode || c.gameMode === "WILDCARD") &&
-            c.quantity > 0
-  );
-
-  const badCardsAvailable = inventory.filter(
-    (c) => c.cardType === "BAD" && 
-            (c.gameMode === gameMode || c.gameMode === "WILDCARD") &&
-            c.quantity > 0
-  );
-
-  // Handle card selection
-  const toggleGoodCard = (card: Card) => {
-    if (selectedGood.find((c) => c.id === card.id)) {
-      setSelectedGood(selectedGood.filter((c) => c.id !== card.id));
-    } else if (selectedGood.length < 2) {
-      setSelectedGood([...selectedGood, card]);
-    }
-  };
-
-  const toggleBadCard = (card: Card) => {
-    if (selectedBad.find((c) => c.id === card.id)) {
-      setSelectedBad(selectedBad.filter((c) => c.id !== card.id));
-    } else if (selectedBad.length < 2) {
-      setSelectedBad([...selectedBad, card]);
-    }
-  };
-
-  // Cards are optional — players can always start a match with 0 cards
-  const isReady = true;
-
-  const handleConfirm = () => {
-    onConfirm([...selectedGood, ...selectedBad], []);
-  };
-
-  if (loading) {
-    return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-md w-full mx-4">
-          <div className="text-center">
-            <div className="animate-spin w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full mx-auto mb-3" />
-            <p className="text-gray-300">Loading your cards...</p>
-          </div>
-        </div>
-      </div>
-    );
+  interface Card {
+    id: string;
+    name: string;
+    cardType: "GOOD" | "BAD";
+    rarity: "COMMON" | "RARE" | "LEGENDARY";
+    effect: string;
+    quantity: number;
+    gameMode: string;
   }
 
-  if (error) {
-    return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-gray-900 border border-red-500 rounded-lg p-6 max-w-md w-full mx-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-1" />
-            <div>
-              <h3 className="text-red-400 font-semibold mb-1">Error Loading Cards</h3>
-              <p className="text-gray-300 text-sm mb-4">{error}</p>
-              <button
-                onClick={onBack}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-              >
-                Back
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  interface CardEquipmentSelectorProps {
+    currentPlayerId: number;
+    currentPlayerName?: string;
+    opponentId?: number;
+    opponentName?: string;
+    gameMode: "X01" | "CRICKET";
+    onConfirm: (p1Cards: any[], p2Cards: any[]) => void;
+    onBack: () => void;
+    submitError?: string | null;
+    playerId?: number;
+    onSelect?: (equipment: any) => void;
+    onCancel?: () => void;
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-amber-500/30 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 bg-gray-900 border-b border-gray-700 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="w-5 h-5 text-amber-400" />
-            <h2 className="text-xl font-bold text-white">Equip Cards for {gameMode}</h2>
-          </div>
-          <p className="text-sm text-gray-400">
-            Optionally equip cards for bonus effects — cards are not required to play
-          </p>
-        </div>
+  const RAR_COLOR: Record<string, { border: string; glow: string; label: string; bg: string; text: string }> = {
+    COMMON:    { border: "#9ca3af", glow: "rgba(156,163,175,0.25)", label: "#d1d5db", bg: "rgba(156,163,175,0.06)", text: "#e5e7eb" },
+    RARE:      { border: "#818cf8", glow: "rgba(129,140,248,0.35)", label: "#a5b4fc", bg: "rgba(99,102,241,0.10)", text: "#c7d2fe" },
+    LEGENDARY: { border: "#fbbf24", glow: "rgba(251,191,36,0.45)",  label: "#fde68a", bg: "rgba(217,119,6,0.12)",  text: "#fef3c7" },
+  };
 
-        {/* Submit error */}
-        {submitError && (
-          <div className="mx-4 mt-3 p-3 bg-red-500/10 border border-red-500/40 rounded-lg flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-            <p className="text-red-400 text-sm">{submitError}</p>
-          </div>
+  function MiniCard({ card, selected, disabled, onClick }: { card: Card; selected: boolean; disabled: boolean; onClick: () => void }) {
+    const rc  = RAR_COLOR[card.rarity] ?? RAR_COLOR.COMMON;
+    const isG = card.cardType === "GOOD";
+    return (
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        style={{
+          all: "unset", display: "flex", gap: "12px", alignItems: "flex-start",
+          padding: "12px 14px", borderRadius: "10px", cursor: disabled ? "not-allowed" : "pointer",
+          transition: "all 0.18s", width: "100%", boxSizing: "border-box",
+          background: selected ? (isG ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)") : rc.bg,
+          border: `1.5px solid ${selected ? (isG ? "#22c55e" : "#ef4444") : rc.border + "60"}`,
+          boxShadow: selected ? `0 0 16px ${isG ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}` : "none",
+          opacity: disabled ? 0.38 : 1,
+        }}
+      >
+        {/* Rarity pip */}
+        <div style={{ flexShrink: 0, width: "38px", height: "38px", borderRadius: "8px", background: rc.bg, border: `1px solid ${rc.border}55`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "3px" }}>
+          <div style={{ fontSize: "16px" }}>{isG ? "⚡" : "💀"}</div>
+          <div style={{ fontSize: "7px", fontWeight: 800, color: rc.label, letterSpacing: "0.06em", fontFamily: "Arial,sans-serif" }}>{card.rarity[0]}</div>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: "13px", color: "#fff", fontFamily: "Arial,sans-serif", marginBottom: "3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.name}</div>
+          <div style={{ fontSize: "10px", color: rc.label, marginBottom: "5px", fontFamily: "Arial,sans-serif", letterSpacing: "0.04em" }}>{card.rarity} · ×{card.quantity}</div>
+          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", lineHeight: 1.45, fontFamily: "Arial,sans-serif", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{card.effect}</div>
+        </div>
+        {selected && (
+          <div style={{ flexShrink: 0, width: "20px", height: "20px", borderRadius: "50%", background: isG ? "#22c55e" : "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px" }}>✓</div>
         )}
+      </button>
+    );
+  }
 
-        {/* Content */}
-        <div className="p-4 space-y-6">
-          {/* GOOD Cards Section */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-green-400">
-                GOOD Cards ({selectedGood.length}/2)
-              </h3>
-              {selectedGood.length === 2 && <CheckCircle className="w-5 h-5 text-green-400" />}
-            </div>
+  export function CardEquipmentSelector({ currentPlayerId, gameMode, onConfirm, onBack, submitError }: CardEquipmentSelectorProps) {
+    const playerId = currentPlayerId;
+    const [inventory, setInventory] = useState<Card[]>([]);
+    const [selectedGood, setSelectedGood] = useState<Card[]>([]);
+    const [selectedBad, setSelectedBad]   = useState<Card[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error,   setError]   = useState<string | null>(null);
 
-            {goodCardsAvailable.length === 0 ? (
-              <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center text-gray-400">
-                No good cards available for {gameMode}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {goodCardsAvailable.map((card) => {
-                  const isSelected = selectedGood.find((c) => c.id === card.id);
-                  const cardNum = parseInt(card.id) || 0;
-                  return (
-                    <button
-                      key={card.id}
-                      onClick={() => toggleGoodCard(card)}
-                      disabled={selectedGood.length === 2 && !isSelected}
-                      className={`rounded-lg border-2 p-3 transition-all overflow-hidden ${
-                        isSelected
-                          ? "border-green-500 bg-green-500/10"
-                          : selectedGood.length === 2
-                            ? "border-gray-600 bg-gray-800/30 opacity-50 cursor-not-allowed"
-                            : "border-gray-600 bg-gray-800/50 hover:border-green-500/50 hover:bg-gray-700/50"
-                      }`}
-                    >
-                      <div className="flex gap-3">
-                        {/* Card Image */}
-                        <div style={{ flexShrink: 0 }}>
-                          <CardDisplay cardId={cardNum} size="small" />
-                        </div>
-                        
-                        {/* Card Info */}
-                        <div className="flex-1 text-left">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className="font-semibold text-white text-sm">{card.name}</p>
-                              <p className={`text-xs mt-1 ${RarityColor[card.rarity]}`}>
-                                {card.rarity} • Qty: {card.quantity}
-                              </p>
-                            </div>
-                            {isSelected && <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 ml-2 mt-1" />}
-                          </div>
-                          <p className="text-xs text-gray-300 mt-2 line-clamp-2">{card.effect}</p>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+    useEffect(() => { if (playerId) loadInventory(); }, [playerId]);
 
-          {/* BAD Cards Section */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-red-400">
-                BAD Cards ({selectedBad.length}/2)
-              </h3>
-              {selectedBad.length === 2 && <CheckCircle className="w-5 h-5 text-red-400" />}
-            </div>
+    const loadInventory = async () => {
+      try {
+        setLoading(true); setError(null);
+        const r = await fetch(`/api/card-clash/inventory/${playerId}`);
+        if (!r.ok) throw new Error("Failed to load inventory");
+        const data = await r.json();
+        const raw: any[] = Array.isArray(data) ? data : (data.cards ?? []);
+        setInventory(raw.map((c: any) => ({
+          id: String(c.cardId ?? c.id ?? ""),
+          name: c.cardName ?? c.name ?? "",
+          cardType: c.cardType ?? "GOOD",
+          rarity: (c.rarity ?? "COMMON").toUpperCase() as "COMMON" | "RARE" | "LEGENDARY",
+          effect: c.effect ?? "",
+          quantity: c.quantity ?? 1,
+          gameMode: c.gameMode ?? c.game_mode ?? "WILDCARD",
+        })));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load cards");
+      } finally { setLoading(false); }
+    };
 
-            {badCardsAvailable.length === 0 ? (
-              <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center text-gray-400">
-                No bad cards available for {gameMode}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {badCardsAvailable.map((card) => {
-                  const isSelected = selectedBad.find((c) => c.id === card.id);
-                  const cardNum = parseInt(card.id) || 0;
-                  return (
-                    <button
-                      key={card.id}
-                      onClick={() => toggleBadCard(card)}
-                      disabled={selectedBad.length === 2 && !isSelected}
-                      className={`rounded-lg border-2 p-3 transition-all overflow-hidden ${
-                        isSelected
-                          ? "border-red-500 bg-red-500/10"
-                          : selectedBad.length === 2
-                            ? "border-gray-600 bg-gray-800/30 opacity-50 cursor-not-allowed"
-                            : "border-gray-600 bg-gray-800/50 hover:border-red-500/50 hover:bg-gray-700/50"
-                      }`}
-                    >
-                      <div className="flex gap-3">
-                        {/* Card Image */}
-                        <div style={{ flexShrink: 0 }}>
-                          <CardDisplay cardId={cardNum} size="small" />
-                        </div>
-                        
-                        {/* Card Info */}
-                        <div className="flex-1 text-left">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className="font-semibold text-white text-sm">{card.name}</p>
-                              <p className={`text-xs mt-1 ${RarityColor[card.rarity]}`}>
-                                {card.rarity} • Qty: {card.quantity}
-                              </p>
-                            </div>
-                            {isSelected && <CheckCircle className="w-4 h-4 text-red-400 flex-shrink-0 ml-2 mt-1" />}
-                          </div>
-                          <p className="text-xs text-gray-300 mt-2 line-clamp-2">{card.effect}</p>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+    const goodCards = inventory.filter(c => c.cardType === "GOOD" && (c.gameMode === gameMode || c.gameMode === "WILDCARD") && c.quantity > 0);
+    const badCards  = inventory.filter(c => c.cardType === "BAD"  && (c.gameMode === gameMode || c.gameMode === "WILDCARD") && c.quantity > 0);
 
-          {/* Help Text */}
-          <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3">
-            <p className="text-xs text-amber-400">
-              💡 <strong>Tip:</strong> GOOD cards boost your score at the start of your turn. BAD cards harm 
-              your opponent and are played by them at the end of your turn.
-            </p>
-          </div>
-        </div>
+    const toggleGood = (c: Card) => {
+      if (selectedGood.find(x => x.id === c.id)) setSelectedGood(selectedGood.filter(x => x.id !== c.id));
+      else if (selectedGood.length < 2) setSelectedGood([...selectedGood, c]);
+    };
+    const toggleBad = (c: Card) => {
+      if (selectedBad.find(x => x.id === c.id)) setSelectedBad(selectedBad.filter(x => x.id !== c.id));
+      else if (selectedBad.length < 2) setSelectedBad([...selectedBad, c]);
+    };
 
-        {/* Footer */}
-        <div className="sticky bottom-0 bg-gray-900 border-t border-gray-700 p-4 flex gap-2 justify-end">
-          <button
-            onClick={onBack}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleConfirm}
-            className="px-6 py-2 rounded-lg font-semibold transition-all bg-amber-500 hover:bg-amber-600 text-black cursor-pointer"
-          >
-            {selectedGood.length + selectedBad.length > 0
-              ? `Start Match (${selectedGood.length + selectedBad.length} card${selectedGood.length + selectedBad.length !== 1 ? "s" : ""} equipped)`
-              : "Start Match (no cards)"}
-          </button>
+    const totalSelected = selectedGood.length + selectedBad.length;
+
+    const overlay = { position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(14px)", zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" };
+
+    if (loading) return (
+      <div style={overlay}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ width: "48px", height: "48px", border: "3px solid transparent", borderTopColor: "#ffd24a", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto 16px" }} />
+          <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
+          <p style={{ color: "rgba(255,255,255,0.45)", fontFamily: "Arial,sans-serif" }}>Loading your cards…</p>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+
+    if (error) return (
+      <div style={overlay}>
+        <div style={{ background: "#0d1625", border: "1px solid rgba(255,60,60,0.4)", borderRadius: "14px", padding: "28px", maxWidth: "360px", textAlign: "center" }}>
+          <div style={{ fontSize: "36px", marginBottom: "12px" }}>⚠️</div>
+          <p style={{ color: "#ff6b6b", marginBottom: "18px", fontFamily: "Arial,sans-serif" }}>{error}</p>
+          <button onClick={onBack} style={{ padding: "10px 24px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: "8px", color: "#fff", cursor: "pointer" }}>Back</button>
+        </div>
+      </div>
+    );
+
+    return (
+      <div style={overlay}>
+        <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
+        <div style={{ background: "#080f1e", border: "1px solid rgba(255,210,74,0.22)", borderRadius: "16px", width: "100%", maxWidth: "660px", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 0 60px rgba(0,0,0,0.8), 0 0 120px rgba(255,210,74,0.06)" }}>
+
+          {/* Header */}
+          <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "5px" }}>
+              <span style={{ fontSize: "22px" }}>✨</span>
+              <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 900, color: "#ffd24a", letterSpacing: "0.06em", fontFamily: "'Arial Black',Arial,sans-serif" }}>EQUIP CARDS — {gameMode}</h2>
+            </div>
+            <p style={{ margin: 0, fontSize: "12px", color: "rgba(255,255,255,0.32)", fontFamily: "Arial,sans-serif" }}>Up to 2 Good + 2 Bad cards. Cards are always optional — you can play with none.</p>
+            {submitError && <div style={{ marginTop: "10px", padding: "8px 14px", background: "rgba(255,60,60,0.08)", border: "1px solid rgba(255,60,60,0.28)", borderRadius: "7px", color: "#ff6b6b", fontSize: "12px", fontFamily: "Arial,sans-serif" }}>⚠️ {submitError}</div>}
+          </div>
+
+          {/* Content */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px" }}>
+
+            {/* GOOD cards */}
+            <div style={{ marginBottom: "22px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                <span style={{ fontSize: "20px" }}>⚡</span>
+                <span style={{ fontWeight: 900, fontSize: "14px", color: "#22c55e", letterSpacing: "0.08em", fontFamily: "'Arial Black',Arial,sans-serif" }}>GOOD CARDS ({selectedGood.length}/2)</span>
+                <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", fontFamily: "Arial,sans-serif" }}>Boost YOU on your turn</span>
+              </div>
+              {goodCards.length === 0 ? (
+                <div style={{ padding: "20px", textAlign: "center", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: "10px", color: "rgba(255,255,255,0.25)", fontSize: "13px", fontFamily: "Arial,sans-serif" }}>
+                  No {gameMode} Good cards in your collection — head to the Shop!
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  {goodCards.map(c => (
+                    <MiniCard key={c.id} card={c} selected={!!selectedGood.find(x => x.id === c.id)} disabled={selectedGood.length === 2 && !selectedGood.find(x => x.id === c.id)} onClick={() => toggleGood(c)} />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* BAD cards */}
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                <span style={{ fontSize: "20px" }}>💀</span>
+                <span style={{ fontWeight: 900, fontSize: "14px", color: "#ef4444", letterSpacing: "0.08em", fontFamily: "'Arial Black',Arial,sans-serif" }}>BAD CARDS ({selectedBad.length}/2)</span>
+                <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", fontFamily: "Arial,sans-serif" }}>Curse OPPONENT on their turn</span>
+              </div>
+              {badCards.length === 0 ? (
+                <div style={{ padding: "20px", textAlign: "center", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: "10px", color: "rgba(255,255,255,0.25)", fontSize: "13px", fontFamily: "Arial,sans-serif" }}>
+                  No {gameMode} Bad cards in your collection — head to the Shop!
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  {badCards.map(c => (
+                    <MiniCard key={c.id} card={c} selected={!!selectedBad.find(x => x.id === c.id)} disabled={selectedBad.length === 2 && !selectedBad.find(x => x.id === c.id)} onClick={() => toggleBad(c)} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: "14px 22px", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", gap: "10px", justifyContent: "flex-end", flexShrink: 0, background: "rgba(0,0,0,0.2)" }}>
+            <button onClick={onBack} style={{ padding: "11px 22px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "9px", color: "rgba(255,255,255,0.55)", fontWeight: 700, fontSize: "13px", cursor: "pointer", fontFamily: "Arial,sans-serif" }}>← Back</button>
+            <button
+              onClick={() => onConfirm([...selectedGood, ...selectedBad], [])}
+              style={{ padding: "11px 28px", background: "linear-gradient(135deg,#ffd24a,#ff9500)", border: "none", borderRadius: "9px", color: "#000", fontWeight: 900, fontSize: "13px", cursor: "pointer", letterSpacing: "0.07em", fontFamily: "'Arial Black',Arial,sans-serif", boxShadow: "0 4px 20px rgba(255,210,74,0.35)" }}
+            >
+              {totalSelected > 0 ? `⚡ PLAY (${totalSelected} card${totalSelected !== 1 ? "s" : ""})` : "⚡ PLAY — no cards"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
