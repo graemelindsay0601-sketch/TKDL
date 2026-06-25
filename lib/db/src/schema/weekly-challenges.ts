@@ -22,7 +22,7 @@ export const playerWeeklyChallenges = pgTable("player_weekly_challenges", {
   progress: integer("progress").notNull().default(0), // how many completed
   is_completed: boolean("is_completed").notNull().default(false),
   completed_at: timestamp("completed_at"),
-  week_of: timestamp("week_of").notNull(), // which week (Monday) this challenge is for
+  week_number: integer("week_number").notNull(), // which week (0-53)
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

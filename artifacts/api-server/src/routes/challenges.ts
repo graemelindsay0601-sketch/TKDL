@@ -209,12 +209,13 @@ router.post("/admin/weekly/bonus/:playerId", verifyAdminPin, async (req: Request
       return res.status(404).json({ error: "Challenge not found" });
     }
     
-    // Get this week's monday
+    // Calculate ISO week number
     const today = new Date();
-    const day = today.getDay();
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(today.setDate(diff));
-    monday.setHours(0, 0, 0, 0);
+    const date = new Date(today.getTime());
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + 4 - (date.getDay() || 7));
+    const yearStart = new Date(date.getFullYear(), 0, 1);
+    const weekNumber = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
     
     // Create player challenge entry
     const [created] = await db
@@ -225,7 +226,7 @@ router.post("/admin/weekly/bonus/:playerId", verifyAdminPin, async (req: Request
         challenge_key: `${challenge.challenge_key}_bonus_${Date.now()}`,
         progress: 0,
         is_completed: false,
-        week_of: new Date(monday),
+        week_number: weekNumber,
       })
       .returning();
     

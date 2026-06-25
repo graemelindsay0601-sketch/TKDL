@@ -49,7 +49,7 @@ export const seasonalQuestService = {
       let playerQuest = await db.query.playerSeasonalQuests.findFirst({
         where: and(
           eq(playerSeasonalQuests.player_id, playerId),
-          eq(playerSeasonalQuests.season_id, activeSeason.id),
+          eq(playerSeasonalQuests.season_number, activeSeason.id),
           eq(playerSeasonalQuests.quest_id, quest.id)
         ),
       });
@@ -60,7 +60,7 @@ export const seasonalQuestService = {
           .insert(playerSeasonalQuests)
           .values({
             player_id: playerId,
-            season_id: activeSeason.id,
+            season_number: activeSeason.id,
             quest_id: quest.id,
             quest_key: quest.quest_key,
             progress: 0,
@@ -122,7 +122,7 @@ export const seasonalQuestService = {
       let playerQuest = await db.query.playerSeasonalQuests.findFirst({
         where: and(
           eq(playerSeasonalQuests.player_id, playerId),
-          eq(playerSeasonalQuests.season_id, activeSeason.id),
+          eq(playerSeasonalQuests.season_number, activeSeason.id),
           eq(playerSeasonalQuests.quest_key, questKey)
         ),
       });
@@ -133,7 +133,7 @@ export const seasonalQuestService = {
           .insert(playerSeasonalQuests)
           .values({
             player_id: playerId,
-            season_id: activeSeason.id,
+            season_number: activeSeason.id,
             quest_id: questDef.id,
             quest_key: questKey,
             progress: incrementBy,

@@ -88,15 +88,13 @@ export const challengeService = {
    * Get this week's weekly challenges for a player
    */
   async getWeeklyChallengesForPlayer(playerId: number): Promise<ChallengeProgress[]> {
-    // Monday of this week
+    // Calculate ISO week number
     const today = new Date();
-    const day = today.getDay();
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is Sunday
-    const monday = new Date(today.setDate(diff));
-    monday.setHours(0, 0, 0, 0);
-
-    const nextMonday = new Date(monday);
-    nextMonday.setDate(nextMonday.getDate() + 7);
+    const date = new Date(today.getTime());
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + 4 - (date.getDay() || 7));
+    const yearStart = new Date(date.getFullYear(), 0, 1);
+    const weekNumber = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 
     // Get all active weekly challenge definitions
     const challenges = await db.query.weeklyChallenges.findMany({
@@ -111,8 +109,7 @@ export const challengeService = {
         where: and(
           eq(playerWeeklyChallenges.player_id, playerId),
           eq(playerWeeklyChallenges.challenge_id, challenge.id),
-          gte(playerWeeklyChallenges.week_of, monday),
-          lte(playerWeeklyChallenges.week_of, nextMonday)
+          eq(playerWeeklyChallenges.week_number, weekNumber)
         ),
       });
 
@@ -126,7 +123,7 @@ export const challengeService = {
             challenge_key: challenge.challenge_key,
             progress: 0,
             is_completed: false,
-            week_of: new Date(monday),
+            week_number: weekNumber,
           })
           .returning();
 
@@ -246,14 +243,13 @@ export const challengeService = {
     incrementBy: number = 1
   ): Promise<{ completed: boolean; coinsAwarded: number }> {
     try {
+      // Calculate ISO week number
       const today = new Date();
-      const day = today.getDay();
-      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-      const monday = new Date(today.setDate(diff));
-      monday.setHours(0, 0, 0, 0);
-
-      const nextMonday = new Date(monday);
-      nextMonday.setDate(nextMonday.getDate() + 7);
+      const date = new Date(today.getTime());
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() + 4 - (date.getDay() || 7));
+      const yearStart = new Date(date.getFullYear(), 0, 1);
+      const weekNumber = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 
       // Get challenge definition
       const challengeDef = await db.query.weeklyChallenges.findFirst({
@@ -269,8 +265,7 @@ export const challengeService = {
         where: and(
           eq(playerWeeklyChallenges.player_id, playerId),
           eq(playerWeeklyChallenges.challenge_key, challengeKey),
-          gte(playerWeeklyChallenges.week_of, monday),
-          lte(playerWeeklyChallenges.week_of, nextMonday)
+          eq(playerWeeklyChallenges.week_number, weekNumber)
         ),
       });
 
@@ -286,7 +281,7 @@ export const challengeService = {
             is_completed: incrementBy >= challengeDef.requirement_value,
             completed_at:
               incrementBy >= challengeDef.requirement_value ? new Date() : null,
-            week_of: new Date(monday),
+            week_number: weekNumber,
           })
           .returning();
 

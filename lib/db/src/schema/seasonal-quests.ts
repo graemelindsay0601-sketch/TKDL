@@ -18,7 +18,7 @@ export const seasonalQuests = pgTable("seasonal_quests", {
 export const playerSeasonalQuests = pgTable("player_seasonal_quests", {
   id: serial("id").primaryKey(),
   player_id: integer("player_id").notNull(),
-  season_id: integer("season_id").notNull(), // which season this quest is for
+  season_number: integer("season_number").notNull(), // which season this quest is for
   quest_id: integer("quest_id").notNull(),
   quest_key: text("quest_key").notNull(), // denormalized
   progress: integer("progress").notNull().default(0), // how many completed
