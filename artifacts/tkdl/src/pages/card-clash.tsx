@@ -32,7 +32,40 @@ export default function CardClashPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [standings, setStandings] = useState<Standing[]>([]);
   const [ownedNames, setOwnedNames] = useState<Set<string>>(new Set());
+  const [newCardNames, setNewCardNames] = useState<Set<string>>(new Set());
   const [collLoading, setCollLoading] = useState(true);
+
+  // Load NEW card names from localStorage (cards acquired in last 24h)
+  useEffect(() => {
+    if (!playerId) return;
+    const key = `tkdl_new_cards_${playerId}`;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      const stored: Record<string, number> = JSON.parse(raw);
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+      const fresh = new Set(Object.entries(stored).filter(([, ts]) => ts > cutoff).map(([name]) => name));
+      // Prune stale entries
+      const pruned: Record<string, number> = {};
+      for (const [name, ts] of Object.entries(stored)) { if (ts > cutoff) pruned[name] = ts; }
+      localStorage.setItem(key, JSON.stringify(pruned));
+      setNewCardNames(fresh);
+    } catch {}
+  }, [playerId]);
+
+  const handleCardsReceived = (cardNames: string[]) => {
+    if (!playerId || cardNames.length === 0) return;
+    const key = `tkdl_new_cards_${playerId}`;
+    try {
+      const raw = localStorage.getItem(key);
+      const stored: Record<string, number> = raw ? JSON.parse(raw) : {};
+      const now = Date.now();
+      for (const name of cardNames) stored[name] = now;
+      localStorage.setItem(key, JSON.stringify(stored));
+      setNewCardNames(prev => new Set([...prev, ...cardNames]));
+    } catch {}
+    loadData();
+  };
 
   // Collection filters
   const [search, setSearch] = useState("");
@@ -228,11 +261,14 @@ export default function CardClashPage() {
                 {filteredCards.map(card => {
                   const owned = ownedNames.has(card.name);
                   return (
-                    <div key={card.id} onClick={() => setEnlargedCard(card)} style={{ cursor: "pointer", transition: "transform 0.2s", flexShrink: 0 }}
+                    <div key={card.id} onClick={() => setEnlargedCard(card)} style={{ cursor: "pointer", transition: "transform 0.2s", flexShrink: 0, position: "relative" }}
                       onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.04) translateY(-4px)")}
                       onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
                     >
                       <TKDLCard card={card} size="sm" locked={!owned} />
+                      {newCardNames.has(card.name) && (
+                        <div style={{ position: "absolute", top: "6px", right: "6px", background: "linear-gradient(135deg,#ff3b3b,#ff6b00)", color: "#fff", fontSize: "9px", fontWeight: 900, padding: "2px 7px", borderRadius: "10px", letterSpacing: "0.08em", boxShadow: "0 2px 8px rgba(255,60,60,0.5)", zIndex: 5 }}>NEW</div>
+                      )}
                     </div>
                   );
                 })}
@@ -257,7 +293,7 @@ export default function CardClashPage() {
               </div>
               <CoinBalance playerId={playerId} />
             </div>
-            <CardShopUI playerId={playerId} />
+            <CardShopUI playerId={playerId} onCardsReceived={handleCardsReceived} />
           </div>
         )}
 
