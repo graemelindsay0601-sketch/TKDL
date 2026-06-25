@@ -13,12 +13,22 @@ export function PlayerChallenges({ playerId }: { playerId: number }) {
     Promise.all([
       fetch(`/api/card-clash/challenges/daily/${playerId}`)
         .then((r) => r.json())
+        .then((d) => {
+          console.log("Daily challenges response:", d);
+          // Handle both direct array and nested structure
+          return Array.isArray(d) ? d : (d?.challenges || []);
+        })
         .catch((e) => {
           console.error("Daily challenges error:", e);
           return [];
         }),
       fetch(`/api/card-clash/challenges/weekly/${playerId}`)
         .then((r) => r.json())
+        .then((d) => {
+          console.log("Weekly challenges response:", d);
+          // Handle both direct array and nested structure
+          return Array.isArray(d) ? d : (d?.challenges || []);
+        })
         .catch((e) => {
           console.error("Weekly challenges error:", e);
           return [];
