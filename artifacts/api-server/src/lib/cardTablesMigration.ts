@@ -155,25 +155,51 @@ export async function initializeCardTables() {
       )
     `);
 
-    // Create indexes
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_inventory_player ON player_card_inventory(player_id)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_inventory_card ON player_card_inventory(card_id)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_pity_player ON card_pity(player_id)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_player_currency_player ON player_currency(player_id)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_clash_matches_player ON card_clash_matches(player_id)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_clash_matches_season ON card_clash_matches(season_id)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_clash_standings_season ON card_clash_standings(season_id)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_clash_standings_player ON card_clash_standings(player_id)`);
+    // Create indexes — use correct table names, wrap each in try/catch so one failure doesn't abort the rest
+    const indexes = [
+      sql`CREATE INDEX IF NOT EXISTS idx_card_inventory_player ON player_card_inventory(player_id)`,
+      sql`CREATE INDEX IF NOT EXISTS idx_card_inventory_card ON player_card_inventory(card_id)`,
+      sql`CREATE INDEX IF NOT EXISTS idx_card_pity_player ON card_pity_system(player_id)`,
+      sql`CREATE INDEX IF NOT EXISTS idx_player_currency_player ON player_currency(player_id)`,
+      sql`CREATE INDEX IF NOT EXISTS idx_card_clash_matches_season ON card_clash_matches(season_id)`,
+      sql`CREATE INDEX IF NOT EXISTS idx_card_clash_standings_season ON card_clash_standings(season_id)`,
+      sql`CREATE INDEX IF NOT EXISTS idx_card_clash_standings_player ON card_clash_standings(player_id)`,
+    ];
+    for (const idx of indexes) {
+      try { await db.execute(idx); } catch (e) { logger.warn({ e }, "Index creation skipped (may already exist or column missing)"); }
+    }
 
     // Migrate: Add grid_index column to card_definitions if it doesn't exist
     try {
-      await db.execute(sql`
-        ALTER TABLE card_definitions
-        ADD COLUMN IF NOT EXISTS grid_index INTEGER
-      `);
+      await db.execute(sql`ALTER TABLE card_definitions ADD COLUMN IF NOT EXISTS grid_index INTEGER`);
       logger.info("Added grid_index column to card_definitions (or column already exists)");
     } catch (error) {
-      logger.warn({ error }, "Could not add grid_index column to card_definitions - may already exist");
+      logger.warn({ error }, "Could not add grid_index column to card_definitions");
+    }
+
+    // Migrate: Add missing columns to card_clash_seasons (added after initial deploy)
+    try {
+      await db.execute(sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT false`);
+      await db.execute(sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS total_matches INTEGER NOT NULL DEFAULT 0`);
+      logger.info("card_clash_seasons columns verified");
+    } catch (error) {
+      logger.warn({ error }, "Could not alter card_clash_seasons columns");
+    }
+
+    // Migrate: Add missing columns to card_clash_matches (schema updated after initial deploy)
+    try {
+      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS match_id UUID DEFAULT gen_random_uuid()`);
+      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_id INTEGER REFERENCES players(id)`);
+      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_id INTEGER REFERENCES players(id)`);
+      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS winner_id INTEGER REFERENCES players(id)`);
+      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_equipped_cards JSON`);
+      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_equipped_cards JSON`);
+      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSON`);
+      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_points_earned INTEGER NOT NULL DEFAULT 0`);
+      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER NOT NULL DEFAULT 0`);
+      logger.info("card_clash_matches columns verified");
+    } catch (error) {
+      logger.warn({ error }, "Could not alter card_clash_matches columns");
     }
 
     logger.info("Card tables initialized successfully");
