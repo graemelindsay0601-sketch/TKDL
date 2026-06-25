@@ -370,12 +370,12 @@ router.post("/admin/announcements", async (req, res): Promise<void> => {
  * Get notification analytics (admin only)
  */
 router.get("/admin/notifications/analytics", async (req, res): Promise<void> => {
-  if (!isAdmin(req)) {
-    res.status(403).json({ error: "Admin required" });
-    return;
-  }
-
   try {
+    if (!isAdmin(req)) {
+      res.status(403).json({ error: "Admin required" });
+      return;
+    }
+
     // Return dummy analytics data (notification_analytics table doesn't exist yet)
     res.json({
       total_sent: 0,
