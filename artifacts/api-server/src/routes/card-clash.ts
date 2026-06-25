@@ -25,7 +25,7 @@ import { seasonalQuestService } from "../services/seasonal-quest-service";
 import { logger } from "../lib/logger";
 import { ensurePlayerCurrency } from "../lib/cardTablesMigration";
 import { db, cardClashMatchesTable, cardClashSeasonsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const router = Router();
 
@@ -207,26 +207,56 @@ router.post("/admin/season/create", async (req: Request, res: Response) => {
 
     logger.info({ monthName, startDate, endDate }, "Creating season with values");
 
-    const season = await db
-      .insert(cardClashSeasonsTable)
-      .values({
-        name: `${monthName} Season`,
-        startDate,
-        endDate,
-        isActive: true,
-        isLocked: false,
-      })
-      .returning();
+    try {
+      // Try Drizzle ORM first
+      const season = await db
+        .insert(cardClashSeasonsTable)
+        .values({
+          name: `${monthName} Season`,
+          startDate,
+          endDate,
+          isActive: true,
+          isLocked: false,
+        })
+        .returning();
 
-    logger.info({ season: season[0] }, "Season created successfully");
-    res.json({ success: true, season: season[0], message: `Created active season: ${monthName}` });
+      logger.info({ season: season[0] }, "Season created successfully (Drizzle)");
+      return res.json({ success: true, season: season[0], message: `Created active season: ${monthName}` });
+    } catch (drizzleError) {
+      logger.warn({ err: drizzleError }, "Drizzle insert failed, trying raw SQL");
+
+      // Fallback to raw SQL
+      const result = await db.execute(sql`
+        INSERT INTO card_clash_seasons (name, start_date, end_date, is_active, is_locked)
+        VALUES (${`${monthName} Season`}, ${startDate}, ${endDate}, true, false)
+        RETURNING id, name, start_date, end_date, is_active, is_locked, total_matches, created_at, updated_at
+      `);
+
+      if (result.rows && result.rows[0]) {
+        const row = result.rows[0];
+        const season = {
+          id: row.id,
+          name: row.name,
+          startDate: row.start_date,
+          endDate: row.end_date,
+          isActive: row.is_active,
+          isLocked: row.is_locked,
+          totalMatches: row.total_matches,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        };
+        logger.info({ season }, "Season created successfully (Raw SQL)");
+        return res.json({ success: true, season, message: `Created active season: ${monthName}` });
+      }
+
+      throw new Error("Raw SQL insert failed - no result returned");
+    }
   } catch (error) {
     logger.error({ err: error, errorMessage: error instanceof Error ? error.message : String(error) }, "Failed to create season");
     res.status(500).json({ 
       error: error instanceof Error ? error.message : "Failed to create season",
       details: error instanceof Error ? error.stack : String(error)
     });
-    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create season" });
   }
 });
 
