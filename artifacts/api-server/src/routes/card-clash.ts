@@ -90,6 +90,24 @@ router.get("/cards/all", async (req: Request, res: Response) => {
   }
 });
 
+// Debug endpoint to check coin data in database
+router.get("/debug/coins/:playerId", async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.playerId);
+    const currency = await getPlayerCurrency(playerId);
+    const allCurrency = await db.query.playerCurrencyTable.findMany({
+      where: (t) => ({ playerId: playerId }),
+    });
+    res.json({ 
+      from_service: currency,
+      from_db: allCurrency,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
 // Get player pity status
 router.get("/pity/:playerId", async (req: Request, res: Response) => {
   try {
