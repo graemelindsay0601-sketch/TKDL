@@ -24,6 +24,7 @@ interface CardEquipmentSelectorProps {
   gameMode: "X01" | "CRICKET";
   onConfirm: (p1Cards: any[], p2Cards: any[]) => void;
   onBack: () => void;
+  submitError?: string | null;
   // Legacy aliases kept for backwards compat
   playerId?: number;
   onSelect?: (equipment: EquippedCards) => void;
@@ -47,6 +48,7 @@ export function CardEquipmentSelector({
   gameMode,
   onConfirm,
   onBack,
+  submitError,
 }: CardEquipmentSelectorProps) {
   const playerId = currentPlayerId;
   const [inventory, setInventory] = useState<Card[]>([]);
@@ -69,7 +71,17 @@ export function CardEquipmentSelector({
       if (!response.ok) throw new Error("Failed to load inventory");
 
       const data = await response.json();
-      setInventory(data.cards || []);
+      // API returns array directly with cardId/cardName fields
+      const raw: any[] = Array.isArray(data) ? data : (data.cards ?? []);
+      setInventory(raw.map((c: any) => ({
+        id: String(c.cardId ?? c.id ?? ""),
+        name: c.cardName ?? c.name ?? "",
+        cardType: c.cardType ?? (c.type === "BAD" ? "BAD" : "GOOD"),
+        rarity: c.rarity ?? "COMMON",
+        effect: c.effect ?? "",
+        quantity: c.quantity ?? 1,
+        gameMode: c.gameMode ?? c.game_mode ?? "WILDCARD",
+      })));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load cards");
       console.error("Inventory load error:", err);
@@ -163,6 +175,14 @@ export function CardEquipmentSelector({
             Optionally equip cards for bonus effects — cards are not required to play
           </p>
         </div>
+
+        {/* Submit error */}
+        {submitError && (
+          <div className="mx-4 mt-3 p-3 bg-red-500/10 border border-red-500/40 rounded-lg flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-red-400 text-sm">{submitError}</p>
+          </div>
+        )}
 
         {/* Content */}
         <div className="p-4 space-y-6">
