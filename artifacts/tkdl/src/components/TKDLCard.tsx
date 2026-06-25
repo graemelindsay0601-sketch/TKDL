@@ -138,7 +138,19 @@ export function TKDLCard({ card, size = "md", locked = false }: TKDLCardProps) {
 
           {/* Artwork area */}
           <div style={{ position: "relative", flexShrink: 0, overflow: "hidden", height: "50%", margin: "0 4px", borderRadius: "6px", border: `1px solid ${cfg.primary}44`, boxShadow: `inset 0 0 30px rgba(0,0,0,0.7),0 0 10px ${cfg.primaryGlow}` }}>
-            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: `radial-gradient(ellipse at center,${cfg.primaryDim}88 0%,#050810 100%)` }}>
+            {(() => {
+              const slug = card.name.toLowerCase().replace(/\s+-\d+$/, '').replace(/\+/g, '').replace(/[^a-z0-9\s]/g, '').trim().replace(/\s+/g, '-');
+              const artUrl = card.artworkUrl ?? `/card-artwork/${slug}.jpg`;
+              return locked ? null : (
+                <img
+                  src={artUrl}
+                  alt={card.name}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block", filter: "brightness(0.9) contrast(1.1) saturate(1.2)" }}
+                  onError={e => { const el = e.currentTarget as HTMLImageElement; el.style.display = "none"; const fb = el.nextElementSibling as HTMLElement; if (fb) fb.style.display = "flex"; }}
+                />
+              );
+            })()}
+            <div style={{ width: "100%", height: "100%", display: locked ? "flex" : "none", alignItems: "center", justifyContent: "center", background: `radial-gradient(ellipse at center,${cfg.primaryDim}88 0%,#050810 100%)`, position: locked ? "relative" : "absolute", inset: locked ? "auto" : 0 }}>
               {locked
                 ? <span style={{ fontSize: "2.5rem", opacity: 0.4 }}>🔒</span>
                 : <span style={{ color: cfg.primary, fontSize: "2rem", opacity: 0.3 }}>🎯</span>
@@ -184,13 +196,14 @@ export function TKDLCard({ card, size = "md", locked = false }: TKDLCardProps) {
           position: "absolute", inset: 0, borderRadius: "12px", overflow: "hidden",
           backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
           transform: "rotateY(180deg)",
-          background: `radial-gradient(ellipse at center,${cfg.primaryDim}88 0%,#050810 100%)`,
-          border: `2px solid ${cfg.primary}55`,
-          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "8px",
         }}>
-          <div style={{ fontSize: "2rem", filter: `drop-shadow(0 0 12px ${cfg.primary})` }}>{cfg.icon}</div>
-          <div style={{ fontSize: "11px", color: cfg.primary, fontWeight: 900, letterSpacing: "0.2em", textShadow: `0 0 8px ${cfg.primary}` }}>TKDL</div>
-          <div style={{ fontSize: "8px", color: "rgba(255,255,255,0.3)", letterSpacing: "0.15em" }}>CARD CLASH</div>
+          <div style={{
+            width: "100%", height: "100%",
+            backgroundImage: "url('/cards/card-backs.png')",
+            backgroundSize: "300% 200%",
+            backgroundPosition: cfg.cardBackPosition,
+            backgroundRepeat: "no-repeat",
+          }} />
         </div>
       </div>
     </div>
