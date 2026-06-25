@@ -122,7 +122,7 @@ export const ALL_CARDS: CardData[] = [
 
   // ── WILDCARD BAD (10) ──────────────────────────────────────────────────────
   { id: 601, name: "Dark Cloud", category: "WILDCARD BAD", rarity: "COMMON", effect: "Target's next leg score reduced by 35 points (X01) or 1 number locked (Cricket).", flavourText: "The storm follows the leader.", energyCost: 1 },
-  { id: 602, name: "Momentum Killer", category: "WILDCARD BAD", rarity: "RARE", effect: "Remove any momentum or streak bonus target had — reset their consecutive wins.", flavourText: "Streak's over.", energyCost: 2 },
+  { id: 602, name: "Streak Crusher", category: "WILDCARD BAD", rarity: "RARE", effect: "Target's current winning streak is reset to zero — any streak bonus they held is gone.", flavourText: "Streaks are just waiting to be ended.", energyCost: 2 },
   { id: 603, name: "Unlucky Night", category: "WILDCARD BAD", rarity: "COMMON", effect: "All target's darts count at 75% value this leg.", flavourText: "Not every night goes your way.", energyCost: 1 },
   { id: 604, name: "Hex", category: "WILDCARD BAD", rarity: "RARE", effect: "All target's darts count at 50% value (X01) or marks at 50% (Cricket) this leg.", flavourText: "Cursed from the first dart.", energyCost: 2 },
   { id: 605, name: "Wipeout", category: "WILDCARD BAD", rarity: "RARE", effect: "Target's last 2 darts this leg score 0.", flavourText: "The finish disappears before your eyes.", energyCost: 2 },
