@@ -112,10 +112,14 @@ router.post("/admin/season/create", async (req: Request, res: Response) => {
       return res.status(403).json({ error: "Unauthorized: Invalid admin PIN" });
     }
 
-    // Check if season already exists
-    const existing = await getActiveCardClashSeason();
-    if (existing) {
-      return res.status(400).json({ error: "Active season already exists" });
+    try {
+      // Check if season already exists
+      const existing = await getActiveCardClashSeason();
+      if (existing) {
+        return res.status(400).json({ error: "Active season already exists", existing });
+      }
+    } catch (e) {
+      // No active season found, continue
     }
 
     // Create new season (monthly based on current month)

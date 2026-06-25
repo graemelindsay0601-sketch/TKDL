@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { NotificationCenter } from "@/components/notification-center";
+import { CardCollection } from "@/components/CardCollection";
+import { PlayerChallenges } from "@/components/PlayerChallenges";
 import { OverallStats, ByGameType, Trends, DartAnalysis, SessionHistory, CategoryStats, CategoryStatsEnhanced, AdvancedAnalyticsDashboard } from "@/components/stats";
 
 const TIER_COLORS: Record<string, string> = {
@@ -946,6 +948,19 @@ export default function AccountPage() {
             );
           })()}
         </SectionCard>
+      )}
+
+      {/* ── Card Clash ────────────────────────────────────────── */}
+      {user?.playerId && (
+        <div className="space-y-4">
+          <SectionCard title="Card Collection" icon={Star} accent="#ff6b9d">
+            <CardCollection playerId={user.playerId} />
+          </SectionCard>
+          
+          <SectionCard title="Active Challenges" icon={Trophy} accent="#ffd24a">
+            <PlayerChallenges playerId={user.playerId} />
+          </SectionCard>
+        </div>
       )}
 
       {/* ── Coach's Corner ────────────────────────────────────── */}
