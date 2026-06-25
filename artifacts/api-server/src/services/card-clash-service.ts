@@ -22,13 +22,19 @@ const COIN_REWARDS = {
 };
 
 async function ensureSeasonSchema() {
-  try {
-    await db.execute(sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT false`);
-    await db.execute(sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS total_matches INTEGER NOT NULL DEFAULT 0`);
-    logger.info("[SEASON_SERVICE] Schema columns verified/added");
-  } catch (e) {
-    logger.warn({ e }, "[SEASON_SERVICE] Schema fix attempt failed — table may not exist yet");
+  for (const alter of [
+    sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT 'Season'`,
+    sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS start_date DATE NOT NULL DEFAULT CURRENT_DATE`,
+    sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS end_date DATE NOT NULL DEFAULT (CURRENT_DATE + INTERVAL '30 days')`,
+    sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`,
+    sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT false`,
+    sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS total_matches INTEGER NOT NULL DEFAULT 0`,
+    sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+  ]) {
+    try { await db.execute(alter); } catch (e) { logger.warn({ e }, "[SEASON_SERVICE] column alter skipped"); }
   }
+  logger.info("[SEASON_SERVICE] Schema columns verified/added");
 }
 
 export async function getActiveCardClashSeason() {
