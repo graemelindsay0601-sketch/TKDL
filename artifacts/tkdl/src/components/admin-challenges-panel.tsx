@@ -1,12 +1,32 @@
 import React, { useState, useEffect } from "react";
-import { Plus, RotateCcw, Check, Trash2, ChevronDown } from "lucide-react";
+import { Plus, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
+
+const D = {
+  card:    "rgba(255,255,255,0.04)",
+  border:  "rgba(255,255,255,0.08)",
+  text:    "#ffffff",
+  sub:     "rgba(255,255,255,0.45)",
+  success: "#00ff88",
+  danger:  "#ff6b6b",
+  warn:    "#ffaa00",
+  info:    "#00b4ff",
+};
+
+const inputStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: "8px",
+  padding: "10px 14px",
+  color: "#fff",
+  fontSize: "14px",
+  outline: "none",
+  width: "100%",
+  boxSizing: "border-box",
+};
 
 const getAdminHeaders = () => {
   const pin = sessionStorage.getItem("tkdl_admin_pin");
-  return {
-    "Content-Type": "application/json",
-    ...(pin ? { "x-admin-pin": pin } : {}),
-  };
+  return { "Content-Type": "application/json", ...(pin ? { "x-admin-pin": pin } : {}) };
 };
 
 interface Challenge {
@@ -17,440 +37,190 @@ interface Challenge {
   reward_coins: number;
 }
 
-interface Player {
-  id: number;
-  name: string;
+interface Player { id: number; name: string; }
+
+function Select({ value, onChange, children }: { value: string; onChange: (v: string) => void; children: React.ReactNode }) {
+  return (
+    <div style={{ position: "relative" }}>
+      <select value={value} onChange={e => onChange(e.target.value)} style={{ ...inputStyle, appearance: "none", paddingRight: "32px", cursor: "pointer" }}>
+        {children}
+      </select>
+      <span style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", color: D.sub, pointerEvents: "none", fontSize: "12px" }}>▾</span>
+    </div>
+  );
+}
+
+function Btn({ onClick, children, color = D.info, fullWidth = false, disabled = false }: {
+  onClick: () => void; children: React.ReactNode; color?: string; fullWidth?: boolean; disabled?: boolean;
+}) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "9px 14px", borderRadius: "8px", border: "none", cursor: disabled ? "not-allowed" : "pointer", fontWeight: 700, fontSize: "13px", background: `${color}22`, color, borderTop: `1px solid ${color}44`, opacity: disabled ? 0.5 : 1, width: fullWidth ? "100%" : undefined, justifyContent: fullWidth ? "center" : undefined, transition: "all 0.15s" }}>
+      {children}
+    </button>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div style={{ marginBottom: "1rem", border: `1px solid ${D.border}`, borderRadius: "10px", overflow: "hidden" }}>
+      <button onClick={() => setOpen(o => !o)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(255,255,255,0.03)", border: "none", cursor: "pointer", color: D.text, fontWeight: 700, fontSize: "13px", letterSpacing: "0.05em" }}>
+        {title}
+        {open ? <ChevronDown size={14} color={D.sub} /> : <ChevronRight size={14} color={D.sub} />}
+      </button>
+      {open && <div style={{ padding: "16px" }}>{children}</div>}
+    </div>
+  );
+}
+
+function ChallengeCard({ challenge, accentColor, actionLabel, onAction }: {
+  challenge: Challenge; accentColor: string; actionLabel: string; onAction: (id: number) => void;
+}) {
+  return (
+    <div style={{ background: D.card, border: `1px solid ${D.border}`, borderRadius: "10px", padding: "14px" }}>
+      <div style={{ fontWeight: 700, fontSize: "13px", color: D.text, marginBottom: "4px" }}>{challenge.title}</div>
+      {challenge.description && (
+        <div style={{ fontSize: "12px", color: D.sub, marginBottom: "8px", lineHeight: 1.4 }}>{challenge.description}</div>
+      )}
+      <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+        <div style={{ fontSize: "11px", color: D.sub }}>
+          Goal: <span style={{ color: D.text }}>{challenge.requirement_value}</span>
+          {" · "}Reward: <span style={{ color: D.warn }}>+{challenge.reward_coins} 🪙</span>
+        </div>
+        <button onClick={() => onAction(challenge.id)} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 12px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "11px", fontWeight: 700, background: `${accentColor}22`, color: accentColor }}>
+          <Plus size={11} /> {actionLabel}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function AdminChallengesPanel() {
-  const [adminPin, setAdminPin] = useState(sessionStorage.getItem("tkdl_admin_pin") || "");
   const [selectedPlayerId, setSelectedPlayerId] = useState("");
   const [players, setPlayers] = useState<Player[]>([]);
   const [dailyChallenges, setDailyChallenges] = useState<Challenge[]>([]);
   const [weeklyChallenges, setWeeklyChallenges] = useState<Challenge[]>([]);
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState<"success" | "error">("success");
+  const [msgType, setMsgType] = useState<"success" | "error">("success");
   const [expanded, setExpanded] = useState(true);
 
   useEffect(() => {
-    if (adminPin) {
-      sessionStorage.setItem("tkdl_admin_pin", adminPin);
-      loadChallengeDefs();
-      loadPlayers();
-    }
-  }, [adminPin]);
+    loadPlayers();
+    loadChallengeDefs();
+  }, []);
 
-  const showMessage = (msg: string, type: "success" | "error" = "success") => {
-    setMessage(msg);
-    setMessageType(type);
-    setTimeout(() => setMessage(""), 4000);
+  const toast = (msg: string, type: "success" | "error" = "success") => {
+    setMessage(msg); setMsgType(type);
+    setTimeout(() => setMessage(""), 5000);
   };
 
   const loadPlayers = async () => {
     try {
-      const res = await fetch("/api/players");
-      if (res.ok) {
-        const data = await res.json();
-        setPlayers(Array.isArray(data) ? data : []);
-      }
-    } catch (error) {
-      console.error("Failed to load players:", error);
-    }
+      const r = await fetch("/api/players");
+      if (r.ok) setPlayers(await r.json());
+    } catch {}
   };
 
   const loadChallengeDefs = async () => {
     try {
-      const [dailyRes, weeklyRes] = await Promise.all([
+      const [dr, wr] = await Promise.all([
         fetch("/api/challenges/admin/daily-definitions", { headers: getAdminHeaders() }),
         fetch("/api/challenges/admin/weekly-definitions", { headers: getAdminHeaders() }),
       ]);
-
-      if (dailyRes.ok) {
-        const data = await dailyRes.json();
-        setDailyChallenges(Array.isArray(data) ? data : []);
-      } else {
-        showMessage("Daily challenges: Unauthorized or PIN not set", "error");
-      }
-      
-      if (weeklyRes.ok) {
-        const data = await weeklyRes.json();
-        setWeeklyChallenges(Array.isArray(data) ? data : []);
-      } else {
-        showMessage("Weekly challenges: Unauthorized or PIN not set", "error");
-      }
-    } catch (error) {
-      showMessage("Failed to load challenge definitions", "error");
-    }
+      if (dr.ok) setDailyChallenges(await dr.json()); else toast("Daily challenges: check PIN", "error");
+      if (wr.ok) setWeeklyChallenges(await wr.json()); else toast("Weekly challenges: check PIN", "error");
+    } catch { toast("Failed to load challenges", "error"); }
   };
 
-  const seedChallenges = async () => {
+  const api = async (url: string, body?: object, ok?: string) => {
     try {
-      const res = await fetch("/api/card-clash/admin/challenges/seed", {
-        method: "POST",
-        headers: getAdminHeaders(),
-      });
-
-      if (res.ok) {
-        showMessage("✅ Challenges seeded successfully");
-        loadChallengeDefs();
-      } else {
-        const error = await res.json();
-        showMessage(`Failed: ${error.error}`, "error");
-      }
-    } catch (error) {
-      showMessage(`Failed: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
-    }
+      const r = await fetch(url, { method: "POST", headers: getAdminHeaders(), body: body ? JSON.stringify(body) : undefined });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) { toast(ok ?? "✅ Done", "success"); return true; }
+      toast(d.error ?? r.statusText, "error"); return false;
+    } catch (e) { toast(e instanceof Error ? e.message : "Request failed", "error"); return false; }
   };
 
-  const resetDailyForPlayer = async () => {
-    if (!selectedPlayerId) {
-      showMessage("Select a player", "error");
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/challenges/admin/daily/reset/${selectedPlayerId}`, {
-        method: "POST",
-        headers: getAdminHeaders(),
-      });
-
-      if (res.ok) {
-        showMessage(`✅ Reset daily challenges for player ${selectedPlayerId}`);
-      } else {
-        const error = await res.json();
-        showMessage(`Failed: ${error.error}`, "error");
-      }
-    } catch (error) {
-      showMessage(`Failed: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
-    }
-  };
-
-  const resetWeeklyForPlayer = async () => {
-    if (!selectedPlayerId) {
-      showMessage("Select a player", "error");
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/challenges/admin/weekly/reset/${selectedPlayerId}`, {
-        method: "POST",
-        headers: getAdminHeaders(),
-      });
-
-      if (res.ok) {
-        showMessage(`✅ Reset weekly challenges for player ${selectedPlayerId}`);
-      } else {
-        const error = await res.json();
-        showMessage(`Failed: ${error.error}`, "error");
-      }
-    } catch (error) {
-      showMessage(`Failed: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
-    }
-  };
-
-  const addBonusDaily = async (challengeId: number) => {
-    if (!selectedPlayerId) {
-      showMessage("Select a player", "error");
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/challenges/admin/daily/bonus/${selectedPlayerId}`, {
-        method: "POST",
-        headers: getAdminHeaders(),
-        body: JSON.stringify({ challengeId }),
-      });
-
-      if (res.ok) {
-        showMessage(`✅ Added bonus daily challenge`);
-      } else {
-        const error = await res.json();
-        showMessage(`Failed: ${error.error}`, "error");
-      }
-    } catch (error) {
-      showMessage(`Failed: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
-    }
-  };
-
-  const addBonusWeekly = async (challengeId: number) => {
-    if (!selectedPlayerId) {
-      showMessage("Select a player", "error");
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/challenges/admin/weekly/bonus/${selectedPlayerId}`, {
-        method: "POST",
-        headers: getAdminHeaders(),
-        body: JSON.stringify({ challengeId }),
-      });
-
-      if (res.ok) {
-        showMessage(`✅ Added bonus weekly challenge`);
-      } else {
-        const error = await res.json();
-        showMessage(`Failed: ${error.error}`, "error");
-      }
-    } catch (error) {
-      showMessage(`Failed: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
-    }
-  };
-
-  const getPlayerName = (id: string) => {
-    const player = players.find(p => p.id === parseInt(id));
-    return player ? player.name : `Player ${id}`;
-  };
+  const playerName = () => players.find(p => p.id.toString() === selectedPlayerId)?.name ?? `Player ${selectedPlayerId}`;
 
   return (
-    <div
-      style={{
-        background: "#ffffff",
-        border: "2px solid #333",
-        borderRadius: "1rem",
-        padding: "1.5rem",
-        marginTop: "1rem",
-      }}
-    >
-      <button
-        onClick={() => setExpanded(!expanded)}
-        style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          fontSize: "1.25rem",
-          fontWeight: 900,
-          color: "#1a1a1a",
-          marginBottom: expanded ? "1.5rem" : 0,
-        }}
-      >
-        🎯 CHALLENGES ADMIN
-        <span style={{ marginLeft: "auto", fontSize: "0.9rem" }}>{expanded ? "▼" : "▶"}</span>
-      </button>
-
-      {!expanded && <div style={{ marginTop: "1rem" }} />}
+    <div style={{ padding: "1.5rem", color: D.text }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+        <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 900, letterSpacing: "0.08em" }}>🎯 CHALLENGES ADMIN</h2>
+        <button onClick={() => setExpanded(o => !o)} style={{ background: "transparent", border: "none", color: D.sub, cursor: "pointer", fontSize: "18px" }}>
+          {expanded ? "▼" : "▶"}
+        </button>
+      </div>
 
       {expanded && (
         <>
-          {/* PIN Section */}
-          <div
-            style={{
-              background: "#f0f0f0",
-              border: "2px solid #3b82f6",
-              borderRadius: "0.75rem",
-              padding: "1rem",
-              marginBottom: "1.5rem",
-            }}
-          >
-            <label style={{ display: "block", fontWeight: 600, marginBottom: "0.5rem" }}>
-              🔐 Admin PIN
-            </label>
-            <input
-              type="password"
-              value={adminPin}
-              onChange={(e) => setAdminPin(e.target.value)}
-              placeholder="0601"
-              style={{
-                width: "100%",
-                padding: "0.5rem",
-                border: "1px solid #ccc",
-                borderRadius: "0.5rem",
-                marginBottom: "0.5rem",
-                fontFamily: "monospace",
-              }}
-            />
-            <div style={{ fontSize: "0.85rem", color: "green" }}>✓ PIN saved in session</div>
-          </div>
-
-          {/* Player Selection */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: "0.5rem" }}>
-              👤 Player
-            </label>
-            <select
-              value={selectedPlayerId}
-              onChange={(e) => setSelectedPlayerId(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "0.5rem",
-                border: "1px solid #ccc",
-                borderRadius: "0.5rem",
-                fontFamily: "inherit",
-              }}
-            >
-              <option value="">-- Select a player --</option>
-              {players.map((player) => (
-                <option key={player.id} value={player.id}>
-                  {player.name} (ID: {player.id})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Seed Section */}
-          <div
-            style={{
-              background: "#f0f0f0",
-              border: "2px solid #10b981",
-              borderRadius: "0.75rem",
-              padding: "1rem",
-              marginBottom: "1.5rem",
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: "0.75rem", color: "#059669" }}>🌱 Seed Challenges</div>
-            <button
-              onClick={seedChallenges}
-              style={{
-                background: "#10b981",
-                color: "white",
-                border: "none",
-                padding: "0.5rem 1rem",
-                borderRadius: "0.5rem",
-                cursor: "pointer",
-                fontWeight: 600,
-                width: "100%",
-              }}
-            >
-              Seed All Challenges (8 Daily + 6 Weekly)
-            </button>
-          </div>
           {message && (
-            <div
-              style={{
-                background: messageType === "success" ? "#d1fae5" : "#fee2e2",
-                color: messageType === "success" ? "#065f46" : "#991b1b",
-                padding: "0.75rem",
-                borderRadius: "0.5rem",
-                marginBottom: "1rem",
-              }}
-            >
+            <div style={{ padding: "12px 16px", borderRadius: "8px", marginBottom: "1rem", fontSize: "13px", background: `${msgType === "success" ? D.success : D.danger}14`, border: `1px solid ${msgType === "success" ? D.success : D.danger}44`, color: msgType === "success" ? D.success : D.danger }}>
               {message}
             </div>
           )}
 
-          {/* Daily Challenges */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <h3 style={{ marginBottom: "0.75rem", fontWeight: 600, display: "flex", gap: "0.5rem" }}>
-              <RotateCcw size={18} /> Daily Challenges
-            </h3>
+          {/* Player */}
+          <Section title="👤 ACTIVE PLAYER">
+            <Select value={selectedPlayerId} onChange={setSelectedPlayerId}>
+              <option value="" style={{ background: "#0a0e18" }}>— Choose a player —</option>
+              {players.map(p => <option key={p.id} value={p.id.toString()} style={{ background: "#0a0e18" }}>{p.name} (ID: {p.id})</option>)}
+            </Select>
+          </Section>
 
-            <button
-              onClick={resetDailyForPlayer}
-              style={{
-                background: "#f97316",
-                color: "white",
-                border: "none",
-                padding: "0.5rem 1rem",
-                borderRadius: "0.5rem",
-                cursor: "pointer",
-                marginBottom: "1rem",
-                fontWeight: 600,
-              }}
-            >
-              Reroll Daily Challenges
-            </button>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
-              {dailyChallenges.map((challenge) => (
-                <div
-                  key={challenge.id}
-                  style={{
-                    background: "#f9fafb",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "0.5rem",
-                    padding: "0.75rem",
-                  }}
-                >
-                  <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>{challenge.title}</div>
-                  <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>
-                    {challenge.description}
-                  </div>
-                  <div style={{ fontSize: "0.8rem", color: "#999", marginBottom: "0.5rem" }}>
-                    Goal: {challenge.requirement_value} · Reward: +{challenge.reward_coins} coins
-                  </div>
-                  <button
-                    onClick={() => addBonusDaily(challenge.id)}
-                    style={{
-                      background: "#10b981",
-                      color: "white",
-                      border: "none",
-                      padding: "0.4rem 0.8rem",
-                      borderRadius: "0.35rem",
-                      cursor: "pointer",
-                      fontSize: "0.8rem",
-                      fontWeight: 600,
-                      width: "100%",
-                    }}
-                  >
-                    <Plus size={14} style={{ marginRight: "0.25rem" }} /> Add Bonus
-                  </button>
-                </div>
-              ))}
+          {/* Actions */}
+          <Section title="⚙️ ACTIONS">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+              <Btn color={D.success} onClick={async () => { if (await api("/api/card-clash/admin/challenges/seed", {}, "✅ Challenges seeded")) loadChallengeDefs(); }}>
+                🌱 Seed All Challenges
+              </Btn>
+              <Btn color={D.warn} onClick={() => {
+                if (!selectedPlayerId) return toast("Select a player", "error");
+                api(`/api/challenges/admin/daily/reset/${selectedPlayerId}`, {}, `✅ Rerolled daily for ${playerName()}`);
+              }}>
+                <RotateCcw size={13} /> Reroll Daily
+              </Btn>
+              <Btn color={D.warn} onClick={() => {
+                if (!selectedPlayerId) return toast("Select a player", "error");
+                api(`/api/challenges/admin/weekly/reset/${selectedPlayerId}`, {}, `✅ Rerolled weekly for ${playerName()}`);
+              }}>
+                <RotateCcw size={13} /> Reroll Weekly
+              </Btn>
+              <Btn color={D.info} onClick={loadChallengeDefs}>↻ Refresh</Btn>
             </div>
-          </div>
+          </Section>
 
-          {/* Weekly Challenges */}
-          <div>
-            <h3 style={{ marginBottom: "0.75rem", fontWeight: 600, display: "flex", gap: "0.5rem" }}>
-              <RotateCcw size={18} /> Weekly Challenges
-            </h3>
+          {/* Daily */}
+          <Section title={`☀️ DAILY CHALLENGES (${dailyChallenges.length})`}>
+            {dailyChallenges.length === 0 ? (
+              <p style={{ color: D.sub, fontSize: "13px" }}>No daily challenges found — seed them first.</p>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: "10px" }}>
+                {dailyChallenges.map(c => (
+                  <ChallengeCard key={c.id} challenge={c} accentColor={D.success} actionLabel="Add Bonus" onAction={id => {
+                    if (!selectedPlayerId) return toast("Select a player", "error");
+                    api(`/api/challenges/admin/daily/bonus/${selectedPlayerId}`, { challengeId: id }, "✅ Bonus daily added");
+                  }} />
+                ))}
+              </div>
+            )}
+          </Section>
 
-            <button
-              onClick={resetWeeklyForPlayer}
-              style={{
-                background: "#f97316",
-                color: "white",
-                border: "none",
-                padding: "0.5rem 1rem",
-                borderRadius: "0.5rem",
-                cursor: "pointer",
-                marginBottom: "1rem",
-                fontWeight: 600,
-              }}
-            >
-              Reroll Weekly Challenges
-            </button>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
-              {weeklyChallenges.map((challenge) => (
-                <div
-                  key={challenge.id}
-                  style={{
-                    background: "#f9fafb",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "0.5rem",
-                    padding: "0.75rem",
-                  }}
-                >
-                  <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>{challenge.title}</div>
-                  <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>
-                    {challenge.description}
-                  </div>
-                  <div style={{ fontSize: "0.8rem", color: "#999", marginBottom: "0.5rem" }}>
-                    Goal: {challenge.requirement_value} · Reward: +{challenge.reward_coins} coins
-                  </div>
-                  <button
-                    onClick={() => addBonusWeekly(challenge.id)}
-                    style={{
-                      background: "#0066ff",
-                      color: "white",
-                      border: "none",
-                      padding: "0.4rem 0.8rem",
-                      borderRadius: "0.35rem",
-                      cursor: "pointer",
-                      fontSize: "0.8rem",
-                      fontWeight: 600,
-                      width: "100%",
-                    }}
-                  >
-                    <Plus size={14} style={{ marginRight: "0.25rem" }} /> Add Bonus
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Weekly */}
+          <Section title={`📅 WEEKLY CHALLENGES (${weeklyChallenges.length})`}>
+            {weeklyChallenges.length === 0 ? (
+              <p style={{ color: D.sub, fontSize: "13px" }}>No weekly challenges found — seed them first.</p>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: "10px" }}>
+                {weeklyChallenges.map(c => (
+                  <ChallengeCard key={c.id} challenge={c} accentColor={D.info} actionLabel="Add Bonus" onAction={id => {
+                    if (!selectedPlayerId) return toast("Select a player", "error");
+                    api(`/api/challenges/admin/weekly/bonus/${selectedPlayerId}`, { challengeId: id }, "✅ Bonus weekly added");
+                  }} />
+                ))}
+              </div>
+            )}
+          </Section>
         </>
       )}
     </div>
