@@ -8,6 +8,7 @@ export const playerCurrencyTable = pgTable("player_currency", {
   playerId: integer("player_id").notNull().unique().references(() => playersTable.id),
   cardPoints: integer("card_points").notNull().default(0), // Card Clash coins (currency for shop)
   lifetimeCoinsEarned: integer("lifetime_coins_earned").notNull().default(0),
+  packTokens: integer("pack_tokens").notNull().default(0), // Legacy column (not currently used)
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
