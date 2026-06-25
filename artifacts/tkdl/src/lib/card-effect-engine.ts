@@ -306,6 +306,11 @@ export function ccPreprocessDart(
     if (e.doublesAsSingles && multiplier === 2 && segment !== 25) {
       multiplier = 1; value = segment; label = `${segment}`;
     }
+    // Finish Delay — first N darts: doubles become singles (so can't use double to finish early)
+    // This is the correct implementation: D20 on dart 1 counts as S20, not as 40 pts
+    if (e.noDoubleFinishFirstN !== undefined && dartIdx < e.noDoubleFinishFirstN && multiplier === 2 && segment !== 25) {
+      multiplier = 1; value = segment; label = `${segment} (finish delay)`;
+    }
     // Singles score 0 (Low Blow)
     if (e.singlesScore0 && multiplier === 1 && segment !== 25) {
       value = 0; label = `0 (single)`;
