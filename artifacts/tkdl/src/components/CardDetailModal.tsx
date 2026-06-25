@@ -2,35 +2,25 @@ import React, { useState } from "react";
 import { X } from "lucide-react";
 
 export function CardDetailModal({ card, isOpen, onClose }: { card: any; isOpen: boolean; onClose: () => void }) {
+  const [isFlipped, setIsFlipped] = useState(false);
+
   if (!isOpen || !card) return null;
 
   const rarityColors: Record<string, { text: string; bg: string; border: string }> = {
-    Common: { text: "#9ca3af", bg: "#9ca3af22", border: "#9ca3af" },
-    Rare: { text: "#3b82f6", bg: "#3b82f622", border: "#3b82f6" },
-    Legendary: { text: "#ffd24a", bg: "#ffd24a22", border: "#ffd24a" },
+    COMMON: { text: "#9ca3af", bg: "#9ca3af22", border: "#9ca3af" },
+    RARE: { text: "#3b82f6", bg: "#3b82f622", border: "#3b82f6" },
+    LEGENDARY: { text: "#ffd24a", bg: "#ffd24a22", border: "#ffd24a" },
   };
 
   const gameModeBg: Record<string, string> = {
     X01: "#00e5ff",
-    Cricket: "#00ff88",
-    Wildcard: "#ffd24a",
+    CRICKET: "#00ff88",
+    WILDCARD: "#ffd24a",
   };
 
-  const rarity = card.rarity || "Common";
-  const colors = rarityColors[rarity] || rarityColors.Common;
-
-  // Mock card effects based on name
-  const effectMap: Record<string, string> = {
-    "Power Surge": "+50 to your turn total. Add 50 bonus points per turn.",
-    "Treble Hunter": "Your next treble hit counts as 1.3x (20=78 instead of 60).",
-    "Big Game Player": "If you score 80+ (not on double), gain +35 bonus next leg.",
-    "Safety Net": "If on double, opponent can't play penalty cards this turn.",
-    "Unstoppable Checkout": "When on double, opponent can't play penalty cards.",
-    "Invincible": "Block any negative card this turn.",
-    "Golden Dart": "Next dart scores double value this turn.",
-  };
-
-  const effect = effectMap[card.cardName] || "A powerful card that affects your darts scoring and match strategy.";
+  const rarity = card.rarity || "COMMON";
+  const colors = rarityColors[rarity] || rarityColors.COMMON;
+  const gameMode = card.gameMode || "X01";
 
   return (
     <>
@@ -57,13 +47,15 @@ export function CardDetailModal({ card, isOpen, onClose }: { card: any; isOpen: 
           left: "50%",
           transform: "translate(-50%, -50%)",
           background: "linear-gradient(135deg, rgba(20,20,40,0.95), rgba(30,25,50,0.95))",
-          border: `2px solid ${gameModeBg[card.gameMode] || "#ffd24a"}`,
+          border: `2px solid ${gameModeBg[gameMode] || "#ffd24a"}`,
           borderRadius: "12px",
           padding: "24px",
           maxWidth: "500px",
           width: "90%",
+          maxHeight: "90vh",
+          overflowY: "auto",
           zIndex: 1000,
-          boxShadow: `0 20px 60px rgba(0,0,0,0.8), 0 0 40px ${gameModeBg[card.gameMode] || "#ffd24a"}33`,
+          boxShadow: `0 20px 60px rgba(0,0,0,0.8), 0 0 40px ${gameModeBg[gameMode] || "#ffd24a"}33`,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -94,104 +86,154 @@ export function CardDetailModal({ card, isOpen, onClose }: { card: any; isOpen: 
           <X size={18} />
         </button>
 
-        {/* Card Header */}
-        <div style={{ marginBottom: "20px" }}>
-          <div style={{
-            fontSize: "12px",
-            color: gameModeBg[card.gameMode] || "#ffd24a",
-            textTransform: "uppercase",
-            letterSpacing: "0.1em",
-            fontWeight: "600",
-            marginBottom: "8px",
-          }}>
-            {card.gameMode}
-          </div>
-          <div style={{
-            fontSize: "28px",
-            fontWeight: "700",
-            color: "#fff",
-            marginBottom: "12px",
-          }}>
-            {card.cardName}
-          </div>
+        {/* 3D Flip Card */}
+        <div
+          onClick={() => setIsFlipped(!isFlipped)}
+          style={{
+            perspective: "1000px",
+            marginBottom: "20px",
+            cursor: "pointer",
+            height: "300px",
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              height: "100%",
+              transition: "transform 0.6s",
+              transformStyle: "preserve-3d",
+              transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+            }}
+          >
+            {/* Front of card */}
+            <div
+              style={{
+                position: "absolute",
+                width: "100%",
+                height: "100%",
+                backfaceVisibility: "hidden",
+                background: `linear-gradient(135deg, ${gameModeBg[gameMode] || "#ffd24a"}20, rgba(0,0,0,0.3))`,
+                border: `2px solid ${gameModeBg[gameMode] || "#ffd24a"}`,
+                borderRadius: "8px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                padding: "16px",
+                boxSizing: "border-box",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: gameModeBg[gameMode] || "#ffd24a",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.1em",
+                    fontWeight: "600",
+                    marginBottom: "8px",
+                  }}
+                >
+                  {gameMode}
+                </div>
+                <div
+                  style={{
+                    fontSize: "20px",
+                    fontWeight: "700",
+                    color: "#fff",
+                    marginBottom: "12px",
+                  }}
+                >
+                  {card.name || card.cardName}
+                </div>
+                <div
+                  style={{
+                    display: "inline-block",
+                    padding: "6px 12px",
+                    background: colors.bg,
+                    border: `1px solid ${colors.border}`,
+                    borderRadius: "4px",
+                    color: colors.text,
+                    fontWeight: "600",
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {rarity}
+                </div>
+              </div>
 
-          {/* Rarity Badge */}
-          <div style={{
-            display: "inline-block",
-            padding: "8px 16px",
-            background: colors.bg,
-            border: `2px solid ${colors.border}`,
-            borderRadius: "6px",
-            color: colors.text,
-            fontWeight: "600",
-            fontSize: "12px",
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-          }}>
-            {rarity}
+              <div style={{ textAlign: "center", fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
+                ↻ Click to flip
+              </div>
+            </div>
+
+            {/* Back of card (Effect) */}
+            <div
+              style={{
+                position: "absolute",
+                width: "100%",
+                height: "100%",
+                backfaceVisibility: "hidden",
+                transform: "rotateY(180deg)",
+                background: `linear-gradient(135deg, rgba(0,0,0,0.4), ${gameModeBg[gameMode] || "#ffd24a"}15)`,
+                border: `2px solid ${gameModeBg[gameMode] || "#ffd24a"}`,
+                borderRadius: "8px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                padding: "16px",
+                boxSizing: "border-box",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "rgba(255,255,255,0.6)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.1em",
+                    fontWeight: "600",
+                    marginBottom: "8px",
+                  }}
+                >
+                  Card Effect
+                </div>
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: "#fff",
+                    lineHeight: "1.5",
+                  }}
+                >
+                  {card.effect || card.description || "Effect details loading..."}
+                </div>
+              </div>
+
+              <div style={{ textAlign: "center", fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
+                ↻ Click to flip back
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Card Image Preview */}
-        <div style={{
-          width: "100%",
-          height: "200px",
-          background: `url('${card.image}')`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          borderRadius: "8px",
-          border: `2px solid ${gameModeBg[card.gameMode] || "#ffd24a"}`,
-          marginBottom: "20px",
-          boxShadow: `0 0 20px ${gameModeBg[card.gameMode] || "#ffd24a"}33`,
-        }} />
-
-        {/* Effect Description */}
-        <div style={{ marginBottom: "20px" }}>
-          <div style={{
-            fontSize: "12px",
-            color: "rgba(255,255,255,0.6)",
-            textTransform: "uppercase",
-            letterSpacing: "0.1em",
-            fontWeight: "600",
-            marginBottom: "8px",
-          }}>
-            Card Effect
-          </div>
-          <div style={{
-            fontSize: "14px",
-            color: "#fff",
-            lineHeight: "1.6",
-            padding: "12px",
-            background: "rgba(0,0,0,0.2)",
-            borderRadius: "6px",
-            border: `1px solid ${gameModeBg[card.gameMode] || "#ffd24a"}33`,
-          }}>
-            {effect}
-          </div>
-        </div>
-
-        {/* Quantity */}
-        <div style={{
-          padding: "12px",
-          background: "rgba(255,255,255,0.05)",
-          borderRadius: "6px",
-          border: "1px solid rgba(255,255,255,0.1)",
-          marginBottom: "20px",
-          textAlign: "center",
-        }}>
-          <div style={{
-            fontSize: "12px",
-            color: "rgba(255,255,255,0.6)",
-            marginBottom: "4px",
-          }}>
-            You Own
-          </div>
-          <div style={{
-            fontSize: "24px",
-            fontWeight: "700",
-            color: gameModeBg[card.gameMode] || "#ffd24a",
-          }}>
-            {card.quantity || 0}
+        {/* Card Info */}
+        <div style={{ display: "grid", gap: "12px" }}>
+          <div
+            style={{
+              padding: "12px",
+              background: "rgba(255,255,255,0.05)",
+              borderRadius: "6px",
+              border: "1px solid rgba(255,255,255,0.1)",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)", marginBottom: "4px" }}>
+              You Own
+            </div>
+            <div style={{ fontSize: "24px", fontWeight: "700", color: gameModeBg[gameMode] || "#ffd24a" }}>
+              ×{card.quantity || 0}
+            </div>
           </div>
         </div>
 
@@ -201,22 +243,23 @@ export function CardDetailModal({ card, isOpen, onClose }: { card: any; isOpen: 
           style={{
             width: "100%",
             padding: "12px",
-            background: `${gameModeBg[card.gameMode] || "#ffd24a"}22`,
-            border: `2px solid ${gameModeBg[card.gameMode] || "#ffd24a"}`,
-            color: gameModeBg[card.gameMode] || "#ffd24a",
+            background: `${gameModeBg[gameMode] || "#ffd24a"}22`,
+            border: `2px solid ${gameModeBg[gameMode] || "#ffd24a"}`,
+            color: gameModeBg[gameMode] || "#ffd24a",
             fontWeight: "600",
             borderRadius: "6px",
             cursor: "pointer",
             fontSize: "14px",
             transition: "all 0.2s",
+            marginTop: "16px",
           }}
           onMouseEnter={(e) => {
             const el = e.currentTarget as HTMLElement;
-            el.style.background = `${gameModeBg[card.gameMode] || "#ffd24a"}33`;
+            el.style.background = `${gameModeBg[gameMode] || "#ffd24a"}33`;
           }}
           onMouseLeave={(e) => {
             const el = e.currentTarget as HTMLElement;
-            el.style.background = `${gameModeBg[card.gameMode] || "#ffd24a"}22`;
+            el.style.background = `${gameModeBg[gameMode] || "#ffd24a"}22`;
           }}
         >
           Close
