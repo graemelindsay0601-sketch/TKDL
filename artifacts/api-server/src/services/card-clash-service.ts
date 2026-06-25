@@ -5,7 +5,7 @@ import {
   cardClashSeasonsTable,
   cardInventoryTable,
 } from "@workspace/db";
-import { eq, and, leftJoin, desc, sql } from "drizzle-orm";
+import { eq, and, or, leftJoin, desc, sql } from "drizzle-orm";
 import { addCoinsToPlayer, removeCardFromPlayer } from "./card-shop-service";
 import { applyX01CardModifiers, applyCricketCardModifiers, calculateCardClashPoints } from "./card-score-integration";
 import { logger } from "../lib/logger";
@@ -424,18 +424,17 @@ export async function getCardClashStandings(seasonId: number) {
 }
 
 export async function getCardClashMatchHistory(playerId: number, seasonId?: number) {
+  const playerFilter = or(
+    eq(cardClashMatchesTable.player1Id, playerId),
+    eq(cardClashMatchesTable.player2Id, playerId)
+  );
   let query = db
     .select()
     .from(cardClashMatchesTable)
     .where(
       seasonId
-        ? and(
-            eq(cardClashMatchesTable.seasonId, seasonId),
-            eq(cardClashMatchesTable.player1Id, playerId) ||
-              eq(cardClashMatchesTable.player2Id, playerId)
-          )
-        : eq(cardClashMatchesTable.player1Id, playerId) ||
-            eq(cardClashMatchesTable.player2Id, playerId)
+        ? and(eq(cardClashMatchesTable.seasonId, seasonId), playerFilter)
+        : playerFilter
     );
 
   return await query;
