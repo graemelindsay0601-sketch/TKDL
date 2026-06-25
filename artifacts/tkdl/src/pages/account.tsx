@@ -11,7 +11,7 @@ import {
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { NotificationCenter } from "@/components/notification-center";
 import { CoinBalance } from "@/components/CoinBalance";
-import { CardCollection } from "@/components/CardCollection";
+import { CardCollectionBook } from "@/components/CardCollectionBook";
 import { PlayerChallenges } from "@/components/PlayerChallenges";
 import { OverallStats, ByGameType, Trends, DartAnalysis, SessionHistory, CategoryStats, CategoryStatsEnhanced, AdvancedAnalyticsDashboard } from "@/components/stats";
 
@@ -956,9 +956,14 @@ export default function AccountPage() {
         <div className="space-y-4">
           <CoinBalance playerId={user.playerId} />
           
-          <SectionCard title="Card Collection" icon={Star} accent="#ff6b9d">
-            <CardCollection playerId={user.playerId} />
-          </SectionCard>
+          <div style={{
+            padding: "16px",
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid rgba(255,255,255,0.05)",
+            borderRadius: "12px",
+          }}>
+            <CardCollectionBook playerId={user.playerId} />
+          </div>
           
           <SectionCard title="Active Challenges" icon={Trophy} accent="#ffd24a">
             <PlayerChallenges playerId={user.playerId} />

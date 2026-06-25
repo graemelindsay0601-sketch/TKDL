@@ -155,9 +155,13 @@ export const statsService = {
         total180s: matches.total_180s || 0,
         checkoutHits: matches.checkout_hits || 0,
         checkoutAttempts: matches.checkout_attempts || 0,
-      checkoutRate: matches.checkout_attempts ? (matches.checkout_hits || 0) / matches.checkout_attempts : 0,
-    };
-  },
+        checkoutRate: matches.checkout_attempts ? (matches.checkout_hits || 0) / matches.checkout_attempts : 0,
+      };
+    } catch (error) {
+      console.error("Error getting category stats:", error);
+      throw error;
+    }
+  }
 
   // Get monthly trends for a category
   async getCategoryTrends(playerId: number, category: GameTypeCategory) {
