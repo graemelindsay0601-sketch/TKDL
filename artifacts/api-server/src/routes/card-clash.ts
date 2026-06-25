@@ -37,6 +37,15 @@ async function autoFixCardClash() {
   try {
     logger.info("🔧 [STARTUP] Running Card Clash auto-fix...");
 
+    // Fix 0: Add missing columns to card_clash_seasons (belt-and-suspenders)
+    try {
+      await db.execute(sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT false`);
+      await db.execute(sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS total_matches INTEGER NOT NULL DEFAULT 0`);
+      logger.info("✓ card_clash_seasons columns verified");
+    } catch (colErr) {
+      logger.warn({ colErr }, "Schema column fix skipped (table may not exist yet)");
+    }
+
     // Fix 1: Ensure card_pity_system table exists with correct schema
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS card_pity_system (
