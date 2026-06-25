@@ -119,7 +119,7 @@ export async function initializeCardTables() {
         game_mode TEXT NOT NULL,
         player_1_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
         player_2_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
-        winner_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+        winner_id INTEGER REFERENCES players(id) ON DELETE CASCADE,
         player_1_equipped_cards JSONB DEFAULT '[]'::jsonb,
         player_2_equipped_cards JSONB DEFAULT '[]'::jsonb,
         cards_used_in_match JSONB DEFAULT '[]'::jsonb,
@@ -237,6 +237,15 @@ export async function initializeCardTables() {
     for (const alter of matchAlters) {
       try { await db.execute(alter); } catch (e) { logger.warn({ e }, "card_clash_matches column alter skipped"); }
     }
+    
+    // Ensure winner_id is nullable (match winner is unknown until match finishes)
+    try {
+      await db.execute(sql`ALTER TABLE card_clash_matches ALTER COLUMN winner_id DROP NOT NULL`);
+      logger.info("✓ Made winner_id nullable");
+    } catch (e) {
+      logger.warn({ e }, "Could not make winner_id nullable (may already be nullable)");
+    }
+    
     logger.info("card_clash_matches columns verified");
 
     logger.info("Card tables initialized successfully");

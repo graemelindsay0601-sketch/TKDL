@@ -13,7 +13,7 @@ export const cardClashMatchesTable = pgTable("card_clash_matches", {
   gameMode: text("game_mode").notNull(), // X01, CRICKET
   player1Id: integer("player_1_id").notNull().references(() => playersTable.id),
   player2Id: integer("player_2_id").notNull().references(() => playersTable.id),
-  winnerId: integer("winner_id").notNull().references(() => playersTable.id),
+  winnerId: integer("winner_id").references(() => playersTable.id), // Nullable - set when match finishes
   player1EquippedCards: json("player_1_equipped_cards").notNull(), // [{ cardId, cardType }]
   player2EquippedCards: json("player_2_equipped_cards").notNull(),
   cardsUsedInMatch: json("cards_used_in_match").notNull(), // [{ cardId, usedBy, turn }]
