@@ -32,6 +32,59 @@ const router = Router();
 // Admin PIN for protecting card-clash admin routes
 const ADMIN_PIN = process.env.ADMIN_PIN ?? "0601";
 
+// === AUTO-FIX CARD CLASH ON STARTUP ===
+async function autoFixCardClash() {
+  try {
+    logger.info("🔧 [STARTUP] Running Card Clash auto-fix...");
+
+    // Fix 1: Ensure card_pity_system table exists with correct schema
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS card_pity_system (
+        id SERIAL PRIMARY KEY,
+        player_id INTEGER NOT NULL UNIQUE REFERENCES players(id) ON DELETE CASCADE,
+        pulls_since_legendary INTEGER NOT NULL DEFAULT 0,
+        last_legendary_pull_id INTEGER,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    logger.info("✓ card_pity_system table verified");
+
+    // Fix 2: Ensure active season exists
+    const activeSeason = await db.execute(sql`
+      SELECT id FROM card_clash_seasons WHERE is_active = true LIMIT 1
+    `);
+
+    if (activeSeason.rows.length === 0) {
+      const now = new Date();
+      const startDate = now.toISOString().split("T")[0];
+      const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+
+      await db.execute(sql`
+        INSERT INTO card_clash_seasons (name, start_date, end_date, is_active)
+        VALUES (
+          ${`Season ${now.getFullYear()}-${now.getMonth() + 1}`},
+          ${startDate}::DATE,
+          ${endDate}::DATE,
+          true
+        )
+      `);
+      logger.info(`✓ Created active season (${startDate} to ${endDate})`);
+    } else {
+      logger.info("✓ Active season already exists");
+    }
+
+    logger.info("✅ [STARTUP] Card Clash auto-fix complete");
+  } catch (error) {
+    logger.error({ error }, "⚠️ [STARTUP] Card Clash auto-fix failed - may need manual intervention");
+  }
+}
+
+// Run auto-fix on module load
+autoFixCardClash().catch(err => logger.error({ err }, "Auto-fix error during startup"));
+
 // Middleware to verify admin PIN
 const verifyAdminPin = (req: Request, res: Response, next: Function) => {
   const pin = req.headers["x-admin-pin"] as string;
