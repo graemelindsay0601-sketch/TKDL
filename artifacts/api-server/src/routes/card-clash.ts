@@ -56,7 +56,48 @@ router.get("/shop/currency/:playerId", async (req: Request, res: Response) => {
   }
 });
 
-// Purchase pack
+// Debug endpoint to check seasons table
+router.get("/admin/debug/seasons", async (req: Request, res: Response) => {
+  try {
+    const adminPin = req.headers["x-admin-pin"] as string;
+    if (adminPin !== (process.env.ADMIN_PIN ?? "0601")) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    // Try to get all seasons
+    const seasons = await db.select().from(cardClashSeasonsTable);
+    
+    res.json({ 
+      success: true, 
+      count: seasons.length,
+      seasons,
+      message: "Table exists and is accessible"
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Season table debug failed");
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : "Failed to access seasons table",
+      message: "Table may not exist or there's a connection issue"
+    });
+  }
+});
+
+// Get active season endpoint
+router.get("/admin/season/active", async (req: Request, res: Response) => {
+  try {
+    const adminPin = req.headers["x-admin-pin"] as string;
+    if (adminPin !== (process.env.ADMIN_PIN ?? "0601")) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    const season = await getActiveCardClashSeason();
+    res.json({ success: true, season });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "No active season" });
+  }
+});
+
+
 router.post("/shop/purchase", async (req: Request, res: Response) => {
   try {
     const { playerId, packType } = req.body;
@@ -164,6 +205,8 @@ router.post("/admin/season/create", async (req: Request, res: Response) => {
     const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
     const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
 
+    logger.info({ monthName, startDate, endDate }, "Creating season with values");
+
     const season = await db
       .insert(cardClashSeasonsTable)
       .values({
@@ -175,9 +218,14 @@ router.post("/admin/season/create", async (req: Request, res: Response) => {
       })
       .returning();
 
+    logger.info({ season: season[0] }, "Season created successfully");
     res.json({ success: true, season: season[0], message: `Created active season: ${monthName}` });
   } catch (error) {
-    logger.error({ err: error }, "Failed to create season");
+    logger.error({ err: error, errorMessage: error instanceof Error ? error.message : String(error) }, "Failed to create season");
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : "Failed to create season",
+      details: error instanceof Error ? error.stack : String(error)
+    });
     res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create season" });
   }
 });
