@@ -601,12 +601,9 @@ export default function CardClashPage() {
             )}
 
             {/* ── PRACTICE ── */}
-            {activeTab==="practice" && (
-              <div>
-                <SectionHeader title="🎲 Practice Mode" subtitle="No coins · No cards consumed · Test your strategies risk-free"/>
-                <CardClashMockGame playerId={playerId} playerName={playerName} onDone={()=>goTo("collection")}/>
-              </div>
-            )}
+              {activeTab==="practice" && (
+                <PracticeTab playerId={playerId} playerName={playerName} standings={standings}/>
+              )}
 
             {/* ── STANDINGS ── */}
             {activeTab==="standings" && (
@@ -846,6 +843,218 @@ export default function CardClashPage() {
   );
 }
 
+
+  // ── Practice Tab ─────────────────────────────────────────────────────────────
+  const PRACTICE_GAMES = [
+    {id:"atw",  name:"Around the World",            desc:"Hit 1–20 in order, then bull to win.",                             icon:"🌍", players:"1–2 PLAYERS", diff:"BEGINNER",     diffC:"#00cc66", type:"practice"},
+    {id:"atwr", name:"Round the World (Trebles)",   desc:"As above, but must hit the treble of each number.",                icon:"✕3", players:"1–2 PLAYERS", diff:"INTERMEDIATE", diffC:"#0077ff", type:"practice"},
+    {id:"rtc",  name:"Round the Clock",             desc:"Hit 1–20 in order. No bull required.",                             icon:"🕐", players:"1–2 PLAYERS", diff:"BEGINNER",     diffC:"#00cc66", type:"practice"},
+    {id:"shanghai",name:"Shanghai",                  desc:"Rounds 1–7. Hit single, double, and treble of the round number to win.", icon:"🎯", players:"1–2 PLAYERS", diff:"ADVANCED",     diffC:"#ff4466", type:"practice"},
+    {id:"cricket",  name:"Cricket",                  desc:"Close 15–20 and bull before your opponent.",                      icon:"🏏", players:"2 PLAYERS",   diff:"INTERMEDIATE", diffC:"#0077ff", type:"competitive"},
+    {id:"killer",   name:"Killer",                   desc:"Assign a number via double, then eliminate others.",              icon:"⚡", players:"2–6 PLAYERS", diff:"ADVANCED",     diffC:"#ff4466", type:"party"},
+    {id:"bob",      name:"Bob's 27",                 desc:"Start with 27 points. Hit each double in order.",                icon:"🎰", players:"1–2 PLAYERS", diff:"INTERMEDIATE", diffC:"#0077ff", type:"mini"},
+    {id:"halfit",   name:"Half-It",                  desc:"Miss a target and your score is halved.",                         icon:"½",  players:"1–4 PLAYERS", diff:"INTERMEDIATE", diffC:"#0077ff", type:"party"},
+  ] as const;
+  type PGame = typeof PRACTICE_GAMES[number];
+
+  function PracticeTab({playerId,playerName,standings}:{playerId:number|undefined;playerName:string;standings:Standing[]}){
+    const [mode,setMode]=React.useState<"2p"|"cpu"|"solo">("2p");
+    const [gt,setGt]=React.useState<"practice"|"competitive"|"party"|"mini">("practice");
+    const [p2Id,setP2Id]=React.useState<number|null>(null);
+    const [saved,setSaved]=React.useState<Set<string>>(new Set());
+    const [launching,setLaunching]=React.useState(false);
+
+    const opp=standings.filter(s=>s.player_id!==playerId);
+    const filtered=PRACTICE_GAMES.filter(g=>g.type===gt);
+
+    const MODES=[
+      {id:"2p"  as const, label:"2 PLAYERS",   sub:"Head to Head",   emoji:"👥"},
+      {id:"cpu" as const, label:"SOLO VS CPU", sub:"Test your skills",emoji:"🤖"},
+      {id:"solo"as const, label:"SOLO PLAY",   sub:"Practice alone",  emoji:"🚶"},
+    ];
+    const GTS=[
+      {id:"practice"    as const, label:"PRACTICE",    emoji:"🎯"},
+      {id:"competitive" as const, label:"COMPETITIVE", emoji:"🏆"},
+      {id:"party"       as const, label:"PARTY",       emoji:"🎉"},
+      {id:"mini"        as const, label:"MINI-GAMES",  emoji:"🎲"},
+    ];
+    const DIFF_COLOR={BEGINNER:"#00cc66",INTERMEDIATE:"#0077ff",ADVANCED:"#ff4466"} as Record<string,string>;
+
+    if(launching){return(
+      <div>
+        <button onClick={()=>setLaunching(false)} style={{all:"unset",display:"inline-flex",alignItems:"center",gap:"8px",padding:"9px 18px",borderRadius:"8px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.45)",fontSize:"12px",fontWeight:700,letterSpacing:"0.07em",cursor:"pointer",marginBottom:"1.5rem"}}>← BACK</button>
+        <CardClashMockGame playerId={playerId} playerName={playerName} onDone={()=>setLaunching(false)}/>
+      </div>
+    );}
+
+    return(
+      <div style={{paddingBottom:"2rem"}}>
+
+        {/* ── HEADER with arena backdrop ── */}
+        <div style={{position:"relative",borderRadius:"16px",overflow:"hidden",marginBottom:"1.5rem",padding:"28px 22px 20px"}}>
+          {/* Background layers */}
+          <div style={{position:"absolute",inset:0,background:"linear-gradient(135deg,#0d0020 0%,#06001a 40%,#0a0030 100%)"}}/>
+          <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 80% 30%,rgba(180,60,255,0.28) 0%,transparent 60%)"}}/>
+          <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 20% 70%,rgba(0,100,255,0.18) 0%,transparent 55%)"}}/>
+          {/* Stadium silhouette hint at bottom */}
+          <div style={{position:"absolute",bottom:0,left:0,right:0,height:"60px",background:"linear-gradient(0deg,rgba(255,80,0,0.08) 0%,transparent 100%)"}}/>
+          {/* Content */}
+          <div style={{position:"relative",display:"flex",alignItems:"center",gap:"16px"}}>
+            <div style={{width:"54px",height:"54px",borderRadius:"50%",background:"linear-gradient(135deg,#7c3aed 0%,#4c1d95 100%)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"24px",boxShadow:"0 0 28px rgba(124,58,237,0.65)",border:"1.5px solid rgba(167,139,250,0.4)",flexShrink:0}}>⚙️</div>
+            <div>
+              <h1 style={{margin:0,fontSize:"clamp(28px,5vw,40px)",fontWeight:900,fontFamily:"'Arial Black',Impact,Arial,sans-serif",letterSpacing:"0.07em",color:"#fff",textShadow:"0 0 40px rgba(167,139,250,0.5)"}}>PRACTICE</h1>
+              <p style={{margin:"3px 0 0",fontSize:"12px",color:"rgba(255,255,255,0.38)",letterSpacing:"0.05em"}}>No stakes. No leaderboard. Just reps.</p>
+            </div>
+          </div>
+          {/* Decorative glow line */}
+          <div style={{position:"absolute",bottom:0,left:0,right:0,height:"2px",background:"linear-gradient(90deg,#7c3aed,#4c1d95,#7c3aed)"}}/>
+        </div>
+
+        {/* ── MODE SELECTOR ── */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"10px",marginBottom:"1.75rem"}}>
+          {MODES.map(m=>{
+            const sel=mode===m.id;
+            return(
+              <button key={m.id} onClick={()=>setMode(m.id)} style={{
+                all:"unset",display:"flex",flexDirection:"column",gap:"5px",
+                padding:"14px 12px 12px",borderRadius:"12px",cursor:"pointer",position:"relative",overflow:"hidden",
+                background:sel?"linear-gradient(145deg,rgba(124,58,237,0.45) 0%,rgba(76,29,149,0.55) 100%)":"rgba(255,255,255,0.03)",
+                border:`1.5px solid ${sel?"rgba(167,139,250,0.65)":"rgba(255,255,255,0.08)"}`,
+                boxShadow:sel?"0 0 24px rgba(124,58,237,0.45),inset 0 1px 0 rgba(167,139,250,0.2)":"inset 0 1px 0 rgba(255,255,255,0.03)",
+                transition:"all 0.2s",
+              }}>
+                {sel&&<div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 50% 0%,rgba(167,139,250,0.15) 0%,transparent 70%)",pointerEvents:"none"}}/>}
+                <div style={{display:"flex",alignItems:"center",gap:"8px",position:"relative"}}>
+                  <span style={{fontSize:"16px"}}>{m.emoji}</span>
+                  <span style={{fontSize:"11px",fontWeight:900,letterSpacing:"0.08em",color:sel?"#e9d5ff":"rgba(255,255,255,0.45)",fontFamily:"'Arial Black',sans-serif"}}>{m.label}</span>
+                </div>
+                <span style={{fontSize:"9px",color:sel?"rgba(233,213,255,0.55)":"rgba(255,255,255,0.22)",letterSpacing:"0.04em",position:"relative"}}>{m.sub}</span>
+                {sel&&<div style={{position:"absolute",bottom:0,left:0,right:0,height:"2px",background:"linear-gradient(90deg,transparent,#a78bfa,transparent)"}}/>}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── PLAYERS ── (2P only) */}
+        {mode==="2p"&&(
+          <div style={{marginBottom:"1.75rem"}}>
+            <div style={{fontSize:"10px",fontWeight:900,color:"rgba(255,255,255,0.35)",letterSpacing:"0.2em",marginBottom:"10px"}}>PLAYERS</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 44px 1fr",gap:"8px",alignItems:"center"}}>
+              {/* P1 */}
+              <div style={{borderRadius:"12px",padding:"14px",background:"rgba(0,200,80,0.06)",border:"1.5px solid rgba(0,200,80,0.45)",boxShadow:"0 0 20px rgba(0,200,80,0.12)"}}>
+                <div style={{fontSize:"9px",fontWeight:900,color:"#00cc66",letterSpacing:"0.18em",marginBottom:"10px"}}>PLAYER 1</div>
+                <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"9px 11px",borderRadius:"8px",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)"}}>
+                  <div style={{width:"30px",height:"30px",borderRadius:"50%",background:"linear-gradient(135deg,#22cc55,#008833)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:"13px",color:"#fff",flexShrink:0}}>
+                    {(playerName||"?")[0]?.toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{fontSize:"12px",fontWeight:700,color:"#fff"}}>{playerName||"You"}</div>
+                    <div style={{fontSize:"9px",color:"rgba(255,255,255,0.28)"}}>Level {standings.find(s=>s.player_id===playerId)?.wins??0}</div>
+                  </div>
+                  <div style={{marginLeft:"auto",color:"rgba(255,255,255,0.25)",fontSize:"12px"}}>∨</div>
+                </div>
+              </div>
+              {/* VS badge */}
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <div style={{width:"38px",height:"38px",borderRadius:"50%",background:"linear-gradient(135deg,#4c1d95,#7c3aed)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:900,color:"#e9d5ff",boxShadow:"0 0 18px rgba(124,58,237,0.55)",border:"1px solid rgba(167,139,250,0.35)"}}>VS</div>
+              </div>
+              {/* P2 */}
+              <div style={{borderRadius:"12px",padding:"14px",background:"rgba(255,50,80,0.06)",border:"1.5px solid rgba(255,50,80,0.45)",boxShadow:"0 0 20px rgba(255,50,80,0.12)"}}>
+                <div style={{fontSize:"9px",fontWeight:900,color:"#ff4466",letterSpacing:"0.18em",marginBottom:"10px"}}>PLAYER 2</div>
+                <div style={{padding:"9px 11px",borderRadius:"8px",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)"}}>
+                  <select value={p2Id??""} onChange={e=>setP2Id(e.target.value?Number(e.target.value):null)} style={{width:"100%",background:"transparent",border:"none",color:p2Id?"#fff":"rgba(255,255,255,0.3)",fontSize:"12px",fontWeight:p2Id?700:400,outline:"none",cursor:"pointer"}}>
+                    <option value="" style={{background:"#0a0020"}}>Select player...</option>
+                    {opp.map(o=><option key={o.player_id} value={o.player_id} style={{background:"#0a0020"}}>{o.player_name}</option>)}
+                  </select>
+                  <div style={{fontSize:"9px",color:"rgba(255,255,255,0.22)",marginTop:"3px"}}>Choose your opponent</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── GAME TYPE FILTER ── */}
+        <div style={{marginBottom:"1.25rem"}}>
+          <div style={{fontSize:"10px",fontWeight:900,color:"rgba(255,255,255,0.35)",letterSpacing:"0.2em",marginBottom:"10px"}}>GAME TYPE</div>
+          <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>
+            {GTS.map(g=>{
+              const sel=gt===g.id;
+              return(
+                <button key={g.id} onClick={()=>setGt(g.id)} style={{
+                  all:"unset",display:"flex",alignItems:"center",gap:"6px",
+                  padding:"8px 16px",borderRadius:"20px",cursor:"pointer",
+                  background:sel?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.04)",
+                  border:`1px solid ${sel?"rgba(255,255,255,0.22)":"rgba(255,255,255,0.08)"}`,
+                  color:sel?"#fff":"rgba(255,255,255,0.35)",
+                  fontSize:"11px",fontWeight:sel?700:500,letterSpacing:"0.07em",
+                  boxShadow:sel?"0 2px 14px rgba(0,0,0,0.35)":"none",
+                  transition:"all 0.15s",whiteSpace:"nowrap",position:"relative",
+                }}>
+                  <span style={{fontSize:"13px"}}>{g.emoji}</span>
+                  {g.label}
+                  {sel&&<div style={{position:"absolute",bottom:"-1px",left:"50%",transform:"translateX(-50%)",width:"40%",height:"2px",background:"linear-gradient(90deg,transparent,#a78bfa,transparent)",borderRadius:"2px"}}/>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── GAME LIST ── */}
+        <div style={{display:"flex",flexDirection:"column",gap:"8px",marginBottom:"1.75rem"}}>
+          {filtered.map((g:PGame)=>{
+            const isSaved=saved.has(g.id);
+            return(
+              <button key={g.id} onClick={()=>setLaunching(true)} style={{
+                all:"unset",display:"flex",alignItems:"center",gap:"14px",
+                padding:"16px 16px",borderRadius:"12px",cursor:"pointer",textAlign:"left",
+                background:"rgba(255,255,255,0.03)",
+                border:"1px solid rgba(255,255,255,0.07)",
+                position:"relative",overflow:"hidden",
+                transition:"all 0.18s",
+              }}
+              onMouseEnter={e=>{const el=e.currentTarget as HTMLElement;el.style.background="rgba(124,58,237,0.12)";el.style.borderColor="rgba(124,58,237,0.38)";}}
+              onMouseLeave={e=>{const el=e.currentTarget as HTMLElement;el.style.background="rgba(255,255,255,0.03)";el.style.borderColor="rgba(255,255,255,0.07)";}}>
+                {/* Left accent bar */}
+                <div style={{position:"absolute",left:0,top:"20%",bottom:"20%",width:"3px",borderRadius:"3px",background:`linear-gradient(180deg,${DIFF_COLOR[g.diff]},${DIFF_COLOR[g.diff]}88)`}}/>
+                {/* Icon circle */}
+                <div style={{width:"50px",height:"50px",borderRadius:"50%",background:"linear-gradient(135deg,rgba(124,58,237,0.4),rgba(76,29,149,0.6))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"20px",flexShrink:0,border:"1.5px solid rgba(124,58,237,0.4)",boxShadow:"0 0 16px rgba(124,58,237,0.25)"}}>
+                  {g.icon}
+                </div>
+                {/* Text */}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:"14px",fontWeight:800,color:"#fff",marginBottom:"3px",letterSpacing:"0.02em"}}>{g.name}</div>
+                  <div style={{fontSize:"11px",color:"rgba(255,255,255,0.35)",lineHeight:1.4,marginBottom:"8px"}}>{g.desc}</div>
+                  <div style={{display:"flex",gap:"8px",alignItems:"center"}}>
+                    <span style={{fontSize:"9px",fontWeight:600,color:"rgba(255,255,255,0.3)",letterSpacing:"0.05em"}}>👥 {g.players}</span>
+                    <span style={{fontSize:"9px",fontWeight:700,letterSpacing:"0.06em",color:DIFF_COLOR[g.diff],background:`${DIFF_COLOR[g.diff]}18`,padding:"2px 9px",borderRadius:"10px",border:`1px solid ${DIFF_COLOR[g.diff]}40`}}>{g.diff}</span>
+                  </div>
+                </div>
+                {/* Right side */}
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"14px",flexShrink:0}}>
+                  <button onClick={e=>{e.stopPropagation();setSaved(p=>{const n=new Set(p);n.has(g.id)?n.delete(g.id):n.add(g.id);return n;})}}
+                    style={{all:"unset",cursor:"pointer",fontSize:"16px",opacity:isSaved?1:0.25,color:isSaved?"#ffd24a":"#fff",transition:"all 0.15s"}}>
+                    🔖
+                  </button>
+                  <span style={{color:"rgba(255,255,255,0.25)",fontSize:"18px",fontWeight:300}}>›</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── Card Clash Practice CTA ── */}
+        <div style={{borderRadius:"14px",background:"linear-gradient(135deg,rgba(0,255,136,0.08),rgba(0,200,100,0.04))",border:"1px solid rgba(0,255,136,0.2)",padding:"18px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"14px",boxShadow:"0 0 24px rgba(0,255,136,0.06)"}}>
+          <div>
+            <div style={{fontSize:"14px",fontWeight:900,color:"#00ff88",letterSpacing:"0.05em",marginBottom:"4px",fontFamily:"'Arial Black',sans-serif"}}>⚡ CARD CLASH PRACTICE</div>
+            <div style={{fontSize:"11px",color:"rgba(255,255,255,0.32)"}}>No coins spent · No cards consumed · Test your deck</div>
+          </div>
+          <button onClick={()=>setLaunching(true)} style={{all:"unset",padding:"10px 22px",borderRadius:"8px",cursor:"pointer",background:"linear-gradient(135deg,#00cc66,#008833)",color:"#fff",fontSize:"12px",fontWeight:900,letterSpacing:"0.07em",boxShadow:"0 4px 20px rgba(0,200,100,0.4)",flexShrink:0,transition:"all 0.15s"}}>PLAY NOW</button>
+        </div>
+
+      </div>
+    );
+  }
+  
 // ── Shared primitives ─────────────────────────────────────────────────────────
 function HudStat({icon,label,value,color}:{icon:string;label:string;value:any;color:string}) {
   return (
