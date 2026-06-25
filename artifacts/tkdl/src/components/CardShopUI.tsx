@@ -15,6 +15,33 @@ interface CardShopUIProps {
   playerId: number;
 }
 
+const PACKS: Pack[] = [
+  {
+    id: "single",
+    name: "Single Card",
+    cards: 1,
+    cost: 50,
+    value: "1 Random Card",
+  },
+  {
+    id: "five",
+    name: "Starter Pack",
+    cards: 5,
+    cost: 200,
+    value: "5 Random Cards",
+    bonus: "15% Savings",
+    bestseller: true,
+  },
+  {
+    id: "ten",
+    name: "Champion Pack",
+    cards: 10,
+    cost: 350,
+    value: "10 Random Cards",
+    bonus: "30% Savings",
+  },
+];
+
 export function CardShopUI({ playerId }: CardShopUIProps) {
   const [selectedPack, setSelectedPack] = useState<string>("five");
   const [purchasing, setPurchasing] = useState(false);
