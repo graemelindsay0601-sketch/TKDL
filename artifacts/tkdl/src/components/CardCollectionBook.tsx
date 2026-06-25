@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { CardDetailModal } from "./CardDetailModal";
 
 const ALL_CARD_TYPES = [
   { id: "x01g", name: "X01 GOOD", color: "#00e5ff", count: 20 },
@@ -14,6 +15,7 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedType, setExpandedType] = useState<string>("x01g");
+  const [selectedCard, setSelectedCard] = useState<any>(null);
 
   useEffect(() => {
     if (!playerId) return;
@@ -54,6 +56,11 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
 
   return (
     <div style={{ width: "100%" }}>
+      <CardDetailModal 
+        card={selectedCard} 
+        isOpen={!!selectedCard} 
+        onClose={() => setSelectedCard(null)} 
+      />
       {/* Overall Progress */}
       <div style={{
         padding: "16px",
@@ -149,6 +156,15 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
                     return (
                       <div
                         key={cardId}
+                        onClick={() => {
+                          if (isOwned) {
+                            setSelectedCard({
+                              ...card,
+                              cardId,
+                              gameMode: typeInfo.id.includes("x01") ? "X01" : typeInfo.id.includes("cg") || typeInfo.id.includes("cb") ? "Cricket" : "Wildcard",
+                            });
+                          }
+                        }}
                         style={{
                           position: "relative",
                           aspectRatio: "2/3",

@@ -12,6 +12,7 @@ import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { NotificationCenter } from "@/components/notification-center";
 import { CoinBalance } from "@/components/CoinBalance";
 import { CardCollectionBook } from "@/components/CardCollectionBook";
+import { CardTrading } from "@/components/CardTrading";
 import { PlayerChallenges } from "@/components/PlayerChallenges";
 import { OverallStats, ByGameType, Trends, DartAnalysis, SessionHistory, CategoryStats, CategoryStatsEnhanced, AdvancedAnalyticsDashboard } from "@/components/stats";
 
@@ -964,6 +965,10 @@ export default function AccountPage() {
           }}>
             <CardCollectionBook playerId={user.playerId} />
           </div>
+
+          <SectionCard title="Trade Duplicates" icon={Zap} accent="#ffd24a">
+            <CardTrading playerId={user.playerId} />
+          </SectionCard>
           
           <SectionCard title="Active Challenges" icon={Trophy} accent="#ffd24a">
             <PlayerChallenges playerId={user.playerId} />
