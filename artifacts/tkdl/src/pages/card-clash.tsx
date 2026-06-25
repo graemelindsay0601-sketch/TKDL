@@ -9,7 +9,7 @@ import { PlayerChallenges } from "@/components/PlayerChallenges";
 
 export default function CardClashPage() {
   const currentPlayer = useCurrentPlayer();
-  const playerId = currentPlayer?.id;
+  const playerId = currentPlayer?.playerId;
 
   const [activeTab, setActiveTab] = useState<"overview" | "shop" | "collection" | "play" | "standings">("overview");
   const [season, setSeason] = useState<any>(null);
@@ -35,10 +35,35 @@ export default function CardClashPage() {
       .catch(() => setLoading(false));
   }, [playerId]);
 
-  if (!playerId) {
+  if (loading) {
     return (
       <div style={{ padding: "2rem", textAlign: "center", color: "rgba(255,255,255,0.5)" }}>
-        Please log in to access Card Clash
+        Loading Card Clash...
+      </div>
+    );
+  }
+
+  if (!currentPlayer || !playerId) {
+    console.error("Card Clash auth failed:", { currentPlayer, playerId });
+    return (
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        <div style={{ color: "rgba(255,255,255,0.5)", marginBottom: "1rem" }}>
+          Authentication issue - please try logging out and back in
+        </div>
+        <button
+          onClick={() => window.location.href = "/login"}
+          style={{
+            padding: "0.75rem 1.5rem",
+            background: "#ffd24a",
+            color: "#000",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontWeight: "600",
+          }}
+        >
+          Go to Login
+        </button>
       </div>
     );
   }
