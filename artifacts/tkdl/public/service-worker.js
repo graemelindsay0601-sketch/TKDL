@@ -56,10 +56,10 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Cache successful API responses
+          // Cache successful API responses (clone before returning)
           if (response && response.status === 200) {
-            const cache = caches.open(API_CACHE);
-            cache.then((c) => c.put(request, response.clone()));
+            const clonedResponse = response.clone();
+            caches.open(API_CACHE).then((c) => c.put(request, clonedResponse));
           }
           return response;
         })
@@ -80,8 +80,8 @@ self.addEventListener("fetch", (event) => {
         cached ||
         fetch(request).then((response) => {
           if (response && response.status === 200) {
-            const cache = caches.open(CACHE_NAME);
-            cache.then((c) => c.put(request, response.clone()));
+            const clonedResponse = response.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(request, clonedResponse));
           }
           return response;
         })
