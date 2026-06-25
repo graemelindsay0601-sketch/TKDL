@@ -109,15 +109,34 @@ router.post("/practice/sessions", async (req, res): Promise<void> => {
           winnerId = body.player2Id;
         }
 
-        // Update challenge progress for winner
-        if (winnerId) {
-          const { challengeService } = await import("../services/challenge-service");
-          // Daily
-          await challengeService.updateDailyProgress(winnerId, "practice_wins_2", 1);
-          await challengeService.updateDailyProgress(winnerId, "matches_5", 1);
-          // Weekly
-          await challengeService.updateWeeklyProgress(winnerId, "weekly_practice_3", 1);
-          await challengeService.updateWeeklyProgress(winnerId, "weekly_wins_5", 1);
+        // Update challenge progress for both players
+        if (body.player1Id) {
+          const { challengeManager } = await import("../services/challenge-manager");
+          // Determine game mode from gameTypeKey
+          let gameMode: "PRACTICE" | "X01" | "CRICKET" = "PRACTICE";
+          if (body.gameTypeKey?.includes("x01")) gameMode = "X01";
+          if (body.gameTypeKey?.includes("cricket")) gameMode = "CRICKET";
+          
+          const won = body.winnerIdx === 0;
+          await challengeManager.updateProgressFromGameResult(body.player1Id, {
+            gameMode,
+            won,
+            score: body.p1Score || 0,
+          });
+        }
+        
+        if (body.player2Id) {
+          const { challengeManager } = await import("../services/challenge-manager");
+          let gameMode: "PRACTICE" | "X01" | "CRICKET" = "PRACTICE";
+          if (body.gameTypeKey?.includes("x01")) gameMode = "X01";
+          if (body.gameTypeKey?.includes("cricket")) gameMode = "CRICKET";
+          
+          const won = body.winnerIdx === 1;
+          await challengeManager.updateProgressFromGameResult(body.player2Id, {
+            gameMode,
+            won,
+            score: body.p2Score || 0,
+          });
         }
       } catch (err) {
         // Silently fail - don't disrupt practice session

@@ -282,6 +282,30 @@ router.post("/match/finish", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "matchId and winnerId required" });
     }
     const result = await finishCardClashMatch(matchId, winnerId, cardsUsedInMatch);
+    
+    // Update challenges for both players
+    const { challengeManager } = await import("../services/challenge-manager");
+    
+    // Get the loser (if available)
+    const match = result;
+    const loserId = match.player1_id === winnerId ? match.player2_id : match.player1_id;
+    
+    // Update winner's challenges
+    await challengeManager.updateProgressFromGameResult(winnerId, {
+      gameMode: "CARD_CLASH",
+      won: true,
+      cardsUsed: cardsUsedInMatch || 0,
+    });
+    
+    // Update loser's challenges
+    if (loserId) {
+      await challengeManager.updateProgressFromGameResult(loserId, {
+        gameMode: "CARD_CLASH",
+        won: false,
+        cardsUsed: cardsUsedInMatch || 0,
+      });
+    }
+    
     res.json({ success: true, match: result });
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : "Unknown error" });

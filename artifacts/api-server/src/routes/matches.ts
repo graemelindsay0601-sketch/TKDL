@@ -286,28 +286,27 @@ router.post("/matches", async (req, res): Promise<void> => {
         await addCoinsToPlayer(winnerId, winCoins);
         await addCoinsToPlayer(loserId, lossCoins);
 
-        // Update challenge progress (fire and forget)
-        const { challengeService } = await import("../services/challenge-service");
+        // Update challenge progress using new manager system
+        const { challengeManager } = await import("../services/challenge-manager");
         
-        // Update daily & weekly for winner
-        await challengeService.updateDailyProgress(winnerId, "matches_5", 1);
-        await challengeService.updateDailyProgress(winnerId, "league_wins_3", 1);
-        await challengeService.updateDailyProgress(winnerId, "x01_wins_2", gameType === "501" ? 1 : 0);
-        await challengeService.updateDailyProgress(winnerId, "cricket_wins_2", gameType === "Cricket" ? 1 : 0);
+        // Map game type to game mode for challenges
+        let gameMode: "X01" | "CRICKET" | "LEAGUE" = "LEAGUE";
+        if (gameType === "501") gameMode = "X01";
+        if (gameType === "Cricket") gameMode = "CRICKET";
         
-        await challengeService.updateWeeklyProgress(winnerId, "weekly_wins_5", 1);
-        await challengeService.updateWeeklyProgress(winnerId, "weekly_league_3", 1);
-        await challengeService.updateWeeklyProgress(winnerId, "weekly_card_clash_3", 0); // Only for card clash matches
+        // Update winner's challenges
+        await challengeManager.updateProgressFromGameResult(winnerId, {
+          gameMode,
+          won: true,
+          score: winnerDarts || 0,
+        });
         
-        // Update daily & weekly for loser
-        await challengeService.updateDailyProgress(loserId, "matches_5", 1);
-        await challengeService.updateDailyProgress(loserId, "league_wins_3", 0);
-        await challengeService.updateDailyProgress(loserId, "x01_wins_2", 0);
-        await challengeService.updateDailyProgress(loserId, "cricket_wins_2", 0);
-        
-        await challengeService.updateWeeklyProgress(loserId, "weekly_wins_5", 0);
-        await challengeService.updateWeeklyProgress(loserId, "weekly_league_3", 0);
-        await challengeService.updateWeeklyProgress(loserId, "weekly_card_clash_3", 0);
+        // Update loser's challenges
+        await challengeManager.updateProgressFromGameResult(loserId, {
+          gameMode,
+          won: false,
+          score: loserDarts || 0,
+        });
 
         // Update seasonal quests
         const { seasonalQuestService } = await import("../services/seasonal-quest-service");
