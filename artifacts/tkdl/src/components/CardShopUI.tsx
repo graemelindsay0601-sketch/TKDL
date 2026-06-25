@@ -1,5 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Sparkles, ShoppingCart, Zap } from "lucide-react";
+import { ALL_CARDS } from "@/lib/cards-data";
+import { TKDLCard } from "./TKDLCard";
 
 interface Pack {
   id: string;
@@ -7,429 +9,210 @@ interface Pack {
   cards: number;
   cost: number;
   value: string;
+  icon: string;
   bestseller?: boolean;
   bonus?: string;
 }
 
-interface CardShopUIProps {
+interface PurchasedCard {
+  cardId: string;
+  name: string;
+  rarity: "COMMON" | "RARE" | "LEGENDARY";
+  gameMode?: string;
+}
+
+export interface CardShopUIProps {
   playerId: number;
+  onCardsReceived?: (cardNames: string[]) => void;
 }
 
 const PACKS: Pack[] = [
-  {
-    id: "single",
-    name: "Single Card",
-    cards: 1,
-    cost: 50,
-    value: "1 Random Card",
-  },
-  {
-    id: "five",
-    name: "Starter Pack",
-    cards: 5,
-    cost: 200,
-    value: "5 Random Cards",
-    bonus: "15% Savings",
-    bestseller: true,
-  },
-  {
-    id: "ten",
-    name: "Champion Pack",
-    cards: 10,
-    cost: 350,
-    value: "10 Random Cards",
-    bonus: "30% Savings",
-  },
+  { id: "single",  name: "Single Card",    cards: 1,  cost: 50,  value: "1 Random Card",   icon: "🎴" },
+  { id: "five",    name: "Starter Pack",   cards: 5,  cost: 200, value: "5 Random Cards",  icon: "🎰", bestseller: true, bonus: "15% Savings" },
+  { id: "ten",     name: "Champion Pack",  cards: 10, cost: 350, value: "10 Random Cards", icon: "🏆", bonus: "30% Savings" },
 ];
 
-export function CardShopUI({ playerId }: CardShopUIProps) {
+const RAR_COLOR: Record<string, string> = { COMMON: "#9ab0c4", RARE: "#00b4ff", LEGENDARY: "#ffaa00" };
+const RAR_GLOW:  Record<string, string> = { COMMON: "rgba(154,176,196,0.3)", RARE: "rgba(0,180,255,0.4)", LEGENDARY: "rgba(255,170,0,0.5)" };
+
+export function CardShopUI({ playerId, onCardsReceived }: CardShopUIProps) {
   const [selectedPack, setSelectedPack] = useState<string>("five");
   const [purchasing, setPurchasing] = useState(false);
-  const [justPurchased, setJustPurchased] = useState<string | null>(null);
   const [playerCoins, setPlayerCoins] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // Fetch player coins
-  React.useEffect(() => {
+  // Pack opening overlay state
+  const [opening, setOpening] = useState(false);
+  const [openingCards, setOpeningCards] = useState<PurchasedCard[]>([]);
+  const [revealedCount, setRevealedCount] = useState(0);
+  const [phase, setPhase] = useState<"pack" | "reveal" | "done">("pack");
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
     if (!playerId) return;
     fetch(`/api/card-clash/shop/currency/${playerId}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setPlayerCoins(data.cardPoints ?? 0);
-        setLoading(false);
-      })
-      .catch((e) => {
-        console.error("Failed to load coins:", e);
-        setLoading(false);
-      });
+      .then(r => r.json())
+      .then(d => { setPlayerCoins(d.cardPoints ?? 0); setLoading(false); })
+      .catch(() => setLoading(false));
   }, [playerId]);
 
-  // Handle purchase
+  // Card reveal stagger
+  useEffect(() => {
+    if (phase !== "reveal" || openingCards.length === 0) return;
+    if (revealedCount >= openingCards.length) { setPhase("done"); return; }
+    const t = setTimeout(() => setRevealedCount(n => n + 1), 420);
+    return () => clearTimeout(t);
+  }, [phase, revealedCount, openingCards.length]);
+
   const handlePurchase = async () => {
     if (purchasing) return;
     setPurchasing(true);
     try {
-      const response = await fetch(`/api/card-clash/shop/purchase`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const r = await fetch("/api/card-clash/shop/purchase", {
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ playerId, packType: selectedPack.toUpperCase() }),
       });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        alert(`Purchase failed: ${error.error}`);
-        return;
-      }
-
-      const result = await response.json();
-      console.log("Purchase result:", result);
-      
-      setJustPurchased(selectedPack);
-      setTimeout(() => setJustPurchased(null), 2000);
-      
+      if (!r.ok) { const e = await r.json(); alert(`Purchase failed: ${e.error}`); return; }
+      const result = await r.json();
+      const cards: PurchasedCard[] = result.cardsGenerated ?? [];
+      setOpeningCards(cards);
+      setRevealedCount(0);
+      setPhase("pack");
+      setOpening(true);
       // Refresh coins
-      const currencyRes = await fetch(`/api/card-clash/shop/currency/${playerId}`);
-      const currencyData = await currencyRes.json();
-      setPlayerCoins(currencyData.cardPoints ?? 0);
-    } catch (e) {
-      console.error("Purchase error:", e);
-      alert("Failed to purchase pack");
-    } finally {
-      setPurchasing(false);
-    }
+      const cRes = await fetch(`/api/card-clash/shop/currency/${playerId}`);
+      const cData = await cRes.json();
+      setPlayerCoins(cData.cardPoints ?? 0);
+      // Transition to card reveal after pack animation
+      setTimeout(() => setPhase("reveal"), 1400);
+    } catch { alert("Failed to purchase pack"); } finally { setPurchasing(false); }
   };
 
-  const selectedPackData = PACKS.find((p) => p.id === selectedPack);
+  const handleClaim = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setOpening(false);
+    setOpeningCards([]);
+    setRevealedCount(0);
+    setPhase("pack");
+    if (onCardsReceived) onCardsReceived(openingCards.map(c => c.name));
+  };
+
+  const selectedPackData = PACKS.find(p => p.id === selectedPack);
   const canAfford = selectedPackData ? playerCoins >= selectedPackData.cost : false;
 
   return (
-    <div
-      style={{
-        maxWidth: "1000px",
-        margin: "0 auto",
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          textAlign: "center",
-          marginBottom: "3rem",
-          padding: "2rem 1rem",
-          borderRadius: "12px",
-          background: "linear-gradient(135deg, rgba(0,102,255,0.1) 0%, rgba(102,51,255,0.1) 100%)",
-          border: "1px solid rgba(0,102,255,0.2)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "1rem" }}>
-          <ShoppingCart size={28} color="#0066ff" />
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "28px",
-              fontWeight: 900,
-              color: "var(--color-text-primary)",
-              fontFamily: "Oswald, sans-serif",
-            }}
-          >
-            Card Shop
-          </h2>
+    <div style={{ maxWidth: "900px" }}>
+      {/* Coin balance pill */}
+      <div style={{ display: "inline-flex", alignItems: "center", gap: "10px", background: "rgba(255,210,74,0.12)", border: "1px solid rgba(255,210,74,0.35)", borderRadius: "12px", padding: "12px 20px", marginBottom: "2rem" }}>
+        <span style={{ fontSize: "22px" }}>🪙</span>
+        <div>
+          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", letterSpacing: "0.12em" }}>YOUR COINS</div>
+          <div style={{ fontSize: "24px", fontWeight: 900, color: "#ffd24a", lineHeight: 1.1 }}>{loading ? "…" : playerCoins.toLocaleString()}</div>
         </div>
-        <p style={{ margin: 0, color: "var(--color-text-secondary)" }}>
-          Expand your collection with premium card packs
-        </p>
       </div>
 
-      {/* Coin Balance */}
-      <div
-        style={{
-          marginBottom: "2rem",
-          padding: "1rem",
-          background: "linear-gradient(135deg, #FFD700 0%, #FFA500 100%)",
-          borderRadius: "10px",
-          textAlign: "center",
-          boxShadow: "0 4px 12px rgba(255, 215, 0, 0.3)",
-        }}
-      >
-        <p style={{ margin: "0 0 0.5rem 0", fontSize: "12px", color: "#8B6914", fontWeight: 600 }}>
-          BALANCE
-        </p>
-        <p
-          style={{
-            margin: 0,
-            fontSize: "32px",
-            fontWeight: 900,
-            color: "#1a1a1a",
-            fontFamily: "Oswald, sans-serif",
-            letterSpacing: "0.05em",
-          }}
-        >
-          {playerCoins} 🪙
-        </p>
-      </div>
-
-      {/* Pack Selection */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: "20px",
-          marginBottom: "2rem",
-        }}
-      >
-        {PACKS.map((pack) => {
-          const isSelected = selectedPack === pack.id;
-          const canAffordThisPack = playerCoins >= pack.cost;
-
+      {/* Pack cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: "16px", marginBottom: "1.5rem" }}>
+        {PACKS.map(pack => {
+          const sel = selectedPack === pack.id;
+          const canAffordThis = playerCoins >= pack.cost;
           return (
-            <div
-              key={pack.id}
-              onClick={() => setSelectedPack(pack.id)}
-              style={{
-                position: "relative",
-                cursor: "pointer",
-                transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
-                transform: isSelected ? "scale(1.05)" : "scale(1)",
-              }}
-            >
-              {/* Bestseller Badge */}
+            <div key={pack.id} onClick={() => setSelectedPack(pack.id)} style={{ position: "relative", cursor: "pointer", transition: "transform 0.2s", transform: sel ? "scale(1.03)" : "scale(1)" }}>
               {pack.bestseller && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "-12px",
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    background: "linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)",
-                    color: "white",
-                    padding: "4px 16px",
-                    borderRadius: "20px",
-                    fontSize: "11px",
-                    fontWeight: 800,
-                    letterSpacing: "0.05em",
-                    boxShadow: "0 4px 12px rgba(255, 107, 107, 0.3)",
-                    zIndex: 10,
-                  }}
-                >
+                <div style={{ position: "absolute", top: "-12px", left: "50%", transform: "translateX(-50%)", background: "linear-gradient(135deg,#ff6b6b,#ff8e53)", color: "#fff", padding: "3px 14px", borderRadius: "20px", fontSize: "10px", fontWeight: 800, letterSpacing: "0.05em", zIndex: 10 }}>
                   BESTSELLER
                 </div>
               )}
-
-              {/* Card */}
-              <div
-                style={{
-                  padding: "24px",
-                  borderRadius: "12px",
-                  background: isSelected
-                    ? "linear-gradient(135deg, #0066ff 0%, #0052cc 100%)"
-                    : "var(--color-background-secondary)",
-                  border: isSelected ? "3px solid #0066ff" : "2px solid var(--color-border-tertiary)",
-                  boxShadow: isSelected
-                    ? "0 0 30px rgba(0, 102, 255, 0.4), inset 0 0 20px rgba(0, 102, 255, 0.1)"
-                    : "0 4px 12px rgba(0, 0, 0, 0.1)",
-                  transition: "all 0.3s ease",
-                  opacity: !canAffordThisPack ? 0.6 : 1,
-                }}
-              >
-                {/* Card Icon */}
-                <div
-                  style={{
-                    width: "60px",
-                    height: "60px",
-                    borderRadius: "8px",
-                    background: isSelected
-                      ? "rgba(255, 255, 255, 0.15)"
-                      : "var(--color-background-tertiary)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginBottom: "1rem",
-                    fontSize: "32px",
-                  }}
-                >
-                  {pack.cards === 1 ? "🎴" : pack.cards === 5 ? "🎰" : "🏆"}
-                </div>
-
-                {/* Pack Name */}
-                <h3
-                  style={{
-                    margin: "0 0 0.5rem 0",
-                    fontSize: "18px",
-                    fontWeight: 700,
-                    color: isSelected ? "white" : "var(--color-text-primary)",
-                    fontFamily: "Oswald, sans-serif",
-                  }}
-                >
-                  {pack.name}
-                </h3>
-
-                {/* Cards Count */}
-                <p
-                  style={{
-                    margin: "0 0 1rem 0",
-                    fontSize: "14px",
-                    color: isSelected ? "rgba(255,255,255,0.8)" : "var(--color-text-secondary)",
-                    fontWeight: 500,
-                  }}
-                >
-                  {pack.value}
-                </p>
-
-                {/* Bonus */}
+              <div style={{ padding: "22px", borderRadius: "12px", border: sel ? "2px solid rgba(0,180,255,0.7)" : "1px solid rgba(255,255,255,0.08)", background: sel ? "linear-gradient(135deg,rgba(0,60,120,0.5),rgba(0,40,80,0.5))" : "rgba(255,255,255,0.03)", boxShadow: sel ? "0 0 30px rgba(0,180,255,0.2)" : "none", transition: "all 0.2s", opacity: canAffordThis ? 1 : 0.5 }}>
+                <div style={{ fontSize: "40px", marginBottom: "12px" }}>{pack.icon}</div>
+                <div style={{ fontSize: "16px", fontWeight: 800, color: sel ? "#00e5ff" : "#fff", marginBottom: "4px" }}>{pack.name}</div>
+                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", marginBottom: "12px" }}>{pack.value}</div>
                 {pack.bonus && (
-                  <div
-                    style={{
-                      marginBottom: "1rem",
-                      background: isSelected ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 102, 255, 0.1)",
-                      color: isSelected ? "white" : "#0066ff",
-                      padding: "6px 12px",
-                      borderRadius: "6px",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      letterSpacing: "0.05em",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
-                    }}
-                  >
-                    <Zap size={12} />
-                    {pack.bonus}
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(0,180,255,0.1)", border: "1px solid rgba(0,180,255,0.25)", borderRadius: "6px", padding: "3px 10px", fontSize: "10px", fontWeight: 700, color: "#00b4ff", marginBottom: "12px" }}>
+                    <Zap size={10} /> {pack.bonus}
                   </div>
                 )}
-
-                {/* Cost */}
-                <div
-                  style={{
-                    fontSize: "24px",
-                    fontWeight: 900,
-                    color: isSelected ? "white" : "var(--color-text-primary)",
-                    fontFamily: "Oswald, sans-serif",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  {pack.cost} 🪙
-                </div>
+                <div style={{ fontSize: "22px", fontWeight: 900, color: "#ffd24a" }}>{pack.cost} 🪙</div>
+                {!canAffordThis && (
+                  <div style={{ marginTop: "8px", fontSize: "10px", color: "#ff6b6b", fontWeight: 700, letterSpacing: "0.05em" }}>INSUFFICIENT COINS</div>
+                )}
               </div>
-
-              {/* Affordability Badge */}
-              {!canAffordThisPack && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: "rgba(0, 0, 0, 0.5)",
-                    borderRadius: "12px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "12px",
-                    color: "white",
-                    fontWeight: 700,
-                    pointerEvents: "none",
-                  }}
-                >
-                  INSUFFICIENT COINS
-                </div>
-              )}
             </div>
           );
         })}
       </div>
 
-      {/* Purchase Button */}
-      <div
-        style={{
-          display: "flex",
-          gap: "12px",
-          alignItems: "center",
-        }}
+      {/* Buy button */}
+      <button
+        onClick={handlePurchase}
+        disabled={!canAfford || purchasing || loading}
+        style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 32px", borderRadius: "10px", border: "none", cursor: canAfford && !purchasing ? "pointer" : "not-allowed", fontWeight: 800, fontSize: "15px", letterSpacing: "0.06em", transition: "all 0.2s", background: canAfford ? "linear-gradient(135deg,#0080ff,#0040c0)" : "rgba(255,255,255,0.08)", color: canAfford ? "#fff" : "rgba(255,255,255,0.3)", boxShadow: canAfford ? "0 6px 24px rgba(0,128,255,0.35)" : "none" }}
       >
-        <button
-          onClick={handlePurchase}
-          disabled={!canAfford || purchasing || loading}
-          style={{
-            flex: 1,
-            padding: "16px 24px",
-            borderRadius: "10px",
-            border: "none",
-            background: canAfford
-              ? "linear-gradient(135deg, #0066ff 0%, #0052cc 100%)"
-              : "linear-gradient(135deg, #666 0%, #555 100%)",
-            color: "white",
-            fontSize: "16px",
-            fontWeight: 700,
-            cursor: canAfford && !purchasing ? "pointer" : "not-allowed",
-            transition: "all 0.3s ease",
-            boxShadow: canAfford ? "0 6px 20px rgba(0, 102, 255, 0.3)" : "none",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "10px",
-            letterSpacing: "0.05em",
-          }}
-          onMouseEnter={(e) => {
-            if (canAfford && !purchasing) {
-              (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
-              (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 24px rgba(0, 102, 255, 0.4)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (canAfford && !purchasing) {
-              (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
-              (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 20px rgba(0, 102, 255, 0.3)";
-            }
-          }}
-        >
-          {purchasing ? (
-            <>
-              <span
-                style={{
-                  width: "16px",
-                  height: "16px",
-                  border: "2px solid transparent",
-                  borderTopColor: "white",
-                  borderRadius: "50%",
-                  animation: "spin 0.6s linear infinite",
-                }}
-              />
-              Processing...
-            </>
-          ) : justPurchased === selectedPack ? (
-            <>
-              <Sparkles size={18} />
-              Pack Acquired!
-            </>
-          ) : (
-            <>
-              <ShoppingCart size={18} />
-              Purchase Pack
-            </>
+        {purchasing ? <><Spinner /> Opening Pack…</> : <><ShoppingCart size={18} /> Buy Pack — {selectedPackData?.cost ?? 0} 🪙</>}
+      </button>
+
+      {/* ─── PACK OPENING OVERLAY ─── */}
+      {opening && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 2000, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.94)", backdropFilter: "blur(12px)" }}>
+          <style>{`
+            @keyframes packPulse { 0%,100%{transform:scale(1) rotate(-2deg);filter:brightness(1)} 50%{transform:scale(1.12) rotate(2deg);filter:brightness(1.4)} }
+            @keyframes packExplode { 0%{transform:scale(1);opacity:1} 100%{transform:scale(2.5);opacity:0} }
+            @keyframes cardIn { from{transform:translateY(40px) scale(0.8);opacity:0} to{transform:translateY(0) scale(1);opacity:1} }
+            @keyframes shimmer { 0%,100%{opacity:0.5} 50%{opacity:1} }
+          `}</style>
+
+          {phase === "pack" && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "24px" }}>
+              <div style={{ fontSize: "100px", animation: "packPulse 0.7s ease-in-out infinite" }}>📦</div>
+              <div style={{ fontSize: "20px", fontWeight: 800, color: "#fff", letterSpacing: "0.1em", animation: "shimmer 0.8s ease-in-out infinite" }}>OPENING PACK…</div>
+            </div>
           )}
-        </button>
 
-        {/* Info */}
-        <div
-          style={{
-            padding: "12px",
-            background: "var(--color-background-tertiary)",
-            borderRadius: "8px",
-            fontSize: "12px",
-            color: "var(--color-text-secondary)",
-            maxWidth: "200px",
-          }}
-        >
-          <p style={{ margin: "0 0 6px 0", fontWeight: 600 }}>💡 Tips</p>
-          <p style={{ margin: 0 }}>Complete challenges and matches to earn more coins!</p>
+          {(phase === "reveal" || phase === "done") && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "24px", maxWidth: "1200px", width: "100%", padding: "0 24px" }}>
+              <div style={{ fontSize: "22px", fontWeight: 900, color: "#fff", letterSpacing: "0.12em" }}>
+                🎴 YOU GOT <span style={{ color: "#ffd24a" }}>{openingCards.length} CARD{openingCards.length !== 1 ? "S" : ""}</span>!
+              </div>
+
+              {/* Cards grid */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "center" }}>
+                {openingCards.map((card, i) => {
+                  const fullCard = ALL_CARDS.find(c => c.name === card.name);
+                  const revealed = i < revealedCount;
+                  const color = RAR_COLOR[card.rarity] ?? "#9ab0c4";
+                  const glow  = RAR_GLOW[card.rarity]  ?? "rgba(154,176,196,0.3)";
+                  return (
+                    <div key={i} style={{ opacity: revealed ? 1 : 0, animation: revealed ? "cardIn 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards" : "none", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+                      {fullCard ? (
+                        <TKDLCard card={fullCard} size="sm" locked={false} />
+                      ) : (
+                        <div style={{ width: "110px", height: "154px", borderRadius: "10px", background: `linear-gradient(135deg,${color}22,${color}11)`, border: `2px solid ${color}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "8px", boxShadow: `0 0 20px ${glow}`, padding: "12px" }}>
+                          <div style={{ fontSize: "28px" }}>🎴</div>
+                          <div style={{ fontSize: "10px", fontWeight: 700, color: "#fff", textAlign: "center", letterSpacing: "0.05em" }}>{card.name}</div>
+                        </div>
+                      )}
+                      <div style={{ fontSize: "10px", fontWeight: 800, color, letterSpacing: "0.1em", padding: "2px 8px", borderRadius: "10px", background: `${color}22`, border: `1px solid ${color}44` }}>{card.rarity}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {phase === "done" && (
+                <button onClick={handleClaim} style={{ marginTop: "8px", padding: "14px 40px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg,#00b4ff,#0066cc)", color: "#fff", fontWeight: 900, fontSize: "16px", cursor: "pointer", letterSpacing: "0.08em", boxShadow: "0 6px 24px rgba(0,180,255,0.4)" }}>
+                  <Sparkles size={16} style={{ display: "inline", marginRight: "8px" }} />
+                  Claim Cards!
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
+}
+
+function Spinner() {
+  return <span style={{ width: "16px", height: "16px", border: "2px solid transparent", borderTopColor: "white", borderRadius: "50%", animation: "spin 0.6s linear infinite", display: "inline-block" }} />;
 }
