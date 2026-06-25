@@ -46,12 +46,27 @@ export async function startCardClashMatch(
   gameMode: "X01" | "CRICKET",
   player1Id: number,
   player2Id: number,
-  equippedCards: {
-    player1: Array<{ cardId: string; cardType: "GOOD" | "BAD" }>;
-    player2: Array<{ cardId: string; cardType: "GOOD" | "BAD" }>;
+  equippedCards?: {
+    player1?: Array<{ cardId: string; cardType: "GOOD" | "BAD" }>;
+    player2?: Array<{ cardId: string; cardType: "GOOD" | "BAD" }>;
   }
 ) {
-  // Use raw SQL so season_id (now nullable) can be omitted entirely
+  const p1Cards = equippedCards?.player1 ?? [];
+  const p2Cards = equippedCards?.player2 ?? [];
+
+  // Ensure all required columns exist before inserting (idempotent)
+  for (const alter of [
+    sql`ALTER TABLE card_clash_matches ALTER COLUMN season_id DROP NOT NULL`,
+    sql`ALTER TABLE card_clash_matches DROP CONSTRAINT IF EXISTS card_clash_matches_season_id_card_clash_seasons_id_fk`,
+    sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_equipped_cards JSONB`,
+    sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_equipped_cards JSONB`,
+    sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSONB`,
+    sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_points_earned INTEGER DEFAULT 0`,
+    sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER DEFAULT 0`,
+  ]) {
+    try { await db.execute(alter); } catch (_) {}
+  }
+
   const result = await db.execute(sql`
     INSERT INTO card_clash_matches
       (game_mode, player_1_id, player_2_id, winner_id,
@@ -59,8 +74,8 @@ export async function startCardClashMatch(
        player_1_points_earned, player_2_points_earned)
     VALUES
       (${gameMode}, ${player1Id}, ${player2Id}, ${player1Id},
-       ${JSON.stringify(equippedCards.player1)}, ${JSON.stringify(equippedCards.player2)},
-       ${JSON.stringify([])}, 0, 0)
+       ${JSON.stringify(p1Cards)}::jsonb, ${JSON.stringify(p2Cards)}::jsonb,
+       '[]'::jsonb, 0, 0)
     RETURNING *
   `);
   return result.rows[0];
