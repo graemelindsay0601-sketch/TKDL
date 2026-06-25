@@ -140,9 +140,9 @@ import React, { useState, useEffect } from "react";
           <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "5px" }}>
               <span style={{ fontSize: "22px" }}>✨</span>
-              <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 900, color: "#ffd24a", letterSpacing: "0.06em", fontFamily: "'Arial Black',Arial,sans-serif" }}>EQUIP CARDS — {gameMode}</h2>
+              <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 900, color: "#ffd24a", letterSpacing: "0.06em", fontFamily: "'Arial Black',Arial,sans-serif" }}>YOUR CARDS — {gameMode}</h2>
             </div>
-            <p style={{ margin: 0, fontSize: "12px", color: "rgba(255,255,255,0.32)", fontFamily: "Arial,sans-serif" }}>Up to 2 Good + 2 Bad cards. Cards are always optional — you can play with none.</p>
+            <p style={{ margin: 0, fontSize: "12px", color: "rgba(255,255,255,0.32)", fontFamily: "Arial,sans-serif" }}>Bring up to 2 Good + 2 Bad cards to the match. Cards are optional — play with none if you prefer.</p>
             {submitError && <div style={{ marginTop: "10px", padding: "8px 14px", background: "rgba(255,60,60,0.08)", border: "1px solid rgba(255,60,60,0.28)", borderRadius: "7px", color: "#ff6b6b", fontSize: "12px", fontFamily: "Arial,sans-serif" }}>⚠️ {submitError}</div>}
           </div>
 
@@ -191,13 +191,13 @@ import React, { useState, useEffect } from "react";
           </div>
 
           {/* Footer */}
-          <div style={{ padding: "14px 22px", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", gap: "10px", justifyContent: "flex-end", flexShrink: 0, background: "rgba(0,0,0,0.2)" }}>
+          <div style={{ padding: "14px 22px", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", gap: "10px", justifyContent: "flex-end", flexShrink: 0, background: "rgba(0,0,0,0.2)", position: "sticky", bottom: 0, zIndex: 10 }}>
             <button onClick={onBack} style={{ padding: "11px 22px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "9px", color: "rgba(255,255,255,0.55)", fontWeight: 700, fontSize: "13px", cursor: "pointer", fontFamily: "Arial,sans-serif" }}>← Back</button>
             <button
               onClick={() => onConfirm([...selectedGood, ...selectedBad], [])}
-              style={{ padding: "11px 28px", background: "linear-gradient(135deg,#ffd24a,#ff9500)", border: "none", borderRadius: "9px", color: "#000", fontWeight: 900, fontSize: "13px", cursor: "pointer", letterSpacing: "0.07em", fontFamily: "'Arial Black',Arial,sans-serif", boxShadow: "0 4px 20px rgba(255,210,74,0.35)" }}
+              style={{ padding: "11px 28px", background: "linear-gradient(135deg,#ffd24a,#ff9500)", border: "none", borderRadius: "9px", color: "#000", fontWeight: 900, fontSize: "13px", cursor: "pointer", letterSpacing: "0.07em", fontFamily: "'Arial Black',Arial,sans-serif", boxShadow: "0 4px 20px rgba(255,210,74,0.35)", whiteSpace: "nowrap" }}
             >
-              {totalSelected > 0 ? `⚡ PLAY (${totalSelected} card${totalSelected !== 1 ? "s" : ""})` : "⚡ PLAY — no cards"}
+              {totalSelected > 0 ? `⚡ PLAY (${totalSelected})` : "⚡ PLAY"}
             </button>
           </div>
         </div>
