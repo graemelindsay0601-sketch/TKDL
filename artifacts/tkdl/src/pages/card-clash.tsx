@@ -55,294 +55,208 @@ const PACKS = [
   },
 ];
 
-// ── SVG dartboard "illustration" art panel ────────────────────────────────────
-function DartboardArt({ pack, W, H }: { pack: typeof PACKS[0]; W: number; H: number }) {
-  const cx = W / 2, cy = H / 2;
-  const uid = `db-${pack.id}-${W}`;
-  const rings = [0.38, 0.50, 0.62, 0.74, 0.86, 0.94];
-  const sectorAngles = Array.from({length:20},(_,i)=> i*18);
 
-  return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{display:"block",overflow:"hidden"}}>
-      <defs>
-        <radialGradient id={`artbg-${uid}`} cx="50%" cy="50%" r="55%">
-          <stop offset="0%" stopColor={pack.artAcc} stopOpacity="0.22"/>
-          <stop offset="100%" stopColor={pack.artBg} stopOpacity="0"/>
-        </radialGradient>
-        {pack.tier === "legendary" && (
-          <linearGradient id={`holo-${uid}`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%"   stopColor="rgba(255,0,80,0.18)"/>
-            <stop offset="25%"  stopColor="rgba(80,255,100,0.14)"/>
-            <stop offset="50%"  stopColor="rgba(0,180,255,0.18)"/>
-            <stop offset="75%"  stopColor="rgba(255,80,255,0.14)"/>
-            <stop offset="100%" stopColor="rgba(255,200,0,0.18)"/>
+  // ── Dartboard sector path helper ─────────────────────────────────────────────
+  function sP(cx:number,cy:number,ro:number,ri:number,sa:number,ea:number):string{
+    const x1=cx+ro*Math.cos(sa),y1=cy+ro*Math.sin(sa);
+    const x2=cx+ro*Math.cos(ea),y2=cy+ro*Math.sin(ea);
+    const x3=cx+ri*Math.cos(ea),y3=cy+ri*Math.sin(ea);
+    const x4=cx+ri*Math.cos(sa),y4=cy+ri*Math.sin(sa);
+    return `M${x1},${y1} A${ro},${ro} 0 0,1 ${x2},${y2} L${x3},${y3} A${ri},${ri} 0 0,0 ${x4},${y4}Z`;
+  }
+
+  // ── Premium foil pack SVG ─────────────────────────────────────────────────────
+  function PackSVG({ packId, scale = 1 }: { packId: string; scale?: number }) {
+    const W = Math.round(148 * scale), H = Math.round(236 * scale);
+    const uid = `pk-${packId}`;
+    const isElite = packId === "five", isChamp = packId === "ten";
+    const t = isChamp
+      ? { pr:"#aa00ff", se:"#ffd700", ac:"#ff00cc", tx:"#e8b4ff",
+          b1:"#04000e", b2:"#0e0025", at:"rgba(140,0,255,0.5)",
+          dc:"#cc88ff", gl:"rgba(160,0,255,0.85)",
+          f1:"#200040", f2:"#120028", f3:"#080015",
+          rays:["#ff00cc","#aa00ff","#00ffcc","#ffd700","#ff4400","#00aaff","#ff00cc","#aa00ff"],
+          tl:"LEGEND VAULT", ts:"GUARANTEED EPIC+", tc:"CONTAINS 10 CARDS", rb:true, cr:true }
+      : isElite
+      ? { pr:"#f5a623", se:"#ffd24a", ac:"#ff8800", tx:"#ffe08a",
+          b1:"#0c0500", b2:"#1c0a00", at:"rgba(200,120,0,0.5)",
+          dc:"#ffcc66", gl:"rgba(220,150,0,0.85)",
+          f1:"#341200", f2:"#1c0800", f3:"#0c0400",
+          rays:["#ffa500","#ffd700","#ff6600","#ffe44a","#cc7700","#ffaa00","#ffd700","#ff8800"],
+          tl:"KILBIRNIE NIGHT", ts:"5 CARDS · RARE TO EPIC", tc:"CONTAINS 5 CARDS", rb:false, cr:false }
+      : { pr:"#0077ff", se:"#00ccff", ac:"#0044dd", tx:"#88ddff",
+          b1:"#000c1c", b2:"#001535", at:"rgba(0,100,255,0.45)",
+          dc:"#44aaff", gl:"rgba(0,120,255,0.85)",
+          f1:"#001240", f2:"#000a25", f3:"#000515",
+          rays:["#0088ff","#00ccff","#0044ff","#44bbff","#0066cc","#00eeff","#0088ff","#00ccff"],
+          tl:"STANDARD PULL", ts:"1 CARD · COMMON TO RARE", tc:"CONTAINS 1 CARD", rb:false, cr:false };
+
+    const cx2=W/2, cy2=H*0.505, R=W*0.33, PI2=Math.PI*2;
+    const s20=Array.from({length:20},(_,i)=>({sa:(i/20)*PI2-Math.PI/2-PI2/40,ea:((i+1)/20)*PI2-Math.PI/2-PI2/40,ev:i%2===0}));
+
+    return (
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{display:"block",overflow:"visible"}}>
+        <defs>
+          <clipPath id={`cl-${uid}`}><rect x="1" y="1" width={W-2} height={H-2} rx="7"/></clipPath>
+          <radialGradient id={`bg-${uid}`} cx="50%" cy="52%" r="70%">
+            <stop offset="0%" stopColor={t.b2}/><stop offset="100%" stopColor={t.b1}/>
+          </radialGradient>
+          <radialGradient id={`atm-${uid}`} cx="50%" cy="50%" r="45%" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2={H}>
+            <stop offset="0%" stopColor={t.pr} stopOpacity="0.6"/>
+            <stop offset="50%" stopColor={t.pr} stopOpacity="0.2"/>
+            <stop offset="100%" stopColor={t.pr} stopOpacity="0"/>
+          </radialGradient>
+          <radialGradient id={`bg2-${uid}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={t.dc} stopOpacity="0.28"/><stop offset="100%" stopColor={t.dc} stopOpacity="0"/>
+          </radialGradient>
+          <linearGradient id={`sh-${uid}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.22)"/><stop offset="22%" stopColor="rgba(255,255,255,0.08)"/>
+            <stop offset="65%" stopColor="rgba(0,0,0,0.06)"/><stop offset="100%" stopColor="rgba(0,0,0,0.22)"/>
           </linearGradient>
-        )}
-        <clipPath id={`artclip-${uid}`}><rect width={W} height={H}/></clipPath>
-        <radialGradient id={`bulleye-${uid}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor={pack.accB}/>
-          <stop offset="100%" stopColor={pack.acc}/>
-        </radialGradient>
-      </defs>
-
-      {/* Background */}
-      <rect width={W} height={H} fill={pack.artBg}/>
-      {/* Subtle glow centre */}
-      <rect width={W} height={H} fill={`url(#artbg-${uid})`}/>
-
-      {/* Subtle crowd silhouette strip at bottom (just tinted shapes) */}
-      {[...Array(14)].map((_,i) => {
-        const bx = (i/(13)) * W;
-        const bh = 12 + (i%3)*6 + ((i%5)*3);
-        return <rect key={i} x={bx-5} y={H-bh} width={14} height={bh} rx="4" fill={pack.acc} opacity="0.06"/>;
-      })}
-
-      {/* Dartboard sectors (alternating dark/light wedges) */}
-      <g clipPath={`url(#artclip-${uid})`} transform={`translate(${cx},${cy})`}>
-        {sectorAngles.map((angle,i) => {
-          const r1 = cx * 0.86, r2 = 0;
-          const a1 = (angle - 9) * Math.PI/180;
-          const a2 = (angle + 9) * Math.PI/180;
-          const x1 = Math.cos(a1)*r1, y1 = Math.sin(a1)*r1;
-          const x2 = Math.cos(a2)*r1, y2 = Math.sin(a2)*r1;
-          return (
-            <path key={i}
-              d={`M0,0 L${x1},${y1} A${r1},${r1} 0 0,1 ${x2},${y2} Z`}
-              fill={i%2===0 ? pack.acc : "rgba(0,0,0,0.55)"}
-              opacity={i%2===0 ? 0.055 : 0.04}
-            />
-          );
-        })}
-
-        {/* Concentric rings */}
-        {rings.map((r,i) => (
-          <circle key={i} r={cx*r} fill="none"
-            stroke={pack.acc}
-            strokeWidth={i===rings.length-1 ? 1.5 : 0.7}
-            opacity={i===rings.length-1 ? 0.55 : 0.22}
-          />
-        ))}
-
-        {/* Triple ring highlight band */}
-        <circle r={cx*0.68} fill="none" stroke={pack.accB} strokeWidth="5" opacity="0.1"/>
-        <circle r={cx*0.56} fill="none" stroke={pack.accB} strokeWidth="5" opacity="0.1"/>
-
-        {/* Bullseye */}
-        <circle r={cx*0.14} fill={pack.acc} opacity="0.18"/>
-        <circle r={cx*0.14} fill="none" stroke={pack.accB} strokeWidth="1.2" opacity="0.55"/>
-        <circle r={cx*0.07} fill={`url(#bulleye-${uid})`} opacity="0.8"
-          style={{filter:`drop-shadow(0 0 6px ${pack.acc})`}}/>
-
-        {/* Dart in bullseye */}
-        <g transform="rotate(-42)">
-          {/* flight */}
-          <path d={`M0,${cx*0.55} L${cx*-0.06},${cx*0.72} L0,${cx*0.62} L${cx*0.06},${cx*0.72}Z`}
-            fill={pack.accB} opacity="0.7"/>
-          {/* shaft */}
-          <rect x={-cx*0.022} y={cx*0.12} width={cx*0.044} height={cx*0.43} rx={cx*0.012}
-            fill={pack.acc} opacity="0.55"/>
-          {/* barrel */}
-          <rect x={-cx*0.045} y={-cx*0.08} width={cx*0.09} height={cx*0.2} rx={cx*0.025}
-            fill={pack.accB} opacity="0.88"
-            style={{filter:`drop-shadow(0 0 4px ${pack.acc})`}}/>
-          {/* grip rings */}
-          {[-0.04,0,0.04].map((dy,i) => (
-            <line key={i} x1={-cx*0.045} y1={dy*cx} x2={cx*0.045} y2={dy*cx}
-              stroke="rgba(0,0,0,0.4)" strokeWidth="1.5"/>
-          ))}
-          {/* tip */}
-          <path d={`M${-cx*0.02},${-cx*0.08} L0,${-cx*0.22} L${cx*0.02},${-cx*0.08}Z`}
-            fill={pack.accB} opacity="0.95"/>
+          <linearGradient id={`edge-${uid}`} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.28)"/><stop offset="7%" stopColor="rgba(255,255,255,0.08)"/>
+            <stop offset="13%" stopColor="rgba(255,255,255,0)"/><stop offset="87%" stopColor="rgba(255,255,255,0)"/>
+            <stop offset="93%" stopColor="rgba(255,255,255,0.04)"/><stop offset="100%" stopColor="rgba(0,0,0,0.18)"/>
+          </linearGradient>
+          <linearGradient id={`top-${uid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={t.f1}/><stop offset="100%" stopColor={t.f2}/>
+          </linearGradient>
+          <linearGradient id={`ft-${uid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={t.f2}/><stop offset="100%" stopColor={t.f3}/>
+          </linearGradient>
+          <linearGradient id={`bd-${uid}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={t.se} stopOpacity="0.9"/><stop offset="35%" stopColor={t.pr} stopOpacity="0.6"/>
+            <stop offset="65%" stopColor={t.ac} stopOpacity="0.5"/><stop offset="100%" stopColor={t.se} stopOpacity="0.8"/>
+          </linearGradient>
+          <radialGradient id={`bull-${uid}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={t.se} stopOpacity="0.9"/><stop offset="100%" stopColor={t.pr} stopOpacity="0.3"/>
+          </radialGradient>
+          {t.rb&&(<linearGradient id={`rb-${uid}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="rgba(255,0,180,0.16)"/><stop offset="25%" stopColor="rgba(100,0,255,0.12)"/>
+            <stop offset="50%" stopColor="rgba(0,200,255,0.16)"/><stop offset="75%" stopColor="rgba(255,200,0,0.14)"/>
+            <stop offset="100%" stopColor="rgba(255,0,80,0.16)"/>
+          </linearGradient>)}
+        </defs>
+        <g clipPath={`url(#cl-${uid})`}>
+          <rect x="0" y="0" width={W} height={H} fill={`url(#bg-${uid})`}/>
+          <ellipse cx={cx2} cy={cy2} rx={W*0.62} ry={H*0.36} fill={`url(#atm-${uid})`}/>
+          {t.rays.map((rc:string,i:number)=>{
+            const a=(i/t.rays.length)*PI2;
+            return <line key={i} x1={cx2} y1={cy2} x2={cx2+Math.cos(a)*Math.max(W,H)*1.1} y2={cy2+Math.sin(a)*Math.max(W,H)*1.1} stroke={rc} strokeWidth={scale*2} strokeOpacity="0.14"/>;
+          })}
+          {/* Dartboard */}
+          <circle cx={cx2} cy={cy2} r={R*1.1} fill="rgba(0,0,0,0.65)"/>
+          {s20.map((s,i)=><path key={`ls${i}`} d={sP(cx2,cy2,R*0.88,R*0.54,s.sa,s.ea)} fill={s.ev?"#181008":"#e0d4b8"} stroke="rgba(0,0,0,0.5)" strokeWidth="0.3"/>)}
+          {s20.map((s,i)=><path key={`tr${i}`} d={sP(cx2,cy2,R*0.54,R*0.47,s.sa,s.ea)} fill={s.ev?"#006622":"#cc0000"} stroke="rgba(0,0,0,0.4)" strokeWidth="0.3"/>)}
+          {s20.map((s,i)=><path key={`sm${i}`} d={sP(cx2,cy2,R*0.47,R*0.10,s.sa,s.ea)} fill={s.ev?"#181008":"#e0d4b8"} stroke="rgba(0,0,0,0.4)" strokeWidth="0.3"/>)}
+          {s20.map((s,i)=><path key={`db${i}`} d={sP(cx2,cy2,R*0.96,R*0.88,s.sa,s.ea)} fill={s.ev?"#006622":"#cc0000"} stroke="rgba(0,0,0,0.4)" strokeWidth="0.3"/>)}
+          {s20.map((s,i)=>{
+            const x1=cx2+R*0.96*Math.cos(s.sa),y1=cy2+R*0.96*Math.sin(s.sa);
+            const x2=cx2+R*0.10*Math.cos(s.sa),y2=cy2+R*0.10*Math.sin(s.sa);
+            return <line key={`w${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(0,0,0,0.6)" strokeWidth="0.4"/>;
+          })}
+          {[0.96,0.88,0.54,0.47].map((rf,i)=><circle key={i} cx={cx2} cy={cy2} r={R*rf} fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth="0.4"/>)}
+          <circle cx={cx2} cy={cy2} r={R*0.10} fill="#006622"/>
+          <circle cx={cx2} cy={cy2} r={R*0.044} fill="#cc0000"/>
+          <circle cx={cx2} cy={cy2} r={R*0.96} fill={`url(#bg2-${uid})`}/>
+          <circle cx={cx2} cy={cy2} r={R*1.02} fill="none" stroke={t.pr} strokeWidth={scale*3.5} strokeOpacity="0.45"/>
+          <circle cx={cx2} cy={cy2} r={R*0.98} fill="none" stroke={t.se} strokeWidth={scale*1.2} strokeOpacity="0.65"/>
+          <circle cx={cx2} cy={cy2} r={R*0.12} fill={`url(#bull-${uid})`}/>
+          {/* Top branding */}
+          <rect x="0" y="0" width={W} height={H*0.24} fill={`url(#top-${uid})`}/>
+          <line x1="0" y1={H*0.24} x2={W} y2={H*0.24} stroke={t.pr} strokeWidth="1.2" strokeOpacity="0.55"/>
+          {t.cr&&(()=>{
+            const cxc=W/2,cyc=H*0.055,cw=scale*18,ch=scale*12;
+            return <polygon points={`${cxc-cw/2},${cyc+ch} ${cxc-cw/2},${cyc+ch*0.4} ${cxc-cw/4},${cyc+ch*0.7} ${cxc},${cyc} ${cxc+cw/4},${cyc+ch*0.7} ${cxc+cw/2},${cyc+ch*0.4} ${cxc+cw/2},${cyc+ch}`} fill={t.se} stroke={t.ac} strokeWidth="0.8" strokeOpacity="0.7"/>;
+          })()}
+          <text x={W/2} y={H*(t.cr?0.13:0.10)} textAnchor="middle" fontFamily="'Arial Black',Impact,Arial,sans-serif" fontWeight="900" fontSize={scale*26} fill="white" letterSpacing={scale*1.5}>TKDL</text>
+          <text x={W/2} y={H*0.175} textAnchor="middle" fontFamily="'Arial Black',Impact,Arial,sans-serif" fontWeight="900" fontSize={scale*9.5} fill={t.se} letterSpacing={scale*3}>CARD CLASH</text>
+          <text x={W/2} y={H*0.215} textAnchor="middle" fontFamily="Arial,sans-serif" fontWeight="700" fontSize={scale*6.5} fill="rgba(255,255,255,0.4)" letterSpacing={scale*2.5}>TESCO</text>
+          {/* Footer */}
+          <rect x="0" y={H*0.815} width={W} height={H*0.185} fill={`url(#ft-${uid})`}/>
+          <line x1="0" y1={H*0.815} x2={W} y2={H*0.815} stroke={t.pr} strokeWidth="1.2" strokeOpacity="0.55"/>
+          <text x={W/2} y={H*0.875} textAnchor="middle" fontFamily="'Arial Black',Impact,Arial,sans-serif" fontWeight="900" fontSize={scale*10.5} fill="white" letterSpacing={scale*1.2}>{t.tl}</text>
+          <text x={W/2} y={H*0.918} textAnchor="middle" fontFamily="Arial,sans-serif" fontWeight="700" fontSize={scale*7} fill={t.tx} letterSpacing={scale*0.5}>{t.ts}</text>
+          <text x={W/2} y={H*0.957} textAnchor="middle" fontFamily="Arial,sans-serif" fontWeight="600" fontSize={scale*6.5} fill="rgba(255,255,255,0.38)" letterSpacing={scale*0.8}>{t.tc}</text>
+          {/* Foil effects */}
+          {t.rb&&<rect x="0" y="0" width={W} height={H} fill={`url(#rb-${uid})`}/>}
+          <rect x="0" y="0" width={W} height={H} fill={`url(#sh-${uid})`}/>
+          <rect x="0" y="0" width={W} height={H} fill={`url(#edge-${uid})`}/>
+          <line x1={W*0.07} y1="2" x2={W*0.04} y2={H-2} stroke="rgba(255,255,255,0.055)" strokeWidth={scale}/>
+          <line x1={W*0.93} y1="2" x2={W*0.96} y2={H-2} stroke="rgba(0,0,0,0.1)" strokeWidth={scale}/>
         </g>
+        <rect x="1.5" y="1.5" width={W-3} height={H-3} rx="6" fill="none" stroke={`url(#bd-${uid})`} strokeWidth={scale*2.2}/>
+        <rect x="3.5" y="3.5" width={W-7} height={H-7} rx="4.5" fill="none" stroke={t.pr} strokeWidth={scale*0.6} strokeOpacity="0.22"/>
+      </svg>
+    );
+  }
+  
 
-        {/* Impact star sparks */}
-        {[0,72,144,216,288].map((a,i) => {
-          const sr = cx * (0.1 + (i%2)*0.05);
-          const x = Math.cos(a*Math.PI/180)*sr;
-          const y = Math.sin(a*Math.PI/180)*sr;
-          return <line key={i} x1="0" y1="0" x2={x} y2={y} stroke={pack.accB} strokeWidth="0.8" opacity="0.35"/>;
-        })}
-      </g>
+  // ── Hub icon components ───────────────────────────────────────────────────────
+  function CollectionIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><rect x="8" y="22" width="34" height="44" rx="4" fill="#050e25" stroke="#1a3a70" strokeWidth="1"/><rect x="16" y="14" width="34" height="44" rx="4" fill="#07142e" stroke="#1f4488" strokeWidth="1"/><rect x="24" y="8" width="34" height="44" rx="4" fill="#0c2040" stroke="#2255aa" strokeWidth="1.5"/><text x="41" y="36" textAnchor="middle" fontFamily="'Arial Black',sans-serif" fontWeight="900" fontSize="10" fill="#3377ee" letterSpacing="1">TKDL</text><text x="41" y="47" textAnchor="middle" fontFamily="Arial" fontSize="6" fill="rgba(80,150,255,0.55)">CARD CLASH</text><circle cx="41" cy="32" r="18" fill="none" stroke="rgba(50,130,255,0.28)" strokeWidth="1"/></svg>);}
+  function ShopIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><path d="M24,34 C24,18 52,18 52,34 L52,62 Q52,66 48,66 L28,66 Q24,66 24,62 Z" fill="#150a00" stroke="#f5a623" strokeWidth="1.8"/><path d="M28,34 C28,22 48,22 48,34" fill="none" stroke="#ffd24a" strokeWidth="2.5" strokeLinecap="round"/><text x="38" y="53" textAnchor="middle" fontFamily="'Arial Black',sans-serif" fontWeight="900" fontSize="10" fill="#ffd24a" letterSpacing="0.5">TKDL</text><circle cx="38" cy="42" r="20" fill="rgba(245,166,35,0.06)"/></svg>);}
+  function PlayIcon(){
+    const PI2=Math.PI*2;
+    const s20=Array.from({length:20},(_,i)=>({sa:(i/20)*PI2-Math.PI/2-PI2/40,ea:((i+1)/20)*PI2-Math.PI/2-PI2/40,ev:i%2===0}));
+    const cx=38,cy=38;
+    return(<svg viewBox="0 0 76 76" width="76" height="76">
+      {s20.map((s,i)=><path key={`a${i}`} d={sP(cx,cy,30,20,s.sa,s.ea)} fill={s.ev?"#006622":"#cc0000"} stroke="rgba(0,0,0,0.4)" strokeWidth="0.3"/>)}
+      {s20.map((s,i)=><path key={`b${i}`} d={sP(cx,cy,18,4,s.sa,s.ea)} fill={s.ev?"#181008":"#ddd0a8"} stroke="rgba(0,0,0,0.35)" strokeWidth="0.3"/>)}
+      <circle cx={cx} cy={cy} r="4" fill="#006622"/><circle cx={cx} cy={cy} r="2" fill="#cc0000"/>
+      <circle cx={cx} cy={cy} r="30" fill="none" stroke="rgba(0,255,136,0.4)" strokeWidth="1.5"/>
+      <line x1="60" y1="16" x2="42" y2="34" stroke="#00ff88" strokeWidth="2.5" strokeLinecap="round"/>
+      <circle cx="42" cy="34" r="2.5" fill="#00ff88"/>
+      <path d="M60,16 L66,10 L64,20 L60,16Z" fill="#00ff88"/>
+    </svg>);
+  }
+  function PracticeIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><rect x="16" y="16" width="44" height="44" rx="9" fill="#1a0008" stroke="#ff4466" strokeWidth="2"/><circle cx="28" cy="28" r="4.5" fill="#ff4466"/><circle cx="48" cy="28" r="4.5" fill="#ff4466"/><circle cx="38" cy="38" r="4.5" fill="#ff4466"/><circle cx="28" cy="48" r="4.5" fill="#ff4466"/><circle cx="48" cy="48" r="4.5" fill="#ff4466"/></svg>);}
+  function StandingsIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><path d="M22,14 H54 L50,42 C50,48 44,52 38,52 C32,52 26,48 26,42 Z" fill="#160030" stroke="#c084fc" strokeWidth="1.8"/><path d="M22,20 C15,20 10,26 10,33 C10,38 14,42 22,40" fill="none" stroke="#c084fc" strokeWidth="2" strokeLinecap="round"/><path d="M54,20 C61,20 66,26 66,33 C66,38 62,42 54,40" fill="none" stroke="#c084fc" strokeWidth="2" strokeLinecap="round"/><rect x="32" y="52" width="12" height="5" fill="#c084fc" rx="1"/><rect x="26" y="57" width="24" height="6" rx="2" fill="#c084fc"/><text x="38" y="40" textAnchor="middle" fontSize="18">⭐</text></svg>);}
+  function AchievementsIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><path d="M26,12 L34,28 L50,12 L54,14 L44,30 L32,30 L22,14 Z" fill="#ff8800" stroke="#ffd24a" strokeWidth="0.8"/><circle cx="38" cy="51" r="22" fill="#150800" stroke="#ff8800" strokeWidth="2"/><circle cx="38" cy="51" r="18" fill="none" stroke="rgba(255,136,0,0.28)" strokeWidth="1"/><text x="38" y="59" textAnchor="middle" fontSize="20">⭐</text></svg>);}
+  function RulesIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><rect x="8" y="16" width="28" height="44" rx="3" fill="#030c1a" stroke="#00ccff" strokeWidth="1.5"/><rect x="40" y="16" width="28" height="44" rx="3" fill="#030c1a" stroke="#00ccff" strokeWidth="1.5"/><rect x="34" y="14" width="8" height="48" fill="#00ccff" rx="1"/>{[24,31,38,45].map((y:number)=>(<React.Fragment key={y}><line x1="13" y1={y} x2="31" y2={y} stroke="rgba(0,204,255,0.28)" strokeWidth="1"/><line x1="45" y1={y} x2="63" y2={y} stroke="rgba(0,204,255,0.28)" strokeWidth="1"/></React.Fragment>))}</svg>);}
+  function AdminIcon(){
+    const teeth=Array.from({length:8},(_,i)=>{const a=(i/8)*Math.PI*2,hw=0.22,R1=30,R2=22,cx=38,cy=38;return `M${cx+R2*Math.cos(a-hw)},${cy+R2*Math.sin(a-hw)} L${cx+R1*Math.cos(a-hw)},${cy+R1*Math.sin(a-hw)} L${cx+R1*Math.cos(a+hw)},${cy+R1*Math.sin(a+hw)} L${cx+R2*Math.cos(a+hw)},${cy+R2*Math.sin(a+hw)}Z`;});
+    return(<svg viewBox="0 0 76 76" width="76" height="76">{teeth.map((tt:string,i:number)=><path key={i} d={tt} fill="#ff2244"/>)}<circle cx="38" cy="38" r="22" fill="#1a0010" stroke="#ff2244" strokeWidth="1.8"/><circle cx="38" cy="38" r="10" fill="#280018"/><text x="38" y="42" textAnchor="middle" fontFamily="'Arial Black',sans-serif" fontWeight="900" fontSize="8" fill="#ff4466" letterSpacing="0.5">TKDL</text></svg>);
+  }
 
-      {/* Legendary holographic overlay */}
-      {pack.tier==="legendary" && <rect width={W} height={H} fill={`url(#holo-${uid})`}/>}
+  // ── Stat card ─────────────────────────────────────────────────────────────────
+  function StatCard({icon,value,label,color}:{icon:string;value:any;label:string;color:string}){
+    return(
+      <div style={{padding:"14px 6px",borderRadius:"12px",textAlign:"center",background:`linear-gradient(160deg,${color}0e 0%,rgba(2,2,12,0.97) 100%)`,border:`1px solid ${color}28`,boxShadow:`inset 0 1px 0 rgba(255,255,255,0.04),0 6px 22px rgba(0,0,0,0.45)`}}>
+        <div style={{fontSize:"22px",marginBottom:"4px"}}>{icon}</div>
+        <div style={{fontSize:"clamp(18px,3.5vw,24px)",fontWeight:900,color,fontFamily:"'Arial Black',Arial,sans-serif",lineHeight:1,marginBottom:"4px"}}>{value}</div>
+        <div style={{fontSize:"9px",color:"rgba(255,255,255,0.28)",letterSpacing:"0.1em",textTransform:"uppercase"}}>{label}</div>
+      </div>
+    );
+  }
 
-      {/* Vignette */}
-      <radialGradient id={`vig-${uid}`} cx="50%" cy="50%" r="60%">
-        <stop offset="60%" stopColor="transparent"/>
-        <stop offset="100%" stopColor="rgba(0,0,0,0.7)"/>
-      </radialGradient>
-      <rect width={W} height={H} fill={`url(#vig-${uid})`}/>
-    </svg>
-  );
-}
-
-// ── Full booster-pack SVG ─────────────────────────────────────────────────────
-function PackSVG({ packId, scale = 1 }: { packId: string; scale?: number }) {
-  const p = PACKS.find(x=>x.id===packId) ?? PACKS[1];
-  // Real booster pack proportions: ~2.5 : 4.5 ≈ width:height
-  const W = Math.round(148 * scale), H = Math.round(236 * scale);
-  const uid = `pk-${packId}-${scale}`;
-  const STRIP_H  = Math.round(H * 0.2);   // tear strip
-  const ART_H    = Math.round(H * 0.48);  // art panel
-  const ART_Y    = STRIP_H;
-  const FOOT_H   = H - STRIP_H - ART_H;   // bottom info
-  const FOOT_Y   = STRIP_H + ART_H;
-
-  return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{display:"block",overflow:"visible"}}>
-      <defs>
-        <linearGradient id={`body-${uid}`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor={p.bg1}/>
-          <stop offset="45%" stopColor={p.bg2}/>
-          <stop offset="100%" stopColor={p.bg3}/>
-        </linearGradient>
-        <linearGradient id={`strip-${uid}`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={p.strip1}/>
-          <stop offset="50%" stopColor={p.strip2}/>
-          <stop offset="100%" stopColor={p.strip1}/>
-        </linearGradient>
-        <linearGradient id={`foot-${uid}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={p.foot1}/>
-          <stop offset="100%" stopColor={p.foot2}/>
-        </linearGradient>
-        <linearGradient id={`sheen-${uid}`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="rgba(255,255,255,0)"/>
-          <stop offset="38%" stopColor="rgba(255,255,255,0.07)"/>
-          <stop offset="55%" stopColor="rgba(255,255,255,0.18)"/>
-          <stop offset="72%" stopColor="rgba(255,255,255,0.07)"/>
-          <stop offset="100%" stopColor="rgba(255,255,255,0)"/>
-        </linearGradient>
-        <clipPath id={`cl-${uid}`}><rect x="1" y="1" width={W-2} height={H-2} rx="8"/></clipPath>
-        <clipPath id={`art-clip-${uid}`}><rect x="1" y={ART_Y} width={W-2} height={ART_H}/></clipPath>
-        <clipPath id={`strip-clip-${uid}`}><rect x="1" y="1" width={W-2} height={STRIP_H-1} rx="8"/></clipPath>
-        {p.tier==="legendary" && (
-          <linearGradient id={`holo2-${uid}`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%"   stopColor="rgba(255,30,80,0.15)"/>
-            <stop offset="20%"  stopColor="rgba(80,255,100,0.12)"/>
-            <stop offset="40%"  stopColor="rgba(0,160,255,0.15)"/>
-            <stop offset="60%"  stopColor="rgba(200,60,255,0.15)"/>
-            <stop offset="80%"  stopColor="rgba(255,180,0,0.12)"/>
-            <stop offset="100%" stopColor="rgba(255,30,80,0.15)"/>
-          </linearGradient>
+  // ── Hub card ─────────────────────────────────────────────────────────────────
+  function HubCard({label,sublabel,color,glow,onClick,badge,disabled=false,delay=0,icon}:{label:string;sublabel:string;color:string;glow:string;onClick:()=>void;badge?:number|string;disabled?:boolean;delay?:number;icon:React.ReactNode}){
+    const [hov,setHov]=React.useState(false);
+    return(
+      <button onClick={disabled?undefined:onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
+        style={{
+          all:"unset",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+          gap:"8px",padding:"18px 10px 14px",borderRadius:"14px",cursor:disabled?"not-allowed":"pointer",
+          position:"relative",overflow:"hidden",
+          transition:"all 0.22s cubic-bezier(0.34,1.56,0.64,1)",
+          background:hov?`linear-gradient(160deg,${color}1c 0%,rgba(4,4,18,0.97) 60%,${color}10 100%)`:`linear-gradient(160deg,${color}10 0%,rgba(2,2,12,0.98) 70%,${color}07 100%)`,
+          border:`1px solid ${hov?color+"55":color+"22"}`,
+          boxShadow:hov?`0 0 0 1px ${color}28,0 0 35px 6px ${glow},inset 0 1px 0 rgba(255,255,255,0.06),0 18px 40px rgba(0,0,0,0.75)`:`0 0 0 1px ${color}12,inset 0 1px 0 rgba(255,255,255,0.025),0 8px 28px rgba(0,0,0,0.55)`,
+          transform:hov?"translateY(-5px) scale(1.025)":"scale(1)",
+          opacity:disabled?0.3:1,minHeight:"158px",
+          animation:`hubCardFloat 4s ease-in-out infinite ${delay}s`,
+        }}>
+        <div style={{position:"absolute",top:"15%",left:"50%",transform:"translateX(-50%)",width:"90px",height:"80px",borderRadius:"50%",background:`radial-gradient(circle,${glow} 0%,transparent 70%)`,opacity:hov?0.55:0.18,transition:"opacity 0.25s",pointerEvents:"none"}}/>
+        {badge!==undefined&&(
+          <div style={{position:"absolute",top:"10px",right:"10px",zIndex:10,background:"linear-gradient(135deg,#ff3a5c,#dd0028)",color:"#fff",fontSize:"11px",fontWeight:900,minWidth:"22px",height:"22px",borderRadius:"11px",display:"flex",alignItems:"center",justifyContent:"center",padding:"0 5px",boxShadow:"0 0 14px rgba(255,50,80,0.7)",border:"1.5px solid rgba(255,255,255,0.25)"}}>{badge}</div>
         )}
-      </defs>
-
-      {/* Base body */}
-      <rect x="1" y="1" width={W-2} height={H-2} rx="8" fill={`url(#body-${uid})`}/>
-
-      {/* Art panel */}
-      <g clipPath={`url(#art-clip-${uid})`}>
-        <DartboardArt pack={p} W={W-2} H={ART_H}/>
-        {/* Offset to correct position */}
-        <rect x="1" y={ART_Y} width={W-2} height={ART_H} fill="transparent"/>
-      </g>
-
-      {/* Art panel separator lines */}
-      <line x1="1" y1={ART_Y} x2={W-1} y2={ART_Y} stroke={p.acc} strokeWidth="0.8" opacity="0.35"/>
-      <line x1="1" y1={FOOT_Y} x2={W-1} y2={FOOT_Y} stroke={p.acc} strokeWidth="0.8" opacity="0.35"/>
-
-      {/* Tear strip */}
-      <g clipPath={`url(#strip-clip-${uid})`}>
-        <rect x="1" y="1" width={W-2} height={STRIP_H-1} fill={`url(#strip-${uid})`}/>
-      </g>
-
-      {/* Perforation dots along tear line */}
-      {Array.from({length:Math.floor(W/7)},(_,i)=>(
-        <rect key={i} x={4+i*7} y={STRIP_H-2} width={4} height="2" rx="1" fill={p.acc} opacity="0.45"/>
-      ))}
-
-      {/* TKDL text in strip */}
-      <text x={W/2} y={STRIP_H*0.48} textAnchor="middle" fontSize={Math.round(W*0.14)}
-        fontWeight="900" fontFamily="'Arial Black',Impact,Arial,sans-serif"
-        fill={p.accB} letterSpacing="4"
-        style={{filter:`drop-shadow(0 0 5px ${p.acc})`}}>TKDL</text>
-      <text x={W/2} y={STRIP_H*0.76} textAnchor="middle" fontSize={Math.round(W*0.065)}
-        fill={p.acc} opacity="0.6" letterSpacing="2" fontFamily="Arial,sans-serif">CARD CLASH</text>
-
-      {/* Footer */}
-      <rect x="1" y={FOOT_Y} width={W-2} height={FOOT_H} fill={`url(#foot-${uid})`}/>
-
-      {/* Pack name in footer */}
-      <text x={W/2} y={FOOT_Y + FOOT_H*0.38} textAnchor="middle"
-        fontSize={Math.min(10, Math.round(W * 0.078))} fontWeight="900"
-        fontFamily="'Arial Black',Impact,Arial,sans-serif"
-        fill={p.accB} letterSpacing="1.5">{p.label}</text>
-      <text x={W/2} y={FOOT_Y + FOOT_H*0.68} textAnchor="middle"
-        fontSize={Math.round(W * 0.058)}
-        fill={p.acc} opacity="0.55" letterSpacing="1.2" fontFamily="Arial,sans-serif">{p.sub}</text>
-
-      {/* Ribbon badge */}
-      {p.ribbon && (
-        <>
-          <rect x={W*0.08} y={FOOT_Y + FOOT_H*0.78} width={W*0.84} height={FOOT_H*0.18} rx={FOOT_H*0.09}
-            fill={p.acc} opacity="0.2"/>
-          <text x={W/2} y={FOOT_Y + FOOT_H*0.91} textAnchor="middle"
-            fontSize={Math.round(W*0.048)} fontWeight="800"
-            fill={p.accB} letterSpacing="1.2" fontFamily="Arial,sans-serif">{p.ribbon}</text>
-        </>
-      )}
-
-      {/* Holographic overlay for Legend Vault */}
-      {p.tier==="legendary" && (
-        <rect x="1" y="1" width={W-2} height={H-2} rx="8" fill={`url(#holo2-${uid})`}/>
-      )}
-
-      {/* Metallic sheen */}
-      <rect x="1" y="1" width={W-2} height={H-2} rx="8" fill={`url(#sheen-${uid})`}/>
-
-      {/* Border */}
-      <rect x="1" y="1" width={W-2} height={H-2} rx="8" fill="none"
-        stroke={p.acc} strokeWidth="1.2" opacity="0.5"/>
-      {/* Inner highlight */}
-      <rect x="3" y="3" width={W-6} height={H-6} rx="6" fill="none"
-        stroke="rgba(255,255,255,0.07)" strokeWidth="0.8"/>
-    </svg>
-  );
-}
-
-// ── Hub navigation bubble ─────────────────────────────────────────────────────
-function HubBubble({
-  icon, label, color, glow, onClick, badge, disabled
-}: {
-  icon:string; label:string; color:string; glow:string;
-  onClick:()=>void; badge?:number|string; disabled?:boolean;
-}) {
-  const [hover,setHover] = useState(false);
-  return (
-    <button
-      onClick={disabled ? undefined : onClick}
-      onMouseEnter={()=>setHover(true)}
-      onMouseLeave={()=>setHover(false)}
-      style={{
-        all:"unset", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-        gap:"10px", padding:"22px 16px", borderRadius:"20px", cursor:disabled?"not-allowed":"pointer",
-        position:"relative", transition:"all 0.22s cubic-bezier(0.34,1.56,0.64,1)",
-        background: hover ? `linear-gradient(135deg,${color}18,${color}08)` : `linear-gradient(135deg,${color}0d,rgba(0,0,0,0))`,
-        border:`1.5px solid ${hover ? color+"70" : color+"28"}`,
-        boxShadow: hover ? `0 0 28px ${glow}, 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07)` : `0 2px 16px rgba(0,0,0,0.3)`,
-        transform: hover ? "translateY(-4px) scale(1.04)" : "scale(1)",
-        opacity: disabled ? 0.35 : 1,
-        minHeight:"110px",
-      }}
-    >
-      {badge && (
-        <div style={{
-          position:"absolute", top:"10px", right:"10px",
-          background:`linear-gradient(135deg,${color},${glow})`,
-          color:"#000", fontSize:"10px", fontWeight:900, padding:"2px 8px",
-          borderRadius:"10px", letterSpacing:"0.06em", boxShadow:`0 0 10px ${glow}`,
-        }}>{badge}</div>
-      )}
-      <div style={{fontSize:"36px", filter:`drop-shadow(0 0 12px ${glow})`}}>{icon}</div>
-      <div style={{
-        fontSize:"11px", fontWeight:900, letterSpacing:"0.14em", color: hover ? "#fff" : color,
-        fontFamily:"'Arial Black',Impact,Arial,sans-serif", textTransform:"uppercase",
-        textShadow: hover ? `0 0 14px ${glow}` : "none", transition:"all 0.18s",
-      }}>{label}</div>
-    </button>
-  );
-}
+        <div style={{width:"76px",height:"76px",display:"flex",alignItems:"center",justifyContent:"center",filter:hov?`drop-shadow(0 0 22px ${glow}) drop-shadow(0 0 44px ${glow})`:`drop-shadow(0 0 12px ${glow})`,transition:"all 0.22s",transform:hov?"scale(1.12)":"scale(1)",zIndex:1}}>{icon}</div>
+        <div style={{fontSize:"13px",fontWeight:900,letterSpacing:"0.13em",color:hov?"#fff":color,fontFamily:"'Arial Black',Impact,Arial,sans-serif",textTransform:"uppercase",textShadow:hov?`0 0 22px ${glow},0 0 44px ${glow}`:`0 0 12px ${glow}`,transition:"all 0.2s",zIndex:1}}>{label}</div>
+        <div style={{fontSize:"9px",fontWeight:600,letterSpacing:"0.07em",color:"rgba(255,255,255,0.3)",textTransform:"uppercase",textAlign:"center",lineHeight:1.5,zIndex:1}}>{sublabel}</div>
+      </button>
+    );
+  }
+  
 
 export default function CardClashPage() {
   const currentPlayer = useCurrentPlayer();
@@ -450,128 +364,112 @@ export default function CardClashPage() {
   const goTo = (tab: Tab) => setActiveTab(tab);
 
   // ── Page shell ──────────────────────────────────────────────────────────────
-  return (
-    <div style={{minHeight:"100vh",background:"#030812",color:"#fff",fontFamily:"Arial,sans-serif",position:"relative",overflowX:"hidden"}}>
-      <style>{`
-        @keyframes floatA{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-22px) scale(1.02)}}
-        @keyframes floatB{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
-        @keyframes glowPulse{0%,100%{opacity:0.6}50%{opacity:1}}
-        @keyframes titleShimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
-        @keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes packShimmer{0%{transform:translateX(-140%) skewX(-18deg)}100%{transform:translateX(320%) skewX(-18deg)}}
-        @keyframes spin{to{transform:rotate(360deg)}}
-        @keyframes rainbow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
-        @keyframes particleFloat{0%{transform:translateY(0) translateX(0);opacity:0.7}100%{transform:translateY(-80px) translateX(30px);opacity:0}}
-      `}</style>
+    return (
+      <div style={{minHeight:"100vh",background:"#020008",color:"#fff",fontFamily:"Arial,sans-serif",position:"relative",overflowX:"hidden"}}>
+        <style>{`
+          @keyframes floatA{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-20px) scale(1.02)}}
+          @keyframes titleShimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+          @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+          @keyframes packShimmer{0%{left:-60%}100%{left:160%}}
+          @keyframes auroraDrift1{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(30px,-20px) scale(1.08)}70%{transform:translate(-20px,25px) scale(0.95)}}
+          @keyframes auroraDrift2{0%,100%{transform:translate(0,0) scale(1)}35%{transform:translate(-40px,30px) scale(1.06)}65%{transform:translate(25px,-15px) scale(0.97)}}
+          @keyframes auroraDrift3{0%,100%{transform:translate(0,0)}50%{transform:translate(15px,-25px)}}
+          @keyframes hubCardFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+          @keyframes glowPulse{0%,100%{opacity:0.7}50%{opacity:1}}
+        `}</style>
 
-      {/* ── FIXED BACKGROUND GLOWS ── */}
-      <div style={{position:"fixed",inset:0,zIndex:0,pointerEvents:"none"}}>
-        <div style={{position:"absolute",top:"-15%",left:"-8%",width:"55%",height:"55%",background:"radial-gradient(ellipse,rgba(0,120,255,0.08) 0%,transparent 68%)",animation:"glowPulse 9s ease-in-out infinite"}}/>
-        <div style={{position:"absolute",bottom:"-18%",right:"-8%",width:"50%",height:"50%",background:"radial-gradient(ellipse,rgba(255,140,0,0.07) 0%,transparent 68%)",animation:"glowPulse 11s ease-in-out infinite 2s"}}/>
-        <div style={{position:"absolute",top:"38%",left:"38%",width:"32%",height:"32%",background:"radial-gradient(ellipse,rgba(160,0,255,0.05) 0%,transparent 68%)",animation:"glowPulse 14s ease-in-out infinite 4s"}}/>
-        <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.025) 1px,transparent 1px)",backgroundSize:"32px 32px"}}/>
-        <div style={{position:"absolute",inset:0,backgroundImage:"linear-gradient(rgba(255,255,255,0.012) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.012) 1px,transparent 1px)",backgroundSize:"96px 96px"}}/>
-      </div>
+        {/* ── AURORA BACKGROUND ── */}
+        <div style={{position:"fixed",inset:0,zIndex:0,pointerEvents:"none",overflow:"hidden"}}>
+          <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 50% 0%,#0a0025 0%,#020008 55%)"}}/>
+          <div style={{position:"absolute",top:"-20%",left:"-10%",width:"70%",height:"65%",borderRadius:"50%",background:"radial-gradient(ellipse,rgba(60,0,200,0.38) 0%,rgba(0,40,200,0.18) 50%,transparent 75%)",animation:"auroraDrift1 18s ease-in-out infinite"}}/>
+          <div style={{position:"absolute",bottom:"-20%",right:"-15%",width:"65%",height:"60%",borderRadius:"50%",background:"radial-gradient(ellipse,rgba(200,80,0,0.25) 0%,rgba(160,30,0,0.12) 50%,transparent 75%)",animation:"auroraDrift2 22s ease-in-out infinite 3s"}}/>
+          <div style={{position:"absolute",top:"25%",left:"20%",width:"60%",height:"55%",borderRadius:"50%",background:"radial-gradient(ellipse,rgba(100,0,160,0.22) 0%,transparent 65%)",animation:"auroraDrift3 14s ease-in-out infinite 7s"}}/>
+          <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.018) 1px,transparent 1px)",backgroundSize:"30px 30px"}}/>
+          <div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:"600px",height:"500px",background:"radial-gradient(ellipse at 50% 0%,rgba(100,80,255,0.12) 0%,transparent 70%)"}}/>
+          <svg style={{position:"absolute",bottom:0,left:0,width:"100%",height:"120px",opacity:0.06}} viewBox="0 0 1200 120" preserveAspectRatio="none">
+            {[80,160,240,320,400,480,560,640,720,800,880,960,1040,1120].map((x:number)=><ellipse key={x} cx={x} cy={120} rx="42" ry="28" fill="white"/>)}
+          </svg>
+        </div>
 
-      {/* ── CONTENT ── */}
-      <div style={{position:"relative",zIndex:1,maxWidth:"1200px",margin:"0 auto",padding:"0 20px 80px"}}>
+        {/* ── CONTENT ── */}
+        <div style={{position:"relative",zIndex:1,maxWidth:"980px",margin:"0 auto",padding:"0 16px 80px"}}>
 
-        {/* ── HUB / HOME ── */}
-        {activeTab==="hub" && (
-          <div style={{animation:"slideUp 0.3s ease"}}>
+          {/* ── HUB / HOME ── */}
+          {activeTab==="hub" && (
+            <div style={{animation:"slideUp 0.3s ease"}}>
 
-            {/* Hero section */}
-            <div style={{textAlign:"center",padding:"3rem 0 2.5rem",position:"relative"}}>
-              {/* Particle ring (decorative) */}
-              <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-54%)",width:"420px",height:"420px",borderRadius:"50%",border:"1px solid rgba(255,210,74,0.07)",pointerEvents:"none"}}/>
-              <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-54%)",width:"320px",height:"320px",borderRadius:"50%",border:"1px solid rgba(255,210,74,0.05)",pointerEvents:"none"}}/>
-
-              {/* Badge */}
-              <div style={{display:"inline-flex",alignItems:"center",gap:"8px",background:"rgba(255,210,74,0.1)",border:"1px solid rgba(255,210,74,0.28)",borderRadius:"24px",padding:"6px 18px",marginBottom:"1.5rem"}}>
-                <span style={{display:"inline-block",width:"6px",height:"6px",borderRadius:"50%",background:"#ffd24a",boxShadow:"0 0 10px #ffd24a",animation:"glowPulse 2s ease-in-out infinite"}}/>
-                <span style={{color:"#ffd24a",fontSize:"10px",fontWeight:900,letterSpacing:"0.22em",fontFamily:"'Arial Black',Arial,sans-serif"}}>TESCO KILBIRNIE DARTS LEAGUE</span>
-              </div>
-
-              {/* Main title */}
-              <div style={{lineHeight:0.88,marginBottom:"1.5rem"}}>
-                <div style={{
-                  fontSize:"clamp(52px,8vw,96px)",fontWeight:900,
-                  fontFamily:"'Arial Black',Impact,Arial,sans-serif",
-                  letterSpacing:"0.06em",textTransform:"uppercase",
-                  background:"linear-gradient(135deg,#fff 0%,#aadcff 30%,#fff 55%,#cceeff 100%)",
-                  backgroundSize:"200% 200%",
-                  WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",
-                  animation:"titleShimmer 5s ease-in-out infinite",
-                }}>CARD</div>
-                <div style={{
-                  fontSize:"clamp(52px,8vw,96px)",fontWeight:900,
-                  fontFamily:"'Arial Black',Impact,Arial,sans-serif",
-                  letterSpacing:"0.06em",textTransform:"uppercase",
-                  background:"linear-gradient(135deg,#ffaa00 0%,#ffd24a 35%,#fff5a0 55%,#ff9500 100%)",
-                  backgroundSize:"200% 200%",
-                  WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",
-                  animation:"titleShimmer 4s ease-in-out infinite 1s",
-                  textShadow:"none",
-                  filter:"drop-shadow(0 0 30px rgba(255,210,74,0.25))",
-                }}>CLASH</div>
-              </div>
-
-              <p style={{margin:"0 auto 2rem",fontSize:"14px",color:"rgba(255,255,255,0.4)",maxWidth:"340px",lineHeight:1.6}}>
-                100 cards · Real darts chaos · Mid-match power-ups
-              </p>
-
-              {/* HUD stats row */}
-              <div style={{display:"flex",gap:"12px",justifyContent:"center",flexWrap:"wrap",marginBottom:"0.5rem"}}>
-                <HudStat icon="🪙" label="Coins"    value={stats?.coins??"—"} color="#ffd24a"/>
-                <HudStat icon="🃏" label={`${totalOwned}/${ALL_CARDS.length}`} value={`${completionPct}%`} color="#00e5ff"/>
-                <HudStat icon="⚡" label="Wins"     value={stats?.wins??"—"} color="#00ff88"/>
-                <HudStat icon="🎯" label="Win Rate"  value={stats?`${winRate}%`:"—"} color="#c084fc"/>
-              </div>
-            </div>
-
-            {/* Navigation bubbles grid */}
-            <div style={{
-              display:"grid",
-              gridTemplateColumns:"repeat(auto-fill,minmax(148px,1fr))",
-              gap:"14px",
-              marginBottom:"2.5rem",
-            }}>
-              <HubBubble icon="🃏" label="Collection"   color="#00b4ff" glow="rgba(0,180,255,0.35)"  onClick={()=>goTo("collection")}   badge={newCardNames.size>0?newCardNames.size:undefined}/>
-              <HubBubble icon="🛍️" label="Shop"         color="#ffd24a" glow="rgba(255,210,74,0.4)"  onClick={()=>goTo("shop")}         badge={packInventory.length>0?packInventory.length:undefined}/>
-              <HubBubble icon="⚡" label="Play"         color="#00ff88" glow="rgba(0,255,136,0.4)"  onClick={()=>goTo("play")}/>
-              <HubBubble icon="🎲" label="Practice"     color="#ff6b35" glow="rgba(255,107,53,0.35)" onClick={()=>goTo("practice")}/>
-              <HubBubble icon="🏆" label="Standings"    color="#c084fc" glow="rgba(192,132,252,0.4)" onClick={()=>goTo("standings")}/>
-              <HubBubble icon="🎖️" label="Achievements" color="#ff9500" glow="rgba(255,149,0,0.4)"  onClick={()=>goTo("achievements")}/>
-              <HubBubble icon="📖" label="Rules"        color="#9ab0c4" glow="rgba(154,176,196,0.3)" onClick={()=>goTo("rules")}/>
-              <HubBubble icon="⚙️" label="Admin"        color="#ff4466" glow="rgba(255,68,102,0.35)" onClick={()=>goTo("admin")}/>
-            </div>
-
-            {/* Pack showcase strip */}
-            <div style={{textAlign:"center",marginBottom:"1rem"}}>
-              <div style={{fontSize:"10px",color:"rgba(255,255,255,0.22)",letterSpacing:"0.18em",marginBottom:"18px"}}>AVAILABLE PACKS — TAP SHOP TO OPEN</div>
-              <div style={{display:"flex",gap:"28px",justifyContent:"center",alignItems:"flex-end",flexWrap:"wrap"}}>
-                {PACKS.map((p,i)=>(
-                  <div key={p.id} onClick={()=>goTo("shop")} style={{cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:"12px",animation:`floatA ${3.2+i*0.6}s ease-in-out infinite ${i*0.8}s`}}>
-                    <div style={{
-                      filter:`drop-shadow(0 0 20px ${p.glow}) drop-shadow(0 0 40px ${p.glow.replace("0.","0.1")})`,
-                      transition:"all 0.2s",
-                      position:"relative",overflow:"hidden",
-                    }}>
-                      <PackSVG packId={p.id} scale={1}/>
-                      {/* Shimmer sweep */}
-                      <div style={{position:"absolute",top:0,left:0,width:"35px",height:"100%",background:`linear-gradient(90deg,transparent,${p.accB}18,transparent)`,animation:"packShimmer 3.5s linear infinite",pointerEvents:"none"}}/>
-                    </div>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:"11px",fontWeight:700,color:p.accB,letterSpacing:"0.04em",marginBottom:"2px"}}>{p.name}</div>
-                      <div style={{fontSize:"14px",fontWeight:900,color:"#ffd24a",fontFamily:"'Arial Black',Arial,sans-serif"}}>🪙 {p.cost}</div>
-                    </div>
+              {/* Hero */}
+              <div style={{textAlign:"center",padding:"2.5rem 0 1.5rem",position:"relative"}}>
+                {/* TESCO KILBIRNIE DARTS LEAGUE banner */}
+                <div style={{display:"inline-flex",alignItems:"center",gap:"10px",marginBottom:"1.1rem"}}>
+                  <div style={{width:"32px",height:"1px",background:"linear-gradient(90deg,transparent,#ffd24a)"}}/>
+                  <div style={{background:"linear-gradient(135deg,rgba(255,210,74,0.14),rgba(255,210,74,0.06))",border:"1px solid rgba(255,210,74,0.32)",borderRadius:"20px",padding:"5px 18px"}}>
+                    <span style={{color:"#ffd24a",fontSize:"9px",fontWeight:900,letterSpacing:"0.22em",fontFamily:"'Arial Black',Arial,sans-serif"}}>TESCO KILBIRNIE DARTS LEAGUE</span>
                   </div>
-                ))}
+                  <div style={{width:"32px",height:"1px",background:"linear-gradient(90deg,#ffd24a,transparent)"}}/>
+                </div>
+
+                {/* CARD CLASH title */}
+                <div style={{lineHeight:0.86,marginBottom:"0.5rem"}}>
+                  <div style={{fontSize:"clamp(64px,10vw,112px)",fontWeight:900,fontFamily:"'Arial Black',Impact,Arial,sans-serif",letterSpacing:"0.06em",textTransform:"uppercase",color:"#ffffff",textShadow:"0 0 60px rgba(100,120,255,0.4),0 0 120px rgba(80,80,255,0.2),0 4px 20px rgba(0,0,0,0.8)"}}>CARD</div>
+                  <div style={{fontSize:"clamp(64px,10vw,112px)",fontWeight:900,fontFamily:"'Arial Black',Impact,Arial,sans-serif",letterSpacing:"0.06em",textTransform:"uppercase",background:"linear-gradient(135deg,#ff9000 0%,#ffd24a 35%,#fffaa0 52%,#ffd24a 68%,#ff8800 100%)",backgroundSize:"200% 200%",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",animation:"titleShimmer 4s ease-in-out infinite",filter:"drop-shadow(0 0 40px rgba(255,160,0,0.5))"}}>CLASH</div>
+                </div>
+
+                {/* Mini dartboard icon */}
+                <div style={{display:"inline-block",marginBottom:"1rem",opacity:0.75}}>
+                  <svg width="50" height="50" viewBox="0 0 50 50">
+                    {Array.from({length:20},(_,i)=>{const sa=(i/20)*Math.PI*2-Math.PI/2-Math.PI/20,ea=((i+1)/20)*Math.PI*2-Math.PI/2-Math.PI/20,ev=i%2===0;return(<path key={i} d={sP(25,25,22,15,sa,ea)} fill={ev?"#006622":"#cc0000"} stroke="rgba(0,0,0,0.5)" strokeWidth="0.4"/>);})}
+                    {Array.from({length:20},(_,i)=>{const sa=(i/20)*Math.PI*2-Math.PI/2-Math.PI/20,ea=((i+1)/20)*Math.PI*2-Math.PI/2-Math.PI/20,ev=i%2===0;return(<path key={`s${i}`} d={sP(25,25,13,4,sa,ea)} fill={ev?"#181008":"#ddd0a8"} stroke="rgba(0,0,0,0.4)" strokeWidth="0.3"/>);})}
+                    <circle cx="25" cy="25" r="4" fill="#006622"/><circle cx="25" cy="25" r="1.8" fill="#cc0000"/>
+                    <circle cx="25" cy="25" r="22" fill="none" stroke="rgba(255,210,74,0.35)" strokeWidth="1"/>
+                  </svg>
+                </div>
+
+                {/* Tagline */}
+                <p style={{margin:"0 auto 1.6rem",fontSize:"11px",color:"rgba(255,255,255,0.35)",letterSpacing:"0.18em",textTransform:"uppercase"}}>100 CARDS · REAL DARTS CHAOS · MID-MATCH POWER-UPS</p>
+
+                {/* Stats row */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"10px",marginBottom:"0.5rem"}}>
+                  <StatCard icon="🪙" value={stats?.coins??"—"} label="COINS" color="#ffd24a"/>
+                  <StatCard icon="🃏" value={`${completionPct}%`} label={`${totalOwned}/${ALL_CARDS.length}`} color="#00ccff"/>
+                  <StatCard icon="⚡" value={stats?.wins??"—"} label="WINS" color="#00ff88"/>
+                  <StatCard icon="🎯" value={stats?`${winRate}%`:"—"} label="WIN RATE" color="#c084fc"/>
+                </div>
+              </div>
+
+              {/* Hub cards grid — 2 columns */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px",marginBottom:"2.5rem"}}>
+                <HubCard label="Collection" sublabel="Browse & manage your cards" color="#0088ff" glow="rgba(0,136,255,0.35)" delay={0} onClick={()=>goTo("collection")} badge={newCardNames.size>0?newCardNames.size:undefined} icon={<CollectionIcon/>}/>
+                <HubCard label="Shop" sublabel="Buy packs & special offers" color="#ffd24a" glow="rgba(255,210,74,0.4)" delay={0.4} onClick={()=>goTo("shop")} badge={packInventory.length>0?packInventory.length:undefined} icon={<ShopIcon/>}/>
+                <HubCard label="Play" sublabel="Jump into the action" color="#00ff88" glow="rgba(0,255,136,0.4)" delay={0.8} onClick={()=>goTo("play")} icon={<PlayIcon/>}/>
+                <HubCard label="Practice" sublabel="Sharpen your skills" color="#ff4466" glow="rgba(255,68,102,0.4)" delay={1.2} onClick={()=>goTo("practice")} icon={<PracticeIcon/>}/>
+                <HubCard label="Standings" sublabel="See who's on top" color="#c084fc" glow="rgba(192,132,252,0.4)" delay={1.6} onClick={()=>goTo("standings")} icon={<StandingsIcon/>}/>
+                <HubCard label="Achievements" sublabel="Earn & unlock rewards" color="#ff8800" glow="rgba(255,136,0,0.4)" delay={2.0} onClick={()=>goTo("achievements")} icon={<AchievementsIcon/>}/>
+                <HubCard label="Rules" sublabel="Learn the game" color="#00ccff" glow="rgba(0,204,255,0.35)" delay={2.4} onClick={()=>goTo("rules")} icon={<RulesIcon/>}/>
+                <HubCard label="Admin" sublabel="League management" color="#ff2244" glow="rgba(255,34,68,0.4)" delay={2.8} onClick={()=>goTo("admin")} icon={<AdminIcon/>}/>
+              </div>
+
+              {/* Pack showcase */}
+              <div style={{textAlign:"center",marginBottom:"1rem"}}>
+                <div style={{fontSize:"9px",color:"rgba(255,255,255,0.18)",letterSpacing:"0.18em",marginBottom:"18px",textTransform:"uppercase"}}>Available Packs — Tap Shop to Open</div>
+                <div style={{display:"flex",gap:"24px",justifyContent:"center",alignItems:"flex-end",flexWrap:"wrap"}}>
+                  {PACKS.map((p,i)=>(
+                    <div key={p.id} onClick={()=>goTo("shop")} style={{cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:"10px",animation:`floatA ${3.0+i*0.7}s ease-in-out infinite ${i*0.9}s`}}>
+                      <div style={{filter:`drop-shadow(0 0 22px ${p.glow}) drop-shadow(0 0 50px ${p.glow.replace("0.","0.12")})`,transition:"filter 0.2s",position:"relative",overflow:"hidden"}}>
+                        <PackSVG packId={p.id} scale={0.95}/>
+                        <div style={{position:"absolute",top:0,bottom:0,width:"36px",background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent)",animation:"packShimmer 3.2s linear infinite",pointerEvents:"none",left:"-36px"}}/>
+                      </div>
+                      <div style={{textAlign:"center"}}>
+                        <div style={{fontSize:"10px",fontWeight:700,color:p.accB,letterSpacing:"0.04em",marginBottom:"2px"}}>{p.name}</div>
+                        <div style={{fontSize:"13px",fontWeight:900,color:"#ffd24a",fontFamily:"'Arial Black',Arial,sans-serif"}}>🪙 {p.cost}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        )}
-
+          )}
+  
         {/* ── SECTION SHELL ── for non-hub tabs */}
         {activeTab!=="hub" && (
           <div style={{animation:"slideUp 0.25s ease"}}>
