@@ -161,7 +161,7 @@ export const statsService = {
       console.error("Error getting category stats:", error);
       throw error;
     }
-  }
+  },
 
   // Get monthly trends for a category
   async getCategoryTrends(playerId: number, category: GameTypeCategory) {
