@@ -4,6 +4,7 @@ import { Banknote, Gamepad2, TrendingUp } from "lucide-react";
 import { useFeatureFlags, FeatureGate } from "@/lib/useFeatureFlags";
 import { useCurrentPlayer } from "@/context/auth";
 import { CardEquipmentSelector } from "@/components/CardEquipmentSelector";
+import { CardEquipmentIntegration } from "@/components/CardEquipmentIntegration";
 import { CardShopUI } from "@/components/CardShopUI";
 import { CardInventory } from "@/components/CardInventory";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
@@ -262,14 +263,17 @@ export default function CardClashPage() {
       <div style={{ paddingBottom: "2rem" }}>
         {activeTab === "overview" && <OverviewTab season={activeSeason} stats={seasonStats} />}
         {activeTab === "play" && (
-          <CardClashMatchLauncher
-            currentPlayerId={playerId}
-            currentPlayerName={playerName}
-            onMatchComplete={() => {
-              setActiveTab("standings");
-              loadData();
-            }}
-          />
+          <div style={{ display: "grid", gap: "16px" }}>
+            <CardEquipmentIntegration playerId={playerId} />
+            <CardClashMatchLauncher
+              currentPlayerId={playerId}
+              currentPlayerName={playerName}
+              onMatchComplete={() => {
+                setActiveTab("standings");
+                loadData();
+              }}
+            />
+          </div>
         )}
         {activeTab === "shop" && (
           <FeatureGate
