@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { X } from "lucide-react";
+import { CardImage } from "./CardImage";
 
 export function CardDetailModal({ card, isOpen, onClose }: { card: any; isOpen: boolean; onClose: () => void }) {
   const [isFlipped, setIsFlipped] = useState(false);
@@ -119,11 +120,14 @@ export function CardDetailModal({ card, isOpen, onClose }: { card: any; isOpen: 
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "space-between",
+                alignItems: "center",
                 padding: "16px",
                 boxSizing: "border-box",
               }}
             >
-              <div>
+              <CardImage card={card} size="large" />
+
+              <div style={{ textAlign: "center", marginTop: "12px" }}>
                 <div
                   style={{
                     fontSize: "12px",
@@ -138,10 +142,10 @@ export function CardDetailModal({ card, isOpen, onClose }: { card: any; isOpen: 
                 </div>
                 <div
                   style={{
-                    fontSize: "20px",
+                    fontSize: "16px",
                     fontWeight: "700",
                     color: "#fff",
-                    marginBottom: "12px",
+                    marginBottom: "8px",
                   }}
                 >
                   {card.name || card.cardName}
@@ -149,13 +153,13 @@ export function CardDetailModal({ card, isOpen, onClose }: { card: any; isOpen: 
                 <div
                   style={{
                     display: "inline-block",
-                    padding: "6px 12px",
+                    padding: "4px 12px",
                     background: colors.bg,
                     border: `1px solid ${colors.border}`,
                     borderRadius: "4px",
                     color: colors.text,
                     fontWeight: "600",
-                    fontSize: "11px",
+                    fontSize: "10px",
                     textTransform: "uppercase",
                   }}
                 >
