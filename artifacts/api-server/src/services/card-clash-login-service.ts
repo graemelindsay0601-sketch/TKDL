@@ -8,7 +8,7 @@ export interface LoginReward {
   daysMilestone: number | null;
   totalCoins: number;
   currentStreak: number;
-  bestStreak: number;
+  longestStreak: number;
 }
 
 export const cardClashLoginService = {
@@ -34,9 +34,8 @@ export const cardClashLoginService = {
         .values({
           playerId,
           currentStreak: 1,
-          bestStreak: 1,
+          longestStreak: 1,
           lastLoginDate: todayString,
-          totalLogins: 1,
         })
         .returning();
 
@@ -48,7 +47,7 @@ export const cardClashLoginService = {
     const lastLoginString = lastLogin ? lastLogin.toISOString().split("T")[0] : null;
 
     let newStreak = streakRecord.currentStreak || 0;
-    let newBestStreak = streakRecord.bestStreak || 0;
+    let newLongestStreak = streakRecord.longestStreak || 0;
     let coinsAwarded = 0;
     let daysMilestone: number | null = null;
 
@@ -60,7 +59,7 @@ export const cardClashLoginService = {
         daysMilestone: null,
         totalCoins: 0,
         currentStreak: newStreak,
-        bestStreak: newBestStreak,
+        longestStreak: newLongestStreak,
       };
     }
 
@@ -81,9 +80,9 @@ export const cardClashLoginService = {
       newStreak = 1;
     }
 
-    // Update best streak if needed
-    if (newStreak > (streakRecord.bestStreak || 0)) {
-      newBestStreak = newStreak;
+    // Update longest streak if needed
+    if (newStreak > (streakRecord.longestStreak || 0)) {
+      newLongestStreak = newStreak;
     }
 
     // Award base coins
@@ -106,9 +105,8 @@ export const cardClashLoginService = {
       .update(playerLoginStreaks)
       .set({
         currentStreak: newStreak,
-        bestStreak: newBestStreak,
+        longestStreak: newLongestStreak,
         lastLoginDate: todayString,
-        totalLogins: (streakRecord.totalLogins || 0) + 1,
         updatedAt: new Date(),
       })
       .where(eq(playerLoginStreaks.playerId, playerId));
@@ -124,7 +122,7 @@ export const cardClashLoginService = {
       daysMilestone,
       totalCoins,
       currentStreak: newStreak,
-      bestStreak: newBestStreak,
+      longestStreak: newLongestStreak,
     };
   },
 
@@ -165,8 +163,7 @@ export const cardClashLoginService = {
    */
   async getStreakInfo(playerId: number): Promise<{
     currentStreak: number;
-    bestStreak: number;
-    totalLogins: number;
+    longestStreak: number;
     lastLoginDate: string | null;
   } | null> {
     const record = await db.query.playerLoginStreaks.findFirst({
@@ -177,8 +174,7 @@ export const cardClashLoginService = {
 
     return {
       currentStreak: record.currentStreak || 0,
-      bestStreak: record.bestStreak || 0,
-      totalLogins: record.totalLogins || 0,
+      longestStreak: record.longestStreak || 0,
       lastLoginDate: record.lastLoginDate,
     };
   },

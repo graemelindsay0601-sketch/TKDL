@@ -18,7 +18,6 @@ export const playerDailyChallenges = pgTable("player_daily_challenges", {
   id: serial("id").primaryKey(),
   player_id: integer("player_id").notNull(),
   challenge_id: integer("challenge_id").notNull(),
-  challenge_key: text("challenge_key").notNull(), // denormalized for easier querying
   progress: integer("progress").notNull().default(0), // how many completed
   is_completed: boolean("is_completed").notNull().default(false),
   completed_at: timestamp("completed_at"),

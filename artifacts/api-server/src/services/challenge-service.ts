@@ -57,7 +57,6 @@ export const challengeService = {
           .values({
             player_id: playerId,
             challenge_id: challenge.id,
-            challenge_key: challenge.challenge_key,
             progress: 0,
             is_completed: false,
             date_assigned: new Date(),

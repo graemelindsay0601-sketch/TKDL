@@ -332,7 +332,7 @@ router.get("/login/streak/:playerId", async (req: Request, res: Response) => {
     const { cardClashLoginService } = await import("../services/card-clash-login-service");
     const streak = await cardClashLoginService.getStreakInfo(playerId);
 
-    res.json(streak || { currentStreak: 0, bestStreak: 0, totalLogins: 0, lastLoginDate: null });
+    res.json(streak || { currentStreak: 0, longestStreak: 0, lastLoginDate: null });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
