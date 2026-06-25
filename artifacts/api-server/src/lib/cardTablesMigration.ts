@@ -55,15 +55,15 @@ export async function initializeCardTables() {
       )
     `);
 
-    // Create card_pity table if it doesn't exist
+    // Create card_pity_system table if it doesn't exist (must match schema name)
     await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS card_pity (
+      CREATE TABLE IF NOT EXISTS card_pity_system (
         id SERIAL PRIMARY KEY,
-        player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+        player_id INTEGER NOT NULL UNIQUE REFERENCES players(id) ON DELETE CASCADE,
         pulls_since_legendary INTEGER NOT NULL DEFAULT 0,
+        last_legendary_pull_id INTEGER,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(player_id)
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -193,6 +193,7 @@ export async function initializeCardTables() {
 
 /**
  * Seed initial currency for a player if they don't have it
+ * NEW PLAYERS START WITH 100 COINS
  */
 export async function ensurePlayerCurrency(playerId: number) {
   try {
@@ -202,12 +203,13 @@ export async function ensurePlayerCurrency(playerId: number) {
     `);
 
     if (existing.rows.length === 0) {
-      // Create new currency record with 0 starting coins
+      // Create new currency record with 100 starting coins
       await db.execute(sql`
         INSERT INTO player_currency (player_id, card_points, lifetime_coins_earned) 
-        VALUES (${playerId}, 0, 0)
+        VALUES (${playerId}, 100, 0)
         ON CONFLICT (player_id) DO NOTHING
       `);
+      console.log(`[COINS] Player ${playerId} created with 100 starting coins`);
     }
   } catch (error) {
     logger.error({ error, playerId }, "Failed to ensure player currency");
