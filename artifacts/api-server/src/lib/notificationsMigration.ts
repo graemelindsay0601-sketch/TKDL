@@ -95,12 +95,36 @@ export async function seedNotificationTables() {
       )
     `);
 
-    // Create indexes for performance
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_notifications_player_id ON notifications(player_id)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_push_subscriptions_player_id ON push_subscriptions(player_id)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_notification_analytics_player_id ON notification_analytics(player_id)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_admin_announcements_sent ON admin_announcements(sent)`);
+    // Create indexes for performance (non-blocking if they fail)
+    try {
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_notifications_player_id ON notifications(player_id)`);
+    } catch (e) {
+      logger.warn("Could not create idx_notifications_player_id - column may not exist");
+    }
+    
+    try {
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC)`);
+    } catch (e) {
+      logger.warn("Could not create idx_notifications_created_at");
+    }
+    
+    try {
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_push_subscriptions_player_id ON push_subscriptions(player_id)`);
+    } catch (e) {
+      logger.warn("Could not create idx_push_subscriptions_player_id");
+    }
+    
+    try {
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_notification_analytics_player_id ON notification_analytics(player_id)`);
+    } catch (e) {
+      logger.warn("Could not create idx_notification_analytics_player_id");
+    }
+    
+    try {
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_admin_announcements_sent ON admin_announcements(sent)`);
+    } catch (e) {
+      logger.warn("Could not create idx_admin_announcements_sent");
+    }
 
     logger.info("Notification tables seeded successfully");
   } catch (err) {
