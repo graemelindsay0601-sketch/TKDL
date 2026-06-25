@@ -4,7 +4,7 @@ import { ShoppingCart, Zap, Trophy, BookOpen, Coins } from "lucide-react";
 import { CardShopUI } from "@/components/CardShopUI";
 import { CardCollectionBook } from "@/components/CardCollectionBook";
 import { CoinBalance } from "@/components/CoinBalance";
-import { CardEquipmentIntegration } from "@/components/CardEquipmentIntegration";
+import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
 import { PlayerChallenges } from "@/components/PlayerChallenges";
 
 export default function CardClashPage() {
@@ -237,7 +237,29 @@ export default function CardClashPage() {
             <h2 style={{ fontSize: "18px", fontWeight: "700", marginBottom: "1rem", color: "#ffd24a" }}>
               Play Card Clash
             </h2>
-            <CardEquipmentIntegration playerId={playerId} />
+            <CardClashMatchLauncher
+              currentPlayerId={playerId}
+              currentPlayerName={(currentPlayer as any)?.name || (currentPlayer as any)?.playerName || "Player"}
+              onMatchComplete={() => {
+                setActiveTab("overview");
+                setLoading(true);
+                fetch("/api/card-clash/season/active")
+                  .then(r => r.json())
+                  .then(s => {
+                    setSeason(s);
+                    return Promise.all([
+                      s?.id ? fetch(`/api/card-clash/standings/${s.id}`).then(r => r.json()).catch(() => []) : Promise.resolve([]),
+                      fetch(`/api/card-clash/player/${playerId}/stats`).then(r => r.json()).catch(() => ({})),
+                    ]);
+                  })
+                  .then(([st, stats]) => {
+                    setStandings(Array.isArray(st) ? st : st?.standings || []);
+                    setStats(stats);
+                    setLoading(false);
+                  })
+                  .catch(() => setLoading(false));
+              }}
+            />
           </div>
         )}
 
