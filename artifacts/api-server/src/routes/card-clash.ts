@@ -463,17 +463,6 @@ router.post("/challenges/update-weekly", async (req: Request, res: Response) => 
   }
 });
 
-router.post("/admin/challenges/seed", verifyAdminPin, async (req: Request, res: Response) => {
-  try {
-    const { challengeService } = await import("../services/challenge-service");
-    await challengeService.seedDefaultChallenges();
-
-    res.json({ success: true, message: "Default challenges seeded" });
-  } catch (error) {
-    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
-  }
-});
-
 // === SEASONAL QUEST ROUTES ===
 
 router.get("/quests/seasonal/:playerId", async (req: Request, res: Response) => {

@@ -67,8 +67,8 @@ export function PlayerChallenges({ playerId }: { playerId: number }) {
                 key={i}
                 style={{
                   padding: "10px",
-                  background: c.isCompleted ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.05)",
-                  border: `1px solid ${c.isCompleted ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.1)"}`,
+                  background: c.is_completed ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${c.is_completed ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.1)"}`,
                   borderRadius: "6px",
                   fontSize: "12px",
                   color: "#fff",
@@ -77,9 +77,9 @@ export function PlayerChallenges({ playerId }: { playerId: number }) {
                   alignItems: "center",
                 }}
               >
-                <span>{c.name || c.title || `Challenge ${i + 1}`}</span>
-                <span style={{ color: c.isCompleted ? "#22c55e" : "rgba(255,255,255,0.5)", fontWeight: "500" }}>
-                  {c.isCompleted ? "✓" : `${c.progress || 0}/${c.target || 1}`}
+                <span>{c.title || c.name || `Challenge ${i + 1}`}</span>
+                <span style={{ color: c.is_completed ? "#22c55e" : "rgba(255,255,255,0.5)", fontWeight: "500" }}>
+                  {c.is_completed ? "✓" : `${c.progress || 0}/${c.requirement_value || 1}`}
                 </span>
               </div>
             ))}
@@ -96,8 +96,8 @@ export function PlayerChallenges({ playerId }: { playerId: number }) {
                 key={i}
                 style={{
                   padding: "10px",
-                  background: c.isCompleted ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.05)",
-                  border: `1px solid ${c.isCompleted ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.1)"}`,
+                  background: c.is_completed ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${c.is_completed ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.1)"}`,
                   borderRadius: "6px",
                   fontSize: "12px",
                   color: "#fff",
@@ -106,9 +106,9 @@ export function PlayerChallenges({ playerId }: { playerId: number }) {
                   alignItems: "center",
                 }}
               >
-                <span>{c.name || c.title || `Challenge ${i + 1}`}</span>
-                <span style={{ color: c.isCompleted ? "#22c55e" : "rgba(255,255,255,0.5)", fontWeight: "500" }}>
-                  {c.isCompleted ? "✓" : `${c.progress || 0}/${c.target || 1}`}
+                <span>{c.title || c.name || `Challenge ${i + 1}`}</span>
+                <span style={{ color: c.is_completed ? "#22c55e" : "rgba(255,255,255,0.5)", fontWeight: "500" }}>
+                  {c.is_completed ? "✓" : `${c.progress || 0}/${c.requirement_value || 1}`}
                 </span>
               </div>
             ))}
