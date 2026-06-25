@@ -77,88 +77,145 @@ export default function CardClashPage() {
   ] as const;
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "1200px", margin: "0 auto" }}>
-      {/* Hero Section */}
+    <div style={{ padding: "0", maxWidth: "100%", margin: "0", background: "linear-gradient(180deg, rgba(20,10,40,0.8), rgba(10,5,20,0.9))" }}>
+      {/* HERO SECTION - Professional Large Header */}
       <div
         style={{
-          background: "linear-gradient(135deg, rgba(255,212,74,0.15), rgba(0,229,255,0.15))",
-          borderRadius: "16px",
-          padding: "2.5rem 2rem",
-          marginBottom: "2rem",
-          border: "2px solid rgba(255,212,74,0.3)",
+          background: "linear-gradient(135deg, rgba(255,212,74,0.25) 0%, rgba(0,229,255,0.15) 50%, rgba(255,80,100,0.1) 100%)",
+          borderBottom: "3px solid rgba(255,212,74,0.4)",
+          padding: "3rem 2rem",
           position: "relative",
           overflow: "hidden",
         }}
       >
-        <div style={{ position: "relative", zIndex: 2 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "1rem" }}>
-            <div style={{ fontSize: "48px" }}>🎴</div>
-            <div>
-              <h1 style={{ fontSize: "32px", fontWeight: "700", margin: "0", color: "#ffd24a" }}>Card Clash</h1>
-              <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.6)", margin: "4px 0 0 0" }}>
-                Collect, equip, and clash with tactical card effects
-              </p>
+        {/* Animated background effect */}
+        <div
+          style={{
+            position: "absolute",
+            top: "-50%",
+            right: "-10%",
+            width: "600px",
+            height: "600px",
+            background: "radial-gradient(circle, rgba(255,212,74,0.1) 0%, transparent 70%)",
+            borderRadius: "50%",
+            pointerEvents: "none",
+          }}
+        />
+
+        <div style={{ maxWidth: "1400px", margin: "0 auto", position: "relative", zIndex: 2 }}>
+          {/* Main Title */}
+          <div style={{ marginBottom: "2rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "20px", marginBottom: "0.5rem" }}>
+              <div style={{ fontSize: "64px", textShadow: "0 0 20px rgba(255,212,74,0.6)" }}>🎴</div>
+              <div>
+                <h1 style={{ 
+                  fontSize: "48px", 
+                  fontWeight: "800", 
+                  margin: "0",
+                  background: "linear-gradient(135deg, #ffd24a 0%, #00e5ff 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                  textTransform: "uppercase",
+                  letterSpacing: "2px",
+                }}>CARD CLASH</h1>
+                <p style={{ 
+                  fontSize: "16px", 
+                  color: "rgba(255,255,255,0.7)", 
+                  margin: "8px 0 0 0",
+                  fontStyle: "italic",
+                }}>
+                  Collect legendary cards • Master tactical effects • Clash with style
+                </p>
+              </div>
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginTop: "1.5rem" }}>
-            <StatBox title="Season" value={season?.name || "Waiting..."} color="#ffd24a" />
-            <StatBox title="Your Coins" value={stats?.coins || "0"} color="#00ff88" />
-            <StatBox title="Cards Owned" value={stats?.cardsOwned || "0"} color="#00e5ff" />
-            <StatBox title="Matches Played" value={stats?.matchesPlayed || "0"} color="#ff6b6b" />
+
+          {/* Stats Grid */}
+          <div style={{ 
+            display: "grid", 
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", 
+            gap: "16px",
+            marginTop: "2rem",
+          }}>
+            <StatBoxPro title="ACTIVE SEASON" value={season?.name || "Loading..."} color="#ffd24a" icon="📅" />
+            <StatBoxPro title="CARD COINS" value={stats?.coins?.toString() || "0"} color="#00e5ff" icon="💎" />
+            <StatBoxPro title="COLLECTION" value={(stats?.cardsOwned || 0) + "/100"} color="#00ff88" icon="📚" />
+            <StatBoxPro title="MATCHES" value={stats?.matchesPlayed || "0"} color="#ff6b6b" icon="⚔️" />
           </div>
         </div>
       </div>
 
-      {/* Tab Navigation */}
+      {/* TAB NAVIGATION - Professional Styling */}
       <div style={{
+        maxWidth: "1400px",
+        margin: "0 auto",
+        padding: "0 2rem",
         display: "flex",
-        gap: "8px",
-        marginBottom: "2rem",
-        borderBottom: "2px solid rgba(255,255,255,0.1)",
+        gap: "12px",
+        marginTop: "2rem",
         overflowX: "auto",
+        borderBottom: "2px solid rgba(255,212,74,0.2)",
       }}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             style={{
-              padding: "12px 20px",
-              background: activeTab === tab.id ? "rgba(255,212,74,0.2)" : "transparent",
-              border: activeTab === tab.id ? "2px solid #ffd24a" : "2px solid transparent",
+              padding: "16px 28px",
+              background: activeTab === tab.id 
+                ? "linear-gradient(135deg, rgba(255,212,74,0.3), rgba(0,229,255,0.2))"
+                : "transparent",
+              border: activeTab === tab.id 
+                ? "2px solid rgba(255,212,74,0.6)"
+                : "2px solid rgba(255,255,255,0.1)",
               color: activeTab === tab.id ? "#ffd24a" : "rgba(255,255,255,0.6)",
-              borderRadius: "8px 8px 0 0",
+              borderRadius: "12px",
               cursor: "pointer",
-              fontSize: "14px",
-              fontWeight: "600",
-              transition: "all 0.2s",
+              fontSize: "15px",
+              fontWeight: "700",
+              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
               textDecoration: "none",
               whiteSpace: "nowrap",
+              boxShadow: activeTab === tab.id ? "0 0 20px rgba(255,212,74,0.3)" : "none",
+              textTransform: "uppercase",
+              letterSpacing: "1px",
             }}
             onMouseEnter={(e) => {
               if (activeTab !== tab.id) {
                 const el = e.currentTarget as HTMLElement;
+                el.style.borderColor = "rgba(255,212,74,0.4)";
                 el.style.color = "rgba(255,255,255,0.8)";
               }
             }}
             onMouseLeave={(e) => {
               if (activeTab !== tab.id) {
                 const el = e.currentTarget as HTMLElement;
+                el.style.borderColor = "rgba(255,255,255,0.1)";
                 el.style.color = "rgba(255,255,255,0.6)";
               }
             }}
           >
-            {tab.label}
+            {tab.icon} {tab.label}
           </button>
         ))}
       </div>
 
-      {/* Tab Content */}
+      {/* CONTENT AREA */}
       <div style={{
-        background: "rgba(0,0,0,0.2)",
-        borderRadius: "12px",
+        maxWidth: "1400px",
+        margin: "0 auto",
         padding: "2rem",
-        border: "1px solid rgba(255,255,255,0.1)",
+        minHeight: "calc(100vh - 300px)",
       }}>
+        {/* Tab Content */}
+        <div style={{
+          background: "rgba(0,0,0,0.3)",
+          borderRadius: "16px",
+          padding: "2.5rem",
+          border: "1px solid rgba(255,212,74,0.15)",
+          marginTop: "2rem",
+        }}>
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div style={{ display: "grid", gap: "2rem" }}>
@@ -282,6 +339,7 @@ export default function CardClashPage() {
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   );
@@ -301,6 +359,57 @@ function StatBox({ title, value, color }: { title: string; value: string | numbe
       </div>
       <div style={{ fontSize: "24px", fontWeight: "700", color: color }}>
         {value}
+      </div>
+    </div>
+  );
+}
+
+function StatBoxPro({ title, value, color, icon }: { title: string; value: string | number; color: string; icon: string }) {
+  return (
+    <div style={{
+      background: `linear-gradient(135deg, ${color}20 0%, ${color}10 100%)`,
+      border: `2px solid ${color}40`,
+      borderRadius: "14px",
+      padding: "24px 20px",
+      textAlign: "center",
+      position: "relative",
+      overflow: "hidden",
+      transition: "all 0.3s ease",
+      boxShadow: `0 0 20px ${color}20`,
+    }}>
+      {/* Gradient accent */}
+      <div
+        style={{
+          position: "absolute",
+          top: "-50%",
+          right: "-50%",
+          width: "200px",
+          height: "200px",
+          background: `radial-gradient(circle, ${color}30, transparent 70%)`,
+          pointerEvents: "none",
+        }}
+      />
+      
+      <div style={{ position: "relative", zIndex: 2 }}>
+        <div style={{ fontSize: "32px", marginBottom: "8px" }}>{icon}</div>
+        <div style={{ 
+          fontSize: "11px", 
+          color: "rgba(255,255,255,0.6)", 
+          marginBottom: "8px", 
+          textTransform: "uppercase",
+          letterSpacing: "1px",
+          fontWeight: "700",
+        }}>
+          {title}
+        </div>
+        <div style={{ 
+          fontSize: "32px", 
+          fontWeight: "800", 
+          color: color,
+          textShadow: `0 0 10px ${color}60`,
+        }}>
+          {value}
+        </div>
       </div>
     </div>
   );
