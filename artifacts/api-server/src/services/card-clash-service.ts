@@ -54,24 +54,44 @@ export async function startCardClashMatch(
   const p1Cards = equippedCards?.player1 ?? [];
   const p2Cards = equippedCards?.player2 ?? [];
 
-  // Ensure all required columns exist (idempotent)
+  logger.info({ gameMode, player1Id, player2Id }, "Starting Card Clash match");
+
+  // Ensure schema is up to date - make season_id nullable
+  try {
+    await db.execute(sql`ALTER TABLE card_clash_matches ALTER COLUMN season_id DROP NOT NULL`);
+    logger.info("Ensured season_id is nullable");
+  } catch (e) {
+    logger.warn({ e }, "Could not drop NOT NULL on season_id (may already be done)");
+  }
+
+  try {
+    // Drop foreign key constraint if it exists
+    await db.execute(
+      sql`ALTER TABLE card_clash_matches DROP CONSTRAINT IF EXISTS card_clash_matches_season_id_card_clash_seasons_id_fk`
+    );
+    logger.info("Dropped season_id foreign key constraint");
+  } catch (e) {
+    logger.warn({ e }, "Could not drop FK (may not exist)");
+  }
+
+  // Ensure columns exist
   for (const alter of [
-    sql`ALTER TABLE card_clash_matches ALTER COLUMN season_id DROP NOT NULL`,
-    sql`ALTER TABLE card_clash_matches DROP CONSTRAINT IF EXISTS card_clash_matches_season_id_card_clash_seasons_id_fk`,
     sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_equipped_cards JSONB`,
     sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_equipped_cards JSONB`,
-    sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSONB`,
+    sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSONB DEFAULT '[]'`,
     sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_points_earned INTEGER DEFAULT 0`,
     sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER DEFAULT 0`,
   ]) {
-    try { await db.execute(alter); } catch (_) {}
+    try {
+      await db.execute(alter);
+    } catch (_) {
+      // Column may already exist
+    }
   }
 
-  // Primary: INSERT without season_id (seasons are no longer required)
-  // Fallback: if season_id is still NOT NULL in this environment, use an active season
-  let result;
+  // INSERT without season_id (Card Clash is standalone, no seasons)
   try {
-    result = await db.execute(sql`
+    const result = await db.execute(sql`
       INSERT INTO card_clash_matches
         (game_mode, player_1_id, player_2_id, winner_id,
          player_1_equipped_cards, player_2_equipped_cards, cards_used_in_match,
@@ -82,38 +102,17 @@ export async function startCardClashMatch(
          '[]'::jsonb, 0, 0)
       RETURNING *
     `);
-  } catch (_primaryErr) {
-    // Fallback: season_id column is still NOT NULL — find or create one
-    let seasonId: number | null = null;
-    try {
-      const sr = await db.execute(sql`SELECT id FROM card_clash_seasons WHERE is_active = true LIMIT 1`);
-      if (sr.rows.length > 0) {
-        seasonId = (sr.rows[0] as any).id;
-      } else {
-        const now = new Date();
-        const start = now.toISOString().split("T")[0];
-        const end   = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-        const ins = await db.execute(sql`
-          INSERT INTO card_clash_seasons (name, start_date, end_date, is_active)
-          VALUES (${"Season " + now.getFullYear()}, ${start}::DATE, ${end}::DATE, true)
-          RETURNING id
-        `);
-        seasonId = (ins.rows[0] as any)?.id ?? null;
-      }
-    } catch (_) {}
-    result = await db.execute(sql`
-      INSERT INTO card_clash_matches
-        (season_id, game_mode, player_1_id, player_2_id, winner_id,
-         player_1_equipped_cards, player_2_equipped_cards, cards_used_in_match,
-         player_1_points_earned, player_2_points_earned)
-      VALUES
-        (${seasonId}, ${gameMode}, ${player1Id}, ${player2Id}, ${player1Id},
-         ${JSON.stringify(p1Cards)}::jsonb, ${JSON.stringify(p2Cards)}::jsonb,
-         '[]'::jsonb, 0, 0)
-      RETURNING *
-    `);
+    
+    logger.info({ matchId: result.rows[0]?.id }, "Match created successfully");
+    return result.rows[0];
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.error(
+      { error: errorMsg, gameMode, player1Id, player2Id },
+      "Failed to start Card Clash match"
+    );
+    throw new Error(`Failed to create match: ${errorMsg}`);
   }
-  return result.rows[0];
 }
 
 export async function recordCardUsedInMatch(

@@ -16,7 +16,7 @@ const CAT_COLOR: Record<Category,string> = {"X01 GOOD":"#00b4ff","X01 BAD":"#ff3
 const RAR_COLOR: Record<Rarity,string> = { COMMON:"#9ab0c4", RARE:"#c084fc", LEGENDARY:"#ffd24a" };
 
 interface Stats { coins:number; cardsOwned:number; matchesPlayed:number; wins:number; losses:number; }
-interface Standing { player_id:number; player_name:string; wins:number; losses:number; total_matches:number; points:number; }
+interface Standing { player_id:number; player_name:string; wins:number; losses:number; total_matches:number; win_percentage?:number; cards_unlocked_count?:number; }
 
 // ── TCG-style Pack Art ────────────────────────────────────────────────────────
 const PACKS = [
@@ -238,7 +238,7 @@ const PACKS = [
       const [statsR,invR,standR,achR,packR] = await Promise.all([
         fetch(`/api/card-clash/player/${playerId}/stats`).then(r=>r.ok?r.json():null),
         fetch(`/api/card-clash/inventory/${playerId}`).then(r=>r.ok?r.json():[]),
-        fetch("/api/card-clash/standings").then(r=>r.ok?r.json():[]),
+        fetch("/api/card-clash/leaderboard").then(r=>r.ok?r.json():[]),
         fetch(`/api/card-clash/achievements/${playerId}`).then(r=>r.ok?r.json():null),
         fetch(`/api/card-clash/pack-inventory/${playerId}`).then(r=>r.ok?r.json():[]),
       ]);
