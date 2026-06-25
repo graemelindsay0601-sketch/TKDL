@@ -498,19 +498,22 @@ router.post("/mock-game/start", async (req: Request, res: Response) => {
     }
 
     const p1Cards = Array.isArray(player1Cards) ? player1Cards : [];
-    // Use player1Id as the placeholder for player_2_id when playing against a bot,
-    // because player_2_id has a NOT NULL FK constraint referencing the players table.
+    // player_2_id is NOT NULL FK — use player1Id as placeholder for bot games
     const p2Id = player2Id || player1Id;
 
+    // season_id is NOT NULL in the original schema — drop the constraint synchronously
+    // so the INSERT below can omit it (NULL is allowed after dropping NOT NULL)
+    try { await db.execute(sql`ALTER TABLE card_clash_matches ALTER COLUMN season_id DROP NOT NULL`); } catch (_) {}
+    try { await db.execute(sql`ALTER TABLE card_clash_matches DROP CONSTRAINT IF EXISTS card_clash_matches_season_id_card_clash_seasons_id_fk`); } catch (_) {}
+
+    // Omit season_id (now nullable) and is_mock (may not exist yet — defaults to false)
     const result = await db.execute(sql`
       INSERT INTO card_clash_matches
         (game_mode, player_1_id, player_2_id, winner_id,
-         player_1_equipped_cards, player_2_equipped_cards, cards_used_in_match,
-         player_1_points_earned, player_2_points_earned, is_mock)
+         player_1_equipped_cards, player_2_equipped_cards, cards_used_in_match)
       VALUES
         ('MOCK', ${player1Id}, ${p2Id}, ${player1Id},
-         ${JSON.stringify(p1Cards)}::json, ${JSON.stringify(botCards)}::json, '[]'::json,
-         0, 0, true)
+         ${JSON.stringify(p1Cards)}::jsonb, ${JSON.stringify(botCards)}::jsonb, '[]'::jsonb)
       RETURNING *
     `);
 
