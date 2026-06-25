@@ -109,6 +109,11 @@ export interface CricketState { marks: number[][]; scores: [number,number]; turn
 // CARD ACTIVATION — maps card names to CCEffect(s)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/** Strip punctuation+spaces+case for fuzzy name matching (handles camelCase DB names vs spaced engine names) */
+function normalizeCardKey(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 export function ccActivateCard(
   card: any,
   byPlayer: 0 | 1,
@@ -248,8 +253,16 @@ export function ccActivateCard(
   };
 
   const allMaps = [x01Good, x01Bad, cricGood, cricBad, wildcardGood, wildcardBad];
+  // Try exact match first
   for (const m of allMaps) {
     if (name in m) return [m[name]];
+  }
+  // Normalized match — handles camelCase DB names ("BankingStrategy") vs spaced engine names ("Banking Strategy")
+  const normInput = normalizeCardKey(name);
+  for (const m of allMaps) {
+    for (const [key, effect] of Object.entries(m)) {
+      if (normalizeCardKey(key) === normInput) return [effect];
+    }
   }
   // Fallback: generic score modifier
   const isGood = (card.good_or_bad || card.cardType || "GOOD") === "GOOD";
