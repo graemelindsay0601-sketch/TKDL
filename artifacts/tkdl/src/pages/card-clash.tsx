@@ -31,6 +31,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "standings",    label: "Standings",    icon: "🏆" },
   { id: "achievements", label: "Achievements", icon: "🎖️" },
   { id: "rules",        label: "Rules",        icon: "📖" },
+  { id: "admin",        label: "Admin",        icon: "⚙️" },
 ];
 
 export default function CardClashPage() {
