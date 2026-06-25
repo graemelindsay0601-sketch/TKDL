@@ -68,15 +68,19 @@ const PACKS = [
   // ── Pack image ────────────────────────────────────────────────────────────────
     function PackSVG({ packId, scale = 1 }: { packId: string; scale?: number }) {
       const W = Math.round(148 * scale), H = Math.round(236 * scale);
+      const PACK_IMGS: Record<string,string> = {
+        single: "/assets/pack-league-front.png",
+        five:   "/assets/pack-gold-front.png",
+        ten:    "/assets/pack-purple-front.png",
+      };
+      const src = PACK_IMGS[packId] ?? PACK_IMGS.single;
       return (
         <div style={{
           width: W, height: H, position: "relative", overflow: "hidden",
           borderRadius: Math.round(7 * scale),
           boxShadow: `0 ${Math.round(8*scale)}px ${Math.round(32*scale)}px rgba(0,0,0,0.7)`,
         }}>
-          <img
-            src="/assets/pack-league-front.png"
-            alt={packId}
+          <img src={src} alt={packId}
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", maxWidth: "none" }}
           />
         </div>
@@ -291,17 +295,11 @@ const PACKS = [
           @keyframes glowPulse{0%,100%{opacity:0.7}50%{opacity:1}}
         `}</style>
 
-        {/* ── AURORA BACKGROUND ── */}
+        {/* ── BACKGROUND IMAGE ── */}
         <div style={{position:"fixed",inset:0,zIndex:0,pointerEvents:"none",overflow:"hidden"}}>
-          <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 50% 0%,#0a0025 0%,#020008 55%)"}}/>
-          <div style={{position:"absolute",top:"-20%",left:"-10%",width:"70%",height:"65%",borderRadius:"50%",background:"radial-gradient(ellipse,rgba(60,0,200,0.38) 0%,rgba(0,40,200,0.18) 50%,transparent 75%)",animation:"auroraDrift1 18s ease-in-out infinite"}}/>
-          <div style={{position:"absolute",bottom:"-20%",right:"-15%",width:"65%",height:"60%",borderRadius:"50%",background:"radial-gradient(ellipse,rgba(200,80,0,0.25) 0%,rgba(160,30,0,0.12) 50%,transparent 75%)",animation:"auroraDrift2 22s ease-in-out infinite 3s"}}/>
-          <div style={{position:"absolute",top:"25%",left:"20%",width:"60%",height:"55%",borderRadius:"50%",background:"radial-gradient(ellipse,rgba(100,0,160,0.22) 0%,transparent 65%)",animation:"auroraDrift3 14s ease-in-out infinite 7s"}}/>
-          <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.018) 1px,transparent 1px)",backgroundSize:"30px 30px"}}/>
-          <div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:"600px",height:"500px",background:"radial-gradient(ellipse at 50% 0%,rgba(100,80,255,0.12) 0%,transparent 70%)"}}/>
-          <svg style={{position:"absolute",bottom:0,left:0,width:"100%",height:"120px",opacity:0.06}} viewBox="0 0 1200 120" preserveAspectRatio="none">
-            {[80,160,240,320,400,480,560,640,720,800,880,960,1040,1120].map((x:number)=><ellipse key={x} cx={x} cy={120} rx="42" ry="28" fill="white"/>)}
-          </svg>
+          <div style={{position:"absolute",inset:0,backgroundImage:"url(/assets/card-clash-bg.png)",backgroundSize:"cover",backgroundPosition:"center top"}}/>
+          <div style={{position:"absolute",inset:0,background:"rgba(2,0,8,0.70)"}}/>
+          <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.012) 1px,transparent 1px)",backgroundSize:"30px 30px"}}/>
         </div>
 
         {/* ── CONTENT ── */}
