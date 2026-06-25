@@ -388,6 +388,8 @@ router.post("/admin/cards/populate-grid-index", verifyAdminPin, async (req: Requ
 router.post("/admin/coins/give", verifyAdminPin, async (req: Request, res: Response) => {
   try {
     const { playerId, amount } = req.body;
+    // Ensure player has a currency record first
+    await ensurePlayerCurrency(playerId);
     await addCoinsToPlayer(playerId, amount);
     const currency = await getPlayerCurrency(playerId);
     res.json(currency);
@@ -400,6 +402,8 @@ router.post("/admin/coins/give", verifyAdminPin, async (req: Request, res: Respo
 router.post("/admin/coins/remove", verifyAdminPin, async (req: Request, res: Response) => {
   try {
     const { playerId, amount } = req.body;
+    // Ensure player has a currency record first
+    await ensurePlayerCurrency(playerId);
     await removeCoinsFromPlayer(playerId, amount);
     const currency = await getPlayerCurrency(playerId);
     res.json(currency);
@@ -412,6 +416,8 @@ router.post("/admin/coins/remove", verifyAdminPin, async (req: Request, res: Res
 router.post("/admin/card/give", verifyAdminPin, async (req: Request, res: Response) => {
   try {
     const { playerId, cardId, quantity } = req.body;
+    // Ensure player has currency and inventory records
+    await ensurePlayerCurrency(playerId);
     await giveCardToPlayer(playerId, cardId, quantity || 1);
     const inventory = await getPlayerInventory(playerId);
     res.json(inventory);
@@ -424,6 +430,8 @@ router.post("/admin/card/give", verifyAdminPin, async (req: Request, res: Respon
 router.post("/admin/card/remove", verifyAdminPin, async (req: Request, res: Response) => {
   try {
     const { playerId, cardId, quantity } = req.body;
+    // Ensure player has currency and inventory records
+    await ensurePlayerCurrency(playerId);
     await removeCardFromPlayer(playerId, cardId, quantity || 1);
     const inventory = await getPlayerInventory(playerId);
     res.json(inventory);

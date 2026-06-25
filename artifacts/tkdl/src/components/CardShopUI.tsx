@@ -12,50 +12,61 @@ interface Pack {
 }
 
 interface CardShopUIProps {
-  playerCoins: number;
-  onPurchase: (packId: string) => Promise<void>;
-  loading?: boolean;
+  playerId: number;
 }
 
-const PACKS: Pack[] = [
-  {
-    id: "single",
-    name: "Single Card",
-    cards: 1,
-    cost: 50,
-    value: "1 Random Card",
-  },
-  {
-    id: "five",
-    name: "Starter Pack",
-    cards: 5,
-    cost: 200,
-    value: "5 Random Cards",
-    bonus: "15% Savings",
-    bestseller: true,
-  },
-  {
-    id: "ten",
-    name: "Champion Pack",
-    cards: 10,
-    cost: 350,
-    value: "10 Random Cards",
-    bonus: "30% Savings",
-  },
-];
-
-export function CardShopUI({ playerCoins, onPurchase, loading = false }: CardShopUIProps) {
+export function CardShopUI({ playerId }: CardShopUIProps) {
   const [selectedPack, setSelectedPack] = useState<string>("five");
   const [purchasing, setPurchasing] = useState(false);
   const [justPurchased, setJustPurchased] = useState<string | null>(null);
+  const [playerCoins, setPlayerCoins] = useState(0);
+  const [loading, setLoading] = useState(true);
 
+  // Fetch player coins
+  React.useEffect(() => {
+    if (!playerId) return;
+    fetch(`/api/card-clash/shop/currency/${playerId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setPlayerCoins(data.cardPoints ?? 0);
+        setLoading(false);
+      })
+      .catch((e) => {
+        console.error("Failed to load coins:", e);
+        setLoading(false);
+      });
+  }, [playerId]);
+
+  // Handle purchase
   const handlePurchase = async () => {
     if (purchasing) return;
     setPurchasing(true);
     try {
-      await onPurchase(selectedPack);
+      const response = await fetch(`/api/card-clash/shop/purchase`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId, packType: selectedPack.toUpperCase() }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        alert(`Purchase failed: ${error.error}`);
+        return;
+      }
+
+      const result = await response.json();
+      console.log("Purchase result:", result);
+      
       setJustPurchased(selectedPack);
       setTimeout(() => setJustPurchased(null), 2000);
+      
+      // Refresh coins
+      const currencyRes = await fetch(`/api/card-clash/shop/currency/${playerId}`);
+      const currencyData = await currencyRes.json();
+      setPlayerCoins(currencyData.cardPoints ?? 0);
+    } catch (e) {
+      console.error("Purchase error:", e);
+      alert("Failed to purchase pack");
     } finally {
       setPurchasing(false);
     }
