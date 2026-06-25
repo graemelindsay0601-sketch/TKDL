@@ -203,6 +203,29 @@ export default function AdminCardClashPanel() {
     }
   };
 
+  const populateGridIndex = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/card-clash/admin/cards/populate-grid-index", {
+        method: "POST",
+        headers: getAdminHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showMessage(`✅ Populated gridIndex for ${data.updated || "?"} cards`, "success");
+        loadAllCards(); // Refresh card list
+      } else {
+        const err = await res.json();
+        showMessage(`Failed: ${err.error || "Unknown error"}`, "error");
+      }
+    } catch (error) {
+      console.error("Populate grid index error:", error);
+      showMessage("Failed to populate grid index", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const seedCards = async () => {
     try {
       setLoading(true);
@@ -506,6 +529,9 @@ export default function AdminCardClashPanel() {
           <Section title="📋 Card Management">
             <Button onClick={seedCards} disabled={loading} style={{ background: colors.success }}>
               🌱 Seed All 100 Cards
+            </Button>
+            <Button onClick={populateGridIndex} disabled={loading} style={{ background: colors.info, marginLeft: "8px" }}>
+              🎨 Populate Grid Index
             </Button>
 
             {cards.length === 0 ? (
