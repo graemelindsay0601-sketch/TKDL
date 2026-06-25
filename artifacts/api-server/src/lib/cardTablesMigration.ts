@@ -103,6 +103,20 @@ export async function initializeCardTables() {
       )
     `);
 
+    // Verify table was created
+    try {
+      const tableCheck = await db.execute(sql`
+        SELECT to_regclass('public.card_clash_seasons') AS table_exists
+      `);
+      if (tableCheck.rows[0]?.table_exists) {
+        logger.info("✓ card_clash_seasons table verified");
+      } else {
+        logger.warn("⚠️ card_clash_seasons table creation may have failed");
+      }
+    } catch (e) {
+      logger.warn("Could not verify card_clash_seasons table existence");
+    }
+
     // Create card_clash_matches table if it doesn't exist
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS card_clash_matches (
