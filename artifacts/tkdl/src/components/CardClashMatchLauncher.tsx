@@ -32,6 +32,7 @@ export function CardClashMatchLauncher({
   const [gameMode, setGameMode] = useState<"X01" | "CRICKET" | null>(null);
   const [player1Cards, setPlayer1Cards] = useState<any[]>([]);
   const [player2Cards, setPlayer2Cards] = useState<any[]>([]);
+  const [matchId, setMatchId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Fetch available opponents
@@ -60,28 +61,47 @@ export function CardClashMatchLauncher({
     setStep("equipment");
   };
 
-  const handleEquipmentConfirm = (p1Cards: any[], p2Cards: any[]) => {
+  const handleEquipmentConfirm = async (p1Cards: any[], p2Cards: any[]) => {
     setPlayer1Cards(p1Cards);
     setPlayer2Cards(p2Cards);
+
+    // Register the match on the server so we get a matchId for finish/tracking
+    try {
+      const res = await fetch("/api/card-clash/match/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gameMode,
+          player1Id: currentPlayerId,
+          player2Id: selectedOpponent!.id,
+          equippedCards: {
+            player1: p1Cards.map((c: any) => ({ cardId: c.cardId || c.name, cardType: c.cardType || (c.type === "BAD" ? "BAD" : "GOOD") })),
+            player2: p2Cards.map((c: any) => ({ cardId: c.cardId || c.name, cardType: c.cardType || (c.type === "BAD" ? "BAD" : "GOOD") })),
+          },
+        }),
+      });
+      if (res.ok) {
+        const match = await res.json();
+        setMatchId(match.id ?? null);
+      }
+    } catch (err) {
+      console.error("Could not register match with server:", err);
+    }
+
     setStep("match");
   };
 
   const handleMatchComplete = async (result: GameResult, cardsUsed: string[]) => {
     try {
-      // Calculate if card effects changed the outcome
-      // (In a full implementation, card effects would modify live scoring)
-      // For now, we record the cards used and the base result
-      
       const winnerId = result.winnerIdx === 0 ? currentPlayerId : selectedOpponent!.id;
-      
-      // Record match result to backend
+
       const matchRes = await fetch("/api/card-clash/match/finish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          matchId,
           winnerId,
           cardsUsedInMatch: cardsUsed,
-          finalScores: result.detail ? { player1: 0, player2: 0 } : undefined,
         }),
       });
 
@@ -92,7 +112,7 @@ export function CardClashMatchLauncher({
       onMatchComplete();
     } catch (err) {
       console.error("Failed to record match:", err);
-      // Still notify completion even on error
+      // Still call completion so UI resets even on error
       onMatchComplete();
     }
   };
