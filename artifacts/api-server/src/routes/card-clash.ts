@@ -153,7 +153,7 @@ router.get("/player/:playerId/stats", async (req: Request, res: Response) => {
 router.get("/admin/debug/seasons", async (req: Request, res: Response) => {
   try {
     const adminPin = req.headers["x-admin-pin"] as string;
-    if (adminPin !== (process.env.ADMIN_PIN ?? "0601")) {
+    if (adminPin !== ADMIN_PIN) {
       return res.status(403).json({ error: "Unauthorized" });
     }
 
@@ -179,7 +179,7 @@ router.get("/admin/debug/seasons", async (req: Request, res: Response) => {
 router.get("/admin/season/active", async (req: Request, res: Response) => {
   try {
     const adminPin = req.headers["x-admin-pin"] as string;
-    if (adminPin !== (process.env.ADMIN_PIN ?? "0601")) {
+    if (adminPin !== ADMIN_PIN) {
       return res.status(403).json({ error: "Unauthorized" });
     }
 
@@ -264,12 +264,12 @@ router.get("/pity/:playerId", async (req: Request, res: Response) => {
 // Get active season
 router.get("/season/active", async (req: Request, res: Response) => {
   try {
-    console.log("[SEASON] Fetching active season...");
+    logger.info("[SEASON] Fetching active season...");
     const season = await getActiveCardClashSeason();
-    console.log("[SEASON] Got season:", season);
+    logger.info("[SEASON] Got season:", season);
     res.json(season);
   } catch (error) {
-    console.error("[SEASON] Error getting season:", error);
+    logger.error("[SEASON] Error getting season:", error);
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
@@ -279,7 +279,7 @@ router.post("/admin/season/create", async (req: Request, res: Response) => {
   try {
     // Check admin PIN
     const adminPin = req.headers["x-admin-pin"] as string;
-    if (adminPin !== (process.env.ADMIN_PIN ?? "0601")) {
+    if (adminPin !== ADMIN_PIN) {
       return res.status(403).json({ error: "Unauthorized: Invalid admin PIN" });
     }
 

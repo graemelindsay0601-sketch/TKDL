@@ -22,23 +22,23 @@ const COIN_REWARDS = {
 
 export async function getActiveCardClashSeason() {
   try {
-    console.log("[SEASON_SERVICE] Querying active season...");
+    logger.info("[SEASON_SERVICE] Querying active season...");
     let season = await db
       .select()
       .from(cardClashSeasonsTable)
       .where(eq(cardClashSeasonsTable.isActive, true))
       .limit(1);
 
-    console.log("[SEASON_SERVICE] Query returned:", season.length, "rows");
+    logger.info("[SEASON_SERVICE] Query returned:", season.length, "rows");
 
     if (season.length === 0) {
-      console.log("[SEASON_SERVICE] No season found, creating new one...");
+      logger.info("[SEASON_SERVICE] No season found, creating new one...");
       // Create a new season if none exists
       const now = new Date();
       const startDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
       const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]; // YYYY-MM-DD
       
-      console.log("[SEASON_SERVICE] Inserting season:", { startDate, endDate });
+      logger.info("[SEASON_SERVICE] Inserting season:", { startDate, endDate });
       
       const [newSeason] = await db
         .insert(cardClashSeasonsTable)
@@ -50,14 +50,14 @@ export async function getActiveCardClashSeason() {
         })
         .returning();
       
-      console.log("[SEASON_SERVICE] New season created:", newSeason);
+      logger.info("[SEASON_SERVICE] New season created:", newSeason);
       return newSeason;
     }
 
-    console.log("[SEASON_SERVICE] Found existing season:", season[0]);
+    logger.info("[SEASON_SERVICE] Found existing season:", season[0]);
     return season[0];
   } catch (error) {
-    console.error("[SEASON_SERVICE] Error:", error);
+    logger.error("[SEASON_SERVICE] Error:", error);
     throw error;
   }
 }
@@ -209,7 +209,7 @@ export async function finishCardClashMatch(
     await seasonalQuestService.updateSeasonalProgress(winnerId, "card_clash_wins_20", 1);
     // Loser doesn't progress card clash quest (only winners count)
   } catch (err) {
-    console.error("Card Clash challenge/quest update error:", err);
+    logger.error("Card Clash challenge/quest update error:", err);
     // Don't fail the match if challenges fail
   }
 
@@ -218,7 +218,7 @@ export async function finishCardClashMatch(
     try {
       await removeCardFromPlayer(card.usedBy, card.cardId, 1);
     } catch (e) {
-      console.error(`Failed to consume card ${card.cardId} for player ${card.usedBy}:`, e);
+      logger.error(`Failed to consume card ${card.cardId} for player ${card.usedBy}:`, e);
     }
   }
 
