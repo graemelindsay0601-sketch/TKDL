@@ -11,6 +11,13 @@ import { CardActivationOverlay } from "@/components/CardActivationOverlay";
 import { cardDebugLog } from "./card-debug";
 import { calculateX01CardEffect, applyX01Effect, formatCardEffectDisplay } from "./x01-card-effects";
 import { calculateCricketCardEffect, applyCricketEffect, formatCricketEffectDisplay } from "./cricket-card-effects";
+import {
+  type CCEffect,
+  ccActivateCard, ccPreprocessDart, ccApplyVisitCap, ccInterceptBust,
+  ccShouldBlockFinish, ccApplyVisitEnd, ccExpireOnTurnEnd,
+  ccApplyCricketMarkEffects, ccApplyCricketScoreEffects, ccBlockClosing,
+  ccPenaltyPerMark, ccBonusPerMark,
+} from "./card-effect-engine";
 
 function useFullscreen() {
   const [fs, setFs] = useState(false);
@@ -215,6 +222,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [p2Cards, setP2Cards]         = useState<any[]>([]);
   const [cardsUsed, setCardsUsed]     = useState<any[]>([]);
   const [isCardClash, setIsCardClash] = useState(false);
+  const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
 
   const names = [p1Name, p2Name];
 
@@ -342,11 +350,33 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       p2StatsRef.current.dartLog.push({ seg: dart.segment, mult: dart.multiplier, val: dart.value, phase });
     }
 
+    // Card Clash: preprocess dart (segment redirects, multiplier changes, value floors/caps)
+    if (isCardClash) {
+      dart = ccPreprocessDart(dart, visitDarts.length, activeEffects, turn, scores[turn]);
+    }
+
     const nv = [...visitDarts, dart];
-    const cum = nv.reduce((s, d) => s + d.value, 0);
+    let cum = nv.reduce((s, d) => s + d.value, 0);
+    // Card Clash: apply visit-total cap (Mercy Killer=60, Shutdown=50)
+    if (isCardClash) cum = ccApplyVisitCap(cum, activeEffects, turn);
     const rem = scores[turn] - cum;
 
     if (rem < 0) {
+      // Card Clash: Safety Net (bust→half) / Close Control (final 50, dart→1pt)
+      if (isCardClash) {
+        const intercept = ccInterceptBust(cum, cum, scores[turn], activeEffects, turn);
+        if (intercept.prevent) {
+          const reduction = intercept.halvedVisit ?? 0;
+          if (turn === 0) { p1StatsRef.current.darts += nv.length; p1StatsRef.current.score += reduction; }
+          if (turn === 1 && isHumanVsHuman) { p2StatsRef.current.darts += nv.length; p2StatsRef.current.score += reduction; }
+          setScores(prev => { const n=[...prev] as [number,number]; n[turn] = Math.max(1, n[turn] - reduction); return n; });
+          setHistory(h => [...h, { turn, score: reduction, left: scores[turn] - reduction, darts: nv }]);
+          setVisitDarts([]);
+          setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
+          setTurn(t => soloMode ? 0 : (t===0?1:0));
+          return;
+        }
+      }
       if (turn === 0) p1StatsRef.current.darts += nv.length;
       if (turn === 1 && isHumanVsHuman) p2StatsRef.current.darts += nv.length;
       triggerBust(nv, bustResetTo !== undefined ? `BUST — score reset to ${bustResetTo}` : "BUST — overshot!");
@@ -360,6 +390,23 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       return;
     }
     if (rem === 0) {
+      // Card Clash: Turn Enforcer — must throw all 3 darts before finishing
+      if (isCardClash) {
+        const isDbl = dart.multiplier === 2 || (dart.segment === 25 && dart.value === 50);
+        if (ccShouldBlockFinish(nv.length - 1, isDbl, activeEffects, turn)) {
+          // Score the dart but don't end the game; next dart will naturally bust (rem=0)
+          setVisitDarts(nv);
+          return;
+        }
+        // Trapped: force turn end after 1 dart if not a valid finish
+        if (nv.length === 1 && !isValidOut(dart) &&
+            activeEffects.some(e => e.status === "active" && e.affectsPlayer === turn && e.mustFinishAfterOneDart)) {
+          setVisitDarts([]);
+          setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
+          setTurn(t => soloMode ? 0 : (t===0?1:0));
+          return;
+        }
+      }
       if (isValidOut(dart)) {
         if (turn === 0) {
           p1StatsRef.current.darts += nv.length;
@@ -382,6 +429,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       return;
     }
 
+    // Card Clash: Trapped — if dart 1 is not a win, end turn immediately
+    if (isCardClash && nv.length === 1 &&
+        activeEffects.some(e => e.status === "active" && e.affectsPlayer === turn && e.mustFinishAfterOneDart)) {
+      setVisitDarts([]);
+      setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
+      setTurn(t => soloMode ? 0 : (t===0?1:0));
+      return;
+    }
+
     setVisitDarts(nv);
     if (nv.length === 3) {
       if (turn === 0) {
@@ -394,12 +450,20 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         p2StatsRef.current.score += cum;
         if (cum === 180) p2StatsRef.current.s180s++;
       }
-      setScores(prev => { const n=[...prev] as [number,number]; n[turn] -= cum; return n; });
-      setHistory(h => [...h, { turn, score: cum, left: rem, darts: nv }]);
+      // Card Clash: visit-end bonuses (Power Surge, Rust Hands, Mental Block, High Roller, etc.)
+      let effectiveCum = cum;
+      if (isCardClash) {
+        const { bonusReduction, extraPenalty } = ccApplyVisitEnd(cum, nv.length, activeEffects, turn, legWins);
+        effectiveCum = Math.max(0, cum + bonusReduction - extraPenalty);
+      }
+      setScores(prev => { const n=[...prev] as [number,number]; n[turn] = Math.max(1, n[turn] - effectiveCum); return n; });
+      setHistory(h => [...h, { turn, score: effectiveCum, left: scores[turn] - effectiveCum, darts: nv }]);
       setVisitDarts([]);
+      // Card Clash: expire this-turn effects; promote opponent's pending → active
+      if (isCardClash) setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
       setTurn(t => soloMode ? 0 : (t===0?1:0));
     }
-  }, [bust, visitDarts, turn, started, doubleIn, scores, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut, noTrebles]);
+  }, [bust, visitDarts, turn, started, doubleIn, scores, legWins, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut, noTrebles, isCardClash, activeEffects]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => {
@@ -432,32 +496,27 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
   // ── Card Clash: Handle card activation ──
   const handleCardActivation = useCallback((cardId: string) => {
-    // Only the current player can play their own cards
     const currentCards = turn === 0 ? p1Cards : p2Cards;
     const card = currentCards.find((c: any) => c.id?.toString() === cardId);
-    if (!card) {
-      cardDebugLog("X01Scorer", "Card not found", { cardId });
-      return;
-    }
-
+    if (!card) { cardDebugLog("X01Scorer", "Card not found", { cardId }); return; }
     cardDebugLog("X01Scorer", "Card activated", { card: card.name, cardId });
 
-    // Apply effect immediately — mid-game score change
-    const effect = calculateX01CardEffect(card);
-    if (effect) {
-      setScores(prev => applyX01Effect(prev, effect, turn));
-      cardDebugLog("X01Scorer", "Card effect applied", {
-        card: card.name,
-        effect: formatCardEffectDisplay(effect, card.name),
-      });
-    }
-
-    // Mark card as used so it greys out in the panel
-    if (!cardsUsed.some((c: any) => c.id === card.id)) {
-      setCardsUsed(prev => [...prev, card]);
-      cardDebugLog("X01Scorer", "Card marked as used", { card: card.name });
-    }
-  }, [p1Cards, p2Cards, cardsUsed, turn]);
+    const effects = ccActivateCard(card, turn, { scores, legWins });
+    effects.forEach(e => {
+      if (e.instant) {
+        setScores(prev => {
+          const n = [...prev] as [number, number];
+          if (e.instantP0Delta) n[0] = Math.max(1, n[0] + e.instantP0Delta);
+          if (e.instantP1Delta) n[1] = Math.max(1, n[1] + e.instantP1Delta);
+          return n;
+        });
+      }
+    });
+    const nonInstant = effects.filter(e => !e.instant);
+    if (nonInstant.length > 0) setActiveEffects(prev => [...prev, ...nonInstant]);
+    cardDebugLog("X01Scorer", "Effects queued", { effects: effects.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`) });
+    if (!cardsUsed.some((c: any) => c.id === card.id)) setCardsUsed(prev => [...prev, card]);
+  }, [p1Cards, p2Cards, cardsUsed, turn, scores, legWins]);
 
   const handleDartRef = useRef(handleDart);
   useEffect(() => { handleDartRef.current = handleDart; });
@@ -647,6 +706,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [p2Cards, setP2Cards]         = useState<any[]>([]);
   const [cardsUsed, setCardsUsed]     = useState<any[]>([]);
   const [isCardClash, setIsCardClash] = useState(false);
+  const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
 
   const names = [p1Name, p2Name];
 
@@ -667,43 +727,27 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
 
   // ── Card Clash: Handle card activation ──
   const handleCardActivation = useCallback((cardId: string) => {
-    // Only the current player can play their own cards
     const currentCards = turn === 0 ? p1Cards : p2Cards;
     const card = currentCards.find((c: any) => c.id?.toString() === cardId);
-    if (!card) {
-      cardDebugLog("CricketScorer", "Card not found", { cardId });
-      return;
-    }
-
+    if (!card) { cardDebugLog("CricketScorer", "Card not found", { cardId }); return; }
     cardDebugLog("CricketScorer", "Card activated", { card: card.name });
 
-    // Apply cricket card effect immediately as a score adjustment.
-    // GOOD cards: add points to current player's score.
-    // BAD cards: add points to opponent's score (harder for them to maintain lead).
-    const effect = calculateCricketCardEffect(card);
-    if (effect) {
-      const opponent: 0 | 1 = turn === 0 ? 1 : 0;
-      setScores(prev => {
-        const n: [number, number] = [...prev] as [number, number];
-        if (effect.target === "player") {
-          n[turn] = Math.max(0, n[turn] + Math.abs(effect.value) * 10);
-        } else {
-          n[opponent] = Math.max(0, n[opponent] + Math.abs(effect.value) * 10);
-        }
-        return n;
-      });
-      cardDebugLog("CricketScorer", "Card effect applied", {
-        card: card.name,
-        effect: formatCricketEffectDisplay(effect, card.name),
-      });
-    }
-
-    // Mark as used so it greys out in the panel
-    if (!cardsUsed.some((c: any) => c.id === card.id)) {
-      setCardsUsed(prev => [...prev, card]);
-      cardDebugLog("CricketScorer", "Card marked used", { card: card.name });
-    }
-  }, [p1Cards, p2Cards, cardsUsed, turn]);
+    const effects = ccActivateCard(card, turn, { marks, scores });
+    effects.forEach(e => {
+      if (e.instant) {
+        setScores(prev => {
+          const n = [...prev] as [number, number];
+          if (e.instantP0Delta) n[0] = Math.max(0, n[0] + e.instantP0Delta);
+          if (e.instantP1Delta) n[1] = Math.max(0, n[1] + e.instantP1Delta);
+          return n;
+        });
+      }
+    });
+    const nonInstant = effects.filter(e => !e.instant);
+    if (nonInstant.length > 0) setActiveEffects(prev => [...prev, ...nonInstant]);
+    cardDebugLog("CricketScorer", "Effects queued", { effects: effects.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`) });
+    if (!cardsUsed.some((c: any) => c.id === card.id)) setCardsUsed(prev => [...prev, card]);
+  }, [p1Cards, p2Cards, cardsUsed, turn, marks, scores]);
 
   const checkWin = (m: typeof marks, sc: [number,number]): 0|1|null => {
     for (const p of [0,1] as const) {
@@ -737,25 +781,48 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     const nv = [...visitDarts, dart];
 
     if (numIdx >= 0) {
-      const hits = dart.multiplier;
+      // Card Clash: apply mark modifiers (Double Strike, Bad Aim, Hesitation, Sluggish, etc.)
+      const rawHits = dart.multiplier;
+      const effectiveHits = isCardClash
+        ? ccApplyCricketMarkEffects(rawHits, dart.segment, visitDarts.length, activeEffects, turn)
+        : rawHits;
+      const canClose = !isCardClash || !ccBlockClosing(activeEffects, turn);
+
       setMarks(prev => {
         const nm: typeof marks = [[ ...prev[0] ] as any, [ ...prev[1] ] as any];
-        const toClose = Math.max(0, 3 - nm[turn][numIdx]);
-        const absorbed = Math.min(hits, toClose);
-        const extra = hits - absorbed;
-        nm[turn][numIdx] = Math.min(3, nm[turn][numIdx] + absorbed + extra);
-        // Score extra
+        const toClose = Math.max(0, (canClose ? 3 : 2) - nm[turn][numIdx]);
+        const absorbed = Math.min(effectiveHits, Math.max(0, toClose));
+        const extra = effectiveHits - absorbed;
+        nm[turn][numIdx] = Math.min(canClose ? 3 : 2, nm[turn][numIdx] + absorbed);
+        // Score extra hits (scoring marks beyond closing)
         if (extra > 0) {
           const opp: 0|1 = turn === 0 ? 1 : 0;
           if (nm[opp][numIdx] < 3) {
+            const effectiveExtra = isCardClash
+              ? ccApplyCricketScoreEffects(extra, activeEffects, turn)
+              : extra;
             setScores(ps => {
               const ns: [number,number] = [...ps] as [number,number];
               const val = CRICKET_NUMS[numIdx];
-              if (cutThroat) ns[opp] += extra * val;
-              else ns[turn] += extra * val;
+              if (cutThroat) ns[opp] += effectiveExtra * val;
+              else ns[turn] += effectiveExtra * val;
+              // Card Clash: per-mark penalty/bonus (Mark Erasure, Momentum Arsenal)
+              if (isCardClash) {
+                ns[turn] = Math.max(0, ns[turn]
+                  - ccPenaltyPerMark(activeEffects, turn) * absorbed
+                  + ccBonusPerMark(activeEffects, turn) * absorbed);
+              }
               return ns;
             });
           }
+        } else if (absorbed > 0 && isCardClash) {
+          setScores(ps => {
+            const ns: [number,number] = [...ps] as [number,number];
+            ns[turn] = Math.max(0, ns[turn]
+              - ccPenaltyPerMark(activeEffects, turn) * absorbed
+              + ccBonusPerMark(activeEffects, turn) * absorbed);
+            return ns;
+          });
         }
         return nm;
       });
@@ -768,6 +835,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     setVisitDarts(nv);
     if (nv.length === 3) {
       setVisitDarts([]);
+      // Card Clash: expire this-turn effects; promote opponent's pending → active
+      if (isCardClash) setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
       setTurn(t => t===0?1:0);
       setLastHit("");
     }
@@ -786,7 +855,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         return m;
       });
     }, 50);
-  }, [visitDarts, turn, marks, scores, cutThroat, includesBull, numCount, onWin]);
+  }, [visitDarts, turn, marks, scores, cutThroat, includesBull, numCount, onWin, isCardClash, activeEffects]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => {
