@@ -56,8 +56,9 @@ function GameCard({ gt, selected, onSelect, onRules }: {
   return (
     <div onClick={onSelect} className="pdc-card p-3 cursor-pointer transition-all relative overflow-hidden"
       style={{
-        borderColor: selected ? "#a78bfa" : "rgba(255,255,255,0.07)",
-        background: selected ? "rgba(167,139,250,0.06)" : "rgba(255,255,255,0.02)",
+        borderColor: selected ? "#a78bfa" : "rgba(255,255,255,0.09)",
+          background: selected ? "rgba(167,139,250,0.09)" : "rgba(255,255,255,0.015)",
+          boxShadow: selected ? "0 0 22px rgba(167,139,250,0.18), inset 0 1px 0 rgba(167,139,250,0.12)" : "none",
         boxShadow: selected ? "0 0 18px rgba(167,139,250,0.12)" : undefined,
       }}>
       {selected && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: "#a78bfa" }} />}
@@ -394,17 +395,20 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ background: "rgba(167,139,250,0.15)", border: "1px solid rgba(167,139,250,0.3)" }}>
-          <Dumbbell className="w-5 h-5" style={{ color: "#a78bfa" }} />
+        <div className="relative overflow-hidden rounded-2xl px-5 py-5"
+          style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.18) 0%, rgba(167,139,250,0.06) 100%)", border: "1px solid rgba(167,139,250,0.25)", boxShadow: "0 0 60px rgba(124,58,237,0.12) inset, 0 4px 32px rgba(0,0,0,0.4)", marginBottom: "8px" }}>
+          <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 20% 50%, rgba(167,139,250,0.12) 0%, transparent 60%)" }} />
+          <div className="flex items-center gap-4 relative">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+              style={{ background: "rgba(124,58,237,0.3)", border: "1px solid rgba(167,139,250,0.45)", boxShadow: "0 0 24px rgba(124,58,237,0.5)" }}>
+              <Dumbbell className="w-7 h-7" style={{ color: "#c4b5fd" }} />
+            </div>
+            <div>
+              <h1 className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.14em", fontSize: "1.8rem", lineHeight: 1, color: "#fff", textShadow: "0 0 32px rgba(167,139,250,0.6)" }}>Practice Arena</h1>
+              <p className="text-xs mt-1" style={{ color: "rgba(167,139,250,0.7)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>No stakes · No leaderboard · Just reps</p>
+            </div>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>Practice</h1>
-          <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>No stakes · No leaderboard · Just reps</p>
-        </div>
-      </div>
-      <div className="pdc-divider" />
 
       {/* Mode toggle */}
       <div className="flex gap-2">
@@ -417,10 +421,11 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
             className="flex-1 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
             style={{
               fontFamily: "Oswald, sans-serif",
-              background: mode === v ? "rgba(167,139,250,0.15)" : "rgba(255,255,255,0.03)",
-              border: mode === v ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.07)",
-              color: mode === v ? "#a78bfa" : "rgba(255,255,255,0.3)",
-              cursor: "pointer",
+              background: mode === v ? "rgba(124,58,237,0.22)" : "rgba(255,255,255,0.03)",
+                border: mode === v ? "1px solid rgba(167,139,250,0.5)" : "1px solid rgba(255,255,255,0.07)",
+                color: mode === v ? "#c4b5fd" : "rgba(255,255,255,0.3)",
+                cursor: "pointer",
+                boxShadow: mode === v ? "0 0 18px rgba(124,58,237,0.3)" : "none",
             }}>
             {icon}{l}
           </button>
@@ -742,11 +747,12 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         disabled={!canStart}
         className="w-full py-4 text-base font-black uppercase tracking-widest rounded-xl transition-all"
         style={{
-          background: canStart ? "linear-gradient(135deg, #7c3aed, #a78bfa)" : "rgba(255,255,255,0.04)",
-          color: canStart ? "#fff" : "rgba(255,255,255,0.2)",
-          border: canStart ? "none" : "1px solid rgba(255,255,255,0.06)",
-          fontFamily: "Oswald, sans-serif", cursor: canStart ? "pointer" : "not-allowed",
-          boxShadow: canStart ? "0 8px 32px rgba(124,58,237,0.3)" : undefined,
+          background: canStart ? "linear-gradient(135deg, #5b21b6, #7c3aed 50%, #a78bfa)" : "rgba(255,255,255,0.04)",
+            color: canStart ? "#fff" : "rgba(255,255,255,0.2)",
+            border: canStart ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.06)",
+            fontFamily: "Oswald, sans-serif", cursor: canStart ? "pointer" : "not-allowed",
+            boxShadow: canStart ? "0 0 40px rgba(124,58,237,0.45), 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15)" : undefined,
+            textShadow: canStart ? "0 0 18px rgba(255,255,255,0.5)" : undefined,
         }}>
         {canStart
           ? mode === "bot"
