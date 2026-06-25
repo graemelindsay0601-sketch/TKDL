@@ -53,9 +53,10 @@ async function autoFixCardClash() {
     }
     logger.info("✓ card_clash_seasons columns verified");
 
-    // Fix 0b: Add missing columns to card_clash_matches (old schema had player_id/opponent_id/result/cards_used)
+    // Fix 0b: Add missing columns to card_clash_matches + make season_id optional (seasons removed)
     for (const alter of [
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS match_id UUID DEFAULT gen_random_uuid()`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS game_mode TEXT NOT NULL DEFAULT 'X01'`,
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_id INTEGER REFERENCES players(id)`,
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_id INTEGER REFERENCES players(id)`,
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS winner_id INTEGER REFERENCES players(id)`,
@@ -64,6 +65,10 @@ async function autoFixCardClash() {
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSON`,
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_points_earned INTEGER DEFAULT 0`,
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER DEFAULT 0`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS is_mock BOOLEAN NOT NULL DEFAULT false`,
+      // Drop NOT NULL on season_id so matches can exist without a season
+      sql`ALTER TABLE card_clash_matches ALTER COLUMN season_id DROP NOT NULL`,
+      sql`ALTER TABLE card_clash_matches DROP CONSTRAINT IF EXISTS card_clash_matches_season_id_card_clash_seasons_id_fk`,
     ]) {
       try { await db.execute(alter); } catch (e) { logger.warn({ e }, "matches column alter skipped"); }
     }
@@ -141,38 +146,35 @@ router.get("/shop/currency/:playerId", async (req: Request, res: Response) => {
   }
 });
 
-// Get player Card Clash stats
+// Get player Card Clash stats — computed directly from match history, no season needed
 router.get("/player/:playerId/stats", async (req: Request, res: Response) => {
   try {
     const playerId = parseInt(req.params.playerId);
     
-    // Get currency
     await ensurePlayerCurrency(playerId);
-    const currency = await getPlayerCurrency(playerId);
-    
-    // Get inventory (card count)
-    const inventory = await getPlayerInventory(playerId);
-    
-    // Get current season standings
-    const season = await getActiveCardClashSeason();
-    let matchesPlayed = 0;
-    let wins = 0;
-    
-    if (season?.id) {
-      const standings = await getCardClashStandings(season.id);
-      const playerStanding = standings.find((s: any) => s.player_id === playerId);
-      if (playerStanding) {
-        matchesPlayed = (playerStanding.wins || 0) + (playerStanding.losses || 0);
-        wins = playerStanding.wins || 0;
-      }
-    }
-    
+    const [currency, inventory] = await Promise.all([
+      getPlayerCurrency(playerId),
+      getPlayerInventory(playerId),
+    ]);
+
+    // Aggregate wins/losses directly from card_clash_matches
+    const result = await db.execute(sql`
+      SELECT
+        COUNT(CASE WHEN winner_id = ${playerId} THEN 1 END)::int AS wins,
+        COUNT(CASE WHEN (player_1_id = ${playerId} OR player_2_id = ${playerId}) AND winner_id != ${playerId} THEN 1 END)::int AS losses,
+        COUNT(CASE WHEN player_1_id = ${playerId} OR player_2_id = ${playerId} THEN 1 END)::int AS total_matches
+      FROM card_clash_matches
+      WHERE is_mock IS NOT TRUE
+    `);
+    const row = (result.rows?.[0] ?? {}) as any;
+
     res.json({
       playerId,
       coins: currency?.cardPoints || 0,
       cardsOwned: inventory?.length || 0,
-      matchesPlayed,
-      wins,
+      matchesPlayed: row.total_matches || 0,
+      wins: row.wins || 0,
+      losses: row.losses || 0,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -293,17 +295,9 @@ router.get("/pity/:playerId", async (req: Request, res: Response) => {
 
 // === CARD CLASH MATCH ROUTES ===
 
-// Get active season
+// Get active season — season system removed, returns stable static response
 router.get("/season/active", async (req: Request, res: Response) => {
-  try {
-    logger.info("[SEASON] Fetching active season...");
-    const season = await getActiveCardClashSeason();
-    logger.info("[SEASON] Got season:", season);
-    res.json(season);
-  } catch (error) {
-    logger.error("[SEASON] Error getting season:", error);
-    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
-  }
+  res.json({ id: null, name: "All Time", isActive: true });
 });
 
 // Admin: Create active season
@@ -437,12 +431,84 @@ router.post("/match/finish", async (req: Request, res: Response) => {
   }
 });
 
-// Get standings
+// All-time standings — aggregated directly from card_clash_matches, no season needed
+router.get("/standings", async (req: Request, res: Response) => {
+  try {
+    const result = await db.execute(sql`
+      SELECT
+        p.id AS player_id,
+        p.name AS player_name,
+        COUNT(CASE WHEN m.winner_id = p.id THEN 1 END)::int AS wins,
+        COUNT(CASE WHEN (m.player_1_id = p.id OR m.player_2_id = p.id) AND m.winner_id != p.id THEN 1 END)::int AS losses,
+        COUNT(CASE WHEN m.player_1_id = p.id OR m.player_2_id = p.id THEN 1 END)::int AS total_matches,
+        COALESCE(SUM(CASE WHEN m.player_1_id = p.id THEN m.player_1_points_earned
+                          WHEN m.player_2_id = p.id THEN m.player_2_points_earned
+                          ELSE 0 END), 0)::int AS points
+      FROM players p
+      JOIN card_clash_matches m ON (m.player_1_id = p.id OR m.player_2_id = p.id)
+      WHERE m.is_mock IS NOT TRUE
+      GROUP BY p.id, p.name
+      ORDER BY wins DESC, total_matches DESC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// Legacy: standings by season ID (kept for compatibility)
 router.get("/standings/:seasonId", async (req: Request, res: Response) => {
   try {
     const seasonId = parseInt(req.params.seasonId);
     const standings = await getCardClashStandings(seasonId);
     res.json(standings);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// Mock game: get available players (for selecting opponent)
+router.get("/mock-game/players", async (req: Request, res: Response) => {
+  try {
+    const result = await db.execute(sql`
+      SELECT id, name FROM players WHERE is_active = true ORDER BY name
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// Mock game: start a mock match (no real stakes, bot gets random cards)
+router.post("/mock-game/start", async (req: Request, res: Response) => {
+  try {
+    const { player1Id, player2Id, player1Cards, isBotOpponent } = req.body;
+    if (!player1Id) return res.status(400).json({ error: "player1Id required" });
+
+    // For bots, pick random cards from catalog
+    let botCards: any[] = [];
+    if (isBotOpponent) {
+      const allCards = await getAllCardDefinitions();
+      const shuffled = [...allCards].sort(() => Math.random() - 0.5);
+      botCards = shuffled.slice(0, 4).map((c: any) => ({ cardId: c.id, cardType: c.type === "BUFF" ? "GOOD" : "BAD" }));
+    }
+
+    const p1Cards = Array.isArray(player1Cards) ? player1Cards : [];
+    const p2Id = player2Id || 0;
+
+    const result = await db.execute(sql`
+      INSERT INTO card_clash_matches
+        (game_mode, player_1_id, player_2_id, winner_id,
+         player_1_equipped_cards, player_2_equipped_cards, cards_used_in_match,
+         player_1_points_earned, player_2_points_earned, is_mock)
+      VALUES
+        ('MOCK', ${player1Id}, ${p2Id}, ${player1Id},
+         ${JSON.stringify(p1Cards)}, ${JSON.stringify(botCards)}, ${JSON.stringify([])},
+         0, 0, true)
+      RETURNING *
+    `);
+
+    res.json({ success: true, match: result.rows[0], botCards });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
