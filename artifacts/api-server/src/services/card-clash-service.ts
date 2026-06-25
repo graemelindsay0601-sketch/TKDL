@@ -54,7 +54,7 @@ export async function startCardClashMatch(
   const p1Cards = equippedCards?.player1 ?? [];
   const p2Cards = equippedCards?.player2 ?? [];
 
-  // Ensure all required columns exist before inserting (idempotent)
+  // Ensure all required columns exist (idempotent)
   for (const alter of [
     sql`ALTER TABLE card_clash_matches ALTER COLUMN season_id DROP NOT NULL`,
     sql`ALTER TABLE card_clash_matches DROP CONSTRAINT IF EXISTS card_clash_matches_season_id_card_clash_seasons_id_fk`,
@@ -67,39 +67,52 @@ export async function startCardClashMatch(
     try { await db.execute(alter); } catch (_) {}
   }
 
-  // Always resolve a season_id — the column may still be NOT NULL in production
-  // even after the DROP NOT NULL attempt above. Use any active season or create one.
-  let resolvedSeasonId: number | null = null;
+  // Primary: INSERT without season_id (seasons are no longer required)
+  // Fallback: if season_id is still NOT NULL in this environment, use an active season
+  let result;
   try {
-    const seasonRow = await db.execute(sql`
-      SELECT id FROM card_clash_seasons WHERE is_active = true LIMIT 1
+    result = await db.execute(sql`
+      INSERT INTO card_clash_matches
+        (game_mode, player_1_id, player_2_id, winner_id,
+         player_1_equipped_cards, player_2_equipped_cards, cards_used_in_match,
+         player_1_points_earned, player_2_points_earned)
+      VALUES
+        (${gameMode}, ${player1Id}, ${player2Id}, ${player1Id},
+         ${JSON.stringify(p1Cards)}::jsonb, ${JSON.stringify(p2Cards)}::jsonb,
+         '[]'::jsonb, 0, 0)
+      RETURNING *
     `);
-    if (seasonRow.rows.length > 0) {
-      resolvedSeasonId = (seasonRow.rows[0] as any).id;
-    } else {
-      const now = new Date();
-      const start = now.toISOString().split("T")[0];
-      const end   = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-      const ins = await db.execute(sql`
-        INSERT INTO card_clash_seasons (name, start_date, end_date, is_active)
-        VALUES (${`Season ${now.getFullYear()}-${now.getMonth() + 1}`}, ${start}::DATE, ${end}::DATE, true)
-        RETURNING id
-      `);
-      resolvedSeasonId = (ins.rows[0] as any)?.id ?? null;
-    }
-  } catch (_) { /* will insert null — only safe after DROP NOT NULL succeeds */ }
-
-  const result = await db.execute(sql`
-    INSERT INTO card_clash_matches
-      (season_id, game_mode, player_1_id, player_2_id, winner_id,
-       player_1_equipped_cards, player_2_equipped_cards, cards_used_in_match,
-       player_1_points_earned, player_2_points_earned)
-    VALUES
-      (${resolvedSeasonId}, ${gameMode}, ${player1Id}, ${player2Id}, ${player1Id},
-       ${JSON.stringify(p1Cards)}::jsonb, ${JSON.stringify(p2Cards)}::jsonb,
-       '[]'::jsonb, 0, 0)
-    RETURNING *
-  `);
+  } catch (_primaryErr) {
+    // Fallback: season_id column is still NOT NULL — find or create one
+    let seasonId: number | null = null;
+    try {
+      const sr = await db.execute(sql`SELECT id FROM card_clash_seasons WHERE is_active = true LIMIT 1`);
+      if (sr.rows.length > 0) {
+        seasonId = (sr.rows[0] as any).id;
+      } else {
+        const now = new Date();
+        const start = now.toISOString().split("T")[0];
+        const end   = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        const ins = await db.execute(sql`
+          INSERT INTO card_clash_seasons (name, start_date, end_date, is_active)
+          VALUES (${"Season " + now.getFullYear()}, ${start}::DATE, ${end}::DATE, true)
+          RETURNING id
+        `);
+        seasonId = (ins.rows[0] as any)?.id ?? null;
+      }
+    } catch (_) {}
+    result = await db.execute(sql`
+      INSERT INTO card_clash_matches
+        (season_id, game_mode, player_1_id, player_2_id, winner_id,
+         player_1_equipped_cards, player_2_equipped_cards, cards_used_in_match,
+         player_1_points_earned, player_2_points_earned)
+      VALUES
+        (${seasonId}, ${gameMode}, ${player1Id}, ${player2Id}, ${player1Id},
+         ${JSON.stringify(p1Cards)}::jsonb, ${JSON.stringify(p2Cards)}::jsonb,
+         '[]'::jsonb, 0, 0)
+      RETURNING *
+    `);
+  }
   return result.rows[0];
 }
 
