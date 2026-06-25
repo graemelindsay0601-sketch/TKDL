@@ -564,3 +564,4 @@ export const challengeService = {
       console.error("[CardClash] Failed to seed comprehensive pool:", error);
     }
   },
+};
