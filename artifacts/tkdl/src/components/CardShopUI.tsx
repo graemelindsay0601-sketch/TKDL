@@ -19,23 +19,26 @@ type Phase = "shop" | "preview" | "tearing" | "cards" | "done";
 
 const PACK_DEFS = [
   {
-    id: "single", name: "Lucky Draw", cards: 1, cost: 50,
+    id: "single", name: "Arrow Pack", cards: 1, cost: 30,
     accent: "#00b4ff", glow: "rgba(0,180,255,0.55)",
-    icon: "⚡", label: "LUCKY DRAW", sub: "1 CARD", ribbon: null,
+    icon: "🎯", label: "ARROW PACK", sub: "1 CARD", ribbon: null,
+    desc: "One dart from the oche. One card. Quick draw.",
     bodyGrad: "linear-gradient(155deg,#020d20 0%,#062144 55%,#020d20 100%)",
     stripGrad: "linear-gradient(90deg,#041830 0%,#0a3570 50%,#041830 100%)",
   },
   {
-    id: "five", name: "Starter Pack", cards: 5, cost: 200,
+    id: "five", name: "League Night Pack", cards: 5, cost: 175,
     accent: "#ffd24a", glow: "rgba(255,210,74,0.55)",
-    icon: "★", label: "STARTER", sub: "5 CARDS", ribbon: "BESTSELLER",
+    icon: "🏹", label: "LEAGUE NIGHT", sub: "5 CARDS", ribbon: "BESTSELLER",
+    desc: "Five cards from a Kilbirnie league night. Anything could drop.",
     bodyGrad: "linear-gradient(155deg,#1a0e00 0%,#3d2200 55%,#1a0e00 100%)",
     stripGrad: "linear-gradient(90deg,#2a1500 0%,#5c3000 50%,#2a1500 100%)",
   },
   {
-    id: "ten", name: "Champion Pack", cards: 10, cost: 350,
+    id: "ten", name: "Kilbirnie Elite", cards: 10, cost: 325,
     accent: "#cc44ff", glow: "rgba(204,68,255,0.55)",
-    icon: "👑", label: "CHAMPION", sub: "10 CARDS", ribbon: "PREMIUM",
+    icon: "⚡", label: "KILBIRNIE ELITE", sub: "10 CARDS", ribbon: "RARE GUARANTEED",
+    desc: "Ten cards. Rare guaranteed. The full TKDL championship arsenal.",
     bodyGrad: "linear-gradient(155deg,#0a0020 0%,#1f0050 55%,#0a0020 100%)",
     stripGrad: "linear-gradient(90deg,#14004a 0%,#2d0080 50%,#14004a 100%)",
   },
@@ -291,7 +294,7 @@ export function CardShopUI({ playerId, onCardsReceived }: CardShopUIProps) {
             <div style={{ fontSize: "26px" }}>{packDef.icon}</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: "14px", fontWeight: 800, color: packDef.accent, letterSpacing: "0.08em" }}>{packDef.name}</div>
-              <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginTop: "2px" }}>{packDef.cards} card{packDef.cards > 1 ? "s" : ""}, drawn from all 100</div>
+              <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginTop: "2px" }}>{(packDef as any).desc ?? `${packDef.cards} card${packDef.cards > 1 ? "s" : ""} from the full TKDL deck`}</div>
             </div>
             <div style={{ fontSize: "18px", fontWeight: 900, color: "#ffd24a" }}>🪙 {packDef.cost}</div>
           </div>
