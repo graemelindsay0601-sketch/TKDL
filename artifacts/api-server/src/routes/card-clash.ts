@@ -684,6 +684,23 @@ router.post("/admin/card/give", verifyAdminPin, async (req: Request, res: Respon
   }
 });
 
+// Give all cards to a player (admin — for testing/preview)
+router.post("/admin/give-all-cards", verifyAdminPin, async (req: Request, res: Response) => {
+  try {
+    const { playerId } = req.body;
+    if (!playerId) return res.status(400).json({ error: "playerId required" });
+    await ensurePlayerCurrency(playerId);
+    const allCards = await getAllCardDefinitions();
+    for (const card of allCards) {
+      await giveCardToPlayer(playerId, (card as any).cardId ?? (card as any).id, 1);
+    }
+    const inventory = await getPlayerInventory(playerId);
+    res.json({ success: true, given: allCards.length, inventory });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
 // Remove card from player (admin)
 router.post("/admin/card/remove", verifyAdminPin, async (req: Request, res: Response) => {
   try {
