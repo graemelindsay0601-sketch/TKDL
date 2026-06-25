@@ -37,14 +37,30 @@ async function autoFixCardClash() {
   try {
     logger.info("🔧 [STARTUP] Running Card Clash auto-fix...");
 
-    // Fix 0: Add missing columns to card_clash_seasons (belt-and-suspenders)
-    try {
-      await db.execute(sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT false`);
-      await db.execute(sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS total_matches INTEGER NOT NULL DEFAULT 0`);
-      logger.info("✓ card_clash_seasons columns verified");
-    } catch (colErr) {
-      logger.warn({ colErr }, "Schema column fix skipped (table may not exist yet)");
+    // Fix 0a: Add missing columns to card_clash_seasons
+    for (const alter of [
+      sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT false`,
+      sql`ALTER TABLE card_clash_seasons ADD COLUMN IF NOT EXISTS total_matches INTEGER NOT NULL DEFAULT 0`,
+    ]) {
+      try { await db.execute(alter); } catch (e) { logger.warn({ e }, "seasons column alter skipped"); }
     }
+    logger.info("✓ card_clash_seasons columns verified");
+
+    // Fix 0b: Add missing columns to card_clash_matches (old schema had player_id/opponent_id/result/cards_used)
+    for (const alter of [
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS match_id UUID DEFAULT gen_random_uuid()`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_id INTEGER REFERENCES players(id)`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_id INTEGER REFERENCES players(id)`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS winner_id INTEGER REFERENCES players(id)`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_equipped_cards JSON`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_equipped_cards JSON`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSON`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_points_earned INTEGER DEFAULT 0`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER DEFAULT 0`,
+    ]) {
+      try { await db.execute(alter); } catch (e) { logger.warn({ e }, "matches column alter skipped"); }
+    }
+    logger.info("✓ card_clash_matches columns verified");
 
     // Fix 1: Ensure card_pity_system table exists with correct schema
     await db.execute(sql`
