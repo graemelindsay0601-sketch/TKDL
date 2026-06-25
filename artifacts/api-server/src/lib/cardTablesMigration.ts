@@ -187,20 +187,22 @@ export async function initializeCardTables() {
     }
 
     // Migrate: Add missing columns to card_clash_matches (schema updated after initial deploy)
-    try {
-      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS match_id UUID DEFAULT gen_random_uuid()`);
-      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_id INTEGER REFERENCES players(id)`);
-      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_id INTEGER REFERENCES players(id)`);
-      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS winner_id INTEGER REFERENCES players(id)`);
-      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_equipped_cards JSON`);
-      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_equipped_cards JSON`);
-      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSON`);
-      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_points_earned INTEGER NOT NULL DEFAULT 0`);
-      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER NOT NULL DEFAULT 0`);
-      logger.info("card_clash_matches columns verified");
-    } catch (error) {
-      logger.warn({ error }, "Could not alter card_clash_matches columns");
+    // Each ALTER is wrapped individually so a single failure doesn't abort the rest
+    const matchAlters = [
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS match_id UUID DEFAULT gen_random_uuid()`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_id INTEGER REFERENCES players(id)`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_id INTEGER REFERENCES players(id)`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS winner_id INTEGER REFERENCES players(id)`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_equipped_cards JSON`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_equipped_cards JSON`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSON`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_points_earned INTEGER DEFAULT 0`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER DEFAULT 0`,
+    ];
+    for (const alter of matchAlters) {
+      try { await db.execute(alter); } catch (e) { logger.warn({ e }, "card_clash_matches column alter skipped"); }
     }
+    logger.info("card_clash_matches columns verified");
 
     logger.info("Card tables initialized successfully");
   } catch (error) {
@@ -227,7 +229,7 @@ export async function ensurePlayerCurrency(playerId: number) {
         VALUES (${playerId}, 100, 0)
         ON CONFLICT (player_id) DO NOTHING
       `);
-      console.log(`[COINS] Player ${playerId} created with 100 starting coins`);
+      logger.info(`[COINS] Player ${playerId} created with 100 starting coins`);
     }
   } catch (error) {
     logger.error({ error, playerId }, "Failed to ensure player currency");
