@@ -65,8 +65,19 @@ export default function AdminChallengesPanel() {
         fetch("/api/challenges/admin/weekly-definitions", { headers: getAdminHeaders() }),
       ]);
 
-      if (dailyRes.ok) setDailyChallenges(await dailyRes.json());
-      if (weeklyRes.ok) setWeeklyChallenges(await weeklyRes.json());
+      if (dailyRes.ok) {
+        const data = await dailyRes.json();
+        setDailyChallenges(Array.isArray(data) ? data : []);
+      } else {
+        showMessage("Daily challenges: Unauthorized or PIN not set", "error");
+      }
+      
+      if (weeklyRes.ok) {
+        const data = await weeklyRes.json();
+        setWeeklyChallenges(Array.isArray(data) ? data : []);
+      } else {
+        showMessage("Weekly challenges: Unauthorized or PIN not set", "error");
+      }
     } catch (error) {
       showMessage("Failed to load challenge definitions", "error");
     }
