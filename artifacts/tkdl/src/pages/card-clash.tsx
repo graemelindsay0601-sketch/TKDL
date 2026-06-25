@@ -9,7 +9,7 @@ import { TKDLCard } from "@/components/TKDLCard";
 import { ALL_CARDS } from "@/lib/cards-data";
 import type { CardData, Category, Rarity } from "@/lib/cards-data";
 
-type Tab = "collection" | "shop" | "play" | "standings" | "mock";
+type Tab = "collection" | "shop" | "play" | "standings" | "mock" | "achievements" | "rules";
 
 const CATEGORIES: Category[] = ["X01 GOOD", "X01 BAD", "CRICKET GOOD", "CRICKET BAD", "WILDCARD GOOD", "WILDCARD BAD"];
 const RARITIES: Rarity[] = ["COMMON", "RARE", "LEGENDARY"];
@@ -34,6 +34,13 @@ export default function CardClashPage() {
   const [ownedNames, setOwnedNames] = useState<Set<string>>(new Set());
   const [newCardNames, setNewCardNames] = useState<Set<string>>(new Set());
   const [collLoading, setCollLoading] = useState(true);
+  const [achievements, setAchievements] = useState<any>(null);
+  const [packInventory, setPackInventory] = useState<any[]>([]);
+  const [packInvLoading, setPackInvLoading] = useState(false);
+  const [openingPack, setOpeningPack] = useState<number | null>(null);
+  const [openedCards, setOpenedCards] = useState<any[] | null>(null);
+  const [dupCards, setDupCards] = useState<any[]>([]);
+  const [sellingCard, setSellingCard] = useState<string | null>(null);
 
   // Load NEW card names from localStorage (cards acquired in last 24h)
   useEffect(() => {
@@ -78,14 +85,20 @@ export default function CardClashPage() {
   const loadData = useCallback(async () => {
     if (!playerId) return;
     try {
-      const [statsR, invR, standingsR] = await Promise.all([
+      const [statsR, invR, standingsR, achR, packInvR] = await Promise.all([
         fetch(`/api/card-clash/player/${playerId}/stats`).then(r => r.ok ? r.json() : null),
         fetch(`/api/card-clash/inventory/${playerId}`).then(r => r.ok ? r.json() : []),
         fetch("/api/card-clash/standings").then(r => r.ok ? r.json() : []),
+        fetch(`/api/card-clash/achievements/${playerId}`).then(r => r.ok ? r.json() : null),
+        fetch(`/api/card-clash/pack-inventory/${playerId}`).then(r => r.ok ? r.json() : []),
       ]);
       if (statsR) setStats(statsR);
-      setOwnedNames(new Set((Array.isArray(invR) ? invR : []).map((c: any) => c.cardName ?? c.name ?? "")));
+      const inv = Array.isArray(invR) ? invR : [];
+      setOwnedNames(new Set(inv.map((c: any) => c.cardName ?? c.name ?? "")));
+      setDupCards(inv.filter((c: any) => (c.quantity ?? 1) > 1));
       setStandings(Array.isArray(standingsR) ? standingsR : []);
+      if (achR) setAchievements(achR);
+      setPackInventory(Array.isArray(packInvR) ? packInvR : []);
     } catch {} finally { setCollLoading(false); }
   }, [playerId]);
 
@@ -122,6 +135,8 @@ export default function CardClashPage() {
     { id: "shop", label: "Shop", icon: "🛍️" },
     { id: "play", label: "Play", icon: "⚡" },
     { id: "standings", label: "Standings", icon: "🏆" },
+    { id: "achievements", label: "Achievements", icon: "🎖️" },
+    { id: "rules", label: "Rules", icon: "📖" },
     { id: "mock", label: "Mock Game", icon: "🎲" },
   ];
 
@@ -320,19 +335,103 @@ export default function CardClashPage() {
                 </div>
                 <CoinBalance playerId={playerId} />
               </div>
-              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                {[
-                  { icon: "⚡", text: "Instant boost effects" },
-                  { icon: "🎲", text: "100 unique cards" },
-                  { icon: "🏆", text: "Rare & Legendary drops" },
-                ].map(({ icon, text }) => (
-                  <div key={text} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "5px 12px", borderRadius: "20px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
-                    {icon} {text}
-                  </div>
-                ))}
-              </div>
             </div>
+
+            {/* Achievement packs to open */}
+            {packInventory.length > 0 && (
+              <div style={{ marginBottom: "2rem", padding: "20px", background: "linear-gradient(135deg,rgba(255,210,74,0.08),rgba(255,165,0,0.04))", border: "1px solid rgba(255,210,74,0.25)", borderRadius: "14px" }}>
+                <h3 style={{ margin: "0 0 4px", fontSize: "15px", fontWeight: 800, color: "#ffd24a", letterSpacing: "0.06em" }}>🎁 YOUR ACHIEVEMENT PACKS</h3>
+                <p style={{ margin: "0 0 16px", fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>Earned from achievements — open them for free!</p>
+                {openedCards && (
+                  <div style={{ marginBottom: "16px", padding: "14px", background: "rgba(0,255,136,0.06)", border: "1px solid rgba(0,255,136,0.2)", borderRadius: "10px" }}>
+                    <div style={{ fontSize: "13px", fontWeight: 700, color: "#00ff88", marginBottom: "8px" }}>✨ Cards received!</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                      {openedCards.map((c: any, i: number) => {
+                        const rc = c.rarity === "LEGENDARY" ? "#ffd24a" : c.rarity === "RARE" ? "#c084fc" : "rgba(255,255,255,0.5)";
+                        return <span key={i} style={{ padding: "4px 10px", borderRadius: "12px", background: "rgba(255,255,255,0.05)", border: `1px solid ${rc}`, fontSize: "12px", color: rc }}>{c.name} ({c.rarity})</span>;
+                      })}
+                    </div>
+                    <button onClick={() => setOpenedCards(null)} style={{ marginTop: "10px", fontSize: "11px", color: "rgba(255,255,255,0.4)", background: "none", border: "none", cursor: "pointer" }}>Dismiss</button>
+                  </div>
+                )}
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {packInventory.map((pk: any) => (
+                    <div key={pk.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px" }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: "14px" }}>{pk.packName}</div>
+                        <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", marginTop: "2px" }}>{pk.earned_reason?.replace("ACHIEVEMENT:", "From achievement: ") ?? "Achievement reward"}</div>
+                      </div>
+                      <button
+                        disabled={openingPack === pk.id}
+                        onClick={async () => {
+                          setOpeningPack(pk.id);
+                          setOpenedCards(null);
+                          try {
+                            const r = await fetch(`/api/card-clash/pack-inventory/${pk.id}/open`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ playerId }),
+                            });
+                            const data = await r.json();
+                            if (data.cards) {
+                              setOpenedCards(data.cards);
+                              loadData();
+                            }
+                          } finally { setOpeningPack(null); }
+                        }}
+                        style={{ padding: "8px 18px", background: openingPack === pk.id ? "rgba(255,255,255,0.1)" : "linear-gradient(135deg,#ffd24a,#ff9500)", border: "none", borderRadius: "8px", color: openingPack === pk.id ? "rgba(255,255,255,0.4)" : "#000", fontWeight: 800, fontSize: "12px", cursor: openingPack === pk.id ? "not-allowed" : "pointer", letterSpacing: "0.05em" }}
+                      >
+                        {openingPack === pk.id ? "Opening..." : "Open Pack"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <CardShopUI playerId={playerId} onCardsReceived={handleCardsReceived} />
+
+            {/* Sell duplicate cards */}
+            {dupCards.length > 0 && (
+              <div style={{ marginTop: "2rem", padding: "20px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px" }}>
+                <h3 style={{ margin: "0 0 4px", fontSize: "15px", fontWeight: 800, color: "rgba(255,255,255,0.8)", letterSpacing: "0.06em" }}>♻️ SELL DUPLICATES</h3>
+                <p style={{ margin: "0 0 16px", fontSize: "12px", color: "rgba(255,255,255,0.35)" }}>Turn spare cards into coins — sell one copy at a time. Common: 10🪙  Rare: 30🪙  Legendary: 100🪙</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: "10px" }}>
+                  {dupCards.map((c: any) => {
+                    const rar = (c.rarity ?? "COMMON").toUpperCase();
+                    const prices: Record<string,number> = { COMMON: 10, RARE: 30, LEGENDARY: 100 };
+                    const price = prices[rar] ?? 10;
+                    const rc = rar === "LEGENDARY" ? "#ffd24a" : rar === "RARE" ? "#c084fc" : "rgba(255,255,255,0.5)";
+                    const cid = c.cardId ?? c.card_id ?? c.id;
+                    return (
+                      <div key={cid} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "rgba(255,255,255,0.03)", border: `1px solid ${rc}30`, borderRadius: "10px" }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: "13px", color: "#fff" }}>{c.cardName ?? c.name}</div>
+                          <div style={{ fontSize: "11px", color: rc, marginTop: "2px" }}>{rar} — ×{c.quantity} owned</div>
+                        </div>
+                        <button
+                          disabled={sellingCard === cid}
+                          onClick={async () => {
+                            setSellingCard(cid);
+                            try {
+                              const r = await fetch("/api/card-clash/sell-card", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ playerId, cardId: cid }),
+                              });
+                              if (r.ok) loadData();
+                            } finally { setSellingCard(null); }
+                          }}
+                          style={{ padding: "6px 14px", background: sellingCard === cid ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: sellingCard === cid ? "rgba(255,255,255,0.3)" : "#ffd24a", fontWeight: 700, fontSize: "12px", cursor: sellingCard === cid ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
+                        >
+                          {sellingCard === cid ? "..." : `Sell +${price}🪙`}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -400,6 +499,138 @@ export default function CardClashPage() {
                 <div>No matches recorded yet — play some Card Clash games to appear here!</div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── ACHIEVEMENTS ── */}
+        {activeTab === "achievements" && (
+          <div>
+            <div style={{ marginBottom: "2rem" }}>
+              <h2 style={{ ...sectionH2, fontSize: "24px" }}>🎖️ Card Clash Achievements</h2>
+              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "4px 0 0" }}>Earn coins and bonus packs by completing challenges</p>
+            </div>
+
+            {achievements?.stats && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))", gap: "12px", marginBottom: "2rem" }}>
+                {[
+                  { label: "Matches Played", value: achievements.stats.matchesPlayed, icon: "🃏" },
+                  { label: "Matches Won", value: achievements.stats.matchesWon, icon: "⚡" },
+                  { label: "Cards Owned", value: achievements.stats.cardsOwned, icon: "🎴" },
+                  { label: "Packs Opened", value: achievements.stats.packsOpened, icon: "📦" },
+                  { label: "Login Streak", value: `${achievements.stats.loginStreak}d`, icon: "🔥" },
+                ].map(s => (
+                  <div key={s.label} style={{ padding: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px", textAlign: "center" }}>
+                    <div style={{ fontSize: "22px", marginBottom: "6px" }}>{s.icon}</div>
+                    <div style={{ fontSize: "20px", fontWeight: 900, color: "#fff" }}>{s.value}</div>
+                    <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {achievements?.achievements ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: "12px" }}>
+                {achievements.achievements.map((a: any) => {
+                  const rarColors: Record<string,string> = { Common: "#9ca3af", Rare: "#c084fc", Epic: "#818cf8", Legendary: "#ffd24a" };
+                  const rc = rarColors[a.rarity] ?? "#9ca3af";
+                  return (
+                    <div key={a.key} style={{ padding: "16px", background: a.earned ? "rgba(0,255,136,0.04)" : "rgba(255,255,255,0.02)", border: `1px solid ${a.earned ? rc + "50" : "rgba(255,255,255,0.07)"}`, borderRadius: "12px", opacity: a.earned ? 1 : 0.7 }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                        <div style={{ fontSize: "28px", lineHeight: 1, filter: a.earned ? "none" : "grayscale(1)" }}>{a.icon}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+                            <span style={{ fontWeight: 800, fontSize: "13px", color: a.earned ? "#fff" : "rgba(255,255,255,0.5)" }}>{a.name}</span>
+                            <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "9px", background: rc + "22", color: rc, letterSpacing: "0.06em" }}>{a.rarity.toUpperCase()}</span>
+                            {a.earned && <span style={{ fontSize: "10px", color: "#00ff88" }}>✓ EARNED</span>}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", marginBottom: "8px" }}>{a.description}</div>
+                          {/* Progress bar */}
+                          {!a.earned && (
+                            <div style={{ marginBottom: "8px" }}>
+                              <div style={{ height: "4px", background: "rgba(255,255,255,0.08)", borderRadius: "2px", overflow: "hidden" }}>
+                                <div style={{ height: "100%", width: `${Math.min(100, (a.progress / a.statValue) * 100)}%`, background: rc, borderRadius: "2px", transition: "width 0.3s" }} />
+                              </div>
+                              <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", marginTop: "3px" }}>{Math.min(a.progress, a.statValue)} / {a.statValue}</div>
+                            </div>
+                          )}
+                          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "11px", color: "#ffd24a" }}>🪙 {a.coinReward} coins</span>
+                            {a.packName && <span style={{ fontSize: "11px", color: "#00b4ff" }}>📦 {a.packName}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "4rem", color: "rgba(255,255,255,0.3)" }}>
+                <div style={{ fontSize: "40px", marginBottom: "1rem" }}>🎖️</div>
+                <div>Loading achievements…</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── RULES ── */}
+        {activeTab === "rules" && (
+          <div>
+            <div style={{ marginBottom: "2rem" }}>
+              <h2 style={{ ...sectionH2, fontSize: "24px" }}>📖 How to Play Card Clash</h2>
+              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "4px 0 0" }}>The complete guide to TKDL's exclusive card game</p>
+            </div>
+            {([
+              {
+                heading: "What is Card Clash?",
+                icon: "🃏",
+                body: "Card Clash is TKDL's exclusive meta-game built on top of your darts matches. Collect 100 unique cards, equip them before a match, and use their effects to gain tactical advantages — or mess with your opponent.",
+              },
+              {
+                heading: "Earning Coins",
+                icon: "🪙",
+                body: "Coins are the Card Clash currency. You earn them by:\n• Logging in daily (streak bonuses grow over time)\n• Completing achievements\n• Selling duplicate cards in the Shop\n• Winning Card Clash matches",
+              },
+              {
+                heading: "Buying & Opening Packs",
+                icon: "📦",
+                body: "Three packs are available in the Shop:\n• Arrow Pack (🎯) — 50 coins, 1 card\n• League Night Pack (🏹) — 200 coins, 5 cards\n• Kilbirnie Elite (⚡) — 350 coins, 10 cards\n\nDrop rates: 75% Common · 20% Rare · 5% Legendary\nPity system: guaranteed Legendary after 50 pulls with no Legendary.",
+              },
+              {
+                heading: "Card Rarities",
+                icon: "✨",
+                body: "Cards come in three rarities:\n• Common — grey border, widely available, solid effects\n• Rare — purple border, stronger or more niche effects\n• Legendary — gold border, the most powerful effects in the game",
+              },
+              {
+                heading: "Card Categories",
+                icon: "🎯",
+                body: "Each card belongs to a game mode and effect type:\n• X01 Good / X01 Bad — effects that help or hinder in X01 (501, 301)\n• Cricket Good / Cricket Bad — effects for Cricket matches\n• Wildcard Good / Wildcard Bad — work in any game mode\n\n'Good' cards benefit you; 'Bad' cards curse your opponent.",
+              },
+              {
+                heading: "Equipping Cards",
+                icon: "⚡",
+                body: "Before a darts match, go to the Play tab and select the players. You can optionally equip up to 4 cards each. Cards are optional — you can always play without them.\n\nCards are applied during the match and their effects resolve automatically.",
+              },
+              {
+                heading: "Achievements",
+                icon: "🎖️",
+                body: "Complete in-game milestones to earn coin bonuses and free packs:\n• Play your first match → 50 coins\n• Collect 25 unique cards → 200 coins + free Arrow Pack\n• Win 10 matches → 300 coins + free Arrow Pack\n• And many more — check the Achievements tab!\n\nAchievement packs are stored in the Shop under 'Your Achievement Packs' and can be opened any time.",
+              },
+              {
+                heading: "Daily Login Streak",
+                icon: "🔥",
+                body: "Log in every day to grow your streak and earn increasing coin rewards. Consecutive days give bigger bonuses — hit 7 days for 200 coins and a free Arrow Pack, 30 days for 1000 coins and a League Night Pack.",
+              },
+              {
+                heading: "Selling Duplicates",
+                icon: "♻️",
+                body: "Got multiples of the same card? Sell spares in the Shop:\n• Common duplicate → 10 coins\n• Rare duplicate → 30 coins\n• Legendary duplicate → 100 coins\n\nThis keeps your collection tidy and funds new packs.",
+              },
+            ] as { heading: string; icon: string; body: string }[]).map(section => (
+              <div key={section.heading} style={{ marginBottom: "1.5rem", padding: "20px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "14px" }}>
+                <h3 style={{ margin: "0 0 10px", fontSize: "15px", fontWeight: 800, color: "#ffd24a" }}>{section.icon} {section.heading}</h3>
+                <p style={{ margin: 0, fontSize: "13px", color: "rgba(255,255,255,0.6)", lineHeight: 1.8, whiteSpace: "pre-line" }}>{section.body}</p>
+              </div>
+            ))}
           </div>
         )}
 
