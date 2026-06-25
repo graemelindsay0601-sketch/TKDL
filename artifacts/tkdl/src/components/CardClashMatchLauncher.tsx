@@ -48,6 +48,7 @@ export function CardClashMatchLauncher({
   const [player2Cards, setPlayer2Cards] = useState<any[]>([]);
   const [matchId, setMatchId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [matchError, setMatchError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/players")
@@ -67,6 +68,7 @@ export function CardClashMatchLauncher({
   const handleEquipmentConfirm = async (p1Cards: any[], p2Cards: any[]) => {
     setPlayer1Cards(p1Cards);
     setPlayer2Cards(p2Cards);
+    setMatchError(null);
     try {
       const res = await fetch("/api/card-clash/match/start", {
         method: "POST",
@@ -76,14 +78,23 @@ export function CardClashMatchLauncher({
           player1Id: currentPlayerId,
           player2Id: selectedOpponent!.id,
           equippedCards: {
-            player1: p1Cards.map((c: any) => ({ cardId: c.cardId || c.name, cardType: c.cardType || (c.type === "BAD" ? "BAD" : "GOOD") })),
-            player2: p2Cards.map((c: any) => ({ cardId: c.cardId || c.name, cardType: c.cardType || (c.type === "BAD" ? "BAD" : "GOOD") })),
+            player1: p1Cards.map((c: any) => ({ cardId: c.id || c.cardId || c.name, cardType: c.cardType || "GOOD" })),
+            player2: p2Cards.map((c: any) => ({ cardId: c.id || c.cardId || c.name, cardType: c.cardType || "GOOD" })),
           },
         }),
       });
-      if (res.ok) { const match = await res.json(); setMatchId(match.id ?? null); }
-    } catch {}
-    setStep("match");
+      if (res.ok) {
+        const match = await res.json();
+        setMatchId(match.id ?? null);
+        setStep("match");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setMatchError(err.error ?? `Failed to start match (${res.status})`);
+        setStep("equipment"); // stay on equipment step so user can try again
+      }
+    } catch (e) {
+      setMatchError("Network error — check your connection and try again");
+    }
   };
 
   const handleMatchComplete = async (result: GameResult, cardsUsed: string[]) => {
@@ -216,7 +227,8 @@ export function CardClashMatchLauncher({
         opponentName={selectedOpponent!.name}
         gameMode={gameMode!}
         onConfirm={handleEquipmentConfirm}
-        onBack={() => setStep("gamemode")}
+        onBack={() => { setMatchError(null); setStep("gamemode"); }}
+        submitError={matchError}
       />
     );
   }
