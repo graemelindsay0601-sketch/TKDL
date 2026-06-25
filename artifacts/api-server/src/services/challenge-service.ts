@@ -522,4 +522,45 @@ export const challengeService = {
       console.error("[CardClash] Failed to seed default challenges:", error);
     }
   },
-};
+
+  /**
+   * Seed comprehensive challenge pool from challengePool.ts
+   * Called once during initialization
+   */
+  async seedComprehensivePool(): Promise<void> {
+    try {
+      const { DAILY_CHALLENGE_POOL, WEEKLY_CHALLENGE_POOL } = await import("../lib/challengePool");
+
+      // Seed daily challenges
+      for (const challenge of DAILY_CHALLENGE_POOL) {
+        const existing = await db.query.dailyChallenges.findFirst({
+          where: eq(dailyChallenges.challenge_key, challenge.challenge_key),
+        });
+
+        if (!existing) {
+          await db.insert(dailyChallenges).values({
+            ...challenge,
+            is_active: true,
+          });
+        }
+      }
+
+      // Seed weekly challenges
+      for (const challenge of WEEKLY_CHALLENGE_POOL) {
+        const existing = await db.query.weeklyChallenges.findFirst({
+          where: eq(weeklyChallenges.challenge_key, challenge.challenge_key),
+        });
+
+        if (!existing) {
+          await db.insert(weeklyChallenges).values({
+            ...challenge,
+            is_active: true,
+          });
+        }
+      }
+
+      console.log(`[CardClash] Comprehensive challenge pool seeded (${DAILY_CHALLENGE_POOL.length} daily + ${WEEKLY_CHALLENGE_POOL.length} weekly)`);
+    } catch (error) {
+      console.error("[CardClash] Failed to seed comprehensive pool:", error);
+    }
+  },

@@ -597,6 +597,40 @@ router.get("/challenges/weekly/:playerId", async (req: Request, res: Response) =
   }
 });
 
+// Reroll a daily challenge
+router.post("/challenges/reroll-daily", async (req: Request, res: Response) => {
+  try {
+    const { playerId, challengeId } = req.body;
+    if (!playerId || !challengeId) {
+      return res.status(400).json({ error: "playerId and challengeId required" });
+    }
+
+    const { challengeManager } = await import("../services/challenge-manager");
+    const result = await challengeManager.rerollDaily(playerId, challengeId);
+    res.json(result);
+  } catch (error) {
+    logger.error("Reroll daily error:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// Reroll a weekly challenge
+router.post("/challenges/reroll-weekly", async (req: Request, res: Response) => {
+  try {
+    const { playerId, challengeId } = req.body;
+    if (!playerId || !challengeId) {
+      return res.status(400).json({ error: "playerId and challengeId required" });
+    }
+
+    const { challengeManager } = await import("../services/challenge-manager");
+    const result = await challengeManager.rerollWeekly(playerId, challengeId);
+    res.json(result);
+  } catch (error) {
+    logger.error("Reroll weekly error:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
 router.post("/challenges/update-daily", async (req: Request, res: Response) => {
   try {
     const { playerId, challengeKey, incrementBy = 1 } = req.body;

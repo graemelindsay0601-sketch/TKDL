@@ -727,6 +727,7 @@ async function init() {
     await initializeFeatureFlags();
     await seedCardDefinitions();
     await challengeService.seedDefaultChallenges();
+    await challengeService.seedComprehensivePool();
     await seedNotificationTables();
     await initializeNotificationPreferences();
     await seedCommunityTables();
