@@ -1082,4 +1082,67 @@ router.post("/sell-card", async (req: Request, res: Response) => {
   }
 });
 
-export default router;
+
+  // === LAUNCH PREP: CHALLENGE & FULL RESET ROUTES ===
+
+  // Clear challenge progress — all players (omit playerId) or specific player
+  router.post("/admin/challenges/clear", verifyAdminPin, async (req: Request, res: Response) => {
+    try {
+      const { playerId } = req.body;
+      if (playerId) {
+        const pid = parseInt(String(playerId));
+        await db.execute(sql`DELETE FROM player_daily_challenges WHERE player_id = ${pid}`);
+        await db.execute(sql`DELETE FROM player_weekly_challenges WHERE player_id = ${pid}`);
+        res.json({ success: true, message: `Cleared challenges for player ${pid}` });
+      } else {
+        await db.execute(sql`DELETE FROM player_daily_challenges`);
+        await db.execute(sql`DELETE FROM player_weekly_challenges`);
+        res.json({ success: true, message: "Cleared all challenge progress for every player" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
+
+  // Nuclear reset — wipes all Card Clash player data, keeps definitions/seasons
+  router.post("/admin/full-reset", verifyAdminPin, async (req: Request, res: Response) => {
+    try {
+      const results: string[] = [];
+
+      const inv = await db.execute(sql`DELETE FROM player_card_inventory`);
+      results.push(`player_card_inventory: ${(inv as any).rowCount ?? 0} deleted`);
+
+      const cur = await db.execute(sql`
+        UPDATE player_currency
+        SET card_points = 200, packs_opened = 0, matches_played = 0, matches_won = 0, matches_lost = 0
+      `);
+      results.push(`player_currency: ${(cur as any).rowCount ?? 0} reset to 200 coins`);
+
+      const mat = await db.execute(sql`DELETE FROM card_clash_matches`);
+      results.push(`card_clash_matches: ${(mat as any).rowCount ?? 0} deleted`);
+
+      const pi = await db.execute(sql`DELETE FROM card_clash_pack_inventory`);
+      results.push(`card_clash_pack_inventory: ${(pi as any).rowCount ?? 0} deleted`);
+
+      const ach = await db.execute(sql`DELETE FROM card_clash_achievements_earned`);
+      results.push(`card_clash_achievements_earned: ${(ach as any).rowCount ?? 0} deleted`);
+
+      const dc = await db.execute(sql`DELETE FROM player_daily_challenges`);
+      results.push(`player_daily_challenges: ${(dc as any).rowCount ?? 0} deleted`);
+
+      const wc = await db.execute(sql`DELETE FROM player_weekly_challenges`);
+      results.push(`player_weekly_challenges: ${(wc as any).rowCount ?? 0} deleted`);
+
+      const ls = await db.execute(sql`
+        UPDATE player_login_streaks
+        SET current_streak = 0, longest_streak = 0, last_login_date = NULL
+      `);
+      results.push(`player_login_streaks: ${(ls as any).rowCount ?? 0} reset`);
+
+      res.json({ success: true, message: "🚀 Full reset complete — TKDL Card Clash ready for launch!", results });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
+
+  export default router;
