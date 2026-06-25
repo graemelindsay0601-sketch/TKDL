@@ -17,10 +17,17 @@ interface EquippedCards {
 }
 
 interface CardEquipmentSelectorProps {
-  playerId: number;
+  currentPlayerId: number;
+  currentPlayerName?: string;
+  opponentId?: number;
+  opponentName?: string;
   gameMode: "X01" | "CRICKET";
-  onSelect: (equipment: EquippedCards) => void;
-  onCancel: () => void;
+  onConfirm: (p1Cards: any[], p2Cards: any[]) => void;
+  onBack: () => void;
+  // Legacy aliases kept for backwards compat
+  playerId?: number;
+  onSelect?: (equipment: EquippedCards) => void;
+  onCancel?: () => void;
 }
 
 const RarityColor: Record<string, string> = {
@@ -36,11 +43,12 @@ const RarityBg: Record<string, string> = {
 };
 
 export function CardEquipmentSelector({
-  playerId,
+  currentPlayerId,
   gameMode,
-  onSelect,
-  onCancel,
+  onConfirm,
+  onBack,
 }: CardEquipmentSelectorProps) {
+  const playerId = currentPlayerId;
   const [inventory, setInventory] = useState<Card[]>([]);
   const [selectedGood, setSelectedGood] = useState<Card[]>([]);
   const [selectedBad, setSelectedBad] = useState<Card[]>([]);
@@ -48,6 +56,7 @@ export function CardEquipmentSelector({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!playerId) return;
     loadInventory();
   }, [playerId]);
 
@@ -103,10 +112,7 @@ export function CardEquipmentSelector({
 
   const handleConfirm = () => {
     if (isReady) {
-      onSelect({
-        goodCards: selectedGood,
-        badCards: selectedBad,
-      });
+      onConfirm([...selectedGood, ...selectedBad], []);
     }
   };
 
@@ -133,7 +139,7 @@ export function CardEquipmentSelector({
               <h3 className="text-red-400 font-semibold mb-1">Error Loading Cards</h3>
               <p className="text-gray-300 text-sm mb-4">{error}</p>
               <button
-                onClick={onCancel}
+                onClick={onBack}
                 className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
               >
                 Back
@@ -289,7 +295,7 @@ export function CardEquipmentSelector({
         {/* Footer */}
         <div className="sticky bottom-0 bg-gray-900 border-t border-gray-700 p-4 flex gap-2 justify-end">
           <button
-            onClick={onCancel}
+            onClick={onBack}
             className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
           >
             Cancel
