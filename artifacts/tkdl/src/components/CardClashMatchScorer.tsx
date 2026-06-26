@@ -235,7 +235,7 @@ export function CardClashMatchScorer({
                 {selectedCard.card.name}
               </div>
               <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)", lineHeight: "1.5" }}>
-                {selectedCard.card.effect_text}
+                {selectedCard.card.effect}
               </div>
             </div>
 
