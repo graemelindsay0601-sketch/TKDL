@@ -581,11 +581,6 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       
       const p1 = JSON.parse(p1Raw);
       const p2 = JSON.parse(p2Raw);
-        p1Count: p1.length, 
-        p2Count: p2.length,
-        p1Cards: p1.map((c: any) => ({ id: c.id, name: c.name, category: c.category })),
-        p2Cards: p2.map((c: any) => ({ id: c.id, name: c.name, category: c.category }))
-      });
       
       setP1Cards(p1);
       setP2Cards(p2);
@@ -872,11 +867,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       
       const p1 = JSON.parse(p1Raw);
       const p2 = JSON.parse(p2Raw);
-        p1Count: p1.length, 
-        p2Count: p2.length,
-        p1Cards: p1.map((c: any) => ({ id: c.id, name: c.name, category: c.category })),
-        p2Cards: p2.map((c: any) => ({ id: c.id, name: c.name, category: c.category }))
-      });
       
       setP1Cards(p1);
       setP2Cards(p2);
