@@ -151,7 +151,8 @@ function buildEffectSentence(
   if (card.cardType === "GOOD") {
     return `${playerName} played ${card.name} — +${bonus} point bonus!`;
   } else {
-    return `${playerName} cursed ${opponentName} with ${card.name} — ${opponentName} loses ${bonus} points!`;
+    // bonus is negative for BAD cards, so show absolute value
+    return `${playerName} cursed ${opponentName} with ${card.name} — ${opponentName} loses ${Math.abs(bonus)} points!`;
   }
 }
 
