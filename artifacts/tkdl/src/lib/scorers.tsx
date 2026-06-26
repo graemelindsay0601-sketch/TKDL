@@ -224,6 +224,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [cardsUsed, setCardsUsed]     = useState<any[]>([]);
   const [isCardClash, setIsCardClash] = useState(false);
   const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
+  const [showCards, setShowCards] = useState(false);
 
   const names = [p1Name, p2Name];
 
@@ -797,6 +798,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [cardsUsed, setCardsUsed]     = useState<any[]>([]);
   const [isCardClash, setIsCardClash] = useState(false);
   const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
+  const [showCards, setShowCards] = useState(false);
 
   const names = [p1Name, p2Name];
 
