@@ -191,7 +191,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 }
 
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
-export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false }: {
+export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [] }: {
   p1Name: string; p2Name: string;
   config: { startingScore: number; doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; noTrebles?: boolean; legs?: number; bustResetTo?: number };
   botConfig?: BotConfig;
@@ -200,6 +200,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   legs?: number;
   setsToWin?: number;
   legsToWinSet?: number; soloMode?: boolean;
+  cardEffects?: any[];
 }) {
   const { startingScore = 501, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo } = config;
   const legs = legsProp ?? configLegs;
@@ -225,6 +226,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
 
   const names = [p1Name, p2Name];
+
+  // Sync with cardEffects from parent (CardClashMatchScorer)
+  React.useEffect(() => {
+    if (cardEffects && cardEffects.length > 0) {
+      setActiveEffects(cardEffects);
+    }
+  }, [cardEffects]);
 
   // Practice stat accumulators (refs = no re-render, always fresh in callbacks)
   const p1StatsRef = useRef({ darts: 0, score: 0, s180s: 0, coAttempts: 0, coHits: 0, dartLog: [] as DartThrow[] });
@@ -688,10 +696,11 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
 const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
 
-export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, cardEffects = [] }: {
   p1Name: string; p2Name: string; cutThroat?: boolean; includesBull?: boolean; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  cardEffects?: any[];
 }) {
   const numCount = includesBull ? 7 : 6;
   const [marks, setMarks]       = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
@@ -709,6 +718,13 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
 
   const names = [p1Name, p2Name];
+
+  // Sync with cardEffects from parent (CardClashMatchScorer)
+  React.useEffect(() => {
+    if (cardEffects && cardEffects.length > 0) {
+      setActiveEffects(cardEffects);
+    }
+  }, [cardEffects]);
 
   // ── Card Clash: Load per-player cards written by CardClashMatchScorer ──
   useEffect(() => {

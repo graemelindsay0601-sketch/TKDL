@@ -8,6 +8,7 @@
 import React, { useState } from "react";
 import { X01Scorer, CricketScorer } from "@/lib/scorers";
 import type { GameResult } from "./game-scorer";
+import { ccActivateCard, ccExpireOnTurnEnd, type CCEffect } from "@/lib/card-effect-engine";
 
 interface EquippedCard {
   id: string;
@@ -189,6 +190,9 @@ export function CardClashMatchScorer({
   
   // Turn tracking (P1 starts first)
   const [currentTurn, setCurrentTurn] = useState<0 | 1>(0);
+  
+  // REAL CARD EFFECTS (passed to scorers)
+  const [activeCardEffects, setActiveCardEffects] = useState<CCEffect[]>([]);
 
   const handleCardClick = (card: EquippedCard, playerIndex: 0 | 1) => {
     if (card.used) return;
@@ -225,6 +229,13 @@ export function CardClashMatchScorer({
     const entry: EffectEntry = { card, playerIndex, bonus, timestamp: Date.now() };
     setCardsUsed((prev) => [...prev, `${card.id}:p${playerIndex}`]);
     setEffectHistory((prev) => [...prev, entry]);
+
+    // ✅ ACTIVATE REAL CARD EFFECTS IN ENGINE
+    // ccActivateCard returns array of CCEffect objects
+    const effects = ccActivateCard(card, playerIndex);
+    if (effects && effects.length > 0) {
+      setActiveCardEffects((prev) => [...prev, ...effects]);
+    }
 
     // Show animated overlay
     setActiveEffect({ card, playerIndex, bonus });
@@ -407,6 +418,7 @@ export function CardClashMatchScorer({
           onWin={(winnerIdx: 0 | 1, detail?: string) => handleMatchComplete({ winnerIdx, detail })}
           onAbandon={() => {}}
           onPracticeStats={undefined}
+          cardEffects={activeCardEffects}
         />
       ) : (
         <CricketScorer
@@ -416,6 +428,7 @@ export function CardClashMatchScorer({
           onWin={(winnerIdx: 0 | 1, detail?: string) => handleMatchComplete({ winnerIdx, detail })}
           onAbandon={() => {}}
           onPracticeStats={undefined}
+          cardEffects={activeCardEffects}
         />
       )}
 
