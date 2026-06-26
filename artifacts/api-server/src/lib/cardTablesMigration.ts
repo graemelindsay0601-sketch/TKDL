@@ -109,42 +109,46 @@ export async function initializeCardTables() {
       logger.warn("Could not verify card_clash_seasons table existence");
     }
 
-    // Create card_clash_matches table if it doesn't exist
-    // NOTE: Card Clash is standalone (no seasons) - season_id is legacy/unused
+    // EMERGENCY FIX: Drop card_clash_matches table and recreate with correct schema
+    try {
+      logger.info("Dropping old card_clash_matches table for schema rebuild...");
+      await db.execute(sql`DROP TABLE IF EXISTS card_clash_matches CASCADE`);
+      logger.info("✓ Dropped card_clash_matches");
+    } catch (e) {
+      logger.warn("Could not drop card_clash_matches (may not exist)");
+    }
+
+    // Create card_clash_matches table with CORRECT schema (no player_id, only player_1_id and player_2_id)
+    logger.info("Recreating card_clash_matches with correct schema...");
     await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS card_clash_matches (
+      CREATE TABLE card_clash_matches (
         id SERIAL PRIMARY KEY,
-        match_id UUID UNIQUE DEFAULT gen_random_uuid(),
+        match_id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
         season_id INTEGER REFERENCES card_clash_seasons(id) ON DELETE CASCADE,
-        game_mode TEXT NOT NULL,
+        game_mode TEXT NOT NULL CHECK (game_mode IN ('X01', 'CRICKET')),
         player_1_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
         player_2_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
         winner_id INTEGER REFERENCES players(id) ON DELETE CASCADE,
-        player_1_equipped_cards JSONB DEFAULT '[]'::jsonb,
-        player_2_equipped_cards JSONB DEFAULT '[]'::jsonb,
-        cards_used_in_match JSONB DEFAULT '[]'::jsonb,
-        player_1_points_earned INTEGER DEFAULT 0,
-        player_2_points_earned INTEGER DEFAULT 0,
-        is_mock INTEGER DEFAULT 0,
+        player_1_equipped_cards JSONB NOT NULL DEFAULT '[]'::jsonb,
+        player_2_equipped_cards JSONB NOT NULL DEFAULT '[]'::jsonb,
+        cards_used_in_match JSONB NOT NULL DEFAULT '[]'::jsonb,
+        player_1_points_earned INTEGER NOT NULL DEFAULT 0,
+        player_2_points_earned INTEGER NOT NULL DEFAULT 0,
+        is_mock INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    logger.info("✓ Recreated card_clash_matches with correct schema");
 
-    // MIGRATION: Make season_id nullable (Card Clash no longer requires seasons)
+    // Create indexes for performance
     try {
-      await db.execute(sql`ALTER TABLE card_clash_matches ALTER COLUMN season_id DROP NOT NULL`);
-      logger.info("✓ Made season_id nullable in card_clash_matches");
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ccm_player1 ON card_clash_matches(player_1_id)`);
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ccm_player2 ON card_clash_matches(player_2_id)`);
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ccm_created ON card_clash_matches(created_at)`);
+      logger.info("✓ Created indexes for card_clash_matches");
     } catch (e) {
-      logger.debug("season_id already nullable or other error (this is OK)");
-    }
-
-    // MIGRATION: Drop foreign key constraint if it exists
-    try {
-      await db.execute(sql`ALTER TABLE card_clash_matches DROP CONSTRAINT IF EXISTS card_clash_matches_season_id_card_clash_seasons_id_fk`);
-      logger.info("✓ Dropped season_id FK constraint");
-    } catch (e) {
-      logger.debug("FK already dropped or doesn't exist (this is OK)");
+      logger.warn("Could not create indexes (may already exist)");
     }
 
     // Create card_clash_leaderboard table for all-time stats (no seasons)
