@@ -65,6 +65,19 @@ export function CardClashMatchScorer({
     gameMode === "X01" ? 501 : 0,
   ]);
 
+  // Initialize sessionStorage for Card Clash mode (activates card effects in scorers)
+  useEffect(() => {
+    sessionStorage.setItem("card_clash_mode", "true");
+    sessionStorage.setItem("card_clash_p1_cards", JSON.stringify(player1EquippedCards));
+    sessionStorage.setItem("card_clash_p2_cards", JSON.stringify(player2EquippedCards));
+    
+    return () => {
+      sessionStorage.removeItem("card_clash_mode");
+      sessionStorage.removeItem("card_clash_p1_cards");
+      sessionStorage.removeItem("card_clash_p2_cards");
+    };
+  }, [player1EquippedCards, player2EquippedCards]);
+
   // Detect turn changes by monitoring score display
   const detectTurnChange = useCallback((p1Score: number, p2Score: number) => {
     // If player 1's score changed (decreased in X01, increased in Cricket), it was their turn
