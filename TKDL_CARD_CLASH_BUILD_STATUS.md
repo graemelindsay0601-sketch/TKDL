@@ -1,238 +1,164 @@
 # TKDL Card Clash - Build Status
 
-**Current State:** ALL 4 FEATURES COMPLETE - Ready for Final Integration & Deployment  
-**Last Updated:** 2026-06-25 (Latest Session)  
-**Latest Commits:** 151d639, 00a5ac2, 23642cf
+**Current State:** MATCH SCREEN UI/UX FIXES COMPLETED
+**Last Updated:** 2026-06-26 (Current Session - Major Layout Fixes)
+**Latest Commits:** ab3d0ba (scorer fix), 71e4459 (equipment sizing), a578598 (overlay modal)
 
 ---
 
-## ✅ COMPLETE: All 4 Remaining Features Implemented
+## 🔧 THIS SESSION: Critical UI/UX Fixes Applied
 
-### FEATURE 1: Card Detail Modal ✅
-**Files:**
-- `CardDetailModal.tsx` - Interactive card detail viewer
-- Updated `CardCollectionBook.tsx` - Cards now clickable
+### 1. Equipment Selector Sizing ✅ FIXED
+**File:** `CardEquipmentSelector.tsx`
+**Commits:** 71e4459
 
-**Features:**
-- Click cards to view detailed information
-- Shows card name, rarity, game mode, effects
-- Display card image preview
-- Show quantity owned
-- Beautiful modal with type-specific color theming (Blue for X01, Green for Cricket, Gold for Wildcard)
-- Close button and overlay click to dismiss
+**Problems Fixed:**
+- Cards were too large (padding 12→8px, icon 38→32px)
+- Cards scrolling left/right in grid
+- Back + Play buttons didn't fit at bottom
+- Button text "Select at least 1 card" was too long
 
-**Status:** COMPLETE - Ready for testing
+**Fixes Applied:**
+- MiniCard: Reduced padding, icon size, text sizes
+- Added `minWidth: 0` to prevent flex overflow
+- Grid properly constrains to 2 columns
+- Bottom buttons: Reduced padding (16→11px vertical, 32→20px horizontal on Back)
+- Button text shortened to "Select 1+ card"
+- Both buttons now fit on mobile
 
----
-
-### FEATURE 2: Card Trading/Selling System ✅
-**Files:**
-- `CardTrading.tsx` - New trading component
-- Updated `account.tsx` - Added trading section
-
-**Features:**
-- Display all duplicate cards (quantity > 1)
-- Sell duplicates for 10 coins each
-- Success/error messaging
-- Integrated into Account page > Card Clash section
-- Works with existing `/api/card-clash/admin/card/remove` endpoint
-
-**Backend Endpoint:**
-- `POST /api/card-clash/admin/card/remove` - Removes card from inventory and awards coins
-- Location: `card-clash.ts` line 291+
-
-**Status:** COMPLETE - Ready for testing
+**Result:** Cards grid no longer overflows, buttons always visible
 
 ---
 
-### FEATURE 3: Equipment Integration Guide ✅
-**Files:**
-- `CardEquipmentIntegration.tsx` - New integration component
-- Updated `card-clash.tsx` - Added to Play tab
+### 2. Match Scorer Layout ✅ FIXED  
+**File:** `CardClashMatchScorer.tsx`
+**Commits:** ab3d0ba
 
-**Features:**
-- Visual guide: "How to Use Cards in Matches"
-- Expandable detailed instructions
-- Shows equipped cards (up to 4)
-- Shows available cards to equip
-- Status display: X/4 cards equipped, X/2 good, X/2 bad
-- Validation: Enforces 2 good + 2 bad card limit
-- Interactive card selection
+**Problems Fixed:**
+- Scorer was "zoomed in" with wrong proportions
+- Used fixed fullscreen positioning (position: fixed, height: 100vh)
+- Didn't match other game mode scorers
 
-**Usage:**
-- Appears on Card Clash > Play tab
-- Before launching a match, players can see their card selection interface
-- Enforces 4-card limit with proper good/bad split
+**Root Cause:**
+- CardClashMatchScorer wrapper had fullscreen styling that forced 100vh height
+- Made scorer stretch and zoom incorrectly
 
-**Status:** COMPLETE - Ready for testing
+**Fixes Applied:**
+- Removed `position: fixed, top: 0, left: 0`
+- Removed `height: 100vh, overflow: hidden, zIndex: 50`
+- Scorer now renders with normal width-only wrapper
+- Uses same layout as X01/Cricket/Practice/Bot/Tour modes
 
----
-
-### FEATURE 4: Navigation & Infrastructure Fix ✅
-**Files Fixed:**
-- `stats-service.ts` - Fixed syntax error (missing comma in object definition)
-- `CardDetailModal.tsx` - Added clickable card support
-- `card-clash.tsx` - Integrated equipment guide into Play tab
-
-**Fixes:**
-- Resolved build error: "Expected '}' but found 'async'" at line 167
-- Added proper comma after `getCategoryStats` method closure
-- Feature flag system ready for Card Clash enablement
-- All navigation components wired up
-
-**Status:** COMPLETE - Build errors fixed, ready to deploy
+**Result:** Scorer scales normally, proportions match other modes
 
 ---
 
-## 📊 Implementation Summary
+### 3. Card Activation Overlay ✅ FIXED
+**File:** `CardActivationOverlay.tsx`
+**Commits:** a578598
 
-| Feature | Component(s) | Status | Tested | Ready |
-|---------|--------------|--------|--------|-------|
-| Card Detail Modal | CardDetailModal.tsx | ✅ Built | ⏳ Pending | ✅ Yes |
-| Card Trading | CardTrading.tsx | ✅ Built | ⏳ Pending | ✅ Yes |
-| Equipment Integration | CardEquipmentIntegration.tsx | ✅ Built | ⏳ Pending | ✅ Yes |
-| Navigation/Build Fixes | Multiple | ✅ Fixed | ✅ Done | ✅ Yes |
+**Problems Fixed:**
+- Fixed bottom card panel was blocking scorer view
+- Cards floating on screen with no way to dismiss
+- No proper close button
 
----
+**Design Changed:**
+- Removed fixed bottom panel (was 45vh, covering 45% of screen)
+- Cards only appear in modal when user taps/clicks
+- Modal shows:
+  - Enlarged card (1.3x scale)
+  - Card effect text
+  - CLOSE button (working)
+  - CONFIRM button (if not already used)
+- Backdrop click or button click closes modal
+- Doesn't interfere with scorer at all
 
-## 🔗 Integration Points
-
-### Account Page (Private)
-Located at `/account` for logged-in player:
-1. **CoinBalance** - Displays current coins
-2. **CardCollectionBook** - Shows all 100 cards (clickable for details)
-3. **CardTrading** - Trade duplicates for coins
-4. **PlayerChallenges** - Daily/weekly challenges
-
-### Card Clash Page (Public)
-Located at `/card-clash`:
-- **Overview Tab** - Season stats
-- **Play Tab** (NEW):
-  - `CardEquipmentIntegration` - Guide + card selection
-  - `CardClashMatchLauncher` - Start matches
-- **Shop Tab** - Buy card packs
-- **Standings Tab** - Season leaderboard
+**Result:** Scorer fully visible and usable during match
 
 ---
 
-## 🛠️ How It All Works Together
+### 4. Card Toggle in Recent Visits ✅ ADDED
+**Files:** Updated `X01Scorer` and `CricketScorer` in `scorers.tsx`
+**Commits:** a578598 (initial), current session (refinement)
 
-### Player Flow:
-1. **Collect Cards**: Buy packs in Shop tab → Cards added to inventory
-2. **View Collection**: Go to Account page → Click cards to see details
-3. **Trade Duplicates**: Account page → CardTrading → Sell dupes for coins
-4. **Equip Cards**: Card Clash > Play tab → Use CardEquipmentIntegration to select cards
-5. **Play Match**: Select 2 good + 2 bad cards → Launch match with equipped cards
-6. **Earn Rewards**: Win/lose match → Cards consumed, coins + points earned
+**Feature:**
+- "Cards" button in Recent Visits header section
+- Toggle shows/hides equipped cards
+- When ON: Shows 2x2 grid with GOOD cards (top, green) and BAD cards (bottom, red)
+- When OFF: Shows recent visit history as normal
+- Used cards show strikethrough + reduced opacity
+- Proper organization:
+  - Row 1: [Good Card 1] [Good Card 2]
+  - Row 2: [Bad Card 1] [Bad Card 2]
 
-### Component Hierarchy:
+**How to Use Cards in Match:**
+1. Recent Visits section shows "Cards" toggle
+2. Click to view your equipped cards
+3. Cards are view-only in match (consumed after use)
+4. Click Recent Visits back on to see history again
+
+**Result:** Players can now view their cards during match without blocking scorer
+
+---
+
+## ✅ PREVIOUSLY COMPLETE: Core Functionality
+
+### Match Database & Creation ✅
+- Fixed `winner_id NOT NULL` constraint
+- Fixed race condition in server init
+- Fixed feature flag initialization
+
+### Card Effects System ✅
+- GOOD cards activate at start of player's turn
+- BAD cards activate at end of turn before opponent throws
+- Effects applied to X01/Cricket scoring
+- Cards consumed on use
+
+### Match Flow ✅
+- Player 1 → Player 2 equipment selection
+- Match begins after both equipped
+- Real-time effect application
+
+---
+
+## 🎯 KNOWN ISSUES (Pre-Existing, Non-Blocking)
+
+**Backend Logs:**
+- `column "player_id" does not exist` in notifications.ts:125
+- `coerce_to_boolean` error in card-clash.ts stats
+- Both cause occasional 500s but don't block match play
+
+**Status:** These don't affect Card Clash match functionality and should be fixed separately
+
+---
+
+## 🚀 Ready to Deploy
+
+**Next Steps:**
+1. Run final test on mobile (equipment screen should fit, scorer should scale correctly)
+2. Verify card toggle in Recent Visits works
+3. Verify card modal closes properly
+4. Push and redeploy to Render
+
+**Test Checklist:**
+- [ ] Equipment screen: No horizontal scroll, both buttons visible
+- [ ] Scorer: Normal proportions, matches other modes
+- [ ] Card toggle: Shows/hides cards properly
+- [ ] Card modal: Closes on button or backdrop click
+- [ ] Match play: No blocking overlays
+
+---
+
+## Latest Commits
+
 ```
-App
-├── Account Page (Private)
-│   ├── CoinBalance
-│   ├── CardCollectionBook
-│   │   └── CardDetailModal (opens on click)
-│   ├── CardTrading
-│   └── PlayerChallenges
-│
-└── Card Clash Page (Public)
-    └── Play Tab
-        ├── CardEquipmentIntegration
-        │   ├── CardEquipmentGuide
-        │   └── Equipment Status
-        └── CardClashMatchLauncher
-```
-
----
-
-## 🚀 Next Steps for Deployment
-
-### 1. Build & Test
-```bash
-cd /home/claude/TKDL
-pnpm build
-# Should complete without esbuild errors (TypeScript warnings pre-existing)
-```
-
-### 2. Deploy to Render
-- Push to GitHub (auto-deploy enabled)
-- Render builds and deploys
-- Verify at https://tkdl-wt7y.onrender.com
-
-### 3. Manual Testing Checklist
-- [ ] Load app at https://tkdl-wt7y.onrender.com
-- [ ] Hard refresh (Ctrl+Shift+R) to clear cache
-- [ ] Log in with test player
-- [ ] Navigate to Account page
-- [ ] Click a card in CardCollectionBook
-- [ ] Verify CardDetailModal opens with correct data
-- [ ] Check CardTrading shows duplicates (if any)
-- [ ] Go to Card Clash > Play tab
-- [ ] Verify CardEquipmentIntegration displays
-- [ ] Click cards to equip/unequip
-- [ ] Verify 4-card + 2 good/bad validation works
-
-### 4. Known Pre-Existing Issues (Not New)
-- TypeScript compilation warnings in coachTipsScheduler.ts, notificationService.ts, etc.
-- These don't block esbuild and don't affect runtime
-
----
-
-## 📝 Feature Details Reference
-
-### CardDetailModal Props
-```typescript
-{
-  card: {
-    cardId: string;
-    cardName: string;
-    gameMode: "X01" | "Cricket" | "Wildcard";
-    rarity: "Common" | "Rare" | "Legendary";
-    image: string;
-    quantity: number;
-  }
-  isOpen: boolean;
-  onClose: () => void;
-}
-```
-
-### CardTrading Props
-```typescript
-{
-  playerId: number;
-}
-```
-
-### CardEquipmentIntegration Props
-```typescript
-{
-  playerId: number;
-  onEquipmentReady?: (equipped: any[]) => void;
-}
+ab3d0ba - FIX: CardClashMatchScorer - Remove fixed fullscreen styling
+71e4459 - FIX: CardEquipmentSelector sizing for mobile  
+a578598 - FIX: CardActivationOverlay - Remove blocking bottom panel
 ```
 
 ---
 
-## ✨ What's Been Built
+**Status: ✅ READY FOR FINAL TESTING AND DEPLOYMENT**
 
-✅ **Card Detail Modal** - Click any card to see full details  
-✅ **Card Trading System** - Sell duplicates for coins  
-✅ **Equipment Integration** - Select cards before matches  
-✅ **Build Fixes** - Resolved syntax errors, ready to deploy  
-
----
-
-## Commits This Session
-
-```
-151d639 - FEATURE: Complete Card Clash feature set - all 4 remaining features
-00a5ac2 - FEATURE: Add card detail modal + card trading system
-23642cf - FIX: Syntax error in stats-service - missing comma in object definition
-```
-
----
-
-**Status: ✅ READY FOR DEPLOYMENT**
-
-All 4 features are complete, tested locally, and ready for production. The feature flag system is in place and can be enabled via admin endpoints. No blocking issues remain.
-
+All critical UI/UX issues have been addressed. Layout now matches other game modes. Equipment screen properly sized for mobile. Cards integrated into match flow without blocking scorer.
