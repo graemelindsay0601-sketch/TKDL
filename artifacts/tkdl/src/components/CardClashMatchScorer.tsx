@@ -186,6 +186,9 @@ export function CardClashMatchScorer({
   
   // Card confirmation modal
   const [selectedCardForConfirm, setSelectedCardForConfirm] = useState<{ card: EquippedCard; playerIndex: 0 | 1 } | null>(null);
+  
+  // Turn tracking (P1 starts first)
+  const [currentTurn, setCurrentTurn] = useState<0 | 1>(0);
 
   const handleCardClick = (card: EquippedCard, playerIndex: 0 | 1) => {
     if (card.used) return;
@@ -199,13 +202,11 @@ export function CardClashMatchScorer({
     const bonus = applyCardEffect(card, gameMode);
 
     // Apply the bonus: GOOD helps you, BAD hurts the opponent
-    // For GOOD cards: bonus is positive, apply to self
-    // For BAD cards: bonus is negative, apply to opponent
     if (card.cardType === "GOOD") {
       if (playerIndex === 0) setPlayer1Bonus((p) => p + bonus);
       else setPlayer2Bonus((p) => p + bonus);
     } else {
-      // BAD card: bonus is negative, apply to opponent (which adds the negative, reducing their bonus)
+      // BAD card: bonus is negative, apply to opponent
       if (playerIndex === 0) setPlayer2Bonus((p) => p + bonus);
       else setPlayer1Bonus((p) => p + bonus);
     }
@@ -228,6 +229,9 @@ export function CardClashMatchScorer({
     // Show animated overlay
     setActiveEffect({ card, playerIndex, bonus });
     setTimeout(() => setActiveEffect(null), 3000);
+    
+    // Toggle turn after card is used
+    setCurrentTurn((prev) => (prev === 0 ? 1 : 0));
     
     // Close confirmation modal
     setSelectedCardForConfirm(null);
@@ -415,23 +419,49 @@ export function CardClashMatchScorer({
         />
       )}
 
-      {/* Player 1 Card Panel — Left */}
-      <CardPanel
-        playerName={player1Name}
-        cards={player1Cards}
-        bonus={player1Bonus}
-        side="left"
-        onCardClick={(card) => handleCardClick(card, 0)}
-      />
+      {/* Turn Indicator */}
+      <div
+        style={{
+          position: "fixed",
+          top: "20px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 500,
+          background: "rgba(0,0,0,0.7)",
+          border: `2px solid ${currentTurn === 0 ? "#00ff88" : "#ff6b6b"}`,
+          borderRadius: "8px",
+          padding: "8px 16px",
+          color: currentTurn === 0 ? "#00ff88" : "#ff6b6b",
+          fontWeight: "700",
+          fontSize: "12px",
+          textTransform: "uppercase",
+          letterSpacing: "1px",
+        }}
+      >
+        {currentTurn === 0 ? `${player1Name}'s Turn` : `${player2Name}'s Turn`}
+      </div>
 
-      {/* Player 2 Card Panel — Right */}
-      <CardPanel
-        playerName={player2Name}
-        cards={player2Cards}
-        bonus={player2Bonus}
-        side="right"
-        onCardClick={(card) => handleCardClick(card, 1)}
-      />
+      {/* Player 1 Card Panel — Left (Only visible on P1's turn) */}
+      {currentTurn === 0 && (
+        <CardPanel
+          playerName={player1Name}
+          cards={player1Cards}
+          bonus={player1Bonus}
+          side="left"
+          onCardClick={(card) => handleCardClick(card, 0)}
+        />
+      )}
+
+      {/* Player 2 Card Panel — Right (Only visible on P2's turn) */}
+      {currentTurn === 1 && (
+        <CardPanel
+          playerName={player2Name}
+          cards={player2Cards}
+          bonus={player2Bonus}
+          side="right"
+          onCardClick={(card) => handleCardClick(card, 1)}
+        />
+      )}
 
       {/* Card Activation Effect Overlay */}
       {activeEffect && (
