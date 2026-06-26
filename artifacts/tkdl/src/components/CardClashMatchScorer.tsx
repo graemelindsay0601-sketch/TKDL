@@ -193,6 +193,9 @@ export function CardClashMatchScorer({
   
   // REAL CARD EFFECTS (passed to scorers)
   const [activeCardEffects, setActiveCardEffects] = useState<CCEffect[]>([]);
+  
+  // INSTANT EFFECTS (applied immediately when card is used)
+  const [instantEffectModifiers, setInstantEffectModifiers] = useState<{ p0Adjustment: number; p1Adjustment: number }>({ p0Adjustment: 0, p1Adjustment: 0 });
 
   const handleCardClick = (card: EquippedCard, playerIndex: 0 | 1) => {
     if (card.used) return;
@@ -234,7 +237,36 @@ export function CardClashMatchScorer({
     // ccActivateCard returns array of CCEffect objects
     const effects = ccActivateCard(card, playerIndex);
     if (effects && effects.length > 0) {
-      setActiveCardEffects((prev) => [...prev, ...effects]);
+      // Separate instant and turn-based effects
+      const instantEffects = effects.filter((e) => e.instant);
+      const turnBasedEffects = effects.filter((e) => !e.instant);
+
+      // ✅ HANDLE INSTANT EFFECTS (execute immediately)
+      if (instantEffects.length > 0) {
+        let p0Adjustment = 0;
+        let p1Adjustment = 0;
+        
+        for (const effect of instantEffects) {
+          if (effect.instantP0Delta) p0Adjustment += effect.instantP0Delta;
+          if (effect.instantP1Delta) p1Adjustment += effect.instantP1Delta;
+        }
+        
+        // Track instant effect score modifications
+        setInstantEffectModifiers((prev) => ({
+          p0Adjustment: prev.p0Adjustment + p0Adjustment,
+          p1Adjustment: prev.p1Adjustment + p1Adjustment,
+        }));
+        
+        // Show instant effect notification
+        if (p0Adjustment !== 0 || p1Adjustment !== 0) {
+          console.log(`📢 Instant Effect: P0 ${p0Adjustment > 0 ? '+' : ''}${p0Adjustment}, P1 ${p1Adjustment > 0 ? '+' : ''}${p1Adjustment}`);
+        }
+      }
+
+      // ✅ ADD TURN-BASED EFFECTS to active effects
+      if (turnBasedEffects.length > 0) {
+        setActiveCardEffects((prev) => [...prev, ...turnBasedEffects]);
+      }
     }
 
     // Show animated overlay
