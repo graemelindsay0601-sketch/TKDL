@@ -22,6 +22,7 @@ interface CardClashMatchScorerProps {
   player1EquippedCards: EquippedCard[];
   player2EquippedCards: EquippedCard[];
   onMatchComplete: (result: GameResult, cardsUsed: string[]) => void;
+  onAbandon?: () => void;
   isBot: boolean;
 }
 
@@ -34,6 +35,7 @@ export function CardClashMatchScorer({
   player1EquippedCards,
   player2EquippedCards,
   onMatchComplete,
+  onAbandon,
   isBot,
 }: CardClashMatchScorerProps) {
   
@@ -58,6 +60,10 @@ export function CardClashMatchScorer({
     onMatchComplete(result, []);
   };
 
+  const handleAbandon = () => {
+    onAbandon?.();
+  };
+
   // Render scorer directly - no wrapper, just like GameScorer/Practice mode
   if (gameMode === "X01") {
     return (
@@ -67,7 +73,7 @@ export function CardClashMatchScorer({
         config={{ startingScore: 501, doubleOut: true }}
         botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
         onWin={handleMatchComplete}
-        onAbandon={() => {}}
+        onAbandon={handleAbandon}
       />
     );
   } else {
@@ -77,7 +83,7 @@ export function CardClashMatchScorer({
         p2Name={player2Name}
         botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
         onWin={handleMatchComplete}
-        onAbandon={() => {}}
+        onAbandon={handleAbandon}
       />
     );
   }

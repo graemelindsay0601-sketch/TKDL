@@ -128,6 +128,17 @@ export function CardClashMatchLauncher({
     onMatchComplete();
   };
 
+  const handleAbandon = () => {
+    // Clear match state and go back to opponent selection
+    setStep("opponent");
+    setPlayer1Cards([]);
+    setPlayer2Cards([]);
+    setSelectedOpponent(null);
+    setGameMode(null);
+    setMatchId(null);
+    setMatchError(null);
+  };
+
   // ── STEP 1: Opponent Selection ────────────────────────────────────────────
   if (step === "opponent") {
     return (
@@ -292,6 +303,7 @@ export function CardClashMatchLauncher({
           player1EquippedCards={p1CardsWithUsed}
           player2EquippedCards={p2CardsWithUsed}
           onMatchComplete={handleMatchComplete}
+          onAbandon={handleAbandon}
           isBot={false}
         />
       </div>,

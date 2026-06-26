@@ -658,8 +658,8 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           </div>
         )}
       </SectionCard>
-      {/* Recent Visits OR Card Grid */}
-      {history.length > 0 && (
+      {/* Recent Visits OR Card Grid - always show in Card Clash mode */}
+      {(history.length > 0 || isCardClash) && (
         <SectionCard>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <div className="text-xs uppercase tracking-widest font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
@@ -3064,7 +3064,7 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
             </div>
           )}
         </SectionCard>
-        {history.length > 0 && (
+        {history.length > 0 || isCardClash) && (
           <SectionCard>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
               <div className="text-xs uppercase tracking-widest font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
