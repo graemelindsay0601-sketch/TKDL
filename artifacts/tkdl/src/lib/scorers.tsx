@@ -813,7 +813,6 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
                   );
                 })}
             </div>
-            </div>
           ) : (
             [...(showCards ? [] : history)].reverse().slice(0, 5).map((h, i) => (
               <div key={i} className="flex justify-between text-xs py-0.5">
@@ -825,7 +824,8 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           )}
         </SectionCard>
       )}
-      </div>}
+      </div>
+      }
       bot={<div className="flex flex-col gap-2">
         <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust || isBotTurnX01} />
         <AbandonBtn onAbandon={onAbandon} />

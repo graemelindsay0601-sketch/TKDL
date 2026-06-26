@@ -59,7 +59,6 @@ function GameCard({ gt, selected, onSelect, onRules }: {
         borderColor: selected ? "#a78bfa" : "rgba(255,255,255,0.09)",
           background: selected ? "rgba(167,139,250,0.09)" : "rgba(255,255,255,0.015)",
           boxShadow: selected ? "0 0 22px rgba(167,139,250,0.18), inset 0 1px 0 rgba(167,139,250,0.12)" : "none",
-        boxShadow: selected ? "0 0 18px rgba(167,139,250,0.12)" : undefined,
       }}>
       {selected && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: "#a78bfa" }} />}
       <div className="flex items-start justify-between gap-2">
