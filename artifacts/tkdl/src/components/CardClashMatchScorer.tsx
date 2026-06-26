@@ -58,38 +58,27 @@ export function CardClashMatchScorer({
     onMatchComplete(result, []);
   };
 
-  // Fullscreen wrapper - takes over entire viewport like Practice mode
-  const fullscreenStyle: React.CSSProperties = {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    zIndex: 9999,
-    overflow: "auto",
-    background: "#0a0e18",
-  };
-
-  return (
-    <div style={fullscreenStyle}>
-      {gameMode === "X01" ? (
-        <X01Scorer
-          p1Name={player1Name}
-          p2Name={player2Name}
-          config={{ startingScore: 501, doubleOut: true }}
-          botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
-          onWin={handleMatchComplete}
-          onAbandon={() => {}}
-        />
-      ) : (
-        <CricketScorer
-          p1Name={player1Name}
-          p2Name={player2Name}
-          botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
-          onWin={handleMatchComplete}
-          onAbandon={() => {}}
-        />
-      )}
-    </div>
-  );
+  // Render scorer directly - no wrapper, just like GameScorer/Practice mode
+  if (gameMode === "X01") {
+    return (
+      <X01Scorer
+        p1Name={player1Name}
+        p2Name={player2Name}
+        config={{ startingScore: 501, doubleOut: true }}
+        botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
+        onWin={handleMatchComplete}
+        onAbandon={() => {}}
+      />
+    );
+  } else {
+    return (
+      <CricketScorer
+        p1Name={player1Name}
+        p2Name={player2Name}
+        botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
+        onWin={handleMatchComplete}
+        onAbandon={() => {}}
+      />
+    );
+  }
 }
