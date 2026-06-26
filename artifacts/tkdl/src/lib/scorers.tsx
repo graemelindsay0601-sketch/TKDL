@@ -225,6 +225,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [isCardClash, setIsCardClash] = useState(false);
   const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
   const [showCards, setShowCards] = useState(false);
+  const [selectedCard, setSelectedCard] = useState<any>(null);
 
   const names = [p1Name, p2Name];
 
@@ -699,9 +700,9 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
                 .map((card: any) => (
                   <div
                     key={card.id}
-                    onClick={() => {}}
+                    onClick={() => !cardsUsed.some((used: any) => used.id === card.id) && setSelectedCard(card)}
                     style={{
-                      cursor: "pointer",
+                      cursor: cardsUsed.some((used: any) => used.id === card.id) ? "not-allowed" : "pointer",
                       fontSize: "10px",
                       padding: "8px",
                       background: "rgba(0,180,255,0.08)",
@@ -723,9 +724,9 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
                 .map((card: any) => (
                   <div
                     key={card.id}
-                    onClick={() => {}}
+                    onClick={() => !cardsUsed.some((used: any) => used.id === card.id) && setSelectedCard(card)}
                     style={{
-                      cursor: "pointer",
+                      cursor: cardsUsed.some((used: any) => used.id === card.id) ? "not-allowed" : "pointer",
                       fontSize: "10px",
                       padding: "8px",
                       background: "rgba(255,50,50,0.08)",
@@ -766,8 +767,9 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         isActive: cardsUsed.some((used: any) => used.id === c.id),
       }))}
       isVisible={isCardClash && (turn === 0 ? p1Cards : p2Cards).length > 0}
+      selectedCard={selectedCard}
       onCardActivate={handleCardActivation}
-      onClose={() => cardDebugLog("X01Scorer", "Card overlay closed")}
+      onClose={() => setSelectedCard(null)}
     />
     </>
   );
@@ -799,6 +801,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [isCardClash, setIsCardClash] = useState(false);
   const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
   const [showCards, setShowCards] = useState(false);
+  const [selectedCard, setSelectedCard] = useState<any>(null);
 
   const names = [p1Name, p2Name];
 
@@ -1056,8 +1059,9 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         isActive: cardsUsed.some((used: any) => used.id === c.id),
       }))}
       isVisible={isCardClash && (turn === 0 ? p1Cards : p2Cards).length > 0}
+      selectedCard={selectedCard}
       onCardActivate={handleCardActivation}
-      onClose={() => cardDebugLog("CricketScorer", "Card overlay closed")}
+      onClose={() => setSelectedCard(null)}
     />
     </>
   );

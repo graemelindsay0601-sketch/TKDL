@@ -3,7 +3,7 @@
  * Shows enlarged card in modal on tap. Doesn't block scorer.
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { TKDLCard } from "./TKDLCard";
 import type { CardData } from "@/lib/cards-data";
 
@@ -15,6 +15,7 @@ interface CardState extends CardData {
 interface CardActivationOverlayProps {
   equippedCards: CardState[];
   isVisible: boolean;
+  selectedCard?: CardState | null;
   onCardActivate?: (cardId: number | string) => void;
   onClose?: () => void;
 }
@@ -22,9 +23,17 @@ interface CardActivationOverlayProps {
 export function CardActivationOverlay({
   equippedCards,
   isVisible,
+  selectedCard,
   onCardActivate,
 }: CardActivationOverlayProps) {
-  const [enlargedCard, setEnlargedCard] = useState<CardState | null>(null);
+  const [enlargedCard, setEnlargedCard] = useState<CardState | null>(selectedCard || null);
+
+  // Sync selectedCard prop to local state
+  useEffect(() => {
+    if (selectedCard) {
+      setEnlargedCard(selectedCard);
+    }
+  }, [selectedCard]);
 
   if (!isVisible || equippedCards.length === 0) return null;
 
