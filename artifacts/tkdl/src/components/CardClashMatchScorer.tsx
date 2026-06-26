@@ -183,8 +183,17 @@ export function CardClashMatchScorer({
   const [effectHistory, setEffectHistory] = useState<EffectEntry[]>([]);
   const [activeEffect, setActiveEffect] = useState<ActiveEffect | null>(null);
   const [matchSummary, setMatchSummary] = useState<MatchSummary | null>(null);
+  
+  // Card confirmation modal
+  const [selectedCardForConfirm, setSelectedCardForConfirm] = useState<{ card: EquippedCard; playerIndex: 0 | 1 } | null>(null);
 
   const handleCardClick = (card: EquippedCard, playerIndex: 0 | 1) => {
+    if (card.used) return;
+    // Show confirmation modal instead of immediate application
+    setSelectedCardForConfirm({ card, playerIndex });
+  };
+
+  const handleConfirmCard = (card: EquippedCard, playerIndex: 0 | 1) => {
     if (card.used) return;
 
     const bonus = applyCardEffect(card, gameMode);
@@ -219,6 +228,9 @@ export function CardClashMatchScorer({
     // Show animated overlay
     setActiveEffect({ card, playerIndex, bonus });
     setTimeout(() => setActiveEffect(null), 3000);
+    
+    // Close confirmation modal
+    setSelectedCardForConfirm(null);
   };
 
   const handleMatchComplete = (result: GameResult) => {
@@ -368,7 +380,18 @@ export function CardClashMatchScorer({
 
   // ─── Main Match View ─────────────────────────────────────────────────────────
   return (
-    <div style={{ position: "relative" }}>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "linear-gradient(135deg, #0a0e18, #1a1f2e)",
+        zIndex: 9999,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column" }}>
 
       {/* Base Scorer */}
       {gameMode === "X01" ? (
@@ -482,6 +505,147 @@ export function CardClashMatchScorer({
           100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
         }
       `}</style>
+      </div>
+
+      {/* Card Confirmation Modal */}
+      {selectedCardForConfirm && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.9)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000,
+          }}
+        >
+          <div
+            style={{
+              background: "linear-gradient(135deg, #1a1a2e, #16213e)",
+              border: "2px solid #ffd24a",
+              borderRadius: "16px",
+              padding: "2rem",
+              maxWidth: "480px",
+              width: "90%",
+              textAlign: "center",
+              color: "#fff",
+            }}
+          >
+            {/* Card Preview */}
+            <div
+              style={{
+                marginBottom: "1.5rem",
+                padding: "1.5rem",
+                background:
+                  selectedCardForConfirm.card.cardType === "GOOD"
+                    ? "linear-gradient(135deg, rgba(0,255,136,0.1), rgba(0,200,100,0.06))"
+                    : "linear-gradient(135deg, rgba(255,107,107,0.1), rgba(200,50,50,0.06))",
+                borderRadius: "10px",
+                border: `2px solid ${RARITY_GLOW[selectedCardForConfirm.card.rarity]}`,
+              }}
+            >
+              <div style={{ fontSize: "48px", marginBottom: "12px" }}>
+                {selectedCardForConfirm.card.cardType === "GOOD" ? "⚡" : "💀"}
+              </div>
+              <div
+                style={{
+                  fontSize: "20px",
+                  fontWeight: "900",
+                  marginBottom: "8px",
+                  color: "#ffd24a",
+                }}
+              >
+                {selectedCardForConfirm.card.name}
+              </div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "rgba(255,255,255,0.7)",
+                  fontStyle: "italic",
+                  marginBottom: "12px",
+                }}
+              >
+                {selectedCardForConfirm.card.effect}
+              </div>
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: "700",
+                  color:
+                    selectedCardForConfirm.card.cardType === "GOOD"
+                      ? "#00ff88"
+                      : "#ff6b6b",
+                }}
+              >
+                {selectedCardForConfirm.card.cardType === "GOOD" ? "+" : "−"}
+                {Math.abs(applyCardEffect(selectedCardForConfirm.card, gameMode))} pts
+              </div>
+            </div>
+
+            {/* Rarity Badge */}
+            <div
+              style={{
+                fontSize: "11px",
+                fontWeight: "700",
+                letterSpacing: "1px",
+                color: RARITY_GLOW[selectedCardForConfirm.card.rarity],
+                marginBottom: "1.5rem",
+                textTransform: "uppercase",
+              }}
+            >
+              {selectedCardForConfirm.card.rarity}
+            </div>
+
+            {/* Buttons */}
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                justifyContent: "center",
+              }}
+            >
+              <button
+                onClick={() =>
+                  handleConfirmCard(
+                    selectedCardForConfirm.card,
+                    selectedCardForConfirm.playerIndex
+                  )
+                }
+                style={{
+                  padding: "12px 28px",
+                  background: "#ffd24a",
+                  color: "#000",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontWeight: "700",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  flex: 1,
+                }}
+              >
+                Use Card
+              </button>
+              <button
+                onClick={() => setSelectedCardForConfirm(null)}
+                style={{
+                  padding: "12px 28px",
+                  background: "rgba(255,255,255,0.1)",
+                  color: "#fff",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  borderRadius: "8px",
+                  fontWeight: "700",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  flex: 1,
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
