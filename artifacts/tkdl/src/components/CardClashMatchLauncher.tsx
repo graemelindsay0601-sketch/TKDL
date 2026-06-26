@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { CardClashMatchScorer } from "./CardClashMatchScorer";
 import { CardEquipmentSelector } from "./CardEquipmentSelector";
 import type { GameResult } from "./game-scorer";
@@ -273,18 +274,28 @@ export function CardClashMatchLauncher({
     const p1CardsWithUsed = player1Cards.map(c => ({ ...c, used: false }));
     const p2CardsWithUsed = player2Cards.map(c => ({ ...c, used: false }));
     
-    return (
-      <CardClashMatchScorer
-        player1Id={currentPlayerId}
-        player1Name={currentPlayerName}
-        player2Id={selectedOpponent!.id}
-        player2Name={selectedOpponent!.name}
-        gameMode={gameMode!}
-        player1EquippedCards={p1CardsWithUsed}
-        player2EquippedCards={p2CardsWithUsed}
-        onMatchComplete={handleMatchComplete}
-        isBot={false}
-      />
+    // Render via createPortal to document.body (like Practice mode)
+    // This takes match completely out of page layout
+    return createPortal(
+      <div style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        background: "#06040e",
+      }}>
+        <CardClashMatchScorer
+          player1Id={currentPlayerId}
+          player1Name={currentPlayerName}
+          player2Id={selectedOpponent!.id}
+          player2Name={selectedOpponent!.name}
+          gameMode={gameMode!}
+          player1EquippedCards={p1CardsWithUsed}
+          player2EquippedCards={p2CardsWithUsed}
+          onMatchComplete={handleMatchComplete}
+          isBot={false}
+        />
+      </div>,
+      document.body
     );
   }
 
