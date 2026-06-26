@@ -677,10 +677,8 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     />
     <CardActivationOverlay 
       equippedCards={(turn === 0 ? p1Cards : p2Cards).map(c => ({
-        id: c.id?.toString() || "",
-        name: c.name || "Unknown Card",
-        effect: c.effect_text || "Card effect",
-        cardType: (c.good_or_bad === "GOOD" ? "GOOD" : "BAD") as "GOOD" | "BAD",
+        ...c,
+        id: c.id || 0,
         isActive: cardsUsed.some((used: any) => used.id === c.id),
       }))}
       isVisible={isCardClash && (turn === 0 ? p1Cards : p2Cards).length > 0}
@@ -968,10 +966,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     />
     <CardActivationOverlay 
       equippedCards={(turn === 0 ? p1Cards : p2Cards).map(c => ({
-        id: c.id?.toString() || "",
-        name: c.name || "Unknown Card",
-        effect: c.effect_text || "Card effect",
-        cardType: (c.good_or_bad === "GOOD" ? "GOOD" : "BAD") as "GOOD" | "BAD",
+        ...c,
+        id: c.id || 0,
         isActive: cardsUsed.some((used: any) => used.id === c.id),
       }))}
       isVisible={isCardClash && (turn === 0 ? p1Cards : p2Cards).length > 0}

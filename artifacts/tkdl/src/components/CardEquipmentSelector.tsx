@@ -185,12 +185,12 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
             )}
           </div>
         </div>
-        <div style={{ padding: "14px 22px", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", gap: "10px", justifyContent: "flex-end", flexShrink: 0, background: "rgba(0,0,0,0.2)", position: "sticky", bottom: 0, zIndex: 10 }}>
-          <button onClick={onBack} style={{ padding: "11px 22px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "9px", color: "rgba(255,255,255,0.55)", fontWeight: 700, fontSize: "13px", cursor: "pointer", fontFamily: "Arial,sans-serif" }}>← Back</button>
+        <div style={{ padding: "18px 22px", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", gap: "12px", justifyContent: "flex-end", flexShrink: 0, background: "rgba(0,0,0,0.4)", position: "sticky", bottom: 0, zIndex: 10 }}>
+          <button onClick={onBack} style={{ padding: "16px 32px", background: "rgba(255,255,255,0.08)", border: "1.5px solid rgba(255,255,255,0.16)", borderRadius: "11px", color: "rgba(255,255,255,0.65)", fontWeight: 800, fontSize: "14px", cursor: "pointer", fontFamily: "Arial,sans-serif", transition: "all 0.2s" }}>← BACK</button>
           <button
             onClick={() => onConfirm([...selectedGood, ...selectedBad], [])}
             disabled={totalSelected === 0}
-            style={{ padding: "11px 28px", background: totalSelected > 0 ? "linear-gradient(135deg,#ffd24a,#ff9500)" : "rgba(255,255,255,0.08)", border: "none", borderRadius: "9px", color: totalSelected > 0 ? "#000" : "rgba(255,255,255,0.3)", fontWeight: 900, fontSize: "13px", cursor: totalSelected > 0 ? "pointer" : "not-allowed", letterSpacing: "0.07em", fontFamily: "'Arial Black',Arial,sans-serif", boxShadow: totalSelected > 0 ? "0 4px 20px rgba(255,210,74,0.35)" : "none", whiteSpace: "nowrap", opacity: totalSelected > 0 ? 1 : 0.5 }}
+            style={{ padding: "18px 48px", background: totalSelected > 0 ? "linear-gradient(135deg,#ffd24a,#ffb700)" : "rgba(255,255,255,0.06)", border: "none", borderRadius: "11px", color: totalSelected > 0 ? "#000" : "rgba(255,255,255,0.25)", fontWeight: 900, fontSize: "16px", cursor: totalSelected > 0 ? "pointer" : "not-allowed", letterSpacing: "0.08em", fontFamily: "'Arial Black',Arial,sans-serif", boxShadow: totalSelected > 0 ? "0 6px 28px rgba(255,210,74,0.4),inset 0 1px 0 rgba(255,255,255,0.2)" : "none", whiteSpace: "nowrap", opacity: totalSelected > 0 ? 1 : 0.5, transform: "translateY(0)", transition: "all 0.15s" }}
           >
             {totalSelected > 0 ? `⚡ PLAY (${totalSelected})` : "Select at least 1 card"}
           </button>
