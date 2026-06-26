@@ -82,8 +82,8 @@ export function CardClashMatchScorer({
     // Track used card
     setCardsUsed((prev) => [...prev, `${card.id}:p${playerIndex}`]);
 
-    // Switch turn
-    setCurrentTurn((prev) => (prev === 0 ? 1 : 0));
+    // DON'T switch turn - card affects current turn, not next turn
+    // Turn switches only when scorer says game is over or next player starts
 
     // Close modal
     setSelectedCard(null);
