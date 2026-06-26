@@ -53,27 +53,90 @@ interface CardClashMatchScorerProps {
 }
 
 /**
- * Parse the card's effect text and return a concrete bonus value (5–50).
- * GOOD cards: positive bonus for the activating player.
- * BAD cards: penalty bonus applied against the opponent.
+ * Parse and apply card effects based on game mode, card type, and game state
+ * Returns the bonus/penalty to apply to opponent's or player's score
  */
-function parseCardBonus(card: EquippedCard): number {
-  const effect = card.effect;
-
-  // Extract the first explicit number from the effect text
-  const numMatch = effect.match(/\d+/);
+function applyCardEffect(
+  card: EquippedCard,
+  gameMode: "X01" | "CRICKET",
+  currentScore?: number,  // Current player's remaining score in X01, or marks in Cricket
+  opponentScore?: number  // Opponent's score
+): number {
+  const effect = card.effect.toLowerCase();
+  
+  // X01-specific GOOD cards
+  if (gameMode === "X01" && card.cardType === "GOOD") {
+    // "High Roller": +25 if scored over 100
+    if (effect.includes("score over 100")) return 25;
+    
+    // "Banking Strategy": +20 if scored 50+
+    if (effect.includes("50+")) return 20;
+    
+    // "Finishing Bonus": +50 if finished
+    if (effect.includes("finish")) return 50;
+    
+    // "Checkout Specialist": +20 on double checkout
+    if (effect.includes("checkout") && effect.includes("double")) return 20;
+    
+    // Fallback for other X01 GOOD cards
+    if (effect.includes("bonus")) {
+      const match = effect.match(/\+?(\d+)/);
+      return match ? Math.min(parseInt(match[1]), 50) : 20;
+    }
+  }
+  
+  // X01-specific BAD cards (penalty to opponent)
+  if (gameMode === "X01" && card.cardType === "BAD") {
+    // "Wild Throw": -20 penalty
+    if (effect.includes("miss")) return -20;
+    
+    // "Doubles Don't Count": -30 penalty (affects scoring)
+    if (effect.includes("double") && effect.includes("count")) return -30;
+    
+    // "Low Blow": -25 penalty (singles don't count)
+    if (effect.includes("single") && effect.includes("count")) return -25;
+    
+    // Default BAD card penalty
+    return -15;
+  }
+  
+  // Cricket-specific GOOD cards
+  if (gameMode === "CRICKET" && card.cardType === "GOOD") {
+    // "Double Strike": marks count as 2x
+    if (effect.includes("mark") && effect.includes("2x")) return 25;
+    
+    // "Mark Flood": all darts automatically mark
+    if (effect.includes("mark") && effect.includes("automatic")) return 30;
+    
+    // Fallback for other Cricket GOOD cards
+    return 20;
+  }
+  
+  // Cricket-specific BAD cards
+  if (gameMode === "CRICKET" && card.cardType === "BAD") {
+    // "Sluggish Marks": marks count as 1
+    if (effect.includes("mark") && effect.includes("count") && effect.includes("1")) return -25;
+    
+    // Default Cricket BAD card penalty
+    return -15;
+  }
+  
+  // Wildcard cards - apply universal effects
+  if (card.gameMode === "WILDCARD") {
+    if (card.cardType === "GOOD") return 25;
+    if (card.cardType === "BAD") return -20;
+  }
+  
+  // Fallback: extract number from effect
+  const numMatch = effect.match(/(\d+)/);
   if (numMatch) {
-    const raw = parseInt(numMatch[0], 10);
-    // Clamp to a sensible range
-    return Math.min(Math.max(raw, 5), 50);
+    const value = parseInt(numMatch[1], 10);
+    return card.cardType === "GOOD" ? Math.min(value, 50) : -Math.min(value, 50);
   }
-
-  // Fallback by rarity
-  switch (card.rarity) {
-    case "LEGENDARY": return 30;
-    case "RARE":      return 20;
-    default:          return 10;
-  }
+  
+  // Final fallback by rarity
+  const rarityBonus = card.rarity === "LEGENDARY" ? 30 : card.rarity === "RARE" ? 20 : 10;
+  return card.cardType === "GOOD" ? rarityBonus : -rarityBonus;
 }
 
 /**
@@ -123,16 +186,18 @@ export function CardClashMatchScorer({
   const handleCardClick = (card: EquippedCard, playerIndex: 0 | 1) => {
     if (card.used) return;
 
-    const bonus = parseCardBonus(card);
+    const bonus = applyCardEffect(card, gameMode);
 
     // Apply the bonus: GOOD helps you, BAD hurts the opponent
+    // For GOOD cards: bonus is positive, apply to self
+    // For BAD cards: bonus is negative, apply to opponent
     if (card.cardType === "GOOD") {
       if (playerIndex === 0) setPlayer1Bonus((p) => p + bonus);
       else setPlayer2Bonus((p) => p + bonus);
     } else {
-      // BAD card: penalise opponent
-      if (playerIndex === 0) setPlayer2Bonus((p) => p - bonus);
-      else setPlayer1Bonus((p) => p - bonus);
+      // BAD card: bonus is negative, apply to opponent (which adds the negative, reducing their bonus)
+      if (playerIndex === 0) setPlayer2Bonus((p) => p + bonus);
+      else setPlayer1Bonus((p) => p + bonus);
     }
 
     // Mark card as used
