@@ -236,6 +236,7 @@ export function CardClashMatchScorer({
     // ✅ ACTIVATE REAL CARD EFFECTS IN ENGINE
     // ccActivateCard returns array of CCEffect objects
     const effects = ccActivateCard(card, playerIndex);
+    console.log(`🎴 Card "${card.name}" played by P${playerIndex}:`, { effects, activeCardEffects });
     if (effects && effects.length > 0) {
       // Separate instant and turn-based effects
       const instantEffects = effects.filter((e) => e.instant);

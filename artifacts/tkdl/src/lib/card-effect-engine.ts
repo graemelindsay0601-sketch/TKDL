@@ -117,7 +117,7 @@ function normalizeCardKey(s: string): string {
 export function ccActivateCard(
   card: any,
   byPlayer: 0 | 1,
-  gs: X01State | CricketState,
+  gs?: X01State | CricketState,
   prevLegWins?: [number, number],
 ): CCEffect[] {
   const name: string = (card.name || "").trim();
