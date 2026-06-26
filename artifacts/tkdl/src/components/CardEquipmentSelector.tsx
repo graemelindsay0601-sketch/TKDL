@@ -137,10 +137,29 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
     </div>
   );
 
+  const enrichCardsWithFullData = (cards: Card[]): CardData[] => {
+    return cards.map(c => {
+      const fullCard = ALL_CARDS.find(ac => ac.name === c.name);
+      if (!fullCard) {
+        console.warn(`Card not found in ALL_CARDS: ${c.name}`);
+        return {
+          id: parseInt(c.id) || 0,
+          name: c.name,
+          category: c.cardType === "GOOD" ? (c.gameMode === "X01" ? "X01 GOOD" : "CRICKET GOOD") : (c.gameMode === "X01" ? "X01 BAD" : "CRICKET BAD"),
+          rarity: c.rarity,
+          effect: c.effect,
+          flavourText: "",
+          energyCost: 1,
+        } as CardData;
+      }
+      return fullCard;
+    });
+  };
+
   return (
     <div style={overlay}>
       <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
-      <div style={{ background: "#080f1e", border: "1px solid rgba(255,210,74,0.22)", borderRadius: "16px", width: "100%", maxWidth: "660px", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 0 60px rgba(0,0,0,0.8), 0 0 120px rgba(255,210,74,0.06)" }}>
+      <div style={{ background: "#080f1e", border: "1px solid rgba(255,210,74,0.22)", borderRadius: "16px", width: "100%", maxWidth: "660px", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 0 60px rgba(0,0,0,0.8), 0 0 120px rgba(255,210,74,0.06)", padding: "0" }}>
         <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "5px" }}>
             <span style={{ fontSize: "22px" }}>✨</span>
@@ -189,24 +208,6 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
         </div>
         <div style={{ padding: "18px 22px", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", gap: "12px", justifyContent: "flex-end", flexShrink: 0, background: "rgba(0,0,0,0.4)", position: "sticky", bottom: 0, zIndex: 10 }}>
           <button onClick={onBack} style={{ padding: "16px 32px", background: "rgba(255,255,255,0.08)", border: "1.5px solid rgba(255,255,255,0.16)", borderRadius: "11px", color: "rgba(255,255,255,0.65)", fontWeight: 800, fontSize: "14px", cursor: "pointer", fontFamily: "Arial,sans-serif", transition: "all 0.2s" }}>← BACK</button>
-  const enrichCardsWithFullData = (cards: Card[]): CardData[] => {
-    return cards.map(c => {
-      const fullCard = ALL_CARDS.find(ac => ac.name === c.name);
-      if (!fullCard) {
-        console.warn(`Card not found in ALL_CARDS: ${c.name}`);
-        return {
-          id: parseInt(c.id) || 0,
-          name: c.name,
-          category: c.cardType === "GOOD" ? (c.gameMode === "X01" ? "X01 GOOD" : "CRICKET GOOD") : (c.gameMode === "X01" ? "X01 BAD" : "CRICKET BAD"),
-          rarity: c.rarity,
-          effect: c.effect,
-          flavourText: "",
-          energyCost: 1,
-        } as CardData;
-      }
-      return fullCard;
-    });
-  };
 
           <button
             onClick={() => onConfirm(enrichCardsWithFullData([...selectedGood, ...selectedBad]), [])}
