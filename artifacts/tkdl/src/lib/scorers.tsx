@@ -506,9 +506,16 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
   // ── Card Clash: Handle card activation ──
   const handleCardActivation = useCallback((cardId: string) => {
+    console.log("📊 handleCardActivation called with cardId:", cardId);
     const currentCards = turn === 0 ? p1Cards : p2Cards;
+    console.log("📊 Current player cards:", { playerIdx: turn, count: currentCards.length, cards: currentCards.map((c: any) => ({ id: c.id, name: c.name })) });
     const card = currentCards.find((c: any) => c.id?.toString() === cardId);
-    if (!card) { cardDebugLog("X01Scorer", "Card not found", { cardId }); return; }
+    if (!card) { 
+      console.error("🚨 Card not found for activation!", { cardId, availableIds: currentCards.map((c: any) => c.id) });
+      cardDebugLog("X01Scorer", "Card not found", { cardId }); 
+      return; 
+    }
+    console.log("✅ Card found and activating:", { card: card.name, cardId });
     cardDebugLog("X01Scorer", "Card activated", { card: card.name, cardId });
 
     const effects = ccActivateCard(card, turn, { scores, legWins });
@@ -700,7 +707,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
                 .map((card: any) => (
                   <div
                     key={card.id}
-                    onClick={() => !cardsUsed.some((used: any) => used.id === card.id) && setSelectedCard(card)}
+                    onClick={() => {
+                      const isUsed = cardsUsed.some((used: any) => used.id === card.id);
+                      console.log("🎴 GOOD card clicked:", { cardName: card.name, cardId: card.id, isUsed, cardData: card });
+                      if (!isUsed) setSelectedCard(card);
+                    }}
                     style={{
                       cursor: cardsUsed.some((used: any) => used.id === card.id) ? "not-allowed" : "pointer",
                       fontSize: "10px",
@@ -724,7 +735,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
                 .map((card: any) => (
                   <div
                     key={card.id}
-                    onClick={() => !cardsUsed.some((used: any) => used.id === card.id) && setSelectedCard(card)}
+                    onClick={() => {
+                      const isUsed = cardsUsed.some((used: any) => used.id === card.id);
+                      console.log("🎴 BAD card clicked:", { cardName: card.name, cardId: card.id, isUsed, cardData: card });
+                      if (!isUsed) setSelectedCard(card);
+                    }}
                     style={{
                       cursor: cardsUsed.some((used: any) => used.id === card.id) ? "not-allowed" : "pointer",
                       fontSize: "10px",
@@ -829,9 +844,16 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
 
   // ── Card Clash: Handle card activation ──
   const handleCardActivation = useCallback((cardId: string) => {
+    console.log("📊 Cricket handleCardActivation called with cardId:", cardId);
     const currentCards = turn === 0 ? p1Cards : p2Cards;
+    console.log("📊 Current team cards:", { teamIdx: turn, count: currentCards.length, cards: currentCards.map((c: any) => ({ id: c.id, name: c.name })) });
     const card = currentCards.find((c: any) => c.id?.toString() === cardId);
-    if (!card) { cardDebugLog("CricketScorer", "Card not found", { cardId }); return; }
+    if (!card) { 
+      console.error("🚨 Cricket: Card not found for activation!", { cardId, availableIds: currentCards.map((c: any) => c.id) });
+      cardDebugLog("CricketScorer", "Card not found", { cardId }); 
+      return; 
+    }
+    console.log("✅ Cricket: Card found and activating:", { card: card.name, cardId });
     cardDebugLog("CricketScorer", "Card activated", { card: card.name });
 
     const effects = ccActivateCard(card, turn, { marks, scores });
@@ -3104,6 +3126,11 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
                   .map((card: any) => (
                     <div
                       key={card.id}
+                      onClick={() => {
+                        const isUsed = cardsUsed.some((used: any) => used.id === card.id);
+                        console.log("🎴 Cricket GOOD card clicked:", { cardName: card.name, cardId: card.id, isUsed, cardData: card });
+                        if (!isUsed) setSelectedCard(card);
+                      }}
                       style={{
                         cursor: "pointer",
                         fontSize: "10px",
@@ -3126,6 +3153,11 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
                   .map((card: any) => (
                     <div
                       key={card.id}
+                      onClick={() => {
+                        const isUsed = cardsUsed.some((used: any) => used.id === card.id);
+                        console.log("🎴 Cricket BAD card clicked:", { cardName: card.name, cardId: card.id, isUsed, cardData: card });
+                        if (!isUsed) setSelectedCard(card);
+                      }}
                       style={{
                         cursor: "pointer",
                         fontSize: "10px",

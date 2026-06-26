@@ -129,6 +129,7 @@ export function CardActivationOverlay({
           {!enlargedCard.isActive && (
             <button
               onClick={() => {
+                console.log("⚡ CONFIRM clicked - activating card:", { cardId: enlargedCard.id, cardName: enlargedCard.name });
                 onCardActivate?.(enlargedCard.id);
                 setEnlargedCard(null);
               }}
