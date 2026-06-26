@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Activity, Target, Dumbbell, Trophy, X, ChevronRight, Brain, AlertCircle, Zap } from "lucide-react";
+import { NoStatsEmptyState } from "@/components/empty-states";
 
 type GameTypeCategory = "M501" | "Tour" | "Practice" | "League";
 type StatTab = "overall" | "trends" | "darts" | "sessions";
@@ -209,7 +210,7 @@ export function CategoryStatsEnhanced({ playerId }: CategoryStatsEnhancedProps) 
             </div>
           </div>
         ) : (
-          <div style={{ padding: "16px", color: "rgba(255,255,255,0.5)", textAlign: "center" }}>No data available</div>
+          <NoStatsEmptyState reason="no-matches" />
         );
 
       case "trends":
