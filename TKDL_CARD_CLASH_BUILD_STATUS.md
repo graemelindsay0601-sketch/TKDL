@@ -1,8 +1,8 @@
 # TKDL Card Clash - Build Status
 
-**Current State:** CARD CLASH FULLY FUNCTIONAL
-**Last Updated:** 2026-06-26 (Session 4 - Architecture Fixed)
-**Latest Commits:** 7f4077b (buttons), 1748121 (createPortal), others
+**Current State:** CARD CLASH FULLY FUNCTIONAL + UI CLEANUP COMPLETE
+**Last Updated:** 2026-06-26 (Session 5 - Player Profile UX Reorganization)
+**Latest Commits:** f554964 (profile tabs), 1b106c5 (overview cleanup)
 
 ---
 
@@ -177,5 +177,50 @@ All systems fully functional and architecturally sound:
 - ✅ No overlaps or layout issues
 - ✅ Consistent with app design patterns
 
-**Deploy to production and test end-to-end on mobile device.**
+---
+
+## ✅ SESSION 5: PLAYER PROFILE UX CLEANUP
+
+### Challenge Relocation ✅
+**Commits:** f554964, 1b106c5
+
+**Changes:**
+1. Moved PlayerChallenges from Card Clash play tab → New Challenges tab in player profile
+2. Added dedicated "Challenges" tab to account.tsx
+3. Cards tab now shows full CardCollectionBook (was just a link)
+4. Removed Trade Duplicates section from overview (TODO: move to card shop)
+5. Cleaned up overview tab (removed duplicate collection/challenges)
+
+**Result:**
+- Card Clash play tab focused: Only match launcher
+- Player profile better organized: Separate tabs for cards, challenges
+- Less clutter: Overview focused on gamerscore, titles, coach insights
+- Better UX: Users know exactly where to find each feature
+
+### Tab Structure
+```
+Before:  overview | activity | achievements | coach | social | stats | analytics | card-clash
+After:   overview | activity | achievements | coach | cards | challenges | social | stats | analytics
+```
+
+### Files Changed
+- account.tsx: Updated tab structure, moved components
+- card-clash.tsx: Removed challenges section and import
+
+---
+
+## 🚀 READY FOR DEPLOYMENT
+
+All systems fully functional:
+- ✅ Card Clash match system (via createPortal)
+- ✅ Equipment selection and card effects
+- ✅ Player profile reorganized and cleaned
+- ✅ Challenges in dedicated tab
+- ✅ Cards collection in dedicated tab
+
+**Next:** Deploy and verify in production environment.
+
+**Outstanding Issues:**
+- Stats/Analytics endpoints may not be populating data (backend investigation needed)
+- Trade Duplicates component orphaned (needs integration into card shop)
 
