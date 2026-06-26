@@ -506,20 +506,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
   // ── Card Clash: Handle card activation ──
   const handleCardActivation = useCallback((cardId: string) => {
-    console.log("📊 handleCardActivation called with cardId:", cardId);
     const currentCards = turn === 0 ? p1Cards : p2Cards;
-    console.log("📊 Current player cards:", { playerIdx: turn, count: currentCards.length, cards: currentCards.map((c: any) => ({ id: c.id, name: c.name })) });
     const card = currentCards.find((c: any) => c.id?.toString() === cardId);
     if (!card) { 
-      console.error("🚨 Card not found for activation!", { cardId, availableIds: currentCards.map((c: any) => c.id) });
       cardDebugLog("X01Scorer", "Card not found", { cardId }); 
       return; 
     }
-    console.log("✅ Card found and activating:", { card: card.name, cardId });
     cardDebugLog("X01Scorer", "Card activated", { card: card.name, cardId });
 
     const effects = ccActivateCard(card, turn, { scores, legWins });
-    console.log("🎯 ccActivateCard returned effects:", { 
       cardName: card.name,
       effectsCount: effects.length,
       effects: effects.map(e => ({ 
@@ -541,10 +536,8 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     });
     const nonInstant = effects.filter(e => !e.instant);
     if (nonInstant.length > 0) {
-      console.log("✅ Adding non-instant effects to activeEffects:", { count: nonInstant.length, effects: nonInstant });
       setActiveEffects(prev => [...prev, ...nonInstant]);
     } else {
-      console.log("⚠️  No non-instant effects to queue");
     }
     cardDebugLog("X01Scorer", "Effects queued", { effects: effects.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`) });
     // Note: Card is marked as used when turn ends, not when activated
@@ -564,7 +557,6 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         if (effect.affectsPlayer === turn && effect.appliedBy === turn) {
           const card = (turn === 0 ? p1Cards : p2Cards).find((c: any) => c.name === effect.cardName);
           if (card && !newUsed.some(c => c.id === card.id)) {
-            console.log("✅ Marking card as used at turn end:", { cardName: effect.cardName });
             newUsed.push(card);
           }
         }
@@ -594,11 +586,9 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     try {
       const p1Raw = sessionStorage.getItem("card_clash_p1_cards") || "[]";
       const p2Raw = sessionStorage.getItem("card_clash_p2_cards") || "[]";
-      console.log("📦 Raw sessionStorage data:", { p1Raw: p1Raw.substring(0, 100), p2Raw: p2Raw.substring(0, 100) });
       
       const p1 = JSON.parse(p1Raw);
       const p2 = JSON.parse(p2Raw);
-      console.log("✅ Loaded cards from sessionStorage:", { 
         p1Count: p1.length, 
         p2Count: p2.length,
         p1Cards: p1.map((c: any) => ({ id: c.id, name: c.name, category: c.category })),
@@ -609,7 +599,6 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       setP2Cards(p2);
       cardDebugLog("X01Scorer", "Card Clash mode active", { p1Cards: p1.length, p2Cards: p2.length });
     } catch (e) {
-      console.error("🚨 Error loading cards:", e);
       cardDebugLog("X01Scorer", "Failed to load Card Clash cards from sessionStorage", e);
     }
   }, []);
@@ -759,7 +748,6 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
                   <div
                     key={card.id}
                     onClick={() => {
-                      console.log("🎴 GOOD card clicked:", { cardName: card.name, cardId: card.id, isUsed, cardData: card });
                       if (!isUsed) setSelectedCard(card);
                     }}
                     style={{
@@ -791,7 +779,6 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
                   <div
                     key={card.id}
                     onClick={() => {
-                      console.log("🎴 BAD card clicked:", { cardName: card.name, cardId: card.id, isUsed, cardData: card });
                       if (!isUsed) setSelectedCard(card);
                     }}
                     style={{
@@ -890,11 +877,9 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     try {
       const p1Raw = sessionStorage.getItem("card_clash_p1_cards") || "[]";
       const p2Raw = sessionStorage.getItem("card_clash_p2_cards") || "[]";
-      console.log("📦 Cricket: Raw sessionStorage data:", { p1Raw: p1Raw.substring(0, 100), p2Raw: p2Raw.substring(0, 100) });
       
       const p1 = JSON.parse(p1Raw);
       const p2 = JSON.parse(p2Raw);
-      console.log("✅ Cricket: Loaded cards from sessionStorage:", { 
         p1Count: p1.length, 
         p2Count: p2.length,
         p1Cards: p1.map((c: any) => ({ id: c.id, name: c.name, category: c.category })),
@@ -905,27 +890,21 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       setP2Cards(p2);
       cardDebugLog("CricketScorer", "Card Clash mode active", { p1Cards: p1.length, p2Cards: p2.length });
     } catch (e) {
-      console.error("🚨 Cricket: Error loading cards:", e);
       cardDebugLog("CricketScorer", "Failed to load Card Clash cards from sessionStorage", e);
     }
   }, []);
 
   // ── Card Clash: Handle card activation ──
   const handleCardActivation = useCallback((cardId: string) => {
-    console.log("📊 Cricket handleCardActivation called with cardId:", cardId);
     const currentCards = turn === 0 ? p1Cards : p2Cards;
-    console.log("📊 Current team cards:", { teamIdx: turn, count: currentCards.length, cards: currentCards.map((c: any) => ({ id: c.id, name: c.name })) });
     const card = currentCards.find((c: any) => c.id?.toString() === cardId);
     if (!card) { 
-      console.error("🚨 Cricket: Card not found for activation!", { cardId, availableIds: currentCards.map((c: any) => c.id) });
       cardDebugLog("CricketScorer", "Card not found", { cardId }); 
       return; 
     }
-    console.log("✅ Cricket: Card found and activating:", { card: card.name, cardId });
     cardDebugLog("CricketScorer", "Card activated", { card: card.name });
 
     const effects = ccActivateCard(card, turn, { marks, scores });
-    console.log("🎯 Cricket: ccActivateCard returned effects:", { 
       cardName: card.name,
       effectsCount: effects.length,
       effects: effects.map(e => ({ 
@@ -947,10 +926,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     });
     const nonInstant = effects.filter(e => !e.instant);
     if (nonInstant.length > 0) {
-      console.log("✅ Cricket: Adding non-instant effects to activeEffects:", { count: nonInstant.length, effects: nonInstant });
       setActiveEffects(prev => [...prev, ...nonInstant]);
     } else {
-      console.log("⚠️  Cricket: No non-instant effects to queue");
     }
     cardDebugLog("CricketScorer", "Effects queued", { effects: effects.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`) });
     if (!cardsUsed.some((c: any) => c.id === card.id)) setCardsUsed(prev => [...prev, card]);
@@ -3214,7 +3191,6 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
                     <div
                       key={card.id}
                       onClick={() => {
-                        console.log("🎴 Cricket GOOD card clicked:", { cardName: card.name, cardId: card.id, isUsed, cardData: card });
                         if (!isUsed) setSelectedCard(card);
                       }}
                       style={{
@@ -3245,7 +3221,6 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
                     <div
                       key={card.id}
                       onClick={() => {
-                        console.log("🎴 Cricket BAD card clicked:", { cardName: card.name, cardId: card.id, isUsed, cardData: card });
                         if (!isUsed) setSelectedCard(card);
                       }}
                       style={{
