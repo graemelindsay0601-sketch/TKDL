@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { ALL_CARDS } from "@/lib/cards-data";
+import type { CardData } from "@/lib/cards-data";
 
 interface Card {
   id: string;
@@ -16,7 +18,7 @@ interface CardEquipmentSelectorProps {
   opponentId?: number;
   opponentName?: string;
   gameMode: "X01" | "CRICKET";
-  onConfirm: (p1Cards: any[], p2Cards: any[]) => void;
+  onConfirm: (p1Cards: CardData[], p2Cards: CardData[]) => void;
   onBack: () => void;
   submitError?: string | null;
   playerId?: number;
@@ -187,8 +189,27 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
         </div>
         <div style={{ padding: "18px 22px", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", gap: "12px", justifyContent: "flex-end", flexShrink: 0, background: "rgba(0,0,0,0.4)", position: "sticky", bottom: 0, zIndex: 10 }}>
           <button onClick={onBack} style={{ padding: "16px 32px", background: "rgba(255,255,255,0.08)", border: "1.5px solid rgba(255,255,255,0.16)", borderRadius: "11px", color: "rgba(255,255,255,0.65)", fontWeight: 800, fontSize: "14px", cursor: "pointer", fontFamily: "Arial,sans-serif", transition: "all 0.2s" }}>← BACK</button>
+  const enrichCardsWithFullData = (cards: Card[]): CardData[] => {
+    return cards.map(c => {
+      const fullCard = ALL_CARDS.find(ac => ac.name === c.name);
+      if (!fullCard) {
+        console.warn(`Card not found in ALL_CARDS: ${c.name}`);
+        return {
+          id: parseInt(c.id) || 0,
+          name: c.name,
+          category: c.cardType === "GOOD" ? (c.gameMode === "X01" ? "X01 GOOD" : "CRICKET GOOD") : (c.gameMode === "X01" ? "X01 BAD" : "CRICKET BAD"),
+          rarity: c.rarity,
+          effect: c.effect,
+          flavourText: "",
+          energyCost: 1,
+        } as CardData;
+      }
+      return fullCard;
+    });
+  };
+
           <button
-            onClick={() => onConfirm([...selectedGood, ...selectedBad], [])}
+            onClick={() => onConfirm(enrichCardsWithFullData([...selectedGood, ...selectedBad]), [])}
             disabled={totalSelected === 0}
             style={{ padding: "18px 48px", background: totalSelected > 0 ? "linear-gradient(135deg,#ffd24a,#ffb700)" : "rgba(255,255,255,0.06)", border: "none", borderRadius: "11px", color: totalSelected > 0 ? "#000" : "rgba(255,255,255,0.25)", fontWeight: 900, fontSize: "16px", cursor: totalSelected > 0 ? "pointer" : "not-allowed", letterSpacing: "0.08em", fontFamily: "'Arial Black',Arial,sans-serif", boxShadow: totalSelected > 0 ? "0 6px 28px rgba(255,210,74,0.4),inset 0 1px 0 rgba(255,255,255,0.2)" : "none", whiteSpace: "nowrap", opacity: totalSelected > 0 ? 1 : 0.5, transform: "translateY(0)", transition: "all 0.15s" }}
           >
