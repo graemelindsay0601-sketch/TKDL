@@ -310,7 +310,7 @@ export function CardClashMatchScorer({
           p1Name={player1Name}
           p2Name={player2Name}
           config={{ startingScore: 501, doubleOut: true }}
-          botConfig={isBot ? { skill: 3 } : undefined}
+          botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
           onWin={(winnerIdx: 0 | 1, detail?: string) => handleMatchComplete({ winnerIdx, detail })}
           onAbandon={() => {}}
           onPracticeStats={undefined}
@@ -319,7 +319,7 @@ export function CardClashMatchScorer({
         <CricketScorer
           p1Name={player1Name}
           p2Name={player2Name}
-          botConfig={isBot ? { skill: 3 } : undefined}
+          botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
           onWin={(winnerIdx: 0 | 1, detail?: string) => handleMatchComplete({ winnerIdx, detail })}
           onAbandon={() => {}}
           onPracticeStats={undefined}

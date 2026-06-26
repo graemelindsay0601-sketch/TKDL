@@ -494,7 +494,7 @@ router.get("/leaderboard", async (req: Request, res: Response) => {
         l.updated_at,
         CASE 
           WHEN (l.wins + l.losses) > 0 
-          THEN ROUND((l.wins::float / (l.wins + l.losses)) * 100, 1)
+          THEN ROUND((l.wins::numeric / (l.wins + l.losses)) * 100, 1)
           ELSE 0
         END AS win_percentage
       FROM card_clash_leaderboard l
