@@ -40,26 +40,26 @@ function MiniCard({ card, selected, disabled, onClick }: { card: Card; selected:
       onClick={onClick}
       disabled={disabled}
       style={{
-        all: "unset", display: "flex", gap: "12px", alignItems: "flex-start",
-        padding: "12px 14px", borderRadius: "10px", cursor: disabled ? "not-allowed" : "pointer",
-        transition: "all 0.18s", width: "100%", boxSizing: "border-box",
+        all: "unset", display: "flex", gap: "8px", alignItems: "flex-start",
+        padding: "8px 10px", borderRadius: "8px", cursor: disabled ? "not-allowed" : "pointer",
+        transition: "all 0.18s", width: "100%", boxSizing: "border-box", minWidth: 0,
         background: selected ? (isG ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)") : rc.bg,
         border: `1.5px solid ${selected ? (isG ? "#22c55e" : "#ef4444") : rc.border + "60"}`,
         boxShadow: selected ? `0 0 16px ${isG ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}` : "none",
         opacity: disabled ? 0.38 : 1,
       }}
     >
-      <div style={{ flexShrink: 0, width: "38px", height: "38px", borderRadius: "8px", background: rc.bg, border: `1px solid ${rc.border}55`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "3px" }}>
-        <div style={{ fontSize: "16px" }}>{isG ? "⚡" : "💀"}</div>
-        <div style={{ fontSize: "7px", fontWeight: 800, color: rc.label, letterSpacing: "0.06em", fontFamily: "Arial,sans-serif" }}>{card.rarity[0]}</div>
+      <div style={{ flexShrink: 0, width: "32px", height: "32px", borderRadius: "6px", background: rc.bg, border: `1px solid ${rc.border}55`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2px" }}>
+        <div style={{ fontSize: "14px" }}>{isG ? "⚡" : "💀"}</div>
+        <div style={{ fontSize: "6px", fontWeight: 800, color: rc.label, letterSpacing: "0.06em", fontFamily: "Arial,sans-serif" }}>{card.rarity[0]}</div>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: "13px", color: "#fff", fontFamily: "Arial,sans-serif", marginBottom: "3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.name}</div>
-        <div style={{ fontSize: "10px", color: rc.label, marginBottom: "5px", fontFamily: "Arial,sans-serif", letterSpacing: "0.04em" }}>{card.rarity} · ×{card.quantity}</div>
-        <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", lineHeight: 1.45, fontFamily: "Arial,sans-serif", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{card.effect}</div>
+        <div style={{ fontWeight: 700, fontSize: "11px", color: "#fff", fontFamily: "Arial,sans-serif", marginBottom: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.name}</div>
+        <div style={{ fontSize: "9px", color: rc.label, marginBottom: "3px", fontFamily: "Arial,sans-serif", letterSpacing: "0.04em" }}>{card.rarity} · ×{card.quantity}</div>
+        <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.4)", lineHeight: 1.3, fontFamily: "Arial,sans-serif", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{card.effect}</div>
       </div>
       {selected && (
-        <div style={{ flexShrink: 0, width: "20px", height: "20px", borderRadius: "50%", background: isG ? "#22c55e" : "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px" }}>✓</div>
+        <div style={{ flexShrink: 0, width: "18px", height: "18px", borderRadius: "50%", background: isG ? "#22c55e" : "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px" }}>✓</div>
       )}
     </button>
   );
@@ -206,15 +206,15 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
             )}
           </div>
         </div>
-        <div style={{ padding: "18px 22px", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", gap: "12px", justifyContent: "flex-end", flexShrink: 0, background: "rgba(0,0,0,0.4)", position: "sticky", bottom: 0, zIndex: 10 }}>
-          <button onClick={onBack} style={{ padding: "16px 32px", background: "rgba(255,255,255,0.08)", border: "1.5px solid rgba(255,255,255,0.16)", borderRadius: "11px", color: "rgba(255,255,255,0.65)", fontWeight: 800, fontSize: "14px", cursor: "pointer", fontFamily: "Arial,sans-serif", transition: "all 0.2s" }}>← BACK</button>
+        <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", gap: "10px", justifyContent: "flex-end", flexShrink: 0, background: "rgba(0,0,0,0.4)", position: "sticky", bottom: 0, zIndex: 10 }}>
+          <button onClick={onBack} style={{ padding: "11px 20px", background: "rgba(255,255,255,0.08)", border: "1.5px solid rgba(255,255,255,0.16)", borderRadius: "9px", color: "rgba(255,255,255,0.65)", fontWeight: 800, fontSize: "12px", cursor: "pointer", fontFamily: "Arial,sans-serif", transition: "all 0.2s", whiteSpace: "nowrap" }}>← BACK</button>
 
           <button
             onClick={() => onConfirm(enrichCardsWithFullData([...selectedGood, ...selectedBad]), [])}
             disabled={totalSelected === 0}
-            style={{ padding: "18px 48px", background: totalSelected > 0 ? "linear-gradient(135deg,#ffd24a,#ffb700)" : "rgba(255,255,255,0.06)", border: "none", borderRadius: "11px", color: totalSelected > 0 ? "#000" : "rgba(255,255,255,0.25)", fontWeight: 900, fontSize: "16px", cursor: totalSelected > 0 ? "pointer" : "not-allowed", letterSpacing: "0.08em", fontFamily: "'Arial Black',Arial,sans-serif", boxShadow: totalSelected > 0 ? "0 6px 28px rgba(255,210,74,0.4),inset 0 1px 0 rgba(255,255,255,0.2)" : "none", whiteSpace: "nowrap", opacity: totalSelected > 0 ? 1 : 0.5, transform: "translateY(0)", transition: "all 0.15s" }}
+            style={{ padding: "11px 24px", background: totalSelected > 0 ? "linear-gradient(135deg,#ffd24a,#ffb700)" : "rgba(255,255,255,0.06)", border: "none", borderRadius: "9px", color: totalSelected > 0 ? "#000" : "rgba(255,255,255,0.25)", fontWeight: 900, fontSize: "12px", cursor: totalSelected > 0 ? "pointer" : "not-allowed", letterSpacing: "0.06em", fontFamily: "'Arial Black',Arial,sans-serif", boxShadow: totalSelected > 0 ? "0 4px 16px rgba(255,210,74,0.3),inset 0 1px 0 rgba(255,255,255,0.15)" : "none", whiteSpace: "nowrap", opacity: totalSelected > 0 ? 1 : 0.5, transition: "all 0.15s" }}
           >
-            {totalSelected > 0 ? `⚡ PLAY (${totalSelected})` : "Select at least 1 card"}
+            {totalSelected > 0 ? `⚡ PLAY (${totalSelected})` : "Select 1+ card"}
           </button>
         </div>
       </div>

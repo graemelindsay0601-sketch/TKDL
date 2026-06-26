@@ -656,17 +656,100 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           </div>
         )}
       </SectionCard>
-      {/* Recent history */}
+      {/* Recent Visits OR Card Grid */}
       {history.length > 0 && (
         <SectionCard>
-          <div className="text-xs uppercase tracking-widest mb-2 font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>Recent Visits</div>
-          {[...history].reverse().slice(0,5).map((h,i) => (
-            <div key={i} className="flex justify-between text-xs py-0.5">
-              <span style={{ color: P_COLOR(h.turn), fontFamily: "Oswald, sans-serif" }}>{names[h.turn]}</span>
-              <span style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>+{h.score}</span>
-              <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "mono" }}>{h.left} left</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <div className="text-xs uppercase tracking-widest font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
+              {showCards ? "⚡ Your Cards" : "Recent Visits"}
             </div>
-          ))}
+            {isCardClash && (
+              <button
+                onClick={() => setShowCards(!showCards)}
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: showCards ? "#00d4ff" : "rgba(255,255,255,0.4)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "2px 6px",
+                  transition: "color 0.2s",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.color = "#00d4ff";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.color = showCards ? "#00d4ff" : "rgba(255,255,255,0.4)";
+                }}
+              >
+                {showCards ? "Hide" : "Cards"}
+              </button>
+            )}
+          </div>
+          
+          {showCards && isCardClash ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", maxHeight: "200px", overflow: "auto" }}>
+              {/* Good cards (top row) */}
+              {(turn === 0 ? p1Cards : p2Cards)
+                .filter((c: any) => c.category?.includes("GOOD"))
+                .map((card: any) => (
+                  <div
+                    key={card.id}
+                    onClick={() => {}}
+                    style={{
+                      cursor: "pointer",
+                      fontSize: "10px",
+                      padding: "8px",
+                      background: "rgba(0,180,255,0.08)",
+                      border: "1px solid rgba(0,180,255,0.3)",
+                      borderRadius: "6px",
+                      color: "#00d4ff",
+                      textAlign: "center",
+                      fontWeight: 700,
+                      opacity: cardsUsed.some((used: any) => used.id === card.id) ? 0.5 : 1,
+                      textDecoration: cardsUsed.some((used: any) => used.id === card.id) ? "line-through" : "none",
+                    }}
+                  >
+                    {card.name}
+                  </div>
+                ))}
+              {/* Bad cards (bottom row) */}
+              {(turn === 0 ? p1Cards : p2Cards)
+                .filter((c: any) => c.category?.includes("BAD"))
+                .map((card: any) => (
+                  <div
+                    key={card.id}
+                    onClick={() => {}}
+                    style={{
+                      cursor: "pointer",
+                      fontSize: "10px",
+                      padding: "8px",
+                      background: "rgba(255,50,50,0.08)",
+                      border: "1px solid rgba(255,50,50,0.3)",
+                      borderRadius: "6px",
+                      color: "#ff6b6b",
+                      textAlign: "center",
+                      fontWeight: 700,
+                      opacity: cardsUsed.some((used: any) => used.id === card.id) ? 0.5 : 1,
+                      textDecoration: cardsUsed.some((used: any) => used.id === card.id) ? "line-through" : "none",
+                    }}
+                  >
+                    {card.name}
+                  </div>
+                ))}
+            </div>
+          ) : (
+            [...(showCards ? [] : history)].reverse().slice(0, 5).map((h, i) => (
+              <div key={i} className="flex justify-between text-xs py-0.5">
+                <span style={{ color: P_COLOR(h.turn), fontFamily: "Oswald, sans-serif" }}>{names[h.turn]}</span>
+                <span style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>+{h.score}</span>
+                <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "mono" }}>{h.left} left</span>
+              </div>
+            ))
+          )}
         </SectionCard>
       )}
       </div>}
@@ -2977,14 +3060,93 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
         </SectionCard>
         {history.length > 0 && (
           <SectionCard>
-            <div className="text-xs uppercase tracking-widest mb-2 font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>Recent Visits</div>
-            {[...history].reverse().slice(0, 5).map((h, i) => (
-              <div key={i} className="flex justify-between text-xs py-0.5">
-                <span style={{ color: TEAM_COLORS[h.team], fontFamily: "Oswald, sans-serif" }}>{teamNames[h.team][h.player]}</span>
-                <span style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>+{h.score}</span>
-                <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "mono" }}>{h.left} left</span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <div className="text-xs uppercase tracking-widest font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
+                {showCards ? "⚡ Your Cards" : "Recent Visits"}
               </div>
-            ))}
+              {isCardClash && (
+                <button
+                  onClick={() => setShowCards(!showCards)}
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    color: showCards ? "#00d4ff" : "rgba(255,255,255,0.4)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "2px 6px",
+                    transition: "color 0.2s",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.color = "#00d4ff";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.color = showCards ? "#00d4ff" : "rgba(255,255,255,0.4)";
+                  }}
+                >
+                  {showCards ? "Hide" : "Cards"}
+                </button>
+              )}
+            </div>
+            
+            {showCards && isCardClash ? (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", maxHeight: "200px", overflow: "auto" }}>
+                {p1Cards
+                  .filter((c: any) => c.category?.includes("GOOD"))
+                  .map((card: any) => (
+                    <div
+                      key={card.id}
+                      style={{
+                        cursor: "pointer",
+                        fontSize: "10px",
+                        padding: "8px",
+                        background: "rgba(0,180,255,0.08)",
+                        border: "1px solid rgba(0,180,255,0.3)",
+                        borderRadius: "6px",
+                        color: "#00d4ff",
+                        textAlign: "center",
+                        fontWeight: 700,
+                        opacity: cardsUsed.some((used: any) => used.id === card.id) ? 0.5 : 1,
+                        textDecoration: cardsUsed.some((used: any) => used.id === card.id) ? "line-through" : "none",
+                      }}
+                    >
+                      {card.name}
+                    </div>
+                  ))}
+                {p1Cards
+                  .filter((c: any) => c.category?.includes("BAD"))
+                  .map((card: any) => (
+                    <div
+                      key={card.id}
+                      style={{
+                        cursor: "pointer",
+                        fontSize: "10px",
+                        padding: "8px",
+                        background: "rgba(255,50,50,0.08)",
+                        border: "1px solid rgba(255,50,50,0.3)",
+                        borderRadius: "6px",
+                        color: "#ff6b6b",
+                        textAlign: "center",
+                        fontWeight: 700,
+                        opacity: cardsUsed.some((used: any) => used.id === card.id) ? 0.5 : 1,
+                        textDecoration: cardsUsed.some((used: any) => used.id === card.id) ? "line-through" : "none",
+                      }}
+                    >
+                      {card.name}
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              [...(showCards ? [] : history)].reverse().slice(0, 5).map((h, i) => (
+                <div key={i} className="flex justify-between text-xs py-0.5">
+                  <span style={{ color: TEAM_COLORS[h.team], fontFamily: "Oswald, sans-serif" }}>{teamNames[h.team][h.player]}</span>
+                  <span style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>+{h.score}</span>
+                  <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "mono" }}>{h.left} left</span>
+                </div>
+              ))
+            )}
           </SectionCard>
         )}
       </div>}
