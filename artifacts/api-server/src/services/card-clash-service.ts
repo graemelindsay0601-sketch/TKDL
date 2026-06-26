@@ -211,8 +211,17 @@ export async function finishCardClashMatch(
       if (typeof cardsUsedInMatch[0] === "string") {
         // Parse string format: "cardId:pPlayerId"
         parsedCards = cardsUsedInMatch.map((card: any) => {
-          const [cardId, playerStr] = card.split(":");
+          const parts = card.split(":");
+          if (parts.length < 2) {
+            logger.warn({ card }, "Malformed card string in cardsUsedInMatch");
+            return { cardId: card, usedBy: 0 };
+          }
+          const [cardId, playerStr] = parts;
           const playerId = parseInt(playerStr.replace("p", ""));
+          if (isNaN(playerId)) {
+            logger.warn({ card, playerStr }, "Failed to parse player ID from card string");
+            return { cardId, usedBy: 0 };
+          }
           return { cardId, usedBy: playerId };
         });
       } else {

@@ -80,15 +80,21 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
       if (!r.ok) throw new Error("Failed to load inventory");
       const data = await r.json();
       const raw: any[] = Array.isArray(data) ? data : (data.cards ?? []);
-      setInventory(raw.map((c: any) => ({
-        id: String(c.cardId ?? c.id ?? ""),
-        name: c.cardName ?? c.name ?? "",
-        cardType: c.cardType ?? "GOOD",
-        rarity: (c.rarity ?? "COMMON").toUpperCase() as "COMMON" | "RARE" | "LEGENDARY",
-        effect: c.effect ?? "",
-        quantity: c.quantity ?? 1,
-        gameMode: c.gameMode ?? c.game_mode ?? "WILDCARD",
-      })));
+      setInventory(raw.map((c: any) => {
+        const cardId = c.cardId ?? c.id;
+        if (!cardId) {
+          console.warn("Card missing cardId field", c);
+        }
+        return {
+          id: String(cardId || ""),
+          name: c.cardName ?? c.name ?? "",
+          cardType: c.cardType ?? "GOOD",
+          rarity: (c.rarity ?? "COMMON").toUpperCase() as "COMMON" | "RARE" | "LEGENDARY",
+          effect: c.effect ?? "",
+          quantity: c.quantity ?? 1,
+          gameMode: c.gameMode ?? c.game_mode ?? "WILDCARD",
+        };
+      }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load cards");
     } finally { setLoading(false); }
