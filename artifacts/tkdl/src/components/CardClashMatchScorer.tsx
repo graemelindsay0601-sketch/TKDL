@@ -307,21 +307,22 @@ export function CardClashMatchScorer({
       {/* Base Scorer */}
       {gameMode === "X01" ? (
         <X01Scorer
-          player1Idx={0}
-          player1Name={player1Name}
-          player2Idx={1}
-          player2Name={player2Name}
-          isBot={isBot}
-          onComplete={(result: GameResult) => handleMatchComplete(result)}
+          p1Name={player1Name}
+          p2Name={player2Name}
+          config={{ startingScore: 501, doubleOut: true }}
+          botConfig={isBot ? { skill: 3 } : undefined}
+          onWin={(winnerIdx: 0 | 1, detail?: string) => handleMatchComplete({ winnerIdx, detail })}
+          onAbandon={() => {}}
+          onPracticeStats={undefined}
         />
       ) : (
         <CricketScorer
-          player1Idx={0}
-          player1Name={player1Name}
-          player2Idx={1}
-          player2Name={player2Name}
-          isBot={isBot}
-          onComplete={(result: GameResult) => handleMatchComplete(result)}
+          p1Name={player1Name}
+          p2Name={player2Name}
+          botConfig={isBot ? { skill: 3 } : undefined}
+          onWin={(winnerIdx: 0 | 1, detail?: string) => handleMatchComplete({ winnerIdx, detail })}
+          onAbandon={() => {}}
+          onPracticeStats={undefined}
         />
       )}
 

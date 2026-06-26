@@ -103,13 +103,27 @@ export function CardClashMatchLauncher({
 
   const handleMatchComplete = async (result: GameResult, cardsUsed: string[]) => {
     try {
+      if (!matchId) {
+        console.error("Cannot finish match: matchId not set");
+        return;
+      }
+      
       const winnerId = result.winnerIdx === 0 ? currentPlayerId : selectedOpponent!.id;
-      await fetch("/api/card-clash/match/finish", {
+      const res = await fetch("/api/card-clash/match/finish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ matchId, winnerId, cardsUsedInMatch: cardsUsed }),
       });
-    } catch {}
+      
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("Failed to finish match:", err);
+        // Still navigate away but log the error
+      }
+    } catch (e) {
+      console.error("Network error sending match result:", e);
+      // Still navigate away - don't block the user
+    }
     onMatchComplete();
   };
 
