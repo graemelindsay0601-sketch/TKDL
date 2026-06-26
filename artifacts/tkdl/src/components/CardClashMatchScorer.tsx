@@ -58,22 +58,36 @@ export function CardClashMatchScorer({
     onMatchComplete(result, []);
   };
 
-  return gameMode === "X01" ? (
-    <X01Scorer
-      p1Name={player1Name}
-      p2Name={player2Name}
-      config={{ startingScore: 501, doubleOut: true }}
-      botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
-      onWin={handleMatchComplete}
-      onAbandon={() => {}}
-    />
-  ) : (
-    <CricketScorer
-      p1Name={player1Name}
-      p2Name={player2Name}
-      botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
-      onWin={handleMatchComplete}
-      onAbandon={() => {}}
-    />
+  const scorerWrapper: React.CSSProperties = {
+    width: "100%",
+    height: "100vh",
+    overflow: "hidden",
+    position: "fixed",
+    top: 0,
+    left: 0,
+    zIndex: 50,
+  };
+
+  return (
+    <div style={scorerWrapper}>
+      {gameMode === "X01" ? (
+        <X01Scorer
+          p1Name={player1Name}
+          p2Name={player2Name}
+          config={{ startingScore: 501, doubleOut: true }}
+          botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
+          onWin={handleMatchComplete}
+          onAbandon={() => {}}
+        />
+      ) : (
+        <CricketScorer
+          p1Name={player1Name}
+          p2Name={player2Name}
+          botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
+          onWin={handleMatchComplete}
+          onAbandon={() => {}}
+        />
+      )}
+    </div>
   );
 }
