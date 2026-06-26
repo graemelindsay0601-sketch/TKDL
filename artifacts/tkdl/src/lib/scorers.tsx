@@ -547,11 +547,31 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       console.log("⚠️  No non-instant effects to queue");
     }
     cardDebugLog("X01Scorer", "Effects queued", { effects: effects.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`) });
-    if (!cardsUsed.some((c: any) => c.id === card.id)) setCardsUsed(prev => [...prev, card]);
+    // Note: Card is marked as used when turn ends, not when activated
+    // This allows multiple cards to be used in the same turn
   }, [p1Cards, p2Cards, cardsUsed, turn, scores, legWins]);
 
   const handleDartRef = useRef(handleDart);
   useEffect(() => { handleDartRef.current = handleDart; });
+  
+  // Mark active cards as used at turn end
+  const markActiveCardsAsUsed = useCallback(() => {
+    if (!isCardClash || activeEffects.length === 0) return;
+    setCardsUsed(prev => {
+      const newUsed = [...prev];
+      // Mark all cards that have active effects for current player as used
+      activeEffects.forEach(effect => {
+        if (effect.affectsPlayer === turn && effect.appliedBy === turn) {
+          const card = (turn === 0 ? p1Cards : p2Cards).find((c: any) => c.name === effect.cardName);
+          if (card && !newUsed.some(c => c.id === card.id)) {
+            console.log("✅ Marking card as used at turn end:", { cardName: effect.cardName });
+            newUsed.push(card);
+          }
+        }
+      });
+      return newUsed;
+    });
+  }, [isCardClash, activeEffects, turn, p1Cards, p2Cards]);
   const isBotTurnX01 = !!botConfig && turn === 1;
   useEffect(() => {
     if (!botConfig || turn !== 1) return;
@@ -731,16 +751,19 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
               {/* Good cards (top row) */}
               {(turn === 0 ? p1Cards : p2Cards)
                 .filter((c: any) => c.category?.includes("GOOD"))
-                .map((card: any) => (
+                .map((card: any) => {
+                  const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
+                  const isCurrentlyActive = activeEffects.some((e: any) => e.cardName === card.name && e.affectsPlayer === turn && e.appliedBy === turn);
+                  const isUsed = isPermanentlyUsed || isCurrentlyActive;
+                  return (
                   <div
                     key={card.id}
                     onClick={() => {
-                      const isUsed = cardsUsed.some((used: any) => used.id === card.id);
                       console.log("🎴 GOOD card clicked:", { cardName: card.name, cardId: card.id, isUsed, cardData: card });
                       if (!isUsed) setSelectedCard(card);
                     }}
                     style={{
-                      cursor: cardsUsed.some((used: any) => used.id === card.id) ? "not-allowed" : "pointer",
+                      cursor: isUsed ? "not-allowed" : "pointer",
                       fontSize: "10px",
                       padding: "8px",
                       background: "rgba(0,180,255,0.08)",
@@ -749,26 +772,30 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
                       color: "#00d4ff",
                       textAlign: "center",
                       fontWeight: 700,
-                      opacity: cardsUsed.some((used: any) => used.id === card.id) ? 0.5 : 1,
-                      textDecoration: cardsUsed.some((used: any) => used.id === card.id) ? "line-through" : "none",
+                      opacity: isUsed ? 0.5 : 1,
+                      textDecoration: isUsed ? "line-through" : "none",
                     }}
                   >
                     {card.name}
                   </div>
-                ))}
+                  );
+                })}
               {/* Bad cards (bottom row) */}
               {(turn === 0 ? p1Cards : p2Cards)
                 .filter((c: any) => c.category?.includes("BAD"))
-                .map((card: any) => (
+                .map((card: any) => {
+                  const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
+                  const isCurrentlyActive = activeEffects.some((e: any) => e.cardName === card.name && e.affectsPlayer === turn && e.appliedBy === turn);
+                  const isUsed = isPermanentlyUsed || isCurrentlyActive;
+                  return (
                   <div
                     key={card.id}
                     onClick={() => {
-                      const isUsed = cardsUsed.some((used: any) => used.id === card.id);
                       console.log("🎴 BAD card clicked:", { cardName: card.name, cardId: card.id, isUsed, cardData: card });
                       if (!isUsed) setSelectedCard(card);
                     }}
                     style={{
-                      cursor: cardsUsed.some((used: any) => used.id === card.id) ? "not-allowed" : "pointer",
+                      cursor: isUsed ? "not-allowed" : "pointer",
                       fontSize: "10px",
                       padding: "8px",
                       background: "rgba(255,50,50,0.08)",
@@ -777,13 +804,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
                       color: "#ff6b6b",
                       textAlign: "center",
                       fontWeight: 700,
-                      opacity: cardsUsed.some((used: any) => used.id === card.id) ? 0.5 : 1,
-                      textDecoration: cardsUsed.some((used: any) => used.id === card.id) ? "line-through" : "none",
+                      opacity: isUsed ? 0.5 : 1,
+                      textDecoration: isUsed ? "line-through" : "none",
                     }}
                   >
                     {card.name}
                   </div>
-                ))}
+                  );
+                })}
+            </div>
             </div>
           ) : (
             [...(showCards ? [] : history)].reverse().slice(0, 5).map((h, i) => (
@@ -3177,16 +3206,19 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", maxHeight: "200px", overflow: "auto" }}>
                 {p1Cards
                   .filter((c: any) => c.category?.includes("GOOD"))
-                  .map((card: any) => (
+                  .map((card: any) => {
+                    const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
+                    const isCurrentlyActive = activeEffects.some((e: any) => e.cardName === card.name && e.affectsPlayer === turn && e.appliedBy === turn);
+                    const isUsed = isPermanentlyUsed || isCurrentlyActive;
+                    return (
                     <div
                       key={card.id}
                       onClick={() => {
-                        const isUsed = cardsUsed.some((used: any) => used.id === card.id);
                         console.log("🎴 Cricket GOOD card clicked:", { cardName: card.name, cardId: card.id, isUsed, cardData: card });
                         if (!isUsed) setSelectedCard(card);
                       }}
                       style={{
-                        cursor: "pointer",
+                        cursor: isUsed ? "not-allowed" : "pointer",
                         fontSize: "10px",
                         padding: "8px",
                         background: "rgba(0,180,255,0.08)",
@@ -3195,25 +3227,29 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
                         color: "#00d4ff",
                         textAlign: "center",
                         fontWeight: 700,
-                        opacity: cardsUsed.some((used: any) => used.id === card.id) ? 0.5 : 1,
-                        textDecoration: cardsUsed.some((used: any) => used.id === card.id) ? "line-through" : "none",
+                        opacity: isUsed ? 0.5 : 1,
+                        textDecoration: isUsed ? "line-through" : "none",
                       }}
                     >
                       {card.name}
                     </div>
-                  ))}
+                    );
+                  })}
                 {p1Cards
                   .filter((c: any) => c.category?.includes("BAD"))
-                  .map((card: any) => (
+                  .map((card: any) => {
+                    const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
+                    const isCurrentlyActive = activeEffects.some((e: any) => e.cardName === card.name && e.affectsPlayer === turn && e.appliedBy === turn);
+                    const isUsed = isPermanentlyUsed || isCurrentlyActive;
+                    return (
                     <div
                       key={card.id}
                       onClick={() => {
-                        const isUsed = cardsUsed.some((used: any) => used.id === card.id);
                         console.log("🎴 Cricket BAD card clicked:", { cardName: card.name, cardId: card.id, isUsed, cardData: card });
                         if (!isUsed) setSelectedCard(card);
                       }}
                       style={{
-                        cursor: "pointer",
+                        cursor: isUsed ? "not-allowed" : "pointer",
                         fontSize: "10px",
                         padding: "8px",
                         background: "rgba(255,50,50,0.08)",
@@ -3222,13 +3258,14 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
                         color: "#ff6b6b",
                         textAlign: "center",
                         fontWeight: 700,
-                        opacity: cardsUsed.some((used: any) => used.id === card.id) ? 0.5 : 1,
-                        textDecoration: cardsUsed.some((used: any) => used.id === card.id) ? "line-through" : "none",
+                        opacity: isUsed ? 0.5 : 1,
+                        textDecoration: isUsed ? "line-through" : "none",
                       }}
                     >
                       {card.name}
                     </div>
-                  ))}
+                    );
+                  })}
               </div>
             ) : (
               [...(showCards ? [] : history)].reverse().slice(0, 5).map((h, i) => (
