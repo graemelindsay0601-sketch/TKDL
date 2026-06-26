@@ -1,13 +1,14 @@
 /**
- * CardClashMatchScorer - REWRITTEN
- * Clean architecture for oche use:
- * - Compact layout (no scrolling)
- * - Collapsible Cards section (2×2 grid of real card visuals)
- * - Modal popup on card tap
- * - Auto-continue after confirmation
+ * CardClashMatchScorer
+ * 
+ * Uses the real X01Scorer/CricketScorer engines with Card Clash features:
+ * - Cards panel showing current player's 4 equipped cards (2×2)
+ * - Card details modal on tap
+ * - Effects applied via activeCardEffects prop to scorer
+ * - Cards UI only visible during Card Clash matches
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { X01Scorer, CricketScorer } from "@/lib/scorers";
 import { TKDLCard } from "./TKDLCard";
 import { ccActivateCard, type CCEffect } from "@/lib/card-effect-engine";
@@ -41,49 +42,76 @@ export function CardClashMatchScorer({
   onMatchComplete,
   isBot,
 }: CardClashMatchScorerProps) {
-  // Game state
-  const [currentTurn, setCurrentTurn] = useState<0 | 1>(0);
+  // Card effects that will be passed to the scorer
   const [activeCardEffects, setActiveCardEffects] = useState<CCEffect[]>([]);
   const [cardsUsed, setCardsUsed] = useState<string[]>([]);
 
+  // Track which player's cards to show (default to player 1)
+  const [currentPlayerIdx, setCurrentPlayerIdx] = useState<0 | 1>(0);
+  const [p1Cards, setP1Cards] = useState<EquippedCard[]>(
+    player1EquippedCards.map(c => ({ ...c, used: false }))
+  );
+  const [p2Cards, setP2Cards] = useState<EquippedCard[]>(
+    player2EquippedCards.map(c => ({ ...c, used: false }))
+  );
+
   // Card UI state
   const [cardsExpanded, setCardsExpanded] = useState(false);
-  const [selectedCard, setSelectedCard] = useState<{ card: EquippedCard; playerIndex: 0 | 1 } | null>(null);
-  const [p1Cards, setP1Cards] = useState<EquippedCard[]>(player1EquippedCards);
-  const [p2Cards, setP2Cards] = useState<EquippedCard[]>(player2EquippedCards);
+  const [selectedCard, setSelectedCard] = useState<{ card: EquippedCard; playerIdx: 0 | 1 } | null>(null);
+
+  // Track last confirmed scores to detect turn changes
+  const [lastScores, setLastScores] = useState<[number, number]>([
+    gameMode === "X01" ? 501 : 0,
+    gameMode === "X01" ? 501 : 0,
+  ]);
+
+  // Detect turn changes by monitoring score display
+  const detectTurnChange = useCallback((p1Score: number, p2Score: number) => {
+    // If player 1's score changed (decreased in X01, increased in Cricket), it was their turn
+    if (gameMode === "X01") {
+      if (p1Score < lastScores[0]) {
+        setCurrentPlayerIdx(1); // P1 just played, now P2's turn
+      } else if (p2Score < lastScores[1]) {
+        setCurrentPlayerIdx(0); // P2 just played, now P1's turn
+      }
+    } else {
+      // Cricket - marks increase
+      if (p1Score > lastScores[0]) {
+        setCurrentPlayerIdx(1);
+      } else if (p2Score > lastScores[1]) {
+        setCurrentPlayerIdx(0);
+      }
+    }
+    setLastScores([p1Score, p2Score]);
+  }, [lastScores, gameMode]);
 
   // Handle card tap - show modal
-  const handleCardTap = (card: EquippedCard, playerIndex: 0 | 1) => {
+  const handleCardTap = (card: EquippedCard, playerIdx: 0 | 1) => {
     if (card.used) return;
-    setSelectedCard({ card, playerIndex });
+    setSelectedCard({ card, playerIdx });
   };
 
   // Handle card confirmation
   const handleConfirmCard = useCallback(() => {
     if (!selectedCard) return;
-    const { card, playerIndex } = selectedCard;
+    const { card, playerIdx } = selectedCard;
 
-    // Create card effects - MUST pass byPlayer so effects know who played them
-    const effects = ccActivateCard(card, playerIndex);
-    console.log(`🎴 Card "${card.name}" confirmed by player ${playerIndex}:`, effects);
-
+    // Create and apply card effects
+    const effects = ccActivateCard(card, playerIdx);
     if (effects && effects.length > 0) {
-      // Add effects to active effects
-      setActiveCardEffects((prev) => [...prev, ...effects.filter((e) => !e.instant)]);
+      setActiveCardEffects((prev) => [...prev, ...effects]);
+      console.log(`🎴 Card "${card.name}" played by player ${playerIdx}:`, effects);
     }
 
     // Mark card as used
-    if (playerIndex === 0) {
+    if (playerIdx === 0) {
       setP1Cards((prev) => prev.map((c) => (c.id === card.id ? { ...c, used: true } : c)));
     } else {
       setP2Cards((prev) => prev.map((c) => (c.id === card.id ? { ...c, used: true } : c)));
     }
 
-    // Track used card
-    setCardsUsed((prev) => [...prev, `${card.id}:p${playerIndex}`]);
-
-    // DON'T switch turn - card affects current turn, not next turn
-    // Turn switches only when scorer says game is over or next player starts
+    // Track card usage
+    setCardsUsed((prev) => [...prev, `${card.id}:p${playerIdx}`]);
 
     // Close modal
     setSelectedCard(null);
@@ -93,30 +121,23 @@ export function CardClashMatchScorer({
     onMatchComplete(result, cardsUsed);
   };
 
-  const currentPlayerCards = currentTurn === 0 ? p1Cards : p2Cards;
-  const currentPlayerName = currentTurn === 0 ? player1Name : player2Name;
+  const currentPlayerCards =
+    currentPlayerIdx === 0 ? p1Cards : p2Cards;
+  const currentPlayerName =
+    currentPlayerIdx === 0 ? player1Name : player2Name;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100%", background: "linear-gradient(135deg, #0a0e18, #1a1f2e)", overflow: "hidden" }}>
-      {/* ━━━━━ HEADER: Player Names + Bonus Display ━━━━━ */}
-      <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontSize: "14px", fontWeight: "700", color: "#fff" }}>{player1Name}</div>
-          <div style={{ fontSize: "14px", fontWeight: "700", color: "#fff" }}>{player2Name}</div>
-        </div>
-      </div>
-
-      {/* ━━━━━ SCORER (X01 or Cricket) ━━━━━ */}
-      <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", gap: 0 }}>
+      {/* Main Scorer - Full height, flexible */}
+      <div style={{ flex: 1, overflow: "hidden", position: "relative", minHeight: 0 }}>
         {gameMode === "X01" ? (
           <X01Scorer
             p1Name={player1Name}
             p2Name={player2Name}
             config={{ startingScore: 501, doubleOut: true }}
             botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
-            onWin={(winnerIdx: 0 | 1, detail?: string) => handleMatchComplete({ winnerIdx, detail })}
+            onWin={handleMatchComplete}
             onAbandon={() => {}}
-            onPracticeStats={undefined}
             cardEffects={activeCardEffects}
           />
         ) : (
@@ -124,21 +145,28 @@ export function CardClashMatchScorer({
             p1Name={player1Name}
             p2Name={player2Name}
             botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
-            onWin={(winnerIdx: 0 | 1, detail?: string) => handleMatchComplete({ winnerIdx, detail })}
+            onWin={handleMatchComplete}
             onAbandon={() => {}}
-            onPracticeStats={undefined}
             cardEffects={activeCardEffects}
           />
         )}
       </div>
 
-      {/* ━━━━━ CARDS SECTION (Collapsible) ━━━━━ */}
-      <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.4)" }}>
-        {/* Collapse/Expand Button */}
+      {/* Cards Section - Fixed at bottom, collapsible */}
+      <div
+        style={{
+          borderTop: "1px solid rgba(255,255,255,0.1)",
+          background: "rgba(0,0,0,0.5)",
+          maxHeight: "35%",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* Toggle Button */}
         <button
           onClick={() => setCardsExpanded(!cardsExpanded)}
           style={{
-            width: "100%",
             padding: "12px 16px",
             background: "transparent",
             border: "none",
@@ -152,13 +180,14 @@ export function CardClashMatchScorer({
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            flexShrink: 0,
           }}
         >
-          <span>🎴 Cards - Both Players</span>
+          <span>🎴 {currentPlayerName}'s Cards</span>
           <span>{cardsExpanded ? "▼" : "▶"}</span>
         </button>
 
-        {/* Cards Grid (shown when expanded) - 2x2 P1 + 2x2 P2 */}
+        {/* Cards Grid */}
         {cardsExpanded && (
           <div
             style={{
@@ -166,53 +195,34 @@ export function CardClashMatchScorer({
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
               gap: "12px",
-              maxHeight: "300px",
-              overflowY: "auto",
+              overflow: "auto",
+              flex: 1,
             }}
           >
-            {/* Player 1 Cards (4) */}
-            {p1Cards.map((card) => (
+            {currentPlayerCards.map((card) => (
               <button
-                key={`p1-${card.id}`}
-                onClick={() => handleCardTap(card, 0)}
+                key={card.id}
+                onClick={() => handleCardTap(card, currentPlayerIdx)}
                 disabled={card.used}
                 style={{
                   background: "transparent",
                   border: "none",
                   cursor: card.used ? "not-allowed" : "pointer",
                   opacity: card.used ? 0.5 : 1,
-                  padding: "0",
+                  padding: 0,
+                  margin: 0,
+                  transform: "scale(0.7)",
+                  transformOrigin: "top center",
                 }}
               >
-                <div style={{ transform: "scale(0.65)", transformOrigin: "top center", pointerEvents: "none" }}>
-                  <TKDLCard card={card} size="sm" locked={card.used} />
-                </div>
-              </button>
-            ))}
-            {/* Player 2 Cards (4) */}
-            {p2Cards.map((card) => (
-              <button
-                key={`p2-${card.id}`}
-                onClick={() => handleCardTap(card, 1)}
-                disabled={card.used}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  cursor: card.used ? "not-allowed" : "pointer",
-                  opacity: card.used ? 0.5 : 1,
-                  padding: "0",
-                }}
-              >
-                <div style={{ transform: "scale(0.65)", transformOrigin: "top center", pointerEvents: "none" }}>
-                  <TKDLCard card={card} size="sm" locked={card.used} />
-                </div>
+                <TKDLCard card={card} size="sm" locked={card.used} />
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* ━━━━━ CARD DETAILS MODAL ━━━━━ */}
+      {/* Card Details Modal */}
       {selectedCard && (
         <div
           style={{
@@ -241,12 +251,12 @@ export function CardClashMatchScorer({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Full Card Visual */}
+            {/* Card Visual */}
             <div style={{ transform: "scale(0.9)" }}>
               <TKDLCard card={selectedCard.card} size="md" />
             </div>
 
-            {/* Card Details */}
+            {/* Card Info */}
             <div style={{ textAlign: "center", color: "#fff" }}>
               <div style={{ fontSize: "14px", color: "rgba(255,255,255,0.6)", marginBottom: "8px" }}>
                 {selectedCard.card.category} • {selectedCard.card.rarity}
@@ -278,16 +288,8 @@ export function CardClashMatchScorer({
               ✓ Confirm Use
             </button>
 
-            {/* Cancel Text */}
-            <div
-              style={{
-                fontSize: "12px",
-                color: "rgba(255,255,255,0.5)",
-                cursor: "pointer",
-              }}
-              onClick={() => setSelectedCard(null)}
-            >
-              Tap outside or press back to cancel
+            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
+              Tap outside to cancel
             </div>
           </div>
         </div>
