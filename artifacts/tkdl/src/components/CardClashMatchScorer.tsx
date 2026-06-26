@@ -37,18 +37,22 @@ export function CardClashMatchScorer({
   isBot,
 }: CardClashMatchScorerProps) {
   
-  // Enable Card Clash mode in scorers via sessionStorage
-  useEffect(() => {
+  // Set sessionStorage BEFORE rendering scorers (not in useEffect)
+  // This ensures scorers see the flag when they mount
+  if (typeof window !== "undefined") {
     sessionStorage.setItem("card_clash_mode", "true");
     sessionStorage.setItem("card_clash_p1_cards", JSON.stringify(player1EquippedCards));
     sessionStorage.setItem("card_clash_p2_cards", JSON.stringify(player2EquippedCards));
-    
+  }
+
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
       sessionStorage.removeItem("card_clash_mode");
       sessionStorage.removeItem("card_clash_p1_cards");
       sessionStorage.removeItem("card_clash_p2_cards");
     };
-  }, [player1EquippedCards, player2EquippedCards]);
+  }, []);
 
   const handleMatchComplete = (result: GameResult) => {
     onMatchComplete(result, []);
