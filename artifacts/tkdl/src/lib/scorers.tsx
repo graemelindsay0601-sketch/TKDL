@@ -515,15 +515,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     cardDebugLog("X01Scorer", "Card activated", { card: card.name, cardId });
 
     const effects = ccActivateCard(card, turn, { scores, legWins });
-      cardName: card.name,
-      effectsCount: effects.length,
-      effects: effects.map(e => ({ 
-        cardName: e.cardName, 
-        affectsPlayer: e.affectsPlayer, 
-        status: e.status,
-        properties: Object.keys(e).filter(k => k !== 'cardName' && k !== 'appliedBy' && k !== 'affectsPlayer' && k !== 'status')
-      }))
-    });
+
     effects.forEach(e => {
       if (e.instant) {
         setScores(prev => {
@@ -905,15 +897,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     cardDebugLog("CricketScorer", "Card activated", { card: card.name });
 
     const effects = ccActivateCard(card, turn, { marks, scores });
-      cardName: card.name,
-      effectsCount: effects.length,
-      effects: effects.map(e => ({ 
-        cardName: e.cardName, 
-        affectsPlayer: e.affectsPlayer, 
-        status: e.status,
-        properties: Object.keys(e).filter(k => k !== 'cardName' && k !== 'appliedBy' && k !== 'affectsPlayer' && k !== 'status')
-      }))
-    });
+
     effects.forEach(e => {
       if (e.instant) {
         setScores(prev => {
