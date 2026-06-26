@@ -162,4 +162,43 @@ router.get("/players/:id/stats/coach-feed", async (req, res) => {
   }
 });
 
+// DEBUG ENDPOINT: /api/players/:id/stats/debug - Diagnostic stats info
+router.get("/players/:id/stats/debug", async (req, res) => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    
+    if (isNaN(playerId)) {
+      res.status(400).json({ error: "Invalid player ID" });
+      return;
+    }
+
+    // Test categories endpoint
+    const breakdown = await statsService.getGameTypeBreakdown(playerId, "all");
+    
+    // Test specific category
+    const leagueStats = await statsService.getCategoryStats(playerId, "League", "all");
+    
+    res.json({
+      playerId,
+      timestamp: new Date().toISOString(),
+      breakdown: {
+        count: breakdown.length,
+        data: breakdown.slice(0, 2), // Show first 2
+      },
+      leagueStats: {
+        exists: !!leagueStats,
+        matches: leagueStats?.matches ?? 0,
+        wins: leagueStats?.wins ?? 0,
+      },
+      note: "This endpoint is for debugging only. Remove before production.",
+    });
+  } catch (err) {
+    req.log.error({ err }, "Debug endpoint failed");
+    res.status(500).json({ 
+      error: "Debug endpoint failed",
+      message: err instanceof Error ? err.message : "Unknown error"
+    });
+  }
+});
+
 export default router;

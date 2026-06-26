@@ -14,6 +14,7 @@ import { CoinBalance } from "@/components/CoinBalance";
 import { CardCollectionBook } from "@/components/CardCollectionBook";
 import { PlayerChallenges } from "@/components/PlayerChallenges";
 import { OverallStats, ByGameType, Trends, DartAnalysis, SessionHistory, CategoryStats, CategoryStatsEnhanced, AdvancedAnalyticsDashboard } from "@/components/stats";
+import { DebugStatsViewer } from "@/components/stats/debug-stats-viewer";
 
 const TIER_COLORS: Record<string, string> = {
   Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
@@ -1979,6 +1980,7 @@ export default function AccountPage() {
       {/* ── Stats Tab ─────────────────────────────────────────────── */}
       {activeTab === "stats" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <DebugStatsViewer playerId={parseInt(user.playerId)} />
           <CategoryStatsEnhanced playerId={parseInt(user.playerId)} />
         </div>
       )}
