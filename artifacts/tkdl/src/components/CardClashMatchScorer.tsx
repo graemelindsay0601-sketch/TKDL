@@ -63,9 +63,9 @@ export function CardClashMatchScorer({
     if (!selectedCard) return;
     const { card, playerIndex } = selectedCard;
 
-    // Create card effects
-    const effects = ccActivateCard(card);
-    console.log(`🎴 Card "${card.name}" confirmed:`, effects);
+    // Create card effects - MUST pass byPlayer so effects know who played them
+    const effects = ccActivateCard(card, playerIndex);
+    console.log(`🎴 Card "${card.name}" confirmed by player ${playerIndex}:`, effects);
 
     if (effects && effects.length > 0) {
       // Add effects to active effects
