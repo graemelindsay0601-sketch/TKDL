@@ -486,6 +486,61 @@ export function CardClashMatchScorer({
         {currentTurn === 0 ? `${player1Name}'s Turn` : `${player2Name}'s Turn`}
       </div>
 
+      {/* ✅ BONUS DISPLAY PANEL - Shows accumulated card bonuses */}
+      <div
+        style={{
+          position: "fixed",
+          top: "80px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 499,
+          background: "rgba(0,0,0,0.8)",
+          border: "1px solid rgba(255,212,74,0.4)",
+          borderRadius: "8px",
+          padding: "12px 20px",
+          minWidth: "320px",
+          display: "flex",
+          justifyContent: "space-between",
+          gap: "20px",
+          backdropFilter: "blur(8px)",
+        }}
+      >
+        {/* Player 1 Bonus */}
+        <div style={{ flex: 1, textAlign: "center" }}>
+          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginBottom: "4px", letterSpacing: "0.05em" }}>
+            {player1Name}
+          </div>
+          <div
+            style={{
+              fontSize: "18px",
+              fontWeight: "900",
+              color: player1Bonus > 0 ? "#00ff88" : player1Bonus < 0 ? "#ff6b6b" : "rgba(255,255,255,0.3)",
+            }}
+          >
+            {player1Bonus > 0 ? "+" : ""}{player1Bonus} pts
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div style={{ width: "1px", background: "rgba(255,255,255,0.1)" }}></div>
+
+        {/* Player 2 Bonus */}
+        <div style={{ flex: 1, textAlign: "center" }}>
+          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginBottom: "4px", letterSpacing: "0.05em" }}>
+            {player2Name}
+          </div>
+          <div
+            style={{
+              fontSize: "18px",
+              fontWeight: "900",
+              color: player2Bonus > 0 ? "#00ff88" : player2Bonus < 0 ? "#ff6b6b" : "rgba(255,255,255,0.3)",
+            }}
+          >
+            {player2Bonus > 0 ? "+" : ""}{player2Bonus} pts
+          </div>
+        </div>
+      </div>
+
       {/* Player 1 Card Panel — Left (Only visible on P1's turn) */}
       {currentTurn === 0 && (
         <CardPanel
@@ -534,15 +589,16 @@ export function CardClashMatchScorer({
               boxShadow: `0 0 40px ${RARITY_GLOW[activeEffect.card.rarity]}80`,
             }}
           >
-            <div style={{ fontSize: "28px", marginBottom: "6px" }}>
+            <div style={{ fontSize: "48px", marginBottom: "12px", animation: "bounce 0.6s ease" }}>
               {activeEffect.card.cardType === "GOOD" ? "⚡" : "💀"}
             </div>
             <div
               style={{
-                color: "#fff",
+                color: "#ffd24a",
                 fontWeight: "900",
-                fontSize: "20px",
-                marginBottom: "4px",
+                fontSize: "24px",
+                marginBottom: "12px",
+                letterSpacing: "0.5px",
               }}
             >
               {activeEffect.card.name}
@@ -550,12 +606,14 @@ export function CardClashMatchScorer({
             <div
               style={{
                 color: activeEffect.card.cardType === "GOOD" ? "#00ff88" : "#ff6b6b",
-                fontSize: "28px",
+                fontSize: "52px",
                 fontWeight: "900",
-                marginBottom: "6px",
+                marginBottom: "12px",
+                textShadow: `0 0 30px ${activeEffect.card.cardType === "GOOD" ? "#00ff8880" : "#ff6b6b80"}`,
+                animation: "pulse 0.8s ease-in-out",
               }}
             >
-              {activeEffect.card.cardType === "GOOD" ? "+" : "−"}{activeEffect.bonus}
+              {activeEffect.card.cardType === "GOOD" ? "+" : "−"}{activeEffect.bonus} PTS
             </div>
             <div
               style={{
@@ -578,6 +636,14 @@ export function CardClashMatchScorer({
           25%  { transform: translate(-50%, -50%) scale(1); }
           75%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
           100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+        }
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-15px); }
+        }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.15); opacity: 1; }
         }
       `}</style>
       </div>
