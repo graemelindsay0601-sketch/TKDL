@@ -221,6 +221,8 @@ export async function initializeCardTables() {
       logger.warn({ error }, "Could not alter card_clash_seasons columns");
     }
 
+    logger.info("Starting to add missing columns to card_clash_matches...");
+    
     // Migrate: Add missing columns to card_clash_matches
     // Use Drizzle's sql template literal for raw SQL
     const columnAlters = [
@@ -231,17 +233,23 @@ export async function initializeCardTables() {
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER DEFAULT 0`,
     ];
     
-    for (const alterSql of columnAlters) {
+    logger.info(`About to execute ${columnAlters.length} ALTER statements`);
+    
+    for (let i = 0; i < columnAlters.length; i++) {
       try {
-        await db.execute(alterSql);
-        logger.info("✓ Column ALTER executed successfully");
+        logger.info(`Executing ALTER #${i + 1}...`);
+        await db.execute(columnAlters[i]);
+        logger.info(`✓ Column ALTER #${i + 1} executed successfully`);
       } catch (e: any) {
-        logger.warn({ error: e.message }, "Column ALTER skipped (may already exist)");
+        logger.warn({ error: e.message, index: i }, `Column ALTER #${i + 1} skipped`);
       }
     }
     
+    logger.info("Finished column ALTERs");
+    
     // Ensure winner_id is nullable
     try {
+      logger.info("Making winner_id nullable...");
       await db.execute(sql`ALTER TABLE card_clash_matches ALTER COLUMN winner_id DROP NOT NULL`);
       logger.info("✓ Made winner_id nullable");
     } catch (e: any) {
