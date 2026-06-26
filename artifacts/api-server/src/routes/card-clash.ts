@@ -396,6 +396,21 @@ router.post("/admin/season/create", async (req: Request, res: Response) => {
 router.post("/match/start", async (req: Request, res: Response) => {
   try {
     const { gameMode, player1Id, player2Id, equippedCards } = req.body;
+    
+    // Validate gameMode
+    if (!gameMode || !["X01", "CRICKET"].includes(gameMode)) {
+      return res.status(400).json({ error: "Invalid gameMode - must be X01 or CRICKET" });
+    }
+    
+    // Validate player IDs
+    if (!player1Id || !player2Id || typeof player1Id !== "number" || typeof player2Id !== "number") {
+      return res.status(400).json({ error: "Invalid player IDs" });
+    }
+    
+    if (player1Id === player2Id) {
+      return res.status(400).json({ error: "Cannot play against yourself" });
+    }
+    
     const match = await startCardClashMatch(gameMode, player1Id, player2Id, equippedCards);
     res.json(match);
   } catch (error) {
