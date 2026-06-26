@@ -228,14 +228,20 @@ export async function initializeCardTables() {
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_id INTEGER REFERENCES players(id)`,
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_id INTEGER REFERENCES players(id)`,
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS winner_id INTEGER REFERENCES players(id)`,
-      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_equipped_cards JSON`,
-      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_equipped_cards JSON`,
-      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSON`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_equipped_cards JSONB`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_equipped_cards JSONB`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSONB`,
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_points_earned INTEGER DEFAULT 0`,
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER DEFAULT 0`,
     ];
+    
     for (const alter of matchAlters) {
-      try { await db.execute(alter); } catch (e) { logger.warn({ e }, "card_clash_matches column alter skipped"); }
+      try { 
+        await db.execute(alter);
+        logger.info("✓ Column altered");
+      } catch (e) { 
+        logger.warn({ e }, "Column alter skipped"); 
+      }
     }
     
     // Ensure winner_id is nullable (match winner is unknown until match finishes)
