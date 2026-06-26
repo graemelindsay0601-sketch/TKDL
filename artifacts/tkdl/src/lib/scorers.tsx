@@ -2,7 +2,7 @@
  * Game engine scorer components — each handles its own state + dart input.
  * All scorers receive: p1Name, p2Name, config (parsed from game_type), onWin(0|1, detail?), onAbandon
  */
-import { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize } from "lucide-react";
 import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart } from "./bot-engine";
@@ -228,7 +228,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const names = [p1Name, p2Name];
 
   // Sync with cardEffects from parent (CardClashMatchScorer)
-  React.useEffect(() => {
+  useEffect(() => {
     if (cardEffects && cardEffects.length > 0) {
       setActiveEffects(cardEffects);
     }
@@ -720,7 +720,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const names = [p1Name, p2Name];
 
   // Sync with cardEffects from parent (CardClashMatchScorer)
-  React.useEffect(() => {
+  useEffect(() => {
     if (cardEffects && cardEffects.length > 0) {
       setActiveEffects(cardEffects);
     }
