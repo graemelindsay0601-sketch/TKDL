@@ -519,6 +519,16 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     cardDebugLog("X01Scorer", "Card activated", { card: card.name, cardId });
 
     const effects = ccActivateCard(card, turn, { scores, legWins });
+    console.log("🎯 ccActivateCard returned effects:", { 
+      cardName: card.name,
+      effectsCount: effects.length,
+      effects: effects.map(e => ({ 
+        cardName: e.cardName, 
+        affectsPlayer: e.affectsPlayer, 
+        status: e.status,
+        properties: Object.keys(e).filter(k => k !== 'cardName' && k !== 'appliedBy' && k !== 'affectsPlayer' && k !== 'status')
+      }))
+    });
     effects.forEach(e => {
       if (e.instant) {
         setScores(prev => {
@@ -530,7 +540,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       }
     });
     const nonInstant = effects.filter(e => !e.instant);
-    if (nonInstant.length > 0) setActiveEffects(prev => [...prev, ...nonInstant]);
+    if (nonInstant.length > 0) {
+      console.log("✅ Adding non-instant effects to activeEffects:", { count: nonInstant.length, effects: nonInstant });
+      setActiveEffects(prev => [...prev, ...nonInstant]);
+    } else {
+      console.log("⚠️  No non-instant effects to queue");
+    }
     cardDebugLog("X01Scorer", "Effects queued", { effects: effects.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`) });
     if (!cardsUsed.some((c: any) => c.id === card.id)) setCardsUsed(prev => [...prev, card]);
   }, [p1Cards, p2Cards, cardsUsed, turn, scores, legWins]);
@@ -557,12 +572,24 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (sessionStorage.getItem("card_clash_mode") !== "true") return;
     setIsCardClash(true);
     try {
-      const p1 = JSON.parse(sessionStorage.getItem("card_clash_p1_cards") || "[]");
-      const p2 = JSON.parse(sessionStorage.getItem("card_clash_p2_cards") || "[]");
+      const p1Raw = sessionStorage.getItem("card_clash_p1_cards") || "[]";
+      const p2Raw = sessionStorage.getItem("card_clash_p2_cards") || "[]";
+      console.log("📦 Raw sessionStorage data:", { p1Raw: p1Raw.substring(0, 100), p2Raw: p2Raw.substring(0, 100) });
+      
+      const p1 = JSON.parse(p1Raw);
+      const p2 = JSON.parse(p2Raw);
+      console.log("✅ Loaded cards from sessionStorage:", { 
+        p1Count: p1.length, 
+        p2Count: p2.length,
+        p1Cards: p1.map((c: any) => ({ id: c.id, name: c.name, category: c.category })),
+        p2Cards: p2.map((c: any) => ({ id: c.id, name: c.name, category: c.category }))
+      });
+      
       setP1Cards(p1);
       setP2Cards(p2);
       cardDebugLog("X01Scorer", "Card Clash mode active", { p1Cards: p1.length, p2Cards: p2.length });
     } catch (e) {
+      console.error("🚨 Error loading cards:", e);
       cardDebugLog("X01Scorer", "Failed to load Card Clash cards from sessionStorage", e);
     }
   }, []);
@@ -832,12 +859,24 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     if (sessionStorage.getItem("card_clash_mode") !== "true") return;
     setIsCardClash(true);
     try {
-      const p1 = JSON.parse(sessionStorage.getItem("card_clash_p1_cards") || "[]");
-      const p2 = JSON.parse(sessionStorage.getItem("card_clash_p2_cards") || "[]");
+      const p1Raw = sessionStorage.getItem("card_clash_p1_cards") || "[]";
+      const p2Raw = sessionStorage.getItem("card_clash_p2_cards") || "[]";
+      console.log("📦 Cricket: Raw sessionStorage data:", { p1Raw: p1Raw.substring(0, 100), p2Raw: p2Raw.substring(0, 100) });
+      
+      const p1 = JSON.parse(p1Raw);
+      const p2 = JSON.parse(p2Raw);
+      console.log("✅ Cricket: Loaded cards from sessionStorage:", { 
+        p1Count: p1.length, 
+        p2Count: p2.length,
+        p1Cards: p1.map((c: any) => ({ id: c.id, name: c.name, category: c.category })),
+        p2Cards: p2.map((c: any) => ({ id: c.id, name: c.name, category: c.category }))
+      });
+      
       setP1Cards(p1);
       setP2Cards(p2);
       cardDebugLog("CricketScorer", "Card Clash mode active", { p1Cards: p1.length, p2Cards: p2.length });
     } catch (e) {
+      console.error("🚨 Cricket: Error loading cards:", e);
       cardDebugLog("CricketScorer", "Failed to load Card Clash cards from sessionStorage", e);
     }
   }, []);
@@ -857,6 +896,16 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     cardDebugLog("CricketScorer", "Card activated", { card: card.name });
 
     const effects = ccActivateCard(card, turn, { marks, scores });
+    console.log("🎯 Cricket: ccActivateCard returned effects:", { 
+      cardName: card.name,
+      effectsCount: effects.length,
+      effects: effects.map(e => ({ 
+        cardName: e.cardName, 
+        affectsPlayer: e.affectsPlayer, 
+        status: e.status,
+        properties: Object.keys(e).filter(k => k !== 'cardName' && k !== 'appliedBy' && k !== 'affectsPlayer' && k !== 'status')
+      }))
+    });
     effects.forEach(e => {
       if (e.instant) {
         setScores(prev => {
@@ -868,7 +917,12 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       }
     });
     const nonInstant = effects.filter(e => !e.instant);
-    if (nonInstant.length > 0) setActiveEffects(prev => [...prev, ...nonInstant]);
+    if (nonInstant.length > 0) {
+      console.log("✅ Cricket: Adding non-instant effects to activeEffects:", { count: nonInstant.length, effects: nonInstant });
+      setActiveEffects(prev => [...prev, ...nonInstant]);
+    } else {
+      console.log("⚠️  Cricket: No non-instant effects to queue");
+    }
     cardDebugLog("CricketScorer", "Effects queued", { effects: effects.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`) });
     if (!cardsUsed.some((c: any) => c.id === card.id)) setCardsUsed(prev => [...prev, card]);
   }, [p1Cards, p2Cards, cardsUsed, turn, marks, scores]);
