@@ -58,12 +58,20 @@ export function CardClashMatchScorer({
     onMatchComplete(result, []);
   };
 
-  const scorerWrapper: React.CSSProperties = {
+  // Fullscreen wrapper - takes over entire viewport like Practice mode
+  const fullscreenStyle: React.CSSProperties = {
+    position: "fixed",
+    top: 0,
+    left: 0,
     width: "100%",
+    height: "100%",
+    zIndex: 9999,
+    overflow: "auto",
+    background: "#0a0e18",
   };
 
   return (
-    <div style={scorerWrapper}>
+    <div style={fullscreenStyle}>
       {gameMode === "X01" ? (
         <X01Scorer
           p1Name={player1Name}
