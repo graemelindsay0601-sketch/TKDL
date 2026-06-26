@@ -292,7 +292,7 @@ export default function AccountPage() {
   const [expandedCats,    setExpandedCats]    = useState<Set<string>>(new Set(["Career"]));
 
   // ── Tab + Community state ────────────────────────────────────────────
-  const [activeTab,        setActiveTab]       = useState<"overview" | "activity" | "achievements" | "coach" | "social" | "stats" | "analytics" | "card-clash">("overview");
+  const [activeTab,        setActiveTab]       = useState<"overview" | "activity" | "achievements" | "coach" | "social" | "stats" | "analytics" | "cards" | "challenges">("overview");
   const [socialTab,        setSocialTab]       = useState<"dms" | "notifications" | "photos">("dms");
   const [achSource,        setAchSource]       = useState<"league" | "bot" | "tour" | "m501">("league");
   const [coachDrills,      setCoachDrills]     = useState<any[]>([]);
@@ -795,7 +795,8 @@ export default function AccountPage() {
           { id: "activity"      as const, label: "Activity",  Icon: Zap                              },
           { id: "achievements"  as const, label: "Earned",    Icon: Award                            },
           { id: "coach"         as const, label: "Coach",     Icon: Brain                            },
-          { id: "card-clash"    as const, label: "Cards",     Icon: Sparkles                         },
+          { id: "cards"         as const, label: "Cards",     Icon: Sparkles                         },
+          { id: "challenges"    as const, label: "Challenges", Icon: Trophy                          },
           { id: "social"        as const, label: "Social",    Icon: MessageSquare, badge: unreadNotifCount },
           { id: "stats"         as const, label: "Stats",     Icon: TrendingUp                             },
           { id: "analytics"     as const, label: "Analytics", Icon: BarChart3                        },
@@ -965,10 +966,6 @@ export default function AccountPage() {
           }}>
             <CardCollectionBook playerId={user.playerId} />
           </div>
-
-          <SectionCard title="Trade Duplicates" icon={Zap} accent="#ffd24a">
-            <CardTrading playerId={user.playerId} />
-          </SectionCard>
           
           <SectionCard title="Active Challenges" icon={Trophy} accent="#ffd24a">
             <PlayerChallenges playerId={user.playerId} />
@@ -2006,33 +2003,24 @@ export default function AccountPage() {
         </div>
       )}
 
-      {activeTab === "card-clash" && user?.playerId && (
+      {activeTab === "cards" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div style={{
-            padding: "20px",
-            borderRadius: "16px",
-            background: "linear-gradient(135deg, rgba(167,139,250,0.1) 0%, rgba(167,139,250,0.04) 100%)",
-            border: "1px solid rgba(167,139,250,0.2)",
+            padding: "16px",
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid rgba(255,255,255,0.05)",
+            borderRadius: "12px",
           }}>
-            <h3 style={{ fontFamily: "Oswald, sans-serif", color: "#a78bfa", marginBottom: "16px", letterSpacing: "0.08em", fontSize: "1rem" }}>CARD CLASH INVENTORY</h3>
-            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.9rem", marginBottom: "16px" }}>
-              Head to the Card Clash tab in the main navigation to view your full card inventory, purchase packs, and check the leaderboard.
-            </p>
-            <Link href="/card-clash"
-              style={{
-                display: "inline-block",
-                padding: "10px 20px",
-                background: "rgba(167,139,250,0.2)",
-                border: "1px solid rgba(167,139,250,0.35)",
-                borderRadius: "8px",
-                color: "#a78bfa",
-                fontFamily: "Oswald, sans-serif",
-                cursor: "pointer",
-                letterSpacing: "0.06em",
-              }}>
-              Open Card Clash →
-            </Link>
+            <CardCollectionBook playerId={user.playerId} />
           </div>
+        </div>
+      )}
+
+      {activeTab === "challenges" && user?.playerId && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <SectionCard title="Daily & Weekly Challenges" icon={Trophy} accent="#ffd24a">
+            <PlayerChallenges playerId={user.playerId} />
+          </SectionCard>
         </div>
       )}
 

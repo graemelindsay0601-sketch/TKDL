@@ -3,7 +3,6 @@ import { useCurrentPlayer } from "@/context/auth";
 import { CardShopUI } from "@/components/CardShopUI";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
 import { CardClashMockGame } from "@/components/CardClashMockGame";
-import { PlayerChallenges } from "@/components/PlayerChallenges";
 import { TKDLCard } from "@/components/TKDLCard";
 import { ALL_CARDS } from "@/lib/cards-data";
 import type { CardData, Category, Rarity } from "@/lib/cards-data";
@@ -504,10 +503,7 @@ const PACKS = [
               <div>
                 <SectionHeader title="⚡ Enter the Clash" subtitle="Pick your opponent · Equip up to 4 cards · Play"/>
                 <CardClashMatchLauncher currentPlayerId={playerId} currentPlayerName={playerName} onMatchComplete={()=>{goTo("collection");loadData();}}/>
-                <div style={{marginTop:"2.5rem"}}>
-                  <div style={{fontSize:"11px",fontWeight:900,color:"rgba(255,255,255,0.4)",letterSpacing:"0.13em",textTransform:"uppercase",marginBottom:"1rem"}}>Your Challenges</div>
-                  <PlayerChallenges playerId={playerId}/>
-                </div>
+                {/* Challenges moved to player profile "Challenges" tab */}
               </div>
             )}
 
