@@ -222,30 +222,30 @@ export async function initializeCardTables() {
     }
 
     // Migrate: Add missing columns to card_clash_matches
-    // Use raw SQL to ensure columns exist with correct types
+    // Use Drizzle's sql template literal for raw SQL
     const columnAlters = [
-      "ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_equipped_cards JSONB DEFAULT '[]'::jsonb",
-      "ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_equipped_cards JSONB DEFAULT '[]'::jsonb", 
-      "ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSONB DEFAULT '[]'::jsonb",
-      "ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_points_earned INTEGER DEFAULT 0",
-      "ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER DEFAULT 0",
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_equipped_cards JSONB DEFAULT '[]'::jsonb`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_equipped_cards JSONB DEFAULT '[]'::jsonb`, 
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSONB DEFAULT '[]'::jsonb`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_points_earned INTEGER DEFAULT 0`,
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER DEFAULT 0`,
     ];
     
     for (const alterSql of columnAlters) {
       try {
-        await db.execute(sql.raw(alterSql));
-        logger.info({ sql: alterSql }, "✓ Column operation executed");
+        await db.execute(alterSql);
+        logger.info("✓ Column ALTER executed successfully");
       } catch (e: any) {
-        logger.warn({ sql: alterSql, error: e.message }, "Column operation skipped");
+        logger.warn({ error: e.message }, "Column ALTER skipped (may already exist)");
       }
     }
     
     // Ensure winner_id is nullable
     try {
-      await db.execute(sql.raw("ALTER TABLE card_clash_matches ALTER COLUMN winner_id DROP NOT NULL"));
+      await db.execute(sql`ALTER TABLE card_clash_matches ALTER COLUMN winner_id DROP NOT NULL`);
       logger.info("✓ Made winner_id nullable");
     } catch (e: any) {
-      logger.warn({ error: e.message }, "Could not make winner_id nullable");
+      logger.warn({ error: e.message }, "Could not make winner_id nullable (may already be)");
     }
     
     logger.info("card_clash_matches columns verified");
