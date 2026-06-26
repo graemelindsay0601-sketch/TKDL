@@ -12,7 +12,6 @@ import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { NotificationCenter } from "@/components/notification-center";
 import { CoinBalance } from "@/components/CoinBalance";
 import { CardCollectionBook } from "@/components/CardCollectionBook";
-import { CardTrading } from "@/components/CardTrading";
 import { PlayerChallenges } from "@/components/PlayerChallenges";
 import { OverallStats, ByGameType, Trends, DartAnalysis, SessionHistory, CategoryStats, CategoryStatsEnhanced, AdvancedAnalyticsDashboard } from "@/components/stats";
 
