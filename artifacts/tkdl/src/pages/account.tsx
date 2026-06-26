@@ -953,23 +953,10 @@ export default function AccountPage() {
         </SectionCard>
       )}
 
-      {/* ── Card Clash ────────────────────────────────────────── */}
+      {/* ── Card Clash Info ────────────────────────────────────────── */}
       {user?.playerId && (
         <div className="space-y-4">
           <CoinBalance playerId={user.playerId} />
-          
-          <div style={{
-            padding: "16px",
-            background: "rgba(255,255,255,0.02)",
-            border: "1px solid rgba(255,255,255,0.05)",
-            borderRadius: "12px",
-          }}>
-            <CardCollectionBook playerId={user.playerId} />
-          </div>
-          
-          <SectionCard title="Active Challenges" icon={Trophy} accent="#ffd24a">
-            <PlayerChallenges playerId={user.playerId} />
-          </SectionCard>
         </div>
       )}
 
@@ -2005,6 +1992,7 @@ export default function AccountPage() {
 
       {activeTab === "cards" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <CoinBalance playerId={user.playerId} />
           <div style={{
             padding: "16px",
             background: "rgba(255,255,255,0.02)",
