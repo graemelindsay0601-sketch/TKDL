@@ -183,9 +183,10 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
           <button onClick={onBack} style={{ padding: "11px 22px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "9px", color: "rgba(255,255,255,0.55)", fontWeight: 700, fontSize: "13px", cursor: "pointer", fontFamily: "Arial,sans-serif" }}>← Back</button>
           <button
             onClick={() => onConfirm([...selectedGood, ...selectedBad], [])}
-            style={{ padding: "11px 28px", background: "linear-gradient(135deg,#ffd24a,#ff9500)", border: "none", borderRadius: "9px", color: "#000", fontWeight: 900, fontSize: "13px", cursor: "pointer", letterSpacing: "0.07em", fontFamily: "'Arial Black',Arial,sans-serif", boxShadow: "0 4px 20px rgba(255,210,74,0.35)", whiteSpace: "nowrap" }}
+            disabled={totalSelected === 0}
+            style={{ padding: "11px 28px", background: totalSelected > 0 ? "linear-gradient(135deg,#ffd24a,#ff9500)" : "rgba(255,255,255,0.08)", border: "none", borderRadius: "9px", color: totalSelected > 0 ? "#000" : "rgba(255,255,255,0.3)", fontWeight: 900, fontSize: "13px", cursor: totalSelected > 0 ? "pointer" : "not-allowed", letterSpacing: "0.07em", fontFamily: "'Arial Black',Arial,sans-serif", boxShadow: totalSelected > 0 ? "0 4px 20px rgba(255,210,74,0.35)" : "none", whiteSpace: "nowrap", opacity: totalSelected > 0 ? 1 : 0.5 }}
           >
-            {totalSelected > 0 ? `⚡ PLAY (${totalSelected})` : "⚡ PLAY"}
+            {totalSelected > 0 ? `⚡ PLAY (${totalSelected})` : "Select at least 1 card"}
           </button>
         </div>
       </div>

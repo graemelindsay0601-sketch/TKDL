@@ -255,6 +255,10 @@ export function CardClashMatchLauncher({
 
   // ── STEP 4: Live match ────────────────────────────────────────────────────
   if (step === "match") {
+    // Initialize cards with used: false
+    const p1CardsWithUsed = player1Cards.map(c => ({ ...c, used: false }));
+    const p2CardsWithUsed = player2Cards.map(c => ({ ...c, used: false }));
+    
     return (
       <CardClashMatchScorer
         player1Id={currentPlayerId}
@@ -262,8 +266,8 @@ export function CardClashMatchLauncher({
         player2Id={selectedOpponent!.id}
         player2Name={selectedOpponent!.name}
         gameMode={gameMode!}
-        player1EquippedCards={player1Cards}
-        player2EquippedCards={player2Cards}
+        player1EquippedCards={p1CardsWithUsed}
+        player2EquippedCards={p2CardsWithUsed}
         onMatchComplete={handleMatchComplete}
         isBot={false}
       />
