@@ -91,23 +91,27 @@ export async function startCardClashMatch(
 
   // INSERT without season_id (Card Clash is standalone, no seasons)
   try {
-    const result = await db.execute(sql`
-      INSERT INTO card_clash_matches
-        (game_mode, player_1_id, player_2_id, winner_id,
-         player_1_equipped_cards, player_2_equipped_cards, cards_used_in_match,
-         player_1_points_earned, player_2_points_earned)
-      VALUES
-        (${gameMode}, ${player1Id}, ${player2Id}, NULL,
-         ${JSON.stringify(p1Cards)}::jsonb, ${JSON.stringify(p2Cards)}::jsonb,
-         '[]'::jsonb, 0, 0)
-      RETURNING *
-    `);    
-    logger.info({ matchId: result.rows[0]?.id }, "Match created successfully");
-    return result.rows[0];
+    const result = await db
+      .insert(cardClashMatchesTable)
+      .values({
+        gameMode: gameMode as "X01" | "CRICKET",
+        player1Id,
+        player2Id,
+        winnerId: null as unknown as number,
+        player1EquippedCards: p1Cards as any,
+        player2EquippedCards: p2Cards as any,
+        cardsUsedInMatch: [] as any,
+        player1PointsEarned: 0,
+        player2PointsEarned: 0,
+      })
+      .returning();
+    
+    logger.info({ matchId: result[0]?.id }, "Match created successfully");
+    return result[0];
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     logger.error(
-      { error: errorMsg, gameMode, player1Id, player2Id },
+      { error: errorMsg, gameMode, player1Id, player2Id, fullError: error },
       "Failed to start Card Clash match"
     );
     throw new Error(`Failed to create match: ${errorMsg}`);
