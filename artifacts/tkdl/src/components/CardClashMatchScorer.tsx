@@ -154,11 +154,11 @@ export function CardClashMatchScorer({
             alignItems: "center",
           }}
         >
-          <span>🎴 Cards ({currentPlayerName})</span>
+          <span>🎴 Cards - Both Players</span>
           <span>{cardsExpanded ? "▼" : "▶"}</span>
         </button>
 
-        {/* Cards Grid (shown when expanded) */}
+        {/* Cards Grid (shown when expanded) - 2x2 P1 + 2x2 P2 */}
         {cardsExpanded && (
           <div
             style={{
@@ -166,14 +166,15 @@ export function CardClashMatchScorer({
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
               gap: "12px",
-              maxHeight: "280px",
+              maxHeight: "300px",
               overflowY: "auto",
             }}
           >
-            {currentPlayerCards.map((card) => (
+            {/* Player 1 Cards (4) */}
+            {p1Cards.map((card) => (
               <button
-                key={card.id}
-                onClick={() => handleCardTap(card, currentTurn)}
+                key={`p1-${card.id}`}
+                onClick={() => handleCardTap(card, 0)}
                 disabled={card.used}
                 style={{
                   background: "transparent",
@@ -183,7 +184,26 @@ export function CardClashMatchScorer({
                   padding: "0",
                 }}
               >
-                <div style={{ transform: "scale(0.7)", transformOrigin: "top center", pointerEvents: "none" }}>
+                <div style={{ transform: "scale(0.65)", transformOrigin: "top center", pointerEvents: "none" }}>
+                  <TKDLCard card={card} size="sm" locked={card.used} />
+                </div>
+              </button>
+            ))}
+            {/* Player 2 Cards (4) */}
+            {p2Cards.map((card) => (
+              <button
+                key={`p2-${card.id}`}
+                onClick={() => handleCardTap(card, 1)}
+                disabled={card.used}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  cursor: card.used ? "not-allowed" : "pointer",
+                  opacity: card.used ? 0.5 : 1,
+                  padding: "0",
+                }}
+              >
+                <div style={{ transform: "scale(0.65)", transformOrigin: "top center", pointerEvents: "none" }}>
                   <TKDLCard card={card} size="sm" locked={card.used} />
                 </div>
               </button>
