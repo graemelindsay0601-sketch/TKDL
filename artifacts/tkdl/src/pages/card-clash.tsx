@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useCurrentPlayer } from "@/context/auth";
 import { CardShopUI } from "@/components/CardShopUI";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
@@ -108,7 +108,7 @@ const PACKS = [
   function PracticeIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><rect x="16" y="16" width="44" height="44" rx="9" fill="#1a0008" stroke="#ff4466" strokeWidth="2"/><circle cx="28" cy="28" r="4.5" fill="#ff4466"/><circle cx="48" cy="28" r="4.5" fill="#ff4466"/><circle cx="38" cy="38" r="4.5" fill="#ff4466"/><circle cx="28" cy="48" r="4.5" fill="#ff4466"/><circle cx="48" cy="48" r="4.5" fill="#ff4466"/></svg>);}
   function StandingsIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><path d="M22,14 H54 L50,42 C50,48 44,52 38,52 C32,52 26,48 26,42 Z" fill="#160030" stroke="#c084fc" strokeWidth="1.8"/><path d="M22,20 C15,20 10,26 10,33 C10,38 14,42 22,40" fill="none" stroke="#c084fc" strokeWidth="2" strokeLinecap="round"/><path d="M54,20 C61,20 66,26 66,33 C66,38 62,42 54,40" fill="none" stroke="#c084fc" strokeWidth="2" strokeLinecap="round"/><rect x="32" y="52" width="12" height="5" fill="#c084fc" rx="1"/><rect x="26" y="57" width="24" height="6" rx="2" fill="#c084fc"/><text x="38" y="40" textAnchor="middle" fontSize="18">⭐</text></svg>);}
   function AchievementsIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><path d="M26,12 L34,28 L50,12 L54,14 L44,30 L32,30 L22,14 Z" fill="#ff8800" stroke="#ffd24a" strokeWidth="0.8"/><circle cx="38" cy="51" r="22" fill="#150800" stroke="#ff8800" strokeWidth="2"/><circle cx="38" cy="51" r="18" fill="none" stroke="rgba(255,136,0,0.28)" strokeWidth="1"/><text x="38" y="59" textAnchor="middle" fontSize="20">⭐</text></svg>);}
-  function RulesIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><rect x="8" y="16" width="28" height="44" rx="3" fill="#030c1a" stroke="#00ccff" strokeWidth="1.5"/><rect x="40" y="16" width="28" height="44" rx="3" fill="#030c1a" stroke="#00ccff" strokeWidth="1.5"/><rect x="34" y="14" width="8" height="48" fill="#00ccff" rx="1"/>{[24,31,38,45].map((y:number)=>(<React.Fragment key={y}><line x1="13" y1={y} x2="31" y2={y} stroke="rgba(0,204,255,0.28)" strokeWidth="1"/><line x1="45" y1={y} x2="63" y2={y} stroke="rgba(0,204,255,0.28)" strokeWidth="1"/></React.Fragment>))}</svg>);}
+  function RulesIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><rect x="8" y="16" width="28" height="44" rx="3" fill="#030c1a" stroke="#00ccff" strokeWidth="1.5"/><rect x="40" y="16" width="28" height="44" rx="3" fill="#030c1a" stroke="#00ccff" strokeWidth="1.5"/><rect x="34" y="14" width="8" height="48" fill="#00ccff" rx="1"/>{[24,31,38,45].map((y:number)=>(<><line x1="13" y1={y} x2="31" y2={y} stroke="rgba(0,204,255,0.28)" strokeWidth="1"/><line x1="45" y1={y} x2="63" y2={y} stroke="rgba(0,204,255,0.28)" strokeWidth="1"/></>))}</svg>);}
   function AdminIcon(){
     const teeth=Array.from({length:8},(_,i)=>{const a=(i/8)*Math.PI*2,hw=0.22,R1=30,R2=22,cx=38,cy=38;return `M${cx+R2*Math.cos(a-hw)},${cy+R2*Math.sin(a-hw)} L${cx+R1*Math.cos(a-hw)},${cy+R1*Math.sin(a-hw)} L${cx+R1*Math.cos(a+hw)},${cy+R1*Math.sin(a+hw)} L${cx+R2*Math.cos(a+hw)},${cy+R2*Math.sin(a+hw)}Z`;});
     return(<svg viewBox="0 0 76 76" width="76" height="76">{teeth.map((tt:string,i:number)=><path key={i} d={tt} fill="#ff2244"/>)}<circle cx="38" cy="38" r="22" fill="#1a0010" stroke="#ff2244" strokeWidth="1.8"/><circle cx="38" cy="38" r="10" fill="#280018"/><text x="38" y="42" textAnchor="middle" fontFamily="'Arial Black',sans-serif" fontWeight="900" fontSize="8" fill="#ff4466" letterSpacing="0.5">TKDL</text></svg>);
@@ -137,7 +137,7 @@ const PACKS = [
     };
 
     function HubCard({label,sublabel,color,glow,onClick,badge,disabled=false,delay=0}:{label:string;sublabel:string;color:string;glow:string;onClick:()=>void;badge?:number|string;disabled?:boolean;delay?:number;icon?:React.ReactNode}){
-      const [hov,setHov]=React.useState(false);
+      const [hov,setHov]=useState(false);
       const key=label.toLowerCase().replace(/[\s/]+/g,"");
       const imgSrc=HUB_IMGS[key];
       return(
@@ -770,11 +770,11 @@ const PACKS = [
   type PGame = typeof PRACTICE_GAMES[number];
 
   function PracticeTab({playerId,playerName,standings}:{playerId:number|undefined;playerName:string;standings:Standing[]}){
-    const [mode,setMode]=React.useState<"2p"|"cpu"|"solo">("2p");
-    const [gt,setGt]=React.useState<"practice"|"competitive"|"party"|"mini">("practice");
-    const [p2Id,setP2Id]=React.useState<number|null>(null);
-    const [saved,setSaved]=React.useState<Set<string>>(new Set());
-    const [launching,setLaunching]=React.useState(false);
+    const [mode,setMode]=useState<"2p"|"cpu"|"solo">("2p");
+    const [gt,setGt]=useState<"practice"|"competitive"|"party"|"mini">("practice");
+    const [p2Id,setP2Id]=useState<number|null>(null);
+    const [saved,setSaved]=useState<Set<string>>(new Set());
+    const [launching,setLaunching]=useState(false);
 
     const opp=standings.filter(s=>s.player_id!==playerId);
     const filtered=PRACTICE_GAMES.filter(g=>g.type===gt);
