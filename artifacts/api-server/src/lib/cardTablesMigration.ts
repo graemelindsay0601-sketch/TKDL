@@ -221,35 +221,31 @@ export async function initializeCardTables() {
       logger.warn({ error }, "Could not alter card_clash_seasons columns");
     }
 
-    // Migrate: Add missing columns to card_clash_matches (schema updated after initial deploy)
-    // Each ALTER is wrapped individually so a single failure doesn't abort the rest
-    const matchAlters = [
-      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS match_id UUID DEFAULT gen_random_uuid()`,
-      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_id INTEGER REFERENCES players(id)`,
-      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_id INTEGER REFERENCES players(id)`,
-      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS winner_id INTEGER REFERENCES players(id)`,
-      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_equipped_cards JSONB`,
-      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_equipped_cards JSONB`,
-      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSONB`,
-      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_points_earned INTEGER DEFAULT 0`,
-      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER DEFAULT 0`,
+    // Migrate: Add missing columns to card_clash_matches
+    // Use raw SQL to ensure columns exist with correct types
+    const columnAlters = [
+      "ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_equipped_cards JSONB DEFAULT '[]'::jsonb",
+      "ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_equipped_cards JSONB DEFAULT '[]'::jsonb", 
+      "ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSONB DEFAULT '[]'::jsonb",
+      "ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_points_earned INTEGER DEFAULT 0",
+      "ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER DEFAULT 0",
     ];
     
-    for (const alter of matchAlters) {
-      try { 
-        await db.execute(alter);
-        logger.info("✓ Column altered");
-      } catch (e) { 
-        logger.warn({ e }, "Column alter skipped"); 
+    for (const alterSql of columnAlters) {
+      try {
+        await db.execute(sql.raw(alterSql));
+        logger.info({ sql: alterSql }, "✓ Column operation executed");
+      } catch (e: any) {
+        logger.warn({ sql: alterSql, error: e.message }, "Column operation skipped");
       }
     }
     
-    // Ensure winner_id is nullable (match winner is unknown until match finishes)
+    // Ensure winner_id is nullable
     try {
-      await db.execute(sql`ALTER TABLE card_clash_matches ALTER COLUMN winner_id DROP NOT NULL`);
+      await db.execute(sql.raw("ALTER TABLE card_clash_matches ALTER COLUMN winner_id DROP NOT NULL"));
       logger.info("✓ Made winner_id nullable");
-    } catch (e) {
-      logger.warn({ e }, "Could not make winner_id nullable (may already be nullable)");
+    } catch (e: any) {
+      logger.warn({ error: e.message }, "Could not make winner_id nullable");
     }
     
     logger.info("card_clash_matches columns verified");
