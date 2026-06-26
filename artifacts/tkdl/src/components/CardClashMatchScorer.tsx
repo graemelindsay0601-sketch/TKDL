@@ -60,12 +60,6 @@ export function CardClashMatchScorer({
 
   const scorerWrapper: React.CSSProperties = {
     width: "100%",
-    height: "100vh",
-    overflow: "hidden",
-    position: "fixed",
-    top: 0,
-    left: 0,
-    zIndex: 50,
   };
 
   return (
