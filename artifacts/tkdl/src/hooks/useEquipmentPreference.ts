@@ -25,6 +25,7 @@ export function useEquipmentPreference(playerId: number) {
       setLoading(true);
       const response = await fetch(`/api/card-clash/player/${playerId}/equipment-preference`);
       const data = await response.json();
+      console.log(`[useEquipmentPreference] Loaded preference:`, data);
       setPreference(data);
       setError(null);
     } catch (err) {
