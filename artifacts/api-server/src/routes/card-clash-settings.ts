@@ -13,6 +13,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { db, sql } from 'drizzle-orm';
 
 // Default settings
 const DEFAULT_SETTINGS = {
@@ -35,29 +36,48 @@ const router = Router();
  */
 router.get('/card-clash/settings', async (req: Request, res: Response) => {
   try {
-    // Try to get from settings table, otherwise return defaults
-    let settings = await req.app.locals
-      .db('card_clash_settings')
-      .where({ id: 1 })
-      .first();
+    // Try to get from card_clash_settings table, otherwise return defaults
+    const [settings] = await db.execute(sql`
+      SELECT 
+        equipable_good_cards,
+        equipable_bad_cards,
+        card_clash_enabled,
+        practice_mode_enabled,
+        practice_reward_multiplier,
+        min_cards_per_type,
+        max_cards_per_type
+      FROM card_clash_settings
+      WHERE id = 1
+      LIMIT 1
+    `);
 
     if (!settings) {
-      settings = DEFAULT_SETTINGS;
+      return res.json({
+        settings: {
+          equipable_good_cards: DEFAULT_SETTINGS.equipable_good_cards,
+          equipable_bad_cards: DEFAULT_SETTINGS.equipable_bad_cards,
+          card_clash_enabled: DEFAULT_SETTINGS.card_clash_enabled,
+          practice_mode_enabled: DEFAULT_SETTINGS.practice_mode_enabled,
+          practice_reward_multiplier: DEFAULT_SETTINGS.practice_reward_multiplier,
+          min_cards_per_type: DEFAULT_SETTINGS.min_cards_per_type,
+          max_cards_per_type: DEFAULT_SETTINGS.max_cards_per_type,
+        },
+      });
     }
 
     res.json({
       settings: {
-        equipable_good_cards: settings.equipable_good_cards,
-        equipable_bad_cards: settings.equipable_bad_cards,
-        card_clash_enabled: settings.card_clash_enabled,
-        practice_mode_enabled: settings.practice_mode_enabled,
-        practice_reward_multiplier: settings.practice_reward_multiplier,
-        min_cards_per_type: settings.min_cards_per_type,
-        max_cards_per_type: settings.max_cards_per_type,
+        equipable_good_cards: (settings as any).equipable_good_cards,
+        equipable_bad_cards: (settings as any).equipable_bad_cards,
+        card_clash_enabled: (settings as any).card_clash_enabled,
+        practice_mode_enabled: (settings as any).practice_mode_enabled,
+        practice_reward_multiplier: (settings as any).practice_reward_multiplier,
+        min_cards_per_type: (settings as any).min_cards_per_type,
+        max_cards_per_type: (settings as any).max_cards_per_type,
       },
     });
   } catch (err) {
-    req.log.error({ err }, 'Failed to get settings');
+    (req as any).log?.error({ err }, 'Failed to get settings');
     res.status(500).json({ error: 'Failed to get settings' });
   }
 });
@@ -69,7 +89,6 @@ router.get('/card-clash/settings', async (req: Request, res: Response) => {
 router.put('/card-clash/settings', async (req: Request, res: Response) => {
   try {
     // Check admin permission
-    const userId = (req as any).user?.id;
     const adminPin = req.body.adminPin || req.headers['x-admin-pin'];
 
     if (!adminPin || adminPin !== process.env.ADMIN_PIN) {
@@ -102,11 +121,10 @@ router.put('/card-clash/settings', async (req: Request, res: Response) => {
       return;
     }
 
-    // Update or create settings
-    const existingSettings = await req.app.locals
-      .db('card_clash_settings')
-      .where({ id: 1 })
-      .first();
+    // Get existing settings for audit log
+    const [existingSettings] = await db.execute(sql`
+      SELECT equipable_good_cards, equipable_bad_cards FROM card_clash_settings WHERE id = 1
+    `);
 
     const updateData = {
       equipable_good_cards: Math.floor(equipable_good_cards),
@@ -115,34 +133,52 @@ router.put('/card-clash/settings', async (req: Request, res: Response) => {
       practice_mode_enabled: typeof practice_mode_enabled === 'boolean' ? practice_mode_enabled : true,
       practice_reward_multiplier: typeof practice_reward_multiplier === 'number' ? practice_reward_multiplier : 0.5,
       updated_at: new Date(),
-      updated_by: userId,
     };
 
     if (existingSettings) {
-      await req.app.locals
-        .db('card_clash_settings')
-        .where({ id: 1 })
-        .update(updateData);
+      await db.execute(sql`
+        UPDATE card_clash_settings SET
+          equipable_good_cards = ${updateData.equipable_good_cards},
+          equipable_bad_cards = ${updateData.equipable_bad_cards},
+          card_clash_enabled = ${updateData.card_clash_enabled},
+          practice_mode_enabled = ${updateData.practice_mode_enabled},
+          practice_reward_multiplier = ${updateData.practice_reward_multiplier},
+          updated_at = ${updateData.updated_at}
+        WHERE id = 1
+      `);
     } else {
-      await req.app.locals.db('card_clash_settings').insert({
-        id: 1,
-        ...updateData,
-      });
+      await db.execute(sql`
+        INSERT INTO card_clash_settings (
+          id, equipable_good_cards, equipable_bad_cards, card_clash_enabled,
+          practice_mode_enabled, practice_reward_multiplier, updated_at
+        ) VALUES (
+          1, ${updateData.equipable_good_cards}, ${updateData.equipable_bad_cards},
+          ${updateData.card_clash_enabled}, ${updateData.practice_mode_enabled},
+          ${updateData.practice_reward_multiplier}, ${updateData.updated_at}
+        )
+      `);
     }
 
-    // Log change
-    await req.app.locals.db('card_clash_settings_audit').insert({
-      changed_by: userId,
-      change_type: 'settings_update',
-      old_good_cards: existingSettings?.equipable_good_cards || DEFAULT_SETTINGS.equipable_good_cards,
-      new_good_cards: equipable_good_cards,
-      old_bad_cards: existingSettings?.equipable_bad_cards || DEFAULT_SETTINGS.equipable_bad_cards,
-      new_bad_cards: equipable_bad_cards,
-      changed_at: new Date(),
-      notes: req.body.notes || null,
-    }).catch(() => {
+    // Log change (best-effort, don't fail if audit table doesn't exist)
+    try {
+      await db.execute(sql`
+        INSERT INTO card_clash_settings_audit (
+          changed_by, change_type, old_good_cards, new_good_cards,
+          old_bad_cards, new_bad_cards, changed_at, notes
+        ) VALUES (
+          null, 'settings_update',
+          ${(existingSettings as any)?.equipable_good_cards || DEFAULT_SETTINGS.equipable_good_cards},
+          ${equipable_good_cards},
+          ${(existingSettings as any)?.equipable_bad_cards || DEFAULT_SETTINGS.equipable_bad_cards},
+          ${equipable_bad_cards},
+          ${new Date()},
+          ${req.body.notes || null}
+        )
+      `);
+    } catch (auditErr) {
       // Audit log failure shouldn't break the update
-    });
+      (req as any).log?.warn({ auditErr }, 'Failed to log settings change');
+    }
 
     res.json({
       success: true,
@@ -150,7 +186,7 @@ router.put('/card-clash/settings', async (req: Request, res: Response) => {
       message: `Settings updated: ${equipable_good_cards} GOOD, ${equipable_bad_cards} BAD cards per game`,
     });
   } catch (err) {
-    req.log.error({ err }, 'Failed to update settings');
+    (req as any).log?.error({ err }, 'Failed to update settings');
     res.status(500).json({ error: 'Failed to update settings' });
   }
 });
@@ -169,13 +205,17 @@ router.get('/card-clash/settings/history', async (req: Request, res: Response) =
       return;
     }
 
-    const history = await req.app.locals
-      .db('card_clash_settings_audit')
-      .orderBy('changed_at', 'desc')
-      .limit(20);
+    const history = await db.execute(sql`
+      SELECT 
+        id, changed_by, changed_at, old_good_cards, new_good_cards,
+        old_bad_cards, new_bad_cards, notes
+      FROM card_clash_settings_audit
+      ORDER BY changed_at DESC
+      LIMIT 20
+    `);
 
     res.json({
-      history: history.map((entry: any) => ({
+      history: (history as any[]).map((entry: any) => ({
         id: entry.id,
         changed_by: entry.changed_by,
         timestamp: entry.changed_at,
@@ -187,7 +227,7 @@ router.get('/card-clash/settings/history', async (req: Request, res: Response) =
       })),
     });
   } catch (err) {
-    req.log.error({ err }, 'Failed to get settings history');
+    (req as any).log?.error({ err }, 'Failed to get settings history');
     res.status(500).json({ error: 'Failed to get settings history' });
   }
 });

@@ -8,7 +8,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { db, cardInventoryTable } from '@workspace/db';
+import { db, cardInventoryTable, cardDefinitionsTable } from '@workspace/db';
 import { eq, and } from 'drizzle-orm';
 
 const router = Router();
@@ -44,28 +44,40 @@ router.get('/player/:playerId/cards/favorites', async (req: Request, res: Respon
 /**
  * POST /api/cards/:cardId/favorite
  * Toggle favorite status for a card
+ * cardId is the numeric ID from CardData (e.g., 101, 102)
  */
 router.post('/cards/:cardId/favorite', async (req: Request, res: Response) => {
   try {
     const { playerId } = req.body;
-    const cardId = req.params.cardId;
+    const cardNumId = parseInt(req.params.cardId, 10);
 
-    if (!playerId || !cardId) {
+    if (!playerId || isNaN(cardNumId)) {
       res.status(400).json({ error: 'Invalid player ID or card ID' });
       return;
     }
 
-    // Get current favorite status
+    // First, get the UUID for this card from card_definitions using the numeric ID
+    const [cardDef] = await db
+      .select({ cardId: cardDefinitionsTable.cardId })
+      .from(cardDefinitionsTable)
+      .where(eq(cardDefinitionsTable.id, cardNumId));
+
+    if (!cardDef) {
+      res.status(404).json({ error: 'Card not found in definitions' });
+      return;
+    }
+
+    // Get current favorite status using the UUID
     const [card] = await db
       .select()
       .from(cardInventoryTable)
       .where(and(
         eq(cardInventoryTable.playerId, playerId),
-        eq(cardInventoryTable.cardId, cardId)
+        eq(cardInventoryTable.cardId, cardDef.cardId)
       ));
 
     if (!card) {
-      res.status(404).json({ error: 'Card not found' });
+      res.status(404).json({ error: 'Card not found in inventory' });
       return;
     }
 
@@ -76,12 +88,12 @@ router.post('/cards/:cardId/favorite', async (req: Request, res: Response) => {
       .set({ isFavorite: newFavoriteStatus })
       .where(and(
         eq(cardInventoryTable.playerId, playerId),
-        eq(cardInventoryTable.cardId, cardId)
+        eq(cardInventoryTable.cardId, cardDef.cardId)
       ));
 
     res.json({
       success: true,
-      cardId,
+      cardId: cardNumId,
       isFavorite: newFavoriteStatus,
       message: newFavoriteStatus ? 'Card marked as favorite ⭐' : 'Favorite removed'
     });
@@ -94,14 +106,26 @@ router.post('/cards/:cardId/favorite', async (req: Request, res: Response) => {
 /**
  * PUT /api/cards/:cardId/favorite
  * Set favorite status explicitly
+ * cardId is the numeric ID from CardData
  */
 router.put('/cards/:cardId/favorite', async (req: Request, res: Response) => {
   try {
     const { playerId, isFavorite } = req.body;
-    const cardId = req.params.cardId;
+    const cardNumId = parseInt(req.params.cardId, 10);
 
-    if (!playerId || !cardId || typeof isFavorite !== 'boolean') {
+    if (!playerId || isNaN(cardNumId) || typeof isFavorite !== 'boolean') {
       res.status(400).json({ error: 'Invalid parameters' });
+      return;
+    }
+
+    // First, get the UUID for this card from card_definitions using the numeric ID
+    const [cardDef] = await db
+      .select({ cardId: cardDefinitionsTable.cardId })
+      .from(cardDefinitionsTable)
+      .where(eq(cardDefinitionsTable.id, cardNumId));
+
+    if (!cardDef) {
+      res.status(404).json({ error: 'Card not found in definitions' });
       return;
     }
 
@@ -110,11 +134,11 @@ router.put('/cards/:cardId/favorite', async (req: Request, res: Response) => {
       .from(cardInventoryTable)
       .where(and(
         eq(cardInventoryTable.playerId, playerId),
-        eq(cardInventoryTable.cardId, cardId)
+        eq(cardInventoryTable.cardId, cardDef.cardId)
       ));
 
     if (!card) {
-      res.status(404).json({ error: 'Card not found' });
+      res.status(404).json({ error: 'Card not found in inventory' });
       return;
     }
 
@@ -123,12 +147,12 @@ router.put('/cards/:cardId/favorite', async (req: Request, res: Response) => {
       .set({ isFavorite })
       .where(and(
         eq(cardInventoryTable.playerId, playerId),
-        eq(cardInventoryTable.cardId, cardId)
+        eq(cardInventoryTable.cardId, cardDef.cardId)
       ));
 
     res.json({
       success: true,
-      cardId,
+      cardId: cardNumId,
       isFavorite,
       message: `Favorite status set to ${isFavorite}`
     });
