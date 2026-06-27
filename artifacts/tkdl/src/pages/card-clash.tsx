@@ -3,6 +3,8 @@ import { useCurrentPlayer } from "@/context/auth";
 import { CardShopUI } from "@/components/CardShopUI";
 import { FreePackDisplay } from "@/components/FreePackDisplay";
 import { getDynamicBuzzMessage, BuzzMessageDisplay, getTimeBasedBuzzMessage } from "@/utils/buzzMessages";
+import { AchievementsDisplay } from "@/components/AchievementsDisplay";
+import type { PlayerStats } from "@/utils/achievements";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
 import { CardClashMockGame } from "@/components/CardClashMockGame";
 import { CardClashPracticeMode } from "@/components/CardClashPracticeMode";
@@ -581,59 +583,28 @@ const PACKS = [
             {activeTab==="achievements" && (
               <div>
                 <SectionHeader title="🎖️ Achievements" subtitle="Complete challenges to earn coins and free packs"/>
-                {achievements?.stats&&(
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:"10px",marginBottom:"2rem"}}>
-                    {[
-                      {label:"Matches",value:achievements.stats.matchesPlayed,icon:"🃏",color:"#00b4ff"},
-                      {label:"Wins",value:achievements.stats.matchesWon,icon:"⚡",color:"#00ff88"},
-                      {label:"Cards",value:achievements.stats.cardsOwned,icon:"🎴",color:"#ffd24a"},
-                      {label:"Packs",value:achievements.stats.packsOpened,icon:"📦",color:"#c084fc"},
-                      {label:"Streak",value:`${achievements.stats.loginStreak}d`,icon:"🔥",color:"#ff9500"},
-                    ].map(s=>(
-                      <div key={s.label} style={{padding:"16px 14px",background:`linear-gradient(135deg,${s.color}0d,${s.color}05)`,border:`1px solid ${s.color}25`,borderRadius:"12px",textAlign:"center"}}>
-                        <div style={{fontSize:"22px",marginBottom:"7px"}}>{s.icon}</div>
-                        <div style={{fontSize:"22px",fontWeight:900,color:s.color,fontFamily:"'Arial Black',Arial,sans-serif",lineHeight:1}}>{s.value}</div>
-                        <div style={{fontSize:"9px",color:"rgba(255,255,255,0.3)",marginTop:"5px",textTransform:"uppercase",letterSpacing:"0.1em"}}>{s.label}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {achievements?.achievements?(
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:"10px"}}>
-                    {achievements.achievements.map((a:any)=>{
-                      const rarColors:Record<string,string>={Common:"#9ca3af",Rare:"#c084fc",Epic:"#818cf8",Legendary:"#ffd24a"};
-                      const rc=rarColors[a.rarity]??"#9ca3af";
-                      return (
-                        <div key={a.key} style={{padding:"14px 16px",background:a.earned?`linear-gradient(135deg,${rc}08,rgba(0,0,0,0))`:"rgba(255,255,255,0.02)",border:`1px solid ${a.earned?rc+"40":"rgba(255,255,255,0.06)"}`,borderRadius:"12px",opacity:a.earned?1:0.62}}>
-                          <div style={{display:"flex",alignItems:"flex-start",gap:"12px"}}>
-                            <div style={{fontSize:"28px",lineHeight:1,filter:a.earned?"none":"grayscale(1)",flexShrink:0}}>{a.icon}</div>
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap",marginBottom:"5px"}}>
-                                <span style={{fontWeight:700,fontSize:"13px",color:a.earned?"#fff":"rgba(255,255,255,0.42)"}}>{a.name}</span>
-                                <span style={{fontSize:"9px",fontWeight:700,padding:"2px 8px",borderRadius:"8px",background:rc+"1c",color:rc,letterSpacing:"0.08em"}}>{a.rarity?.toUpperCase()}</span>
-                                {a.earned&&<span style={{fontSize:"10px",color:"#00ff88",fontWeight:700}}>✓ EARNED</span>}
-                              </div>
-                              <div style={{fontSize:"12px",color:"rgba(255,255,255,0.36)",marginBottom:"8px",lineHeight:1.5}}>{a.description}</div>
-                              {!a.earned&&(
-                                <div style={{marginBottom:"8px"}}>
-                                  <div style={{height:"3px",background:"rgba(255,255,255,0.07)",borderRadius:"2px",overflow:"hidden"}}>
-                                    <div style={{height:"100%",width:`${Math.min(100,(a.progress/a.statValue)*100)}%`,background:`linear-gradient(90deg,${rc}88,${rc})`,borderRadius:"2px"}}/>
-                                  </div>
-                                  <div style={{fontSize:"10px",color:"rgba(255,255,255,0.26)",marginTop:"3px"}}>{Math.min(a.progress,a.statValue)} / {a.statValue}</div>
-                                </div>
-                              )}
-                              <div style={{display:"flex",gap:"10px",flexWrap:"wrap"}}>
-                                <span style={{fontSize:"11px",color:"#ffd24a",fontWeight:700}}>🪙 {a.coinReward}</span>
-                                {a.packName&&<span style={{fontSize:"11px",color:"#00b4ff"}}>📦 {a.packName}</span>}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ):(
-                  <div style={{textAlign:"center",padding:"4rem",color:"rgba(255,255,255,0.25)"}}>Loading achievements…</div>
+                {stats && (
+                  <AchievementsDisplay 
+                    playerStats={{
+                      cardsOwned: ownedNames.size,
+                      totalCardsInGame: ALL_CARDS.length,
+                      matchesWon: stats.wins || 0,
+                      matchesLost: (stats.losses || 0),
+                      totalMatches: (stats.wins || 0) + (stats.losses || 0),
+                      totalCoinsEarned: stats.totalCoinsEarned || 0,
+                      currentCoinBalance: stats.coins || 0,
+                      dayLoginStreak: stats.streak || 0,
+                      cardsLegendary: Array.from(ownedNames).filter(name => ALL_CARDS.find(c => c.name === name)?.rarity === 'LEGENDARY').length,
+                      cardsRare: Array.from(ownedNames).filter(name => ALL_CARDS.find(c => c.name === name)?.rarity === 'RARE').length,
+                      cardsCommon: Array.from(ownedNames).filter(name => ALL_CARDS.find(c => c.name === name)?.rarity === 'COMMON').length,
+                      perfectMatches: stats.perfectMatches || 0,
+                      practiceMatches: stats.practiceMatches || 0,
+                      highestWinStreak: stats.winStreak || 0,
+                      allCardsCollected: ownedNames.size === ALL_CARDS.length,
+                      allLegendariesCollected: Array.from(ownedNames).filter(name => ALL_CARDS.find(c => c.name === name)?.rarity === 'LEGENDARY').length === ALL_CARDS.filter(c => c.rarity === 'LEGENDARY').length,
+                      allRaresCollected: Array.from(ownedNames).filter(name => ALL_CARDS.find(c => c.name === name)?.rarity === 'RARE').length === ALL_CARDS.filter(c => c.rarity === 'RARE').length,
+                    }}
+                  />
                 )}
               </div>
             )}
