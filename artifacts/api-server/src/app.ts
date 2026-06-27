@@ -14,6 +14,7 @@ import { maybeAutoResetSeason } from "./lib/seasonReset";
 import { seedTourSystem } from "./lib/tourSeed";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
 import { initializeCardTables, initializeFeatureFlags } from "./lib/cardTablesMigration";
+import { addFavoritesColumn } from "./db/migrations/add_favorites";
 import { seedCardDefinitions } from "./services/card-definitions-service";
 import { challengeService } from "./services/challenge-service";
 import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
@@ -730,6 +731,7 @@ async function init() {
     await challengeService.seedComprehensivePool();
     await seedNotificationTables();
     await initializeNotificationPreferences();
+    await addFavoritesColumn();
     await seedCommunityTables();
     await seedPractice();
     await seedMaster501();

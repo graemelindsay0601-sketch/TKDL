@@ -8,6 +8,8 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { db, cardInventoryTable } from '@workspace/db';
+import { eq, and } from 'drizzle-orm';
 
 const router = Router();
 
@@ -24,13 +26,17 @@ router.get('/player/:playerId/cards/favorites', async (req: Request, res: Respon
     }
 
     // Query all favorite cards for this player
-    const favorites = await req.app.locals.db('player_cards')
-      .where({ player_id: playerId, is_favorite: true })
-      .select('*');
+    const favorites = await db
+      .select()
+      .from(cardInventoryTable)
+      .where(and(
+        eq(cardInventoryTable.playerId, playerId),
+        eq(cardInventoryTable.isFavorite, true)
+      ));
 
     res.json({ favorites, count: favorites.length });
   } catch (err) {
-    req.log.error({ err }, 'Failed to get favorites');
+    (req as any).log?.error({ err }, 'Failed to get favorites');
     res.status(500).json({ error: 'Failed to get favorites' });
   }
 });
@@ -42,17 +48,21 @@ router.get('/player/:playerId/cards/favorites', async (req: Request, res: Respon
 router.post('/cards/:cardId/favorite', async (req: Request, res: Response) => {
   try {
     const { playerId } = req.body;
-    const cardId = parseInt(req.params.cardId, 10);
+    const cardId = req.params.cardId;
 
-    if (!playerId || isNaN(cardId)) {
+    if (!playerId || !cardId) {
       res.status(400).json({ error: 'Invalid player ID or card ID' });
       return;
     }
 
     // Get current favorite status
-    const card = await req.app.locals.db('player_cards')
-      .where({ player_id: playerId, id: cardId })
-      .first();
+    const [card] = await db
+      .select()
+      .from(cardInventoryTable)
+      .where(and(
+        eq(cardInventoryTable.playerId, playerId),
+        eq(cardInventoryTable.cardId, cardId)
+      ));
 
     if (!card) {
       res.status(404).json({ error: 'Card not found' });
@@ -60,10 +70,14 @@ router.post('/cards/:cardId/favorite', async (req: Request, res: Response) => {
     }
 
     // Toggle the favorite status
-    const newFavoriteStatus = !card.is_favorite;
-    await req.app.locals.db('player_cards')
-      .where({ player_id: playerId, id: cardId })
-      .update({ is_favorite: newFavoriteStatus });
+    const newFavoriteStatus = !card.isFavorite;
+    await db
+      .update(cardInventoryTable)
+      .set({ isFavorite: newFavoriteStatus })
+      .where(and(
+        eq(cardInventoryTable.playerId, playerId),
+        eq(cardInventoryTable.cardId, cardId)
+      ));
 
     res.json({
       success: true,
@@ -72,7 +86,7 @@ router.post('/cards/:cardId/favorite', async (req: Request, res: Response) => {
       message: newFavoriteStatus ? 'Card marked as favorite ⭐' : 'Favorite removed'
     });
   } catch (err) {
-    req.log.error({ err }, 'Failed to toggle favorite');
+    (req as any).log?.error({ err }, 'Failed to toggle favorite');
     res.status(500).json({ error: 'Failed to toggle favorite' });
   }
 });
@@ -84,25 +98,33 @@ router.post('/cards/:cardId/favorite', async (req: Request, res: Response) => {
 router.put('/cards/:cardId/favorite', async (req: Request, res: Response) => {
   try {
     const { playerId, isFavorite } = req.body;
-    const cardId = parseInt(req.params.cardId, 10);
+    const cardId = req.params.cardId;
 
-    if (!playerId || isNaN(cardId) || typeof isFavorite !== 'boolean') {
+    if (!playerId || !cardId || typeof isFavorite !== 'boolean') {
       res.status(400).json({ error: 'Invalid parameters' });
       return;
     }
 
-    const card = await req.app.locals.db('player_cards')
-      .where({ player_id: playerId, id: cardId })
-      .first();
+    const [card] = await db
+      .select()
+      .from(cardInventoryTable)
+      .where(and(
+        eq(cardInventoryTable.playerId, playerId),
+        eq(cardInventoryTable.cardId, cardId)
+      ));
 
     if (!card) {
       res.status(404).json({ error: 'Card not found' });
       return;
     }
 
-    await req.app.locals.db('player_cards')
-      .where({ player_id: playerId, id: cardId })
-      .update({ is_favorite: isFavorite });
+    await db
+      .update(cardInventoryTable)
+      .set({ isFavorite })
+      .where(and(
+        eq(cardInventoryTable.playerId, playerId),
+        eq(cardInventoryTable.cardId, cardId)
+      ));
 
     res.json({
       success: true,
@@ -111,7 +133,7 @@ router.put('/cards/:cardId/favorite', async (req: Request, res: Response) => {
       message: `Favorite status set to ${isFavorite}`
     });
   } catch (err) {
-    req.log.error({ err }, 'Failed to set favorite');
+    (req as any).log?.error({ err }, 'Failed to set favorite');
     res.status(500).json({ error: 'Failed to set favorite' });
   }
 });
