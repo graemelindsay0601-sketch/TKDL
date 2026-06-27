@@ -20,6 +20,7 @@ const TYPE_GROUPS: TypeGroup[] = [
 
 export function CardCollectionBook({ playerId }: { playerId: number }) {
   const [ownedNames, setOwnedNames] = useState<Set<string>>(new Set());
+  const [purchaseTimestamps, setPurchaseTimestamps] = useState<Map<string, string>>(new Map());
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
@@ -33,17 +34,24 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
       fetch(`/api/player/${playerId}/cards/favorites`).then(r => r.json()).catch(() => ({ favorites: [] }))
     ])
       .then(([inv, favData]: any[]) => {
-        const names = new Set<string>(
-          (Array.isArray(inv) ? inv : []).map(
-            (c: any) => c.cardName ?? c.name ?? ""
-          )
-        );
+        const names = new Set<string>();
+        const timestamps = new Map<string, string>();
+        
+        (Array.isArray(inv) ? inv : []).forEach((c: any) => {
+          const cardName = c.cardName ?? c.name ?? "";
+          names.add(cardName);
+          if (c.createdAt) {
+            timestamps.set(cardName, new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }));
+          }
+        });
+        
         const favoriteCardIds = new Set<string>(
           (Array.isArray(favData?.favorites) ? favData.favorites : []).map(
             (c: any) => String(c.id)
           )
         );
         setOwnedNames(names);
+        setPurchaseTimestamps(timestamps);
         setFavorites(favoriteCardIds);
         setLoading(false);
       })
@@ -100,30 +108,37 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
                       // Favorites first
                       const aIsFav = favorites.has(String(a.id));
                       const bIsFav = favorites.has(String(b.id));
-                      if (aIsFav !== bIsFav) return bIsFav ? 1 : -1;
+                      if (aIsFav !== bIsFav) return aIsFav ? -1 : 1;
                       return 0;
                     })
                     .map(card => {
                       const isOwned = ownedNames.has(card.name);
                       const isFavorite = favorites.has(String(card.id));
+                      const purchaseDate = purchaseTimestamps.get(card.name);
                       return (
-                        <TKDLCard
-                          key={card.id}
-                          card={card}
-                          size="sm"
-                          locked={!isOwned}
-                          isFavorite={isFavorite}
-                          playerId={playerId}
-                          onFavoriteChange={(newFavState) => {
-                            const newFavorites = new Set(favorites);
-                            if (newFavState) {
-                              newFavorites.add(String(card.id));
-                            } else {
-                              newFavorites.delete(String(card.id));
-                            }
-                            setFavorites(newFavorites);
-                          }}
-                        />
+                        <div key={card.id} style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                          <TKDLCard
+                            card={card}
+                            size="sm"
+                            locked={!isOwned}
+                            isFavorite={isFavorite}
+                            playerId={playerId}
+                            onFavoriteChange={(newFavState) => {
+                              const newFavorites = new Set(favorites);
+                              if (newFavState) {
+                                newFavorites.add(String(card.id));
+                              } else {
+                                newFavorites.delete(String(card.id));
+                              }
+                              setFavorites(newFavorites);
+                            }}
+                          />
+                          {isOwned && purchaseDate && (
+                            <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.5)", marginTop: "4px", textAlign: "center", maxWidth: "80px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              Acquired {purchaseDate}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                 </div>

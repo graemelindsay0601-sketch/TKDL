@@ -251,7 +251,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
     .sort((a, b) => {
       const aIsFav = favorites.has(a.id);
       const bIsFav = favorites.has(b.id);
-      if (aIsFav !== bIsFav) return bIsFav ? 1 : -1;
+      if (aIsFav !== bIsFav) return aIsFav ? -1 : 1;
       return 0;
     });
     
@@ -260,7 +260,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
     .sort((a, b) => {
       const aIsFav = favorites.has(a.id);
       const bIsFav = favorites.has(b.id);
-      if (aIsFav !== bIsFav) return bIsFav ? 1 : -1;
+      if (aIsFav !== bIsFav) return aIsFav ? -1 : 1;
       return 0;
     });
 
