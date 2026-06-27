@@ -247,27 +247,40 @@ export function CardShopUI({ playerId, onCardsReceived, freePacks, onFreePackOpe
 
           {/* Free achievement packs */}
           {freePacks && freePacks.length > 0 && (
-            <div style={{ marginBottom: "26px", padding: "16px 20px", background: "linear-gradient(135deg,rgba(0,255,136,0.07),rgba(0,200,100,0.03))", border: "1px solid rgba(0,255,136,0.22)", borderRadius: "14px" }}>
-              <div style={{ fontSize: "11px", fontWeight: 900, color: "#00ff88", letterSpacing: "0.16em", marginBottom: "12px" }}>
-                🎁 CLAIM YOUR FREE PACKS
+            <div style={{ marginBottom: "28px", padding: "0", background: "linear-gradient(135deg,rgba(0,255,136,0.12),rgba(0,200,100,0.06))", border: "2px solid rgba(0,255,136,0.35)", borderRadius: "16px", overflow: "hidden" }}>
+              {/* Header bar with gradient */}
+              <div style={{ padding: "16px 20px", background: "linear-gradient(90deg,rgba(0,255,136,0.2),rgba(0,255,136,0.08))", borderBottom: "1px solid rgba(0,255,136,0.2)", display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ fontSize: "24px" }}>🎁</div>
+                <div>
+                  <div style={{ fontSize: "14px", fontWeight: 900, color: "#00ff88", letterSpacing: "0.06em" }}>CLAIM FREE PACKS</div>
+                  <div style={{ fontSize: "11px", color: "rgba(0,255,136,0.65)", marginTop: "2px", fontWeight: 500 }}>You have {freePacks.length} reward{freePacks.length !== 1 ? 's' : ''} waiting</div>
+                </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {freePacks.map(pk => (
-                  <div key={pk.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "10px 14px", background: "rgba(0,255,136,0.04)", border: "1px solid rgba(0,255,136,0.14)", borderRadius: "8px" }}>
-                    <div>
-                      <div style={{ fontSize: "13px", fontWeight: 700, color: "#fff", fontFamily: "Arial,sans-serif" }}>{pk.packName}</div>
-                      <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.36)", marginTop: "2px", fontFamily: "Arial,sans-serif" }}>{pk.earned_reason?.replace("ACHIEVEMENT:", "") ?? "Achievement reward"}</div>
+              
+              {/* Packs list */}
+              <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                {freePacks.map((pk, idx) => (
+                  <div key={pk.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px", padding: "14px 16px", background: "linear-gradient(135deg,rgba(0,255,136,0.08),rgba(0,255,136,0.02))", border: "1.5px solid rgba(0,255,136,0.25)", borderRadius: "12px", transition: "all 0.3s", animation: `slideIn 0.5s ease ${idx * 0.1}s both` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
+                      <div style={{ width: "44px", height: "44px", borderRadius: "10px", background: "linear-gradient(135deg,rgba(0,255,136,0.25),rgba(0,200,100,0.15))", border: "1.5px solid rgba(0,255,136,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", flexShrink: 0 }}>
+                        {pk.packName.includes("Single") ? "1️⃣" : pk.packName.includes("5-Pack") ? "5️⃣" : pk.packName.includes("10-Pack") ? "🔟" : "📦"}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "14px", fontWeight: 800, color: "#fff", fontFamily: "Arial,sans-serif", marginBottom: "4px" }}>{pk.packName}</div>
+                        <div style={{ fontSize: "12px", color: "rgba(0,255,136,0.7)", fontFamily: "Arial,sans-serif", fontWeight: 500 }}>{pk.earned_reason?.replace("ACHIEVEMENT:", "") ?? "Achievement reward"}</div>
+                      </div>
                     </div>
                     <button
                       disabled={openingFreePackId === pk.id}
                       onClick={() => handleOpenFreePack(pk.id)}
-                      style={{ padding: "8px 18px", background: openingFreePackId === pk.id ? "rgba(0,255,136,0.05)" : "rgba(0,255,136,0.16)", border: "1px solid rgba(0,255,136,0.38)", borderRadius: "8px", color: openingFreePackId === pk.id ? "rgba(0,255,136,0.28)" : "#00ff88", fontWeight: 900, fontSize: "12px", cursor: openingFreePackId === pk.id ? "not-allowed" : "pointer", letterSpacing: "0.08em", whiteSpace: "nowrap" }}
+                      style={{ padding: "10px 20px", background: openingFreePackId === pk.id ? "rgba(0,255,136,0.15)" : "linear-gradient(135deg,rgba(0,255,136,0.35),rgba(0,255,136,0.2))", border: "1.5px solid rgba(0,255,136,0.5)", borderRadius: "10px", color: "#fff", fontWeight: 900, fontSize: "13px", cursor: openingFreePackId === pk.id ? "not-allowed" : "pointer", letterSpacing: "0.06em", whiteSpace: "nowrap", flexShrink: 0, transition: "all 0.3s", boxShadow: openingFreePackId !== pk.id ? "0 4px 12px rgba(0,255,136,0.15)" : "none" }}
                     >
-                      {openingFreePackId === pk.id ? "Opening…" : "OPEN FREE ▶"}
+                      {openingFreePackId === pk.id ? "⏳ Opening…" : "✨ OPEN"}
                     </button>
                   </div>
                 ))}
               </div>
+              <style>{`@keyframes slideIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}`}</style>
             </div>
           )}
 
