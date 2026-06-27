@@ -171,7 +171,7 @@ router.get("/player/:playerId/stats", async (req: Request, res: Response) => {
         COUNT(CASE WHEN (player_1_id = ${playerId} OR player_2_id = ${playerId}) AND winner_id != ${playerId} THEN 1 END)::int AS losses,
         COUNT(CASE WHEN player_1_id = ${playerId} OR player_2_id = ${playerId} THEN 1 END)::int AS total_matches
       FROM card_clash_matches
-      WHERE is_mock IS NOT TRUE
+      WHERE is_mock = 0
     `);
     const row = (result.rows?.[0] ?? {}) as any;
 
@@ -474,7 +474,7 @@ router.get("/standings", async (req: Request, res: Response) => {
                           ELSE 0 END), 0)::int AS points
       FROM players p
       JOIN card_clash_matches m ON (m.player_1_id = p.id OR m.player_2_id = p.id)
-      WHERE m.is_mock IS NOT TRUE
+      WHERE m.is_mock = 0
       GROUP BY p.id, p.name
       ORDER BY wins DESC, total_matches DESC
     `);

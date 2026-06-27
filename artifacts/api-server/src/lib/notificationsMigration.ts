@@ -38,6 +38,16 @@ export async function seedNotificationTables() {
       )
     `);
 
+    // Add player_id column if it doesn't exist (migration for old tables)
+    try {
+      await db.execute(sql`
+        ALTER TABLE notifications
+        ADD COLUMN IF NOT EXISTS player_id INTEGER NOT NULL DEFAULT 0 REFERENCES players(id) ON DELETE CASCADE
+      `);
+    } catch (e) {
+      logger.debug("player_id column already exists or migration failed");
+    }
+
     // Web push subscriptions
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS push_subscriptions (

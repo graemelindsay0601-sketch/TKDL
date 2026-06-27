@@ -97,7 +97,7 @@ async function getCCPlayerStats(playerId: number) {
           COUNT(*) FILTER (WHERE player_1_id = ${playerId} OR player_2_id = ${playerId}) AS matches_played,
           COUNT(*) FILTER (WHERE winner_id = ${playerId}) AS matches_won
         FROM card_clash_matches
-        WHERE is_mock IS NOT TRUE
+        WHERE is_mock = 0
       `),
       db.execute(sql`
         SELECT
