@@ -7,7 +7,7 @@ import {
   cardInventoryTable,
 } from "@workspace/db";
 import { eq, and, gte, sql } from "drizzle-orm";
-import { logger } from "../logger";
+import { logger } from "../lib/logger";
 
 /**
  * Rarity-based pricing for featured shop
