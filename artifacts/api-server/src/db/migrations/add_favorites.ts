@@ -6,7 +6,7 @@
  */
 
 import { db, sql } from '@workspace/db';
-import { logger } from '../lib/logger';
+import { logger } from '../../lib/logger';
 
 export async function addFavoritesColumn() {
   try {
