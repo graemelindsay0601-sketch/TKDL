@@ -22,6 +22,7 @@ import statsDetailedRouter from "./stats-detailed";
 import cardClashRouter     from "./card-clash";
 import challengesRouter    from "./challenges";
 import favoritesRouter     from "./favorites";
+import practiceModeRouter  from "./practice-mode";
 
 const router: IRouter = Router();
 
@@ -48,5 +49,6 @@ router.use(statsDetailedRouter);
 router.use("/card-clash", cardClashRouter);
 router.use("/challenges", challengesRouter);
 router.use(favoritesRouter);
+router.use(practiceModeRouter);
 
 export default router;

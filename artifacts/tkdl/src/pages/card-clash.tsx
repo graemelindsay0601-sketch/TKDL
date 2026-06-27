@@ -3,6 +3,7 @@ import { useCurrentPlayer } from "@/context/auth";
 import { CardShopUI } from "@/components/CardShopUI";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
 import { CardClashMockGame } from "@/components/CardClashMockGame";
+import { CardClashPracticeMode } from "@/components/CardClashPracticeMode";
 import { TKDLCard } from "@/components/TKDLCard";
 import { ALL_CARDS } from "@/lib/cards-data";
 import type { CardData, Category, Rarity } from "@/lib/cards-data";
@@ -766,6 +767,7 @@ const PACKS = [
   type PGame = typeof PRACTICE_GAMES[number];
 
   function PracticeTab({playerId,playerName,standings}:{playerId:number|undefined;playerName:string;standings:Standing[]}){
+    const [practiceType,setPracticeType]=useState<"regular"|"cardclash">("regular");
     const [mode,setMode]=useState<"2p"|"cpu"|"solo">("2p");
     const [gt,setGt]=useState<"practice"|"competitive"|"party"|"mini">("practice");
     const [p2Id,setP2Id]=useState<number|null>(null);
@@ -798,7 +800,70 @@ const PACKS = [
     return(
       <div style={{paddingBottom:"2rem"}}>
 
-        {/* ── HEADER with arena backdrop ── */}
+        {/* ── PRACTICE TYPE TOGGLE ── */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginBottom:"1.75rem"}}>
+          <button
+            onClick={()=>setPracticeType("regular")}
+            style={{
+              all:"unset",
+              padding:"14px 16px",
+              borderRadius:"12px",
+              cursor:"pointer",
+              background:practiceType==="regular"?"linear-gradient(135deg,rgba(124,58,237,0.35),rgba(76,29,149,0.45))":"rgba(255,255,255,0.03)",
+              border:`1.5px solid ${practiceType==="regular"?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.08)"}`,
+              color:practiceType==="regular"?"#e9d5ff":"rgba(255,255,255,0.45)",
+              fontSize:"13px",
+              fontWeight:700,
+              letterSpacing:"0.06em",
+              textAlign:"center",
+              transition:"all 0.2s",
+              display:"flex",
+              alignItems:"center",
+              justifyContent:"center",
+              gap:"8px"
+            }}
+          >
+            🎯 Regular Practice
+          </button>
+          <button
+            onClick={()=>setPracticeType("cardclash")}
+            style={{
+              all:"unset",
+              padding:"14px 16px",
+              borderRadius:"12px",
+              cursor:"pointer",
+              background:practiceType==="cardclash"?"linear-gradient(135deg,rgba(0,200,150,0.35),rgba(0,150,120,0.45))":"rgba(255,255,255,0.03)",
+              border:`1.5px solid ${practiceType==="cardclash"?"rgba(0,200,150,0.5)":"rgba(255,255,255,0.08)"}`,
+              color:practiceType==="cardclash"?"#7eebd5":"rgba(255,255,255,0.45)",
+              fontSize:"13px",
+              fontWeight:700,
+              letterSpacing:"0.06em",
+              textAlign:"center",
+              transition:"all 0.2s",
+              display:"flex",
+              alignItems:"center",
+              justifyContent:"center",
+              gap:"8px"
+            }}
+          >
+            🎴 Card Clash Practice
+          </button>
+        </div>
+
+        {/* ── CARD CLASH PRACTICE ── */}
+        {practiceType==="cardclash"&&playerId&&(
+          <CardClashPracticeMode
+            playerId={playerId}
+            playerCards={[]}
+            onMatchCreated={(matchId)=>{
+              console.log("Practice match created:",matchId);
+              // Could redirect to match or show success message
+            }}
+          />
+        )}
+
+        {/* ── REGULAR PRACTICE ── */}
+        {practiceType==="regular"&&(
         <div style={{position:"relative",borderRadius:"16px",overflow:"hidden",marginBottom:"1.5rem",padding:"28px 22px 20px"}}>
           {/* Background layers */}
           <div style={{position:"absolute",inset:0,background:"linear-gradient(135deg,#0d0020 0%,#06001a 40%,#0a0030 100%)"}}/>
@@ -958,6 +1023,7 @@ const PACKS = [
           </div>
           <button onClick={()=>setLaunching(true)} style={{all:"unset",padding:"10px 22px",borderRadius:"8px",cursor:"pointer",background:"linear-gradient(135deg,#00cc66,#008833)",color:"#fff",fontSize:"12px",fontWeight:900,letterSpacing:"0.07em",boxShadow:"0 4px 20px rgba(0,200,100,0.4)",flexShrink:0,transition:"all 0.15s"}}>PLAY NOW</button>
         </div>
+        )}
 
       </div>
     );
