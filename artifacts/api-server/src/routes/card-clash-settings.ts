@@ -13,7 +13,8 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { db, sql } from 'drizzle-orm';
+import { db } from '@workspace/db';
+import { sql } from 'drizzle-orm';
 
 // Default settings
 const DEFAULT_SETTINGS = {
