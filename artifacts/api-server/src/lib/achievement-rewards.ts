@@ -550,12 +550,13 @@ export function getAchievementReward(achievementKey: string): AchievementReward 
 }
 
 /**
- * Calculate total pack count from pack type
+ * Calculate total pack tokens from pack type
+ * NOTE: 1 pack token = 1 pack purchase (regardless of type)
+ * SINGLE/FIVE/TEN are just the size of that 1 pack
  */
 export function packRewardToCount(packType?: 'SINGLE' | 'FIVE' | 'TEN'): number {
   if (!packType) return 0;
-  if (packType === 'SINGLE') return 1;
-  if (packType === 'FIVE') return 5;
-  if (packType === 'TEN') return 10;
-  return 0;
+  // All pack types = 1 token to purchase 1 pack
+  // (SINGLE=1 card, FIVE=5 cards, TEN=10 cards, but all cost 1 token)
+  return packType ? 1 : 0;
 }

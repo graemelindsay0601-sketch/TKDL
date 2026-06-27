@@ -83,11 +83,10 @@ export async function rotateFeatureCards() {
       .set({ isActive: false })
       .where(eq(featuredCardShopTable.isActive, true));
 
-    // Get all cards from Card Clash
+    // Get all cards (all 100 cards are Card Clash cards: X01, Cricket, Wildcard)
     const allCards = await db
       .select()
-      .from(cardDefinitionsTable)
-      .where(eq(cardDefinitionsTable.gameMode, "Card Clash"));
+      .from(cardDefinitionsTable);
 
     if (allCards.length === 0) {
       throw new Error("No Card Clash cards found");
