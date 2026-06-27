@@ -434,6 +434,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: typeof window !== 'undefined' && window.innerWidth < 768 ? "1fr" : "1fr 1fr", gap: typeof window !== 'undefined' && window.innerWidth < 768 ? "8px" : "12px" }}>
+                {typeof window !== 'undefined' && console.log(`[BAD CARDS RENDER] ${badCards.length} cards to render`, badCards.map(c => `${c.id}:${c.cardType}`).slice(0, 5))}
                 {badCards.map(c => (
                   <CardArtworkDisplay 
                     key={c.id}
