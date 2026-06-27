@@ -692,26 +692,28 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       {showCards && isCardClash && (
         <div style={{
           position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,0.75)",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0,0,0,0.8)",
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "center",
-          zIndex: 100,
-          backdropFilter: "blur(4px)",
-          padding: "20px"
+          zIndex: 1000,
+          padding: "40px 16px 16px 16px",
+          overflowY: "auto"
         }}
         onClick={() => setShowCards(false)}
         >
           <div style={{
             background: "linear-gradient(135deg, #0a0015 0%, #1a0033 100%)",
             border: "1.5px solid rgba(0,180,255,0.3)",
-            borderRadius: "16px",
-            padding: "24px",
-            maxWidth: "500px",
-            maxHeight: "70vh",
-            overflow: "auto",
-            position: "relative"
+            borderRadius: "12px",
+            padding: "20px",
+            width: "100%",
+            maxWidth: "480px",
+            maxHeight: "calc(100vh - 100px)"
           }}
           onClick={(e) => e.stopPropagation()}
           >
@@ -3218,26 +3220,28 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
         {showCards && isCardClash && (
           <div style={{
             position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.75)",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.8)",
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-start",
             justifyContent: "center",
-            zIndex: 100,
-            backdropFilter: "blur(4px)",
-            padding: "20px"
+            zIndex: 1000,
+            padding: "40px 16px 16px 16px",
+            overflowY: "auto"
           }}
           onClick={() => setShowCards(false)}
           >
             <div style={{
               background: "linear-gradient(135deg, #0a0015 0%, #1a0033 100%)",
               border: "1.5px solid rgba(0,180,255,0.3)",
-              borderRadius: "16px",
-              padding: "24px",
-              maxWidth: "500px",
-              maxHeight: "70vh",
-              overflow: "auto",
-              position: "relative"
+              borderRadius: "12px",
+              padding: "20px",
+              width: "100%",
+              maxWidth: "480px",
+              maxHeight: "calc(100vh - 100px)"
             }}
             onClick={(e) => e.stopPropagation()}
             >
@@ -3280,7 +3284,7 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
                   textTransform: "uppercase"
                 }}>GOOD CARDS</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                  {p1Cards
+                  {(turn === 0 ? p1Cards : p2Cards)
                     .filter((c: any) => c.category?.includes("GOOD"))
                     .map((card: any) => {
                       const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
@@ -3331,7 +3335,7 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
                   textTransform: "uppercase"
                 }}>BAD CARDS</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                  {p1Cards
+                  {(turn === 0 ? p1Cards : p2Cards)
                     .filter((c: any) => c.category?.includes("BAD"))
                     .map((card: any) => {
                       const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
