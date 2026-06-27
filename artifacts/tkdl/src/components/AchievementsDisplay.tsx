@@ -535,7 +535,7 @@ export function AchievementsDisplay({ playerStats, maxWidth = '800px' }: Achieve
                 </div>
               </div>
             );
-          })()
+          })()}
         </div>
       )}
 
