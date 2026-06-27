@@ -14,7 +14,8 @@
 
 import { Router, Request, Response } from 'express';
 import { db } from '@workspace/db';
-import { sql } from 'drizzle-orm';
+import { sql, eq } from 'drizzle-orm';
+import { cardClashPlayerSettingsTable } from '@workspace/db/schema';
 
 // Default settings
 const DEFAULT_SETTINGS = {
@@ -246,13 +247,12 @@ router.get('/card-clash/player/:playerId/equipment-preference', async (req: Requ
   try {
     const playerId = parseInt(req.params.playerId, 10);
 
-    const result = await db.execute(sql`
-      SELECT good_cards_per_match, bad_cards_per_match
-      FROM card_clash_player_settings
-      WHERE player_id = ${playerId}
-    `);
+    const result = await db
+      .select()
+      .from(cardClashPlayerSettingsTable)
+      .where(eq(cardClashPlayerSettingsTable.playerId, playerId));
 
-    if ((result as any[]).length === 0) {
+    if (result.length === 0) {
       // Return defaults if no preference set yet
       return res.json({
         playerId,
@@ -261,7 +261,7 @@ router.get('/card-clash/player/:playerId/equipment-preference', async (req: Requ
       });
     }
 
-    const settings = (result as any[])[0];
+    const settings = result[0];
     res.json({
       playerId,
       goodCardsPerMatch: settings.good_cards_per_match,
@@ -299,15 +299,29 @@ router.post('/card-clash/player/:playerId/equipment-preference', async (req: Req
       return;
     }
 
-    // Upsert into table (insert if doesn't exist, update if does)
-    await db.execute(sql`
-      INSERT INTO card_clash_player_settings (player_id, good_cards_per_match, bad_cards_per_match)
-      VALUES (${playerId}, ${Math.floor(goodCardsPerMatch)}, ${Math.floor(badCardsPerMatch)})
-      ON CONFLICT (player_id) DO UPDATE SET
-        good_cards_per_match = ${Math.floor(goodCardsPerMatch)},
-        bad_cards_per_match = ${Math.floor(badCardsPerMatch)},
-        updated_at = NOW()
-    `);
+    // Check if exists
+    const existing = await db
+      .select()
+      .from(cardClashPlayerSettingsTable)
+      .where(eq(cardClashPlayerSettingsTable.playerId, playerId));
+
+    if (existing.length > 0) {
+      // Update
+      await db
+        .update(cardClashPlayerSettingsTable)
+        .set({
+          good_cards_per_match: Math.floor(goodCardsPerMatch),
+          bad_cards_per_match: Math.floor(badCardsPerMatch),
+        })
+        .where(eq(cardClashPlayerSettingsTable.playerId, playerId));
+    } else {
+      // Insert
+      await db.insert(cardClashPlayerSettingsTable).values({
+        player_id: playerId,
+        good_cards_per_match: Math.floor(goodCardsPerMatch),
+        bad_cards_per_match: Math.floor(badCardsPerMatch),
+      });
+    }
 
     res.json({
       success: true,
