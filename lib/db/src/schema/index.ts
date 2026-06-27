@@ -22,4 +22,5 @@ export * from "./card-clash-matches";
 export * from "./card-clash-leaderboard";
 export * from "./card-pity";
 export * from "./featured-card-shop";
+export * from "./card-clash-player-settings";
 export * from "./feature-flags";

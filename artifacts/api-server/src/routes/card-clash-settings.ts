@@ -238,4 +238,90 @@ router.get('/card-clash/settings/history', async (req: Request, res: Response) =
   }
 });
 
+/**
+ * GET /api/card-clash/player/:playerId/equipment-preference
+ * Get a player's card equipment preferences
+ */
+router.get('/card-clash/player/:playerId/equipment-preference', async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.playerId, 10);
+
+    const result = await db.execute(sql`
+      SELECT good_cards_per_match, bad_cards_per_match
+      FROM card_clash_player_settings
+      WHERE player_id = ${playerId}
+    `);
+
+    if ((result as any[]).length === 0) {
+      // Return defaults if no preference set yet
+      return res.json({
+        playerId,
+        goodCardsPerMatch: 2,
+        badCardsPerMatch: 2,
+      });
+    }
+
+    const settings = (result as any[])[0];
+    res.json({
+      playerId,
+      goodCardsPerMatch: settings.good_cards_per_match,
+      badCardsPerMatch: settings.bad_cards_per_match,
+    });
+  } catch (err) {
+    (req as any).log?.error({ err }, 'Failed to get player equipment preference');
+    res.status(500).json({ error: 'Failed to get preference' });
+  }
+});
+
+/**
+ * POST /api/card-clash/player/:playerId/equipment-preference
+ * Set a player's card equipment preferences
+ */
+router.post('/card-clash/player/:playerId/equipment-preference', async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.playerId, 10);
+    const { goodCardsPerMatch, badCardsPerMatch } = req.body;
+
+    // Validation
+    if (
+      typeof goodCardsPerMatch !== 'number' ||
+      typeof badCardsPerMatch !== 'number'
+    ) {
+      res.status(400).json({ error: 'goodCardsPerMatch and badCardsPerMatch must be numbers' });
+      return;
+    }
+
+    if (
+      goodCardsPerMatch < 1 || goodCardsPerMatch > 5 ||
+      badCardsPerMatch < 1 || badCardsPerMatch > 5
+    ) {
+      res.status(400).json({ error: 'Card counts must be between 1 and 5' });
+      return;
+    }
+
+    // Upsert into table (insert if doesn't exist, update if does)
+    await db.execute(sql`
+      INSERT INTO card_clash_player_settings (player_id, good_cards_per_match, bad_cards_per_match)
+      VALUES (${playerId}, ${Math.floor(goodCardsPerMatch)}, ${Math.floor(badCardsPerMatch)})
+      ON CONFLICT (player_id) DO UPDATE SET
+        good_cards_per_match = ${Math.floor(goodCardsPerMatch)},
+        bad_cards_per_match = ${Math.floor(badCardsPerMatch)},
+        updated_at = NOW()
+    `);
+
+    res.json({
+      success: true,
+      playerId,
+      goodCardsPerMatch: Math.floor(goodCardsPerMatch),
+      badCardsPerMatch: Math.floor(badCardsPerMatch),
+      message: `Equipment preference saved: ${goodCardsPerMatch} GOOD, ${badCardsPerMatch} BAD cards`,
+    });
+  } catch (err) {
+    (req as any).log?.error({ err }, 'Failed to set player equipment preference');
+    res.status(500).json({ error: 'Failed to save preference' });
+  }
+});
+
+
+
 export default router;
