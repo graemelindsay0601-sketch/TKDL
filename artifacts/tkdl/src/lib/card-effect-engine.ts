@@ -70,6 +70,7 @@ export interface CCEffect {
   lockdownSegment?: number;      // Lockdown — only this segment scores
   freeRetryOnDoubleMiss?: boolean; // Checkout Confidence
   legResetIfStreak?: boolean;    // Leg Reset
+  removeLegsIfAhead?: number;    // Streak Crusher — remove N legs if opponent is 2+ ahead
 
   // Instant effects (fire immediately on activation)
   instant?: true;
@@ -224,8 +225,8 @@ export function ccActivateCard(
     "Coin Flip": (() => {
       const win = Math.random() > 0.5;
       return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", instant: true,
-        instantP0Delta: win ? (byPlayer === 0 ? -40 : 40) : 0,
-        instantP1Delta: win ? 0 : (byPlayer === 0 ? 40 : -40) } as CCEffect;
+        instantP0Delta: win ? (byPlayer === 0 ? 40 : -40) : (byPlayer === 0 ? -30 : 30),
+        instantP1Delta: win ? (byPlayer === 0 ? -40 : 40) : (byPlayer === 0 ? 30 : -30) } as CCEffect;
     })(),
     "Lucky Streak":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 },
     "Momentum Surge": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 25 },
@@ -250,6 +251,7 @@ export function ccActivateCard(
     "Underdog Curse":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8 },
     "Win Bonus Removed":  { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 0 },
     "Shutdown":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", maxVisitTotal: 50 },
+    "Streak Crusher":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", removeLegsIfAhead: 2 }, // Remove 2 legs if opponent is 2+ ahead
   };
 
   const allMaps = [x01Good, x01Bad, cricGood, cricBad, wildcardGood, wildcardBad];
