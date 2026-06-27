@@ -359,9 +359,44 @@ const PACKS = [
                   </div>
                 )}
 
+                {/* Premium Coins Card */}
+                <div style={{
+                  marginBottom: "1.5rem",
+                  padding: "20px 24px",
+                  borderRadius: "14px",
+                  background: "linear-gradient(135deg,#ffd24a15 0%,#ffb70015 50%,#ffd24a08 100%)",
+                  border: "2px solid #ffd24a4d",
+                  boxShadow: "inset 0 1px 12px rgba(255,210,74,0.2), 0 12px 40px rgba(255,210,74,0.15)",
+                  position: "relative",
+                  overflow: "hidden",
+                }}>
+                  {/* Gradient accent */}
+                  <div style={{
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    width: "200px",
+                    height: "200px",
+                    background: "radial-gradient(circle, rgba(255,210,74,0.15) 0%, transparent 70%)",
+                    borderRadius: "50%",
+                    filter: "blur(40px)",
+                    pointerEvents: "none",
+                  }} />
+                  
+                  <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "20px" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "6px" }}>Current Balance</div>
+                      <div style={{ fontSize: "clamp(28px, 6vw, 48px)", fontWeight: 900, color: "#ffd24a", fontFamily: "'Arial Black', Arial, sans-serif", letterSpacing: "-0.02em", textShadow: "0 0 20px rgba(255,210,74,0.4)" }}>
+                        {stats?.coins ?? "—"}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "rgba(255,210,74,0.6)", marginTop: "4px" }}>🪙 Coins available for card packs</div>
+                    </div>
+                    <div style={{ fontSize: "64px", opacity: 0.3, filter: "drop-shadow(0 0 12px rgba(255,210,74,0.2))" }}>🪙</div>
+                  </div>
+                </div>
+
                 {/* Stats row */}
-                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"10px",marginBottom:"0.5rem"}}>
-                  <StatCard icon="🪙" value={stats?.coins??"—"} label="COINS" color="#ffd24a"/>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"10px",marginBottom:"0.5rem"}}>
                   <StatCard icon="🃏" value={`${completionPct}%`} label={`${totalOwned}/${ALL_CARDS.length}`} color="#00ccff"/>
                   <StatCard icon="⚡" value={stats?.wins??"—"} label="WINS" color="#00ff88"/>
                   <StatCard icon="🎯" value={stats?`${winRate}%`:"—"} label="WIN RATE" color="#c084fc"/>
@@ -413,7 +448,23 @@ const PACKS = [
                 {activeTab.toUpperCase()}
               </div>
               <div style={{marginLeft:"auto"}}>
-                <div style={{fontSize:"14px",fontWeight:700,color:"#ffd24a"}}>🪙 {stats?.coins??"—"}</div>
+                <div style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  background: "linear-gradient(135deg,#ffd24a15,#ffb70010)",
+                  border: "1.5px solid #ffd24a40",
+                  fontSize: "14px",
+                  fontWeight: 800,
+                  color: "#ffd24a",
+                  fontFamily: "'Arial Black', Arial, sans-serif",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  textShadow: "0 0 8px rgba(255,210,74,0.3)",
+                  boxShadow: "0 4px 12px rgba(255,210,74,0.15)",
+                }}>
+                  🪙 {stats?.coins??"—"}
+                </div>
               </div>
             </div>
 
