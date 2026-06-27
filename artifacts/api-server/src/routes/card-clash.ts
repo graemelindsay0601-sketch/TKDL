@@ -579,12 +579,13 @@ router.post("/mock-game/start", async (req: Request, res: Response) => {
       }
     } catch (_) {}
 
+    // Default to X01 for mock games
     const result = await db.execute(sql`
       INSERT INTO card_clash_matches
-        (season_id, game_mode, player_1_id, player_2_id, winner_id,
+        (game_mode, player_1_id, player_2_id, winner_id, is_mock,
          player_1_equipped_cards, player_2_equipped_cards, cards_used_in_match)
       VALUES
-        (${mockSeasonId}, 'MOCK', ${player1Id}, ${p2Id}, ${player1Id},
+        ('X01', ${player1Id}, ${p2Id}, ${player1Id}, 1,
          ${JSON.stringify(p1Cards)}::jsonb, ${JSON.stringify(botCards)}::jsonb, '[]'::jsonb)
       RETURNING *
     `);
