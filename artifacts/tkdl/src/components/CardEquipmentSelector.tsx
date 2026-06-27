@@ -49,7 +49,10 @@ function CardArtworkDisplay({
   const fullCard = ALL_CARDS.find(c => c.id === parseInt(card.id));
   const isG = card.cardType === "GOOD";
   
-  if (!fullCard) return null;
+  if (!fullCard) {
+    console.error(`[CardArtworkDisplay] CARD NOT FOUND in ALL_CARDS! cardId: ${card.id}, cardType: ${card.cardType}`);
+    return null;
+  }
 
   return (
     <button
