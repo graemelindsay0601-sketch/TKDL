@@ -265,11 +265,11 @@ router.get('/card-clash/player/:playerId/equipment-preference', async (req: Requ
     }
 
     const settings = result[0];
-    console.log(`[equipment-preference GET] Returning settings:`, { playerId, goodCardsPerMatch: settings.good_cards_per_match, badCardsPerMatch: settings.bad_cards_per_match });
+    console.log(`[equipment-preference GET] Returning settings:`, { playerId, goodCardsPerMatch: settings.goodCardsPerMatch, badCardsPerMatch: settings.badCardsPerMatch });
     res.json({
       playerId,
-      goodCardsPerMatch: settings.good_cards_per_match,
-      badCardsPerMatch: settings.bad_cards_per_match,
+      goodCardsPerMatch: settings.goodCardsPerMatch,
+      badCardsPerMatch: settings.badCardsPerMatch,
     });
   } catch (err) {
     console.log(`[equipment-preference GET] ERROR:`, err);
@@ -315,16 +315,16 @@ router.post('/card-clash/player/:playerId/equipment-preference', async (req: Req
       await db
         .update(cardClashPlayerSettingsTable)
         .set({
-          good_cards_per_match: Math.floor(goodCardsPerMatch),
-          bad_cards_per_match: Math.floor(badCardsPerMatch),
+          goodCardsPerMatch: Math.floor(goodCardsPerMatch),
+          badCardsPerMatch: Math.floor(badCardsPerMatch),
         })
         .where(eq(cardClashPlayerSettingsTable.playerId, playerId));
     } else {
       // Insert
       await db.insert(cardClashPlayerSettingsTable).values({
-        player_id: playerId,
-        good_cards_per_match: Math.floor(goodCardsPerMatch),
-        bad_cards_per_match: Math.floor(badCardsPerMatch),
+        playerId: playerId,
+        goodCardsPerMatch: Math.floor(goodCardsPerMatch),
+        badCardsPerMatch: Math.floor(badCardsPerMatch),
       });
     }
 
