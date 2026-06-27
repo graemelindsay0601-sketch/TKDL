@@ -269,6 +269,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
     console.log(`[CardEquipmentSelector] Total inventory: ${inventory.length}, Good: ${goodCards.length}, Bad: ${badCards.length}`);
     console.log(`[CardEquipmentSelector] All cardTypes in inventory:`, inventory.map(c => c.cardType).filter((v, i, a) => a.indexOf(v) === i));
     console.log(`[CardEquipmentSelector] Sample cards:`, inventory.slice(0, 5));
+    console.log(`[CardEquipmentSelector RENDER] gameMode: ${gameMode}, badCards.length: ${badCards.length}, badCards will render: ${badCards.length > 0}`);
   }
 
   const toggleFavorite = async (cardId: string, e: React.MouseEvent) => {
