@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { CardData, Category, Rarity } from "../lib/cards-data";
 import { FavoriteButton } from "./FavoriteButton";
+import { useCardAcquisitionDate } from "../utils/cardAcquisitionDate";
 
 interface TKDLCardProps {
   card: CardData;
@@ -9,6 +10,7 @@ interface TKDLCardProps {
   isFavorite?: boolean;
   playerId?: number;
   onFavoriteChange?: (isFavorite: boolean) => void;
+  acquisitionDate?: Date | string;
 }
 
 const CATEGORY_CONFIG: Record<Category, {
@@ -47,9 +49,11 @@ export function TKDLCard({
   locked = false,
   isFavorite = false,
   playerId,
-  onFavoriteChange
+  onFavoriteChange,
+  acquisitionDate
 }: TKDLCardProps) {
   const [flipped, setFlipped] = useState(false);
+  const acqDate = useCardAcquisitionDate(acquisitionDate);
   const cfg = CATEGORY_CONFIG[card.category];
   const rar = RARITY_CONFIG[card.rarity];
   const isLegendary = card.rarity === "LEGENDARY";
@@ -156,6 +160,28 @@ export function TKDLCard({
                   onToggle={onFavoriteChange}
                   size="small"
                 />
+              </div>
+            )}
+
+            {/* New badge */}
+            {acqDate.isNew && (
+              <div
+                title={`Acquired: ${acqDate.fullDate}`}
+                style={{
+                  fontSize: size === "lg" ? "9px" : size === "md" ? "7px" : "6px",
+                  fontWeight: 900,
+                  color: "#22ff22",
+                  textShadow: "0 0 6px rgba(34,255,34,0.8)",
+                  whiteSpace: "nowrap",
+                  marginLeft: "2px",
+                  padding: "2px 4px",
+                  background: "rgba(34,255,34,0.1)",
+                  border: "1px solid rgba(34,255,34,0.4)",
+                  borderRadius: "3px",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                {acqDate.badge}
               </div>
             )}
           </div>

@@ -302,6 +302,7 @@ export async function giveCardToPlayer(playerId: number, cardId: string, quantit
       playerId,
       cardId,
       quantity,
+      purchase_date: new Date(),
     });
   }
 }
