@@ -117,7 +117,7 @@ function AchCard({ a, hovered, onHover, onClick }: { a: any; hovered: boolean; o
 
 // ── LEAGUE TAB ─────────────────────────────────────────────────────────────────
 
-function LeagueTab() {
+function LeagueTab({ openAchievementModal }: { openAchievementModal: (a: any) => void }) {
   const { data: achievements, isLoading } = useListAchievements();
   const [rarityFilter, setRarityFilter] = useState<string>("All");
   const [catFilter, setCatFilter]       = useState<string>("All");
@@ -269,7 +269,7 @@ const TOUR_CATEGORY_COLORS: Record<string, string> = {
 };
 const TOUR_CATEGORY_ORDER = ["trophy", "career", "difficulty", "format", "specific", "completionist", "milestone"];
 
-function TourTab() {
+function TourTab({ openAchievementModal }: { openAchievementModal: (a: any) => void }) {
   const { data, loading } = useFetch<TourAchDef[]>("/api/tour/achievement-definitions");
   const [catFilter, setCatFilter] = useState("All");
 
@@ -382,7 +382,7 @@ const BOT_CRITERIA_LABELS: Record<string, string> = {
   TOTAL_SCORE:    "practice score",
 };
 
-function BotTab() {
+function BotTab({ openAchievementModal }: { openAchievementModal: (a: any) => void }) {
   const { data, loading } = useFetch<BotAchDef[]>("/api/achievements/shadow-bot-definitions");
   const [rarityFilter, setRarityFilter] = useState("All");
 
@@ -490,7 +490,7 @@ type M501AchDef = {
   rarity: string; hidden: boolean; priority: number; unlocked_count: number;
 };
 
-function Master501Tab() {
+function Master501Tab({ openAchievementModal }: { openAchievementModal: (a: any) => void }) {
   const { data, loading } = useFetch<M501AchDef[]>("/api/master501/achievement-definitions");
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
@@ -579,7 +579,7 @@ const DIFF_COLORS: Record<string, string> = {
   amateur: "#9ca3af", club: "#38bdf8", county: "#34d399", pro: "#ffd24a", elite: "#ff005c",
 };
 
-function TrophiesTab() {
+function TrophiesTab({ openAchievementModal }: { openAchievementModal: (a: any) => void }) {
   const { data, loading } = useFetch<TourTrophy[]>("/api/tour/all-trophies");
 
   return (
@@ -707,11 +707,11 @@ export default function Achievements() {
         })}
       </div>
 
-      {tab === "league"    && <LeagueTab />}
-      {tab === "tour"      && <TourTab />}
-      {tab === "bot"       && <BotTab />}
-      {tab === "master501" && <Master501Tab />}
-      {tab === "trophies"  && <TrophiesTab />}
+      {tab === "league"    && <LeagueTab openAchievementModal={openAchievementModal} />}
+      {tab === "tour"      && <TourTab openAchievementModal={openAchievementModal} />}
+      {tab === "bot"       && <BotTab openAchievementModal={openAchievementModal} />}
+      {tab === "master501" && <Master501Tab openAchievementModal={openAchievementModal} />}
+      {tab === "trophies"  && <TrophiesTab openAchievementModal={openAchievementModal} />}
 
       <AchievementRewardModal
         achievement={selectedAchievement}
