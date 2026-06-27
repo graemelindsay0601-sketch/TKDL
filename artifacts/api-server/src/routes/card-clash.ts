@@ -1304,4 +1304,193 @@ router.post("/sell-card", async (req: Request, res: Response) => {
     }
   });
 
+  /**
+   * GET /api/card-clash/all-cards
+   * Return all cards in the game for practice mode card selection
+   */
+  router.get("/all-cards", async (req: Request, res: Response) => {
+    try {
+      const { cardDefinitionsTable } = await import("@workspace/db");
+      
+      const allCards = await db
+        .select()
+        .from(cardDefinitionsTable)
+        .orderBy(sql`CAST(${cardDefinitionsTable.id} AS INTEGER)`);
+
+      const cards = allCards.map((c: any) => ({
+        id: parseInt(c.id),
+        name: c.cardName,
+        category: c.category || "NEUTRAL",
+        rarity: c.rarity || "COMMON",
+        effect: c.effect || "",
+        cardId: c.cardId,
+      }));
+
+      res.json({ success: true, count: cards.length, cards });
+    } catch (error) {
+      logger.error({ error }, "Failed to get all cards");
+      res.status(500).json({ success: false, error: "Failed to load cards" });
+    }
+  });
+
+  /**
+   * GET /api/card-clash/practice/bots
+   * Return available bot opponents for practice mode
+   */
+  router.get("/practice/bots", async (req: Request, res: Response) => {
+    try {
+      const bots = [
+        {
+          id: "bot-beginner",
+          name: "Shadow Bot",
+          difficulty: "BEGINNER",
+          description: "Perfect for learning the ropes",
+          avatar: "🤖",
+          skillLevel: 2,
+        },
+        {
+          id: "bot-intermediate",
+          name: "Cyber Pro",
+          difficulty: "INTERMEDIATE",
+          description: "A solid opponent with strategy",
+          avatar: "🔧",
+          skillLevel: 5,
+        },
+        {
+          id: "bot-advanced",
+          name: "Master Mind",
+          difficulty: "ADVANCED",
+          description: "Nearly unbeatable AI opponent",
+          avatar: "🧠",
+          skillLevel: 8,
+        },
+      ];
+
+      res.json({ success: true, bots });
+    } catch (error) {
+      logger.error({ error }, "Failed to get practice bots");
+      res.status(500).json({ success: false, error: "Failed to load bots" });
+    }
+  });
+
+  /**
+   * POST /api/card-clash/practice/create
+   * Create a practice match with equipped cards
+   * Returns matchId to load and play
+   */
+  router.post("/practice/create", async (req: Request, res: Response) => {
+    try {
+      const { playerId, opponentId, gameMode, selectedCards } = req.body;
+
+      if (!playerId || !opponentId || !gameMode || !selectedCards) {
+        return res.status(400).json({
+          success: false,
+          error: "Missing: playerId, opponentId, gameMode, selectedCards",
+        });
+      }
+
+      if (!Array.isArray(selectedCards) || selectedCards.length !== 4) {
+        return res.status(400).json({
+          success: false,
+          error: "selectedCards must be array of 4 card IDs",
+        });
+      }
+
+      if (!["X01", "CRICKET"].includes(gameMode)) {
+        return res.status(400).json({
+          success: false,
+          error: "gameMode must be X01 or CRICKET",
+        });
+      }
+
+      // Ensure player currency exists
+      await ensurePlayerCurrency(playerId);
+
+      // Bot opponents use player_2_id = -1
+      const opponent2Id = opponentId.startsWith("bot-") ? -1 : parseInt(opponentId);
+
+      // Create practice match (is_mock=1, player_1_equipped_cards stored)
+      const result = await db.execute(sql`
+        INSERT INTO card_clash_matches (
+          player_1_id,
+          player_2_id,
+          game_mode,
+          is_mock,
+          player_1_equipped_cards,
+          created_at,
+          updated_at
+        ) VALUES (
+          ${playerId},
+          ${opponent2Id},
+          ${gameMode},
+          1,
+          ${JSON.stringify(selectedCards.map(id => ({ cardId: id })))},
+          NOW(),
+          NOW()
+        )
+        RETURNING id
+      `);
+
+      const matchId = (result.rows?.[0] as any)?.id;
+      if (!matchId) {
+        return res.status(500).json({ success: false, error: "Failed to create match" });
+      }
+
+      logger.info({ playerId, opponentId, gameMode, matchId }, "Practice match created");
+
+      res.json({ success: true, matchId });
+    } catch (error) {
+      logger.error({ error }, "Failed to create practice match");
+      res.status(500).json({ success: false, error: "Failed to create practice match" });
+    }
+  });
+
+  /**
+   * GET /api/card-clash/practice/:matchId
+   * Load practice match data for gameplay
+   */
+  router.get("/practice/:matchId", async (req: Request, res: Response) => {
+    try {
+      const { matchId } = req.params;
+      const { cardClashMatchesTable } = await import("@workspace/db");
+
+      if (!matchId) {
+        return res.status(400).json({ success: false, error: "matchId required" });
+      }
+
+      const match = await db
+        .select()
+        .from(cardClashMatchesTable)
+        .where(eq(cardClashMatchesTable.id, parseInt(matchId)));
+
+      if (!match || match.length === 0) {
+        return res.status(404).json({ success: false, error: "Practice match not found" });
+      }
+
+      const m = match[0];
+
+      // Parse equipped cards safely
+      const player1Cards = typeof m.player1EquippedCards === "string"
+        ? JSON.parse(m.player1EquippedCards)
+        : Array.isArray(m.player1EquippedCards)
+        ? m.player1EquippedCards
+        : [];
+
+      res.json({
+        success: true,
+        match: {
+          id: m.id,
+          player1Id: m.player1Id,
+          player2Id: m.player2Id,
+          gameMode: m.gameMode,
+          player1EquippedCards: player1Cards,
+          createdAt: m.createdAt,
+        },
+      });
+    } catch (error) {
+      logger.error({ error }, "Failed to load practice match");
+      res.status(500).json({ success: false, error: "Failed to load practice match" });
+    }
+  });
+
 export default router;

@@ -20,6 +20,7 @@ interface Props {
   playerId: number;
   playerName: string;
   onDone: () => void;
+  practiceMatchId?: number; // If provided, load and play this practice match
 }
 
 type MockMode = "level" | "pro" | "player";
@@ -119,18 +120,50 @@ function GameModeBtn({ mode, selected, onSelect }: { mode: "X01" | "CRICKET"; se
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export function CardClashMockGame({ playerId, playerName, onDone }: Props) {
-  const [step, setStep]             = useState<Step>("setup");
+export function CardClashMockGame({ playerId, playerName, onDone, practiceMatchId }: Props) {
+  const [step, setStep]             = useState<Step>(practiceMatchId ? "gamemode" : "setup");
   const [mockMode, setMockMode]     = useState<MockMode>("level");
   const [selectedLevel, setLevel]   = useState<number | null>(null);
   const [selectedPersona, setPersona] = useState<BotPersona | null>(null);
   const [players, setPlayers]       = useState<Player[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
   const [gameMode, setGameMode]     = useState<"X01" | "CRICKET" | null>(null);
-  const [matchId, setMatchId]       = useState<number | null>(null);
+  const [matchId, setMatchId]       = useState<number | null>(practiceMatchId || null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState("");
+  const [practiceMatchData, setPracticeMatchData] = useState<any>(null);
+
+  // ── Load practice match if practiceMatchId provided ─────────────────────
+  useEffect(() => {
+    if (practiceMatchId) {
+      const loadPracticeMatch = async () => {
+        try {
+          setLoading(true);
+          const res = await fetch(`/api/card-clash/practice/${practiceMatchId}`);
+          if (!res.ok) throw new Error("Failed to load practice match");
+
+          const data = await res.json();
+          setPracticeMatchData(data.match);
+          setGameMode(data.match.gameMode as "X01" | "CRICKET");
+          setSelectedPlayerId(-1); // Bot opponent
+        } catch (err) {
+          setError("Failed to load practice match");
+          console.error(err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadPracticeMatch();
+    }
+  }, [practiceMatchId]);
+
+  // ── Auto-advance to playing when practice data loaded ──────────────────
+  useEffect(() => {
+    if (practiceMatchData && gameMode && step === "gamemode") {
+      setStep("playing");
+    }
+  }, [practiceMatchData, gameMode, step]);
 
   // Load real players for "vs Player" mode
   useEffect(() => {
@@ -141,10 +174,12 @@ export function CardClashMockGame({ playerId, playerName, onDone }: Props) {
   }, [playerId]);
 
   // ── Derived opponent info ──────────────────────────────────────────────────
-  const opponentId   = mockMode === "player" ? (selectedPlayerId ?? playerId) : -1;
-  const opponentName = mockMode === "level"  ? (selectedLevel  ? `Level ${selectedLevel} Bot` : "Bot")
-                     : mockMode === "pro"    ? (selectedPersona?.name ?? "Pro Bot")
-                     : (players.find(p => p.id === selectedPlayerId)?.name ?? "Opponent");
+  const opponentId   = practiceMatchData?.player2Id ?? (mockMode === "player" ? (selectedPlayerId ?? playerId) : -1);
+  const opponentName = practiceMatchData 
+    ? (opponentId === -1 ? "Practice Bot" : `Player ${opponentId}`)
+    : mockMode === "level"  ? (selectedLevel  ? `Level ${selectedLevel} Bot` : "Bot")
+    : mockMode === "pro"    ? (selectedPersona?.name ?? "Pro Bot")
+    : (players.find(p => p.id === selectedPlayerId)?.name ?? "Opponent");
 
   const setupReady = mockMode === "level"  ? selectedLevel !== null
                    : mockMode === "pro"    ? selectedPersona !== null
@@ -316,10 +351,10 @@ export function CardClashMockGame({ playerId, playerName, onDone }: Props) {
         player2Id={opponentId}
         player2Name={opponentName}
         gameMode={gameMode!}
-        player1EquippedCards={[]}
-        player2EquippedCards={[]}
+        player1EquippedCards={practiceMatchData?.player1EquippedCards || []}
+        player2EquippedCards={practiceMatchData?.player2EquippedCards || []}
         onMatchComplete={handleMatchComplete}
-        isBot={mockMode !== "player"}
+        isBot={practiceMatchData ? true : mockMode !== "player"}
       />
     );
   }

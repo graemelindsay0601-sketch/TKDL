@@ -800,6 +800,7 @@ const PACKS = [
     const [p2Id,setP2Id]=useState<number|null>(null);
     const [saved,setSaved]=useState<Set<string>>(new Set());
     const [launching,setLaunching]=useState(false);
+    const [practiceMatchId,setPracticeMatchId]=useState<number|null>(null);
 
     const opp=standings.filter(s=>s.player_id!==playerId);
     const filtered=PRACTICE_GAMES.filter(g=>g.type===gt);
@@ -820,7 +821,7 @@ const PACKS = [
     if(launching){return(
       <div>
         <button onClick={()=>setLaunching(false)} style={{all:"unset",display:"inline-flex",alignItems:"center",gap:"8px",padding:"9px 18px",borderRadius:"8px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.45)",fontSize:"12px",fontWeight:700,letterSpacing:"0.07em",cursor:"pointer",marginBottom:"1.5rem"}}>← BACK</button>
-        <CardClashMockGame playerId={playerId} playerName={playerName} onDone={()=>setLaunching(false)}/>
+        <CardClashMockGame playerId={playerId} playerName={playerName} practiceMatchId={practiceMatchId || undefined} onDone={()=>setLaunching(false)}/>
       </div>
     );}
 
@@ -881,10 +882,9 @@ const PACKS = [
         {practiceType==="cardclash"&&playerId&&(
           <CardClashPracticeMode
             playerId={playerId}
-            playerCards={[]}
             onMatchCreated={(matchId)=>{
-              console.log("Practice match created:",matchId);
-              // Could redirect to match or show success message
+              setPracticeMatchId(matchId);
+              setLaunching(true);
             }}
           />
         )}
