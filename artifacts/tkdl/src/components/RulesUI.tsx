@@ -197,20 +197,20 @@ export function RulesUI() {
   return (
     <div
       style={{
-        maxWidth: '700px',
+        maxWidth: '800px',
         margin: '0 auto',
-        padding: '20px',
-        background: 'linear-gradient(135deg,rgba(20,10,40,0.6),rgba(10,5,25,0.8))',
+        padding: '28px',
+        background: 'linear-gradient(135deg,rgba(20,10,40,0.8),rgba(10,5,25,0.95))',
         borderRadius: '16px',
         color: '#fff',
       }}
     >
       {/* Header */}
-      <div style={{ marginBottom: '24px', textAlign: 'center' }}>
-        <h1 style={{ margin: '0 0 8px', fontSize: '28px', fontWeight: 900 }}>
+      <div style={{ marginBottom: '32px', textAlign: 'center' }}>
+        <h1 style={{ margin: '0 0 12px', fontSize: '36px', fontWeight: 900, letterSpacing: '-0.01em' }}>
           📖 Card Clash Rules
         </h1>
-        <p style={{ margin: 0, fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
+        <p style={{ margin: 0, fontSize: '15px', color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>
           Master the game with our comprehensive guide
         </p>
       </div>
@@ -219,9 +219,9 @@ export function RulesUI() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
-          gap: '8px',
-          marginBottom: '24px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+          gap: '10px',
+          marginBottom: '32px',
         }}
       >
         {RULES_DATA.map((section) => (
@@ -232,29 +232,29 @@ export function RulesUI() {
               setExpandedRule(null);
             }}
             style={{
-              padding: '12px 8px',
+              padding: '14px 12px',
               background:
                 activeCategory === section.id
-                  ? `linear-gradient(135deg,${section.color}33,${section.color}11)`
-                  : 'rgba(255,255,255,0.03)',
+                  ? `linear-gradient(135deg,${section.color}40,${section.color}15)`
+                  : 'rgba(255,255,255,0.04)',
               border: `2px solid ${
-                activeCategory === section.id ? section.color + '60' : 'rgba(255,255,255,0.1)'
+                activeCategory === section.id ? section.color + '70' : 'rgba(255,255,255,0.12)'
               }`,
               borderRadius: '10px',
-              color: activeCategory === section.id ? section.color : 'rgba(255,255,255,0.5)',
-              fontSize: '11px',
+              color: activeCategory === section.id ? section.color : 'rgba(255,255,255,0.6)',
+              fontSize: '12px',
               fontWeight: 700,
               cursor: 'pointer',
               transition: 'all 0.2s',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: '4px',
-              letterSpacing: '0.03em',
+              gap: '6px',
+              letterSpacing: '0.04em',
             }}
           >
-            <span style={{ fontSize: '16px' }}>{section.icon}</span>
-            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span style={{ fontSize: '20px' }}>{section.icon}</span>
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
               {section.title.split(' ')[0]}
             </span>
           </button>
@@ -266,23 +266,24 @@ export function RulesUI() {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '12px',
-          marginBottom: '20px',
-          paddingBottom: '16px',
-          borderBottom: `2px solid ${currentSection.color}40`,
+          gap: '16px',
+          marginBottom: '28px',
+          paddingBottom: '20px',
+          borderBottom: `3px solid ${currentSection.color}50`,
         }}
       >
-        <span style={{ fontSize: '32px' }}>{currentSection.icon}</span>
+        <span style={{ fontSize: '40px', flexShrink: 0 }}>{currentSection.icon}</span>
         <div>
-          <h2 style={{ margin: '0', fontSize: '20px', fontWeight: 900 }}>
+          <h2 style={{ margin: '0', fontSize: '24px', fontWeight: 900, letterSpacing: '-0.01em' }}>
             {currentSection.title}
           </h2>
           <p
             style={{
-              margin: '4px 0 0',
-              fontSize: '12px',
+              margin: '6px 0 0',
+              fontSize: '14px',
               color: currentSection.color,
               fontWeight: 600,
+              letterSpacing: '0.02em',
             }}
           >
             {currentSection.rules.length} rules to master
@@ -291,17 +292,18 @@ export function RulesUI() {
       </div>
 
       {/* Rules List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {currentSection.rules.map((rule, idx) => (
           <div
             key={idx}
             style={{
               background: rule.important
-                ? `linear-gradient(135deg,${currentSection.color}15,${currentSection.color}05)`
-                : 'rgba(255,255,255,0.02)',
-              border: `1px solid ${rule.important ? currentSection.color + '40' : 'rgba(255,255,255,0.08)'}`,
+                ? `linear-gradient(135deg,${currentSection.color}25,${currentSection.color}08)`
+                : 'rgba(255,255,255,0.03)',
+              border: `1.5px solid ${rule.important ? currentSection.color + '60' : 'rgba(255,255,255,0.1)'}`,
               borderRadius: '12px',
               overflow: 'hidden',
+              transition: 'all 0.2s',
             }}
           >
             <button
@@ -309,10 +311,10 @@ export function RulesUI() {
               style={{
                 all: 'unset',
                 width: '100%',
-                padding: '14px 16px',
+                padding: '18px 20px',
                 display: 'flex',
                 alignItems: 'flex-start',
-                gap: '12px',
+                gap: '14px',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
                 background: 'transparent',
@@ -323,11 +325,11 @@ export function RulesUI() {
                 <div
                   style={{
                     flexShrink: 0,
-                    width: '6px',
-                    height: '6px',
+                    width: '8px',
+                    height: '8px',
                     borderRadius: '50%',
                     background: currentSection.color,
-                    marginTop: '6px',
+                    marginTop: '8px',
                   }}
                 />
               )}
@@ -336,24 +338,26 @@ export function RulesUI() {
               <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
                 <h3
                   style={{
-                    margin: '0 0 4px',
-                    fontSize: '13px',
+                    margin: '0 0 6px',
+                    fontSize: '15px',
                     fontWeight: 800,
                     color: rule.important ? currentSection.color : '#fff',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
+                    gap: '8px',
+                    lineHeight: 1.3,
                   }}
                 >
                   {rule.title}
-                  {rule.important && <span style={{ fontSize: '10px' }}>⭐</span>}
+                  {rule.important && <span style={{ fontSize: '12px' }}>⭐</span>}
                 </h3>
                 <p
                   style={{
                     margin: 0,
-                    fontSize: '12px',
-                    color: 'rgba(255,255,255,0.6)',
-                    lineHeight: 1.4,
+                    fontSize: '14px',
+                    color: 'rgba(255,255,255,0.75)',
+                    lineHeight: 1.5,
+                    fontWeight: 500,
                   }}
                 >
                   {rule.description}
@@ -364,10 +368,11 @@ export function RulesUI() {
               <div
                 style={{
                   flexShrink: 0,
-                  fontSize: '16px',
+                  fontSize: '18px',
                   color: currentSection.color,
                   transition: 'transform 0.2s',
                   transform: expandedRule === idx ? 'rotate(180deg)' : 'rotate(0deg)',
+                  marginTop: '2px',
                 }}
               >
                 ▼
@@ -378,26 +383,26 @@ export function RulesUI() {
             {expandedRule === idx && rule.example && (
               <div
                 style={{
-                  borderTop: `1px solid ${currentSection.color}20`,
-                  padding: '12px 16px',
-                  background: `${currentSection.color}08`,
+                  borderTop: `2px solid ${currentSection.color}30`,
+                  padding: '16px 20px',
+                  background: `${currentSection.color}12`,
                 }}
               >
-                <div style={{ fontSize: '11px', fontWeight: 700, color: currentSection.color, marginBottom: '6px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: currentSection.color, marginBottom: '8px', letterSpacing: '0.04em' }}>
                   💡 EXAMPLE
                 </div>
                 <p
                   style={{
                     margin: 0,
-                    fontSize: '12px',
-                    color: 'rgba(255,255,255,0.7)',
+                    fontSize: '14px',
+                    color: 'rgba(255,255,255,0.8)',
                     fontStyle: 'italic',
-                    lineHeight: 1.5,
-                    paddingLeft: '8px',
-                    borderLeft: `2px solid ${currentSection.color}`,
+                    lineHeight: 1.6,
+                    paddingLeft: '12px',
+                    borderLeft: `3px solid ${currentSection.color}`,
                   }}
                 >
-                  {rule.example}
+                  "{rule.example}"
                 </p>
               </div>
             )}
@@ -408,20 +413,23 @@ export function RulesUI() {
       {/* Pro Tips Section */}
       <div
         style={{
-          marginTop: '24px',
-          padding: '14px 16px',
-          background: 'linear-gradient(135deg,rgba(34,197,94,0.08),rgba(34,197,94,0.02))',
-          border: '1px solid rgba(34,197,94,0.2)',
+          marginTop: '32px',
+          padding: '18px 20px',
+          background: 'linear-gradient(135deg,rgba(34,197,94,0.12),rgba(34,197,94,0.04))',
+          border: '2px solid rgba(34,197,94,0.35)',
           borderRadius: '12px',
         }}
       >
         <h3
           style={{
-            margin: '0 0 8px',
-            fontSize: '12px',
+            margin: '0 0 10px',
+            fontSize: '14px',
             fontWeight: 900,
             color: '#22c55e',
-            letterSpacing: '0.05em',
+            letterSpacing: '0.06em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
           }}
         >
           💪 PRO TIP
@@ -429,9 +437,10 @@ export function RulesUI() {
         <p
           style={{
             margin: 0,
-            fontSize: '12px',
-            color: 'rgba(255,255,255,0.6)',
-            lineHeight: 1.5,
+            fontSize: '14px',
+            color: 'rgba(255,255,255,0.75)',
+            lineHeight: 1.6,
+            fontWeight: 500,
           }}
         >
           {activeCategory === 'basics'
