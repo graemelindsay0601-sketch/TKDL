@@ -711,10 +711,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
             background: "linear-gradient(135deg, #0a0015 0%, #1a0033 100%)",
             border: "1.5px solid rgba(0,180,255,0.3)",
             borderRadius: "12px",
-            padding: "20px",
+            padding: "16px",
             width: "100%",
             maxWidth: "480px",
-            maxHeight: "calc(100vh - 100px)"
+            maxHeight: "50vh"
           }}
           onClick={(e) => e.stopPropagation()}
           >
@@ -722,10 +722,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: "20px"
+              marginBottom: "12px"
             }}>
               <div style={{
-                fontSize: "16px",
+                fontSize: "14px",
                 fontWeight: 900,
                 color: "#00d4ff",
                 letterSpacing: "0.05em",
@@ -3239,10 +3239,10 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
               background: "linear-gradient(135deg, #0a0015 0%, #1a0033 100%)",
               border: "1.5px solid rgba(0,180,255,0.3)",
               borderRadius: "12px",
-              padding: "20px",
+              padding: "16px",
               width: "100%",
               maxWidth: "480px",
-              maxHeight: "calc(100vh - 100px)"
+              maxHeight: "50vh"
             }}
             onClick={(e) => e.stopPropagation()}
             >
@@ -3250,10 +3250,10 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: "20px"
+                marginBottom: "12px"
               }}>
                 <div style={{
-                  fontSize: "16px",
+                  fontSize: "14px",
                   fontWeight: 900,
                   color: "#00d4ff",
                   letterSpacing: "0.05em",
@@ -3275,16 +3275,16 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
               </div>
 
               {/* GOOD Cards */}
-              <div style={{ marginBottom: "20px" }}>
+              <div style={{ marginBottom: "12px" }}>
                 <div style={{
-                  fontSize: "11px",
+                  fontSize: "10px",
                   fontWeight: 900,
                   color: "#00cc66",
                   letterSpacing: "0.1em",
-                  marginBottom: "10px",
+                  marginBottom: "8px",
                   textTransform: "uppercase"
                 }}>GOOD CARDS</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "12px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "8px" }}>
                   {(turn === 0 ? p1Cards : p2Cards)
                     .filter((c: any) => c.category?.includes("GOOD"))
                     .map((card: any) => {
@@ -3319,14 +3319,14 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
               {/* BAD Cards */}
               <div>
                 <div style={{
-                  fontSize: "11px",
+                  fontSize: "10px",
                   fontWeight: 900,
                   color: "#ff6b6b",
                   letterSpacing: "0.1em",
-                  marginBottom: "10px",
+                  marginBottom: "8px",
                   textTransform: "uppercase"
                 }}>BAD CARDS</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "12px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "8px" }}>
                   {(turn === 0 ? p1Cards : p2Cards)
                     .filter((c: any) => c.category?.includes("BAD"))
                     .map((card: any) => {
