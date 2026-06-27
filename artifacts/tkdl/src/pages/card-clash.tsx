@@ -5,6 +5,7 @@ import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
 import { CardClashMockGame } from "@/components/CardClashMockGame";
 import { CardClashPracticeMode } from "@/components/CardClashPracticeMode";
 import { AdminCardClashSettingsPanel } from "@/components/AdminCardClashSettingsPanel";
+import { RulesUI } from "@/components/RulesUI";
 import { TKDLCard } from "@/components/TKDLCard";
 import { ALL_CARDS } from "@/lib/cards-data";
 import type { CardData, Category, Rarity } from "@/lib/cards-data";
@@ -622,25 +623,7 @@ const PACKS = [
             {/* ── RULES ── */}
             {activeTab==="rules" && (
               <div>
-                <SectionHeader title="📖 How to Play" subtitle="The complete guide to TKDL Card Clash"/>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(290px,1fr))",gap:"10px"}}>
-                  {([
-                    {icon:"🃏",h:"What is Card Clash?",body:"TKDL's exclusive meta-game. Collect 100 unique cards, equip them before a match, and trigger tactical effects during real darts games."},
-                    {icon:"🪙",h:"Earning Coins",body:"Log in daily (streak bonuses!), complete achievements, sell duplicate cards, and win Card Clash matches."},
-                    {icon:"📦",h:"Packs & Drop Rates",body:"Standard Pull — 50 coins · 1 card\nKilbirnie Night — 200 coins · 5 cards\nLegend Vault — 350 coins · 10 cards\n\n75% Common · 20% Rare · 5% Legendary\nGuaranteed Legendary after 50 pulls."},
-                    {icon:"✨",h:"Card Rarities",body:"Common — solid, reliable effects\nRare — stronger or niche tactics\nLegendary — the most powerful cards in the game"},
-                    {icon:"🎯",h:"Card Categories",body:"X01, Cricket, or Wildcard — each works in its matching game mode. Wildcards work everywhere.\n\nGood cards benefit you. Bad cards curse your opponent."},
-                    {icon:"⚡",h:"Equipping Cards",body:"In the Play section, select your opponent and game mode, then optionally equip up to 4 cards (2 Good + 2 Bad). Cards are always optional."},
-                    {icon:"🎖️",h:"Achievements",body:"Complete milestones to earn coins and free packs. Earned packs appear in the Shop and can be opened any time."},
-                    {icon:"🔥",h:"Login Streak",body:"7 days = 200 coins + 1 Standard Pull\n30 days = 1000 coins + Kilbirnie Night Pack"},
-                    {icon:"♻️",h:"Selling Duplicates",body:"Common → 10 coins\nRare → 30 coins\nLegendary → 100 coins\n\nSell spares from the Shop section."},
-                  ] as {icon:string;h:string;body:string}[]).map(s=>(
-                    <div key={s.h} style={{padding:"18px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:"12px"}}>
-                      <h3 style={{margin:"0 0 9px",fontSize:"12px",fontWeight:900,color:"#ffd24a",fontFamily:"'Arial Black',Arial,sans-serif",letterSpacing:"0.07em",textTransform:"uppercase"}}>{s.icon} {s.h}</h3>
-                      <p style={{margin:0,fontSize:"12px",color:"rgba(255,255,255,0.44)",lineHeight:1.75,whiteSpace:"pre-line"}}>{s.body}</p>
-                    </div>
-                  ))}
-                </div>
+                <RulesUI />
               </div>
             )}
 
