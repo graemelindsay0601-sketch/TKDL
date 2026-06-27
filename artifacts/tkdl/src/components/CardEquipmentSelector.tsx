@@ -431,6 +431,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
               <span style={{ fontWeight: 900, fontSize: "14px", color: "#ef4444", letterSpacing: "0.08em", fontFamily: "'Arial Black',Arial,sans-serif" }}>BAD CARDS ({selectedBad.length}/{preference.badCardsPerMatch})</span>
               <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", fontFamily: "Arial,sans-serif" }}>Curse OPPONENT on their turn</span>
             </div>
+            {typeof window !== 'undefined' && console.log(`[BAD CARDS SECTION] badCards.length=${badCards.length}, selectedBad.length=${selectedBad.length}, will show grid: ${badCards.length > 0}, first 3 ids:`, badCards.slice(0, 3).map(c => `${c.id}:${c.name}`))}
             {badCards.length === 0 ? (
               <div style={{ padding: "20px", textAlign: "center", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: "10px", color: "rgba(255,255,255,0.25)", fontSize: "13px", fontFamily: "Arial,sans-serif" }}>
                 No {gameMode} Bad cards in your collection — head to the Shop!
