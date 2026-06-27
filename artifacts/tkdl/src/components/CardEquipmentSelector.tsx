@@ -392,7 +392,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
           <p style={{ margin: 0, fontSize: "12px", color: "rgba(255,255,255,0.32)", fontFamily: "Arial,sans-serif" }}>Bring up to {preference.goodCardsPerMatch} Good + {preference.badCardsPerMatch} Bad cards to the match. Then it's {opponentName}'s turn.</p>
           {submitError && <div style={{ marginTop: "10px", padding: "8px 14px", background: "rgba(255,60,60,0.08)", border: "1px solid rgba(255,60,60,0.28)", borderRadius: "7px", color: "#ff6b6b", fontSize: "12px", fontFamily: "Arial,sans-serif" }}>⚠️ {submitError}</div>}
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px", minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px", minHeight: 0, paddingBottom: "80px" }}>
           <div style={{ marginBottom: "22px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
               <span style={{ fontSize: "20px" }}>⚡</span>
@@ -609,7 +609,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
           </div>
         )}
 
-        <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", gap: "12px", justifyContent: "space-between", flexShrink: 0, background: "rgba(0,0,0,0.4)", position: "sticky", bottom: 0, zIndex: 10 }}>
+        <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", gap: "12px", justifyContent: "space-between", flexShrink: 0, background: "rgba(0,0,0,0.6)", position: "sticky", bottom: 0, zIndex: 50 }}>
           <button onClick={onBack} style={{ flex: 1, padding: "12px 20px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "rgba(255,255,255,0.65)", fontWeight: 700, fontSize: "13px", cursor: "pointer", fontFamily: "Arial,sans-serif", transition: "all 0.2s", whiteSpace: "nowrap" }}>← BACK</button>
 
           <button
