@@ -21,6 +21,7 @@ const TYPE_GROUPS: TypeGroup[] = [
 export function CardCollectionBook({ playerId }: { playerId: number }) {
   const [ownedNames, setOwnedNames] = useState<Set<string>>(new Set());
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [inventory, setInventory] = useState<Map<string, { quantity: number; timesPurchased: number }>>(new Map());
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
   const [expandedType, setExpandedType] = useState<string>("x01-good");
@@ -38,12 +39,23 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
             (c: any) => c.cardName ?? c.name ?? ""
           )
         );
+        const inventoryMap = new Map<string, { quantity: number; timesPurchased: number }>();
+        (Array.isArray(inv) ? inv : []).forEach((c: any) => {
+          const cardName = c.cardName ?? c.name ?? "";
+          if (cardName) {
+            inventoryMap.set(cardName, {
+              quantity: c.quantity ?? 1,
+              timesPurchased: c.timesPurchased ?? 0,
+            });
+          }
+        });
         const favoriteCardIds = new Set<string>(
           (Array.isArray(favData?.favorites) ? favData.favorites : []).map(
             (c: any) => String(c.id)
           )
         );
         setOwnedNames(names);
+        setInventory(inventoryMap);
         setFavorites(favoriteCardIds);
         setLoading(false);
       })
@@ -106,24 +118,46 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
                     .map(card => {
                       const isOwned = ownedNames.has(card.name);
                       const isFavorite = favorites.has(String(card.id));
+                      const cardInventory = inventory.get(card.name);
+                      const timesPurchased = cardInventory?.timesPurchased ?? 0;
                       return (
-                        <TKDLCard
-                          key={card.id}
-                          card={card}
-                          size="sm"
-                          locked={!isOwned}
-                          isFavorite={isFavorite}
-                          playerId={playerId}
-                          onFavoriteChange={(newFavState) => {
-                            const newFavorites = new Set(favorites);
-                            if (newFavState) {
-                              newFavorites.add(String(card.id));
-                            } else {
-                              newFavorites.delete(String(card.id));
-                            }
-                            setFavorites(newFavorites);
-                          }}
-                        />
+                        <div key={card.id} style={{ position: 'relative' }}>
+                          <TKDLCard
+                            card={card}
+                            size="sm"
+                            locked={!isOwned}
+                            isFavorite={isFavorite}
+                            playerId={playerId}
+                            onFavoriteChange={(newFavState) => {
+                              const newFavorites = new Set(favorites);
+                              if (newFavState) {
+                                newFavorites.add(String(card.id));
+                              } else {
+                                newFavorites.delete(String(card.id));
+                              }
+                              setFavorites(newFavorites);
+                            }}
+                          />
+                          {isOwned && timesPurchased > 0 && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                bottom: '6px',
+                                right: '6px',
+                                background: 'linear-gradient(135deg,rgba(0,255,136,0.9),rgba(0,200,100,0.9))',
+                                color: '#000',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                letterSpacing: '0.04em',
+                                boxShadow: '0 2px 8px rgba(0,255,136,0.4)',
+                              }}
+                            >
+                              🛍️ ×{timesPurchased}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                 </div>

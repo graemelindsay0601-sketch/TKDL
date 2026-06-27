@@ -153,7 +153,10 @@ async function generateCards(playerId: number, count: number) {
     if (existingCard[0]) {
       await db
         .update(cardInventoryTable)
-        .set({ quantity: existingCard[0].quantity + 1 })
+        .set({ 
+          quantity: existingCard[0].quantity + 1,
+          timesPurchased: (existingCard[0].timesPurchased || 0) + 1,
+        })
         .where(
           and(
             eq(cardInventoryTable.playerId, playerId),
@@ -165,6 +168,7 @@ async function generateCards(playerId: number, count: number) {
         playerId,
         cardId: randomCard.cardId,
         quantity: 1,
+        timesPurchased: 1,
       });
     }
 
@@ -190,6 +194,7 @@ export async function getPlayerInventory(playerId: number) {
     .select({
       cardId: cardInventoryTable.cardId,
       quantity: cardInventoryTable.quantity,
+      timesPurchased: cardInventoryTable.timesPurchased,
       cardName: cardDefinitionsTable.name,
       rarity: cardDefinitionsTable.rarity,
       gameMode: cardDefinitionsTable.gameMode,

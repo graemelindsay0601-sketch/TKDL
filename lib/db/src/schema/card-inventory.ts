@@ -9,6 +9,7 @@ export const cardInventoryTable = pgTable("player_card_inventory", {
   playerId: integer("player_id").notNull().references(() => playersTable.id),
   cardId: uuid("card_id").notNull().references(() => cardDefinitionsTable.cardId),
   quantity: integer("quantity").notNull().default(1),
+  timesPurchased: integer("times_purchased").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
