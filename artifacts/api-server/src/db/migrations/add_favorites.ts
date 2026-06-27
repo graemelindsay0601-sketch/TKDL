@@ -5,7 +5,8 @@
  * to the top of the equip screen and collection views.
  */
 
-import { db, sql } from '@workspace/db';
+import { db } from '@workspace/db';
+import { sql } from 'drizzle-orm';
 import { logger } from '../../lib/logger';
 
 export async function addFavoritesColumn() {
