@@ -4,8 +4,9 @@
  * Card effects and UI already built into those scorers
  */
 
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { X01Scorer, CricketScorer } from "@/lib/scorers";
+import { ccActivateCard } from "@/lib/card-effect-engine";
 import type { GameResult } from "./game-scorer";
 import type { CardData } from "@/lib/cards-data";
 
@@ -56,6 +57,25 @@ export function CardClashMatchScorer({
     };
   }, []);
 
+  // Activate all equipped cards and prepare effects for scorers
+  const cardEffects = useMemo(() => {
+    const effects: any[] = [];
+    
+    // Activate P1 cards (affecting P1)
+    player1EquippedCards.forEach(card => {
+      const cardEffects = ccActivateCard(card, 0, { scores: [501, 501], legWins: [0, 0] });
+      effects.push(...cardEffects);
+    });
+    
+    // Activate P2 cards (affecting P2)
+    player2EquippedCards.forEach(card => {
+      const cardEffects = ccActivateCard(card, 1, { scores: [501, 501], legWins: [0, 0] });
+      effects.push(...cardEffects);
+    });
+    
+    return effects;
+  }, [player1EquippedCards, player2EquippedCards]);
+
   const handleMatchComplete = (result: GameResult) => {
     onMatchComplete(result, []);
   };
@@ -74,6 +94,7 @@ export function CardClashMatchScorer({
         botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
         onWin={handleMatchComplete}
         onAbandon={handleAbandon}
+        cardEffects={cardEffects}
       />
     );
   } else {
@@ -84,6 +105,7 @@ export function CardClashMatchScorer({
         botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
         onWin={handleMatchComplete}
         onAbandon={handleAbandon}
+        cardEffects={cardEffects}
       />
     );
   }
