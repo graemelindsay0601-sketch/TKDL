@@ -7,6 +7,7 @@ import { PRACTICE_ACHIEVEMENT_DEFINITIONS, checkPracticeAchievements } from "./p
 import { FORMAT_AND_MEME_ACHIEVEMENT_DEFINITIONS } from "./format-and-meme-achievements";
 import { checkAndAwardShadowBotAchievements } from "./shadow-bot-achievements";
 import { MASTER501_ACHIEVEMENT_DEFINITIONS } from "./master501-achievements";
+import { getAchievementReward, packRewardToCount } from "./achievement-rewards";
 
 export type AchievementDef = {
   key: string;
@@ -22,42 +23,44 @@ export type AchievementDef = {
   engineType: string;
   secondaryCriteria?: string;
   secondaryValue?: number;
+  coinReward?: number;
+  packReward?: 'SINGLE' | 'FIVE' | 'TEN';
 };
 
 export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   // === CAREER ===
-  { key: "FIRST_BLOOD",       name: "🩸 First Blood",       description: "Win your first TKDL match",                    icon: "🩸", rarity: "Common",    category: "Career",    hidden: false, priority: 20, criteriaType: "CAREER_WINS",      criteriaValue: 1,   engineType: "STAT_BASED" },
-  { key: "WARMED_UP",         name: "🎯 Warm-Up",           description: "Play 10 TKDL matches",                         icon: "🎯", rarity: "Common",    category: "Career",    hidden: false, priority: 20, criteriaType: "CAREER_GAMES",     criteriaValue: 10,  engineType: "STAT_BASED" },
-  { key: "FIGHTER",           name: "🥊 Fighter",           description: "Play 5 matches",                               icon: "🥊", rarity: "Common",    category: "Career",    hidden: false, priority: 20, criteriaType: "CAREER_GAMES",     criteriaValue: 5,   engineType: "STAT_BASED" },
-  { key: "DUELIST",           name: "⚔ Duelist",            description: "Play 25 matches",                              icon: "⚔",  rarity: "Common",    category: "Career",    hidden: false, priority: 20, criteriaType: "CAREER_GAMES",     criteriaValue: 25,  engineType: "STAT_BASED" },
-  { key: "HEAT_CHECK",        name: "🔥 Heat Check",        description: "Win 3 in a row",                               icon: "🔥", rarity: "Common",    category: "Career",    hidden: false, priority: 20, criteriaType: "WIN_STREAK",       criteriaValue: 3,   engineType: "MATCH_EVENT",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 5 },
-  { key: "VETERAN",           name: "🎖 Veteran",           description: "Play 50 TKDL matches",                         icon: "🎖", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "CAREER_GAMES",     criteriaValue: 50,  engineType: "STAT_BASED" },
-  { key: "HIGH_ROLLER",       name: "💰 High Roller",       description: "Win a match wagering 25+ points",              icon: "💰", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "HIGH_STAKE_WIN",   criteriaValue: 25,  engineType: "MATCH_EVENT" },
-  { key: "PAY_DAY",           name: "💵 Pay Day",           description: "Win a match wagering 10+ points",              icon: "💵", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "HIGH_STAKE_WIN",   criteriaValue: 10,  engineType: "MATCH_EVENT" },
-  { key: "BULLSEYE",          name: "🏹 Bullseye",          description: "Reach 60% win rate over 10 games",             icon: "🏹", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "WIN_RATE",         criteriaValue: 60,  engineType: "STAT_BASED",   secondaryCriteria: "CAREER_GAMES", secondaryValue: 10 },
-  { key: "ROCK_SOLID",        name: "🪨 Rock Solid",        description: "Survive a season (never eliminated)",          icon: "🪨", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "SEASON_UNELIMINATED", criteriaValue: 1, engineType: "SEASON_EVENT", secondaryCriteria: "SEASON_GAMES", secondaryValue: 10 },
-  { key: "RISK_TAKER",        name: "🎲 Risk Taker",        description: "Play 5 matches with 10+ points wagered",       icon: "🎲", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "HIGH_STAKES_TOTAL",criteriaValue: 5,   engineType: "MATCH_EVENT" },
-  { key: "GAMBLER",           name: "🎰 Gambler",           description: "Play 10 matches with 10+ points wagered",      icon: "🎰", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "HIGH_STAKES_MATCHES", criteriaValue: 10, engineType: "MATCH_EVENT" },
-  { key: "TACTICAL",          name: "🧠 Tactical",          description: "Win despite being underdog in points",         icon: "🧠", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "UPSET_WIN",        criteriaValue: 1,   engineType: "MATCH_EVENT" },
-  { key: "PRECISION",         name: "🎯 Precision",         description: "Reach 70% win rate over 20 games",             icon: "🎯", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "WIN_RATE",         criteriaValue: 70,  engineType: "STAT_BASED",   secondaryCriteria: "CAREER_GAMES", secondaryValue: 20 },
-  { key: "TARGET_LOCKED",     name: "🎯 Target Locked",     description: "Beat same opponent 3 times",                   icon: "🎯", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "SAME_OPPONENT_WINS", criteriaValue: 3, engineType: "MATCH_EVENT" },
-  { key: "WIN_COLLECTOR",     name: "⚡ Win Collector",     description: "Win matches in 4+ different seasons",          icon: "⚡", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "MULTI_SEASON_WINS",criteriaValue: 4,   engineType: "SEASON_EVENT" },
-  { key: "HISTORIAN",         name: "📚 Historian",         description: "Play in 3+ seasons",                          icon: "📚", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "MULTI_SEASON_PLAYS",criteriaValue: 3,  engineType: "SEASON_EVENT" },
-  { key: "PROFESSIONAL",      name: "💼 Professional",      description: "Play 75 career matches",                       icon: "💼", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "CAREER_GAMES",     criteriaValue: 75,  engineType: "STAT_BASED" },
-  { key: "SHOWMAN",           name: "🎪 Showman",           description: "Win 5 featured matches",                       icon: "🎪", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "FEATURED_WINS",    criteriaValue: 5,   engineType: "MATCH_EVENT" },
-  { key: "COLLECTOR",         name: "📦 Collector",         description: "Unlock 10 achievements",                       icon: "📦", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "TOTAL_ACHIEVEMENTS",criteriaValue: 10,  engineType: "STAT_BASED" },
-  { key: "RED_HOT",           name: "🔥 Red Hot",           description: "Win 7 in a row",                               icon: "🔥", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "WIN_STREAK",       criteriaValue: 7,   engineType: "MATCH_EVENT",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 20 },
-  { key: "DOUBLE_TROUBLE",    name: "🧨 Double Eliminator", description: "Eliminate 2 players in one season",            icon: "🧨", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "SEASON_ELIMINATIONS", criteriaValue: 2, engineType: "SEASON_EVENT" },
-  { key: "ELO_1050",          name: "🔷 Elite Threshold",   description: "Reach 1050 ELO rating",                        icon: "🔷", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "PEAK_ELO",         criteriaValue: 1050, engineType: "STAT_BASED" },
-  { key: "HOT_STREAK",        name: "🔥 Hot Streak",        description: "Win 5 consecutive matches",                    icon: "🔥", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "WIN_STREAK",       criteriaValue: 5,   engineType: "MATCH_EVENT",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 10 },
-  { key: "ELIMINATOR",        name: "⚔ Eliminator",         description: "Eliminate a player (reduce to 0 points)",     icon: "⚔",  rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "ELIMINATIONS",     criteriaValue: 1,   engineType: "MATCH_EVENT" },
-  { key: "GIANT_KILLER",      name: "⚔ Giant Killer",       description: "Beat a top-ranked player 3 times",            icon: "⚔",  rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "TOP_RANKED_WINS",  criteriaValue: 3,   engineType: "MATCH_EVENT" },
-  { key: "IRON_WALL",         name: "🧱 Iron Wall",         description: "Finish season with no eliminations (stay active)", icon: "🧱", rarity: "Epic", category: "Career",    hidden: false, priority: 60, criteriaType: "SEASON_UNELIMINATED", criteriaValue: 1, engineType: "SEASON_EVENT", secondaryCriteria: "SEASON_GAMES", secondaryValue: 15 },
-  { key: "PREDATOR",          name: "🪓 Predator",          description: "Eliminate the same player twice",              icon: "🪓", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "PLAYER_ELIMINATIONS",criteriaValue: 2, engineType: "MATCH_EVENT" },
-  { key: "SHARPSHOOTER_ACH",  name: "🏹 Sharpshooter",     description: "Maintain 75% win rate over 30 games",          icon: "🏹", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "WIN_RATE",         criteriaValue: 75,  engineType: "STAT_BASED",   secondaryCriteria: "CAREER_GAMES", secondaryValue: 30 },
-  { key: "COMEBACK_KING",     name: "🩹 Comeback King",     description: "Win 3 matches after losing 2+",               icon: "🩹", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "COMEBACK_STREAK",  criteriaValue: 3,   engineType: "MATCH_EVENT" },
-  { key: "KING_SLAYER",       name: "👑 King Slayer",       description: "Beat the top-ranked player 3 times",          icon: "👑", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "TOP_RANKED_WINS",  criteriaValue: 3,   engineType: "MATCH_EVENT" },
-  { key: "SHOCKWAVE",         name: "⚡ Shockwave",          description: "Win 100+ points in a season",                 icon: "⚡", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "SEASON_POINTS",    criteriaValue: 100, engineType: "SEASON_EVENT" },
+  { key: "FIRST_BLOOD",       name: "🩸 First Blood",       description: "Win your first TKDL match",                    icon: "🩸", rarity: "Common",    category: "Career",    hidden: false, priority: 20, criteriaType: "CAREER_WINS",      criteriaValue: 1,   engineType: "STAT_BASED", coinReward: 25 },
+  { key: "WARMED_UP",         name: "🎯 Warm-Up",           description: "Play 10 TKDL matches",                         icon: "🎯", rarity: "Common",    category: "Career",    hidden: false, priority: 20, criteriaType: "CAREER_GAMES",     criteriaValue: 10,  engineType: "STAT_BASED", coinReward: 50, packReward: 'SINGLE' },
+  { key: "FIGHTER",           name: "🥊 Fighter",           description: "Play 5 matches",                               icon: "🥊", rarity: "Common",    category: "Career",    hidden: false, priority: 20, criteriaType: "CAREER_GAMES",     criteriaValue: 5,   engineType: "STAT_BASED", coinReward: 30 },
+  { key: "DUELIST",           name: "⚔ Duelist",            description: "Play 25 matches",                              icon: "⚔",  rarity: "Common",    category: "Career",    hidden: false, priority: 20, criteriaType: "CAREER_GAMES",     criteriaValue: 25,  engineType: "STAT_BASED", coinReward: 75, packReward: 'SINGLE' },
+  { key: "HEAT_CHECK",        name: "🔥 Heat Check",        description: "Win 3 in a row",                               icon: "🔥", rarity: "Common",    category: "Career",    hidden: false, priority: 20, criteriaType: "WIN_STREAK",       criteriaValue: 3,   engineType: "MATCH_EVENT",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 5, coinReward: 40 },
+  { key: "VETERAN",           name: "🎖 Veteran",           description: "Play 50 TKDL matches",                         icon: "🎖", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "CAREER_GAMES",     criteriaValue: 50,  engineType: "STAT_BASED", coinReward: 100, packReward: 'SINGLE' },
+  { key: "HIGH_ROLLER",       name: "💰 High Roller",       description: "Win a match wagering 25+ points",              icon: "💰", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "HIGH_STAKE_WIN",   criteriaValue: 25,  engineType: "MATCH_EVENT", coinReward: 75 },
+  { key: "PAY_DAY",           name: "💵 Pay Day",           description: "Win a match wagering 10+ points",              icon: "💵", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "HIGH_STAKE_WIN",   criteriaValue: 10,  engineType: "MATCH_EVENT", coinReward: 50 },
+  { key: "BULLSEYE",          name: "🏹 Bullseye",          description: "Reach 60% win rate over 10 games",             icon: "🏹", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "WIN_RATE",         criteriaValue: 60,  engineType: "STAT_BASED",   secondaryCriteria: "CAREER_GAMES", secondaryValue: 10, coinReward: 100, packReward: 'SINGLE' },
+  { key: "ROCK_SOLID",        name: "🪨 Rock Solid",        description: "Survive a season (never eliminated)",          icon: "🪨", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "SEASON_UNELIMINATED", criteriaValue: 1, engineType: "SEASON_EVENT", secondaryCriteria: "SEASON_GAMES", secondaryValue: 10, coinReward: 150, packReward: 'FIVE' },
+  { key: "RISK_TAKER",        name: "🎲 Risk Taker",        description: "Play 5 matches with 10+ points wagered",       icon: "🎲", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "HIGH_STAKES_TOTAL",criteriaValue: 5,   engineType: "MATCH_EVENT", coinReward: 75 },
+  { key: "GAMBLER",           name: "🎰 Gambler",           description: "Play 10 matches with 10+ points wagered",      icon: "🎰", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "HIGH_STAKES_MATCHES", criteriaValue: 10, engineType: "MATCH_EVENT", coinReward: 125, packReward: 'SINGLE' },
+  { key: "TACTICAL",          name: "🧠 Tactical",          description: "Win despite being underdog in points",         icon: "🧠", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "UPSET_WIN",        criteriaValue: 1,   engineType: "MATCH_EVENT", coinReward: 60 },
+  { key: "PRECISION",         name: "🎯 Precision",         description: "Reach 70% win rate over 20 games",             icon: "🎯", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "WIN_RATE",         criteriaValue: 70,  engineType: "STAT_BASED",   secondaryCriteria: "CAREER_GAMES", secondaryValue: 20, coinReward: 150, packReward: 'FIVE' },
+  { key: "TARGET_LOCKED",     name: "🎯 Target Locked",     description: "Beat same opponent 3 times",                   icon: "🎯", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "SAME_OPPONENT_WINS", criteriaValue: 3, engineType: "MATCH_EVENT", coinReward: 100 },
+  { key: "WIN_COLLECTOR",     name: "⚡ Win Collector",     description: "Win matches in 4+ different seasons",          icon: "⚡", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "MULTI_SEASON_WINS",criteriaValue: 4,   engineType: "SEASON_EVENT", coinReward: 200, packReward: 'FIVE' },
+  { key: "HISTORIAN",         name: "📚 Historian",         description: "Play in 3+ seasons",                          icon: "📚", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "MULTI_SEASON_PLAYS",criteriaValue: 3,  engineType: "SEASON_EVENT", coinReward: 125 },
+  { key: "PROFESSIONAL",      name: "💼 Professional",      description: "Play 75 career matches",                       icon: "💼", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "CAREER_GAMES",     criteriaValue: 75,  engineType: "STAT_BASED", coinReward: 150, packReward: 'FIVE' },
+  { key: "SHOWMAN",           name: "🎪 Showman",           description: "Win 5 featured matches",                       icon: "🎪", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "FEATURED_WINS",    criteriaValue: 5,   engineType: "MATCH_EVENT", coinReward: 125, packReward: 'SINGLE' },
+  { key: "COLLECTOR",         name: "📦 Collector",         description: "Unlock 10 achievements",                       icon: "📦", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "TOTAL_ACHIEVEMENTS",criteriaValue: 10,  engineType: "STAT_BASED", coinReward: 100 },
+  { key: "RED_HOT",           name: "🔥 Red Hot",           description: "Win 7 in a row",                               icon: "🔥", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "WIN_STREAK",       criteriaValue: 7,   engineType: "MATCH_EVENT",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 20, coinReward: 150, packReward: 'SINGLE' },
+  { key: "DOUBLE_TROUBLE",    name: "🧨 Double Eliminator", description: "Eliminate 2 players in one season",            icon: "🧨", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "SEASON_ELIMINATIONS", criteriaValue: 2, engineType: "SEASON_EVENT", coinReward: 200, packReward: 'FIVE' },
+  { key: "ELO_1050",          name: "🔷 Elite Threshold",   description: "Reach 1050 ELO rating",                        icon: "🔷", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "PEAK_ELO",         criteriaValue: 1050, engineType: "STAT_BASED", coinReward: 250, packReward: 'FIVE' },
+  { key: "HOT_STREAK",        name: "🔥 Hot Streak",        description: "Win 5 consecutive matches",                    icon: "🔥", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "WIN_STREAK",       criteriaValue: 5,   engineType: "MATCH_EVENT",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 10, coinReward: 200, packReward: 'FIVE' },
+  { key: "ELIMINATOR",        name: "⚔ Eliminator",         description: "Eliminate a player (reduce to 0 points)",     icon: "⚔",  rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "ELIMINATIONS",     criteriaValue: 1,   engineType: "MATCH_EVENT", coinReward: 150 },
+  { key: "GIANT_KILLER",      name: "⚔ Giant Killer",       description: "Beat a top-ranked player 3 times",            icon: "⚔",  rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "TOP_RANKED_WINS",  criteriaValue: 3,   engineType: "MATCH_EVENT", coinReward: 250, packReward: 'FIVE' },
+  { key: "IRON_WALL",         name: "🧱 Iron Wall",         description: "Finish season with no eliminations (stay active)", icon: "🧱", rarity: "Epic", category: "Career",    hidden: false, priority: 60, criteriaType: "SEASON_UNELIMINATED", criteriaValue: 1, engineType: "SEASON_EVENT", secondaryCriteria: "SEASON_GAMES", secondaryValue: 15, coinReward: 300, packReward: 'TEN' },
+  { key: "PREDATOR",          name: "🪓 Predator",          description: "Eliminate the same player twice",              icon: "🪓", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "PLAYER_ELIMINATIONS",criteriaValue: 2, engineType: "MATCH_EVENT", coinReward: 200 },
+  { key: "SHARPSHOOTER_ACH",  name: "🏹 Sharpshooter",     description: "Maintain 75% win rate over 30 games",          icon: "🏹", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "WIN_RATE",         criteriaValue: 75,  engineType: "STAT_BASED",   secondaryCriteria: "CAREER_GAMES", secondaryValue: 30, coinReward: 350, packReward: 'TEN' },
+  { key: "COMEBACK_KING",     name: "🩹 Comeback King",     description: "Win 3 matches after losing 2+",               icon: "🩹", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "COMEBACK_STREAK",  criteriaValue: 3,   engineType: "MATCH_EVENT", coinReward: 200, packReward: 'FIVE' },
+  { key: "KING_SLAYER",       name: "👑 King Slayer",       description: "Beat the top-ranked player 3 times",          icon: "👑", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "TOP_RANKED_WINS",  criteriaValue: 3,   engineType: "MATCH_EVENT", coinReward: 300, packReward: 'TEN' },
+  { key: "SHOCKWAVE",         name: "⚡ Shockwave",          description: "Win 100+ points in a season",                 icon: "⚡", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "SEASON_POINTS",    criteriaValue: 100, engineType: "SEASON_EVENT", coinReward: 250, packReward: 'FIVE' },
   { key: "DETONATOR",         name: "🧨 Detonator",         description: "Win a 100-point+ ELO swing match",            icon: "🧨", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "MASSIVE_SWING",    criteriaValue: 100, engineType: "MATCH_EVENT" },
   { key: "GRAVE_DIGGER",      name: "🪦 Grave Digger",      description: "Eliminate 3 different players in a season",   icon: "🪦", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "SEASON_UNIQUE_ELIMS", criteriaValue: 3, engineType: "SEASON_EVENT" },
   { key: "MARATHON",          name: "⏳ Marathon",           description: "Play 100 matches",                            icon: "⏳", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "CAREER_GAMES",     criteriaValue: 100, engineType: "STAT_BASED" },
@@ -372,8 +375,15 @@ async function grantIfNotHas(playerId: number, key: string): Promise<boolean> {
       eq(playerAchievementsTable.achievementId, ach.id)
     ));
   if (existing) return false;
+  
+  // Award the achievement
   await db.insert(playerAchievementsTable).values({ playerId, achievementId: ach.id });
   logger.info({ playerId, key }, "Achievement unlocked");
+  
+  // Award rewards (coins/packs)
+  await awardAchievementRewards(playerId, key);
+  
+  // Notify player
   void createNotification({
     playerId,
     type:       "achievement_unlocked",
@@ -382,6 +392,54 @@ async function grantIfNotHas(playerId: number, key: string): Promise<boolean> {
     message:    `${ach.icon ?? "🏆"} Achievement unlocked: ${ach.name}`,
   });
   return true;
+}
+
+/**
+ * Award coins and pack rewards for an achievement
+ */
+async function awardAchievementRewards(playerId: number, achievementKey: string): Promise<void> {
+  const reward = getAchievementReward(achievementKey);
+  if (!reward.coinReward && !reward.packReward) return;
+  
+  try {
+    const { playerCurrencyTable } = await import("@workspace/db");
+    
+    // Get current player currency
+    const [playerCurrency] = await db
+      .select()
+      .from(playerCurrencyTable)
+      .where(eq(playerCurrencyTable.playerId, playerId));
+    
+    if (!playerCurrency) {
+      logger.warn({ playerId }, "Player currency record not found for achievement reward");
+      return;
+    }
+    
+    // Calculate pack tokens to add
+    const packTokensToAdd = reward.packReward 
+      ? (reward.packReward === 'TEN' ? 10 : reward.packReward === 'FIVE' ? 5 : 1)
+      : 0;
+    
+    // Award coins and/or packs
+    await db
+      .update(playerCurrencyTable)
+      .set({
+        cardPoints: (playerCurrency.cardPoints || 0) + (reward.coinReward || 0),
+        packTokens: (playerCurrency.packTokens || 0) + packTokensToAdd,
+        lifetimeCoinsEarned: (playerCurrency.lifetimeCoinsEarned || 0) + (reward.coinReward || 0),
+        updatedAt: new Date(),
+      })
+      .where(eq(playerCurrencyTable.playerId, playerId));
+    
+    if (reward.coinReward || packTokensToAdd > 0) {
+      logger.info(
+        { playerId, achievementKey, coins: reward.coinReward, packs: packTokensToAdd },
+        "Achievement reward granted"
+      );
+    }
+  } catch (error) {
+    logger.error({ playerId, achievementKey, error }, "Failed to award achievement rewards");
+  }
 }
 
 export async function checkStatAchievements(playerId: number): Promise<void> {
