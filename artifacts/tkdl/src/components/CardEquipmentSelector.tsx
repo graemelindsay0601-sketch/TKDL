@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ALL_CARDS } from "@/lib/cards-data";
 import type { CardData } from "@/lib/cards-data";
-import { EquipCardDisplay } from "./EquipCardDisplay";
+import { TKDLCard } from "./TKDLCard";
 import { useCardClashSettings } from "@/hooks/useCardClashSettings";
 
 interface Card {
@@ -28,62 +28,158 @@ interface CardEquipmentSelectorProps {
   onCancel?: () => void;
 }
 
-const RAR_COLOR: Record<string, { border: string; glow: string; label: string; bg: string; text: string }> = {
-  COMMON:    { border: "#9ca3af", glow: "rgba(156,163,175,0.25)", label: "#d1d5db", bg: "rgba(156,163,175,0.06)", text: "#e5e7eb" },
-  RARE:      { border: "#818cf8", glow: "rgba(129,140,248,0.35)", label: "#a5b4fc", bg: "rgba(99,102,241,0.10)", text: "#c7d2fe" },
-  LEGENDARY: { border: "#fbbf24", glow: "rgba(251,191,36,0.45)",  label: "#fde68a", bg: "rgba(217,119,6,0.12)",  text: "#fef3c7" },
-};
-
-function MiniCard({ card, selected, disabled, onClick, isFavorite, onToggleFavorite }: { card: Card; selected: boolean; disabled: boolean; onClick: () => void; isFavorite: boolean; onToggleFavorite: (id: string, e: React.MouseEvent) => void }) {
-  const rc  = RAR_COLOR[card.rarity] ?? RAR_COLOR.COMMON;
+function CardArtworkDisplay({ 
+  card, 
+  selected, 
+  disabled, 
+  onClick, 
+  isFavorite, 
+  onToggleFavorite,
+  onPreview 
+}: { 
+  card: Card; 
+  selected: boolean; 
+  disabled: boolean; 
+  onClick: () => void; 
+  isFavorite: boolean; 
+  onToggleFavorite: (id: string, e: React.MouseEvent) => void;
+  onPreview: (e: React.MouseEvent) => void;
+}) {
+  const fullCard = ALL_CARDS.find(c => c.id === parseInt(card.id));
   const isG = card.cardType === "GOOD";
+  
+  if (!fullCard) return null;
+
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       style={{
-        all: "unset", display: "flex", gap: "8px", alignItems: "flex-start", position: "relative",
-        padding: "8px 10px", borderRadius: "8px", cursor: disabled ? "not-allowed" : "pointer",
-        transition: "all 0.18s", width: "100%", boxSizing: "border-box", minWidth: 0,
-        background: selected ? (isG ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)") : rc.bg,
-        border: `1.5px solid ${selected ? (isG ? "#22c55e" : "#ef4444") : rc.border + "60"}`,
-        boxShadow: selected ? `0 0 16px ${isG ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}` : "none",
-        opacity: disabled ? 0.38 : 1,
+        all: "unset",
+        position: "relative",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+        transition: "all 0.2s",
+        borderRadius: "12px",
+        overflow: "hidden",
+        border: selected ? `3px solid ${isG ? "#22c55e" : "#ef4444"}` : "2px solid rgba(255,255,255,0.1)",
+        boxShadow: selected ? `0 0 20px ${isG ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"}` : "0 0 8px rgba(0,0,0,0.5)",
       }}
     >
-      <div style={{ flexShrink: 0, width: "32px", height: "32px", borderRadius: "6px", background: rc.bg, border: `1px solid ${rc.border}55`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2px" }}>
-        <div style={{ fontSize: "14px" }}>{isG ? "⚡" : "💀"}</div>
-        <div style={{ fontSize: "6px", fontWeight: 800, color: rc.label, letterSpacing: "0.06em", fontFamily: "Arial,sans-serif" }}>{card.rarity[0]}</div>
+      {/* Card Artwork */}
+      <div style={{ width: "100%", height: "100%", minHeight: "280px" }}>
+        <TKDLCard 
+          card={fullCard}
+          size="md"
+          locked={disabled}
+        />
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: "11px", color: "#fff", fontFamily: "Arial,sans-serif", marginBottom: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.name}</div>
-        <div style={{ fontSize: "9px", color: rc.label, marginBottom: "3px", fontFamily: "Arial,sans-serif", letterSpacing: "0.04em" }}>{card.rarity} · ×{card.quantity}</div>
-        <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.4)", lineHeight: 1.3, fontFamily: "Arial,sans-serif", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{card.effect}</div>
-      </div>
-      <button
-        onClick={onToggleFavorite}
+
+      {/* Overlay Controls */}
+      <div
         style={{
-          all: "unset",
-          flexShrink: 0,
-          width: "24px",
-          height: "24px",
+          position: "absolute",
+          inset: 0,
+          background: selected ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0)",
+          transition: "background 0.2s",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          fontSize: "16px",
-          transition: "transform 0.2s, opacity 0.2s",
-          opacity: isFavorite ? 1 : 0.4,
+          flexDirection: "column",
+          justifyContent: "space-between",
+          padding: "12px",
+          pointerEvents: "none",
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.2)")}
-        onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-        title={isFavorite ? "Remove from favorites" : "Add to favorites"}
       >
-        {isFavorite ? "⭐" : "☆"}
-      </button>
-      {selected && (
-        <div style={{ flexShrink: 0, width: "18px", height: "18px", borderRadius: "50%", background: isG ? "#22c55e" : "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px" }}>✓</div>
-      )}
+        {/* Top: Favorite Button */}
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button
+            onClick={onToggleFavorite}
+            style={{
+              all: "unset",
+              width: "36px",
+              height: "36px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              fontSize: "20px",
+              borderRadius: "50%",
+              background: isFavorite ? "rgba(255,82,82,0.3)" : "rgba(0,0,0,0.4)",
+              border: `2px solid ${isFavorite ? "rgba(255,82,82,0.8)" : "rgba(255,255,255,0.2)"}`,
+              transition: "all 0.2s",
+              backdropFilter: "blur(8px)",
+              pointerEvents: "auto",
+              boxShadow: isFavorite ? "0 0 12px rgba(255,82,82,0.4)" : "none",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "scale(1.15)";
+              e.currentTarget.style.background = isFavorite ? "rgba(255,82,82,0.5)" : "rgba(0,0,0,0.6)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1)";
+              e.currentTarget.style.background = isFavorite ? "rgba(255,82,82,0.3)" : "rgba(0,0,0,0.4)";
+            }}
+            title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+          >
+            {isFavorite ? "⭐" : "☆"}
+          </button>
+        </div>
+
+        {/* Bottom: Preview Button */}
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <button
+            onClick={onPreview}
+            style={{
+              all: "unset",
+              padding: "8px 16px",
+              background: "rgba(0,100,255,0.4)",
+              border: "1.5px solid rgba(0,180,255,0.6)",
+              borderRadius: "6px",
+              color: "#00d4ff",
+              fontSize: "12px",
+              fontWeight: 700,
+              cursor: "pointer",
+              transition: "all 0.2s",
+              backdropFilter: "blur(8px)",
+              pointerEvents: "auto",
+              letterSpacing: "0.05em",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(0,100,255,0.6)";
+              e.currentTarget.style.boxShadow = "0 0 16px rgba(0,180,255,0.5)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(0,100,255,0.4)";
+              e.currentTarget.style.boxShadow = "none";
+            }}
+          >
+            👁 PREVIEW
+          </button>
+        </div>
+
+        {/* Selection Checkmark */}
+        {selected && (
+          <div
+            style={{
+              position: "absolute",
+              top: "12px",
+              left: "12px",
+              width: "32px",
+              height: "32px",
+              borderRadius: "50%",
+              background: isG ? "#22c55e" : "#ef4444",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "18px",
+              fontWeight: 900,
+              color: "#fff",
+              boxShadow: `0 0 16px ${isG ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)"}`,
+            }}
+          >
+            ✓
+          </div>
+        )}
+      </div>
     </button>
   );
 }
@@ -257,30 +353,21 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 {goodCards.map(c => (
-                  <div key={c.id} style={{ position: "relative" }}>
-                    <EquipCardDisplay card={c} selected={!!selectedGood.find(x => x.id === c.id)} disabled={selectedGood.length === gameSettings.equipable_good_cards && !selectedGood.find(x => x.id === c.id)} onClick={() => toggleGood(c)} />
-                    <button
-                      onClick={(e) => toggleFavorite(c.id, e)}
-                      style={{
-                        position: "absolute",
-                        top: "8px",
-                        right: "8px",
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        fontSize: "20px",
-                        opacity: favorites.has(c.id) ? 1 : 0.4,
-                        transition: "opacity 0.2s, transform 0.2s",
-                        zIndex: 10,
-                        padding: "4px",
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.3)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-                      title={favorites.has(c.id) ? "Remove from favorites" : "Add to favorites"}
-                    >
-                      {favorites.has(c.id) ? "⭐" : "☆"}
-                    </button>
-                  </div>
+                  <CardArtworkDisplay 
+                    key={c.id}
+                    card={c} 
+                    selected={!!selectedGood.find(x => x.id === c.id)} 
+                    disabled={selectedGood.length === gameSettings.equipable_good_cards && !selectedGood.find(x => x.id === c.id)} 
+                    onClick={() => toggleGood(c)}
+                    isFavorite={favorites.has(c.id)}
+                    onToggleFavorite={(id, e) => {
+                      e.stopPropagation();
+                      toggleFavorite(id, e);
+                    }}
+                    onPreview={(e) => {
+                      e.stopPropagation();
+                    }}
+                  />
                 ))}
               </div>
             )}
@@ -298,30 +385,21 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 {badCards.map(c => (
-                  <div key={c.id} style={{ position: "relative" }}>
-                    <EquipCardDisplay card={c} selected={!!selectedBad.find(x => x.id === c.id)} disabled={selectedBad.length === gameSettings.equipable_bad_cards && !selectedBad.find(x => x.id === c.id)} onClick={() => toggleBad(c)} />
-                    <button
-                      onClick={(e) => toggleFavorite(c.id, e)}
-                      style={{
-                        position: "absolute",
-                        top: "8px",
-                        right: "8px",
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        fontSize: "20px",
-                        opacity: favorites.has(c.id) ? 1 : 0.4,
-                        transition: "opacity 0.2s, transform 0.2s",
-                        zIndex: 10,
-                        padding: "4px",
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.3)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-                      title={favorites.has(c.id) ? "Remove from favorites" : "Add to favorites"}
-                    >
-                      {favorites.has(c.id) ? "⭐" : "☆"}
-                    </button>
-                  </div>
+                  <CardArtworkDisplay 
+                    key={c.id}
+                    card={c} 
+                    selected={!!selectedBad.find(x => x.id === c.id)} 
+                    disabled={selectedBad.length === gameSettings.equipable_bad_cards && !selectedBad.find(x => x.id === c.id)} 
+                    onClick={() => toggleBad(c)}
+                    isFavorite={favorites.has(c.id)}
+                    onToggleFavorite={(id, e) => {
+                      e.stopPropagation();
+                      toggleFavorite(id, e);
+                    }}
+                    onPreview={(e) => {
+                      e.stopPropagation();
+                    }}
+                  />
                 ))}
               </div>
             )}
