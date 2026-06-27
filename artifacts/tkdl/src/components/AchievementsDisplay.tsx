@@ -56,8 +56,6 @@ export function AchievementsDisplay({ playerStats, maxWidth = '800px' }: Achieve
         }
       `}</style>
 
-  return (
-    <div style={{ maxWidth, margin: '0 auto', color: '#fff' }}>
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <h2 style={{ margin: '0 0 8px', fontSize: '24px', fontWeight: 900 }}>
@@ -253,7 +251,7 @@ export function AchievementsDisplay({ playerStats, maxWidth = '800px' }: Achieve
                         width: `${Math.min((progress.current / progress.target) * 100, 100)}%`,
                         transition: 'width 0.3s',
                       }}
-                    />
+                    ></div>
                   </div>
                   <div
                     style={{
@@ -454,7 +452,7 @@ export function AchievementsDisplay({ playerStats, maxWidth = '800px' }: Achieve
                           width: `${Math.min((progress.current / progress.target) * 100, 100)}%`,
                           transition: 'width 0.3s',
                         }}
-                      />
+                      ></div>
                     </div>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: ACHIEVEMENT_COLORS[achievement.category] }}>
                       {progress.current} / {progress.target}
@@ -537,7 +535,7 @@ export function AchievementsDisplay({ playerStats, maxWidth = '800px' }: Achieve
                 </div>
               </div>
             );
-          })()}
+          })()
         </div>
       )}
 
