@@ -68,6 +68,7 @@ function MiniCard({ card, selected, disabled, onClick }: { card: Card; selected:
 export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, opponentName, gameMode, onConfirm, onBack, submitError }: CardEquipmentSelectorProps) {
   const playerId = currentPlayerId;
   const [inventory, setInventory] = useState<Card[]>([]);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [selectedGood, setSelectedGood] = useState<Card[]>([]);
   const [selectedBad, setSelectedBad]   = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,10 +79,22 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
   const loadInventory = async () => {
     try {
       setLoading(true); setError(null);
-      const r = await fetch(`/api/card-clash/inventory/${playerId}`);
-      if (!r.ok) throw new Error("Failed to load inventory");
-      const data = await r.json();
+      const [invRes, favRes] = await Promise.all([
+        fetch(`/api/card-clash/inventory/${playerId}`),
+        fetch(`/api/player/${playerId}/cards/favorites`).catch(() => ({ ok: false, json: async () => ({ favorites: [] }) }))
+      ]);
+      
+      if (!invRes.ok) throw new Error("Failed to load inventory");
+      
+      const data = await invRes.json();
       const raw: any[] = Array.isArray(data) ? data : (data.cards ?? []);
+      
+      const favData = favRes.ok ? await favRes.json() : { favorites: [] };
+      const favSet = new Set<string>(
+        (Array.isArray(favData?.favorites) ? favData.favorites : []).map((c: any) => String(c.id))
+      );
+      
+      setFavorites(favSet);
       setInventory(raw.map((c: any) => {
         const cardId = c.cardId ?? c.id;
         if (!cardId) {
@@ -102,8 +115,23 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
     } finally { setLoading(false); }
   };
 
-  const goodCards = inventory.filter(c => c.cardType === "GOOD" && (c.gameMode === gameMode || c.gameMode === "WILDCARD") && c.quantity > 0);
-  const badCards  = inventory.filter(c => c.cardType === "BAD"  && (c.gameMode === gameMode || c.gameMode === "WILDCARD") && c.quantity > 0);
+  const goodCards = inventory
+    .filter(c => c.cardType === "GOOD" && (c.gameMode === gameMode || c.gameMode === "WILDCARD") && c.quantity > 0)
+    .sort((a, b) => {
+      const aIsFav = favorites.has(a.id);
+      const bIsFav = favorites.has(b.id);
+      if (aIsFav !== bIsFav) return bIsFav ? 1 : -1;
+      return 0;
+    });
+    
+  const badCards = inventory
+    .filter(c => c.cardType === "BAD"  && (c.gameMode === gameMode || c.gameMode === "WILDCARD") && c.quantity > 0)
+    .sort((a, b) => {
+      const aIsFav = favorites.has(a.id);
+      const bIsFav = favorites.has(b.id);
+      if (aIsFav !== bIsFav) return bIsFav ? 1 : -1;
+      return 0;
+    });
 
   const toggleGood = (c: Card) => {
     if (selectedGood.find(x => x.id === c.id)) setSelectedGood(selectedGood.filter(x => x.id !== c.id));
