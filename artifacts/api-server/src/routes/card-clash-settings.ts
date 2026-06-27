@@ -38,43 +38,48 @@ const router = Router();
 router.get('/card-clash/settings', async (req: Request, res: Response) => {
   try {
     // Try to get from card_clash_settings table, otherwise return defaults
-    const [settings] = await db.execute(sql`
-      SELECT 
-        equipable_good_cards,
-        equipable_bad_cards,
-        card_clash_enabled,
-        practice_mode_enabled,
-        practice_reward_multiplier,
-        min_cards_per_type,
-        max_cards_per_type
-      FROM card_clash_settings
-      WHERE id = 1
-      LIMIT 1
-    `);
+    try {
+      const [settings] = await db.execute(sql`
+        SELECT 
+          equipable_good_cards,
+          equipable_bad_cards,
+          card_clash_enabled,
+          practice_mode_enabled,
+          practice_reward_multiplier,
+          min_cards_per_type,
+          max_cards_per_type
+        FROM card_clash_settings
+        WHERE id = 1
+        LIMIT 1
+      `);
 
-    if (!settings) {
-      return res.json({
-        settings: {
-          equipable_good_cards: DEFAULT_SETTINGS.equipable_good_cards,
-          equipable_bad_cards: DEFAULT_SETTINGS.equipable_bad_cards,
-          card_clash_enabled: DEFAULT_SETTINGS.card_clash_enabled,
-          practice_mode_enabled: DEFAULT_SETTINGS.practice_mode_enabled,
-          practice_reward_multiplier: DEFAULT_SETTINGS.practice_reward_multiplier,
-          min_cards_per_type: DEFAULT_SETTINGS.min_cards_per_type,
-          max_cards_per_type: DEFAULT_SETTINGS.max_cards_per_type,
-        },
-      });
+      if (settings) {
+        return res.json({
+          settings: {
+            equipable_good_cards: (settings as any).equipable_good_cards,
+            equipable_bad_cards: (settings as any).equipable_bad_cards,
+            card_clash_enabled: (settings as any).card_clash_enabled,
+            practice_mode_enabled: (settings as any).practice_mode_enabled,
+            practice_reward_multiplier: (settings as any).practice_reward_multiplier,
+            min_cards_per_type: (settings as any).min_cards_per_type,
+            max_cards_per_type: (settings as any).max_cards_per_type,
+          },
+        });
+      }
+    } catch (dbErr) {
+      (req as any).log?.warn({ dbErr }, 'Card Clash settings table not available, using defaults');
     }
 
+    // Fall back to defaults
     res.json({
       settings: {
-        equipable_good_cards: (settings as any).equipable_good_cards,
-        equipable_bad_cards: (settings as any).equipable_bad_cards,
-        card_clash_enabled: (settings as any).card_clash_enabled,
-        practice_mode_enabled: (settings as any).practice_mode_enabled,
-        practice_reward_multiplier: (settings as any).practice_reward_multiplier,
-        min_cards_per_type: (settings as any).min_cards_per_type,
-        max_cards_per_type: (settings as any).max_cards_per_type,
+        equipable_good_cards: DEFAULT_SETTINGS.equipable_good_cards,
+        equipable_bad_cards: DEFAULT_SETTINGS.equipable_bad_cards,
+        card_clash_enabled: DEFAULT_SETTINGS.card_clash_enabled,
+        practice_mode_enabled: DEFAULT_SETTINGS.practice_mode_enabled,
+        practice_reward_multiplier: DEFAULT_SETTINGS.practice_reward_multiplier,
+        min_cards_per_type: DEFAULT_SETTINGS.min_cards_per_type,
+        max_cards_per_type: DEFAULT_SETTINGS.max_cards_per_type,
       },
     });
   } catch (err) {
