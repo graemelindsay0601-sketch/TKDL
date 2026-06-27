@@ -31,7 +31,7 @@ import {
   incrementPacksOpened,
 } from "../lib/card-clash-achievements";
 import { ensurePlayerCurrency } from "../lib/cardTablesMigration";
-import { db, cardClashMatchesTable, cardClashSeasonsTable } from "@workspace/db";
+import { db, cardClashMatchesTable, cardClashSeasonsTable, cardInventoryTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 
 const router = Router();
@@ -879,6 +879,41 @@ router.post("/admin/login/reset/:playerId", verifyAdminPin, async (req: Request,
 
     res.json({ success: true, message: `Login streak reset for player ${playerId}` });
   } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+/**
+ * POST /api/card-clash/admin/reseed-inventory/:playerId
+ * ADMIN ONLY: Reseed player inventory with correct card IDs from ALL_CARDS
+ * Fixes bug where inventory had IDs 121-140, 191-200 instead of correct 101-120, 201-220, etc.
+ */
+router.post("/admin/reseed-inventory/:playerId", verifyAdminPin, async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.playerId);
+    const { ALL_CARDS } = await import("../seeds/all-cards");
+
+    // Delete existing inventory
+    await db.delete(cardInventoryTable).where(eq(cardInventoryTable.playerId, playerId));
+    console.log(`[RESEED] Deleted inventory for player ${playerId}`);
+
+    // Reseed with correct card IDs from ALL_CARDS
+    for (const card of ALL_CARDS) {
+      await db.insert(cardInventoryTable).values({
+        playerId,
+        cardId: card.id.toString(),
+        quantity: 1,
+      });
+    }
+
+    console.log(`[RESEED] Reseeded ${ALL_CARDS.length} cards for player ${playerId} with correct IDs from ALL_CARDS`);
+    res.json({
+      success: true,
+      message: `✅ Reseeded ${ALL_CARDS.length} cards with correct IDs for player ${playerId}`,
+      cardsAdded: ALL_CARDS.length,
+    });
+  } catch (error) {
+    console.error("[RESEED] Error:", error);
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
