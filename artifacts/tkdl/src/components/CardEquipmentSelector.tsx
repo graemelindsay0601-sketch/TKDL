@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { ALL_CARDS } from "@/lib/cards-data";
 import type { CardData } from "@/lib/cards-data";
 import { EquipCardDisplay } from "./EquipCardDisplay";
+import { useCardClashSettings } from "@/hooks/useCardClashSettings";
 
 interface Card {
   id: string;
@@ -74,6 +75,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
   const [selectedBad, setSelectedBad]   = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
+  const { settings: gameSettings } = useCardClashSettings();
 
   useEffect(() => { if (playerId) loadInventory(); }, [playerId]);
 
@@ -136,11 +138,11 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
 
   const toggleGood = (c: Card) => {
     if (selectedGood.find(x => x.id === c.id)) setSelectedGood(selectedGood.filter(x => x.id !== c.id));
-    else if (selectedGood.length < 2) setSelectedGood([...selectedGood, c]);
+    else if (selectedGood.length < gameSettings.equipable_good_cards) setSelectedGood([...selectedGood, c]);
   };
   const toggleBad = (c: Card) => {
     if (selectedBad.find(x => x.id === c.id)) setSelectedBad(selectedBad.filter(x => x.id !== c.id));
-    else if (selectedBad.length < 2) setSelectedBad([...selectedBad, c]);
+    else if (selectedBad.length < gameSettings.equipable_bad_cards) setSelectedBad([...selectedBad, c]);
   };
 
   const totalSelected = selectedGood.length + selectedBad.length;
@@ -201,7 +203,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
           <div style={{ marginBottom: "22px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
               <span style={{ fontSize: "20px" }}>⚡</span>
-              <span style={{ fontWeight: 900, fontSize: "14px", color: "#22c55e", letterSpacing: "0.08em", fontFamily: "'Arial Black',Arial,sans-serif" }}>GOOD CARDS ({selectedGood.length}/2)</span>
+              <span style={{ fontWeight: 900, fontSize: "14px", color: "#22c55e", letterSpacing: "0.08em", fontFamily: "'Arial Black',Arial,sans-serif" }}>GOOD CARDS ({selectedGood.length}/{gameSettings.equipable_good_cards})</span>
               <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", fontFamily: "Arial,sans-serif" }}>Boost YOU on your turn</span>
             </div>
             {goodCards.length === 0 ? (
@@ -211,7 +213,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 {goodCards.map(c => (
-                  <EquipCardDisplay key={c.id} card={c} selected={!!selectedGood.find(x => x.id === c.id)} disabled={selectedGood.length === 2 && !selectedGood.find(x => x.id === c.id)} onClick={() => toggleGood(c)} />
+                  <EquipCardDisplay key={c.id} card={c} selected={!!selectedGood.find(x => x.id === c.id)} disabled={selectedGood.length === gameSettings.equipable_good_cards && !selectedGood.find(x => x.id === c.id)} onClick={() => toggleGood(c)} />
                 ))}
               </div>
             )}
@@ -219,7 +221,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
               <span style={{ fontSize: "20px" }}>💀</span>
-              <span style={{ fontWeight: 900, fontSize: "14px", color: "#ef4444", letterSpacing: "0.08em", fontFamily: "'Arial Black',Arial,sans-serif" }}>BAD CARDS ({selectedBad.length}/2)</span>
+              <span style={{ fontWeight: 900, fontSize: "14px", color: "#ef4444", letterSpacing: "0.08em", fontFamily: "'Arial Black',Arial,sans-serif" }}>BAD CARDS ({selectedBad.length}/{gameSettings.equipable_bad_cards})</span>
               <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", fontFamily: "Arial,sans-serif" }}>Curse OPPONENT on their turn</span>
             </div>
             {badCards.length === 0 ? (
@@ -229,7 +231,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 {badCards.map(c => (
-                  <EquipCardDisplay key={c.id} card={c} selected={!!selectedBad.find(x => x.id === c.id)} disabled={selectedBad.length === 2 && !selectedBad.find(x => x.id === c.id)} onClick={() => toggleBad(c)} />
+                  <EquipCardDisplay key={c.id} card={c} selected={!!selectedBad.find(x => x.id === c.id)} disabled={selectedBad.length === gameSettings.equipable_bad_cards && !selectedBad.find(x => x.id === c.id)} onClick={() => toggleBad(c)} />
                 ))}
               </div>
             )}
