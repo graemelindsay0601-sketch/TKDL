@@ -297,7 +297,6 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
         const errorData = await response.json();
         console.error(`[toggleFavorite] Error:`, errorData);
       }
-      }
     } catch (err) {
       console.error('Failed to toggle favorite:', err);
     }
