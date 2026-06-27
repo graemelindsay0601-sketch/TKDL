@@ -267,46 +267,66 @@ export function AchievementsDisplay({ playerStats, maxWidth = '800px' }: Achieve
                 </div>
               )}
 
-              {/* Rewards */}
+              {/* Rewards - MORE VISIBLE */}
               <div
                 style={{
-                  display: 'flex',
-                  gap: '6px',
-                  fontSize: '12px',
-                  fontWeight: 700,
+                  marginBottom: '8px',
+                  padding: '6px 8px',
+                  background: 'rgba(255,212,74,0.15)',
+                  border: '1px solid rgba(255,212,74,0.5)',
+                  borderRadius: '6px',
                 }}
               >
                 <div
                   style={{
-                    flex: 1,
-                    padding: '4px 8px',
-                    background: 'rgba(255,210,74,0.1)',
-                    border: '1px solid rgba(255,210,74,0.3)',
-                    borderRadius: '4px',
+                    fontSize: '9px',
+                    fontWeight: 900,
                     color: '#ffd24a',
-                    textAlign: 'center',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    marginBottom: '4px',
                   }}
                 >
-                  +{achievement.coinReward} 🪙
+                  ⭐ Rewards
                 </div>
-                {achievement.packReward && (
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '6px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                  }}
+                >
                   <div
                     style={{
                       flex: 1,
-                      padding: '4px 8px',
-                      background: 'rgba(34,197,94,0.1)',
-                      border: '1px solid rgba(34,197,94,0.3)',
-                      borderRadius: '4px',
-                      color: '#22c55e',
+                      padding: '4px 6px',
+                      background: 'rgba(255,210,74,0.2)',
+                      border: '1px solid rgba(255,210,74,0.4)',
+                      borderRadius: '3px',
+                      color: '#ffd24a',
                       textAlign: 'center',
-                      fontSize: '10px',
                     }}
                   >
-                    {achievement.packReward === 'SINGLE' && '📦'}
-                    {achievement.packReward === 'FIVE' && '📦📦📦'}
-                    {achievement.packReward === 'TEN' && '📦×10'}
+                    🪙 +{achievement.coinReward}
                   </div>
-                )}
+                  {achievement.packReward && (
+                    <div
+                      style={{
+                        flex: 1,
+                        padding: '4px 6px',
+                        background: 'rgba(34,197,94,0.2)',
+                        border: '1px solid rgba(34,197,94,0.4)',
+                        borderRadius: '3px',
+                        color: '#22c55e',
+                        textAlign: 'center',
+                        fontSize: '10px',
+                      }}
+                    >
+                      📦 {achievement.packReward === 'SINGLE' && '1'}{achievement.packReward === 'FIVE' && '5'}{achievement.packReward === 'TEN' && '10'}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Tier Badge */}

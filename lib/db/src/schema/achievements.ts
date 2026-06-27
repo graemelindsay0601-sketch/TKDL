@@ -17,6 +17,8 @@ export const achievementsTable = pgTable("achievements", {
   engineType: text("engine_type").notNull().default("STAT_BASED"),
   secondaryCriteria: text("secondary_criteria"),
   secondaryValue: integer("secondary_value"),
+  coinReward: integer("coin_reward").notNull().default(0),
+  packReward: text("pack_reward"), // 'SINGLE' | 'FIVE' | 'TEN'
 });
 
 export const playerAchievementsTable = pgTable("player_achievements", {

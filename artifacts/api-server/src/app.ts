@@ -15,6 +15,7 @@ import { seedTourSystem } from "./lib/tourSeed";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
 import { initializeCardTables, initializeFeatureFlags } from "./lib/cardTablesMigration";
 import { addFavoritesColumn } from "./db/migrations/add_favorites";
+import { addAchievementRewards } from "./db/migrations/add_achievement_rewards";
 import { seedCardDefinitions } from "./services/card-definitions-service";
 import { challengeService } from "./services/challenge-service";
 import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
@@ -732,6 +733,7 @@ async function init() {
     await seedNotificationTables();
     await initializeNotificationPreferences();
     await addFavoritesColumn();
+    await addAchievementRewards();
     await seedCommunityTables();
     await seedPractice();
     await seedMaster501();
