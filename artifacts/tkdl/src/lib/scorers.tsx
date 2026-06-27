@@ -3288,8 +3288,8 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
                     .filter((c: any) => c.category?.includes("GOOD"))
                     .map((card: any) => {
                       const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
-                      const isCurrentlyActive = activeEffects.some((e: any) => e.cardName === card.name && e.affectsPlayer === turn && e.appliedBy === turn);
-                      const isUsed = isPermanentlyUsed || isCurrentlyActive;
+                      // Only show as used if player manually activated it (not just because it has starting effects)
+                      const isUsed = isPermanentlyUsed;
                       return (
                         <div
                           key={card.id}
@@ -3339,8 +3339,8 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
                     .filter((c: any) => c.category?.includes("BAD"))
                     .map((card: any) => {
                       const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
-                      const isCurrentlyActive = activeEffects.some((e: any) => e.cardName === card.name && e.affectsPlayer === turn && e.appliedBy === turn);
-                      const isUsed = isPermanentlyUsed || isCurrentlyActive;
+                      // Only show as used if player manually activated it
+                      const isUsed = isPermanentlyUsed;
                       return (
                         <div
                           key={card.id}
