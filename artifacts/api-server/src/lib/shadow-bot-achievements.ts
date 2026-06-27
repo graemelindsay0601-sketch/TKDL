@@ -33,7 +33,9 @@ export type ShadowBotAchievementDef = {
     | "GAME_FAMILY";
   criteriaValue: number;
   gameFilter?: string; // for GAME_FAMILY: exact game_type_key OR "FAM_<code>" for family aggregate
-, coinReward: 15};
+  coinReward?: number;
+  packReward?: "SINGLE" | "FIVE" | "TEN";
+};
 
 export function botLevelIndex(computedAvg: number): number {
   if (computedAvg >= 108) return 5;
