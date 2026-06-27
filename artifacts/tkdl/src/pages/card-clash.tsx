@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useCurrentPlayer } from "@/context/auth";
 import { CardShopUI } from "@/components/CardShopUI";
+import { FreePackDisplay } from "@/components/FreePackDisplay";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
 import { CardClashMockGame } from "@/components/CardClashMockGame";
 import { CardClashPracticeMode } from "@/components/CardClashPracticeMode";
@@ -465,6 +466,9 @@ const PACKS = [
             {activeTab==="shop" && (
               <div style={{maxWidth:"680px",margin:"0 auto"}}>
                 <SectionHeader title="🛍️ Card Shop" subtitle="Open packs. Build your arsenal. All 100 cards waiting."/>
+                <div style={{marginBottom:"20px"}}>
+                  <FreePackDisplay playerId={playerId} onClaimPack={loadData} />
+                </div>
                 <div style={{padding:"22px 24px",background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:"16px",marginBottom:"1.5rem"}}>
                   <CardShopUI playerId={playerId} onCardsReceived={handleCardsReceived} freePacks={packInventory} onFreePackOpened={loadData}/>
                 </div>
