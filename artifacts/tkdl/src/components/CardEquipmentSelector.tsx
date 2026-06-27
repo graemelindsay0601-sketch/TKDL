@@ -404,7 +404,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                 No {gameMode} Good cards in your collection — head to the Shop!
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: typeof window !== 'undefined' && window.innerWidth < 768 ? "1fr" : "1fr 1fr", gap: "12px" }}>
                 {goodCards.map(c => (
                   <CardArtworkDisplay 
                     key={c.id}
@@ -433,7 +433,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                 No {gameMode} Bad cards in your collection — head to the Shop!
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: typeof window !== 'undefined' && window.innerWidth < 768 ? "1fr" : "1fr 1fr", gap: "12px" }}>
                 {badCards.map(c => (
                   <CardArtworkDisplay 
                     key={c.id}
