@@ -257,7 +257,30 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 {goodCards.map(c => (
-                  <EquipCardDisplay key={c.id} card={c} selected={!!selectedGood.find(x => x.id === c.id)} disabled={selectedGood.length === gameSettings.equipable_good_cards && !selectedGood.find(x => x.id === c.id)} onClick={() => toggleGood(c)} />
+                  <div key={c.id} style={{ position: "relative" }}>
+                    <EquipCardDisplay card={c} selected={!!selectedGood.find(x => x.id === c.id)} disabled={selectedGood.length === gameSettings.equipable_good_cards && !selectedGood.find(x => x.id === c.id)} onClick={() => toggleGood(c)} />
+                    <button
+                      onClick={(e) => toggleFavorite(c.id, e)}
+                      style={{
+                        position: "absolute",
+                        top: "8px",
+                        right: "8px",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: "20px",
+                        opacity: favorites.has(c.id) ? 1 : 0.4,
+                        transition: "opacity 0.2s, transform 0.2s",
+                        zIndex: 10,
+                        padding: "4px",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.3)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                      title={favorites.has(c.id) ? "Remove from favorites" : "Add to favorites"}
+                    >
+                      {favorites.has(c.id) ? "⭐" : "☆"}
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -275,7 +298,30 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 {badCards.map(c => (
-                  <EquipCardDisplay key={c.id} card={c} selected={!!selectedBad.find(x => x.id === c.id)} disabled={selectedBad.length === gameSettings.equipable_bad_cards && !selectedBad.find(x => x.id === c.id)} onClick={() => toggleBad(c)} />
+                  <div key={c.id} style={{ position: "relative" }}>
+                    <EquipCardDisplay card={c} selected={!!selectedBad.find(x => x.id === c.id)} disabled={selectedBad.length === gameSettings.equipable_bad_cards && !selectedBad.find(x => x.id === c.id)} onClick={() => toggleBad(c)} />
+                    <button
+                      onClick={(e) => toggleFavorite(c.id, e)}
+                      style={{
+                        position: "absolute",
+                        top: "8px",
+                        right: "8px",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: "20px",
+                        opacity: favorites.has(c.id) ? 1 : 0.4,
+                        transition: "opacity 0.2s, transform 0.2s",
+                        zIndex: 10,
+                        padding: "4px",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.3)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                      title={favorites.has(c.id) ? "Remove from favorites" : "Add to favorites"}
+                    >
+                      {favorites.has(c.id) ? "⭐" : "☆"}
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
