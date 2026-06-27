@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ALL_CARDS } from "@/lib/cards-data";
 import type { CardData } from "@/lib/cards-data";
+import { EquipCardDisplay } from "./EquipCardDisplay";
 
 interface Card {
   id: string;
@@ -208,9 +209,9 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                 No {gameMode} Good cards in your collection — head to the Shop!
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 {goodCards.map(c => (
-                  <MiniCard key={c.id} card={c} selected={!!selectedGood.find(x => x.id === c.id)} disabled={selectedGood.length === 2 && !selectedGood.find(x => x.id === c.id)} onClick={() => toggleGood(c)} />
+                  <EquipCardDisplay key={c.id} card={c} selected={!!selectedGood.find(x => x.id === c.id)} disabled={selectedGood.length === 2 && !selectedGood.find(x => x.id === c.id)} onClick={() => toggleGood(c)} />
                 ))}
               </div>
             )}
@@ -226,9 +227,9 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                 No {gameMode} Bad cards in your collection — head to the Shop!
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 {badCards.map(c => (
-                  <MiniCard key={c.id} card={c} selected={!!selectedBad.find(x => x.id === c.id)} disabled={selectedBad.length === 2 && !selectedBad.find(x => x.id === c.id)} onClick={() => toggleBad(c)} />
+                  <EquipCardDisplay key={c.id} card={c} selected={!!selectedBad.find(x => x.id === c.id)} disabled={selectedBad.length === 2 && !selectedBad.find(x => x.id === c.id)} onClick={() => toggleBad(c)} />
                 ))}
               </div>
             )}
