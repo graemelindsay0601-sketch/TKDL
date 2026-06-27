@@ -4,6 +4,7 @@ import { CardShopUI } from "@/components/CardShopUI";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
 import { CardClashMockGame } from "@/components/CardClashMockGame";
 import { CardClashPracticeMode } from "@/components/CardClashPracticeMode";
+import { AdminCardClashSettingsPanel } from "@/components/AdminCardClashSettingsPanel";
 import { TKDLCard } from "@/components/TKDLCard";
 import { ALL_CARDS } from "@/lib/cards-data";
 import type { CardData, Category, Rarity } from "@/lib/cards-data";
@@ -670,6 +671,7 @@ const PACKS = [
                         {adminResult.details?.map((d,i)=><div key={i} style={{fontSize:"12px",color:"rgba(255,255,255,0.36)",lineHeight:1.6}}>{d}</div>)}
                       </div>
                     )}
+                    <AdminCardClashSettingsPanel adminPin="0601" />
                     <div style={{padding:"20px 22px",background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:"14px"}}>
                       <div style={{fontSize:"11px",fontWeight:900,color:"#00b4ff",letterSpacing:"0.13em",marginBottom:"8px"}}>🗑️ CLEAR CHALLENGES</div>
                       <p style={{margin:"0 0 14px",fontSize:"12px",color:"rgba(255,255,255,0.35)",lineHeight:1.6}}>Removes daily &amp; weekly challenge progress. Templates are preserved — players get fresh challenges on next visit.</p>
