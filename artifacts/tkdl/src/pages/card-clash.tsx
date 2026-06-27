@@ -4,6 +4,7 @@ import { CardShopUI } from "@/components/CardShopUI";
 import { FreePackDisplay } from "@/components/FreePackDisplay";
 import { getDynamicBuzzMessage, BuzzMessageDisplay, getTimeBasedBuzzMessage } from "@/utils/buzzMessages";
 import { AchievementsDisplay } from "@/components/AchievementsDisplay";
+import { AdvancedAdminTools } from "@/components/AdvancedAdminTools";
 import type { PlayerStats } from "@/utils/achievements";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
 import { CardClashMockGame } from "@/components/CardClashMockGame";
@@ -644,6 +645,7 @@ const PACKS = [
                       </div>
                     )}
                     <AdminCardClashSettingsPanel adminPin="0601" />
+                    <AdvancedAdminTools playerId={playerId} adminPin="0601" />
                     <div style={{padding:"20px 22px",background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:"14px"}}>
                       <div style={{fontSize:"11px",fontWeight:900,color:"#00b4ff",letterSpacing:"0.13em",marginBottom:"8px"}}>🗑️ CLEAR CHALLENGES</div>
                       <p style={{margin:"0 0 14px",fontSize:"12px",color:"rgba(255,255,255,0.35)",lineHeight:1.6}}>Removes daily &amp; weekly challenge progress. Templates are preserved — players get fresh challenges on next visit.</p>
