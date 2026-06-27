@@ -723,7 +723,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           </div>
           
           {showCards && isCardClash ? (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", maxHeight: "200px", overflow: "auto" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", maxHeight: "200px", overflow: "auto", position: "relative", zIndex: 10 }}>
               {/* Good cards (top row) */}
               {(turn === 0 ? p1Cards : p2Cards)
                 .filter((c: any) => c.category?.includes("GOOD"))
@@ -3154,7 +3154,7 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
             </div>
             
             {showCards && isCardClash ? (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", maxHeight: "200px", overflow: "auto" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", maxHeight: "200px", overflow: "auto", position: "relative", zIndex: 10 }}>
                 {p1Cards
                   .filter((c: any) => c.category?.includes("GOOD"))
                   .map((card: any) => {
