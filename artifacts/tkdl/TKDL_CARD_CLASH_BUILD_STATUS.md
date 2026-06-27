@@ -1,46 +1,36 @@
-# TKDL Card Clash Build Status — Session End (Jun 26, 2026)
+# TKDL Card Clash Build Status — Session End (Jun 27, 2026)
 
 ## Latest Session Summary
-**Card Match UI & Card Display Rebuild**
+**Card Artwork Display & Activation Flow Fixes**
 
 ### What Got Fixed
 
-#### 1. ✅ Equipment Selector Button (CRITICAL UX FIX)
-- **Before**: PLAY button barely visible/tappable at bottom
-- **After**: +40% larger padding, bigger text, better contrast
-  - Padding: 11px → 18px, Font: 13px → 16px
-  - Sticky positioning improved
-- **Commit**: 62b51c6
+#### 1. ✅ Cards No Longer Struck-Through During Match
+- **Problem**: Cards were showing as struck-through when they had active effects
+- **Cause**: Modal was checking `isCurrentlyActive` (has any effect) instead of just `isPermanentlyUsed` (player activated)
+- **Fix**: Removed `isCurrentlyActive` check - only cards player manually activates show as used
+- **Commit**: 7bc2615
 
-#### 2. ✅ Card Display in Match Screen (COMPLETE REDESIGN)
-- **Before**: No card UI in match, only CardActivationOverlay status bar (top-right)
-- **After**: Full card panel at bottom showing:
-  - Header: "YOUR CARDS" with counts (available/used)
-  - Grid of 4 equipped cards as full TKDLCard components (WITH ARTWORK)
-  - Used cards greyed out with ✓ badge
-  - Tap any card → enlarge in modal
+#### 2. ✅ Cards Only Activate on Player Confirmation
+- **Problem**: All equipped cards were pre-activated when match started
+- **Cause**: CardClashMatchScorer was calling `ccActivateCard()` for all cards upfront
+- **Flow Now**:
+  1. Match starts - all cards visible, not active
+  2. Player clicks card in modal
+  3. CardActivationOverlay shows enlarged card
+  4. Player clicks "Confirm" → card effect now activates
+  5. Clicking "Close" → card stays unactivated
+- **Commit**: eead596
 
-#### 3. ✅ Card Modal Enhancement
-- Full TKDLCard enlarged view (1.3x scale)
-- Effect text displayed clearly
-- Two buttons: CLOSE (dismiss) + CONFIRM (play card)
-- Used cards can't be tapped (visual feedback)
-
-#### 4. ✅ Card Artwork Now Shows (Fixed Data Flow)
-- **Problem**: Scorers were passing simplified card objects missing artwork URLs
-  - Used wrong field names: `effect_text` → should be `effect`
-  - Used wrong field: `good_or_bad` → should use `category`
-- **Solution**: Pass full CardData objects via spread operator
-  ```typescript
-  equippedCards={...cardData, id: c.id || 0, isActive: isUsed}
-  ```
-- **Result**: TKDLCard now receives complete data and loads artwork via slug fallback
-
-#### 5. ✅ Fullscreen Match Layout
-- CardClashMatchScorer now 100vh fixed positioning
-- Prevents scrolling into page background/challenges
-- Proper z-index layering so overlays appear on top
-- Commit: cb76735
+#### 3. ✅ Real Card Artwork Displayed in Modal
+- **Before**: Modal showed plain text card names (e.g. "Treble Hunter")
+- **After**: Full TKDLCard artwork with:
+  - Complete visual design matching Collection page
+  - Rarity indicators and colored borders
+  - Game mode tags (X01 GOOD, CRICKET BAD, etc)
+  - Locked appearance (40% opacity + scaled) for used cards
+- **Applied to**: Both X01 and Cricket modal overlays
+- **Commit**: da83da8
 
 ---
 
