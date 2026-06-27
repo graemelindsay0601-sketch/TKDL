@@ -1,10 +1,14 @@
 import { useState } from "react";
 import type { CardData, Category, Rarity } from "../lib/cards-data";
+import { FavoriteButton } from "./FavoriteButton";
 
 interface TKDLCardProps {
   card: CardData;
   size?: "sm" | "md" | "lg";
   locked?: boolean;
+  isFavorite?: boolean;
+  playerId?: number;
+  onFavoriteChange?: (isFavorite: boolean) => void;
 }
 
 const CATEGORY_CONFIG: Record<Category, {
@@ -37,7 +41,14 @@ function highlightEffect(text: string, color: string): React.ReactNode {
   });
 }
 
-export function TKDLCard({ card, size = "md", locked = false }: TKDLCardProps) {
+export function TKDLCard({ 
+  card, 
+  size = "md", 
+  locked = false,
+  isFavorite = false,
+  playerId,
+  onFavoriteChange
+}: TKDLCardProps) {
   const [flipped, setFlipped] = useState(false);
   const cfg = CATEGORY_CONFIG[card.category];
   const rar = RARITY_CONFIG[card.rarity];
@@ -134,6 +145,19 @@ export function TKDLCard({ card, size = "md", locked = false }: TKDLCardProps) {
               <span style={{ fontSize: "0.45rem", color: rarityColor, fontWeight: 700, letterSpacing: "0.1em" }}>{rar.label}</span>
               <span style={{ color: rarityColor, fontSize: size === "lg" ? "12px" : "10px", lineHeight: 1, filter: `drop-shadow(0 0 4px ${rar.glow})` }}>{rar.diamond}</span>
             </div>
+
+            {/* Favorite button */}
+            {playerId && !locked && (
+              <div style={{ marginLeft: "4px", opacity: 0.8 }}>
+                <FavoriteButton
+                  cardId={card.id}
+                  playerId={playerId}
+                  isFavorite={isFavorite}
+                  onToggle={onFavoriteChange}
+                  size="small"
+                />
+              </div>
+            )}
           </div>
 
           {/* Artwork area */}

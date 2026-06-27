@@ -21,6 +21,7 @@ import notificationsRouter from "./notifications";
 import statsDetailedRouter from "./stats-detailed";
 import cardClashRouter     from "./card-clash";
 import challengesRouter    from "./challenges";
+import favoritesRouter     from "./favorites";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use(notificationsRouter);
 router.use(statsDetailedRouter);
 router.use("/card-clash", cardClashRouter);
 router.use("/challenges", challengesRouter);
+router.use(favoritesRouter);
 
 export default router;

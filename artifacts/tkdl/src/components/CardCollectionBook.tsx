@@ -20,6 +20,7 @@ const TYPE_GROUPS: TypeGroup[] = [
 
 export function CardCollectionBook({ playerId }: { playerId: number }) {
   const [ownedNames, setOwnedNames] = useState<Set<string>>(new Set());
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
   const [expandedType, setExpandedType] = useState<string>("x01-good");
@@ -27,15 +28,23 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
   useEffect(() => {
     if (!playerId) return;
     setLoading(true);
-    fetch(`/api/card-clash/inventory/${playerId}`)
-      .then(r => r.json())
-      .then((inv: any[]) => {
+    Promise.all([
+      fetch(`/api/card-clash/inventory/${playerId}`).then(r => r.json()),
+      fetch(`/api/player/${playerId}/cards/favorites`).then(r => r.json()).catch(() => ({ favorites: [] }))
+    ])
+      .then(([inv, favData]: any[]) => {
         const names = new Set<string>(
           (Array.isArray(inv) ? inv : []).map(
             (c: any) => c.cardName ?? c.name ?? ""
           )
         );
+        const favoriteCardIds = new Set<string>(
+          (Array.isArray(favData?.favorites) ? favData.favorites : []).map(
+            (c: any) => String(c.id)
+          )
+        );
         setOwnedNames(names);
+        setFavorites(favoriteCardIds);
         setLoading(false);
       })
       .catch(err => {
@@ -86,17 +95,37 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
               {/* Cards grid */}
               {isExpanded && (
                 <div style={{ marginTop: "12px", padding: "12px", background: "rgba(0,0,0,0.25)", borderRadius: "8px", display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "flex-start" }}>
-                  {groupCards.map(card => {
-                    const isOwned = ownedNames.has(card.name);
-                    return (
-                      <TKDLCard
-                        key={card.id}
-                        card={card}
-                        size="sm"
-                        locked={!isOwned}
-                      />
-                    );
-                  })}
+                  {groupCards
+                    .sort((a, b) => {
+                      // Favorites first
+                      const aIsFav = favorites.has(String(a.id));
+                      const bIsFav = favorites.has(String(b.id));
+                      if (aIsFav !== bIsFav) return bIsFav ? 1 : -1;
+                      return 0;
+                    })
+                    .map(card => {
+                      const isOwned = ownedNames.has(card.name);
+                      const isFavorite = favorites.has(String(card.id));
+                      return (
+                        <TKDLCard
+                          key={card.id}
+                          card={card}
+                          size="sm"
+                          locked={!isOwned}
+                          isFavorite={isFavorite}
+                          playerId={playerId}
+                          onFavoriteChange={(newFavState) => {
+                            const newFavorites = new Set(favorites);
+                            if (newFavState) {
+                              newFavorites.add(String(card.id));
+                            } else {
+                              newFavorites.delete(String(card.id));
+                            }
+                            setFavorites(newFavorites);
+                          }}
+                        />
+                      );
+                    })}
                 </div>
               )}
             </div>
