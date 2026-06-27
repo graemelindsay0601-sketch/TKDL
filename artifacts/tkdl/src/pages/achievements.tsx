@@ -2,6 +2,8 @@ import { useListAchievements } from "@workspace/api-client-react";
 import { useState, useEffect } from "react";
 import { Lock, Star, Users, Trophy, Medal, CircuitBoard } from "lucide-react";
 import { format } from "date-fns";
+import { AchievementRewardModal } from "../components/AchievementRewardModal";
+import { useAchievementModal } from "../utils/use-achievement-modal";
 
 // ── Shared fetch hook ──────────────────────────────────────────────────────────
 
@@ -46,7 +48,7 @@ function getRarityMeta(rarity: string, isHidden: boolean) {
   return RARITY_META[rarity] ?? RARITY_META.Common;
 }
 
-function AchCard({ a, hovered, onHover }: { a: any; hovered: boolean; onHover: (v: boolean) => void }) {
+function AchCard({ a, hovered, onHover, onClick }: { a: any; hovered: boolean; onHover: (v: boolean) => void; onClick: () => void }) {
   const isHidden = !!(a as any).hidden;
   const rm = getRarityMeta(a.rarity, isHidden);
   const unlocked = (a as any).unlockedCount ?? 0;
@@ -55,7 +57,8 @@ function AchCard({ a, hovered, onHover }: { a: any; hovered: boolean; onHover: (
     <div
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
-      className="relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200 cursor-default"
+      onClick={onClick}
+      className="relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200 cursor-pointer hover:scale-105"
       style={{
         background: rm.bg,
         border: `1px solid ${rm.border}`,
@@ -239,6 +242,7 @@ function LeagueTab() {
               a={a}
               hovered={hoveredId === a.id}
               onHover={v => setHoveredId(v ? a.id : null)}
+              onClick={() => openAchievementModal(a)}
             />
           ))}
         </div>
@@ -549,6 +553,7 @@ function Master501Tab() {
               a={{ ...a, unlockedCount: a.unlocked_count }}
               hovered={hoveredKey === a.key}
               onHover={v => setHoveredKey(v ? a.key : null)}
+              onClick={() => openAchievementModal({ ...a, unlockedCount: a.unlocked_count })}
             />
           ))}
         </div>
@@ -663,6 +668,8 @@ type TabKey = typeof TABS[number]["key"];
 
 export default function Achievements() {
   const [tab, setTab] = useState<TabKey>("league");
+  const { selectedAchievement, isModalOpen, openAchievementModal, closeAchievementModal } =
+    useAchievementModal();
 
   const active = TABS.find(t => t.key === tab)!;
 
@@ -705,6 +712,12 @@ export default function Achievements() {
       {tab === "bot"       && <BotTab />}
       {tab === "master501" && <Master501Tab />}
       {tab === "trophies"  && <TrophiesTab />}
+
+      <AchievementRewardModal
+        achievement={selectedAchievement}
+        isOpen={isModalOpen}
+        onClose={closeAchievementModal}
+      />
     </div>
   );
 }
