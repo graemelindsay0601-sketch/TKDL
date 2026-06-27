@@ -858,6 +858,7 @@ const PACKS = [
           {/* Decorative glow line */}
           <div style={{position:"absolute",bottom:0,left:0,right:0,height:"2px",background:"linear-gradient(90deg,#7c3aed,#4c1d95,#7c3aed)"}}/>
         </div>
+        )}
 
         {/* ── MODE SELECTOR ── */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"10px",marginBottom:"1.75rem"}}>
@@ -999,7 +1000,6 @@ const PACKS = [
           </div>
           <button onClick={()=>setLaunching(true)} style={{all:"unset",padding:"10px 22px",borderRadius:"8px",cursor:"pointer",background:"linear-gradient(135deg,#00cc66,#008833)",color:"#fff",fontSize:"12px",fontWeight:900,letterSpacing:"0.07em",boxShadow:"0 4px 20px rgba(0,200,100,0.4)",flexShrink:0,transition:"all 0.15s"}}>PLAY NOW</button>
         </div>
-        )}
 
       </div>
     );
