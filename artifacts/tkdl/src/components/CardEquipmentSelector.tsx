@@ -92,7 +92,7 @@ function CardArtworkDisplay({
         {/* Top: Favorite Button */}
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button
-            onClick={onToggleFavorite}
+            onClick={(e) => onToggleFavorite(card.id, e)}
             style={{
               all: "unset",
               width: "36px",
@@ -216,9 +216,9 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
       
       setFavorites(favSet);
       setInventory(raw.map((c: any) => {
-        const cardId = c.cardId ?? c.id;
+        const cardId = c.id ?? c.cardId ?? c.id;  // Prefer numeric id from DB
         if (!cardId) {
-          console.warn("Card missing cardId field", c);
+          console.warn("Card missing id field", c);
         }
         return {
           id: String(cardId || ""),
@@ -360,10 +360,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                     disabled={selectedGood.length === gameSettings.equipable_good_cards && !selectedGood.find(x => x.id === c.id)} 
                     onClick={() => toggleGood(c)}
                     isFavorite={favorites.has(c.id)}
-                    onToggleFavorite={(id, e) => {
-                      e.stopPropagation();
-                      toggleFavorite(id, e);
-                    }}
+                    onToggleFavorite={toggleFavorite}
                     onPreview={(e) => {
                       e.stopPropagation();
                     }}
@@ -392,10 +389,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                     disabled={selectedBad.length === gameSettings.equipable_bad_cards && !selectedBad.find(x => x.id === c.id)} 
                     onClick={() => toggleBad(c)}
                     isFavorite={favorites.has(c.id)}
-                    onToggleFavorite={(id, e) => {
-                      e.stopPropagation();
-                      toggleFavorite(id, e);
-                    }}
+                    onToggleFavorite={toggleFavorite}
                     onPreview={(e) => {
                       e.stopPropagation();
                     }}

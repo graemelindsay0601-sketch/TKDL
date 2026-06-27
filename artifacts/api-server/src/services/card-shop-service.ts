@@ -188,6 +188,7 @@ async function generateCards(playerId: number, count: number) {
 export async function getPlayerInventory(playerId: number) {
   const inventory = await db
     .select({
+      id: cardDefinitionsTable.id,
       cardId: cardInventoryTable.cardId,
       quantity: cardInventoryTable.quantity,
       cardName: cardDefinitionsTable.name,
