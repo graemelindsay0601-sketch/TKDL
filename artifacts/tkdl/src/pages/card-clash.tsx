@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useCurrentPlayer } from "@/context/auth";
 import { CardShopUI } from "@/components/CardShopUI";
 import { FreePackDisplay } from "@/components/FreePackDisplay";
+import { getDynamicBuzzMessage, BuzzMessageDisplay, getTimeBasedBuzzMessage } from "@/utils/buzzMessages";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
 import { CardClashMockGame } from "@/components/CardClashMockGame";
 import { CardClashPracticeMode } from "@/components/CardClashPracticeMode";
@@ -341,6 +342,19 @@ const PACKS = [
 
                 {/* Tagline */}
                 <p style={{margin:"0 auto 1.6rem",fontSize:"11px",color:"rgba(255,255,255,0.35)",letterSpacing:"0.18em",textTransform:"uppercase"}}>100 CARDS · REAL DARTS CHAOS · MID-MATCH POWER-UPS</p>
+
+                {/* Buzz Message */}
+                {stats && (
+                  <div style={{maxWidth:"500px",margin:"0 auto 1.6rem"}}>
+                    <BuzzMessageDisplay message={getDynamicBuzzMessage({
+                      coinBalance: stats.coins || 0,
+                      cardsCollected: ownedNames.size,
+                      matchesWon: stats.wins || 0,
+                      dayStreak: stats.streak || 0,
+                      hasUnclaimedPacks: packInventory.length > 0
+                    })} />
+                  </div>
+                )}
 
                 {/* Stats row */}
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"10px",marginBottom:"0.5rem"}}>
