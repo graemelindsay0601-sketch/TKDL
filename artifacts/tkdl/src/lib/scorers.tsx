@@ -688,7 +688,166 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           </div>
         )}
       </SectionCard>
-      {/* Recent Visits OR Card Grid - always show in Card Clash mode */}
+      {/* Card Modal - shows as overlay on top when showCards is true */}
+      {showCards && isCardClash && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.75)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 100,
+          backdropFilter: "blur(4px)",
+          padding: "20px"
+        }}
+        onClick={() => setShowCards(false)}
+        >
+          <div style={{
+            background: "linear-gradient(135deg, #0a0015 0%, #1a0033 100%)",
+            border: "1.5px solid rgba(0,180,255,0.3)",
+            borderRadius: "16px",
+            padding: "24px",
+            maxWidth: "500px",
+            maxHeight: "70vh",
+            overflow: "auto",
+            position: "relative"
+          }}
+          onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "20px"
+            }}>
+              <div style={{
+                fontSize: "16px",
+                fontWeight: 900,
+                color: "#00d4ff",
+                letterSpacing: "0.05em",
+                fontFamily: "'Arial Black',sans-serif"
+              }}>⚡ YOUR CARDS</div>
+              <button
+                onClick={() => setShowCards(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#00d4ff",
+                  fontSize: "24px",
+                  cursor: "pointer",
+                  padding: 0
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* GOOD Cards */}
+            <div style={{ marginBottom: "20px" }}>
+              <div style={{
+                fontSize: "11px",
+                fontWeight: 900,
+                color: "#00cc66",
+                letterSpacing: "0.1em",
+                marginBottom: "10px",
+                textTransform: "uppercase"
+              }}>GOOD CARDS</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                {(turn === 0 ? p1Cards : p2Cards)
+                  .filter((c: any) => c.category?.includes("GOOD"))
+                  .map((card: any) => {
+                    const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
+                    const isCurrentlyActive = activeEffects.some((e: any) => e.cardName === card.name && e.affectsPlayer === turn && e.appliedBy === turn);
+                    const isUsed = isPermanentlyUsed || isCurrentlyActive;
+                    return (
+                      <div
+                        key={card.id}
+                        onClick={() => {
+                          if (!isUsed) setSelectedCard(card);
+                        }}
+                        style={{
+                          cursor: isUsed ? "not-allowed" : "pointer",
+                          padding: "12px",
+                          background: "rgba(0,200,100,0.1)",
+                          border: "1px solid rgba(0,200,100,0.4)",
+                          borderRadius: "8px",
+                          color: "#00cc66",
+                          textAlign: "center",
+                          fontWeight: 700,
+                          fontSize: "12px",
+                          opacity: isUsed ? 0.5 : 1,
+                          textDecoration: isUsed ? "line-through" : "none",
+                          transition: "all 0.2s"
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isUsed) (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(0,200,100,0.8)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(0,200,100,0.4)";
+                        }}
+                      >
+                        {card.name}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* BAD Cards */}
+            <div>
+              <div style={{
+                fontSize: "11px",
+                fontWeight: 900,
+                color: "#ff6b6b",
+                letterSpacing: "0.1em",
+                marginBottom: "10px",
+                textTransform: "uppercase"
+              }}>BAD CARDS</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                {(turn === 0 ? p1Cards : p2Cards)
+                  .filter((c: any) => c.category?.includes("BAD"))
+                  .map((card: any) => {
+                    const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
+                    const isCurrentlyActive = activeEffects.some((e: any) => e.cardName === card.name && e.affectsPlayer === turn && e.appliedBy === turn);
+                    const isUsed = isPermanentlyUsed || isCurrentlyActive;
+                    return (
+                      <div
+                        key={card.id}
+                        onClick={() => {
+                          if (!isUsed) setSelectedCard(card);
+                        }}
+                        style={{
+                          cursor: isUsed ? "not-allowed" : "pointer",
+                          padding: "12px",
+                          background: "rgba(255,50,50,0.1)",
+                          border: "1px solid rgba(255,50,50,0.4)",
+                          borderRadius: "8px",
+                          color: "#ff6b6b",
+                          textAlign: "center",
+                          fontWeight: 700,
+                          fontSize: "12px",
+                          opacity: isUsed ? 0.5 : 1,
+                          textDecoration: isUsed ? "line-through" : "none",
+                          transition: "all 0.2s"
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isUsed) (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,50,50,0.8)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,50,50,0.4)";
+                        }}
+                      >
+                        {card.name}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Recent Visits OR Card Toggle Button */}
       {(history.length > 0 || isCardClash) && (
         <SectionCard>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -722,72 +881,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
             )}
           </div>
           
-          {showCards && isCardClash ? (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", maxHeight: "200px", overflow: "auto", position: "relative", zIndex: 10 }}>
-              {/* Good cards (top row) */}
-              {(turn === 0 ? p1Cards : p2Cards)
-                .filter((c: any) => c.category?.includes("GOOD"))
-                .map((card: any) => {
-                  const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
-                  const isCurrentlyActive = activeEffects.some((e: any) => e.cardName === card.name && e.affectsPlayer === turn && e.appliedBy === turn);
-                  const isUsed = isPermanentlyUsed || isCurrentlyActive;
-                  return (
-                  <div
-                    key={card.id}
-                    onClick={() => {
-                      if (!isUsed) setSelectedCard(card);
-                    }}
-                    style={{
-                      cursor: isUsed ? "not-allowed" : "pointer",
-                      fontSize: "10px",
-                      padding: "8px",
-                      background: "rgba(0,180,255,0.08)",
-                      border: "1px solid rgba(0,180,255,0.3)",
-                      borderRadius: "6px",
-                      color: "#00d4ff",
-                      textAlign: "center",
-                      fontWeight: 700,
-                      opacity: isUsed ? 0.5 : 1,
-                      textDecoration: isUsed ? "line-through" : "none",
-                    }}
-                  >
-                    {card.name}
-                  </div>
-                  );
-                })}
-              {/* Bad cards (bottom row) */}
-              {(turn === 0 ? p1Cards : p2Cards)
-                .filter((c: any) => c.category?.includes("BAD"))
-                .map((card: any) => {
-                  const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
-                  const isCurrentlyActive = activeEffects.some((e: any) => e.cardName === card.name && e.affectsPlayer === turn && e.appliedBy === turn);
-                  const isUsed = isPermanentlyUsed || isCurrentlyActive;
-                  return (
-                  <div
-                    key={card.id}
-                    onClick={() => {
-                      if (!isUsed) setSelectedCard(card);
-                    }}
-                    style={{
-                      cursor: isUsed ? "not-allowed" : "pointer",
-                      fontSize: "10px",
-                      padding: "8px",
-                      background: "rgba(255,50,50,0.08)",
-                      border: "1px solid rgba(255,50,50,0.3)",
-                      borderRadius: "6px",
-                      color: "#ff6b6b",
-                      textAlign: "center",
-                      fontWeight: 700,
-                      opacity: isUsed ? 0.5 : 1,
-                      textDecoration: isUsed ? "line-through" : "none",
-                    }}
-                  >
-                    {card.name}
-                  </div>
-                  );
-                })}
-            </div>
-          ) : (
+          {!showCards && (
             [...(showCards ? [] : history)].reverse().slice(0, 5).map((h, i) => (
               <div key={i} className="flex justify-between text-xs py-0.5">
                 <span style={{ color: P_COLOR(h.turn), fontFamily: "Oswald, sans-serif" }}>{names[h.turn]}</span>
