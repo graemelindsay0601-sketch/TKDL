@@ -20,7 +20,7 @@ export interface CCAchievementDef {
 export const CC_ACHIEVEMENT_DEFS: CCAchievementDef[] = [
   // Starter
   { key: "CC_FIRST_MATCH",    name: "First Clash",         description: "Play your first Card Clash match",      icon: "🃏", rarity: "Common",    coinReward: 50,   packReward: null,     statType: "MATCHES_PLAYED", statValue: 1 },
-  { key: "CC_FIRST_WIN",      name: "Clash Victory",       description: "Win your first Card Clash match",       icon: "⚡", rarity: "Common",    coinReward: 100,  packReward: null,     statType: "MATCHES_WON",   statValue: 1 },
+  { key: "CC_FIRST_WIN",      name: "Clash Victory",       description: "Win your first Card Clash match",       icon: "⚡", rarity: "Common",    coinReward: 100,  packReward: "SINGLE", statType: "MATCHES_WON",   statValue: 1 },
   { key: "CC_PACK_OPENER",    name: "Pack Opener",         description: "Open your first card pack",             icon: "📦", rarity: "Common",    coinReward: 30,   packReward: null,     statType: "PACKS_OPENED",  statValue: 1 },
 
   // Collector
@@ -28,7 +28,7 @@ export const CC_ACHIEVEMENT_DEFS: CCAchievementDef[] = [
   { key: "CC_COLLECTOR_25",   name: "Card Enthusiast",     description: "Collect 25 unique cards",               icon: "🎴", rarity: "Rare",      coinReward: 200,  packReward: "SINGLE", statType: "CARDS_OWNED",   statValue: 25 },
   { key: "CC_COLLECTOR_50",   name: "Half the Deck",       description: "Collect 50 unique cards",               icon: "🎴", rarity: "Epic",      coinReward: 500,  packReward: "FIVE",   statType: "CARDS_OWNED",   statValue: 50 },
   { key: "CC_COLLECTOR_ALL",  name: "Complete the Clash",  description: "Collect all 100 unique cards",          icon: "👑", rarity: "Legendary", coinReward: 2000, packReward: "TEN",    statType: "CARDS_OWNED",   statValue: 100 },
-  { key: "CC_LEGENDARY_CARD", name: "Legendary Pull",      description: "Own any Legendary card",                icon: "✨", rarity: "Rare",      coinReward: 250,  packReward: null,     statType: "HAS_LEGENDARY", statValue: 1 },
+  { key: "CC_LEGENDARY_CARD", name: "Legendary Pull",      description: "Own any Legendary card",                icon: "✨", rarity: "Rare",      coinReward: 250,  packReward: "SINGLE", statType: "HAS_LEGENDARY", statValue: 1 },
 
   // Wins
   { key: "CC_WIN_5",          name: "On a Roll",           description: "Win 5 Card Clash matches",              icon: "🏆", rarity: "Common",    coinReward: 150,  packReward: null,     statType: "MATCHES_WON",   statValue: 5 },

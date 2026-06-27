@@ -26,7 +26,7 @@ export function getDynamicBuzzMessage(playerData: {
   // If player has unclaimed packs, prioritize that
   if (playerData.hasUnclaimedPacks) {
     return {
-      text: '🎁 You have unopened packs waiting! Open them now to grow your arsenal.',
+      text: '🎁 Fresh packs waiting! Open now to boost your deck power.',
       icon: '📦',
       category: 'action',
       color: '#ffd24a',
@@ -36,7 +36,7 @@ export function getDynamicBuzzMessage(playerData: {
   // If low on coins
   if (playerData.coinBalance < 50) {
     return {
-      text: '🪙 Win matches to earn coins or check in daily for free rewards.',
+      text: '🪙 Coins running low? Win matches or log in daily for rewards.',
       icon: '💰',
       category: 'tip',
       color: '#ffd24a',
@@ -46,17 +46,17 @@ export function getDynamicBuzzMessage(playerData: {
   // If high win rate, encourage ranking up
   if (playerData.matchesWon > 10) {
     return {
-      text: '🏆 You\'re on fire! Keep winning to climb the rankings.',
+      text: '🏆 Dominating the board! Keep this streak to own the leaderboard.',
       icon: '🎯',
       category: 'motivational',
       color: '#ffaa00',
     };
   }
 
-  // If solid collection, encourage trading/practice
+  // If solid collection, encourage practice
   if (playerData.cardsCollected > 30) {
     return {
-      text: '⚡ Try Practice mode to test new card combos without risking rank.',
+      text: '⚡ You\'ve got the cards—now test your combos in Practice mode.',
       icon: '🎮',
       category: 'tip',
       color: '#00b4ff',
@@ -66,7 +66,7 @@ export function getDynamicBuzzMessage(playerData: {
   // If just starting, encourage collection building
   if (playerData.cardsCollected < 20) {
     return {
-      text: '📚 Collect more cards to unlock powerful combos and strategies.',
+      text: '📚 Build your arsenal! Each card is a new strategy waiting.',
       icon: '🃏',
       category: 'motivational',
       color: '#22c55e',
@@ -76,7 +76,7 @@ export function getDynamicBuzzMessage(playerData: {
   // If active streak, celebrate
   if (playerData.dayStreak > 0) {
     return {
-      text: `🔥 ${playerData.dayStreak}-day login streak! Keep it going for bonus rewards.`,
+      text: `🔥 ${playerData.dayStreak}-day streak! Don't break it—claim your bonus!`,
       icon: '⭐',
       category: 'achievement',
       color: '#ff6b6b',
@@ -85,7 +85,7 @@ export function getDynamicBuzzMessage(playerData: {
 
   // Default motivational
   return {
-    text: '⚔️ Ready to challenge another player? Head to Play to start a match!',
+    text: '⚔️ Challenge a rival. Face the meta. Prove yourself in ranked play.',
     icon: '🎮',
     category: 'action',
     color: '#00b4ff',
@@ -101,7 +101,7 @@ export function getTimeBasedBuzzMessage(): BuzzMessage {
   // Morning
   if (hour >= 6 && hour < 12) {
     return {
-      text: '☀️ Good morning! Claim your daily free pack.',
+      text: '☀️ Rise and shine! Grab your daily free pack to start strong.',
       icon: '🌅',
       category: 'seasonal',
       color: '#ffaa00',
@@ -111,7 +111,7 @@ export function getTimeBasedBuzzMessage(): BuzzMessage {
   // Afternoon
   if (hour >= 12 && hour < 17) {
     return {
-      text: '☕ Afternoon darts session? Jump into a match!',
+      text: '☕ Break time? Play a quick match to stay sharp.',
       icon: '🎯',
       category: 'motivational',
       color: '#00b4ff',
@@ -121,7 +121,7 @@ export function getTimeBasedBuzzMessage(): BuzzMessage {
   // Evening
   if (hour >= 17 && hour < 21) {
     return {
-      text: '🌆 Evening tournament time? Show your skills in ranked matches.',
+      text: '🌆 Prime time league action. Challenge rivals and climb ranks.',
       icon: '🏆',
       category: 'action',
       color: '#ffaa00',
@@ -130,7 +130,7 @@ export function getTimeBasedBuzzMessage(): BuzzMessage {
 
   // Night
   return {
-    text: '🌙 Late night grind? Perfect time to test strategies in Practice mode.',
+    text: '🌙 Night owl mode? Perfect for Practice—test strategies risk-free.',
     icon: '🌙',
     category: 'tip',
     color: '#9d4edd',
@@ -142,55 +142,55 @@ export function getTimeBasedBuzzMessage(): BuzzMessage {
  */
 export const BUZZ_TEMPLATES: Record<string, BuzzMessage> = {
   newPlayer: {
-    text: '🎯 Welcome to Card Clash! Open your free starter pack and build your deck.',
+    text: '🎯 Welcome to the league! Open your starter pack and build your first deck.',
     icon: '🎉',
     category: 'action',
     color: '#22c55e',
   },
   noMatchesToday: {
-    text: '⚡ You haven\'t played yet today. Challenge someone to a match!',
+    text: '⚡ No matches today? Challenge someone to break the streak!',
     icon: '🎮',
     category: 'action',
     color: '#ff6b6b',
   },
   seasonEnding: {
-    text: '⏰ Season ending soon! Play your last matches before reset.',
+    text: '⏰ Season ending soon! Final chance to secure your rank.',
     icon: '⏳',
     category: 'seasonal',
     color: '#ffaa00',
   },
   newSeason: {
-    text: '🆕 New season started! Rankings reset. Climb to the top.',
+    text: '🆕 New season! Rankings reset. Race to the top.',
     icon: '🎊',
     category: 'seasonal',
     color: '#22c55e',
   },
   specialEvent: {
-    text: '🎪 Limited-time event active! Check the Achievements tab for special challenges.',
+    text: '🎪 Limited-time event! Check Achievements for exclusive challenges.',
     icon: '🎭',
     category: 'seasonal',
     color: '#ff6b6b',
   },
   legendaryPull: {
-    text: '✨ Legendary card unlocked! Add it to your deck and dominate.',
+    text: '✨ Legendary pulled! Legendary cards change everything—use it wisely.',
     icon: '👑',
     category: 'achievement',
     color: '#ffaa00',
   },
   perfectMatch: {
-    text: '🌟 Flawless victory! You\'re a true master of Card Clash.',
+    text: '🌟 Flawless! You didn\'t just win—you dominated.',
     icon: '⭐',
     category: 'achievement',
     color: '#ffd24a',
   },
   collectionComplete: {
-    text: '🏆 You\'ve collected all common cards! Rare cards await.',
+    text: '🏆 All commons collected! Rare cards are waiting for you.',
     icon: '📚',
     category: 'achievement',
     color: '#22c55e',
   },
   tradeLaunching: {
-    text: '🤝 Trading system launching soon! Prepare your duplicate cards.',
+    text: '🤝 Trading system coming soon! Start collecting duplicates now.',
     icon: '💱',
     category: 'seasonal',
     color: '#00b4ff',

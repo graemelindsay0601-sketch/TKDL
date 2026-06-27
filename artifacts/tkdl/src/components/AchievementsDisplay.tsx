@@ -45,6 +45,19 @@ export function AchievementsDisplay({ playerStats, maxWidth = '800px' }: Achieve
 
   return (
     <div style={{ maxWidth, margin: '0 auto', color: '#fff' }}>
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+  return (
+    <div style={{ maxWidth, margin: '0 auto', color: '#fff' }}>
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <h2 style={{ margin: '0 0 8px', fontSize: '24px', fontWeight: 900 }}>
@@ -315,6 +328,198 @@ export function AchievementsDisplay({ playerStats, maxWidth = '800px' }: Achieve
           );
         })}
       </div>
+
+      {/* Expanded Achievement Modal */}
+      {expandedId && sortedAchievements.find(a => a.id === expandedId) && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            animation: 'fadeIn 0.2s ease',
+          }}
+          onClick={() => setExpandedId(null)}
+        >
+          {(() => {
+            const achievement = sortedAchievements.find(a => a.id === expandedId)!;
+            const isEarned = earnedIds.has(achievement.id);
+            const progress = achievement.progress?.(playerStats);
+            
+            return (
+              <div
+                style={{
+                  background: `linear-gradient(135deg,${TIER_COLORS[achievement.tier]}15,${TIER_COLORS[achievement.tier]}05)`,
+                  border: `2px solid ${TIER_COLORS[achievement.tier]}80`,
+                  borderRadius: '16px',
+                  padding: '32px',
+                  maxWidth: '500px',
+                  width: '90%',
+                  maxHeight: '85vh',
+                  overflowY: 'auto',
+                  animation: 'slideUp 0.3s ease',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Large Icon */}
+                <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                  <div style={{ fontSize: '80px', marginBottom: '16px' }}>{achievement.icon}</div>
+                  <h2 style={{ margin: '0 0 8px', fontSize: '28px', fontWeight: 900, color: '#fff' }}>
+                    {achievement.name}
+                  </h2>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      color: TIER_COLORS[achievement.tier],
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.1em',
+                    }}
+                  >
+                    {achievement.tier.toUpperCase()} TIER
+                  </div>
+                </div>
+
+                {/* Status */}
+                <div
+                  style={{
+                    textAlign: 'center',
+                    marginBottom: '24px',
+                    padding: '12px 16px',
+                    background: isEarned ? 'rgba(34,197,94,0.15)' : 'rgba(255,210,74,0.1)',
+                    border: `1px solid ${isEarned ? 'rgba(34,197,94,0.4)' : 'rgba(255,210,74,0.3)'}`,
+                    borderRadius: '8px',
+                  }}
+                >
+                  <div style={{ fontSize: '14px', fontWeight: 900, color: isEarned ? '#22c55e' : '#ffd24a' }}>
+                    {isEarned ? '✓ UNLOCKED' : '🔒 LOCKED'}
+                  </div>
+                </div>
+
+                {/* Description */}
+                <p
+                  style={{
+                    margin: '0 0 24px',
+                    fontSize: '14px',
+                    color: 'rgba(255,255,255,0.7)',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {achievement.description}
+                </p>
+
+                {/* Progress */}
+                {progress && !isEarned && (
+                  <div style={{ marginBottom: '24px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '8px', color: 'rgba(255,255,255,0.6)' }}>
+                      PROGRESS
+                    </div>
+                    <div
+                      style={{
+                        background: 'rgba(255,255,255,0.05)',
+                        height: '8px',
+                        borderRadius: '4px',
+                        overflow: 'hidden',
+                        marginBottom: '8px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          background: ACHIEVEMENT_COLORS[achievement.category],
+                          height: '100%',
+                          width: `${Math.min((progress.current / progress.target) * 100, 100)}%`,
+                          transition: 'width 0.3s',
+                        }}
+                      />
+                    </div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: ACHIEVEMENT_COLORS[achievement.category] }}>
+                      {progress.current} / {progress.target}
+                    </div>
+                  </div>
+                )}
+
+                {/* Rewards */}
+                <div style={{ marginBottom: '24px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '12px', color: 'rgba(255,255,255,0.6)' }}>
+                    REWARDS
+                  </div>
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                    <div
+                      style={{
+                        padding: '12px 16px',
+                        background: 'rgba(255,210,74,0.1)',
+                        border: '1.5px solid rgba(255,210,74,0.4)',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                      }}
+                    >
+                      <span style={{ fontSize: '24px' }}>🪙</span>
+                      <div>
+                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>COINS</div>
+                        <div style={{ fontSize: '18px', fontWeight: 900, color: '#ffd24a' }}>
+                          +{achievement.coinReward}
+                        </div>
+                      </div>
+                    </div>
+
+                    {achievement.packReward && (
+                      <div
+                        style={{
+                          padding: '12px 16px',
+                          background: 'rgba(34,197,94,0.1)',
+                          border: '1.5px solid rgba(34,197,94,0.4)',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                        }}
+                      >
+                        <span style={{ fontSize: '24px' }}>📦</span>
+                        <div>
+                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>CARD PACK</div>
+                          <div style={{ fontSize: '16px', fontWeight: 900, color: '#22c55e' }}>
+                            {achievement.packReward === 'SINGLE' && 'Standard Pull (1)'}
+                            {achievement.packReward === 'FIVE' && 'Kilbirnie Night (5)'}
+                            {achievement.packReward === 'TEN' && 'Legend Vault (10)'}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Category */}
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '12px',
+                    background: 'rgba(255,255,255,0.03)',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: ACHIEVEMENT_COLORS[achievement.category],
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  {achievement.category} Category
+                </div>
+
+                {/* Close hint */}
+                <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>
+                  Click outside to close
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Stats Summary */}
       <div
