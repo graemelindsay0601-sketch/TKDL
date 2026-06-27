@@ -8,6 +8,7 @@ import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Min
 import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart } from "./bot-engine";
 import { type PracticeStats, type DartThrow } from "./stats-types";
 import { CardActivationOverlay } from "@/components/CardActivationOverlay";
+import { TKDLCard } from "@/components/TKDLCard";
 import { EquipCardDisplay } from "@/components/EquipCardDisplay";
 import { cardDebugLog } from "./card-debug";
 import { calculateX01CardEffect, applyX01Effect, formatCardEffectDisplay } from "./x01-card-effects";
@@ -761,36 +762,21 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
                   .filter((c: any) => c.category?.includes("GOOD"))
                   .map((card: any) => {
                     const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
-                    // Only show as used if player manually activated it
-                    const isUsed = isPermanentlyUsed;
                     return (
                       <div
                         key={card.id}
                         onClick={() => {
-                          if (!isUsed) setSelectedCard(card);
+                          if (!isPermanentlyUsed) setSelectedCard(card);
                         }}
                         style={{
-                          cursor: isUsed ? "not-allowed" : "pointer",
-                          padding: "12px",
-                          background: "rgba(0,200,100,0.1)",
-                          border: "1px solid rgba(0,200,100,0.4)",
-                          borderRadius: "8px",
-                          color: "#00cc66",
-                          textAlign: "center",
-                          fontWeight: 700,
-                          fontSize: "12px",
-                          opacity: isUsed ? 0.5 : 1,
-                          textDecoration: isUsed ? "line-through" : "none",
-                          transition: "all 0.2s"
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isUsed) (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(0,200,100,0.8)";
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(0,200,100,0.4)";
+                          cursor: isPermanentlyUsed ? "not-allowed" : "pointer",
+                          opacity: isPermanentlyUsed ? 0.4 : 1,
+                          transform: !isPermanentlyUsed ? "scale(1)" : "scale(0.9)",
+                          transition: "all 0.2s",
+                          position: "relative"
                         }}
                       >
-                        {card.name}
+                        <TKDLCard card={card} size="md" locked={isPermanentlyUsed} />
                       </div>
                     );
                   })}
@@ -812,36 +798,21 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
                   .filter((c: any) => c.category?.includes("BAD"))
                   .map((card: any) => {
                     const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
-                    // Only show as used if player manually activated it
-                    const isUsed = isPermanentlyUsed;
                     return (
                       <div
                         key={card.id}
                         onClick={() => {
-                          if (!isUsed) setSelectedCard(card);
+                          if (!isPermanentlyUsed) setSelectedCard(card);
                         }}
                         style={{
-                          cursor: isUsed ? "not-allowed" : "pointer",
-                          padding: "12px",
-                          background: "rgba(255,50,50,0.1)",
-                          border: "1px solid rgba(255,50,50,0.4)",
-                          borderRadius: "8px",
-                          color: "#ff6b6b",
-                          textAlign: "center",
-                          fontWeight: 700,
-                          fontSize: "12px",
-                          opacity: isUsed ? 0.5 : 1,
-                          textDecoration: isUsed ? "line-through" : "none",
-                          transition: "all 0.2s"
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isUsed) (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,50,50,0.8)";
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,50,50,0.4)";
+                          cursor: isPermanentlyUsed ? "not-allowed" : "pointer",
+                          opacity: isPermanentlyUsed ? 0.4 : 1,
+                          transform: !isPermanentlyUsed ? "scale(1)" : "scale(0.9)",
+                          transition: "all 0.2s",
+                          position: "relative"
                         }}
                       >
-                        {card.name}
+                        <TKDLCard card={card} size="md" locked={isPermanentlyUsed} />
                       </div>
                     );
                   })}
@@ -3292,24 +3263,14 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
                       return (
                         <div key={card.id} onClick={() => {
                           if (!isPermanentlyUsed) setSelectedCard(card);
-                        }} style={{ opacity: isPermanentlyUsed ? 0.5 : 1, cursor: isPermanentlyUsed ? "not-allowed" : "pointer" }}>
-                          <EquipCardDisplay
-                            card={{
-                              id: String(card.id),
-                              name: card.name,
-                              cardType: card.category?.includes("GOOD") ? "GOOD" : "BAD",
-                              rarity: (card.rarity || "COMMON").toUpperCase() as "COMMON" | "RARE" | "LEGENDARY",
-                              effect: card.effect || "",
-                              quantity: 1,
-                              gameMode: card.category?.includes("X01") ? "X01" : "CRICKET"
-                            }}
-                            selected={false}
-                            disabled={isPermanentlyUsed}
-                            onClick={() => {
-                              if (!isPermanentlyUsed) setSelectedCard(card);
-                            }}
-                            showPreview={true}
-                          />
+                        }} style={{
+                          cursor: isPermanentlyUsed ? "not-allowed" : "pointer",
+                          opacity: isPermanentlyUsed ? 0.4 : 1,
+                          transform: !isPermanentlyUsed ? "scale(1)" : "scale(0.9)",
+                          transition: "all 0.2s",
+                          position: "relative"
+                        }}>
+                          <TKDLCard card={card} size="md" locked={isPermanentlyUsed} />
                         </div>
                       );
                     })}
@@ -3334,24 +3295,14 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
                       return (
                         <div key={card.id} onClick={() => {
                           if (!isPermanentlyUsed) setSelectedCard(card);
-                        }} style={{ opacity: isPermanentlyUsed ? 0.5 : 1, cursor: isPermanentlyUsed ? "not-allowed" : "pointer" }}>
-                          <EquipCardDisplay
-                            card={{
-                              id: String(card.id),
-                              name: card.name,
-                              cardType: card.category?.includes("GOOD") ? "GOOD" : "BAD",
-                              rarity: (card.rarity || "COMMON").toUpperCase() as "COMMON" | "RARE" | "LEGENDARY",
-                              effect: card.effect || "",
-                              quantity: 1,
-                              gameMode: card.category?.includes("X01") ? "X01" : "CRICKET"
-                            }}
-                            selected={false}
-                            disabled={isPermanentlyUsed}
-                            onClick={() => {
-                              if (!isPermanentlyUsed) setSelectedCard(card);
-                            }}
-                            showPreview={true}
-                          />
+                        }} style={{
+                          cursor: isPermanentlyUsed ? "not-allowed" : "pointer",
+                          opacity: isPermanentlyUsed ? 0.4 : 1,
+                          transform: !isPermanentlyUsed ? "scale(1)" : "scale(0.9)",
+                          transition: "all 0.2s",
+                          position: "relative"
+                        }}>
+                          <TKDLCard card={card} size="md" locked={isPermanentlyUsed} />
                         </div>
                       );
                     })}
