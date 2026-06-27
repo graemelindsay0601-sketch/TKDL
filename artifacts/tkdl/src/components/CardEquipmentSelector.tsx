@@ -34,7 +34,7 @@ const RAR_COLOR: Record<string, { border: string; glow: string; label: string; b
   LEGENDARY: { border: "#fbbf24", glow: "rgba(251,191,36,0.45)",  label: "#fde68a", bg: "rgba(217,119,6,0.12)",  text: "#fef3c7" },
 };
 
-function MiniCard({ card, selected, disabled, onClick }: { card: Card; selected: boolean; disabled: boolean; onClick: () => void }) {
+function MiniCard({ card, selected, disabled, onClick, isFavorite, onToggleFavorite }: { card: Card; selected: boolean; disabled: boolean; onClick: () => void; isFavorite: boolean; onToggleFavorite: (id: string, e: React.MouseEvent) => void }) {
   const rc  = RAR_COLOR[card.rarity] ?? RAR_COLOR.COMMON;
   const isG = card.cardType === "GOOD";
   return (
@@ -42,7 +42,7 @@ function MiniCard({ card, selected, disabled, onClick }: { card: Card; selected:
       onClick={onClick}
       disabled={disabled}
       style={{
-        all: "unset", display: "flex", gap: "8px", alignItems: "flex-start",
+        all: "unset", display: "flex", gap: "8px", alignItems: "flex-start", position: "relative",
         padding: "8px 10px", borderRadius: "8px", cursor: disabled ? "not-allowed" : "pointer",
         transition: "all 0.18s", width: "100%", boxSizing: "border-box", minWidth: 0,
         background: selected ? (isG ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)") : rc.bg,
@@ -60,6 +60,27 @@ function MiniCard({ card, selected, disabled, onClick }: { card: Card; selected:
         <div style={{ fontSize: "9px", color: rc.label, marginBottom: "3px", fontFamily: "Arial,sans-serif", letterSpacing: "0.04em" }}>{card.rarity} · ×{card.quantity}</div>
         <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.4)", lineHeight: 1.3, fontFamily: "Arial,sans-serif", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{card.effect}</div>
       </div>
+      <button
+        onClick={onToggleFavorite}
+        style={{
+          all: "unset",
+          flexShrink: 0,
+          width: "24px",
+          height: "24px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          fontSize: "16px",
+          transition: "transform 0.2s, opacity 0.2s",
+          opacity: isFavorite ? 1 : 0.4,
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.2)")}
+        onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+        title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+      >
+        {isFavorite ? "⭐" : "☆"}
+      </button>
       {selected && (
         <div style={{ flexShrink: 0, width: "18px", height: "18px", borderRadius: "50%", background: isG ? "#22c55e" : "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px" }}>✓</div>
       )}
@@ -135,6 +156,29 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
       if (aIsFav !== bIsFav) return bIsFav ? 1 : -1;
       return 0;
     });
+
+  const toggleFavorite = async (cardId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const response = await fetch(`/api/cards/${cardId}/favorite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId }),
+      });
+      
+      if (response.ok) {
+        const newFavorites = new Set(favorites);
+        if (newFavorites.has(cardId)) {
+          newFavorites.delete(cardId);
+        } else {
+          newFavorites.add(cardId);
+        }
+        setFavorites(newFavorites);
+      }
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+    }
+  };
 
   const toggleGood = (c: Card) => {
     if (selectedGood.find(x => x.id === c.id)) setSelectedGood(selectedGood.filter(x => x.id !== c.id));
