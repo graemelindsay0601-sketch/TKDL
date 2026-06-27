@@ -274,13 +274,18 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
   const toggleFavorite = async (cardId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
+      console.log(`[toggleFavorite] Toggling card ${cardId} for player ${playerId}`);
       const response = await fetch(`/api/cards/${cardId}/favorite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId }),
       });
       
+      console.log(`[toggleFavorite] Response status: ${response.status}`, response);
+      
       if (response.ok) {
+        const data = await response.json();
+        console.log(`[toggleFavorite] Success:`, data);
         const newFavorites = new Set(favorites);
         if (newFavorites.has(cardId)) {
           newFavorites.delete(cardId);
@@ -288,6 +293,10 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
           newFavorites.add(cardId);
         }
         setFavorites(newFavorites);
+      } else {
+        const errorData = await response.json();
+        console.error(`[toggleFavorite] Error:`, errorData);
+      }
       }
     } catch (err) {
       console.error('Failed to toggle favorite:', err);

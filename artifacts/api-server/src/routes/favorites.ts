@@ -51,6 +51,8 @@ router.post('/cards/:cardId/favorite', async (req: Request, res: Response) => {
     const { playerId } = req.body;
     const cardNumId = parseInt(req.params.cardId, 10);
 
+    console.log(`[POST /favorite] cardId: ${cardNumId}, playerId: ${playerId}`);
+
     if (!playerId || isNaN(cardNumId)) {
       res.status(400).json({ error: 'Invalid player ID or card ID' });
       return;
@@ -63,6 +65,7 @@ router.post('/cards/:cardId/favorite', async (req: Request, res: Response) => {
       .where(eq(cardDefinitionsTable.id, cardNumId));
 
     if (!cardDef) {
+      console.log(`[POST /favorite] Card definition not found for id ${cardNumId}`);
       res.status(404).json({ error: 'Card not found in definitions' });
       return;
     }
@@ -77,12 +80,14 @@ router.post('/cards/:cardId/favorite', async (req: Request, res: Response) => {
       ));
 
     if (!card) {
+      console.log(`[POST /favorite] Card not in inventory for player ${playerId}, cardDef.cardId: ${cardDef.cardId}`);
       res.status(404).json({ error: 'Card not found in inventory' });
       return;
     }
 
     // Toggle the favorite status
     const newFavoriteStatus = !card.isFavorite;
+    console.log(`[POST /favorite] Updating favorite status to ${newFavoriteStatus} for card ${cardNumId}, player ${playerId}`);
     await db
       .update(cardInventoryTable)
       .set({ isFavorite: newFavoriteStatus })
@@ -91,6 +96,7 @@ router.post('/cards/:cardId/favorite', async (req: Request, res: Response) => {
         eq(cardInventoryTable.cardId, cardDef.cardId)
       ));
 
+    console.log(`[POST /favorite] Success! New status: ${newFavoriteStatus}`);
     res.json({
       success: true,
       cardId: cardNumId,
@@ -98,6 +104,7 @@ router.post('/cards/:cardId/favorite', async (req: Request, res: Response) => {
       message: newFavoriteStatus ? 'Card marked as favorite ⭐' : 'Favorite removed'
     });
   } catch (err) {
+    console.error(`[POST /favorite] ERROR:`, err);
     (req as any).log?.error({ err }, 'Failed to toggle favorite');
     res.status(500).json({ error: 'Failed to toggle favorite' });
   }
