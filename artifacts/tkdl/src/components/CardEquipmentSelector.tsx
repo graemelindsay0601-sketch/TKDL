@@ -46,11 +46,10 @@ function CardArtworkDisplay({
   onToggleFavorite: (id: string, e: React.MouseEvent) => void;
   onPreview: (e: React.MouseEvent) => void;
 }) {
-  const fullCard = ALL_CARDS.find(c => c.id === parseInt(card.id));
+  const fullCard = ALL_CARDS.find(c => c.name === card.name);
   const isG = card.cardType === "GOOD";
   
   if (!fullCard) {
-    console.error(`[CardArtworkDisplay] CARD NOT FOUND in ALL_CARDS! cardId: ${card.id}, cardType: ${card.cardType}`);
     return null;
   }
 
@@ -267,29 +266,18 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
       return 0;
     });
 
-  // DEBUG: Log what we have
-  if (typeof window !== 'undefined') {
-    console.log(`[CardEquipmentSelector] Total inventory: ${inventory.length}, Good: ${goodCards.length}, Bad: ${badCards.length}`);
-    console.log(`[CardEquipmentSelector] All cardTypes in inventory:`, inventory.map(c => c.cardType).filter((v, i, a) => a.indexOf(v) === i));
-    console.log(`[CardEquipmentSelector] Sample cards:`, inventory.slice(0, 5));
-    console.log(`[CardEquipmentSelector RENDER] gameMode: ${gameMode}, badCards.length: ${badCards.length}, badCards will render: ${badCards.length > 0}`);
-  }
 
   const toggleFavorite = async (cardId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      console.log(`[toggleFavorite] Toggling card ${cardId} for player ${playerId}`);
       const response = await fetch(`/api/cards/${cardId}/favorite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId }),
       });
       
-      console.log(`[toggleFavorite] Response status: ${response.status}`, response);
-      
       if (response.ok) {
         const data = await response.json();
-        console.log(`[toggleFavorite] Success:`, data);
         const newFavorites = new Set(favorites);
         if (newFavorites.has(cardId)) {
           newFavorites.delete(cardId);
