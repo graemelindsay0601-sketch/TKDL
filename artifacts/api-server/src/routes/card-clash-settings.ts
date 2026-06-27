@@ -252,8 +252,11 @@ router.get('/card-clash/player/:playerId/equipment-preference', async (req: Requ
       .from(cardClashPlayerSettingsTable)
       .where(eq(cardClashPlayerSettingsTable.playerId, playerId));
 
+    console.log(`[equipment-preference GET] playerId: ${playerId}, result length: ${result.length}, result:`, result);
+
     if (result.length === 0) {
       // Return defaults if no preference set yet
+      console.log(`[equipment-preference GET] No settings found, returning defaults`);
       return res.json({
         playerId,
         goodCardsPerMatch: 2,
@@ -262,12 +265,14 @@ router.get('/card-clash/player/:playerId/equipment-preference', async (req: Requ
     }
 
     const settings = result[0];
+    console.log(`[equipment-preference GET] Returning settings:`, { playerId, goodCardsPerMatch: settings.good_cards_per_match, badCardsPerMatch: settings.bad_cards_per_match });
     res.json({
       playerId,
       goodCardsPerMatch: settings.good_cards_per_match,
       badCardsPerMatch: settings.bad_cards_per_match,
     });
   } catch (err) {
+    console.log(`[equipment-preference GET] ERROR:`, err);
     (req as any).log?.error({ err }, 'Failed to get player equipment preference');
     res.status(500).json({ error: 'Failed to get preference' });
   }
