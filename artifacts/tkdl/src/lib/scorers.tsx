@@ -353,6 +353,20 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           }
         }
         
+        // Card Clash: Streak Crusher — if opponent is now 2+ ahead and has Streak Crusher against them, remove 2 of their wins
+        if (isCardClash) {
+          const leadsBy = n[winnerIdx] - n[opp];
+          if (leadsBy >= 2) {
+            const hasStreakCrusher = activeEffects.some(e => 
+              e.cardName === "Streak Crusher" && e.status === "active" && e.affectsPlayer === winnerIdx
+            );
+            if (hasStreakCrusher) {
+              console.log(`[CARD_CLASH:STREAK_CRUSHER] Player${opp} played Streak Crusher. Player${winnerIdx} is ${leadsBy} ahead, removing 2 wins`);
+              n[winnerIdx] = Math.max(0, n[winnerIdx] - 2);
+            }
+          }
+        }
+        
         if (n[winnerIdx] >= legsNeeded) {
           setTimeout(() => {
             onWin(winnerIdx, `${n[winnerIdx]}–${n[winnerIdx===0?1:0]} legs`);
