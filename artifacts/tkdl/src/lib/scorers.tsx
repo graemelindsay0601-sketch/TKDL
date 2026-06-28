@@ -483,6 +483,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (visitDarts.length > 0) {
       // Remove the last dart within the current visit
       setVisitDarts(prev => prev.slice(0, -1));
+      // NOTE: activeEffects persist within a turn (that's correct)
     } else if (history.length > 0) {
       // Build new state from history stack
       const h = [...history];
@@ -503,6 +504,14 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       setScores(newScores);
       setTurn(finalTurn);
       setVisitDarts([]);
+      
+      // CRITICAL FIX: When undoing to a different turn, clear activeEffects for the previous player
+      // This prevents effects from leaking across turns
+      if (isCardClash) {
+        setActiveEffects(prev => 
+          prev.filter(e => e.affectsPlayer !== last.turn || e.status === "expired")
+        );
+      }
     }
   };
 
@@ -530,6 +539,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     });
     const nonInstant = effects.filter(e => !e.instant);
     if (nonInstant.length > 0) {
+      console.log(`[CARD_CLASH:ACTIVATE] Player${turn} activated ${card.name}. Effects: ${nonInstant.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`).join(", ")}`);
       setActiveEffects(prev => [...prev, ...nonInstant]);
     } else {
     }
@@ -1087,12 +1097,20 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const handleUndo = () => {
     if (snapHistory.length === 0) return;
     const snap = snapHistory[snapHistory.length - 1];
+    const prevTurn = turn;
     setMarks(snap.marks);
     setScores(snap.scores);
     setTurn(snap.turn);
     setVisitDarts(snap.visitDarts);
     setLastHit("");
     setSnapHistory(prev => prev.slice(0, -1));
+    
+    // CRITICAL FIX: When undoing to a different turn, clear activeEffects for the previous player
+    if (isCardClash && snap.turn !== prevTurn) {
+      setActiveEffects(prev => 
+        prev.filter(e => e.affectsPlayer !== prevTurn || e.status === "expired")
+      );
+    }
   };
 
   const handleDartRefCri = useRef(handleDart);

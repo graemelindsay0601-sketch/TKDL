@@ -285,6 +285,13 @@ export function ccPreprocessDart(
 ): Dart {
   // Gather only active effects targeting this player
   const active = effects.filter(e => e.status === "active" && e.affectsPlayer === player);
+  
+  // DEBUG: Log effect filtering to diagnose cross-player effect leaks
+  if (effects.length > 0 && dartIdx === 0) {
+    const allActive = effects.filter(e => e.status === "active");
+    console.log(`[CARD_CLASH:PREPROCESS] Player${player} dart: segment=${dart.segment} value=${dart.value}. Active effects: ${allActive.map(e => `${e.cardName}→P${e.affectsPlayer}`).join(", ") || "none"}. Filtered to player: ${active.map(e => e.cardName).join(", ") || "none"}`);
+  }
+  
   if (active.length === 0) return dart;
 
   let { segment, multiplier, value, label } = dart;
@@ -461,7 +468,8 @@ export function ccApplyVisitEnd(
 /** Expire "this_turn" active effects and promote pending → active on turn switch. */
 export function ccExpireOnTurnEnd(effects: CCEffect[], completedPlayer: 0 | 1): CCEffect[] {
   const opp: 0 | 1 = completedPlayer === 0 ? 1 : 0;
-  return effects
+  const before = effects.filter(e => e.status === "active").map(e => `${e.cardName}→P${e.affectsPlayer}`).join(", ");
+  const result = effects
     .filter(e => {
       // Remove active effects that targeted the player who just finished their turn
       if (e.status === "active" && e.affectsPlayer === completedPlayer) return false;
@@ -474,6 +482,11 @@ export function ccExpireOnTurnEnd(effects: CCEffect[], completedPlayer: 0 | 1): 
       }
       return e;
     });
+  
+  const after = result.filter(e => e.status === "active").map(e => `${e.cardName}→P${e.affectsPlayer}`).join(", ");
+  console.log(`[CARD_CLASH:EXPIRE] Player${completedPlayer} turn ended. Before: ${before || "none"}. After: ${after || "none"}`);
+  
+  return result;
 }
 
 /** Check if opponent penalty effects are blocked for current player. */
