@@ -412,7 +412,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                           selected={!!selectedGood.find(x => x.id === c.id)} 
                           disabled={selectedGood.length === preference.goodCardsPerMatch && !selectedGood.find(x => x.id === c.id)} 
                           onClick={() => toggleGood(c)}
-                          isFavorite={favorites.has(c.id)}
+                          isFavorite={isFavorited(c.id)}
                           onToggleFavorite={toggleFavorite}
                           onPreview={(e) => {
                             e.stopPropagation();
@@ -437,7 +437,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                           selected={!!selectedGood.find(x => x.id === c.id)} 
                           disabled={selectedGood.length === preference.goodCardsPerMatch && !selectedGood.find(x => x.id === c.id)} 
                           onClick={() => toggleGood(c)}
-                          isFavorite={favorites.has(c.id)}
+                          isFavorite={isFavorited(c.id)}
                           onToggleFavorite={toggleFavorite}
                           onPreview={(e) => {
                             e.stopPropagation();
@@ -477,7 +477,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                           selected={!!selectedBad.find(x => x.id === c.id)} 
                           disabled={selectedBad.length === preference.badCardsPerMatch && !selectedBad.find(x => x.id === c.id)} 
                           onClick={() => toggleBad(c)}
-                          isFavorite={favorites.has(c.id)}
+                          isFavorite={isFavorited(c.id)}
                           onToggleFavorite={toggleFavorite}
                           onPreview={(e) => {
                             e.stopPropagation();
@@ -502,7 +502,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                           selected={!!selectedBad.find(x => x.id === c.id)} 
                           disabled={selectedBad.length === preference.badCardsPerMatch && !selectedBad.find(x => x.id === c.id)} 
                           onClick={() => toggleBad(c)}
-                          isFavorite={favorites.has(c.id)}
+                          isFavorite={isFavorited(c.id)}
                           onToggleFavorite={toggleFavorite}
                           onPreview={(e) => {
                             e.stopPropagation();
