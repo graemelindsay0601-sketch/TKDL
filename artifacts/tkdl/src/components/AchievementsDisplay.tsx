@@ -21,7 +21,8 @@ interface AchievementsDisplayProps {
  * Organized by category
  * Shows earned, in-progress, and locked achievements
  */
-export function AchievementsDisplay({ playerStats, maxWidth = '800px' }: AchievementsDisplayProps) {
+export const AchievementsDisplay = React.memo(
+  function AchievementsDisplay({ playerStats, maxWidth = '800px' }: AchievementsDisplayProps) {
   const [selectedCategory, setSelectedCategory] = useState<AchievementCategory | 'all'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -567,4 +568,7 @@ export function AchievementsDisplay({ playerStats, maxWidth = '800px' }: Achieve
       </div>
     </div>
   );
-}
+},
+  // Custom comparison: only re-render if playerStats changes
+  (prev, next) => JSON.stringify(prev.playerStats) === JSON.stringify(next.playerStats) && prev.maxWidth === next.maxWidth
+);

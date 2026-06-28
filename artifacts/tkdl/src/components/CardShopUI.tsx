@@ -131,7 +131,8 @@ function Spinner() {
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────────
-export function CardShopUI({ playerId, onCardsReceived, freePacks, onFreePackOpened }: CardShopUIProps) {
+export const CardShopUI = React.memo(
+  function CardShopUI({ playerId, onCardsReceived, freePacks, onFreePackOpened }: CardShopUIProps) {
   const [selectedPack, setSelectedPack] = useState("five");
   const [purchasing, setPurchasing] = useState(false);
   const [playerCoins, setPlayerCoins] = useState(0);
@@ -447,4 +448,14 @@ export function CardShopUI({ playerId, onCardsReceived, freePacks, onFreePackOpe
       )}
     </div>
   );
-}
+},
+  // Custom comparison: only re-render if playerId changes or freePacks updates
+  (prev, next) => {
+    return (
+      prev.playerId === next.playerId &&
+      prev.onCardsReceived === next.onCardsReceived &&
+      prev.freePacks === next.freePacks &&
+      prev.onFreePackOpened === next.onFreePackOpened
+    );
+  }
+);

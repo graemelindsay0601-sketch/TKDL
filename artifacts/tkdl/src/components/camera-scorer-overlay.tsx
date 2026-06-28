@@ -44,7 +44,8 @@ function dartBg(label: string) {
   return "rgba(255,255,255,0.07)";
 }
 
-export function CameraScorerOverlay({ onClose }: { onClose: () => void }) {
+export const CameraScorerOverlay = React.memo(
+  function CameraScorerOverlay({ onClose }: { onClose: () => void }) {
   const [inputMode,  setInputMode]  = useState<"camera" | "webcam">("camera");
   const [webcamUrl,  setWebcamUrl]  = useState("192.168.1.x:8080");
   const [streaming,  setStreaming]  = useState(false);
@@ -528,4 +529,7 @@ export function CameraScorerOverlay({ onClose }: { onClose: () => void }) {
       `}</style>
     </div>
   );
-}
+},
+  // Only re-render if onClose changes (should rarely happen)
+  (prev, next) => prev.onClose === next.onClose
+);

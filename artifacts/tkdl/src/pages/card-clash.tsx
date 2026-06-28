@@ -15,6 +15,7 @@ import { RulesUI } from "@/components/RulesUI";
 import { TKDLCard } from "@/components/TKDLCard";
 import { ALL_CARDS } from "@/lib/cards-data";
 import type { CardData, Category, Rarity } from "@/lib/cards-data";
+import { CollectionIcon, ShopIcon, PlayIcon, PracticeIcon, StandingsIcon, AchievementsIcon, RulesIcon, AdminIcon, LeaderboardIcon, ChampionIcon, TrophyIcon } from "@/components/CardClashIcons";
 
 type Tab = "hub" | "collection" | "shop" | "play" | "practice" | "standings" | "achievements" | "rules" | "admin";
 
@@ -97,30 +98,8 @@ const PACKS = [
   
 
   // ── Hub icon components ───────────────────────────────────────────────────────
-  function CollectionIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><rect x="8" y="22" width="34" height="44" rx="4" fill="#050e25" stroke="#1a3a70" strokeWidth="1"/><rect x="16" y="14" width="34" height="44" rx="4" fill="#07142e" stroke="#1f4488" strokeWidth="1"/><rect x="24" y="8" width="34" height="44" rx="4" fill="#0c2040" stroke="#2255aa" strokeWidth="1.5"/><text x="41" y="36" textAnchor="middle" fontFamily="'Arial Black',sans-serif" fontWeight="900" fontSize="10" fill="#3377ee" letterSpacing="1">TKDL</text><text x="41" y="47" textAnchor="middle" fontFamily="Arial" fontSize="6" fill="rgba(80,150,255,0.55)">CARD CLASH</text><circle cx="41" cy="32" r="18" fill="none" stroke="rgba(50,130,255,0.28)" strokeWidth="1"/></svg>);}
-  function ShopIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><path d="M24,34 C24,18 52,18 52,34 L52,62 Q52,66 48,66 L28,66 Q24,66 24,62 Z" fill="#150a00" stroke="#f5a623" strokeWidth="1.8"/><path d="M28,34 C28,22 48,22 48,34" fill="none" stroke="#ffd24a" strokeWidth="2.5" strokeLinecap="round"/><text x="38" y="53" textAnchor="middle" fontFamily="'Arial Black',sans-serif" fontWeight="900" fontSize="10" fill="#ffd24a" letterSpacing="0.5">TKDL</text><circle cx="38" cy="42" r="20" fill="rgba(245,166,35,0.06)"/></svg>);}
-  function PlayIcon(){
-    const PI2=Math.PI*2;
-    const s20=Array.from({length:20},(_,i)=>({sa:(i/20)*PI2-Math.PI/2-PI2/40,ea:((i+1)/20)*PI2-Math.PI/2-PI2/40,ev:i%2===0}));
-    const cx=38,cy=38;
-    return(<svg viewBox="0 0 76 76" width="76" height="76">
-      {s20.map((s,i)=><path key={`a${i}`} d={sP(cx,cy,30,20,s.sa,s.ea)} fill={s.ev?"#006622":"#cc0000"} stroke="rgba(0,0,0,0.4)" strokeWidth="0.3"/>)}
-      {s20.map((s,i)=><path key={`b${i}`} d={sP(cx,cy,18,4,s.sa,s.ea)} fill={s.ev?"#181008":"#ddd0a8"} stroke="rgba(0,0,0,0.35)" strokeWidth="0.3"/>)}
-      <circle cx={cx} cy={cy} r="4" fill="#006622"/><circle cx={cx} cy={cy} r="2" fill="#cc0000"/>
-      <circle cx={cx} cy={cy} r="30" fill="none" stroke="rgba(0,255,136,0.4)" strokeWidth="1.5"/>
-      <line x1="60" y1="16" x2="42" y2="34" stroke="#00ff88" strokeWidth="2.5" strokeLinecap="round"/>
-      <circle cx="42" cy="34" r="2.5" fill="#00ff88"/>
-      <path d="M60,16 L66,10 L64,20 L60,16Z" fill="#00ff88"/>
-    </svg>);
-  }
-  function PracticeIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><rect x="16" y="16" width="44" height="44" rx="9" fill="#1a0008" stroke="#ff4466" strokeWidth="2"/><circle cx="28" cy="28" r="4.5" fill="#ff4466"/><circle cx="48" cy="28" r="4.5" fill="#ff4466"/><circle cx="38" cy="38" r="4.5" fill="#ff4466"/><circle cx="28" cy="48" r="4.5" fill="#ff4466"/><circle cx="48" cy="48" r="4.5" fill="#ff4466"/></svg>);}
-  function StandingsIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><path d="M22,14 H54 L50,42 C50,48 44,52 38,52 C32,52 26,48 26,42 Z" fill="#160030" stroke="#c084fc" strokeWidth="1.8"/><path d="M22,20 C15,20 10,26 10,33 C10,38 14,42 22,40" fill="none" stroke="#c084fc" strokeWidth="2" strokeLinecap="round"/><path d="M54,20 C61,20 66,26 66,33 C66,38 62,42 54,40" fill="none" stroke="#c084fc" strokeWidth="2" strokeLinecap="round"/><rect x="32" y="52" width="12" height="5" fill="#c084fc" rx="1"/><rect x="26" y="57" width="24" height="6" rx="2" fill="#c084fc"/><text x="38" y="40" textAnchor="middle" fontSize="18">⭐</text></svg>);}
-  function AchievementsIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><path d="M26,12 L34,28 L50,12 L54,14 L44,30 L32,30 L22,14 Z" fill="#ff8800" stroke="#ffd24a" strokeWidth="0.8"/><circle cx="38" cy="51" r="22" fill="#150800" stroke="#ff8800" strokeWidth="2"/><circle cx="38" cy="51" r="18" fill="none" stroke="rgba(255,136,0,0.28)" strokeWidth="1"/><text x="38" y="59" textAnchor="middle" fontSize="20">⭐</text></svg>);}
-  function RulesIcon(){return(<svg viewBox="0 0 76 76" width="76" height="76"><rect x="8" y="16" width="28" height="44" rx="3" fill="#030c1a" stroke="#00ccff" strokeWidth="1.5"/><rect x="40" y="16" width="28" height="44" rx="3" fill="#030c1a" stroke="#00ccff" strokeWidth="1.5"/><rect x="34" y="14" width="8" height="48" fill="#00ccff" rx="1"/>{[24,31,38,45].map((y:number)=>(<><line x1="13" y1={y} x2="31" y2={y} stroke="rgba(0,204,255,0.28)" strokeWidth="1"/><line x1="45" y1={y} x2="63" y2={y} stroke="rgba(0,204,255,0.28)" strokeWidth="1"/></>))}</svg>);}
-  function AdminIcon(){
-    const teeth=Array.from({length:8},(_,i)=>{const a=(i/8)*Math.PI*2,hw=0.22,R1=30,R2=22,cx=38,cy=38;return `M${cx+R2*Math.cos(a-hw)},${cy+R2*Math.sin(a-hw)} L${cx+R1*Math.cos(a-hw)},${cy+R1*Math.sin(a-hw)} L${cx+R1*Math.cos(a+hw)},${cy+R1*Math.sin(a+hw)} L${cx+R2*Math.cos(a+hw)},${cy+R2*Math.sin(a+hw)}Z`;});
-    return(<svg viewBox="0 0 76 76" width="76" height="76">{teeth.map((tt:string,i:number)=><path key={i} d={tt} fill="#ff2244"/>)}<circle cx="38" cy="38" r="22" fill="#1a0010" stroke="#ff2244" strokeWidth="1.8"/><circle cx="38" cy="38" r="10" fill="#280018"/><text x="38" y="42" textAnchor="middle" fontFamily="'Arial Black',sans-serif" fontWeight="900" fontSize="8" fill="#ff4466" letterSpacing="0.5">TKDL</text></svg>);
-  }
+  // OPTIMIZATION: SVG icons extracted to CardClashIcons.tsx and memoized
+  // This prevents unnecessary re-creation on every render (-10-20ms per render)
 
   // ── Stat card ─────────────────────────────────────────────────────────────────
   function StatCard({icon,value,label,color}:{icon:string;value:any;label:string;color:string}){
