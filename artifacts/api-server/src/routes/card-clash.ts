@@ -1290,8 +1290,13 @@ router.post("/sell-card", async (req: Request, res: Response) => {
         message: featured.length > 0 ? "Featured cards loaded" : "No featured cards available",
       });
     } catch (error) {
-      logger.error({ error }, "Failed to get featured cards");
-      res.status(500).json({ success: false, message: "Failed to load featured cards" });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error, errorMessage }, "Failed to get featured cards");
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to load featured cards",
+        error: errorMessage // DEBUG: Include error details
+      });
     }
   });
 

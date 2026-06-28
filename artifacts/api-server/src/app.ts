@@ -751,6 +751,15 @@ async function init() {
     await initializeCardTables();
     await initializeFeatureFlags();
     await seedCardDefinitions();
+    
+    // Initialize featured card shop - rotate featured cards daily
+    try {
+      const { rotateFeatureCards } = await import("./services/featured-card-shop-service");
+      await rotateFeatureCards();
+    } catch (err) {
+      logger.warn({ err }, "Failed to initialize featured card shop (non-critical)");
+    }
+    
     await challengeService.seedDefaultChallenges();
     await challengeService.seedComprehensivePool();
     await seedNotificationTables();
