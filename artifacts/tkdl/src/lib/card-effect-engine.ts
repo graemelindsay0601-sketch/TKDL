@@ -651,3 +651,93 @@ export function ccBonusPerMark(effects: CCEffect[], player: 0 | 1): number {
   const active = effects.filter(e => e.status === "active" && e.affectsPlayer === player);
   return active.reduce((sum, e) => sum + (e.bonusPerMark ?? 0), 0);
 }
+
+/** Evaluate conditional Wildcard cards at start of new leg.
+ *  Returns effects to add for this leg based on match state. */
+export function ccEvaluateConditionalWildcards(
+  player: 0 | 1,
+  legHistory: (0 | 1)[],
+  legWins: [number, number],
+  legsNeeded: number,
+): CCEffect[] {
+  const effects: CCEffect[] = [];
+  const opp: 0 | 1 = player === 0 ? 1 : 0;
+  
+  // Lucky Streak (502): Won previous leg
+  if (legHistory.length > 0 && legHistory[legHistory.length - 1] === player) {
+    effects.push({
+      cardName: "Lucky Streak",
+      appliedBy: player,
+      affectsPlayer: player,
+      status: "active",
+      visitBonus: 50,
+      legDuration: true,
+    });
+  }
+  
+  // Momentum Surge (503): Ahead in match
+  if (legWins[player] > legWins[opp]) {
+    effects.push({
+      cardName: "Momentum Surge",
+      appliedBy: player,
+      affectsPlayer: player,
+      status: "active",
+      visitBonus: 25,
+      legDuration: true,
+    });
+  }
+  
+  // Comeback Leg (505): Lost previous leg
+  if (legHistory.length > 0 && legHistory[legHistory.length - 1] === opp) {
+    effects.push({
+      cardName: "Comeback Leg",
+      appliedBy: player,
+      affectsPlayer: player,
+      status: "active",
+      visitBonus: 60,
+      legDuration: true,
+    });
+  }
+  
+  // Hot Hand (506): Won 2+ legs in a row
+  if (legHistory.length >= 2) {
+    const last2 = legHistory.slice(-2);
+    if (last2[0] === player && last2[1] === player) {
+      effects.push({
+        cardName: "Hot Hand",
+        appliedBy: player,
+        affectsPlayer: player,
+        status: "active",
+        visitBonus: 45,
+        legDuration: true,
+      });
+    }
+  }
+  
+  // Underdog (507): Behind overall
+  if (legWins[player] < legWins[opp]) {
+    effects.push({
+      cardName: "Underdog",
+      appliedBy: player,
+      affectsPlayer: player,
+      status: "active",
+      visitBonus: 50,
+      legDuration: true,
+    });
+  }
+  
+  // Match Point (509): 1 leg away from winning
+  if (legWins[player] === legsNeeded - 1) {
+    effects.push({
+      cardName: "Match Point",
+      appliedBy: player,
+      affectsPlayer: player,
+      status: "active",
+      visitBonus: 70,
+      legDuration: true,
+    });
+  }
+  
+  console.log(`[CARD_CLASH:CONDITIONAL_WILDCARDS] Player${player} leg start: ${effects.map(e => `${e.cardName}(+${e.visitBonus})`).join(", ") || "none"}`);
+  return effects;
+}

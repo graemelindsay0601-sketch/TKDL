@@ -18,6 +18,7 @@ import {
   ccActivateCard, ccPreprocessDart, ccApplyVisitCap, ccInterceptBust,
   ccShouldBlockFinish, ccApplyVisitEnd, ccExpireOnTurnEnd,
   ccActivateDeferredNextTurnEffects, ccActivateDeferredNextLegEffects,
+  ccEvaluateConditionalWildcards,
   ccApplyCricketMarkEffects, ccApplyCricketScoreEffects, ccBlockClosing,
   ccPenaltyPerMark, ccBonusPerMark,
 } from "./card-effect-engine";
@@ -213,6 +214,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [scores, setScores]         = useState<[number, number]>([startingScore, startingScore]);
   const [legWins, setLegWins]       = useState<[number, number]>([0, 0]);
   const [setWins, setSetWins]       = useState<[number, number]>([0, 0]);
+  const [legHistory, setLegHistory] = useState<(0|1)[]>([]); // Track who won each leg (for conditional cards)
   const [started, setStarted]       = useState<[boolean, boolean]>([!doubleIn, !doubleIn]);
   const [turn, setTurn]             = useState<0 | 1>(0);
   const [legStarter, setLegStarter] = useState<0 | 1>(0);
@@ -279,6 +281,14 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         setLegStarter(ns); setScores([startingScore, startingScore]);
         setStarted([!doubleIn, !doubleIn]); setVisitDarts([]);
         setTurn(soloMode ? 0 : ns); setLegWins(newLegState);
+        
+        // Track which player won this leg (for conditional Wildcard cards)
+        // Determine winner by comparing new legState to current legWins
+        const legWinner = newLegState[0] > legWins[0] ? 0 : newLegState[1] > legWins[1] ? 1 : null;
+        if (legWinner !== null) {
+          setLegHistory(prev => [...prev, legWinner]);
+          console.log(`[CARD_CLASH:LEG_HISTORY] Leg ${prev.length + 1} won by Player${legWinner}`);
+        }
       }, delay);
     };
 
@@ -566,15 +576,20 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (isCardClash && legWins !== prevLegWinsRef.current) {
       // A leg has ended and a new one started
       // Activate deferred-next-leg effects for both players
+      // Also evaluate conditional Wildcard cards at leg start
       setActiveEffects(prev => {
         let updated = prev;
+        // Activate deferred-next-leg effects
         updated = ccActivateDeferredNextLegEffects(updated, 0);
         updated = ccActivateDeferredNextLegEffects(updated, 1);
+        // Evaluate conditional Wildcard cards
+        updated = updated.concat(ccEvaluateConditionalWildcards(0, legHistory, legWins, legsNeeded));
+        updated = updated.concat(ccEvaluateConditionalWildcards(1, legHistory, legWins, legsNeeded));
         return updated;
       });
       prevLegWinsRef.current = legWins;
     }
-  }, [legWins, isCardClash]);
+  }, [legWins, legHistory, isCardClash, legsNeeded]);
 
   const handleDartRef = useRef(handleDart);
   useEffect(() => { handleDartRef.current = handleDart; });
