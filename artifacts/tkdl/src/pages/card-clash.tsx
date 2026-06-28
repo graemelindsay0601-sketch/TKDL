@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useCurrentPlayer } from "@/context/auth";
 import { CardShopUI } from "@/components/CardShopUI";
 import { FreePackDisplay } from "@/components/FreePackDisplay";
+import { FeaturedCardShop } from "@/components/FeaturedCardShop";
 import { getDynamicBuzzMessage, BuzzMessageDisplay, getTimeBasedBuzzMessage } from "@/utils/buzzMessages";
 import { AchievementsDisplay } from "@/components/AchievementsDisplay";
 import { AdvancedAdminTools } from "@/components/AdvancedAdminTools";
@@ -536,6 +537,9 @@ const PACKS = [
                 <SectionHeader title="🛍️ Card Shop" subtitle="Open packs. Build your arsenal. All 100 cards waiting."/>
                 <div style={{marginBottom:"20px"}}>
                   <FreePackDisplay playerId={playerId} onClaimPack={loadData} />
+                </div>
+                <div style={{padding:"22px 24px",background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:"16px",marginBottom:"1.5rem"}}>
+                  <FeaturedCardShop playerId={playerId} playerCoins={stats?.coins || 0} onPurchaseSuccess={loadData} />
                 </div>
                 <div style={{padding:"22px 24px",background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:"16px",marginBottom:"1.5rem"}}>
                   <CardShopUI playerId={playerId} onCardsReceived={handleCardsReceived} freePacks={packInventory} onFreePackOpened={loadData}/>

@@ -23,14 +23,15 @@ export function FreePackDisplay({ playerId, onClaimPack }: FreePackDisplayProps)
   useEffect(() => {
     const checkPackAvailability = async () => {
       try {
-        const response = await fetch(`/api/card-clash/free-pack/${playerId}`);
+        const response = await fetch(`/api/card-clash/free-pack/status`);
         if (!response.ok) throw new Error('Failed to check pack');
 
         const data = await response.json();
-        setIsAvailable(data.available || false);
+        setIsAvailable(data.canClaim || false);
 
-        if (!data.available && data.next_available) {
-          const nextDate = new Date(data.next_available);
+        if (!data.canClaim && data.hoursUntilAvailable > 0) {
+          // Calculate next available time
+          const nextDate = new Date(Date.now() + data.hoursUntilAvailable * 60 * 60 * 1000);
           updateCountdown(nextDate);
         }
       } catch (err) {
@@ -72,15 +73,23 @@ export function FreePackDisplay({ playerId, onClaimPack }: FreePackDisplayProps)
       const response = await fetch('/api/card-clash/free-pack/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerId }),
       });
 
-      if (!response.ok) throw new Error('Failed to claim pack');
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || 'Failed to claim pack');
+      }
 
-      onClaimPack?.();
-      setIsAvailable(false);
+      const data = await response.json();
+      if (data.success) {
+        onClaimPack?.();
+        setIsAvailable(false);
+      } else {
+        throw new Error(data.message);
+      }
     } catch (err) {
       console.error('Error claiming pack:', err);
+      alert(`Failed to claim pack: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -256,7 +265,7 @@ export function FreePackDisplay({ playerId, onClaimPack }: FreePackDisplayProps)
             fontStyle: 'italic',
           }}
         >
-          💡 Free packs reset every 24 hours. Don't miss out!
+          💡 Free packs reset every 3 days. Don't miss out!
         </div>
       </div>
 
