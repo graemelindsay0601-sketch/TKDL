@@ -755,6 +755,15 @@ async function init() {
     await seedUsers();
     await seedTitles();
     void sweepAllPlayerTitles(); // grant any titles earned via existing achievements
+    
+    // Initialize Card Clash season auto-check
+    try {
+      const { checkAndEndSeasonIfNeeded } = await import("./services/card-clash-season-rewards");
+      await checkAndEndSeasonIfNeeded();
+    } catch (err) {
+      logger.warn({ err }, "Card Clash season auto-check failed (non-blocking)");
+    }
+    
     logger.info("Startup init complete");
   } catch (err) {
     logger.error({ err }, "Startup init failed");

@@ -1537,3 +1537,112 @@ router.post("/sell-card", async (req: Request, res: Response) => {
   });
 
 export default router;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════  CARD CLASH SEASON-END REWARDS  ═════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/card-clash/season/current
+// Get current active season info
+router.get("/season/current", async (req: Request, res: Response) => {
+  try {
+    const { endSeasonAndAwardRewards, checkAndEndSeasonIfNeeded } = await import(
+      "../services/card-clash-season-rewards"
+    );
+
+    // Auto-check if season needs to end
+    await checkAndEndSeasonIfNeeded();
+
+    const [season] = await db
+      .select()
+      .from(cardClashSeasonsTable)
+      .where(eq(cardClashSeasonsTable.isActive, true))
+      .limit(1);
+
+    if (!season) {
+      return res.status(404).json({ error: "No active season" });
+    }
+
+    const endDate = new Date(season.endDate);
+    const now = new Date();
+    const daysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    res.json({
+      season,
+      daysRemaining: Math.max(0, daysRemaining),
+      hasEnded: daysRemaining <= 0,
+    });
+  } catch (error) {
+    logger.error({ error }, "Failed to get current season");
+    res.status(500).json({ error: "Failed to get season info" });
+  }
+});
+
+// GET /api/card-clash/season/rewards-preview/:seasonId
+// Preview what the season-end rewards WOULD be (for testing/UI)
+router.get("/season/rewards-preview/:seasonId", async (req: Request, res: Response) => {
+  try {
+    const { getSeasonRewardLeaderboard } = await import(
+      "../services/card-clash-season-rewards"
+    );
+
+    const seasonId = parseInt(req.params.seasonId);
+    const leaderboard = await getSeasonRewardLeaderboard(seasonId);
+
+    res.json({ leaderboard });
+  } catch (error) {
+    logger.error({ error }, "Failed to get reward preview");
+    res.status(500).json({ error: "Failed to preview rewards" });
+  }
+});
+
+// POST /api/card-clash/admin/season/end
+// END current season and distribute rewards (ADMIN ONLY)
+router.post("/admin/season/end", verifyAdminPin, async (req: Request, res: Response) => {
+  try {
+    const { endSeasonAndAwardRewards, getOrCreateActiveCardClashSeason } = await import(
+      "../services/card-clash-season-rewards"
+    );
+
+    logger.warn({}, "ADMIN: Manually ending Card Clash season and distributing rewards");
+
+    const result = await endSeasonAndAwardRewards();
+
+    if (result.success) {
+      // Create new season
+      await getOrCreateActiveCardClashSeason();
+      res.json({
+        success: true,
+        ...result,
+        message: `${result.message} | New season created`,
+      });
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (error) {
+    logger.error({ error }, "Failed to end season");
+    res.status(500).json({ error: "Failed to end season" });
+  }
+});
+
+// POST /api/card-clash/admin/season/force-rewards-for-testing
+// TEST ONLY: Award test rewards to all players (for development)
+router.post(
+  "/admin/season/force-rewards-for-testing",
+  verifyAdminPin,
+  async (req: Request, res: Response) => {
+    try {
+      const { endSeasonAndAwardRewards } = await import(
+        "../services/card-clash-season-rewards"
+      );
+
+      logger.warn({}, "TEST: Forcing season rewards distribution");
+
+      const result = await endSeasonAndAwardRewards();
+      res.json(result);
+    } catch (error) {
+      logger.error({ error }, "Failed to force rewards");
+      res.status(500).json({ error: "Failed to force rewards" });
+    }
+  }
+);
