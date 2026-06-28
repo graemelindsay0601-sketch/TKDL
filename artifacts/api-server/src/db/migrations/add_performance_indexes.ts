@@ -29,8 +29,8 @@ export async function addPerformanceIndexes() {
     {
       name: "idx_card_inventory_player_id",
       query: sql`CREATE INDEX IF NOT EXISTS idx_card_inventory_player_id 
-          ON card_inventory(player_id)`,
-      description: "card_inventory(player_id)",
+          ON player_card_inventory(player_id)`,
+      description: "player_card_inventory(player_id)",
     },
     {
       name: "idx_card_clash_standings_season_id",
@@ -44,12 +44,8 @@ export async function addPerformanceIndexes() {
           ON card_clash_matches(player_1_id, player_2_id, winner_id)`,
       description: "card_clash_matches (composite)",
     },
-    {
-      name: "idx_shop_purchase_history_player_card",
-      query: sql`CREATE INDEX IF NOT EXISTS idx_shop_purchase_history_player_card 
-          ON shop_purchase_history(player_id, card_id)`,
-      description: "shop_purchase_history(player_id, card_id)",
-    },
+    // NOTE: shop_purchase_history will be indexed when table is created
+    // For now, this index creation is skipped to prevent startup crash
   ];
 
   let successCount = 0;
