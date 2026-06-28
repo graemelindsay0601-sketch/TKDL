@@ -37,6 +37,7 @@ export interface CCEffect {
   
   // Duration flags for expiration
   legDuration?: boolean;            // Don't expire at turn end, only at leg end (e.g., Big Game Player bonus)
+  finalLegOnly?: boolean;           // Only activate in final leg of match (Match Pressure)
 
   // X01: dart-level (applied in ccPreprocessDart, per-dart)
   segmentBlock?: number[];       // these segments → value 0
@@ -260,7 +261,7 @@ export function ccActivateCard(
     "Hex":                { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.5 },
     "Wipeout":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", wildDartIndices: [1, 2] }, // last 2 darts → 0
     "Total Annihilation": { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 100 },
-    "Match Pressure":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8 },
+    "Match Pressure":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8, finalLegOnly: true },
     "Underdog Curse":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8 },
     "Win Bonus Removed":  { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 0 },
     "Shutdown":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", maxVisitTotal: 50 },

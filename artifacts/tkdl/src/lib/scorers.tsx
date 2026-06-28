@@ -421,7 +421,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
     // Card Clash: preprocess dart (segment redirects, multiplier changes, value floors/caps)
     if (isCardClash) {
-      dart = ccPreprocessDart(dart, visitDarts.length, activeEffects, turn, scores[turn]);
+      // Filter out finalLegOnly effects unless in final leg
+      const inFinalLeg = legsNeeded - legWins[turn] === 1;
+      const effectsForDart = inFinalLeg ? activeEffects : activeEffects.filter(e => !e.finalLegOnly);
+      dart = ccPreprocessDart(dart, visitDarts.length, effectsForDart, turn, scores[turn]);
     }
 
     const nv = [...visitDarts, dart];
@@ -546,7 +549,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       // Card Clash: visit-end bonuses (Power Surge, Rust Hands, Mental Block, High Roller, etc.)
       let effectiveCum = cum;
       if (isCardClash) {
-        const { bonusReduction, extraPenalty } = ccApplyVisitEnd(cum, nv.length, activeEffects, turn, legWins);
+        // Filter out finalLegOnly effects unless in final leg
+        const inFinalLeg = legsNeeded - legWins[turn] === 1;
+        const effectsForVisitEnd = inFinalLeg ? activeEffects : activeEffects.filter(e => !e.finalLegOnly);
+        const { bonusReduction, extraPenalty } = ccApplyVisitEnd(cum, nv.length, effectsForVisitEnd, turn, legWins);
         effectiveCum = Math.max(0, cum + bonusReduction - extraPenalty);
       }
       setScores(prev => { const n=[...prev] as [number,number]; n[turn] = Math.max(1, n[turn] - effectiveCum); return n; });
@@ -1169,9 +1175,11 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     if (numIdx >= 0) {
       // Card Clash: apply mark modifiers (Double Strike, Bad Aim, Hesitation, Sluggish, etc.)
       const rawHits = dart.multiplier;
-      let effectiveHits = isCardClash
-        ? ccApplyCricketMarkEffects(rawHits, dart.segment, visitDarts.length, activeEffects, turn)
-        : rawHits;
+      let effectiveHits = isCardClash ? (() => {
+        const inFinalLeg = legsNeeded - legWins[turn] === 1;
+        const effectsForMarks = inFinalLeg ? activeEffects : activeEffects.filter(e => !e.finalLegOnly);
+        return ccApplyCricketMarkEffects(rawHits, dart.segment, visitDarts.length, effectsForMarks, turn);
+      })() : rawHits;
       
       // Card Clash: Apply conditional Cricket card multipliers (Comeback Marks, Dominance)
       if (isCardClash) {
