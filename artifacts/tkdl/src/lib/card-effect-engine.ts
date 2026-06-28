@@ -286,12 +286,6 @@ export function ccPreprocessDart(
   // Gather only active effects targeting this player
   const active = effects.filter(e => e.status === "active" && e.affectsPlayer === player);
   
-  // DEBUG: Log effect filtering to diagnose cross-player effect leaks
-  if (effects.length > 0 && dartIdx === 0) {
-    const allActive = effects.filter(e => e.status === "active");
-    console.log(`[CARD_CLASH:PREPROCESS] Player${player} dart: segment=${dart.segment} value=${dart.value}. Active effects: ${allActive.map(e => `${e.cardName}→P${e.affectsPlayer}`).join(", ") || "none"}. Filtered to player: ${active.map(e => e.cardName).join(", ") || "none"}`);
-  }
-  
   if (active.length === 0) return dart;
 
   let { segment, multiplier, value, label } = dart;
@@ -380,6 +374,12 @@ export function ccPreprocessDart(
       value = e.minDartValue; label = `${value}`;
     }
   }
+  
+  // DEBUG: Log final modified dart (first dart of visit only)
+  if (dartIdx === 0 && active.length > 0) {
+    console.log(`[CARD_CLASH:PREPROCESS] Player${player} final: segment=${segment} value=${value} (was 60). Effects applied: ${active.map(e => e.cardName).join(", ")}`);
+  }
+  
   return { segment, multiplier, value, label };
 }
 
