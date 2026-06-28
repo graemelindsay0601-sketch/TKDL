@@ -420,28 +420,3 @@ export function CardClashPracticeMode({
     );
   }
 }
-          disabled={loading}
-          style={{
-            width: '100%',
-            padding: '14px 24px',
-            borderRadius: '10px',
-            border: 'none',
-            fontWeight: 800,
-            fontSize: '15px',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            background: loading
-              ? 'rgba(255,255,255,0.06)'
-              : 'linear-gradient(135deg, #00d47a, #00a355)',
-            color: loading ? 'rgba(255,255,255,0.3)' : '#fff',
-            boxShadow: loading ? 'none' : '0 6px 24px rgba(0,212,122,0.3)',
-            transition: 'all 0.2s',
-          }}
-        >
-          {loading ? '⏳ Creating Match...' : '🎲 Start Practice Match →'}
-        </button>
-      </div>
-    );
-  }
-
-  return null;
-}
