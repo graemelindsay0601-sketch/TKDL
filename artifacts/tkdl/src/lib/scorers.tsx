@@ -1042,6 +1042,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
   const [lastHit, setLastHit]   = useState<string>("");
   const [snapHistory, setSnapHistory] = useState<{marks: [[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]], scores: [number,number], turn: 0|1, visitDarts: Dart[]}[]>([]);
+  const [lockedNumbers, setLockedNumbers] = useState<[Set<number>, Set<number>]>([new Set(), new Set()]); // Track locked numbers per player (Number Prison, Re-Opening Block)
 
   // Card Clash state (populated from sessionStorage by CardClashMatchScorer)
   const [p1Cards, setP1Cards]         = useState<any[]>([]);
@@ -1091,6 +1092,27 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     cardDebugLog("CricketScorer", "Card activated", { card: card.name });
 
     const effects = ccActivateCard(card, turn, { marks, scores });
+    
+    // Card Clash: Number Prison — randomly lock one of opponent's closed numbers
+    if (card.name === "Number Prison") {
+      const opp: 0|1 = turn === 0 ? 1 : 0;
+      const oppMarks = marks[opp];
+      const closedNumbers: number[] = [];
+      CRICKET_NUMS.forEach((num, idx) => {
+        if (oppMarks[idx] >= 3) closedNumbers.push(num);
+      });
+      
+      if (closedNumbers.length > 0) {
+        const randomIdx = Math.floor(Math.random() * closedNumbers.length);
+        const lockedNum = closedNumbers[randomIdx];
+        setLockedNumbers(prev => {
+          const newLocked = [new Set(prev[0]), new Set(prev[1])] as [Set<number>, Set<number>];
+          newLocked[opp].add(lockedNum);
+          console.log(`[CARD_CLASH:NUMBER_PRISON] Player${turn} locked ${lockedNum} on Player${opp}`);
+          return newLocked;
+        });
+      }
+    }
 
     effects.forEach(e => {
       if (e.instant) {
