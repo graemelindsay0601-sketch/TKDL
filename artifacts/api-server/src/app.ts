@@ -64,6 +64,25 @@ app.use(compression({
   }
 }));
 
+// PERFORMANCE: Cache static assets in browser (prevents re-download)
+// Mobile users benefit massively - no re-download on page reload
+app.use((req, res, next) => {
+  // Cache static files for 1 year (use hash in filename for cache busting)
+  if (req.url.match(/\.(js|css|png|jpg|gif|svg|woff|woff2|ttf|eot)$/i)) {
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.set('ETag', undefined); // Let browser use max-age, not ETag
+  }
+  // Cache API responses for 5 minutes for leaderboards/standings
+  else if (req.url.match(/^\/api\/(standings|leaderboard)/)) {
+    res.set('Cache-Control', 'public, max-age=300');
+  }
+  // Don't cache dynamic content
+  else {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  }
+  next();
+});
+
 app.set("trust proxy", 1);
 
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
