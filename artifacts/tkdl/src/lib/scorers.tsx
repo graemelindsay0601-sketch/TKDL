@@ -1203,13 +1203,21 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       }
       
       const canClose = !isCardClash || !ccBlockClosing(activeEffects, turn);
+      
+      // Card Clash: Check if number is locked (Number Prison)
+      const isLocked = isCardClash && lockedNumbers[turn].has(CRICKET_NUMS[numIdx]);
+      const effectiveHitsAfterLock = isLocked ? 0 : effectiveHits;
 
       setMarks(prev => {
         const nm: typeof marks = [[ ...prev[0] ] as any, [ ...prev[1] ] as any];
         const toClose = Math.max(0, (canClose ? 3 : 2) - nm[turn][numIdx]);
-        const absorbed = Math.min(effectiveHits, Math.max(0, toClose));
-        const extra = effectiveHits - absorbed;
+        const absorbed = Math.min(effectiveHitsAfterLock, Math.max(0, toClose));
+        const extra = effectiveHitsAfterLock - absorbed;
         nm[turn][numIdx] = Math.min(canClose ? 3 : 2, nm[turn][numIdx] + absorbed);
+        
+        if (isLocked && effectiveHits > 0) {
+          console.log(`[CARD_CLASH:NUMBER_PRISON_BLOCKED] Player${turn} tried to mark ${CRICKET_NUMS[numIdx]} but it's locked`);
+        }
         // Score extra hits (scoring marks beyond closing)
         if (extra > 0) {
           const opp: 0|1 = turn === 0 ? 1 : 0;
