@@ -70,7 +70,7 @@ export const VirtualizedLeaderboard = React.memo(
                   ? 'rgba(255,255,255,0.01)'
                   : 'transparent'
                 : 'rgba(255,255,255,0.005)',
-            height: ITEM_HEIGHT,
+            height: `${itemHeight}px`,
           }}
         >
           {/* Rank */}
