@@ -195,6 +195,7 @@ export function TKDLCard({
                 <img
                   src={artUrl}
                   alt={card.name}
+                  loading="lazy"
                   style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block", filter: "brightness(0.9) contrast(1.1) saturate(1.2)" }}
                   onError={e => { const el = e.currentTarget as HTMLImageElement; el.style.display = "none"; const fb = el.nextElementSibling as HTMLElement; if (fb) fb.style.display = "flex"; }}
                 />

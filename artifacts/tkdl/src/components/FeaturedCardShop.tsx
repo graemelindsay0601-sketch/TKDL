@@ -267,7 +267,7 @@ export function FeaturedCardShop({
                 }}
               >
                 {card.imageUrl ? (
-                  <img src={card.imageUrl} alt={cardName} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '7px' }} />
+                  <img src={card.imageUrl} alt={cardName} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '7px' }} />
                 ) : (
                   '🎴'
                 )}

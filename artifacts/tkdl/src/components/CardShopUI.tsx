@@ -95,7 +95,7 @@ function PackArt({ packId, isPreview }: { packId: string; isPreview: boolean }) 
   const src = PACK_IMGS[packId] ?? PACK_IMGS.single;
   return (
     <div style={{ width: W, height: H, position: "relative", overflow: "hidden", borderRadius: 8 }}>
-      <img src={src} alt={packId}
+      <img src={src} alt={packId} loading="lazy"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", maxWidth: "none" }}
       />
     </div>

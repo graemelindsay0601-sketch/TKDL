@@ -91,7 +91,7 @@ const PACKS = [
           borderRadius: Math.round(7 * scale),
           boxShadow: `0 ${Math.round(8*scale)}px ${Math.round(32*scale)}px rgba(0,0,0,0.7)`,
         }}>
-          <img src={src} alt={packId}
+          <img src={src} alt={packId} loading="lazy"
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", maxWidth: "none" }}
           />
         </div>

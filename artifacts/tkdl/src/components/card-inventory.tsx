@@ -317,6 +317,7 @@ function CardRow({
             <img
               src={card.imageUrl}
               alt={card.cardName}
+              loading="lazy"
               style={{
                 width: "100%",
                 maxWidth: "200px",
