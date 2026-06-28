@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { CardEquipmentSelector } from './CardEquipmentSelector';
 
 interface PracticeModeProps {
   playerId: number;
@@ -17,12 +18,16 @@ interface BotOpponent {
 interface Card {
   id: number;
   name: string;
-  category: string;
+  cardId?: string;
+  category?: string;
   rarity: string;
-  effect: string;
+  effect?: string;
+  cardType?: string;
+  gameMode?: string;
+  quantity?: number;
 }
 
-type Step = 'opponent-select' | 'card-select' | 'confirm';
+type Step = 'opponent-select' | 'gamemode-select' | 'equipment-select' | 'confirm';
 
 /**
  * CardClashPracticeMode
@@ -41,8 +46,8 @@ export function CardClashPracticeMode({
   // ── State ──────────────────────────────────────────────────────────────
   const [step, setStep] = useState<Step>('opponent-select');
   const [selectedOpponent, setSelectedOpponent] = useState<BotOpponent | null>(null);
-  const [selectedCards, setSelectedCards] = useState<number[]>([]);
   const [gameType, setGameType] = useState<'X01' | 'CRICKET'>('X01');
+  const [equippedCards, setEquippedCards] = useState<any[]>([]);
   const [bots, setBots] = useState<BotOpponent[]>([]);
   const [allCards, setAllCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,22 +86,20 @@ export function CardClashPracticeMode({
     loadData();
   }, []);
 
-  // ── Card selection ─────────────────────────────────────────────────────
-  const handleCardSelect = (cardId: number) => {
-    setSelectedCards((prev) => {
-      if (prev.includes(cardId)) {
-        return prev.filter((id) => id !== cardId);
-      } else if (prev.length < 4) {
-        return [...prev, cardId];
-      }
-      return prev;
-    });
+  // ── Equipment selected ─────────────────────────────────────────────────
+  const handleEquipmentConfirm = (goodCards: Card[], badCards: Card[]) => {
+    if (goodCards.length !== 2 || badCards.length !== 2) {
+      setError('Please equip 2 GOOD and 2 BAD cards');
+      return;
+    }
+    setEquippedCards([...goodCards, ...badCards]);
+    setStep('confirm');
   };
 
   // ── Create and launch practice match ───────────────────────────────────
   const handleStartPractice = async () => {
-    if (!selectedOpponent || selectedCards.length !== 4) {
-      setError('Select opponent and 4 cards');
+    if (!selectedOpponent || equippedCards.length !== 4) {
+      setError('Select opponent and equip 2 GOOD + 2 BAD cards');
       return;
     }
 
@@ -111,7 +114,11 @@ export function CardClashPracticeMode({
           playerId,
           opponentId: selectedOpponent.id,
           gameMode: gameType,
-          selectedCards,
+          equippedCards: equippedCards.map((c: any) => ({ 
+            cardId: c.id || c.cardId || c.name, 
+            cardType: c.cardType || 'GOOD',
+            name: c.name 
+          })),
         }),
       });
 
@@ -166,7 +173,7 @@ export function CardClashPracticeMode({
               key={bot.id}
               onClick={() => {
                 setSelectedOpponent(bot);
-                setStep('card-select');
+                setStep('gamemode-select');
               }}
               style={{
                 padding: '16px 12px',
@@ -223,225 +230,162 @@ export function CardClashPracticeMode({
     );
   }
 
-  // ── Render: Card Selection ─────────────────────────────────────────────
-  if (step === 'card-select') {
-    const filteredCards = allCards.filter((c) => {
-      if (gameType === 'X01') return !c.category.includes('CRICKET');
-      if (gameType === 'CRICKET') return !c.category.includes('X01');
-      return true;
-    });
-
+  // ── Render: Game Mode Selection ────────────────────────────────────────
+  if (step === 'gamemode-select') {
     return (
-      <div style={{ maxWidth: '600px' }}>
+      <div style={{ maxWidth: '500px' }}>
         <button
           onClick={() => setStep('opponent-select')}
           style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'rgba(255,255,255,0.4)',
+            all: 'unset',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '9px 16px',
+            marginBottom: '1.5rem',
+            borderRadius: '8px',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: 'rgba(255,255,255,0.45)',
+            fontSize: '12px',
+            fontWeight: 700,
             cursor: 'pointer',
-            fontSize: '13px',
-            marginBottom: '16px',
-            padding: 0,
           }}
         >
-          ← Back
+          ← BACK
         </button>
-
-        <h2 style={{ margin: '0 0 12px', fontSize: '22px', fontWeight: 900 }}>
-          🎯 Select 4 Cards
+        
+        <h2 style={{ margin: '0 0 12px', fontSize: '24px', fontWeight: 900 }}>
+          Choose Game Mode
         </h2>
-        <p style={{ margin: '0 0 16px', color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>
-          Playing vs <strong>{selectedOpponent?.name}</strong>
+        <p style={{ margin: '0 0 24px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>
+          Opponent: <strong>{selectedOpponent?.name}</strong>
         </p>
 
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'flex', gap: '12px', fontSize: '13px' }}>
-            <input
-              type="radio"
-              name="gameType"
-              value="X01"
-              checked={gameType === 'X01'}
-              onChange={() => setGameType('X01')}
-              style={{ cursor: 'pointer' }}
-            />
-            <span>X01 ({filteredCards.filter(c => !c.category.includes('CRICKET')).length} cards)</span>
-          </label>
-          <label style={{ display: 'flex', gap: '12px', fontSize: '13px', marginTop: '8px' }}>
-            <input
-              type="radio"
-              name="gameType"
-              value="CRICKET"
-              checked={gameType === 'CRICKET'}
-              onChange={() => setGameType('CRICKET')}
-              style={{ cursor: 'pointer' }}
-            />
-            <span>CRICKET ({filteredCards.filter(c => !c.category.includes('X01')).length} cards)</span>
-          </label>
-        </div>
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))',
-            gap: '8px',
-            marginBottom: '20px',
-            maxHeight: '320px',
-            overflowY: 'auto',
-            padding: '4px',
-          }}
-        >
-          {filteredCards.map((card) => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
+          {(['X01', 'CRICKET'] as const).map((mode) => (
             <button
-              key={card.id}
-              onClick={() => handleCardSelect(card.id)}
-              disabled={selectedCards.length === 4 && !selectedCards.includes(card.id)}
+              key={mode}
+              onClick={() => {
+                setGameType(mode);
+                setStep('equipment-select');
+              }}
               style={{
-                padding: '8px',
-                background: selectedCards.includes(card.id)
-                  ? 'rgba(0,200,150,0.3)'
-                  : 'rgba(255,255,255,0.05)',
-                border: selectedCards.includes(card.id)
-                  ? '2px solid rgba(0,200,150,0.7)'
-                  : '1px solid rgba(255,255,255,0.1)',
-                borderRadius: '8px',
+                padding: '20px 16px',
+                background: gameType === mode ? 'rgba(0,150,255,0.2)' : 'rgba(255,255,255,0.05)',
+                border: gameType === mode ? '2px solid rgba(0,150,255,0.6)' : '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '10px',
                 color: '#fff',
-                cursor:
-                  selectedCards.length === 4 && !selectedCards.includes(card.id)
-                    ? 'not-allowed'
-                    : 'pointer',
-                opacity:
-                  selectedCards.length === 4 && !selectedCards.includes(card.id)
-                    ? 0.4
-                    : 1,
-                fontSize: '10px',
-                textAlign: 'center',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: 700,
                 transition: 'all 0.2s',
               }}
             >
-              <div style={{ fontWeight: 700, marginBottom: '2px', fontSize: '11px' }}>
-                {card.name.substring(0, 14)}
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}>
+                {mode === 'X01' ? '🎯' : '🏁'}
               </div>
-              <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)' }}>
-                {card.rarity}
-              </div>
+              {mode}
             </button>
           ))}
         </div>
 
-        <div
-          style={{
-            padding: '12px 14px',
-            background: 'rgba(100,150,255,0.1)',
-            border: '1px solid rgba(100,150,255,0.3)',
-            borderRadius: '8px',
-            fontSize: '12px',
-            color: 'rgba(255,255,255,0.7)',
-            marginBottom: '16px',
-          }}
-        >
-          Selected: <strong>{selectedCards.length}/4 cards</strong>
-        </div>
-
-        <button
-          onClick={() => setStep('confirm')}
-          disabled={selectedCards.length !== 4}
-          style={{
-            width: '100%',
-            padding: '12px 16px',
-            borderRadius: '8px',
-            border: 'none',
-            fontWeight: 700,
-            fontSize: '14px',
-            cursor: selectedCards.length === 4 ? 'pointer' : 'not-allowed',
-            background:
-              selectedCards.length === 4
-                ? 'linear-gradient(135deg, #00b4ff, #0066cc)'
-                : 'rgba(255,255,255,0.06)',
-            color: selectedCards.length === 4 ? '#fff' : 'rgba(255,255,255,0.3)',
-            transition: 'all 0.2s',
-          }}
-        >
-          Continue →
-        </button>
+        {error && (
+          <div style={{ padding: '12px 14px', background: 'rgba(255,100,100,0.1)', border: '1px solid rgba(255,100,100,0.3)', borderRadius: '8px', color: '#ff9999', fontSize: '12px' }}>
+            {error}
+          </div>
+        )}
       </div>
     );
   }
 
-  // ── Render: Confirmation ───────────────────────────────────────────────
+  // ── Render: Equipment Selection ────────────────────────────────────────
+  if (step === 'equipment-select') {
+    return (
+      <div>
+        <button
+          onClick={() => setStep('gamemode-select')}
+          style={{
+            all: 'unset',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '9px 16px',
+            marginBottom: '1.5rem',
+            borderRadius: '8px',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: 'rgba(255,255,255,0.45)',
+            fontSize: '12px',
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          ← BACK
+        </button>
+        
+        <CardEquipmentSelector 
+          playerId={playerId!}
+          gameMode={gameType}
+          onEquip={handleEquipmentConfirm}
+          onCancel={() => setStep('gamemode-select')}
+        />
+      </div>
+    );
+  }
+
   if (step === 'confirm') {
-    const selectedCardNames = allCards
-      .filter((c) => selectedCards.includes(c.id))
-      .map((c) => c.name);
+    const goodCards = equippedCards.filter((c: any) => c.cardType === 'GOOD');
+    const badCards = equippedCards.filter((c: any) => c.cardType === 'BAD');
 
     return (
-      <div style={{ maxWidth: '500px' }}>
+      <div style={{ maxWidth: '600px' }}>
         <button
-          onClick={() => setStep('card-select')}
+          onClick={() => setStep('equipment-select')}
           style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'rgba(255,255,255,0.4)',
+            all: 'unset',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '9px 16px',
+            marginBottom: '1.5rem',
+            borderRadius: '8px',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: 'rgba(255,255,255,0.45)',
+            fontSize: '12px',
+            fontWeight: 700,
             cursor: 'pointer',
-            fontSize: '13px',
-            marginBottom: '16px',
-            padding: 0,
           }}
         >
-          ← Back
+          ← BACK
         </button>
 
-        <h2 style={{ margin: '0 0 20px', fontSize: '22px', fontWeight: 900 }}>
+        <h2 style={{ margin: '0 0 8px', fontSize: '24px', fontWeight: 900 }}>
           ✓ Ready to Practice?
         </h2>
+        <p style={{ margin: '0 0 20px', color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>
+          Match: <strong>{selectedOpponent?.name}</strong> • <strong>{gameType}</strong>
+        </p>
 
-        <div
-          style={{
-            padding: '16px',
-            background: 'rgba(0,200,150,0.08)',
-            border: '1px solid rgba(0,200,150,0.2)',
-            borderRadius: '10px',
-            marginBottom: '20px',
-          }}
-        >
+        <div style={{ padding: '16px', background: 'rgba(0,200,150,0.08)', border: '1px solid rgba(0,200,150,0.2)', borderRadius: '10px', marginBottom: '20px' }}>
           <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>
-              Opponent
-            </div>
-            <div style={{ fontSize: '16px', fontWeight: 700 }}>
-              {selectedOpponent?.avatar} {selectedOpponent?.name}
-            </div>
-            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>
-              {selectedOpponent?.description}
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '16px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>
-              Game Mode
-            </div>
-            <div style={{ fontSize: '16px', fontWeight: 700 }}>
-              {gameType === 'X01' ? '🎯 X01' : '🦗 CRICKET'}
-            </div>
-          </div>
-
-          <div style={{ paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px' }}>
-              Your Cards ({selectedCards.length})
-            </div>
+            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px', fontWeight: 700 }}>⚡ GOOD CARDS (Boost You)</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-              {selectedCardNames.map((name, i) => (
-                <div
-                  key={i}
-                  style={{
-                    fontSize: '11px',
-                    padding: '6px 8px',
-                    background: 'rgba(255,255,255,0.05)',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(0,200,150,0.3)',
-                  }}
-                >
-                  {name}
+              {goodCards.map((c: any, i: number) => (
+                <div key={i} style={{ fontSize: '12px', padding: '8px', background: 'rgba(0,255,136,0.1)', border: '1px solid rgba(0,255,136,0.3)', borderRadius: '6px', color: '#00ff88' }}>
+                  {c.name || c.cardName || `Card ${i + 1}`}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px', fontWeight: 700, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>💀 BAD CARDS (Curse Opponent)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+              {badCards.map((c: any, i: number) => (
+                <div key={i} style={{ fontSize: '12px', padding: '8px', background: 'rgba(255,100,100,0.1)', border: '1px solid rgba(255,100,100,0.3)', borderRadius: '6px', color: '#ff9999' }}>
+                  {c.name || c.cardName || `Card ${i + 1}`}
                 </div>
               ))}
             </div>
@@ -449,14 +393,32 @@ export function CardClashPracticeMode({
         </div>
 
         {error && (
-          <div
-            style={{
-              padding: '12px 14px',
-              background: 'rgba(255,100,100,0.1)',
-              border: '1px solid rgba(255,100,100,0.3)',
-              borderRadius: '8px',
-              color: '#ff9999',
-              fontSize: '12px',
+          <div style={{ padding: '12px 14px', background: 'rgba(255,100,100,0.1)', border: '1px solid rgba(255,100,100,0.3)', borderRadius: '8px', color: '#ff9999', fontSize: '12px', marginBottom: '16px' }}>
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={handleStartPractice}
+          disabled={loading}
+          style={{
+            width: '100%',
+            padding: '14px 16px',
+            borderRadius: '8px',
+            border: 'none',
+            fontWeight: 700,
+            fontSize: '14px',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            background: loading ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg, #00cc66, #00aa44)',
+            color: '#fff',
+            transition: 'all 0.2s',
+          }}
+        >
+          {loading ? 'Launching...' : '🎴 Launch Practice Match'}
+        </button>
+      </div>
+    );
+  }
               marginBottom: '16px',
             }}
           >

@@ -108,7 +108,7 @@ const RULES_DATA: RuleSection[] = [
       },
       {
         title: 'Cricket Game',
-        description: 'Mark numbers 15-20 and 25/50. Once you close a number 3 times (or hit bullseye), you can score points. First to close all and lead wins.',
+        description: 'Players take turns closing numbers (15-20 and 25 for Bull). Hit a number to "mark" it (single=1 mark, double=2 marks, triple=3 marks). After 3 marks on a number, you "close" it and can score points. Once you close a number, only you can score points on it. First to close all numbers (15-20, Bull) with the highest total score wins.',
       },
       {
         title: 'Card Bonuses',
@@ -116,7 +116,7 @@ const RULES_DATA: RuleSection[] = [
       },
       {
         title: 'Winning the Match',
-        description: 'First player to reach 0 in X01 (with double) or reach 75+ points in Cricket after closing all numbers wins the match.',
+        description: 'In X01: First player to reach exactly 0 with their final dart being a double wins. In Cricket: First player to close all numbers (15–20, Bull) and have the highest total score wins.',
         important: true,
       },
     ],
