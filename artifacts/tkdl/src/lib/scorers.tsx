@@ -335,7 +335,24 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     } else if (legs && legs > 1) {
       setLegWins(prev => {
         const n: [number,number] = [...prev] as [number,number];
+        const opp: 0|1 = winnerIdx === 0 ? 1 : 0;
         n[winnerIdx]++;
+        
+        // Card Clash: Leg Reset — if opponent wins with 2+ streak and has Leg Reset against them, reduce their wins
+        if (isCardClash && legHistory.length >= 2) {
+          const last2Wins = legHistory.slice(-2);
+          if (last2Wins[0] === winnerIdx && last2Wins[1] === winnerIdx) {
+            // Opponent just won their 2+ leg streak
+            const hasLegReset = activeEffects.some(e => 
+              e.cardName === "Leg Reset" && e.status === "active" && e.affectsPlayer === winnerIdx
+            );
+            if (hasLegReset) {
+              console.log(`[CARD_CLASH:LEG_RESET] Player${opp} played Leg Reset. Player${winnerIdx} had 2+ streak, reducing by 1`);
+              n[winnerIdx] = Math.max(0, n[winnerIdx] - 1);
+            }
+          }
+        }
+        
         if (n[winnerIdx] >= legsNeeded) {
           setTimeout(() => {
             onWin(winnerIdx, `${n[winnerIdx]}–${n[winnerIdx===0?1:0]} legs`);
