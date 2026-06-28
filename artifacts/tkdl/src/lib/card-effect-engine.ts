@@ -464,26 +464,52 @@ export function ccApplyVisitEnd(
   let extraPenalty = 0;   // added back to score (bad for player)
 
   for (const e of active) {
+    // ── CONDITIONAL BONUSES ──
+    // Check conditions first, then decide whether to apply or defer
+    let conditionMet = false;
+    let bonusAmount = 0;
+    
+    // Big Game Player: 80+ not on double
+    if (e.bonusIfVisit80Plus && rawCum >= 80) {
+      conditionMet = true;
+      bonusAmount = e.bonusIfVisit80Plus;
+    }
+    // Banking Strategy: 50+
+    if (e.bonusIfVisit50Plus && rawCum >= 50) {
+      conditionMet = true;
+      bonusAmount = e.bonusIfVisit50Plus;
+    }
+    // High Roller: 100+
+    if (e.bonusIfVisit100Plus && rawCum >= 100) {
+      conditionMet = true;
+      bonusAmount = e.bonusIfVisit100Plus;
+    }
+    // Century Maker: exactly 100-109
+    if (e.bonusIfVisit100Exact && rawCum >= 100 && rawCum < 110) {
+      conditionMet = true;
+      bonusAmount = e.bonusIfVisit100Exact;
+    }
+    // High Pressure: if behind in legs
+    const opp: 0 | 1 = player === 0 ? 1 : 0;
+    if (e.bonusIfBehindLegs && legWins[opp] > legWins[player]) {
+      conditionMet = true;
+      bonusAmount = e.bonusIfBehindLegs;
+    }
+    
+    // If condition met and bonus should be applied (not deferred), apply it
+    if (conditionMet && bonusAmount > 0 && !e.deferBonusToNextTurn && !e.deferBonusToNextLeg) {
+      bonusReduction += bonusAmount;
+    }
+    
+    // Note: If deferred, the bonus is stored in the effect and will be applied next turn/leg
+    // via ccActivateDeferredNextTurnEffects or ccActivateDeferredNextLegEffects
+    
+    // ── NON-CONDITIONAL BONUSES ──
     // Skip if this bonus is deferred (will apply on next turn/leg)
     if (e.deferBonusToNextTurn || e.deferBonusToNextLeg) continue;
     
     // Visit bonus (Power Surge, Wildcard bonuses)
     if (e.visitBonus) bonusReduction += e.visitBonus;
-    // Visit penalty (Rust Hands, Dark Cloud)
-    if (e.visitPenalty) extraPenalty += e.visitPenalty;
-    // Penalty per dart (Mental Block)
-    if (e.penaltyPerDart) extraPenalty += e.penaltyPerDart * dartsThrown;
-    // Big Game Player: 80+ not on double
-    if (e.bonusIfVisit80Plus && rawCum >= 80) bonusReduction += e.bonusIfVisit80Plus;
-    // Banking Strategy: 50+
-    if (e.bonusIfVisit50Plus && rawCum >= 50) bonusReduction += e.bonusIfVisit50Plus;
-    // High Roller: 100+
-    if (e.bonusIfVisit100Plus && rawCum >= 100) bonusReduction += e.bonusIfVisit100Plus;
-    // Century Maker: exactly 100-109
-    if (e.bonusIfVisit100Exact && rawCum >= 100 && rawCum < 110) bonusReduction += e.bonusIfVisit100Exact;
-    // High Pressure: if behind in legs
-    const opp: 0 | 1 = player === 0 ? 1 : 0;
-    if (e.bonusIfBehindLegs && legWins[opp] > legWins[player]) bonusReduction += e.bonusIfBehindLegs;
   }
   return { bonusReduction, extraPenalty };
 }
