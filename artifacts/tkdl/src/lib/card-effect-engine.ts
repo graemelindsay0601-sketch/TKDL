@@ -742,6 +742,30 @@ export function ccEvaluateConditionalWildcards(
   return effects;
 }
 
+/** Evaluate opponent penalty Wildcard cards at turn start.
+ *  Returns effects to add based on opponent match state. */
+export function ccEvaluateOpponentWildcards(
+  player: 0 | 1,
+  legWins: [number, number],
+): CCEffect[] {
+  const effects: CCEffect[] = [];
+  const opp: 0 | 1 = player === 0 ? 1 : 0;
+  
+  // Underdog Curse (608): If opponent is ahead, their darts score at 0.8x
+  if (legWins[player] > legWins[opp]) {
+    effects.push({
+      cardName: "Underdog Curse",
+      appliedBy: player,
+      affectsPlayer: opp,
+      status: "active",
+      allDartsMultiplier: 0.8,
+    });
+  }
+  
+  console.log(`[CARD_CLASH:OPPONENT_WILDCARDS] Player${player} turn start: ${effects.map(e => `${e.cardName}(${e.allDartsMultiplier}x)`).join(", ") || "none"}`);
+  return effects;
+}
+
 /** Check if opponent penalty effects are blocked for current player. */
 export function ccOpponentPenaltiesBlocked(effects: CCEffect[], player: 0 | 1): boolean {
   return effects.some(e => e.status === "active" && e.affectsPlayer === player && e.blockOpponentPenalties);

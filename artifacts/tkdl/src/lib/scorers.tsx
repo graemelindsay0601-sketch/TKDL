@@ -18,7 +18,7 @@ import {
   ccActivateCard, ccPreprocessDart, ccApplyVisitCap, ccInterceptBust,
   ccShouldBlockFinish, ccApplyVisitEnd, ccExpireOnTurnEnd,
   ccActivateDeferredNextTurnEffects, ccActivateDeferredNextLegEffects,
-  ccEvaluateConditionalWildcards, ccApplyPenaltyBlockingIfNeeded,
+  ccEvaluateConditionalWildcards, ccEvaluateOpponentWildcards, ccApplyPenaltyBlockingIfNeeded,
   ccApplyCricketMarkEffects, ccApplyCricketScoreEffects, ccBlockClosing,
   ccPenaltyPerMark, ccBonusPerMark,
 } from "./card-effect-engine";
@@ -604,15 +604,18 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
   // Activate deferred-next-turn effects when it becomes the player's turn
   // Also apply penalty blocking if player has blockOpponentPenalties active
+  // Also evaluate opponent penalty Wildcards (Underdog Curse, etc.)
   useEffect(() => {
     if (isCardClash && started[turn]) {
       setActiveEffects(prev => {
         let updated = ccActivateDeferredNextTurnEffects(prev, turn);
         updated = ccApplyPenaltyBlockingIfNeeded(updated, turn);
+        // Evaluate opponent Wildcards that depend on match state
+        updated = updated.concat(ccEvaluateOpponentWildcards(turn, legWins));
         return updated;
       });
     }
-  }, [turn, isCardClash, started]);
+  }, [turn, isCardClash, started, legWins]);
 
   // Reset free retries at start of each turn (for Checkout Confidence)
   useEffect(() => {
