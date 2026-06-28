@@ -1049,6 +1049,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [lastHit, setLastHit]   = useState<string>("");
   const [snapHistory, setSnapHistory] = useState<{marks: [[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]], scores: [number,number], turn: 0|1, visitDarts: Dart[]}[]>([]);
   const [lockedNumbers, setLockedNumbers] = useState<[Set<number>, Set<number>]>([new Set(), new Set()]); // Track locked numbers per player (Number Prison, Re-Opening Block)
+  const [prevTurnMarks, setPrevTurnMarks] = useState<[number[],number[]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]); // Track marks from previous turn for Momentum Killer
 
   // Card Clash state (populated from sessionStorage by CardClashMatchScorer)
   const [p1Cards, setP1Cards]         = useState<any[]>([]);
@@ -1086,6 +1087,41 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       cardDebugLog("CricketScorer", "Failed to load Card Clash cards from sessionStorage", e);
     }
   }, []);
+
+  // ── Card Clash: Momentum Killer — remove marks if 2+ were added last turn ──
+  useEffect(() => {
+    if (!isCardClash || activeEffects.length === 0) return;
+    
+    const hasMomentumKiller = activeEffects.some(e => 
+      e.cardName === "Momentum Killer" && e.status === "active" && e.affectsPlayer === turn
+    );
+    
+    if (hasMomentumKiller) {
+      // Calculate marks gained last turn
+      const marksGainedLastTurn = marks[turn].map((current, idx) => 
+        Math.max(0, current - prevTurnMarks[turn][idx])
+      );
+      
+      // Find which numbers gained 2+ marks
+      const numbersToRemove = marksGainedLastTurn
+        .map((gained, idx) => gained >= 2 ? idx : -1)
+        .filter(idx => idx !== -1);
+      
+      if (numbersToRemove.length > 0) {
+        setMarks(prev => {
+          const nm: typeof marks = [[...prev[0]] as any, [...prev[1]] as any];
+          numbersToRemove.forEach(idx => {
+            nm[turn][idx] = prevTurnMarks[turn][idx];
+          });
+          console.log(`[CARD_CLASH:MOMENTUM_KILLER] Player${turn} gained 2+ marks last turn on ${numbersToRemove.length} numbers, removing them`);
+          return nm;
+        });
+      }
+    }
+    
+    // Update prevTurnMarks for next turn
+    setPrevTurnMarks([...marks] as [number[], number[]]);
+  }, [turn, isCardClash, activeEffects, marks, prevTurnMarks]);
 
   // ── Card Clash: Handle card activation ──
   const handleCardActivation = useCallback((cardId: string) => {
