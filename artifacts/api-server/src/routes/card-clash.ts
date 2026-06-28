@@ -495,31 +495,38 @@ router.get("/standings/:seasonId", async (req: Request, res: Response) => {
   }
 });
 
-// Card Clash leaderboard - all-time rankings (no seasons)
+// Card Clash leaderboard - all-time rankings including all active players
 router.get("/leaderboard", async (req: Request, res: Response) => {
   try {
     const result = await db.execute(sql`
       SELECT
-        l.player_id,
+        p.id AS player_id,
         p.name AS player_name,
-        l.wins,
-        l.losses,
-        (l.wins + l.losses)::int AS total_matches,
-        l.cards_unlocked_count,
-        l.updated_at,
+        COALESCE(l.wins, 0) AS wins,
+        COALESCE(l.losses, 0) AS losses,
+        (COALESCE(l.wins, 0) + COALESCE(l.losses, 0))::int AS total_matches,
+        COALESCE(l.cards_unlocked_count, 0) AS cards_unlocked_count,
+        COALESCE(l.updated_at, NOW()) AS updated_at,
         CASE 
-          WHEN (l.wins + l.losses) > 0 
-          THEN ROUND((l.wins::numeric / (l.wins + l.losses)) * 100, 1)
+          WHEN (COALESCE(l.wins, 0) + COALESCE(l.losses, 0)) > 0 
+          THEN ROUND((COALESCE(l.wins, 0)::numeric / (COALESCE(l.wins, 0) + COALESCE(l.losses, 0))) * 100, 1)
           ELSE 0
-        END AS win_percentage
-      FROM card_clash_leaderboard l
-      JOIN players p ON l.player_id = p.id
-      ORDER BY l.wins DESC, total_matches DESC
+        END AS win_percentage,
+        COALESCE(pc.card_points, 0) AS coins,
+        (SELECT COUNT(DISTINCT card_id) FROM card_inventory WHERE player_id = p.id)::int AS cards_owned
+      FROM players p
+      LEFT JOIN card_clash_leaderboard l ON p.id = l.player_id
+      LEFT JOIN player_currency pc ON p.id = pc.player_id
+      WHERE p.is_active = true
+      ORDER BY 
+        COALESCE(l.wins, 0) DESC,
+        (COALESCE(l.wins, 0) + COALESCE(l.losses, 0)) DESC,
+        p.name ASC
     `);
     res.json(result.rows);
   } catch (error) {
-    logger.warn({ error }, "Card Clash leaderboard endpoint - table may not exist yet");
-    res.json([]); // Return empty leaderboard if table doesn't exist
+    logger.warn({ error }, "Card Clash leaderboard endpoint - error fetching leaderboard");
+    res.json([]); // Return empty leaderboard if error
   }
 });
 
