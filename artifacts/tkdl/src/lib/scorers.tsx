@@ -288,6 +288,20 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         if (legWinner !== null) {
           setLegHistory(prev => [...prev, legWinner]);
           console.log(`[CARD_CLASH:LEG_HISTORY] Leg ${prev.length + 1} won by Player${legWinner}`);
+          
+          // Check for shutout (opponent scored 0 - Perfect Game bonus)
+          const opp: 0|1 = legWinner === 0 ? 1 : 0;
+          if (isCardClash && scores[opp] === startingScore) {
+            console.log(`[CARD_CLASH:SHUTOUT] Player${legWinner} achieved shutout! Perfect Game bonus +30`);
+            setActiveEffects(prev => [...prev, {
+              cardName: "Perfect Game",
+              appliedBy: legWinner,
+              affectsPlayer: legWinner,
+              status: "active",
+              visitBonus: 30,
+              legDuration: true,
+            }]);
+          }
         }
       }, delay);
     };
@@ -429,6 +443,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           setTurn(t => soloMode ? 0 : (t===0?1:0));
           return;
         }
+      }
+      // Check if finish is blocked by Scoring Arsenal (forceFullTurn)
+      if (isValidOut(dart) && nv.length < 3 &&
+          activeEffects.some(e => e.status === "active" && e.affectsPlayer === turn && e.forceFullTurn)) {
+        console.log(`[CARD_CLASH:FORCE_FULL_TURN] Player${turn} attempted early finish but Scoring Arsenal forces full turn`);
+        setVisitDarts(nv);
+        return;
       }
       if (isValidOut(dart)) {
         if (turn === 0) {
