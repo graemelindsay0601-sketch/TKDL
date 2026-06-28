@@ -3,6 +3,7 @@ import { useCurrentPlayer } from "@/context/auth";
 import { CardShopUI } from "@/components/CardShopUI";
 import { FreePackDisplay } from "@/components/FreePackDisplay";
 import { FeaturedCardShop } from "@/components/FeaturedCardShop";
+import { VirtualizedLeaderboard } from "@/components/VirtualizedLeaderboard";
 import { getDynamicBuzzMessage, BuzzMessageDisplay, getTimeBasedBuzzMessage } from "@/utils/buzzMessages";
 import { AchievementsDisplay } from "@/components/AchievementsDisplay";
 import { AdvancedAdminTools } from "@/components/AdvancedAdminTools";

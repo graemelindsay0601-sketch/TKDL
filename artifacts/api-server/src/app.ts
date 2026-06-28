@@ -1,7 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
-import compression from "compression";
 import rateLimit from "express-rate-limit";
 import path from "path";
 import pinoHttp from "pino-http";
@@ -53,19 +52,9 @@ app.use(
   }),
 );
 
-// PERFORMANCE: Enable gzip compression for all responses
-// Reduces payload size by 60-70% (3MB JS → 1MB)
-app.use(compression({
-  level: 6, // Balance between compression ratio (1-9) and CPU usage
-  threshold: 1024, // Only compress responses larger than 1KB
-  filter: (req, res) => {
-    if (req.headers['x-no-compression']) return false;
-    return compression.filter(req, res);
-  }
-}));
-
 // PERFORMANCE: Cache static assets in browser (prevents re-download)
 // Mobile users benefit massively - no re-download on page reload
+// Note: Gzip compression handled by Render reverse proxy (no external dependency)
 app.use((req, res, next) => {
   // Cache static files for 1 year (use hash in filename for cache busting)
   if (req.url.match(/\.(js|css|png|jpg|gif|svg|woff|woff2|ttf|eot)$/i)) {
