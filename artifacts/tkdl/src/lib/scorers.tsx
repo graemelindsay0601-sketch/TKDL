@@ -1069,9 +1069,31 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     if (numIdx >= 0) {
       // Card Clash: apply mark modifiers (Double Strike, Bad Aim, Hesitation, Sluggish, etc.)
       const rawHits = dart.multiplier;
-      const effectiveHits = isCardClash
+      let effectiveHits = isCardClash
         ? ccApplyCricketMarkEffects(rawHits, dart.segment, visitDarts.length, activeEffects, turn)
         : rawHits;
+      
+      // Card Clash: Apply conditional Cricket card multipliers (Comeback Marks, Dominance)
+      if (isCardClash) {
+        const opp: 0|1 = turn === 0 ? 1 : 0;
+        
+        // Comeback Marks (313): If behind in points, marks * 1.5x
+        const hasCombackMarks = activeEffects.some(e => e.cardName === "Comeback Marks" && e.status === "active" && e.affectsPlayer === turn);
+        if (hasCombackMarks && scores[turn] < scores[opp]) {
+          effectiveHits = Math.floor(effectiveHits * 1.5);
+        }
+        
+        // Dominance (320): If lead in closed numbers, marks * 1.3x
+        const hasDominance = activeEffects.some(e => e.cardName === "Dominance" && e.status === "active" && e.affectsPlayer === turn);
+        if (hasDominance) {
+          const closedByPlayer = marks[turn].filter(m => m >= 3).length;
+          const closedByOpp = marks[opp].filter(m => m >= 3).length;
+          if (closedByPlayer > closedByOpp) {
+            effectiveHits = Math.floor(effectiveHits * 1.3);
+          }
+        }
+      }
+      
       const canClose = !isCardClash || !ccBlockClosing(activeEffects, turn);
 
       setMarks(prev => {
