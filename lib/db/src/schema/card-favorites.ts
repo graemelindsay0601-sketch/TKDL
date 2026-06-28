@@ -1,5 +1,5 @@
 import { pgTable, serial, integer, varchar, timestamp, primaryKey, uniqueIndex } from "drizzle-orm/pg-core";
-import { players } from "./users";
+import { playersTable } from "./players";
 
 /**
  * Card Favorites Table
@@ -12,7 +12,7 @@ export const cardFavorites = pgTable(
   "card_favorites",
   {
     id: serial("id").primaryKey(),
-    player_id: integer("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
+    player_id: integer("player_id").notNull().references(() => playersTable.id, { onDelete: "cascade" }),
     card_id: varchar("card_id", { length: 50 }).notNull(), // Card ID from ALL_CARDS
     card_name: varchar("card_name", { length: 100 }).notNull(), // Card name for quick lookup
     game_mode: varchar("game_mode", { length: 20 }).notNull(), // X01 or CRICKET
