@@ -541,11 +541,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (nonInstant.length > 0) {
       console.log(`[CARD_CLASH:ACTIVATE] Player${turn} activated ${card.name}. Effects: ${nonInstant.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`).join(", ")}`);
       setActiveEffects(prev => [...prev, ...nonInstant]);
-    } else {
     }
+    
+    // Mark card as permanently used (consumed for this match)
+    if (!cardsUsed.some((c: any) => c.id === card.id)) {
+      setCardsUsed(prev => [...prev, card]);
+      console.log(`[CARD_CLASH:CONSUMED] Card ${card.name} (id:${card.id}) consumed by Player${turn}`);
+    }
+    
     cardDebugLog("X01Scorer", "Effects queued", { effects: effects.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`) });
-    // Note: Card is marked as used when turn ends, not when activated
-    // This allows multiple cards to be used in the same turn
   }, [p1Cards, p2Cards, cardsUsed, turn, scores, legWins]);
 
   const handleDartRef = useRef(handleDart);
@@ -979,10 +983,12 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     const nonInstant = effects.filter(e => !e.instant);
     if (nonInstant.length > 0) {
       setActiveEffects(prev => [...prev, ...nonInstant]);
-    } else {
     }
     cardDebugLog("CricketScorer", "Effects queued", { effects: effects.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`) });
-    if (!cardsUsed.some((c: any) => c.id === card.id)) setCardsUsed(prev => [...prev, card]);
+    if (!cardsUsed.some((c: any) => c.id === card.id)) {
+      setCardsUsed(prev => [...prev, card]);
+      console.log(`[CARD_CLASH:CONSUMED] Card ${card.name} (id:${card.id}) consumed by Player${turn}`);
+    }
   }, [p1Cards, p2Cards, cardsUsed, turn, marks, scores]);
 
   const checkWin = (m: typeof marks, sc: [number,number]): 0|1|null => {

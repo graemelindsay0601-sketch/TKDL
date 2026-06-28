@@ -40,6 +40,8 @@ export interface CCEffect {
   treblesAsSingles?: boolean;    // trebles → singles value
   fatigueMults?: [number, number, number]; // per dart multipliers
   wildDartIndex?: number;        // this dart index (0/1/2) → 0
+  wildDartIndices?: number[];    // multiple dart indices → 0 (e.g., Wipeout: [1, 2])
+  randomWildDart?: boolean;      // pick random dart at throw time (Wild Throw)
   minSegment?: number;           // if seg < this, redirect to this (Precision Strike=6)
   clutchPenaltyPerDart?: number; // subtract N from dart value if player remaining <= 100
   bonusPerDart?: number;         // add N to each dart value (Perfect Rhythm=10)
@@ -151,7 +153,7 @@ export function ccActivateCard(
   // ── X01 BAD (affects opponent, pending → active on their next turn) ────────
   const x01Bad: Record<string, CCEffect> = {
     "Rust Hands -40":       { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 40 },
-    "Wild Throw":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", wildDartIndex: Math.floor(Math.random() * 3) },
+    "Wild Throw":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", randomWildDart: true },
     "Brick Wall":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", segmentBlock: [20, 19, 18] },
     "Low Blow":             { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", singlesScore0: true },
     "Doubles Don't Count":  { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", doublesAsSingles: true },
@@ -245,7 +247,7 @@ export function ccActivateCard(
     "Momentum Killer":    { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 0 }, // streak clear
     "Unlucky Night":      { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.75 },
     "Hex":                { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.5 },
-    "Wipeout":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", wildDartIndex: 1 }, // last 2 darts → 0
+    "Wipeout":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", wildDartIndices: [1, 2] }, // last 2 darts → 0
     "Total Annihilation": { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 100 },
     "Match Pressure":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8 },
     "Underdog Curse":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8 },
@@ -331,8 +333,15 @@ export function ccPreprocessDart(
     if (e.singlesScore0 && multiplier === 1 && segment !== 25) {
       value = 0; label = `0 (single)`;
     }
-    // Wild dart (Wild Throw)
+    // Wild dart(s) (Wild Throw, Wipeout)
     if (e.wildDartIndex !== undefined && dartIdx === e.wildDartIndex) {
+      value = 0; label = `0 (wild throw)`;
+    }
+    if (e.wildDartIndices && e.wildDartIndices.includes(dartIdx)) {
+      value = 0; label = `0 (wiped)`;
+    }
+    // Random wild dart (Wild Throw): pick random dart at throw time, zero it out
+    if (e.randomWildDart && Math.random() < 0.33) {
       value = 0; label = `0 (wild throw)`;
     }
     // Fatigue multipliers
@@ -455,7 +464,7 @@ export function ccApplyVisitEnd(
     // Banking Strategy: 50+
     if (e.bonusIfVisit50Plus && rawCum >= 50) bonusReduction += e.bonusIfVisit50Plus;
     // High Roller: 100+
-    if (e.bonusIfVisit100Plus && rawCum > 100) bonusReduction += e.bonusIfVisit100Plus;
+    if (e.bonusIfVisit100Plus && rawCum >= 100) bonusReduction += e.bonusIfVisit100Plus;
     // Century Maker: exactly 100-109
     if (e.bonusIfVisit100Exact && rawCum >= 100 && rawCum < 110) bonusReduction += e.bonusIfVisit100Exact;
     // High Pressure: if behind in legs
