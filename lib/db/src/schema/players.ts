@@ -27,6 +27,7 @@ export const playersTable = pgTable("players", {
   tourEnabled:      boolean("tour_enabled").notNull().default(true),
   m501Enabled:      boolean("m501_enabled").notNull().default(true),
   shadowBotEnabled: boolean("shadow_bot_enabled").notNull().default(true),
+  lastFreePackClaimTime: timestamp("last_free_pack_claim_time", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

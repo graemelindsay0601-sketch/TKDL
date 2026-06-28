@@ -599,6 +599,7 @@ async function seedPractice() {
   await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS tour_enabled       BOOLEAN NOT NULL DEFAULT true`);
   await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS m501_enabled       BOOLEAN NOT NULL DEFAULT true`);
   await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS shadow_bot_enabled BOOLEAN NOT NULL DEFAULT true`);
+  await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS last_free_pack_claim_time TIMESTAMPTZ`);
 }
 
 async function seedMatchParticipants() {

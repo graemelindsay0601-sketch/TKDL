@@ -168,6 +168,16 @@ export async function purchaseFeaturedCard(
       return { success: false, message: "Card not currently featured" };
     }
 
+    // Check purchase cooldown (24-hour per card)
+    const { checkCardPurchaseCooldown } = await import("./shop-purchase-cooldown-service");
+    const cooldown = await checkCardPurchaseCooldown(playerId, cardId);
+    if (!cooldown.canPurchase) {
+      return {
+        success: false,
+        message: `Card on cooldown. Available in ${cooldown.hoursUntilAvailable} hours`,
+      };
+    }
+
     // Get player currency
     const [playerCurrency] = await db
       .select()

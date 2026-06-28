@@ -1646,3 +1646,130 @@ router.post(
     }
   }
 );
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════  FREE PACK CLAIMING SYSTEM  ══════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/card-clash/free-pack/status
+// Check if player can claim free pack and when next available
+router.get("/free-pack/status", async (req: Request, res: Response) => {
+  try {
+    const playerId = (req.session as any)?.playerId;
+    if (!playerId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    const { checkFreePackStatus } = await import("../services/free-pack-service");
+    const status = await checkFreePackStatus(playerId);
+
+    res.json(status);
+  } catch (error) {
+    logger.error({ error }, "Failed to check free pack status");
+    res.status(500).json({ error: "Failed to check free pack status" });
+  }
+});
+
+// POST /api/card-clash/free-pack/claim
+// Claim free pack if eligible
+router.post("/free-pack/claim", async (req: Request, res: Response) => {
+  try {
+    const playerId = (req.session as any)?.playerId;
+    if (!playerId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    const { claimFreePackForPlayer } = await import("../services/free-pack-service");
+    const result = await claimFreePackForPlayer(playerId);
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (error) {
+    logger.error({ error }, "Failed to claim free pack");
+    res.status(500).json({ error: "Failed to claim pack" });
+  }
+});
+
+// POST /api/card-clash/admin/free-pack/reset/:playerId
+// ADMIN: Reset free pack cooldown for testing
+router.post("/admin/free-pack/reset/:playerId", verifyAdminPin, async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.playerId);
+    const { resetFreePackCooldown } = await import("../services/free-pack-service");
+
+    const success = await resetFreePackCooldown(playerId);
+
+    if (success) {
+      res.json({ success: true, message: "Free pack cooldown reset" });
+    } else {
+      res.status(400).json({ error: "Failed to reset cooldown" });
+    }
+  } catch (error) {
+    logger.error({ error }, "Failed to reset free pack");
+    res.status(500).json({ error: "Failed to reset pack" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════  SHOP PURCHASE COOLDOWN SYSTEM  ═════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/card-clash/shop/featured/:cardId/purchase-status
+// Check if player can purchase this card (cooldown check)
+router.get("/shop/featured/:cardId/purchase-status", async (req: Request, res: Response) => {
+  try {
+    const playerId = (req.session as any)?.playerId;
+    if (!playerId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    const cardId = parseInt(req.params.cardId);
+    if (isNaN(cardId)) {
+      return res.status(400).json({ error: "Invalid card ID" });
+    }
+
+    const { checkCardPurchaseCooldown } = await import(
+      "../services/shop-purchase-cooldown-service"
+    );
+    const status = await checkCardPurchaseCooldown(playerId, cardId);
+
+    res.json(status);
+  } catch (error) {
+    logger.error({ error }, "Failed to check purchase status");
+    res.status(500).json({ error: "Failed to check purchase status" });
+  }
+});
+
+// POST /api/card-clash/admin/shop/clear-purchase/:playerId/:cardId
+// ADMIN: Clear purchase history for a card (testing)
+router.post(
+  "/admin/shop/clear-purchase/:playerId/:cardId",
+  verifyAdminPin,
+  async (req: Request, res: Response) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const cardId = parseInt(req.params.cardId);
+
+      if (isNaN(playerId) || isNaN(cardId)) {
+        return res.status(400).json({ error: "Invalid IDs" });
+      }
+
+      const { clearPurchaseHistoryForCard } = await import(
+        "../services/shop-purchase-cooldown-service"
+      );
+      const success = await clearPurchaseHistoryForCard(playerId, cardId);
+
+      if (success) {
+        res.json({ success: true, message: "Purchase history cleared" });
+      } else {
+        res.status(400).json({ error: "Failed to clear history" });
+      }
+    } catch (error) {
+      logger.error({ error }, "Failed to clear purchase history");
+      res.status(500).json({ error: "Failed to clear history" });
+    }
+  }
+);
