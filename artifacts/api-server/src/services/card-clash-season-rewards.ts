@@ -14,7 +14,6 @@ import {
   cardClashSeasonsTable,
   cardClashMatchesTable,
   playerCurrencyTable,
-  cardClashPackInventoryTable,
   playersTable,
 } from "@workspace/db/schema";
 import { sql, eq, desc, and } from "drizzle-orm";
@@ -148,11 +147,10 @@ async function awardPackToPlayer(
   packType: "SINGLE" | "FIVE" | "TEN"
 ): Promise<boolean> {
   try {
-    await db.insert(cardClashPackInventoryTable).values({
-      playerId,
-      packType,
-      earnedReason: "Season reward - final ranking",
-    });
+    await db.execute(sql`
+      INSERT INTO card_clash_pack_inventory (player_id, pack_type, earned_reason)
+      VALUES (${playerId}, ${packType}, 'Season reward - final ranking')
+    `);
     return true;
   } catch (err) {
     logger.error({ playerId, packType, err }, "Failed to award pack");
