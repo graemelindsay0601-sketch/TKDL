@@ -382,7 +382,50 @@ Comparing card display effects (what players read) with card-effect-engine.ts im
 
 ---
 
+---
+
+## ✅ QUICK WINS COMPLETED (Session 20)
+
+**Commit b078285** - All fixes applied and tested
+
+### 1. Card Consumption ✅
+- **Issue:** Cards could be replayed every turn
+- **Fix:** Mark cards as consumed immediately when activated
+- **Affected:** Both X01 and Cricket scorers
+- **Result:** Cards permanently removed from hand after use this match
+
+### 2. Wipeout Bug Fix ✅
+- **Issue:** Wipeout only zeroed dart 2, should zero darts 2 AND 3
+- **Fix:** Added `wildDartIndices` array support, Wipeout now uses `[1, 2]`
+- **Result:** Correctly zeros last 2 darts of opponent's turn
+
+### 3. Wild Throw Randomization ✅
+- **Issue:** Random dart index picked when card activated, not at throw time
+- **Fix:** Added `randomWildDart` flag, picks random dart at throw time
+- **Result:** Unpredictability happens when dart thrown, not clicked
+
+### 4. Conditional Bonuses ✅
+- **Issue:** Cards like Big Game Player, Banking Strategy claimed not working
+- **Investigation:** Logic already exists in `ccApplyVisitEnd` (lines 463-472)
+- **Fix:** Corrected High Roller condition (>100 → >=100)
+- **Result:** Bonuses now properly evaluated (80+, 50+, 100+, exactly 100, behind in legs)
+- **Note:** These still apply THIS TURN, not NEXT TURN/LEG (deferred bonus system needed)
+
+---
+
+## CARDS NOW WORKING (as of b078285)
+
+✅ **~50 cards fully functional:**
+- All X01 GOOD cards: 102, 103, 109, 111, 113, 114, 115, 116, 120
+- All X01 BAD cards: 203, 204, 205, 206, 208, 209, 210, 211, 212, 214, 215, 216, 217, 218
+- Cricket GOOD: 302, 305, 308, 310, 314, 319 (multiplier-based cards)
+- Cricket BAD: 201, 204, 206, 207, 208, 209, 210, 211, 212, 215, 216, 217
+- Wildcard GOOD: 501 (Coin Flip), 502, 503, 505, 506, 507, 508, 509
+- Wildcard BAD: 603, 604, 608, 610
+
+---
+
 ## NEXT SECTION
-Cricket cards (301-420) audit...
-Wildcard cards (501-610) audit...
+Cricket cards (301-420) detailed audit...
+Wildcard cards (501-610) detailed audit...
 

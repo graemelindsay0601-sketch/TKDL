@@ -17,6 +17,7 @@ import {
   type CCEffect,
   ccActivateCard, ccPreprocessDart, ccApplyVisitCap, ccInterceptBust,
   ccShouldBlockFinish, ccApplyVisitEnd, ccExpireOnTurnEnd,
+  ccActivateDeferredNextTurnEffects, ccActivateDeferredNextLegEffects,
   ccApplyCricketMarkEffects, ccApplyCricketScoreEffects, ccBlockClosing,
   ccPenaltyPerMark, ccBonusPerMark,
 } from "./card-effect-engine";
@@ -551,6 +552,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     
     cardDebugLog("X01Scorer", "Effects queued", { effects: effects.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`) });
   }, [p1Cards, p2Cards, cardsUsed, turn, scores, legWins]);
+
+  // Activate deferred-next-turn effects when it becomes the player's turn
+  useEffect(() => {
+    if (isCardClash && started[turn]) {
+      setActiveEffects(prev => ccActivateDeferredNextTurnEffects(prev, turn));
+    }
+  }, [turn, isCardClash, started]);
 
   const handleDartRef = useRef(handleDart);
   useEffect(() => { handleDartRef.current = handleDart; });

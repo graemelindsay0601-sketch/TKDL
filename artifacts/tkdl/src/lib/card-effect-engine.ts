@@ -25,7 +25,18 @@ export interface CCEffect {
   cardName: string;
   appliedBy: 0 | 1;        // who played the card
   affectsPlayer: 0 | 1;    // who is affected
-  status: "active" | "pending"; // pending → activates at start of opponent's turn
+  status: "active" | "pending" | "deferred_next_turn" | "deferred_next_leg"; // pending → activates at start of opponent's turn
+
+  // ── Deferred application ─────────────────────────────────────────────────────
+  // When a bonus needs to apply on a future turn/leg, we defer it with flags.
+  // At turn/leg end, effects are re-evaluated and re-scheduled as needed.
+  deferBonusToNextTurn?: boolean;   // Banking Strategy: apply bonus on my next turn
+  deferPenaltyToNextTurn?: boolean; // (for opponent penalties on their next turn - uses "pending" status)
+  deferBonusToNextLeg?: boolean;    // Big Game Player: apply bonus on my next leg
+  deferPenaltyToNextLeg?: boolean;  // Dark Cloud, Total Annihilation: apply penalty on opponent's next leg
+  
+  // Duration flags for expiration
+  legDuration?: boolean;            // Don't expire at turn end, only at leg end (e.g., Big Game Player bonus)
 
   // X01: dart-level (applied in ccPreprocessDart, per-dart)
   segmentBlock?: number[];       // these segments → value 0
@@ -128,11 +139,11 @@ export function ccActivateCard(
 
   // ── X01 GOOD (affects self, active this turn) ─────────────────────────────
   const x01Good: Record<string, CCEffect> = {
-    "Big Game Player":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit80Plus: 35 },
+    "Big Game Player":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit80Plus: 35, deferBonusToNextLeg: true, legDuration: true },
     "Power Surge +50":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 },
     "Treble Hunter":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", trebleMultiplier: 1.3 },
     "Unstoppable Checkout": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true },
-    "Banking Strategy":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit50Plus: 20 },
+    "Banking Strategy":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit50Plus: 20, deferBonusToNextTurn: true },
     "Checkout Confidence":  { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeRetryOnDoubleMiss: true },
     "Exact Finish":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true },
     "High Pressure":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfBehindLegs: 40 },
@@ -453,6 +464,9 @@ export function ccApplyVisitEnd(
   let extraPenalty = 0;   // added back to score (bad for player)
 
   for (const e of active) {
+    // Skip if this bonus is deferred (will apply on next turn/leg)
+    if (e.deferBonusToNextTurn || e.deferBonusToNextLeg) continue;
+    
     // Visit bonus (Power Surge, Wildcard bonuses)
     if (e.visitBonus) bonusReduction += e.visitBonus;
     // Visit penalty (Rust Hands, Dark Cloud)
@@ -474,20 +488,31 @@ export function ccApplyVisitEnd(
   return { bonusReduction, extraPenalty };
 }
 
-/** Expire "this_turn" active effects and promote pending → active on turn switch. */
+/** Expire "this_turn" active effects and promote pending → active on turn switch. 
+ *  Also handle deferred next-turn effects. */
 export function ccExpireOnTurnEnd(effects: CCEffect[], completedPlayer: 0 | 1): CCEffect[] {
   const opp: 0 | 1 = completedPlayer === 0 ? 1 : 0;
   const before = effects.filter(e => e.status === "active").map(e => `${e.cardName}→P${e.affectsPlayer}`).join(", ");
   const result = effects
     .filter(e => {
       // Remove active effects that targeted the player who just finished their turn
-      if (e.status === "active" && e.affectsPlayer === completedPlayer) return false;
+      // BUT: Keep leg-duration effects (they expire at leg end, not turn end)
+      if (e.status === "active" && e.affectsPlayer === completedPlayer && !e.deferBonusToNextTurn && !e.deferBonusToNextLeg && !e.legDuration) return false;
       return true;
     })
     .map(e => {
       // Promote pending effects targeting the next player to active
       if (e.status === "pending" && e.affectsPlayer === opp) {
         return { ...e, status: "active" as const };
+      }
+      // Activate deferred-next-turn bonuses for the player whose turn just ended
+      if (e.status === "active" && e.affectsPlayer === completedPlayer && e.deferBonusToNextTurn) {
+        console.log(`[CARD_CLASH:DEFER_NEXT_TURN] ${e.cardName} scheduled for Player${completedPlayer} next turn`);
+        return { ...e, status: "deferred_next_turn" as const };
+      }
+      // Keep deferred-next-leg bonuses (will be activated at leg end)
+      if (e.deferBonusToNextLeg) {
+        return { ...e, status: "deferred_next_leg" as const };
       }
       return e;
     });
@@ -498,9 +523,26 @@ export function ccExpireOnTurnEnd(effects: CCEffect[], completedPlayer: 0 | 1): 
   return result;
 }
 
-/** Check if opponent penalty effects are blocked for current player. */
-export function ccOpponentPenaltiesBlocked(effects: CCEffect[], player: 0 | 1): boolean {
-  return effects.some(e => e.status === "active" && e.affectsPlayer === player && e.blockOpponentPenalties);
+/** Activate "deferred_next_turn" effects for the player about to play. Call at turn start. */
+export function ccActivateDeferredNextTurnEffects(effects: CCEffect[], player: 0 | 1): CCEffect[] {
+  return effects.map(e => {
+    if (e.status === "deferred_next_turn" && e.affectsPlayer === player) {
+      console.log(`[CARD_CLASH:ACTIVATE_DEFERRED] ${e.cardName} now active for Player${player}`);
+      return { ...e, status: "active" as const };
+    }
+    return e;
+  });
+}
+
+/** Activate "deferred_next_leg" effects at start of new leg. Call when leg starts. */
+export function ccActivateDeferredNextLegEffects(effects: CCEffect[], newLegStartPlayer: 0 | 1): CCEffect[] {
+  return effects.map(e => {
+    if (e.status === "deferred_next_leg" && e.affectsPlayer === newLegStartPlayer) {
+      console.log(`[CARD_CLASH:ACTIVATE_DEFERRED_LEG] ${e.cardName} now active for Player${newLegStartPlayer} next leg`);
+      return { ...e, status: "active" as const };
+    }
+    return e;
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
