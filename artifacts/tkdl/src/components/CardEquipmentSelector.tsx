@@ -257,6 +257,10 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
       return 0;
     });
     
+  // Split into favorites and non-favorites for visual grouping
+  const goodFavorites = goodCards.filter(c => isFavorited(c.id));
+  const goodNonFavorites = goodCards.filter(c => !isFavorited(c.id));
+    
   const badCards = inventory
     .filter(c => c.cardType === "BAD"  && (c.gameMode === gameMode || c.gameMode === "WILDCARD") && c.quantity > 0)
     .sort((a, b) => {
@@ -265,6 +269,10 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
       if (aIsFav !== bIsFav) return aIsFav ? -1 : 1;
       return 0;
     });
+
+  // Split into favorites and non-favorites for visual grouping
+  const badFavorites = badCards.filter(c => isFavorited(c.id));
+  const badNonFavorites = badCards.filter(c => !isFavorited(c.id));
 
   // Wrapper for toggle favorite to integrate with click handler
   const toggleFavorite = async (cardId: string, e: React.MouseEvent) => {
@@ -388,22 +396,58 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                 No {gameMode} Good cards in your collection — head to the Shop!
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: typeof window !== 'undefined' && window.innerWidth < 768 ? "1fr" : "1fr 1fr", gap: typeof window !== 'undefined' && window.innerWidth < 768 ? "8px" : "12px" }}>
-                {goodCards.map(c => (
-                  <CardArtworkDisplay 
-                    key={c.id}
-                    card={c} 
-                    selected={!!selectedGood.find(x => x.id === c.id)} 
-                    disabled={selectedGood.length === preference.goodCardsPerMatch && !selectedGood.find(x => x.id === c.id)} 
-                    onClick={() => toggleGood(c)}
-                    isFavorite={favorites.has(c.id)}
-                    onToggleFavorite={toggleFavorite}
-                    onPreview={(e) => {
-                      e.stopPropagation();
-                    }}
-                  />
-                ))}
-              </div>
+              <>
+                {/* FAVORITES SECTION */}
+                {goodFavorites.length > 0 && (
+                  <div style={{ marginBottom: "16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px", paddingLeft: "4px" }}>
+                      <span style={{ fontSize: "16px" }}>⭐</span>
+                      <span style={{ fontWeight: 700, fontSize: "12px", color: "#ffd24a", textTransform: "uppercase", letterSpacing: "0.05em" }}>FAVORITES ({goodFavorites.length})</span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: typeof window !== 'undefined' && window.innerWidth < 768 ? "1fr" : "1fr 1fr", gap: typeof window !== 'undefined' && window.innerWidth < 768 ? "8px" : "12px" }}>
+                      {goodFavorites.map(c => (
+                        <CardArtworkDisplay 
+                          key={c.id}
+                          card={c} 
+                          selected={!!selectedGood.find(x => x.id === c.id)} 
+                          disabled={selectedGood.length === preference.goodCardsPerMatch && !selectedGood.find(x => x.id === c.id)} 
+                          onClick={() => toggleGood(c)}
+                          isFavorite={favorites.has(c.id)}
+                          onToggleFavorite={toggleFavorite}
+                          onPreview={(e) => {
+                            e.stopPropagation();
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* ALL CARDS SECTION */}
+                {goodNonFavorites.length > 0 && (
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px", paddingLeft: "4px" }}>
+                      <span style={{ fontWeight: 700, fontSize: "12px", color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.05em" }}>ALL CARDS ({goodNonFavorites.length})</span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: typeof window !== 'undefined' && window.innerWidth < 768 ? "1fr" : "1fr 1fr", gap: typeof window !== 'undefined' && window.innerWidth < 768 ? "8px" : "12px" }}>
+                      {goodNonFavorites.map(c => (
+                        <CardArtworkDisplay 
+                          key={c.id}
+                          card={c} 
+                          selected={!!selectedGood.find(x => x.id === c.id)} 
+                          disabled={selectedGood.length === preference.goodCardsPerMatch && !selectedGood.find(x => x.id === c.id)} 
+                          onClick={() => toggleGood(c)}
+                          isFavorite={favorites.has(c.id)}
+                          onToggleFavorite={toggleFavorite}
+                          onPreview={(e) => {
+                            e.stopPropagation();
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
           <div>
@@ -412,32 +456,63 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
               <span style={{ fontWeight: 900, fontSize: "14px", color: "#ef4444", letterSpacing: "0.08em", fontFamily: "'Arial Black',Arial,sans-serif" }}>BAD CARDS ({selectedBad.length}/{preference.badCardsPerMatch})</span>
               <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", fontFamily: "Arial,sans-serif" }}>Curse OPPONENT on their turn</span>
             </div>
-            {typeof window !== 'undefined' && console.log(`[BAD CARDS SECTION] badCards.length=${badCards.length}, selectedBad.length=${selectedBad.length}, will show grid: ${badCards.length > 0}, first 3 ids:`, badCards.slice(0, 3).map(c => `${c.id}:${c.name}`))}
             {badCards.length === 0 ? (
               <div style={{ padding: "20px", textAlign: "center", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: "10px", color: "rgba(255,255,255,0.25)", fontSize: "13px", fontFamily: "Arial,sans-serif" }}>
                 No {gameMode} Bad cards in your collection — head to the Shop!
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: typeof window !== 'undefined' && window.innerWidth < 768 ? "1fr" : "1fr 1fr", gap: typeof window !== 'undefined' && window.innerWidth < 768 ? "8px" : "12px" }}>
-                {typeof window !== 'undefined' && console.log(`[BAD CARDS RENDER] ${badCards.length} cards to render`, badCards.map(c => `${c.id}:${c.cardType}`).slice(0, 5))}
-                {badCards.map((c, idx) => {
-                  if (idx === 0 || idx === badCards.length - 1) console.log(`[BAD CARD MAP] idx=${idx}, card.id=${c.id}, card.name=${c.name}, card.cardType=${c.cardType}`);
-                  return (
-                  <CardArtworkDisplay 
-                    key={c.id}
-                    card={c} 
-                    selected={!!selectedBad.find(x => x.id === c.id)} 
-                    disabled={selectedBad.length === preference.badCardsPerMatch && !selectedBad.find(x => x.id === c.id)} 
-                    onClick={() => toggleBad(c)}
-                    isFavorite={favorites.has(c.id)}
-                    onToggleFavorite={toggleFavorite}
-                    onPreview={(e) => {
-                      e.stopPropagation();
-                    }}
-                  />
-                  );
-                })}
-              </div>
+              <>
+                {/* FAVORITES SECTION */}
+                {badFavorites.length > 0 && (
+                  <div style={{ marginBottom: "16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px", paddingLeft: "4px" }}>
+                      <span style={{ fontSize: "16px" }}>⭐</span>
+                      <span style={{ fontWeight: 700, fontSize: "12px", color: "#ffd24a", textTransform: "uppercase", letterSpacing: "0.05em" }}>FAVORITES ({badFavorites.length})</span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: typeof window !== 'undefined' && window.innerWidth < 768 ? "1fr" : "1fr 1fr", gap: typeof window !== 'undefined' && window.innerWidth < 768 ? "8px" : "12px" }}>
+                      {badFavorites.map(c => (
+                        <CardArtworkDisplay 
+                          key={c.id}
+                          card={c} 
+                          selected={!!selectedBad.find(x => x.id === c.id)} 
+                          disabled={selectedBad.length === preference.badCardsPerMatch && !selectedBad.find(x => x.id === c.id)} 
+                          onClick={() => toggleBad(c)}
+                          isFavorite={favorites.has(c.id)}
+                          onToggleFavorite={toggleFavorite}
+                          onPreview={(e) => {
+                            e.stopPropagation();
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* ALL CARDS SECTION */}
+                {badNonFavorites.length > 0 && (
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px", paddingLeft: "4px" }}>
+                      <span style={{ fontWeight: 700, fontSize: "12px", color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.05em" }}>ALL CARDS ({badNonFavorites.length})</span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: typeof window !== 'undefined' && window.innerWidth < 768 ? "1fr" : "1fr 1fr", gap: typeof window !== 'undefined' && window.innerWidth < 768 ? "8px" : "12px" }}>
+                      {badNonFavorites.map(c => (
+                        <CardArtworkDisplay 
+                          key={c.id}
+                          card={c} 
+                          selected={!!selectedBad.find(x => x.id === c.id)} 
+                          disabled={selectedBad.length === preference.badCardsPerMatch && !selectedBad.find(x => x.id === c.id)} 
+                          onClick={() => toggleBad(c)}
+                          isFavorite={favorites.has(c.id)}
+                          onToggleFavorite={toggleFavorite}
+                          onPreview={(e) => {
+                            e.stopPropagation();
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

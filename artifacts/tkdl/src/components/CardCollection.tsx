@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useFavorites } from "@/hooks/useFavorites";
 
 // Map card names to their visual representations
 const CARD_VISUAL_MAP: Record<string, { image: string; color: string }> = {
@@ -31,6 +32,7 @@ export function CardCollection({ playerId }: { playerId: number }) {
   const [collection, setCollection] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { isFavorited, toggleFavorite } = useFavorites({ gameMode: "X01" });
 
   useEffect(() => {
     if (!playerId) return;
@@ -105,6 +107,43 @@ export function CardCollection({ playerId }: { playerId: number }) {
                 el.style.boxShadow = `0 0 15px ${visual.color}33`;
               }}
             >
+              {/* Favorite Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFavorite(card.cardId, card.cardName);
+                }}
+                style={{
+                  position: "absolute",
+                  top: "6px",
+                  right: "6px",
+                  all: "unset",
+                  width: "32px",
+                  height: "32px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "rgba(0,0,0,0.5)",
+                  border: "1px solid rgba(255,255,255,0.3)",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "18px",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  const el = e.currentTarget;
+                  el.style.background = isFavorited(card.cardId) ? "rgba(255,82,82,0.6)" : "rgba(255,210,74,0.6)";
+                  el.style.borderColor = isFavorited(card.cardId) ? "rgba(255,82,82,1)" : "rgba(255,210,74,1)";
+                }}
+                onMouseLeave={(e) => {
+                  const el = e.currentTarget;
+                  el.style.background = "rgba(0,0,0,0.5)";
+                  el.style.borderColor = "rgba(255,255,255,0.3)";
+                }}
+                title={isFavorited(card.cardId) ? "Remove from favorites" : "Add to favorites"}
+              >
+                {isFavorited(card.cardId) ? "⭐" : "☆"}
+              </button>
               {/* Card name */}
               <div style={{
                 fontSize: "11px",
