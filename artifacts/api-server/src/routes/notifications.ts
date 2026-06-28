@@ -122,12 +122,25 @@ router.get("/notifications/unread-count", async (req, res): Promise<void> => {
   }
 
   try {
-    const [result] = await db.execute(sql`
+    const result = await db.execute(sql`
       SELECT COUNT(*)::int AS count
       FROM notifications
       WHERE player_id = ${playerId} AND "read" = false
     `);
-    res.json({ count: (result as any)?.count || 0 });
+    
+    // Handle both possible return formats from db.execute
+    const count = (() => {
+      if (Array.isArray(result)) {
+        return (result[0] as any)?.count || 0;
+      } else if (result && typeof result === 'object' && 'rows' in result) {
+        return ((result.rows as any[])[0])?.count || 0;
+      } else if (result && typeof result === 'object' && 'count' in result) {
+        return (result as any).count || 0;
+      }
+      return 0;
+    })();
+    
+    res.json({ count });
   } catch (err: any) {
     logger.error({ err }, "Failed to get unread count");
     res.json({ count: 0 });
@@ -199,7 +212,7 @@ router.get("/players/:id/notification-prefs", async (req, res): Promise<void> =>
   }
 
   try {
-    const [result] = await db.execute(sql`
+    const result = await db.execute(sql`
       SELECT 
         push_enabled, match_results, rank_changes, 
         coach_tips, announcements, private_mode
@@ -207,7 +220,17 @@ router.get("/players/:id/notification-prefs", async (req, res): Promise<void> =>
       WHERE player_id = ${playerId}
     `);
     
-    res.json(result || {
+    // Handle both possible return formats from db.execute
+    let prefs;
+    if (Array.isArray(result)) {
+      prefs = result[0];
+    } else if (result && typeof result === 'object' && 'rows' in result) {
+      prefs = (result.rows as any[])[0];
+    } else {
+      prefs = result;
+    }
+    
+    res.json(prefs || {
       push_enabled: true,
       match_results: true,
       rank_changes: true,
@@ -312,7 +335,7 @@ router.post("/admin/announcements", async (req, res): Promise<void> => {
 
   try {
     // Insert announcement
-    const [announcement] = await db.execute(sql`
+    const announceResult = await db.execute(sql`
       INSERT INTO admin_announcements (admin_id, title, body, target_players, critical)
       VALUES (
         ${adminId},
@@ -324,7 +347,20 @@ router.post("/admin/announcements", async (req, res): Promise<void> => {
       RETURNING id
     `);
 
-    const announcementId = (announcement as any).id;
+    // Handle both possible return formats from db.execute
+    let announcementId: number;
+    if (Array.isArray(announceResult)) {
+      announcementId = (announceResult[0] as any)?.id;
+    } else if (announceResult && typeof announceResult === 'object' && 'rows' in announceResult) {
+      announcementId = ((announceResult.rows as any[])[0])?.id;
+    } else {
+      announcementId = (announceResult as any)?.id;
+    }
+
+    if (!announcementId) {
+      res.status(500).json({ error: "Failed to create announcement" });
+      return;
+    }
 
     // Determine target players
     let playerIds: number[];
