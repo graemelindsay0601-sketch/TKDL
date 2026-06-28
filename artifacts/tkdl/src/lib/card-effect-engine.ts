@@ -464,6 +464,13 @@ export function ccApplyVisitEnd(
   let extraPenalty = 0;   // added back to score (bad for player)
 
   for (const e of active) {
+    // ── OPPONENT PENALTIES (apply to current player's score) ──
+    // Dark Cloud, Total Annihilation: reduce this player's visit total
+    if (e.visitPenalty) {
+      extraPenalty += e.visitPenalty;
+      console.log(`[CARD_CLASH:VISIT_PENALTY] Player${player} hit with ${e.visitPenalty} penalty from ${e.cardName}`);
+    }
+    
     // ── CONDITIONAL BONUSES ──
     // Check conditions first, then decide whether to apply or defer
     let conditionMet = false;
