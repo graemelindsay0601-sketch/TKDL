@@ -18,7 +18,7 @@ import {
   ccActivateCard, ccPreprocessDart, ccApplyVisitCap, ccInterceptBust,
   ccShouldBlockFinish, ccApplyVisitEnd, ccExpireOnTurnEnd,
   ccActivateDeferredNextTurnEffects, ccActivateDeferredNextLegEffects,
-  ccEvaluateConditionalWildcards,
+  ccEvaluateConditionalWildcards, ccApplyPenaltyBlockingIfNeeded,
   ccApplyCricketMarkEffects, ccApplyCricketScoreEffects, ccBlockClosing,
   ccPenaltyPerMark, ccBonusPerMark,
 } from "./card-effect-engine";
@@ -564,9 +564,14 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   }, [p1Cards, p2Cards, cardsUsed, turn, scores, legWins]);
 
   // Activate deferred-next-turn effects when it becomes the player's turn
+  // Also apply penalty blocking if player has blockOpponentPenalties active
   useEffect(() => {
     if (isCardClash && started[turn]) {
-      setActiveEffects(prev => ccActivateDeferredNextTurnEffects(prev, turn));
+      setActiveEffects(prev => {
+        let updated = ccActivateDeferredNextTurnEffects(prev, turn);
+        updated = ccApplyPenaltyBlockingIfNeeded(updated, turn);
+        return updated;
+      });
     }
   }, [turn, isCardClash, started]);
 
@@ -1171,9 +1176,14 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Activate deferred-next-turn effects when it becomes the player's turn
+  // Also apply penalty blocking if player has blockOpponentPenalties active
   useEffect(() => {
     if (isCardClash) {
-      setActiveEffects(prev => ccActivateDeferredNextTurnEffects(prev, turn));
+      setActiveEffects(prev => {
+        let updated = ccActivateDeferredNextTurnEffects(prev, turn);
+        updated = ccApplyPenaltyBlockingIfNeeded(updated, turn);
+        return updated;
+      });
     }
   }, [turn, isCardClash]);
 

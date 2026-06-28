@@ -741,3 +741,24 @@ export function ccEvaluateConditionalWildcards(
   console.log(`[CARD_CLASH:CONDITIONAL_WILDCARDS] Player${player} leg start: ${effects.map(e => `${e.cardName}(+${e.visitBonus})`).join(", ") || "none"}`);
   return effects;
 }
+
+/** Check if opponent penalty effects are blocked for current player. */
+export function ccOpponentPenaltiesBlocked(effects: CCEffect[], player: 0 | 1): boolean {
+  return effects.some(e => e.status === "active" && e.affectsPlayer === player && e.blockOpponentPenalties);
+}
+
+/** Filter out opponent penalty effects if player has blocking active. */
+export function ccApplyPenaltyBlockingIfNeeded(effects: CCEffect[], player: 0 | 1): CCEffect[] {
+  if (!ccOpponentPenaltiesBlocked(effects, player)) {
+    return effects;
+  }
+  const opp: 0 | 1 = player === 0 ? 1 : 0;
+  // Remove effects where: status=active AND affectsPlayer=player AND effect comes from opponent (appliedBy=opp)
+  return effects.filter(e => {
+    if (e.status === "active" && e.affectsPlayer === player && e.appliedBy === opp) {
+      console.log(`[CARD_CLASH:BLOCK_PENALTY] Blocked ${e.cardName} for Player${player}`);
+      return false;
+    }
+    return true;
+  });
+}
