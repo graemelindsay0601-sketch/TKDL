@@ -419,15 +419,7 @@ export function CardClashPracticeMode({
       </div>
     );
   }
-              marginBottom: '16px',
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <button
-          onClick={handleStartPractice}
+}
           disabled={loading}
           style={{
             width: '100%',
