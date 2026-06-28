@@ -29,7 +29,10 @@ interface VirtualizedLeaderboardProps {
   containerHeight?: string | number;
 }
 
-const ITEM_HEIGHT = 60; // Height of each row in pixels (mobile: 80px, desktop: 50px)
+const getItemHeight = () => {
+  if (typeof window === 'undefined') return 60;
+  return window.innerWidth < 768 ? 70 : 55; // Mobile: 70px, Desktop: 55px
+};
 
 export const VirtualizedLeaderboard = React.memo(
   function VirtualizedLeaderboard({
@@ -37,10 +40,15 @@ export const VirtualizedLeaderboard = React.memo(
     playerId,
     containerHeight = '600px',
   }: VirtualizedLeaderboardProps) {
+    const itemHeight = getItemHeight();
     const { visibleItems, topPaddingPx, bottomPaddingPx, containerRef, scrollTop } =
-      useVirtualization(standings, ITEM_HEIGHT, 5);
+      useVirtualization(standings, itemHeight, 5);
 
-    const startIdx = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - 5);
+    // Don't recalculate startIdx - use the one from hook
+    // The hook already calculates this correctly with proper scrollTop
+    const startIdx = visibleItems.length > 0 
+      ? Math.max(0, Math.floor(scrollTop / itemHeight) - 5)
+      : 0;
 
     const renderRow = (row: Standing, absoluteIdx: number) => {
       const isMe = row.player_id === playerId;
@@ -229,21 +237,69 @@ export const VirtualizedLeaderboard = React.memo(
             </tr>
           </thead>
           <tbody>
-            <tr style={{ height: topPaddingPx }} />
+            {/* Top padding - add empty row if needed */}
+            {topPaddingPx > 0 && (
+              <tr key="top-padding">
+                <td colSpan={9} style={{ height: topPaddingPx, border: 'none', padding: 0 }} />
+              </tr>
+            )}
+            
+            {/* Visible items */}
             {visibleItems.map((row, i) => renderRow(row, startIdx + i))}
-            {bottomPaddingPx > 0 && <tr style={{ height: bottomPaddingPx }} />}
+            
+            {/* Bottom padding - add empty row if needed */}
+            {bottomPaddingPx > 0 && (
+              <tr key="bottom-padding">
+                <td colSpan={9} style={{ height: bottomPaddingPx, border: 'none', padding: 0 }} />
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
     );
   },
   (prev, next) => {
-    // Re-render only if standings or playerId changes
-    return (
-      prev.standings.length === next.standings.length &&
-      prev.playerId === next.playerId &&
-      prev.containerHeight === next.containerHeight
-    );
+    // Return TRUE if props are EQUAL (no re-render needed)
+    // Return FALSE if props CHANGED (re-render needed)
+    
+    // Check if playerId changed
+    if (prev.playerId !== next.playerId) return false;
+    
+    // Check if containerHeight changed
+    if (prev.containerHeight !== next.containerHeight) return false;
+    
+    // Check if standings array changed
+    // Compare length AND verify content by checking a few key fields
+    if (prev.standings.length !== next.standings.length) return false;
+    
+    // Deep check: verify standings data hasn't changed
+    // Check first, middle, and last items to detect data changes
+    if (prev.standings.length > 0) {
+      const indices = [
+        0,
+        Math.floor(prev.standings.length / 2),
+        prev.standings.length - 1
+      ];
+      
+      for (const idx of indices) {
+        const p = prev.standings[idx];
+        const n = next.standings[idx];
+        
+        // Check critical fields that change
+        if (
+          p.player_id !== n.player_id ||
+          p.wins !== n.wins ||
+          p.losses !== n.losses ||
+          p.total_matches !== n.total_matches ||
+          p.coins !== n.coins
+        ) {
+          return false; // Props changed, need re-render
+        }
+      }
+    }
+    
+    // If we get here, props are equal
+    return true; // Don't re-render
   }
 );
 

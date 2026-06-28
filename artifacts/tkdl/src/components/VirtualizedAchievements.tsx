@@ -205,11 +205,36 @@ export const VirtualizedAchievements = React.memo(
     );
   },
   (prev, next) => {
-    // Re-render only if achievements length changes
-    return (
-      prev.achievements.length === next.achievements.length &&
-      prev.containerHeight === next.containerHeight
-    );
+    // Return TRUE if props are EQUAL (no re-render)
+    // Return FALSE if props CHANGED (re-render)
+    
+    if (prev.containerHeight !== next.containerHeight) return false;
+    if (prev.achievements.length !== next.achievements.length) return false;
+    
+    // Check first, middle, and last achievements for data changes
+    if (prev.achievements.length > 0) {
+      const indices = [
+        0,
+        Math.floor(prev.achievements.length / 2),
+        prev.achievements.length - 1
+      ];
+      
+      for (const idx of indices) {
+        const p = prev.achievements[idx];
+        const n = next.achievements[idx];
+        
+        if (
+          p.id !== n.id ||
+          p.earned !== n.earned ||
+          p.progress !== n.progress ||
+          p.coins !== n.coins
+        ) {
+          return false;
+        }
+      }
+    }
+    
+    return true;
   }
 );
 

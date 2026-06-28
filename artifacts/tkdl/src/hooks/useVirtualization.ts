@@ -56,6 +56,18 @@ export function useVirtualization<T>(
   }, []);
 
   // Calculate visible range
+  // Guard against invalid calculations
+  if (itemHeight <= 0 || containerHeight <= 0) {
+    // Invalid state - return all items until height is set
+    return {
+      visibleItems: items,
+      topPaddingPx: 0,
+      bottomPaddingPx: 0,
+      containerRef,
+      scrollTop,
+    };
+  }
+
   const startIdx = Math.max(0, Math.floor(scrollTop / itemHeight) - bufferSize);
   const endIdx = Math.min(
     items.length,

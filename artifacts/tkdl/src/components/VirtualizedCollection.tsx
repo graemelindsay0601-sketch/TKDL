@@ -171,11 +171,36 @@ export const VirtualizedCollection = React.memo(
     );
   },
   (prev, next) => {
-    // Re-render only if cards array changes
-    return (
-      prev.cards.length === next.cards.length &&
-      prev.containerHeight === next.containerHeight
-    );
+    // Return TRUE if props are EQUAL (no re-render needed)
+    // Return FALSE if props CHANGED (re-render needed)
+    
+    if (prev.containerHeight !== next.containerHeight) return false;
+    if (prev.cards.length !== next.cards.length) return false;
+    
+    // Check first, middle, and last cards for data changes
+    if (prev.cards.length > 0) {
+      const indices = [
+        0,
+        Math.floor(prev.cards.length / 2),
+        prev.cards.length - 1
+      ];
+      
+      for (const idx of indices) {
+        const p = prev.cards[idx];
+        const n = next.cards[idx];
+        
+        if (
+          p.id !== n.id ||
+          p.cardId !== n.cardId ||
+          p.rarity !== n.rarity ||
+          p.quantity !== n.quantity
+        ) {
+          return false;
+        }
+      }
+    }
+    
+    return true;
   }
 );
 
