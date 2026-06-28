@@ -221,6 +221,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
   const [bust, setBust]             = useState(false);
   const [bustMsg, setBustMsg]       = useState("");
+  const [freeRetriesUsed, setFreeRetriesUsed] = useState<[number, number]>([0, 0]); // Track free retries per player this turn
   const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number; darts: Dart[] }[]>([]);
   
   // Card Clash state (populated from sessionStorage by CardClashMatchScorer)
@@ -466,6 +467,23 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         }
         handleWin(turn, nv);
       } else {
+        // Card Clash: Checkout Confidence — allow 1 free retry if missing double finish
+        const hasCheckoutConfidence = isCardClash && 
+          activeEffects.some(e => e.status === "active" && e.affectsPlayer === turn && e.freeRetryOnDoubleMiss);
+        const canUseRetry = freeRetriesUsed[turn] === 0;
+        const inCheckout = doubleOut && nv.length < 4; // Allow up to 4 darts with retry
+        
+        if (hasCheckoutConfidence && canUseRetry && inCheckout) {
+          console.log(`[CARD_CLASH:CHECKOUT_CONFIDENCE] Player${turn} missed double finish, granting 1 free retry`);
+          setFreeRetriesUsed(prev => {
+            const n = [...prev] as [number, number];
+            n[turn]++;
+            return n;
+          });
+          setVisitDarts(nv); // Keep this dart, allow next one
+          return;
+        }
+        
         if (turn === 0) p1StatsRef.current.darts += nv.length;
         if (turn === 1 && isHumanVsHuman) p2StatsRef.current.darts += nv.length;
         triggerBust(nv, bullFinish ? "BUST — must finish on Bull's-eye (50)!" : doubleOut ? "BUST — must finish on a double!" : trebleOut ? "BUST — treble required!" : "BUST!");
@@ -595,6 +613,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       });
     }
   }, [turn, isCardClash, started]);
+
+  // Reset free retries at start of each turn (for Checkout Confidence)
+  useEffect(() => {
+    setFreeRetriesUsed([0, 0]);
+  }, [turn]);
 
   // Activate deferred-next-leg effects when a new leg starts
   const prevLegWinsRef = useRef(legWins);
