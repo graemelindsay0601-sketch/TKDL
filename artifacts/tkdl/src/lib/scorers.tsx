@@ -560,6 +560,22 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     }
   }, [turn, isCardClash, started]);
 
+  // Activate deferred-next-leg effects when a new leg starts
+  const prevLegWinsRef = useRef(legWins);
+  useEffect(() => {
+    if (isCardClash && legWins !== prevLegWinsRef.current) {
+      // A leg has ended and a new one started
+      // Activate deferred-next-leg effects for both players
+      setActiveEffects(prev => {
+        let updated = prev;
+        updated = ccActivateDeferredNextLegEffects(updated, 0);
+        updated = ccActivateDeferredNextLegEffects(updated, 1);
+        return updated;
+      });
+      prevLegWinsRef.current = legWins;
+    }
+  }, [legWins, isCardClash]);
+
   const handleDartRef = useRef(handleDart);
   useEffect(() => { handleDartRef.current = handleDart; });
   
@@ -1138,6 +1154,28 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     const t3 = setTimeout(() => handleDartRefCri.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Activate deferred-next-turn effects when it becomes the player's turn
+  useEffect(() => {
+    if (isCardClash) {
+      setActiveEffects(prev => ccActivateDeferredNextTurnEffects(prev, turn));
+    }
+  }, [turn, isCardClash]);
+
+  // Activate deferred-next-leg effects when a new leg starts
+  const prevLegWinsRef = useRef(legWins);
+  useEffect(() => {
+    if (isCardClash && legWins !== prevLegWinsRef.current) {
+      // A leg has ended and a new one started
+      setActiveEffects(prev => {
+        let updated = prev;
+        updated = ccActivateDeferredNextLegEffects(updated, 0);
+        updated = ccActivateDeferredNextLegEffects(updated, 1);
+        return updated;
+      });
+      prevLegWinsRef.current = legWins;
+    }
+  }, [legWins, isCardClash]);
 
   return (
     <>
