@@ -5,7 +5,6 @@ import { FreePackDisplay } from "@/components/FreePackDisplay";
 import { FeaturedCardShop } from "@/components/FeaturedCardShop";
 import { VirtualizedLeaderboard } from "@/components/VirtualizedLeaderboard";
 import { VirtualizedCollection } from "@/components/VirtualizedCollection";
-import { VirtualizedAchievements } from "@/components/VirtualizedAchievements";
 import { getDynamicBuzzMessage, BuzzMessageDisplay, getTimeBasedBuzzMessage } from "@/utils/buzzMessages";
 import { AchievementsDisplay } from "@/components/AchievementsDisplay";
 import { AdvancedAdminTools } from "@/components/AdvancedAdminTools";
@@ -485,29 +484,21 @@ const PACKS = [
 
                 {collLoading ? (
                   <div style={{textAlign:"center",padding:"4rem",color:"rgba(255,255,255,0.25)"}}>Loading…</div>
+                ) : filteredCards.length > 0 ? (
+                  <VirtualizedCollection 
+                    cards={filteredCards.map(card => ({
+                      id: card.id,
+                      cardId: card.id,
+                      name: card.name,
+                      rarity: card.rarity,
+                      quantity: 1
+                    }))}
+                    containerHeight="600px"
+                  />
                 ) : (
-                  <div style={{display:"flex",flexWrap:"wrap",gap:"14px"}}>
-                    {filteredCards.map(card=>{
-                      const owned=ownedNames.has(card.name);
-                      return (
-                        <div key={card.id} onClick={()=>setEnlargedCard(card)}
-                          style={{cursor:"pointer",transition:"transform 0.18s",flexShrink:0,position:"relative"}}
-                          onMouseEnter={e=>(e.currentTarget.style.transform="scale(1.06) translateY(-5px)")}
-                          onMouseLeave={e=>(e.currentTarget.style.transform="scale(1)")}
-                        >
-                          <TKDLCard card={card} size="sm" locked={!owned}/>
-                          {newCardNames.has(card.name)&&(
-                            <div style={{position:"absolute",top:"4px",right:"4px",background:"linear-gradient(135deg,#ff3b3b,#ff6b00)",color:"#fff",fontSize:"9px",fontWeight:900,padding:"2px 6px",borderRadius:"8px",boxShadow:"0 2px 8px rgba(255,60,60,0.55)",zIndex:5}}>NEW</div>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {filteredCards.length===0&&(
-                      <div style={{width:"100%",textAlign:"center",padding:"4rem",color:"rgba(255,255,255,0.25)"}}>
-                        <div style={{fontSize:"44px",marginBottom:"1rem"}}>🃏</div>
-                        <div>No cards match your filters</div>
-                      </div>
-                    )}
+                  <div style={{width:"100%",textAlign:"center",padding:"4rem",color:"rgba(255,255,255,0.25)"}}>
+                    <div style={{fontSize:"44px",marginBottom:"1rem"}}>🃏</div>
+                    <div>No cards match your filters</div>
                   </div>
                 )}
               </div>
