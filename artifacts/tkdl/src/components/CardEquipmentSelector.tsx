@@ -4,6 +4,7 @@ import type { CardData } from "@/lib/cards-data";
 import { TKDLCard } from "./TKDLCard";
 import { useCardClashSettings } from "@/hooks/useCardClashSettings";
 import { useEquipmentPreference } from "@/hooks/useEquipmentPreference";
+import { useFavorites } from "@/hooks/useFavorites";
 
 interface Card {
   id: string;
@@ -190,7 +191,6 @@ function CardArtworkDisplay({
 export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, opponentName, gameMode, onConfirm, onBack, submitError }: CardEquipmentSelectorProps) {
   const playerId = currentPlayerId;
   const [inventory, setInventory] = useState<Card[]>([]);
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [selectedGood, setSelectedGood] = useState<Card[]>([]);
   const [selectedBad, setSelectedBad]   = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
@@ -200,6 +200,15 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
   const [showPreferenceEditor, setShowPreferenceEditor] = useState(false);
   const [tempGoodCount, setTempGoodCount] = useState(preference.goodCardsPerMatch);
   const [tempBadCount, setTempBadCount] = useState(preference.badCardsPerMatch);
+  
+  // Use new Card Clash favorites hook with server persistence
+  const { 
+    isFavorited, 
+    toggleFavorite: toggleFavoritesHook,
+    favorites,
+    isLoading: favLoading,
+    error: favError,
+  } = useFavorites({ gameMode });
 
   useEffect(() => { if (playerId) loadInventory(); }, [playerId]);
 
@@ -212,24 +221,15 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
   const loadInventory = async () => {
     try {
       setLoading(true); setError(null);
-      const [invRes, favRes] = await Promise.all([
-        fetch(`/api/card-clash/inventory/${playerId}`),
-        fetch(`/api/player/${playerId}/cards/favorites`).catch(() => ({ ok: false, json: async () => ({ favorites: [] }) }))
-      ]);
+      const invRes = await fetch(`/api/card-clash/inventory/${playerId}`);
       
       if (!invRes.ok) throw new Error("Failed to load inventory");
       
       const data = await invRes.json();
       const raw: any[] = Array.isArray(data) ? data : (data.cards ?? []);
       
-      const favData = favRes.ok ? await favRes.json() : { favorites: [] };
-      const favSet = new Set<string>(
-        (Array.isArray(favData?.favorites) ? favData.favorites : []).map((c: any) => String(c.id))
-      );
-      
-      setFavorites(favSet);
       setInventory(raw.map((c: any) => {
-        const cardId = c.id ?? c.cardId ?? c.id;  // Prefer numeric id from DB
+        const cardId = c.id ?? c.cardId ?? c.id;
         if (!cardId) {
           console.warn("Card missing id field", c);
         }
@@ -251,8 +251,8 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
   const goodCards = inventory
     .filter(c => c.cardType === "GOOD" && (c.gameMode === gameMode || c.gameMode === "WILDCARD") && c.quantity > 0)
     .sort((a, b) => {
-      const aIsFav = favorites.has(a.id);
-      const bIsFav = favorites.has(b.id);
+      const aIsFav = isFavorited(a.id);
+      const bIsFav = isFavorited(b.id);
       if (aIsFav !== bIsFav) return aIsFav ? -1 : 1;
       return 0;
     });
@@ -260,37 +260,30 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
   const badCards = inventory
     .filter(c => c.cardType === "BAD"  && (c.gameMode === gameMode || c.gameMode === "WILDCARD") && c.quantity > 0)
     .sort((a, b) => {
-      const aIsFav = favorites.has(a.id);
-      const bIsFav = favorites.has(b.id);
+      const aIsFav = isFavorited(a.id);
+      const bIsFav = isFavorited(b.id);
       if (aIsFav !== bIsFav) return aIsFav ? -1 : 1;
       return 0;
     });
 
-
+  // Wrapper for toggle favorite to integrate with click handler
   const toggleFavorite = async (cardId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const response = await fetch(`/api/cards/${cardId}/favorite`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerId }),
-      });
+      // Find the card name for the API call
+      const card = inventory.find(c => c.id === cardId);
+      if (!card) {
+        console.error("Card not found:", cardId);
+        return;
+      }
       
-      if (response.ok) {
-        const data = await response.json();
-        const newFavorites = new Set(favorites);
-        if (newFavorites.has(cardId)) {
-          newFavorites.delete(cardId);
-        } else {
-          newFavorites.add(cardId);
-        }
-        setFavorites(newFavorites);
-      } else {
-        const errorData = await response.json();
-        console.error(`[toggleFavorite] Error:`, errorData);
+      // Use the hook's toggle function
+      const success = await toggleFavoritesHook(cardId, card.name);
+      if (!success) {
+        console.error(`Failed to toggle favorite for card ${cardId}`);
       }
     } catch (err) {
-      console.error('Failed to toggle favorite:', err);
+      console.error("[toggleFavorite] Error:", err);
     }
   };
 
