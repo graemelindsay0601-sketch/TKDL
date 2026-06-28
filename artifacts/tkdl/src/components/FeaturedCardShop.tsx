@@ -76,22 +76,55 @@ export function FeaturedCardShop({
   };
 
   const checkAllCooldowns = async (cardList: FeaturedCard[]) => {
+    if (cardList.length === 0) return;
+
     const newCooldowns = new Map<number, PurchaseCooldown>();
     
-    for (const card of cardList) {
-      try {
-        const res = await fetch(`/api/card-clash/shop/featured/${card.cardId}/purchase-status`);
-        if (res.ok) {
-          const data = await res.json();
-          newCooldowns.set(card.cardId, data);
-          
-          // Start timer if on cooldown
-          if (!data.canPurchase && data.hoursUntilAvailable > 0) {
-            startCooldownTimer(card.cardId, data.hoursUntilAvailable);
+    // OPTIMIZATION: Batch query instead of N queries
+    // Query all card purchase histories in ONE request instead of 3 separate requests
+    try {
+      const cooldownsResponse = await fetch('/api/card-clash/shop/featured/purchase-status/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cardIds: cardList.map(c => c.cardId),
+        }),
+      });
+
+      if (cooldownsResponse.ok) {
+        const cooldownsData = await cooldownsResponse.json();
+        
+        // cooldownsData should be an object: { cardId: cooldownInfo }
+        for (const card of cardList) {
+          if (cooldownsData[card.cardId]) {
+            const cooldown = cooldownsData[card.cardId];
+            newCooldowns.set(card.cardId, cooldown);
+            
+            // Start timer if on cooldown
+            if (!cooldown.canPurchase && cooldown.hoursUntilAvailable > 0) {
+              startCooldownTimer(card.cardId, cooldown.hoursUntilAvailable);
+            }
           }
         }
-      } catch (err) {
-        console.error(`Error checking cooldown for card ${card.cardId}:`, err);
+      }
+    } catch (err) {
+      console.error('Error batch checking cooldowns:', err);
+      
+      // Fallback: Check individually if batch fails
+      for (const card of cardList) {
+        try {
+          const res = await fetch(`/api/card-clash/shop/featured/${card.cardId}/purchase-status`);
+          if (res.ok) {
+            const data = await res.json();
+            newCooldowns.set(card.cardId, data);
+            
+            if (!data.canPurchase && data.hoursUntilAvailable > 0) {
+              startCooldownTimer(card.cardId, data.hoursUntilAvailable);
+            }
+          }
+        } catch (err) {
+          console.error(`Error checking cooldown for card ${card.cardId}:`, err);
+        }
       }
     }
     

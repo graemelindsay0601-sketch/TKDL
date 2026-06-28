@@ -5,7 +5,7 @@ import {
   cardDefinitionsTable,
   cardPityTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
 const PACK_TYPES = {
   SINGLE: { coins: 50, cards: 1 },
@@ -241,6 +241,63 @@ export async function addCoinsToPlayer(playerId: number, amount: number) {
       .set({
         cardPoints: (playerCurrency.cardPoints || 0) + amount,
         lifetimeCoinsEarned: (playerCurrency.lifetimeCoinsEarned || 0) + amount,
+        updatedAt: new Date(),
+      })
+      .where(eq(playerCurrencyTable.playerId, playerId));
+  }
+}
+
+/**
+ * Award coins to multiple players in a single batch operation
+ * Much more efficient than calling addCoinsToPlayer multiple times
+ * Prevents N+1 query pattern
+ */
+export async function awardCoinsToMultiplePlayers(
+  playerCoins: Array<{ playerId: number; amount: number }>
+): Promise<void> {
+  if (playerCoins.length === 0) return;
+
+  // Get all player currencies in one query
+  const playerIds = playerCoins.map(p => p.playerId);
+  const currencies = await db
+    .select()
+    .from(playerCurrencyTable)
+    .where(inArray(playerCurrencyTable.playerId, playerIds));
+
+  const currencyMap = new Map(currencies.map(c => [c.playerId, c]));
+
+  // Separate into new and existing
+  const newPlayers: Array<{ playerId: number; cardPoints: number; lifetimeCoinsEarned: number }> = [];
+  const updateMap = new Map<number, { cardPoints: number; lifetimeCoinsEarned: number }>();
+
+  for (const { playerId, amount } of playerCoins) {
+    const existing = currencyMap.get(playerId);
+    if (!existing) {
+      newPlayers.push({
+        playerId,
+        cardPoints: amount,
+        lifetimeCoinsEarned: amount,
+      });
+    } else {
+      updateMap.set(playerId, {
+        cardPoints: (existing.cardPoints || 0) + amount,
+        lifetimeCoinsEarned: (existing.lifetimeCoinsEarned || 0) + amount,
+      });
+    }
+  }
+
+  // Insert new records
+  if (newPlayers.length > 0) {
+    await db.insert(playerCurrencyTable).values(newPlayers);
+  }
+
+  // Update existing records
+  for (const [playerId, values] of updateMap) {
+    await db
+      .update(playerCurrencyTable)
+      .set({
+        cardPoints: values.cardPoints,
+        lifetimeCoinsEarned: values.lifetimeCoinsEarned,
         updatedAt: new Date(),
       })
       .where(eq(playerCurrencyTable.playerId, playerId));

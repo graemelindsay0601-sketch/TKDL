@@ -256,9 +256,12 @@ export async function finishCardClashMatch(
     })
     .where(eq(cardClashMatchesTable.id, matchId));
 
-  // Award coins to both players
-  await addCoinsToPlayer(winnerId, winnerCoins);
-  await addCoinsToPlayer(loser, loserCoins);
+  // Award coins to both players (batched - single DB operation)
+  const { awardCoinsToMultiplePlayers } = await import("./card-shop-service");
+  await awardCoinsToMultiplePlayers([
+    { playerId: winnerId, amount: winnerCoins },
+    { playerId: loser, amount: loserCoins },
+  ]);
 
   // Update challenge progress (fire and forget)
   try {

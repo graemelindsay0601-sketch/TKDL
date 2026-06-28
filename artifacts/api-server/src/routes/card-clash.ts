@@ -462,23 +462,46 @@ router.post("/match/finish", async (req: Request, res: Response) => {
 // All-time standings — aggregated directly from card_clash_matches, no season needed
 router.get("/standings", async (req: Request, res: Response) => {
   try {
-    const result = await db.execute(sql`
-      SELECT
-        p.id AS player_id,
-        p.name AS player_name,
-        COUNT(CASE WHEN m.winner_id = p.id THEN 1 END)::int AS wins,
-        COUNT(CASE WHEN (m.player_1_id = p.id OR m.player_2_id = p.id) AND m.winner_id != p.id THEN 1 END)::int AS losses,
-        COUNT(CASE WHEN m.player_1_id = p.id OR m.player_2_id = p.id THEN 1 END)::int AS total_matches,
-        COALESCE(SUM(CASE WHEN m.player_1_id = p.id THEN m.player_1_points_earned
-                          WHEN m.player_2_id = p.id THEN m.player_2_points_earned
-                          ELSE 0 END), 0)::int AS points
-      FROM players p
-      JOIN card_clash_matches m ON (m.player_1_id = p.id OR m.player_2_id = p.id)
-      WHERE m.is_mock = 0
-      GROUP BY p.id, p.name
-      ORDER BY wins DESC, total_matches DESC
-    `);
-    res.json(result.rows);
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = (page - 1) * limit;
+
+    const [result, countResult] = await Promise.all([
+      db.execute(sql`
+        SELECT
+          p.id AS player_id,
+          p.name AS player_name,
+          COUNT(CASE WHEN m.winner_id = p.id THEN 1 END)::int AS wins,
+          COUNT(CASE WHEN (m.player_1_id = p.id OR m.player_2_id = p.id) AND m.winner_id != p.id THEN 1 END)::int AS losses,
+          COUNT(CASE WHEN m.player_1_id = p.id OR m.player_2_id = p.id THEN 1 END)::int AS total_matches,
+          COALESCE(SUM(CASE WHEN m.player_1_id = p.id THEN m.player_1_points_earned
+                            WHEN m.player_2_id = p.id THEN m.player_2_points_earned
+                            ELSE 0 END), 0)::int AS points
+        FROM players p
+        JOIN card_clash_matches m ON (m.player_1_id = p.id OR m.player_2_id = p.id)
+        WHERE m.is_mock = 0
+        GROUP BY p.id, p.name
+        ORDER BY wins DESC, total_matches DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `),
+      db.execute(sql`
+        SELECT COUNT(DISTINCT p.id)::int AS total
+        FROM players p
+        JOIN card_clash_matches m ON (m.player_1_id = p.id OR m.player_2_id = p.id)
+        WHERE m.is_mock = 0
+      `),
+    ]);
+
+    const total = (countResult.rows[0] as any)?.total || 0;
+    res.json({
+      data: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
@@ -498,35 +521,55 @@ router.get("/standings/:seasonId", async (req: Request, res: Response) => {
 // Card Clash leaderboard - all-time rankings including all active players
 router.get("/leaderboard", async (req: Request, res: Response) => {
   try {
-    const result = await db.execute(sql`
-      SELECT
-        p.id AS player_id,
-        p.name AS player_name,
-        COALESCE(l.wins, 0) AS wins,
-        COALESCE(l.losses, 0) AS losses,
-        (COALESCE(l.wins, 0) + COALESCE(l.losses, 0))::int AS total_matches,
-        COALESCE(l.cards_unlocked_count, 0) AS cards_unlocked_count,
-        COALESCE(l.updated_at, NOW()) AS updated_at,
-        CASE 
-          WHEN (COALESCE(l.wins, 0) + COALESCE(l.losses, 0)) > 0 
-          THEN ROUND((COALESCE(l.wins, 0)::numeric / (COALESCE(l.wins, 0) + COALESCE(l.losses, 0))) * 100, 1)
-          ELSE 0
-        END AS win_percentage,
-        COALESCE(pc.card_points, 0) AS coins,
-        (SELECT COUNT(DISTINCT card_id) FROM card_inventory WHERE player_id = p.id)::int AS cards_owned
-      FROM players p
-      LEFT JOIN card_clash_leaderboard l ON p.id = l.player_id
-      LEFT JOIN player_currency pc ON p.id = pc.player_id
-      WHERE p.is_active = true
-      ORDER BY 
-        COALESCE(l.wins, 0) DESC,
-        (COALESCE(l.wins, 0) + COALESCE(l.losses, 0)) DESC,
-        p.name ASC
-    `);
-    res.json(result.rows);
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = (page - 1) * limit;
+
+    const [result, countResult] = await Promise.all([
+      db.execute(sql`
+        SELECT
+          p.id AS player_id,
+          p.name AS player_name,
+          COALESCE(l.wins, 0) AS wins,
+          COALESCE(l.losses, 0) AS losses,
+          (COALESCE(l.wins, 0) + COALESCE(l.losses, 0))::int AS total_matches,
+          COALESCE(l.cards_unlocked_count, 0) AS cards_unlocked_count,
+          COALESCE(l.updated_at, NOW()) AS updated_at,
+          CASE 
+            WHEN (COALESCE(l.wins, 0) + COALESCE(l.losses, 0)) > 0 
+            THEN ROUND((COALESCE(l.wins, 0)::numeric / (COALESCE(l.wins, 0) + COALESCE(l.losses, 0))) * 100, 1)
+            ELSE 0
+          END AS win_percentage,
+          COALESCE(pc.card_points, 0) AS coins,
+          (SELECT COUNT(DISTINCT card_id) FROM card_inventory WHERE player_id = p.id)::int AS cards_owned
+        FROM players p
+        LEFT JOIN card_clash_leaderboard l ON p.id = l.player_id
+        LEFT JOIN player_currency pc ON p.id = pc.player_id
+        WHERE p.is_active = true
+        ORDER BY 
+          COALESCE(l.wins, 0) DESC,
+          (COALESCE(l.wins, 0) + COALESCE(l.losses, 0)) DESC,
+          p.name ASC
+        LIMIT ${limit} OFFSET ${offset}
+      `),
+      db.execute(sql`
+        SELECT COUNT(*)::int AS total FROM players WHERE is_active = true
+      `),
+    ]);
+
+    const total = (countResult.rows[0] as any)?.total || 0;
+    res.json({
+      data: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     logger.warn({ error }, "Card Clash leaderboard endpoint - error fetching leaderboard");
-    res.json([]); // Return empty leaderboard if error
+    res.json({ data: [], pagination: { page: 1, limit: 50, total: 0, pages: 0 } }); // Return empty with pagination info
   }
 });
 
@@ -1773,3 +1816,45 @@ router.post(
     }
   }
 );
+
+// POST /api/card-clash/shop/featured/purchase-status/batch
+// Batch check purchase cooldowns for multiple cards (OPTIMIZATION: 3 queries → 1)
+router.post("/shop/featured/purchase-status/batch", async (req: Request, res: Response) => {
+  try {
+    const playerId = (req.session as any)?.playerId;
+    if (!playerId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    const { cardIds } = req.body;
+    if (!Array.isArray(cardIds) || cardIds.length === 0) {
+      return res.status(400).json({ error: "Invalid cardIds" });
+    }
+
+    const { checkCardPurchaseCooldown } = await import(
+      "../services/shop-purchase-cooldown-service"
+    );
+
+    const result: Record<number, any> = {};
+
+    // Check all cards - could be parallelized but keeping serial to avoid connection pool stress
+    for (const cardId of cardIds) {
+      try {
+        const cooldown = await checkCardPurchaseCooldown(playerId, cardId);
+        result[cardId] = cooldown;
+      } catch (err) {
+        logger.error({ playerId, cardId, err }, "Error checking cooldown");
+        result[cardId] = {
+          canPurchase: true,
+          hoursUntilAvailable: 0,
+          lastPurchasedAt: null,
+        };
+      }
+    }
+
+    res.json(result);
+  } catch (error) {
+    logger.error({ error }, "Failed to batch check purchase status");
+    res.status(500).json({ error: "Failed to check purchase status" });
+  }
+});
