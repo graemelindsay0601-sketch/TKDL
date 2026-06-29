@@ -101,6 +101,7 @@ export interface CCEffect {
 
   // Cricket: mark-level
   marksMultiplier?: number;      // multiply absorbed hits (Double Strike=2, Bad Aim=0.5)
+  conditionalMultiplier?: boolean; // Don't double-apply in scorer (Comeback Marks, Mark Multiplier, Dominance)
   sluggishMarks?: boolean;       // all hits count as 1 mark
   hesitateFirstDart?: boolean;   // dart index 0 → 0 hits
   blockFinalDartMark?: boolean;  // dart index 2 → 0 hits
@@ -316,14 +317,14 @@ export function ccActivateCard(
       status: "active",
       bullMarksSegments: [20, 19, 18, 17, 16, 15]  // THEME 5: Bull marks more segments
     },
-    "Comeback Marks":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.5 },
+    "Comeback Marks":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.5, conditionalMultiplier: true },
     "Mark Accelerator":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 2 },
-    "Mark Multiplier":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", _marksThisTurn: 0 },
+    "Mark Multiplier":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 2, conditionalMultiplier: true },
     "Quick Close":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeMarkIfQuickClose: true },
     "Momentum Arsenal":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusPerMark: 10, _marksThisTurn: 0 },
     "High Scorer":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfHighMarks: 20 },
     "Perfect Form":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", extraScoreMultiplier: 1.5 },
-    "Dominance":            { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.3 },
+    "Dominance":            { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.3, conditionalMultiplier: true },
   };
 
   // ── Cricket BAD (affects opponent's next turn) ─────────────────────────────
