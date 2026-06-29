@@ -406,7 +406,7 @@ export const CardShopUI = React.memo(
             )}
           </div>
           {/* 3-D flip */}
-          <div onClick={handleFlipCard} style={{ width: "180px", height: "258px", perspective: "1200px", cursor: isFlipped ? "default" : "pointer" }}>
+          <div onClick={handleFlipCard} style={{ width: "150px", height: "215px", perspective: "1200px", cursor: isFlipped ? "default" : "pointer" }}>
             <div style={{ width: "100%", height: "100%", position: "relative", transformStyle: "preserve-3d", transition: "transform 0.72s cubic-bezier(0.4,0,0.2,1)", transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)" }}>
               <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden" }}>
                 <CardBack accent={packDef.accent} />
