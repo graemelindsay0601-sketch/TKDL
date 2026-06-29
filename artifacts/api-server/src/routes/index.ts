@@ -21,7 +21,6 @@ import notificationsRouter from "./notifications";
 import statsDetailedRouter from "./stats-detailed";
 import cardClashRouter     from "./card-clash";
 import challengesRouter    from "./challenges";
-import favoritesRouter     from "./favorites";
 import practiceModeRouter  from "./practice-mode";
 import cardClashSettingsRouter from "./card-clash-settings";
 
@@ -49,7 +48,6 @@ router.use(notificationsRouter);
 router.use(statsDetailedRouter);
 router.use("/card-clash", cardClashRouter);
 router.use("/challenges", challengesRouter);
-router.use(favoritesRouter);
 router.use(practiceModeRouter);
 router.use(cardClashSettingsRouter);
 
