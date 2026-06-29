@@ -1509,14 +1509,27 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             }
           }
           
-          // 313: Comeback Marks - apply 1.5x if behind
-          const comebackMarks = playerEffects.find(e => e.cardName === "Comeback Marks" && e.conditionalMultiplier);
-          if (comebackMarks) {
+          // 313: Comeback Marks - apply 1.5x multiplier bonus if behind in score
+          const comebackMarks = playerEffects.find(e => e.cardName === "Comeback Marks");
+          if (comebackMarks && comebackMarks.marksMultiplier === 1.5) {
             const opp: 0|1 = turn === 0 ? 1 : 0;
             if (scores[turn] < scores[opp]) {
-              console.log(`[CARD_CLASH:COMEBACK_MARKS] Condition met: Player${turn} behind (${scores[turn]} < ${scores[opp]})`);
-              // Flag that multiplier was applied - prevent double-apply in dart handler
-              comebackMarks._conditionalApplied = true;
+              // Player is behind - apply 1.5x bonus to marks scored this turn
+              // Each mark = +10 points, so 1.5x means +15 per mark (bonus of +5 per mark)
+              let marksThisTurn = 0;
+              const lastMarks = snapHistory.length > 0 ? snapHistory[snapHistory.length - 1].marks : [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]];
+              for (let i = 0; i < numCount; i++) {
+                marksThisTurn += (marks[turn][i] - lastMarks[turn][i]);
+              }
+              if (marksThisTurn > 0) {
+                const bonusPoints = Math.floor(marksThisTurn * 10 * 0.5); // 1.5x = base + 0.5x bonus
+                setScores(prev => {
+                  const newScores: [number, number] = [...prev];
+                  newScores[turn] += bonusPoints;
+                  console.log(`[CARD_CLASH:COMEBACK_MARKS] Player${turn} behind, ${marksThisTurn} marks × 1.5x = +${bonusPoints} points`);
+                  return newScores;
+                });
+              }
             }
           }
           
@@ -1539,14 +1552,28 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             }
           }
           
-          const dominance = playerEffects.find(e => e.cardName === "Dominance" && e.conditionalMultiplier);
-          if (dominance) {
+          // 320: Dominance - apply 1.3x mark multiplier (ceil) if closing more numbers
+          const dominance = playerEffects.find(e => e.cardName === "Dominance");
+          if (dominance && dominance.marksMultiplier === 1.3) {
             const opp: 0|1 = turn === 0 ? 1 : 0;
             const closedByPlayer = marks[turn].filter(m => m >= 3).length;
             const closedByOpp = marks[opp].filter(m => m >= 3).length;
             if (closedByPlayer > closedByOpp) {
-              console.log(`[CARD_CLASH:DOMINANCE] Condition met: Player${turn} closed ${closedByPlayer} > ${closedByOpp}`);
-              dominance._conditionalApplied = true;
+              // Apply 1.3x bonus to marks scored this turn using ceil
+              let marksThisTurn = 0;
+              const lastMarks = snapHistory.length > 0 ? snapHistory[snapHistory.length - 1].marks : [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]];
+              for (let i = 0; i < numCount; i++) {
+                marksThisTurn += (marks[turn][i] - lastMarks[turn][i]);
+              }
+              if (marksThisTurn > 0) {
+                const bonusPoints = Math.ceil(marksThisTurn * 10 * 1.3) - (marksThisTurn * 10);  // ceil(marks × 1.3) - base
+                setScores(prev => {
+                  const newScores: [number, number] = [...prev];
+                  newScores[turn] += bonusPoints;
+                  console.log(`[CARD_CLASH:DOMINANCE] Player${turn} closing ${closedByPlayer} > ${closedByOpp}, ${marksThisTurn} marks × 1.3x (ceil) = +${bonusPoints} bonus`);
+                  return newScores;
+                });
+              }
             }
           }
           
