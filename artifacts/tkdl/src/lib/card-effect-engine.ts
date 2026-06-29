@@ -326,14 +326,16 @@ export function ccActivateCard(
       appliedBy: byPlayer, 
       affectsPlayer: byPlayer, 
       status: "active",
-      bullMarksSegments: [20, 19, 18]  // THEME 5: When Bull is hit, mark these segments too
+      bullMarksSegments: [],  // Will be populated by UI with player's chosen 3 segments
+      _uiRequiredBullChoice: true  // Flag: UI must show segment selector for 3 chosen
     },
     "Bullseye Rush":        { 
       cardName: name, 
       appliedBy: byPlayer, 
       affectsPlayer: byPlayer, 
       status: "active",
-      bullMarksSegments: [20, 19, 18, 17, 16, 15]  // THEME 5: Bull marks more segments
+      bullMarksSegments: [],  // Will be populated by UI with player's chosen 2 segments
+      _uiRequiredBullChoice: true  // Flag: UI must show segment selector for 2 chosen
     },
     "Comeback Marks":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.5, conditionalMultiplier: true },
     "Mark Accelerator":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 2 },

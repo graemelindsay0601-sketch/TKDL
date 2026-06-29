@@ -1462,6 +1462,26 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       });
       const lbl = dart.multiplier === 1 ? `${dart.segment}` : dart.multiplier === 2 ? `D${dart.segment}` : `T${dart.segment}`;
       setLastHit(lbl);
+      
+      // FIX 311/312: Bull Multiplier / Bullseye Rush - mark chosen segments when Bull is hit
+      if (isCardClash && dart.segment === 25 && includesBull) {
+        const bullEffect = activeEffects.find(e => 
+          (e.cardName === "Bull Multiplier" || e.cardName === "Bullseye Rush") && 
+          e.status === "active" && e.affectsPlayer === turn &&
+          e.bullMarksSegments && e.bullMarksSegments.length > 0
+        );
+        if (bullEffect) {
+          setMarks(prev => {
+            const nm: typeof marks = [[ ...prev[0] ] as any, [ ...prev[1] ] as any];
+            for (const segment of bullEffect.bullMarksSegments) {
+              const segIdx = CRICKET_NUMS.indexOf(segment);
+              if (segIdx >= 0) nm[turn][segIdx] = Math.min(3, nm[turn][segIdx] + 1);
+            }
+            console.log(`[CARD_CLASH:${bullEffect.cardName.toUpperCase()}] Player${turn} hit Bull → marked ${bullEffect.bullMarksSegments.join(",")}`);
+            return nm;
+          });
+        }
+      }
     } else {
       setLastHit("Miss");
     }
