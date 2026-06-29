@@ -386,7 +386,7 @@ export const CardShopUI = React.memo(
 
       {/* ── CARD REVEAL ── */}
       {phase === "cards" && currentFull && (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "20px", padding: "10px 0", animation: "fadeUp 0.3s ease" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "20px", padding: "16px 12px 28px", animation: "fadeUp 0.3s ease", minHeight: "100%", justifyContent: "flex-start", overflow: "auto" }}>
           {legendaryFlash && (
             <div style={{ position: "fixed", inset: 0, background: "rgba(255,155,0,0.82)", animation: "flashScreen 1.3s ease-out forwards", zIndex: 9999, pointerEvents: "none" }} />
           )}
@@ -421,7 +421,7 @@ export const CardShopUI = React.memo(
             </div>
           </div>
           {/* Next btn */}
-          <div style={{ minHeight: "64px", display: "flex", alignItems: "center", justifyContent: "center", width: "100%", marginTop: "12px" }}>
+          <div style={{ minHeight: "68px", display: "flex", alignItems: "center", justifyContent: "center", width: "100%", marginTop: "28px", marginBottom: "12px" }}>
             {canAdvance && (
               <button 
                 onClick={handleNextCard} 
