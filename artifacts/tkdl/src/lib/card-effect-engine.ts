@@ -46,6 +46,7 @@ export interface CCEffect {
   minDartValue?: number;         // floor each dart value
   maxDartValue?: number;         // cap each dart value (Shackled=50)
   trebleMultiplier?: number;     // trebles: value * this  (Treble Hunter=1.3)
+  oneShotTrebleMultiplier?: boolean; // Treble Hunter: only first treble this turn gets 1.3x
   allDartsMultiplier?: number;   // all values * this (Iron Will=1.2, Jinx=0.75)
   singlesScore0?: boolean;       // singles (mult=1, seg!=25) → 0
   doublesAsSingles?: boolean;    // doubles → singles value
@@ -62,6 +63,7 @@ export interface CCEffect {
   // X01: visit-level (applied in ccApplyVisitEnd)
   visitBonus?: number;           // add N to this turn's score reduction
   visitPenalty?: number;         // subtract N from score reduction
+  bonusRemoval?: boolean;        // Win Bonus Removed (609): remove opponent bonuses
   penaltyPerDart?: number;       // -N per dart thrown (Mental Block=-10)
   maxVisitTotal?: number;        // cap total visit score (Mercy Killer=60)
 
@@ -78,6 +80,7 @@ export interface CCEffect {
   preventBustInCheckout?: boolean; // Close Control
   forceFullTurn?: boolean;       // Scoring Arsenal
   blockOpponentPenalties?: boolean; // Unstoppable Checkout / Exact Finish / Invincible
+  checkoutOnly?: boolean;           // Only active when on double-out (Unstoppable Checkout)
   preventFinishBefore3?: boolean; // Turn Enforcer
   noDoubleFinishFirstN?: number; // Finish Delay (first N darts can't finish on double)
   mustFinishAfterOneDart?: boolean; // Trapped
@@ -163,8 +166,8 @@ export function ccActivateCard(
   const x01Good: Record<string, CCEffect> = {
     "Big Game Player":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit80Plus: 35, deferBonusToNextLeg: true, legDuration: true },
     "Power Surge +50":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 },
-    "Treble Hunter":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", trebleMultiplier: 1.3 },
-    "Unstoppable Checkout": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true },
+    "Treble Hunter":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", trebleMultiplier: 1.3, oneShotTrebleMultiplier: true },
+    "Unstoppable Checkout": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true, checkoutOnly: true },
     "Banking Strategy":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit50Plus: 20, deferBonusToNextTurn: true },
     "Checkout Confidence":  { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeRetryOnDoubleMiss: true },
     "Exact Finish":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true },
@@ -446,9 +449,9 @@ export function ccActivateCard(
     "Hex":                { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.5 },
     "Wipeout":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", wildDartIndices: [1, 2] }, // last 2 darts → 0
     "Total Annihilation": { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 100 },
-    "Match Pressure":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8, finalLegOnly: true },
+    "Match Pressure":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8, marksMultiplier: 0.5, finalLegOnly: true },
     "Underdog Curse":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8 },
-    "Win Bonus Removed":  { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 0 },
+    "Win Bonus Removed":  { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", bonusRemoval: true },
     "Shutdown":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", maxVisitTotal: 50 },
     "Streak Crusher":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", removeLegsIfAhead: 2 }, // Remove 2 legs if opponent is 2+ ahead
   };
