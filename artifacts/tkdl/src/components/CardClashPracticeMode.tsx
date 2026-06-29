@@ -87,12 +87,26 @@ export function CardClashPracticeMode({
   }, []);
 
   // ── Equipment selected ─────────────────────────────────────────────────
-  const handleEquipmentConfirm = (goodCards: Card[], badCards: Card[]) => {
+  const handleEquipmentConfirm = (equipment: any) => {
+    // Equipment is passed from CardEquipmentSelector as { goodCards, badCards }
+    const goodCards = equipment.goodCards || [];
+    const badCards = equipment.badCards || [];
+    
     if (goodCards.length !== 2 || badCards.length !== 2) {
       setError('Please equip 2 GOOD and 2 BAD cards');
       return;
     }
-    setEquippedCards([...goodCards, ...badCards]);
+    
+    // Convert to the format we need
+    const equipped = [...goodCards, ...badCards].map((c: any) => ({
+      id: c.id || c.cardId,
+      name: c.name,
+      cardType: c.cardType || 'GOOD',
+      rarity: c.rarity,
+      effect: c.effect,
+    }));
+    
+    setEquippedCards(equipped);
     setStep('confirm');
   };
 
@@ -107,6 +121,24 @@ export function CardClashPracticeMode({
       setLoading(true);
       setError('');
 
+      // Randomly assign cards to bot
+      const gameTypeKey = gameType === 'X01' ? 'X01' : 'CRICKET';
+      const botGoodCards = allCards.filter((c: Card) => 
+        c.cardType === 'GOOD' && 
+        (c.gameMode === gameTypeKey || c.gameMode === 'WILDCARD')
+      );
+      const botBadCards = allCards.filter((c: Card) => 
+        c.cardType === 'BAD' && 
+        (c.gameMode === gameTypeKey || c.gameMode === 'WILDCARD')
+      );
+
+      // Shuffle and select random cards for bot
+      const shuffle = (arr: Card[]) => [...arr].sort(() => Math.random() - 0.5);
+      const botEquipped = [
+        ...shuffle(botGoodCards).slice(0, 2),
+        ...shuffle(botBadCards).slice(0, 2),
+      ];
+
       const response = await fetch('/api/card-clash/practice/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -114,10 +146,15 @@ export function CardClashPracticeMode({
           playerId,
           opponentId: selectedOpponent.id,
           gameMode: gameType,
-          equippedCards: equippedCards.map((c: any) => ({ 
+          playerEquippedCards: equippedCards.map((c: any) => ({ 
             cardId: c.id || c.cardId || c.name, 
             cardType: c.cardType || 'GOOD',
             name: c.name 
+          })),
+          botEquippedCards: botEquipped.map((c: Card) => ({
+            cardId: c.id || c.cardId,
+            cardType: c.cardType,
+            name: c.name,
           })),
         }),
       });
@@ -325,9 +362,11 @@ export function CardClashPracticeMode({
         </button>
         
         <CardEquipmentSelector 
-          playerId={playerId!}
+          currentPlayerId={playerId!}
+          currentPlayerName="You"
           gameMode={gameType}
-          onEquip={handleEquipmentConfirm}
+          testMode={true}
+          onSelect={handleEquipmentConfirm}
           onCancel={() => setStep('gamemode-select')}
         />
       </div>
