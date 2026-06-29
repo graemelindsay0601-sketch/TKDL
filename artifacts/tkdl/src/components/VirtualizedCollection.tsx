@@ -48,12 +48,17 @@ export const VirtualizedCollection = React.memo(
 
     const totalRows = Math.ceil(cards.length / cardsPerRow);
     const rowHeight = CARD_HEIGHT + GAP;
+    
+    // Parse containerHeight (could be string like "600px" or number)
+    const parsedHeight = typeof containerHeight === 'string' 
+      ? parseInt(containerHeight, 10) || 600 
+      : (containerHeight as number) || 600;
 
     // Calculate visible range
     const startRowIdx = Math.max(0, Math.floor(scrollTop / rowHeight) - 1);
     const endRowIdx = Math.min(
       totalRows,
-      Math.ceil((scrollTop + (containerHeight as number || 600)) / rowHeight) + 1
+      Math.ceil((scrollTop + parsedHeight) / rowHeight) + 1
     );
 
     const visibleCards = cards.slice(
