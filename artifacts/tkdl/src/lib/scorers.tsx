@@ -1356,14 +1356,15 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         // Card Clash: Re-Opening Block — lock number if closing opponent's number with this card
         if (isCardClash && absorbed > 0 && nm[turn][numIdx] >= 3 && prev[turn][numIdx] < 3) {
           // This player just closed this number
+          // Check if OPPONENT has Re-Opening Block active (they applied it to affect us)
           const hasReOpeningBlock = activeEffects.some(e => 
-            e.cardName === "Re-Opening Block" && e.status === "active" && e.appliedBy === turn
+            e.cardName === "Re-Opening Block" && e.status === "active" && e.appliedBy !== turn && e.affectsPlayer === turn
           );
           if (hasReOpeningBlock) {
             setLockedNumbers(prev => {
               const newLocked = [new Set(prev[0]), new Set(prev[1])] as [Set<number>, Set<number>];
               newLocked[turn].add(CRICKET_NUMS[numIdx]);
-              console.log(`[CARD_CLASH:RE_OPENING_BLOCK] Player${turn} closed and locked ${CRICKET_NUMS[numIdx]}`);
+              console.log(`[CARD_CLASH:RE_OPENING_BLOCK] Player${turn} closed number, it's locked by opponent's Re-Opening Block`);
               return newLocked;
             });
           }
