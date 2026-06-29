@@ -201,7 +201,7 @@ export function ccActivateCard(
   };
 
   // ── Cricket GOOD ───────────────────────────────────────────────────────────
-  const cricGood: Record<string, CCEffect> = {
+  const cricGood: Record<string, CCEffect | null> = {
     "Instant Mark":         (() => {
       // Auto-mark the called number (only works if calledNumber is known)
       if (gameStateInfo?.calledNumber !== undefined) {
