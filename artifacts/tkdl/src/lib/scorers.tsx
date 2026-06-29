@@ -1096,6 +1096,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [lastHit, setLastHit]   = useState<string>("");
   const [snapHistory, setSnapHistory] = useState<{marks: [[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]], scores: [number,number], turn: 0|1, visitDarts: Dart[]}[]>([]);
   const [lockedNumbers, setLockedNumbers] = useState<[Set<number>, Set<number>]>([new Set(), new Set()]); // Track locked numbers per player (Number Prison, Re-Opening Block)
+  const [protectedNumbers, setProtectedNumbers] = useState<[Set<number>, Set<number>]>([new Set(), new Set()]); // FIX 306: Numbers that can't be closed by opponent
   const [prevTurnMarks, setPrevTurnMarks] = useState<[number[],number[]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]); // Track marks from previous turn for Momentum Killer
 
   // Card Clash state (populated from sessionStorage by CardClashMatchScorer)
@@ -1345,16 +1346,36 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       
       const canClose = !isCardClash || !ccBlockClosing(activeEffects, turn);
       
+      // FIX 306: Check if number is protected by opponent's Closing Protection
+      const isProtected = isCardClash && protectedNumbers[turn === 0 ? 1 : 0].has(CRICKET_NUMS[numIdx]);
+      const effectiveCanClose = canClose && !isProtected;
+      
       // Card Clash: Check if number is locked (Number Prison)
       const isLocked = isCardClash && lockedNumbers[turn].has(CRICKET_NUMS[numIdx]);
       const effectiveHitsAfterLock = isLocked ? 0 : effectiveHits;
 
       setMarks(prev => {
         const nm: typeof marks = [[ ...prev[0] ] as any, [ ...prev[1] ] as any];
-        const toClose = Math.max(0, (canClose ? 3 : 2) - nm[turn][numIdx]);
+        const toClose = Math.max(0, (effectiveCanClose ? 3 : 2) - nm[turn][numIdx]);
         const absorbed = Math.min(effectiveHitsAfterLock, Math.max(0, toClose));
         const extra = effectiveHitsAfterLock - absorbed;
-        nm[turn][numIdx] = Math.min(canClose ? 3 : 2, nm[turn][numIdx] + absorbed);
+        nm[turn][numIdx] = Math.min(effectiveCanClose ? 3 : 2, nm[turn][numIdx] + absorbed);
+        
+        // FIX 306: Closing Protection - mark number as protected if opened with effect active
+        if (isCardClash && absorbed > 0 && prev[turn][numIdx] === 0 && nm[turn][numIdx] > 0) {
+          // This player just opened this number
+          const hasClosingProtection = activeEffects.some(e => 
+            e.cardName === "Closing Protection" && e.status === "active" && e.affectsPlayer === turn
+          );
+          if (hasClosingProtection) {
+            setProtectedNumbers(prev => {
+              const newProtected = [new Set(prev[0]), new Set(prev[1])] as [Set<number>, Set<number>];
+              newProtected[turn].add(CRICKET_NUMS[numIdx]);
+              console.log(`[CARD_CLASH:CLOSING_PROTECTION] Player${turn} opened ${CRICKET_NUMS[numIdx]} - opponent can't close it`);
+              return newProtected;
+            });
+          }
+        }
         
         // Card Clash: Re-Opening Block — lock number if closing opponent's number with this card
         if (isCardClash && absorbed > 0 && nm[turn][numIdx] >= 3 && prev[turn][numIdx] < 3) {
