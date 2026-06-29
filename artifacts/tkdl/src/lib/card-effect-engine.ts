@@ -484,7 +484,7 @@ export function ccActivateCard(
     "Hex":                { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.5, cricketMarksHalved: true },
     "Wipeout":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", wildDartIndices: [1, 2] }, // last 2 darts → 0
     "Total Annihilation": { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 100 },
-    "Match Pressure":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8, marksMultiplier: 0.5, finalLegOnly: true },
+    "Match Pressure":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", penaltyPerDart: 20, marksMultiplier: 0.5, finalLegOnly: true },
     "Underdog Curse":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8, opponentMustBeAhead: true },
     "Win Bonus Removed":  { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", bonusRemoval: true },
     "Shutdown":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", maxMarksPerTurn: 2 },

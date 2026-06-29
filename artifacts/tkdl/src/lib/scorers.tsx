@@ -694,6 +694,17 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         updated = ccValidateCheckoutOnlyCards(updated, scores, turn);
         // FIX 107: Validate Exact Finish (requiresExactFinish)
         updated = ccValidateExactFinishCards(updated, scores, turn);
+        // FIX 609: Win Bonus Removed - remove opponent momentum effects (Lucky Streak, Hot Hand, Momentum Surge)
+        const hasBonusRemoval = updated.some(e => e.cardName === "Win Bonus Removed" && e.status === "active" && e.affectsPlayer === turn);
+        if (hasBonusRemoval) {
+          updated = updated.filter(e => {
+            if (["Lucky Streak", "Momentum Surge", "Hot Hand"].includes(e.cardName) && e.affectsPlayer === turn) {
+              console.log(`[CARD_CLASH:WIN_BONUS_REMOVED] Removed ${e.cardName} from Player${turn}`);
+              return false;
+            }
+            return true;
+          });
+        }
         updated = ccApplyPenaltyBlockingIfNeeded(updated, turn);
         return updated;
       });
