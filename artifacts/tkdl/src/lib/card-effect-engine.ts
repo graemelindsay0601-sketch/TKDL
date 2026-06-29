@@ -237,10 +237,12 @@ export function ccActivateCard(
   // ── Wildcard GOOD ──────────────────────────────────────────────────────────
   const wildcardGood: Record<string, CCEffect> = {
     "Coin Flip": (() => {
+      // 50/50 chance: either player gets -40 remaining (win) OR opponent gets -30 remaining (loss)
+      // NOTE: X01 scores are remaining points (lower = better), so deltas are inverted vs Cricket
       const win = Math.random() > 0.5;
       return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", instant: true,
-        instantP0Delta: win ? (byPlayer === 0 ? 40 : -40) : (byPlayer === 0 ? -30 : 30),
-        instantP1Delta: win ? (byPlayer === 0 ? -40 : 40) : (byPlayer === 0 ? 30 : -30) } as CCEffect;
+        instantP0Delta: win ? (byPlayer === 0 ? -40 : 40) : (byPlayer === 0 ? 30 : -30),
+        instantP1Delta: win ? (byPlayer === 0 ? 40 : -40) : (byPlayer === 0 ? -30 : 30) } as CCEffect;
     })(),
     "Lucky Streak":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 },
     "Momentum Surge": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 25 },
