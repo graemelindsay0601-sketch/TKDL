@@ -1470,8 +1470,68 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             }
           }
           
-          // Expire this-turn effects; promote opponent's pending → active
-          updated = ccExpireOnTurnEnd(updated, turn);
+          // 408: Pressure - penalty if number not closed
+          const pressure = playerEffects.find(e => e.cardName === "Pressure");
+          if (pressure && pressure.penaltyIfNotClosed) {
+            // Check if any marked number wasn't closed this turn
+            let hasUnclosedNumber = false;
+            for (let i = 0; i < numCount; i++) {
+              if (marks[turn][i] > 0 && marks[turn][i] < 3) {
+                hasUnclosedNumber = true;
+                break;
+              }
+            }
+            if (hasUnclosedNumber) {
+              setScores(prev => {
+                const newScores: [number, number] = [...prev];
+                newScores[turn] = Math.max(0, newScores[turn] - pressure.penaltyIfNotClosed);
+                console.log(`[CARD_CLASH:PRESSURE] Player${turn} -${pressure.penaltyIfNotClosed} for unclosed numbers`);
+                return newScores;
+              });
+            }
+          }
+          
+          // 417: Mark Drain - remove 1 mark if opponent ahead
+          const markDrain = playerEffects.find(e => e.cardName === "Mark Drain" && e.markDrainIfAhead);
+          if (markDrain) {
+            const opp: 0|1 = turn === 0 ? 1 : 0;
+            if (scores[opp] > scores[turn]) {
+              // Remove 1 mark from highest marked unopened number
+              let maxIdx = -1, maxMarks = 0;
+              for (let i = 0; i < numCount; i++) {
+                if (marks[turn][i] > 0 && marks[turn][i] < 3 && marks[turn][i] > maxMarks) {
+                  maxIdx = i;
+                  maxMarks = marks[turn][i];
+                }
+              }
+              if (maxIdx >= 0) {
+                setMarks(prev => {
+                  const nm: typeof marks = [[ ...prev[0] ] as any, [ ...prev[1] ] as any];
+                  nm[turn][maxIdx] = Math.max(0, nm[turn][maxIdx] - 1);
+                  console.log(`[CARD_CLASH:MARK_DRAIN] Player${turn} loses 1 mark on ${CRICKET_NUMS[maxIdx]}`);
+                  return nm;
+                });
+              }
+            }
+          }
+          
+          // 418: Streak Breaker - halve marks on 2+ streak
+          const streakBreaker = playerEffects.find(e => e.cardName === "Streak Breaker" && e.streakBreakerHalves);
+          if (streakBreaker) {
+            setMarks(prev => {
+              const nm: typeof marks = [[ ...prev[0] ] as any, [ ...prev[1] ] as any];
+              let broke = false;
+              for (let i = 0; i < numCount; i++) {
+                if (nm[turn][i] >= 2) {
+                  nm[turn][i] = 1;
+                  broke = true;
+                }
+              }
+              if (broke) console.log(`[CARD_CLASH:STREAK_BREAKER] Player${turn} marks halved`);
+              return nm;
+            });
+          }
+          
           return updated;
         });
       } else {

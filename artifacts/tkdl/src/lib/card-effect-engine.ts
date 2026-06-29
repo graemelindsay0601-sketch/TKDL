@@ -131,7 +131,14 @@ export interface CCEffect {
   bonusIfHighMarks?: number;        // High Scorer (318): +N bonus if scoring 100+ marks this turn
   bonusPerMark?: number;         // +N per mark (Momentum Arsenal=10)
   blockBullMarks?: boolean;      // Bull Void
-  markDrainIfAhead?: boolean;    // Mark Drain
+  markDrainIfAhead?: boolean;    // Mark Drain (417): remove 1 mark if opponent ahead
+  penaltyIfNotClosed?: number;  // Pressure (408): penalty if number not closed this turn
+  streakBreakerHalves?: boolean; // Streak Breaker (418): halve marks on 2+ streak
+  deferPenaltyToNextLeg?: boolean;  // Dark Cloud (601): apply penalty on opponent's next leg
+  cricketMarksHalved?: boolean;     // Hex (604), Match Pressure: Cricket marks at 50%
+  maxMarksPerTurn?: number;         // Shutdown (610): Cricket 2-number cap
+  requiresExactFinish?: boolean;    // Exact Finish (107): only if on double-out
+  opponentMustBeAhead?: boolean;    // Underdog Curse (608): only if opponent ahead
   scoreHalveExtraMultiplier?: number; // Score Halve (opponent's extras * 0.5)
 
   // Internal counters (mutable during a turn)
@@ -175,7 +182,7 @@ export function ccActivateCard(
     "Unstoppable Checkout": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true, checkoutOnly: true },
     "Banking Strategy":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit50Plus: 20, deferBonusToNextTurn: true },
     "Checkout Confidence":  { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeRetryOnDoubleMiss: true },
-    "Exact Finish":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true },
+    "Exact Finish":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true, requiresExactFinish: true },
     "High Pressure":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfBehindLegs: 40 },
     "Perfect Rhythm":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusPerDart: 10 },
     "High Roller":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit100Plus: 25 },
@@ -342,7 +349,7 @@ export function ccActivateCard(
     },
     "Aim Shift":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", segmentRedirect: true },
     "Hesitation":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", hesitateFirstDart: true },
-    "Pressure":             { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending" }, // penaltyIfNotClosed — turn-end check
+    "Pressure":             { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", penaltyIfNotClosed: 30 },
     "Momentum Killer":      { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending" }, // streaks — complex
     "Sluggish Marks":       { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", sluggishMarks: true },
     "Number Hex":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allowedMarkSegments: [20, 25] }, // defaults to 20/bull
@@ -352,7 +359,7 @@ export function ccActivateCard(
     "Bull Void":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", blockBullMarks: true },
     "Mark Killer":          { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", blockFinalDartMark: true },
     "Mark Drain":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", markDrainIfAhead: true },
-    "Streak Breaker":       { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending" },
+    "Streak Breaker":       { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", streakBreakerHalves: true },
     "Number Prison":        { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending" }, // mark random closed num = -1
     "Score Halve":          { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", scoreHalveExtraMultiplier: 0.5 },
   };
@@ -458,16 +465,16 @@ export function ccActivateCard(
 
   // ── Wildcard BAD ───────────────────────────────────────────────────────────
   const wildcardBad: Record<string, CCEffect> = {
-    "Dark Cloud":         { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 35 },
+    "Dark Cloud":         { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 35, deferPenaltyToNextLeg: true },
     "Momentum Killer":    { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 0 }, // streak clear
     "Unlucky Night":      { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.75 },
-    "Hex":                { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.5 },
+    "Hex":                { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.5, cricketMarksHalved: true },
     "Wipeout":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", wildDartIndices: [1, 2] }, // last 2 darts → 0
     "Total Annihilation": { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 100 },
     "Match Pressure":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8, marksMultiplier: 0.5, finalLegOnly: true },
-    "Underdog Curse":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8 },
+    "Underdog Curse":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8, opponentMustBeAhead: true },
     "Win Bonus Removed":  { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", bonusRemoval: true },
-    "Shutdown":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", maxVisitTotal: 50 },
+    "Shutdown":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", maxMarksPerTurn: 2 },
     "Streak Crusher":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", removeLegsIfAhead: 2 }, // Remove 2 legs if opponent is 2+ ahead
   };
 
