@@ -582,10 +582,6 @@ export function ccPreprocessDart(
     if (e.wildDartIndices && e.wildDartIndices.includes(dartIdx)) {
       value = 0; label = `0 (wiped)`;
     }
-    // Random wild dart (Wild Throw): pick random dart at throw time, zero it out
-    if (e.randomWildDart && Math.random() < 0.33) {
-      value = 0; label = `0 (wild throw)`;
-    }
     // Fatigue multipliers
     if (e.fatigueMults) {
       const mult = e.fatigueMults[Math.min(dartIdx, 2)];
@@ -689,6 +685,7 @@ export function ccApplyVisitEnd(
   effects: CCEffect[],
   player: 0 | 1,
   legWins: [number, number],
+  lastDartWasDouble: boolean = false,  // NEW: Was final dart a double?
 ): { bonusReduction: number; extraPenalty: number; newDeferredEffects: CCEffect[] } {
   const active = effects.filter(e => e.status === "active" && e.affectsPlayer === player);
   let bonusReduction = 0; // extra score reduction (good for player)
@@ -716,14 +713,14 @@ export function ccApplyVisitEnd(
     let bonusAmount = 0;
     let cardName = "";
     
-    // Big Game Player: 80+
-    if (e.bonusIfVisit80Plus && rawCum >= 80) {
+    // Big Game Player: 80+ (NOT a finishing double)
+    if (e.bonusIfVisit80Plus && rawCum >= 80 && !lastDartWasDouble) {
       conditionMet = true;
       bonusAmount = e.bonusIfVisit80Plus;
       cardName = "Big Game Player";
     }
-    // Banking Strategy: 50+
-    if (e.bonusIfVisit50Plus && rawCum >= 50) {
+    // Banking Strategy: 50+ (NOT a finishing double)
+    if (e.bonusIfVisit50Plus && rawCum >= 50 && !lastDartWasDouble) {
       conditionMet = true;
       bonusAmount = e.bonusIfVisit50Plus;
       cardName = "Banking Strategy";

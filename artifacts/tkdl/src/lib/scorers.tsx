@@ -516,6 +516,22 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           if (cum === 180) p2StatsRef.current.s180s++;
           p2StatsRef.current.coHits++;
         }
+        
+        // CARD CLASH FIX 118: Finishing Bonus - add +50 immediately before win
+        if (isCardClash) {
+          const hasFinishingBonus = activeEffects.some(e => 
+            e.status === "active" && e.affectsPlayer === turn && e.cardName === "Finishing Bonus"
+          );
+          if (hasFinishingBonus) {
+            setScores(prev => {
+              const ns: [number, number] = [...prev];
+              ns[turn] = Math.max(0, ns[turn] - 50);  // X01: reduce remaining by 50 (good for player)
+              console.log(`[CARD_CLASH:FINISHING_BONUS] Player${turn} gains +50 bonus on finish`);
+              return ns;
+            });
+          }
+        }
+        
         handleWin(turn, nv);
       } else {
         // Card Clash: Checkout Confidence — allow 1 free retry if missing double finish
