@@ -382,12 +382,12 @@ export function ccActivateCard(
     "Coin Flip": (() => {
       // 50/50 chance: 
       // - Win: Player gets -40 remaining (X01) or +40 score (Cricket)
-      // - Loss: Opponent gets +30 remaining (X01) or -30 score (Cricket)
+      // - Loss: Opponent gets -30 remaining (X01) or +30 score (Cricket)  
       const win = Math.random() > 0.5;
       const opp: 0 | 1 = byPlayer === 0 ? 1 : 0;
       
-      // X01: remaining score model (lower = better, so penalty increases remaining)
-      // Cricket: accumulating score model (higher = better, so penalty decreases score)
+      // X01: remaining score model (lower = better, so bonus decreases remaining)
+      // Cricket: accumulating score model (higher = better, so bonus increases score)
       if (win) {
         return {
           cardName: name,
@@ -395,8 +395,8 @@ export function ccActivateCard(
           affectsPlayer: byPlayer,
           status: "active",
           instant: true,
-          instantRemainingPenalty: -40,  // X01: decrease remaining (GOOD)
-          instantScoreDelta: 40          // Cricket: increase score (GOOD)
+          instantRemainingPenalty: -40,  // X01: decrease remaining (GOOD for player)
+          instantScoreDelta: 40          // Cricket: increase score (GOOD for player)
         } as CCEffect;
       } else {
         return {
@@ -405,8 +405,8 @@ export function ccActivateCard(
           affectsPlayer: opp,
           status: "active",
           instant: true,
-          instantRemainingPenalty: 30,   // X01: increase remaining (BAD)
-          instantScoreDelta: -30         // Cricket: decrease score (BAD)
+          instantRemainingPenalty: -30,   // X01: decrease opponent remaining (GOOD for opponent)
+          instantScoreDelta: 30          // Cricket: increase opponent score (GOOD for opponent)
         } as CCEffect;
       }
     })(),
