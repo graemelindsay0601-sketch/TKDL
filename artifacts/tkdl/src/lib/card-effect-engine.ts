@@ -731,11 +731,14 @@ export function ccApplyVisitEnd(
       bonusAmount = e.bonusIfVisit100Plus;
       cardName = "High Roller";
     }
-    // Century Maker: exactly 100-109
-    if (e.bonusIfVisit100Exact && rawCum >= 100 && rawCum < 110) {
-      conditionMet = true;
-      bonusAmount = e.bonusIfVisit100Exact;
-      cardName = "Century Maker";
+    // FIX 119: Century Maker - exactly 100 (not 100-109)
+    if (e.bonusIfVisit100Exact) {
+      const isExact = e.centuryExactOnly ? rawCum === 100 : (rawCum >= 100 && rawCum < 110);
+      if (isExact) {
+        conditionMet = true;
+        bonusAmount = e.bonusIfVisit100Exact;
+        cardName = "Century Maker";
+      }
     }
     // High Pressure: if behind in legs
     const opp: 0 | 1 = player === 0 ? 1 : 0;
