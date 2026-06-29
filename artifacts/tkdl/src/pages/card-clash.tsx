@@ -10,8 +10,7 @@ import { AchievementsDisplay } from "@/components/AchievementsDisplay";
 import { AdvancedAdminTools } from "@/components/AdvancedAdminTools";
 import type { PlayerStats } from "@/utils/achievements";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
-import { CardClashMockGame } from "@/components/CardClashMockGame";
-import { CardClashPracticeMode } from "@/components/CardClashPracticeMode";
+import { CardClashPractice } from "@/components/CardClashPractice";
 import { AdminCardClashSettingsPanel } from "@/components/AdminCardClashSettingsPanel";
 import { RulesUI } from "@/components/RulesUI";
 import { TKDLCard } from "@/components/TKDLCard";
@@ -772,7 +771,7 @@ const PACKS = [
     if(launching){return(
       <div>
         <button onClick={()=>setLaunching(false)} style={{all:"unset",display:"inline-flex",alignItems:"center",gap:"8px",padding:"9px 18px",borderRadius:"8px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.45)",fontSize:"12px",fontWeight:700,letterSpacing:"0.07em",cursor:"pointer",marginBottom:"1.5rem"}}>← BACK</button>
-        <CardClashMockGame playerId={playerId} playerName={playerName} practiceMatchId={practiceMatchId || undefined} onDone={()=>setLaunching(false)}/>
+        <div style={{padding:"20px",textAlign:"center",color:"rgba(255,255,255,0.5)"}}>Card Clash Practice being rebuilt...</div>
       </div>
     );}
 
@@ -831,9 +830,10 @@ const PACKS = [
 
         {/* ── CARD CLASH PRACTICE ── */}
         {practiceType==="cardclash"&&playerId&&(
-          <CardClashPracticeMode
+          <CardClashPractice
             playerId={playerId}
-            onMatchCreated={(matchId)=>{
+            playerName={playerName}
+            onMatchCreated={(matchId, playerEquipment, botEquipment)=>{
               setPracticeMatchId(matchId);
               setLaunching(true);
             }}
