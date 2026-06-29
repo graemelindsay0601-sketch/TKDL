@@ -105,6 +105,13 @@ export interface CCEffect {
   blockClosing?: boolean;        // can't bring marks to 3
   loseNextMark?: boolean;        // next mark attempt → 0 hits (one-shot)
   _loseNextMarkUsed?: boolean;   // internal flag
+  
+  // THEME 5: Cricket card effect targeting
+  sniperLockSegment?: number;    // Sniper Lock: must hit this segment (next 3 darts)
+  autoMarkMisses?: boolean;      // Mark Flood: convert misses to marks on called number
+  bullMarksSegments?: number[];  // Bull Multiplier: Bull hit marks these segments
+  dartsRemainingForSniper?: number; // Internal: countdown for Sniper Lock duration
+  protectedNumbers?: Set<number>; // Closing Protection: these numbers lock when closed
 
   // THEME 4: Instant Cricket mark mutations
   instantCricketMarks?: Array<{
@@ -224,7 +231,20 @@ export function ccActivateCard(
       return null;  // Can't activate without called number
     })(),
     "Double Strike":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 2 },
-    "Sniper Lock":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" }, // popup-driven; no-op here
+    "Sniper Lock": (() => {
+      // THEME 5: Must hit called segment for next 3 darts or they don't mark
+      if (gameStateInfo?.calledNumber !== undefined) {
+        return {
+          cardName: name,
+          appliedBy: byPlayer,
+          affectsPlayer: opp,  // Affects opponent - they must hit our called segment
+          status: "pending",
+          sniperLockSegment: gameStateInfo.calledNumber,
+          dartsRemainingForSniper: 3  // Duration: next 3 darts
+        } as CCEffect;
+      }
+      return null;  // Need called number
+    })(),
     "Number Resurrection":  (() => {
       // Reset opponent's mark on called number back to 0 (reopen it)
       if (gameStateInfo?.calledNumber !== undefined) {
@@ -248,13 +268,37 @@ export function ccActivateCard(
       return null;  // Can't activate without called number
     })(),
     "Scoring Surge":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", extraScoreMultiplier: 1.5 },
-    "Closing Protection":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" }, // state-flag; handled by overlay
-    "Mark Flood":           { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" }, // would need dart override; placeholder
+    "Closing Protection":   { 
+      cardName: name, 
+      appliedBy: byPlayer, 
+      affectsPlayer: byPlayer, 
+      status: "active",
+      blockClosing: true  // THEME 5: Prevent opponent from bringing marks to 3
+    },
+    "Mark Flood":           { 
+      cardName: name, 
+      appliedBy: byPlayer, 
+      affectsPlayer: byPlayer, 
+      status: "active",
+      autoMarkMisses: true  // THEME 5: Misses (segment 0) get auto-marked on called number
+    },
     "Scoring Momentum":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusPerMark: 5 },
     "Early Closer":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" }, // tracked via turn counter
     "Perfect Round":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfAllMarksThisTurn: 25, _dartsMarkedThisTurn: 0 },
-    "Bull Multiplier":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" }, // popup-driven
-    "Bullseye Rush":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" }, // popup-driven
+    "Bull Multiplier":      { 
+      cardName: name, 
+      appliedBy: byPlayer, 
+      affectsPlayer: byPlayer, 
+      status: "active",
+      bullMarksSegments: [20, 19, 18]  // THEME 5: When Bull is hit, mark these segments too
+    },
+    "Bullseye Rush":        { 
+      cardName: name, 
+      appliedBy: byPlayer, 
+      affectsPlayer: byPlayer, 
+      status: "active",
+      bullMarksSegments: [20, 19, 18, 17, 16, 15]  // THEME 5: Bull marks more segments
+    },
     "Comeback Marks":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.5 },
     "Mark Accelerator":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 2 },
     "Mark Multiplier":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", _marksThisTurn: 0 },

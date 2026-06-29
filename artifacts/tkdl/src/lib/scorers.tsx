@@ -1161,7 +1161,16 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     }
     cardDebugLog("CricketScorer", "Card activated", { card: card.name });
 
-    const effects = ccActivateCard(card, turn, { marks, scores }, undefined, { legHistory: [], legsNeeded: 0 });
+    // THEME 4: Calculate called number (first unclosed number for this player)
+    let calledNumber: number | undefined;
+    for (let i = 0; i < numCount; i++) {
+      if (marks[turn][i] < 3) {
+        calledNumber = CRICKET_NUMS[i];
+        break;
+      }
+    }
+
+    const effects = ccActivateCard(card, turn, { marks, scores }, undefined, { legHistory: [], legsNeeded: 0, calledNumber });
     
     // Card Clash: Number Prison — randomly lock one of opponent's closed numbers
     if (card.name === "Number Prison") {
