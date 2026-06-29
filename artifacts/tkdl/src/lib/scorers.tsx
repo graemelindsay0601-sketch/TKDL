@@ -647,8 +647,8 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       setActiveEffects(prev => {
         let updated = ccActivateDeferredNextTurnEffects(prev, turn);
         updated = ccApplyPenaltyBlockingIfNeeded(updated, turn);
-        // Evaluate opponent Wildcards that depend on match state
-        updated = updated.concat(ccEvaluateOpponentWildcards(turn, legWins));
+        // NOTE: ccEvaluateOpponentWildcards disabled - opponent penalty cards should only apply when manually played
+        // updated = updated.concat(ccEvaluateOpponentWildcards(turn, legWins));
         return updated;
       });
     }
@@ -671,9 +671,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         // Activate deferred-next-leg effects
         updated = ccActivateDeferredNextLegEffects(updated, 0);
         updated = ccActivateDeferredNextLegEffects(updated, 1);
-        // Evaluate conditional Wildcard cards
-        updated = updated.concat(ccEvaluateConditionalWildcards(0, legHistory, legWins, legsNeeded));
-        updated = updated.concat(ccEvaluateConditionalWildcards(1, legHistory, legWins, legsNeeded));
+        // NOTE: ccEvaluateConditionalWildcards disabled - conditional wildcard bonuses should only apply when card is manually played
+        // The conditional checks (won previous leg, ahead in match, etc.) should happen in ccActivateCard instead
+        // updated = updated.concat(ccEvaluateConditionalWildcards(0, legHistory, legWins, legsNeeded));
+        // updated = updated.concat(ccEvaluateConditionalWildcards(1, legHistory, legWins, legsNeeded));
         return updated;
       });
       prevLegWinsRef.current = legWins;

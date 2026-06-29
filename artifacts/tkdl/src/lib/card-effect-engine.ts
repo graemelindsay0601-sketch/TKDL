@@ -215,7 +215,7 @@ export function ccActivateCard(
     "Bad Aim":              { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", marksMultiplier: 0.5 },
     "Distraction":          { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", loseNextMark: true, _loseNextMarkUsed: false },
     "Out of Position":      { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", blockSegmentsForMarks: [20, 19, 18] },
-    "Penalty Zone":         { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allowedMarkSegments: [15, 25] },
+    "Penalty Zone":         { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allowedMarkSegments: [15] },
     "Re-Opening Block":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending" }, // complex state; placeholder
     "Aim Shift":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", segmentRedirect: true },
     "Hesitation":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", hesitateFirstDart: true },
@@ -225,7 +225,7 @@ export function ccActivateCard(
     "Number Hex":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allowedMarkSegments: [20, 25] }, // defaults to 20/bull
     "Closing Blocker":      { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", blockClosing: true },
     "Mark Erasure":         { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", penaltyPerMark: 10 },
-    "Cricket Prison":       { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allowedMarkSegments: [15, 19, 20, 25] },
+    "Cricket Prison":       { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allowedMarkSegments: [15, 19, 20] },
     "Bull Void":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", blockBullMarks: true },
     "Mark Killer":          { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", blockFinalDartMark: true },
     "Mark Drain":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", markDrainIfAhead: true },
@@ -470,6 +470,13 @@ export function ccApplyVisitEnd(
     if (e.visitPenalty) {
       extraPenalty += e.visitPenalty;
       console.log(`[CARD_CLASH:VISIT_PENALTY] Player${player} hit with ${e.visitPenalty} penalty from ${e.cardName}`);
+    }
+    
+    // Mental Block: each dart costs 10 points
+    if (e.penaltyPerDart) {
+      const dartPenalty = e.penaltyPerDart * dartsThrown;
+      extraPenalty += dartPenalty;
+      console.log(`[CARD_CLASH:PENALTY_PER_DART] Player${player} hit with ${dartPenalty} penalty (${e.penaltyPerDart}×${dartsThrown} darts) from ${e.cardName}`);
     }
     
     // ── CONDITIONAL BONUSES ──
