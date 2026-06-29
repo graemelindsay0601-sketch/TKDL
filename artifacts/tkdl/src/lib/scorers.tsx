@@ -1318,6 +1318,28 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         }
       }
       
+      // CARD CLASH FIX 303: Sniper Lock - next 3 darts must hit the locked segment
+      if (isCardClash) {
+        const sniperEffect = activeEffects.find(e => 
+          e.cardName === "Sniper Lock" && e.status === "active" && e.affectsPlayer === turn
+        );
+        if (sniperEffect && sniperEffect.sniperLockSegment !== undefined) {
+          if (dart.segment !== sniperEffect.sniperLockSegment) {
+            effectiveHits = 0;  // Miss the sniper lock - no marks
+            console.log(`[CARD_CLASH:SNIPER_LOCK] Player${turn} hit ${dart.segment}, not locked ${sniperEffect.sniperLockSegment} - no marks`);
+          }
+          // Decrement dart counter for sniper lock
+          if (sniperEffect.dartsRemainingForSniper !== undefined) {
+            setActiveEffects(prev => prev.map(e => 
+              e === sniperEffect ? { ...e, dartsRemainingForSniper: e.dartsRemainingForSniper - 1 } : e
+            ));
+            if (sniperEffect.dartsRemainingForSniper <= 1) {
+              console.log(`[CARD_CLASH:SNIPER_LOCK_EXPIRED] 3-dart limit reached`);
+            }
+          }
+        }
+      }
+      
       const canClose = !isCardClash || !ccBlockClosing(activeEffects, turn);
       
       // Card Clash: Check if number is locked (Number Prison)
