@@ -55,6 +55,7 @@ export interface CCEffect {
   wildDartIndex?: number;        // this dart index (0/1/2) → 0
   wildDartIndices?: number[];    // multiple dart indices → 0 (e.g., Wipeout: [1, 2])
   randomWildDart?: boolean;      // pick random dart at throw time (Wild Throw)
+  wildDartIndex?: number;        // which dart becomes miss (0, 1, or 2 - picked once at activation)
   minSegment?: number;           // if seg < this, redirect to this (Precision Strike=6)
   clutchPenaltyPerDart?: number; // subtract N from dart value if player remaining <= 100
   bonusPerDart?: number;         // add N to each dart value (Perfect Rhythm=10)
@@ -124,6 +125,9 @@ export interface CCEffect {
   }>;
   penaltyPerMark?: number;       // -N per mark gained (Mark Erasure=-10)
   bonusIfAllMarksThisTurn?: number; // Perfect Round
+  freeMarkIfEarlyClose?: boolean;   // Early Closer (309): free mark if turn ends on 1st or 2nd dart
+  freeMarkIfQuickClose?: boolean;   // Quick Close (316): free mark if closing a number with <=1 darts
+  bonusIfHighMarks?: number;        // High Scorer (318): +N bonus if scoring 100+ marks this turn
   bonusPerMark?: number;         // +N per mark (Momentum Arsenal=10)
   blockBullMarks?: boolean;      // Bull Void
   markDrainIfAhead?: boolean;    // Mark Drain
@@ -189,7 +193,17 @@ export function ccActivateCard(
   // ── X01 BAD (affects opponent, pending → active on their next turn) ────────
   const x01Bad: Record<string, CCEffect> = {
     "Rust Hands -40":       { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 40 },
-    "Wild Throw":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", randomWildDart: true },
+    "Wild Throw":           (() => {
+      // Pick ONE random dart (0, 1, 2) to become a miss for opponent's next visit
+      const wildDartIndex = Math.floor(Math.random() * 3);
+      return {
+        cardName: name,
+        appliedBy: byPlayer,
+        affectsPlayer: opp,
+        status: "pending",
+        wildDartIndex  // This dart becomes a miss
+      } as CCEffect;
+    })(),
     "Brick Wall":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", segmentBlock: [20, 19, 18] },
     "Low Blow":             { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", singlesScore0: true },
     "Doubles Don't Count":  { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", doublesAsSingles: true },
@@ -286,7 +300,7 @@ export function ccActivateCard(
       autoMarkMisses: true  // THEME 5: Misses (segment 0) get auto-marked on called number
     },
     "Scoring Momentum":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusPerMark: 5 },
-    "Early Closer":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" }, // tracked via turn counter
+    "Early Closer":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeMarkIfEarlyClose: true },
     "Perfect Round":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfAllMarksThisTurn: 25, _dartsMarkedThisTurn: 0 },
     "Bull Multiplier":      { 
       cardName: name, 
@@ -305,9 +319,9 @@ export function ccActivateCard(
     "Comeback Marks":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.5 },
     "Mark Accelerator":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 2 },
     "Mark Multiplier":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", _marksThisTurn: 0 },
-    "Quick Close":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" },
+    "Quick Close":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeMarkIfQuickClose: true },
     "Momentum Arsenal":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusPerMark: 10, _marksThisTurn: 0 },
-    "High Scorer":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" },
+    "High Scorer":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfHighMarks: 20 },
     "Perfect Form":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", extraScoreMultiplier: 1.5 },
     "Dominance":            { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.3 },
   };
