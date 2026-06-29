@@ -193,6 +193,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
   const [inventory, setInventory] = useState<Card[]>([]);
   const [selectedGood, setSelectedGood] = useState<Card[]>([]);
   const [selectedBad, setSelectedBad]   = useState<Card[]>([]);
+  const [previewCard, setPreviewCard] = useState<Card | null>(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
   const { settings: gameSettings } = useCardClashSettings();
@@ -685,6 +686,47 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
           </button>
         </div>
       </div>
+
+      {/* Preview Modal */}
+      {previewCard && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", backdropFilter: "blur(20px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div style={{ position: "relative", maxWidth: "500px", width: "100%" }}>
+            <button
+              onClick={() => setPreviewCard(null)}
+              style={{ position: "absolute", top: "-40px", right: 0, background: "none", border: "none", color: "#fff", fontSize: "32px", cursor: "pointer", padding: 0, width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              ✕
+            </button>
+            
+            <div style={{ background: "rgba(0,0,0,0.8)", border: "2px solid rgba(100,200,255,0.3)", borderRadius: "16px", padding: "24px", textAlign: "center" }}>
+              {/* Card Preview */}
+              <div style={{ marginBottom: "20px", display: "flex", justifyContent: "center" }}>
+                <div style={{ width: "220px", height: "308px" }}>
+                  <TKDLCard
+                    card={ALL_CARDS.find(c => c.name === previewCard.name) || { id: "", name: "", category: "WILDCARD", rarity: "COMMON", effect: "", gameMode: "" }}
+                    size="md"
+                    locked={false}
+                  />
+                </div>
+              </div>
+              
+              {/* Card Info */}
+              <h3 style={{ margin: "16px 0 8px", fontSize: "18px", fontWeight: 900, color: "#ffd24a" }}>{previewCard.name}</h3>
+              <p style={{ margin: "0 0 16px", fontSize: "13px", color: "rgba(255,255,255,0.6)" }}>
+                {previewCard.cardType === "GOOD" ? "✓ GOOD" : "✗ BAD"} • {previewCard.rarity}
+              </p>
+              <p style={{ margin: "0 0 20px", fontSize: "14px", color: "rgba(255,255,255,0.8)", lineHeight: "1.5" }}>{previewCard.effect}</p>
+              
+              <button
+                onClick={() => setPreviewCard(null)}
+                style={{ padding: "12px 32px", background: "linear-gradient(135deg,#4db8ff,#00c4ff)", border: "none", borderRadius: "10px", color: "#000", fontWeight: 900, fontSize: "13px", cursor: "pointer", letterSpacing: "0.08em" }}
+              >
+                CLOSE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
