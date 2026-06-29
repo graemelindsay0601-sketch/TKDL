@@ -28,6 +28,7 @@ interface CardEquipmentSelectorProps {
   playerId?: number;
   onSelect?: (equipment: any) => void;
   onCancel?: () => void;
+  testMode?: boolean;  // Show all 100 cards instead of just owned
 }
 
 function CardArtworkDisplay({ 
@@ -188,8 +189,8 @@ function CardArtworkDisplay({
   );
 }
 
-export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, opponentName, gameMode, onConfirm, onBack, submitError }: CardEquipmentSelectorProps) {
-  const playerId = currentPlayerId;
+export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, opponentName, gameMode, onConfirm, onBack, submitError, playerId: propPlayerId, onSelect, onCancel, testMode = false }: CardEquipmentSelectorProps) {
+  const playerId = propPlayerId ?? currentPlayerId;
   const [inventory, setInventory] = useState<Card[]>([]);
   const [selectedGood, setSelectedGood] = useState<Card[]>([]);
   const [selectedBad, setSelectedBad]   = useState<Card[]>([]);
@@ -211,7 +212,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
     error: favError,
   } = useFavorites({ gameMode });
 
-  useEffect(() => { if (playerId) loadInventory(); }, [playerId]);
+  useEffect(() => { if (playerId) loadInventory(); }, [playerId, testMode]);
 
   // Sync temp counts when preference loads
   useEffect(() => {
@@ -222,6 +223,22 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
   const loadInventory = async () => {
     try {
       setLoading(true); setError(null);
+      
+      // In test mode, use all available cards from the full pool
+      if (testMode) {
+        setInventory(ALL_CARDS.map((c: any) => ({
+          id: String(c.id || ""),
+          name: c.name ?? "",
+          cardType: c.cardType ?? "GOOD",
+          rarity: (c.rarity ?? "COMMON").toUpperCase() as "COMMON" | "RARE" | "LEGENDARY",
+          effect: c.effect ?? "",
+          quantity: 999,  // Unlimited in test mode
+          gameMode: c.gameMode ?? "WILDCARD",
+        })));
+        return;
+      }
+      
+      // Otherwise load from player's actual inventory
       const invRes = await fetch(`/api/card-clash/inventory/${playerId}`);
       
       if (!invRes.ok) throw new Error("Failed to load inventory");
@@ -250,7 +267,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
   };
 
   const goodCards = inventory
-    .filter(c => c.cardType === "GOOD" && (c.gameMode === gameMode || c.gameMode === "WILDCARD") && c.quantity > 0)
+    .filter(c => c.cardType === "GOOD" && (c.gameMode === gameMode || c.gameMode === "WILDCARD") && (testMode || c.quantity > 0))
     .sort((a, b) => {
       const aIsFav = isFavorited(a.id);
       const bIsFav = isFavorited(b.id);
@@ -263,7 +280,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
   const goodNonFavorites = goodCards.filter(c => !isFavorited(c.id));
     
   const badCards = inventory
-    .filter(c => c.cardType === "BAD"  && (c.gameMode === gameMode || c.gameMode === "WILDCARD") && c.quantity > 0)
+    .filter(c => c.cardType === "BAD"  && (c.gameMode === gameMode || c.gameMode === "WILDCARD") && (testMode || c.quantity > 0))
     .sort((a, b) => {
       const aIsFav = isFavorited(a.id);
       const bIsFav = isFavorited(b.id);
