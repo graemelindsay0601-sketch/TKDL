@@ -612,7 +612,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     }
     cardDebugLog("X01Scorer", "Card activated", { card: card.name, cardId });
 
-    const effects = ccActivateCard(card, turn, { scores, legWins });
+    const effects = ccActivateCard(card, turn, { scores, legWins }, undefined, { legHistory, legsNeeded });
 
     effects.forEach(e => {
       if (e.instant) {
@@ -1134,7 +1134,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     }
     cardDebugLog("CricketScorer", "Card activated", { card: card.name });
 
-    const effects = ccActivateCard(card, turn, { marks, scores });
+    const effects = ccActivateCard(card, turn, { marks, scores }, undefined, { legHistory: [], legsNeeded: 0 });
     
     // Card Clash: Number Prison — randomly lock one of opponent's closed numbers
     if (card.name === "Number Prison") {

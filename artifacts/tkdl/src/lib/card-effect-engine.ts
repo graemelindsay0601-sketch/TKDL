@@ -134,6 +134,10 @@ export function ccActivateCard(
   byPlayer: 0 | 1,
   gs?: X01State | CricketState,
   prevLegWins?: [number, number],
+  gameStateInfo?: {
+    legHistory?: (0 | 1)[];
+    legsNeeded?: number;
+  }
 ): CCEffect[] {
   const name: string = (card.name || "").trim();
   const opp: 0 | 1 = byPlayer === 0 ? 1 : 0;
@@ -235,23 +239,76 @@ export function ccActivateCard(
   };
 
   // ── Wildcard GOOD ──────────────────────────────────────────────────────────
-  const wildcardGood: Record<string, CCEffect> = {
+  const wildcardGood: Record<string, CCEffect | null> = {
     "Coin Flip": (() => {
-      // 50/50 chance: either player gets -40 remaining (win) OR opponent gets -30 remaining (loss)
-      // NOTE: X01 scores are remaining points (lower = better), so deltas are inverted vs Cricket
       const win = Math.random() > 0.5;
       return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", instant: true,
         instantP0Delta: win ? (byPlayer === 0 ? -40 : 40) : (byPlayer === 0 ? 30 : -30),
         instantP1Delta: win ? (byPlayer === 0 ? 40 : -40) : (byPlayer === 0 ? -30 : 30) } as CCEffect;
     })(),
-    "Lucky Streak":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 },
-    "Momentum Surge": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 25 },
+    
+    // CONDITIONAL: Lucky Streak - only if player won previous leg
+    "Lucky Streak": (() => {
+      const opp: 0 | 1 = byPlayer === 0 ? 1 : 0;
+      if (gameStateInfo?.legHistory && gameStateInfo.legHistory.length > 0 && 
+          gameStateInfo.legHistory[gameStateInfo.legHistory.length - 1] === byPlayer) {
+        return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50, legDuration: true };
+      }
+      return null;  // Condition not met
+    })(),
+    
+    // CONDITIONAL: Momentum Surge - only if player is ahead in match
+    "Momentum Surge": (() => {
+      const opp: 0 | 1 = byPlayer === 0 ? 1 : 0;
+      if (gs && 'legWins' in gs && gs.legWins[byPlayer] > gs.legWins[opp]) {
+        return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 25, legDuration: true };
+      }
+      return null;  // Condition not met
+    })(),
+    
     "Finishing Edge": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeRetryOnDoubleMiss: true },
-    "Comeback Leg":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 60 },
-    "Hot Hand":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 45 },
-    "Underdog":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 },
+    
+    // CONDITIONAL: Comeback Leg - only if player lost previous leg
+    "Comeback Leg": (() => {
+      const opp: 0 | 1 = byPlayer === 0 ? 1 : 0;
+      if (gameStateInfo?.legHistory && gameStateInfo.legHistory.length > 0 && 
+          gameStateInfo.legHistory[gameStateInfo.legHistory.length - 1] === opp) {
+        return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 60, legDuration: true };
+      }
+      return null;  // Condition not met
+    })(),
+    
+    // CONDITIONAL: Hot Hand - only if player won 2+ legs in a row
+    "Hot Hand": (() => {
+      if (gameStateInfo?.legHistory && gameStateInfo.legHistory.length >= 2) {
+        const last2 = gameStateInfo.legHistory.slice(-2);
+        if (last2[0] === byPlayer && last2[1] === byPlayer) {
+          return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 45, legDuration: true };
+        }
+      }
+      return null;  // Condition not met
+    })(),
+    
+    // CONDITIONAL: Underdog - only if player is behind in match
+    "Underdog": (() => {
+      const opp: 0 | 1 = byPlayer === 0 ? 1 : 0;
+      if (gs && 'legWins' in gs && gs.legWins[byPlayer] < gs.legWins[opp]) {
+        return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50, legDuration: true };
+      }
+      return null;  // Condition not met
+    })(),
+    
     "Perfect Game":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 30 },
-    "Match Point":    { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 70 },
+    
+    // CONDITIONAL: Match Point - only if player is 1 leg away from winning
+    "Match Point": (() => {
+      if (gs && 'legWins' in gs && gameStateInfo?.legsNeeded && 
+          gs.legWins[byPlayer] === gameStateInfo.legsNeeded - 1) {
+        return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 70, legDuration: true };
+      }
+      return null;  // Condition not met
+    })(),
+    
     "Invincible":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true },
   };
 
@@ -273,13 +330,22 @@ export function ccActivateCard(
   const allMaps = [x01Good, x01Bad, cricGood, cricBad, wildcardGood, wildcardBad];
   // Try exact match first
   for (const m of allMaps) {
-    if (name in m) return [m[name]];
+    if (name in m) {
+      const effect = m[name];
+      // If effect is null, condition wasn't met - return empty array (card can't be played)
+      if (effect === null) return [];
+      return [effect];
+    }
   }
   // Normalized match — handles camelCase DB names ("BankingStrategy") vs spaced engine names ("Banking Strategy")
   const normInput = normalizeCardKey(name);
   for (const m of allMaps) {
     for (const [key, effect] of Object.entries(m)) {
-      if (normalizeCardKey(key) === normInput) return [effect];
+      if (normalizeCardKey(key) === normInput) {
+        // If effect is null, condition wasn't met - return empty array (card can't be played)
+        if (effect === null) return [];
+        return [effect];
+      }
     }
   }
   // Fallback: generic score modifier
