@@ -421,10 +421,29 @@ export const CardShopUI = React.memo(
             </div>
           </div>
           {/* Next btn */}
-          <div style={{ minHeight: "56px", display: "flex", alignItems: "center" }}>
+          <div style={{ minHeight: "64px", display: "flex", alignItems: "center", justifyContent: "center", width: "100%", marginTop: "12px" }}>
             {canAdvance && (
-              <button onClick={handleNextCard} style={{ padding: "14px 34px", background: currentIdx >= openingCards.length - 1 ? `linear-gradient(135deg,${packDef.accent},${packDef.accentBright})` : "rgba(255,255,255,0.1)", border: `2px solid ${currentIdx >= openingCards.length - 1 ? packDef.accent : "rgba(255,255,255,0.22)"}`, borderRadius: "10px", color: currentIdx >= openingCards.length - 1 ? "#000" : "#fff", fontSize: "14px", fontWeight: 900, cursor: "pointer", letterSpacing: "0.1em", animation: "bounceIn 0.38s cubic-bezier(0.34,1.56,0.64,1)", boxShadow: currentIdx >= openingCards.length - 1 ? `0 4px 24px ${packDef.glow}` : "none" }}>
-                {currentIdx >= openingCards.length - 1 ? "🎉 CLAIM ALL CARDS!" : "NEXT CARD →"}
+              <button 
+                onClick={handleNextCard} 
+                style={{ 
+                  padding: "16px 48px", 
+                  background: currentIdx >= openingCards.length - 1 
+                    ? `linear-gradient(135deg,${packDef.accent},${packDef.accentBright})` 
+                    : "rgba(255,255,255,0.08)", 
+                  border: `2px solid ${currentIdx >= openingCards.length - 1 ? packDef.accent : "rgba(255,255,255,0.3)"}`, 
+                  borderRadius: "12px", 
+                  color: currentIdx >= openingCards.length - 1 ? "#000" : "#fff", 
+                  fontSize: currentIdx >= openingCards.length - 1 ? "16px" : "14px", 
+                  fontWeight: 900, 
+                  cursor: "pointer", 
+                  letterSpacing: "0.12em", 
+                  animation: "bounceIn 0.38s cubic-bezier(0.34,1.56,0.64,1)", 
+                  boxShadow: currentIdx >= openingCards.length - 1 ? `0 8px 32px ${packDef.glow}` : "0 4px 12px rgba(0,0,0,0.3)",
+                  transition: "all 0.2s ease",
+                  textShadow: currentIdx >= openingCards.length - 1 ? "0 2px 4px rgba(0,0,0,0.2)" : "none",
+                  minWidth: "220px",
+                }}>
+                {currentIdx >= openingCards.length - 1 ? `CLAIM ALL ${openingCards.length} CARDS ✓` : "NEXT CARD →"}
               </button>
             )}
           </div>
