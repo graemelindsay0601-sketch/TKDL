@@ -303,6 +303,23 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
               legDuration: true,
             }]);
           }
+          
+          // THEME 2: Finishing Bonus - applies +50 on winner's next leg
+          if (isCardClash) {
+            const winnerCards = legWinner === 0 ? p1Cards : p2Cards;
+            const hasFinishingBonus = winnerCards.some((c: any) => c.name?.trim() === "Finishing Bonus");
+            if (hasFinishingBonus) {
+              setActiveEffects(prev => [...prev, {
+                cardName: "Finishing Bonus",
+                appliedBy: legWinner,
+                affectsPlayer: legWinner,
+                status: "active",
+                visitBonus: 50,
+                legDuration: true,
+              }]);
+              console.log(`[CARD_CLASH:FINISHING_BONUS] Player${legWinner} activated Finishing Bonus +50 for next leg`);
+            }
+          }
         }
       }, delay);
     };
@@ -552,8 +569,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         // Filter out finalLegOnly effects unless in final leg
         const inFinalLeg = legsNeeded - legWins[turn] === 1;
         const effectsForVisitEnd = inFinalLeg ? activeEffects : activeEffects.filter(e => !e.finalLegOnly);
-        const { bonusReduction, extraPenalty } = ccApplyVisitEnd(cum, nv.length, effectsForVisitEnd, turn, legWins);
+        const { bonusReduction, extraPenalty, newDeferredEffects } = ccApplyVisitEnd(cum, nv.length, effectsForVisitEnd, turn, legWins);
         effectiveCum = Math.max(0, cum + bonusReduction - extraPenalty);
+        // THEME 2: Add any newly deferred effects to activeEffects
+        if (newDeferredEffects.length > 0) {
+          setActiveEffects(prev => [...prev, ...newDeferredEffects]);
+        }
       }
       setScores(prev => { const n=[...prev] as [number,number]; n[turn] = Math.max(1, n[turn] - effectiveCum); return n; });
       setHistory(h => [...h, { turn, score: effectiveCum, left: scores[turn] - effectiveCum, darts: nv }]);

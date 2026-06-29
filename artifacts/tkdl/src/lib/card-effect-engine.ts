@@ -527,10 +527,11 @@ export function ccApplyVisitEnd(
   effects: CCEffect[],
   player: 0 | 1,
   legWins: [number, number],
-): { bonusReduction: number; extraPenalty: number } {
+): { bonusReduction: number; extraPenalty: number; newDeferredEffects: CCEffect[] } {
   const active = effects.filter(e => e.status === "active" && e.affectsPlayer === player);
   let bonusReduction = 0; // extra score reduction (good for player)
   let extraPenalty = 0;   // added back to score (bad for player)
+  const newDeferredEffects: CCEffect[] = []; // NEW: Effects to defer to next turn/leg
 
   for (const e of active) {
     // ── OPPONENT PENALTIES (apply to current player's score) ──
@@ -548,53 +549,81 @@ export function ccApplyVisitEnd(
     }
     
     // ── CONDITIONAL BONUSES ──
-    // Check conditions first, then decide whether to apply or defer
+    // Check conditions first, then decide whether to apply immediately or defer
     let conditionMet = false;
     let bonusAmount = 0;
+    let cardName = "";
     
-    // Big Game Player: 80+ not on double
+    // Big Game Player: 80+
     if (e.bonusIfVisit80Plus && rawCum >= 80) {
       conditionMet = true;
       bonusAmount = e.bonusIfVisit80Plus;
+      cardName = "Big Game Player";
     }
     // Banking Strategy: 50+
     if (e.bonusIfVisit50Plus && rawCum >= 50) {
       conditionMet = true;
       bonusAmount = e.bonusIfVisit50Plus;
+      cardName = "Banking Strategy";
     }
     // High Roller: 100+
     if (e.bonusIfVisit100Plus && rawCum >= 100) {
       conditionMet = true;
       bonusAmount = e.bonusIfVisit100Plus;
+      cardName = "High Roller";
     }
     // Century Maker: exactly 100-109
     if (e.bonusIfVisit100Exact && rawCum >= 100 && rawCum < 110) {
       conditionMet = true;
       bonusAmount = e.bonusIfVisit100Exact;
+      cardName = "Century Maker";
     }
     // High Pressure: if behind in legs
     const opp: 0 | 1 = player === 0 ? 1 : 0;
     if (e.bonusIfBehindLegs && legWins[opp] > legWins[player]) {
       conditionMet = true;
       bonusAmount = e.bonusIfBehindLegs;
+      cardName = "High Pressure";
     }
     
-    // If condition met and bonus should be applied (not deferred), apply it
-    if (conditionMet && bonusAmount > 0 && !e.deferBonusToNextTurn && !e.deferBonusToNextLeg) {
-      bonusReduction += bonusAmount;
+    // If condition met, handle bonusing
+    if (conditionMet && bonusAmount > 0) {
+      if (e.deferBonusToNextTurn) {
+        // DEFERRED TO NEXT TURN: Create new effect that will activate on opponent's next turn
+        newDeferredEffects.push({
+          cardName: e.cardName || cardName,
+          appliedBy: e.appliedBy,
+          affectsPlayer: player,
+          status: "deferred_next_turn",
+          visitBonus: bonusAmount,
+          legDuration: false, // Expire after one turn
+        });
+        console.log(`[CARD_CLASH:DEFERRED_NEXT_TURN] ${e.cardName || cardName} defers +${bonusAmount} bonus to Player${player}'s next turn`);
+      } else if (e.deferBonusToNextLeg) {
+        // DEFERRED TO NEXT LEG: Create new effect that will activate on next leg
+        newDeferredEffects.push({
+          cardName: e.cardName || cardName,
+          appliedBy: e.appliedBy,
+          affectsPlayer: player,
+          status: "deferred_next_leg",
+          visitBonus: bonusAmount,
+          legDuration: false, // Expire after one use
+        });
+        console.log(`[CARD_CLASH:DEFERRED_NEXT_LEG] ${e.cardName || cardName} defers +${bonusAmount} bonus to Player${player}'s next leg`);
+      } else {
+        // APPLY IMMEDIATELY
+        bonusReduction += bonusAmount;
+        console.log(`[CARD_CLASH:BONUS_APPLIED] ${e.cardName || cardName} grants +${bonusAmount} immediate bonus to Player${player}`);
+      }
     }
     
-    // Note: If deferred, the bonus is stored in the effect and will be applied next turn/leg
-    // via ccActivateDeferredNextTurnEffects or ccActivateDeferredNextLegEffects
-    
-    // ── NON-CONDITIONAL BONUSES ──
-    // Skip if this bonus is deferred (will apply on next turn/leg)
+    // Skip to next effect - deferred bonuses are not processed further here
     if (e.deferBonusToNextTurn || e.deferBonusToNextLeg) continue;
     
     // Visit bonus (Power Surge, Wildcard bonuses)
     if (e.visitBonus) bonusReduction += e.visitBonus;
   }
-  return { bonusReduction, extraPenalty };
+  return { bonusReduction, extraPenalty, newDeferredEffects };
 }
 
 /** Expire "this_turn" active effects and promote pending → active on turn switch. 
