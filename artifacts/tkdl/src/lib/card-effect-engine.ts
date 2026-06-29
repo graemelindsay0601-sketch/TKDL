@@ -428,7 +428,7 @@ export function ccActivateCard(
       return null;  // Condition not met
     })(),
     
-    "Finishing Edge": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeRetryOnDoubleMiss: true },
+    "Finishing Edge": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeRetryOnDoubleMiss: true, finalLegOnly: true },
     
     // CONDITIONAL: Comeback Leg - only if player lost previous leg
     "Comeback Leg": (() => {
@@ -1022,16 +1022,8 @@ export function ccEvaluateOpponentWildcards(
   const effects: CCEffect[] = [];
   const opp: 0 | 1 = player === 0 ? 1 : 0;
   
-  // Underdog Curse (608): If opponent is ahead, their darts score at 0.8x
-  if (legWins[player] > legWins[opp]) {
-    effects.push({
-      cardName: "Underdog Curse",
-      appliedBy: player,
-      affectsPlayer: opp,
-      status: "active",
-      allDartsMultiplier: 0.8,
-    });
-  }
+  // Underdog Curse (608): Removed auto-grant - only manual activation allowed per audit
+  // Gate condition at activation: only works if opponent IS ahead
   
   console.log(`[CARD_CLASH:OPPONENT_WILDCARDS] Player${player} turn start: ${effects.map(e => `${e.cardName}(${e.allDartsMultiplier}x)`).join(", ") || "none"}`);
   return effects;
