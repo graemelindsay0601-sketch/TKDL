@@ -140,6 +140,17 @@ export interface CCEffect {
   requiresExactFinish?: boolean;    // Exact Finish (107): only if on double-out
   opponentMustBeAhead?: boolean;    // Underdog Curse (608): only if opponent ahead
   
+  // Cricket: foundation-patch behaviours
+  cricketAutoMarkOnAnyDart?: boolean; // Mark Flood: misses/non-cricket darts become a real mark
+  cricketBullAutoMarks?: number;      // Bull Multiplier/Bullseye Rush: bull adds free marks
+  pressureLoseIfNoClose?: number;     // Pressure: lose N points if no number closed this visit
+  removeConditionalBonuses?: boolean; // Win Bonus Removed: strips leg-duration conditional wildcards
+  highScorerThreshold?: number;       // High Scorer: score threshold for bonus
+  highScorerBonus?: number;           // High Scorer: bonus amount
+  markThresholdBonusAt?: number;      // Mark Multiplier: mark threshold for bonus
+  markThresholdBonus?: number;        // Mark Multiplier: bonus amount
+  quickCloseFreeMark?: boolean;       // Quick Close: closing by dart two grants one free mark
+  
   // MEDIUM PRIORITY CARDS:
   legDuration?: boolean;            // Effect lasts whole leg not just turn (High Pressure, Scoring Surge, Score Halve, etc)
   lowestDartMinimum?: number;       // Safety Boost (112): lowest dart minimum value
@@ -316,7 +327,7 @@ export function ccActivateCard(
       appliedBy: byPlayer, 
       affectsPlayer: byPlayer, 
       status: "active",
-      autoMarkMisses: true  // THEME 5: Misses (segment 0) get auto-marked on called number
+      cricketAutoMarkOnAnyDart: true  // Misses become real marks on next open number
     },
     "Scoring Momentum":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusPerMark: 5 },
     "Early Closer":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeMarkIfEarlyClose: true },
@@ -326,23 +337,21 @@ export function ccActivateCard(
       appliedBy: byPlayer, 
       affectsPlayer: byPlayer, 
       status: "active",
-      bullMarksSegments: [],  // Will be populated by UI with player's chosen 3 segments
-      _uiRequiredBullChoice: true  // Flag: UI must show segment selector for 3 chosen
+      cricketBullAutoMarks: 3  // Bull hit adds free marks (3 for Multiplier)
     },
     "Bullseye Rush":        { 
       cardName: name, 
       appliedBy: byPlayer, 
       affectsPlayer: byPlayer, 
       status: "active",
-      bullMarksSegments: [],  // Will be populated by UI with player's chosen 2 segments
-      _uiRequiredBullChoice: true  // Flag: UI must show segment selector for 2 chosen
+      cricketBullAutoMarks: 2  // Bull hit adds free marks (2 for Rush)
     },
     "Comeback Marks":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.5, conditionalMultiplier: true },
     "Mark Accelerator":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 2 },
-    "Mark Multiplier":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 2, conditionalMultiplier: true },
-    "Quick Close":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeMarkIfQuickClose: true },
+    "Mark Multiplier":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", markThresholdBonusAt: 3, markThresholdBonus: 50, _marksThisTurn: 0 },
+    "Quick Close":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", quickCloseFreeMark: true },
     "Momentum Arsenal":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusPerMark: 10, _marksThisTurn: 0 },
-    "High Scorer":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfHighMarks: 20 },
+    "High Scorer":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", highScorerThreshold: 100, highScorerBonus: 20 },
     "Perfect Form":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", extraScoreMultiplier: 1.5 },
     "Dominance":            { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.3, conditionalMultiplier: true },
   };
