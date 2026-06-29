@@ -1042,6 +1042,38 @@ export function ccOpponentPenaltiesBlocked(effects: CCEffect[], player: 0 | 1): 
   return effects.some(e => e.status === "active" && e.affectsPlayer === player && e.blockOpponentPenalties);
 }
 
+/** FIX 104: Validate checkoutOnly cards - deactivate if not on valid double-out */
+export function ccValidateCheckoutOnlyCards(effects: CCEffect[], scores: [number, number], player: 0 | 1): CCEffect[] {
+  return effects.map(e => {
+    if (e.checkoutOnly && e.status === "active" && e.affectsPlayer === player) {
+      // Player must be on valid double-out finish (remaining <= 170)
+      const remaining = scores[player];
+      const isOnCheckout = remaining > 0 && remaining <= 170;
+      if (!isOnCheckout) {
+        console.log(`[CARD_CLASH:CHECKOUT_ONLY_INVALID] ${e.cardName} deactivated - Player${player} not on checkout`);
+        return { ...e, status: "expired" };
+      }
+    }
+    return e;
+  });
+}
+
+/** FIX 107: Validate requiresExactFinish cards - only on <=50 + double attempt */
+export function ccValidateExactFinishCards(effects: CCEffect[], scores: [number, number], player: 0 | 1): CCEffect[] {
+  return effects.map(e => {
+    if (e.requiresExactFinish && e.status === "active" && e.affectsPlayer === player) {
+      // Only valid if remaining <= 50 (will require double finish)
+      const remaining = scores[player];
+      const isExactFinish = remaining > 0 && remaining <= 50;
+      if (!isExactFinish) {
+        console.log(`[CARD_CLASH:EXACT_FINISH_INVALID] ${e.cardName} deactivated - Player${player} not in final 50`);
+        return { ...e, status: "expired" };
+      }
+    }
+    return e;
+  });
+}
+
 /** Filter out opponent penalty effects if player has blocking active. */
 export function ccApplyPenaltyBlockingIfNeeded(effects: CCEffect[], player: 0 | 1): CCEffect[] {
   if (!ccOpponentPenaltiesBlocked(effects, player)) {

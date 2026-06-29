@@ -19,6 +19,7 @@ import {
   ccShouldBlockFinish, ccApplyVisitEnd, ccExpireOnTurnEnd,
   ccActivateDeferredNextTurnEffects, ccActivateDeferredNextLegEffects,
   ccEvaluateConditionalWildcards, ccEvaluateOpponentWildcards, ccApplyPenaltyBlockingIfNeeded,
+  ccValidateCheckoutOnlyCards, ccValidateExactFinishCards,
   ccApplyCricketMarkEffects, ccApplyCricketScoreEffects, ccBlockClosing,
   ccPenaltyPerMark, ccBonusPerMark,
 } from "./card-effect-engine";
@@ -689,13 +690,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (isCardClash && started[turn]) {
       setActiveEffects(prev => {
         let updated = ccActivateDeferredNextTurnEffects(prev, turn);
+        // FIX 104: Validate Unstoppable Checkout (checkoutOnly)
+        updated = ccValidateCheckoutOnlyCards(updated, scores, turn);
+        // FIX 107: Validate Exact Finish (requiresExactFinish)
+        updated = ccValidateExactFinishCards(updated, scores, turn);
         updated = ccApplyPenaltyBlockingIfNeeded(updated, turn);
-        // NOTE: ccEvaluateOpponentWildcards disabled - opponent penalty cards should only apply when manually played
-        // updated = updated.concat(ccEvaluateOpponentWildcards(turn, legWins));
         return updated;
       });
     }
-  }, [turn, isCardClash, started, legWins]);
+  }, [turn, isCardClash, started, legWins, scores]);
 
   // Reset free retries at start of each turn (for Checkout Confidence)
   useEffect(() => {
