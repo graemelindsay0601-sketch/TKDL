@@ -444,8 +444,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
 }
 
 // ── Game Over Screen ───────────────────────────────────────────────────────────
-function GameOverScreen({ result, data, stats, equippedCards, onBack }: {
-  result: GameResult; data: SetupData; stats: PracticeStats | null; equippedCards: EquippedCards | null; onBack: () => void;
+function GameOverScreen({ result, data, stats, player1Equipment, player2Equipment, onBack }: {
+  result: GameResult; data: SetupData; stats: PracticeStats | null; player1Equipment: EquippedCards | null; player2Equipment: EquippedCards | null; onBack: () => void;
 }) {
   const { toast }   = useToast();
   const qc          = useQueryClient();
@@ -497,7 +497,8 @@ function GameOverScreen({ result, data, stats, equippedCards, onBack }: {
           ...(lStats.ca    !== undefined ? { loserCheckoutAttempts:  lStats.ca     } : {}),
           ...(lStats.ch    !== undefined ? { loserCheckoutHits:      lStats.ch     } : {}),
           // Include equipped cards if Card Clash match
-          ...(equippedCards ? { cardsUsedInMatch: equippedCards } : {}),
+          ...(player1Equipment ? { player1Equipment } : {}),
+          ...(player2Equipment ? { player2Equipment } : {}),
         } });
       } else {
         await fetch("/api/team-matches", {
@@ -609,14 +610,18 @@ export default function Play() {
 
   const [phase, setPhase]           = useState<"setup" | "equipment" | "playing" | "gameover">("setup");
   const [setupData, setSetupData]   = useState<SetupData | null>(null);
-  const [equippedCards, setEquippedCards] = useState<EquippedCards | null>(null);
+  const [player1Equipment, setPlayer1Equipment] = useState<EquippedCards | null>(null);
+  const [player2Equipment, setPlayer2Equipment] = useState<EquippedCards | null>(null);
+  const [equipmentPhase, setEquipmentPhase] = useState<"player1" | "player2" | "done">("player1");
   const [gameResult, setResult]     = useState<GameResult | null>(null);
   const [matchStats, setMatchStats] = useState<PracticeStats | null>(null);
 
   const reset = () => { 
     setPhase("setup"); 
     setSetupData(null); 
-    setEquippedCards(null);
+    setPlayer1Equipment(null);
+    setPlayer2Equipment(null);
+    setEquipmentPhase("player1");
     setResult(null); 
     setMatchStats(null); 
   };
@@ -635,16 +640,56 @@ export default function Play() {
 
   // ── Equipment Selection Phase ──
   if (phase === "equipment" && setupData && currentUser) {
+    const isPlayer1 = String(currentUser.id) === String(setupData.team1[0]?.id);
+    const isPlayer2 = String(currentUser.id) === String(setupData.team2[0]?.id);
+    
+    // Determine which player should select equipment
+    if (equipmentPhase === "player1" && isPlayer1) {
+      return (
+        <CardEquipmentSelector
+          playerId={currentUser.id}
+          currentPlayerName={setupData.team1[0]?.name}
+          gameMode={setupData.gameType.key === "x01" ? "X01" : "CRICKET"}
+          onSelect={(equipment) => {
+            setPlayer1Equipment(equipment);
+            setEquipmentPhase("player2");
+          }}
+          onCancel={() => setPhase("setup")}
+        />
+      );
+    }
+    
+    if (equipmentPhase === "player2" && isPlayer2) {
+      return (
+        <CardEquipmentSelector
+          playerId={currentUser.id}
+          currentPlayerName={setupData.team2[0]?.name}
+          gameMode={setupData.gameType.key === "x01" ? "X01" : "CRICKET"}
+          onSelect={(equipment) => {
+            setPlayer2Equipment(equipment);
+            setEquipmentPhase("done");
+            setPhase("playing");
+          }}
+          onCancel={() => {
+            setPlayer1Equipment(null);
+            setEquipmentPhase("player1");
+            setPhase("setup");
+          }}
+        />
+      );
+    }
+    
+    // Waiting for the other player
     return (
-      <CardEquipmentSelector
-        playerId={currentUser.id}
-        gameMode={setupData.gameType.key === "x01" ? "X01" : "CRICKET"}
-        onSelect={(equipment) => {
-          setEquippedCards(equipment);
-          setPhase("playing");
-        }}
-        onCancel={() => setPhase("setup")}
-      />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", textAlign: "center" }}>
+        <div>
+          <h2>Waiting for player equipment selection...</h2>
+          <p>
+            {equipmentPhase === "player1" && !isPlayer1 ? "Waiting for Player 1" : ""}
+            {equipmentPhase === "player2" && !isPlayer2 ? "Waiting for Player 2" : ""}
+          </p>
+        </div>
+      </div>
     );
   }
 
@@ -692,7 +737,7 @@ export default function Play() {
   }
 
   if (phase === "gameover" && gameResult && setupData) {
-    return <GameOverScreen result={gameResult} data={setupData} stats={matchStats} equippedCards={equippedCards} onBack={reset} />;
+    return <GameOverScreen result={gameResult} data={setupData} stats={matchStats} player1Equipment={player1Equipment} player2Equipment={player2Equipment} onBack={reset} />;
   }
 
   return null;
