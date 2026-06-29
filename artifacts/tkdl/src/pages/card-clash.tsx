@@ -11,6 +11,7 @@ import { AdvancedAdminTools } from "@/components/AdvancedAdminTools";
 import type { PlayerStats } from "@/utils/achievements";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
 import { CardClashPractice } from "@/components/CardClashPractice";
+import { CardClashPracticeGame } from "@/components/CardClashPracticeGame";
 import { AdminCardClashSettingsPanel } from "@/components/AdminCardClashSettingsPanel";
 import { RulesUI } from "@/components/RulesUI";
 import { TKDLCard } from "@/components/TKDLCard";
@@ -768,12 +769,27 @@ const PACKS = [
     ];
     const DIFF_COLOR={BEGINNER:"#00cc66",INTERMEDIATE:"#0077ff",ADVANCED:"#ff4466"} as Record<string,string>;
 
-    if(launching){return(
-      <div>
-        <button onClick={()=>setLaunching(false)} style={{all:"unset",display:"inline-flex",alignItems:"center",gap:"8px",padding:"9px 18px",borderRadius:"8px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.45)",fontSize:"12px",fontWeight:700,letterSpacing:"0.07em",cursor:"pointer",marginBottom:"1.5rem"}}>← BACK</button>
-        <div style={{padding:"20px",textAlign:"center",color:"rgba(255,255,255,0.5)"}}>Card Clash Practice being rebuilt...</div>
-      </div>
-    );}
+    if(launching){
+      if(practiceType === "cardclash" && practiceMatchId) {
+        return(
+          <CardClashPracticeGame
+            playerId={playerId}
+            playerName={playerName}
+            practiceMatchId={practiceMatchId}
+            onDone={() => {
+              setLaunching(false);
+              setPracticeMatchId(null);
+            }}
+          />
+        );
+      }
+      return(
+        <div>
+          <button onClick={()=>setLaunching(false)} style={{all:"unset",display:"inline-flex",alignItems:"center",gap:"8px",padding:"9px 18px",borderRadius:"8px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.45)",fontSize:"12px",fontWeight:700,letterSpacing:"0.07em",cursor:"pointer",marginBottom:"1.5rem"}}>← BACK</button>
+          <div style={{padding:"20px",textAlign:"center",color:"rgba(255,255,255,0.5)"}}>Loading practice match...</div>
+        </div>
+      );
+    }
 
     return(
       <div style={{paddingBottom:"2rem"}}>
