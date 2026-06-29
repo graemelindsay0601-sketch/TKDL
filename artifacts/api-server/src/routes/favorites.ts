@@ -9,8 +9,8 @@
 import { Router, Request, Response } from 'express';
 import { logger } from '../lib/logger';
 import { eq, and } from 'drizzle-orm';
-import { cardClashFavoritesTable } from '@tkdl/db';
-import { db } from '../db';
+import { cardClashFavoritesTable } from '../../../lib/db/src/schema/card-clash-favorites';
+import { db } from '../../../lib/db/src';
 
 const router = Router();
 

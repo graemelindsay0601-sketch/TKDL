@@ -106,8 +106,12 @@ export interface CCEffect {
   loseNextMark?: boolean;        // next mark attempt → 0 hits (one-shot)
   _loseNextMarkUsed?: boolean;   // internal flag
 
-  // Cricket: score-level
-  extraScoreMultiplier?: number; // multiply scoring extras (Scoring Surge=1.5)
+  // THEME 4: Instant Cricket mark mutations
+  instantCricketMarks?: Array<{
+    playerIdx: 0 | 1;      // Which player's marks to modify
+    numberIdx: number;     // Index in marks array (0-6, corresponds to CRICKET_NUMS)
+    markDelta: number;     // Change in marks (1 to add, -999 to reset to 0)
+  }>;
   penaltyPerMark?: number;       // -N per mark gained (Mark Erasure=-10)
   bonusIfAllMarksThisTurn?: number; // Perfect Round
   bonusPerMark?: number;         // +N per mark (Momentum Arsenal=10)
@@ -141,6 +145,8 @@ export function ccActivateCard(
   gameStateInfo?: {
     legHistory?: (0 | 1)[];
     legsNeeded?: number;
+    calledNumber?: number;      // For Cricket instant mark effects
+    chosenNumbers?: number[];    // For cards that need player selection
   }
 ): CCEffect[] {
   const name: string = (card.name || "").trim();
@@ -196,10 +202,51 @@ export function ccActivateCard(
 
   // ── Cricket GOOD ───────────────────────────────────────────────────────────
   const cricGood: Record<string, CCEffect> = {
-    "Instant Mark":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", instant: true },
+    "Instant Mark":         (() => {
+      // Auto-mark the called number (only works if calledNumber is known)
+      if (gameStateInfo?.calledNumber !== undefined) {
+        const numIdx = CRICKET_NUMS.indexOf(gameStateInfo.calledNumber);
+        if (numIdx >= 0) {
+          return {
+            cardName: name,
+            appliedBy: byPlayer,
+            affectsPlayer: byPlayer,
+            status: "active",
+            instant: true,
+            instantCricketMarks: [{
+              playerIdx: byPlayer,
+              numberIdx: numIdx,
+              markDelta: 1  // Add 1 mark
+            }]
+          } as CCEffect;
+        }
+      }
+      return null;  // Can't activate without called number
+    })(),
     "Double Strike":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 2 },
     "Sniper Lock":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" }, // popup-driven; no-op here
-    "Number Resurrection":  { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", instant: true },
+    "Number Resurrection":  (() => {
+      // Reset opponent's mark on called number back to 0 (reopen it)
+      if (gameStateInfo?.calledNumber !== undefined) {
+        const opp: 0 | 1 = byPlayer === 0 ? 1 : 0;
+        const numIdx = CRICKET_NUMS.indexOf(gameStateInfo.calledNumber);
+        if (numIdx >= 0) {
+          return {
+            cardName: name,
+            appliedBy: byPlayer,
+            affectsPlayer: byPlayer,  // Effect is applied by us
+            status: "active",
+            instant: true,
+            instantCricketMarks: [{
+              playerIdx: opp,            // But affects opponent's marks
+              numberIdx: numIdx,
+              markDelta: -999  // Reset to 0
+            }]
+          } as CCEffect;
+        }
+      }
+      return null;  // Can't activate without called number
+    })(),
     "Scoring Surge":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", extraScoreMultiplier: 1.5 },
     "Closing Protection":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" }, // state-flag; handled by overlay
     "Mark Flood":           { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" }, // would need dart override; placeholder

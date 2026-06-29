@@ -1186,6 +1186,27 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
 
     effects.forEach(e => {
       if (e.instant) {
+        // THEME 4: Handle instant Cricket mark mutations
+        if (e.instantCricketMarks) {
+          setMarks(prev => {
+            const newMarks = prev.map(row => [...row]) as typeof marks;
+            for (const markMutation of e.instantCricketMarks) {
+              const currentMarks = newMarks[markMutation.playerIdx][markMutation.numberIdx];
+              if (markMutation.markDelta === -999) {
+                // Reset to 0 (Number Resurrection)
+                newMarks[markMutation.playerIdx][markMutation.numberIdx] = 0;
+                console.log(`[CARD_CLASH:INSTANT_MARK_RESET] Player${markMutation.playerIdx} number ${CRICKET_NUMS[markMutation.numberIdx]} marks reset to 0`);
+              } else {
+                // Add marks (Instant Mark)
+                newMarks[markMutation.playerIdx][markMutation.numberIdx] = Math.min(3, currentMarks + markMutation.markDelta);
+                console.log(`[CARD_CLASH:INSTANT_MARK] Player${markMutation.playerIdx} number ${CRICKET_NUMS[markMutation.numberIdx]} marks increased to ${newMarks[markMutation.playerIdx][markMutation.numberIdx]}`);
+              }
+            }
+            return newMarks;
+          });
+        }
+        
+        // Handle score deltas
         setScores(prev => {
           const n = [...prev] as [number, number];
           // THEME 3: Mode-specific instant effects (Cricket)

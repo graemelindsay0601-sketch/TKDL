@@ -100,6 +100,9 @@ async function buildAll() {
       "puppeteer",
       "puppeteer-core",
       "electron",
+      // FIX: Mark monorepo db paths as external to avoid bundle resolution errors
+      "../../../lib/db/src",
+      "../../../lib/db/src/schema/card-clash-favorites",
     ],
     sourcemap: "linked",
     plugins: [
