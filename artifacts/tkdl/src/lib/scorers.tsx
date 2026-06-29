@@ -1097,6 +1097,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [snapHistory, setSnapHistory] = useState<{marks: [[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]], scores: [number,number], turn: 0|1, visitDarts: Dart[]}[]>([]);
   const [lockedNumbers, setLockedNumbers] = useState<[Set<number>, Set<number>]>([new Set(), new Set()]); // Track locked numbers per player (Number Prison, Re-Opening Block)
   const [protectedNumbers, setProtectedNumbers] = useState<[Set<number>, Set<number>]>([new Set(), new Set()]); // FIX 306: Numbers that can't be closed by opponent
+  const [turnCounter, setTurnCounter] = useState<number>(1); // FIX 309: Track turn number in leg (1-based) for Early Closer
   const [prevTurnMarks, setPrevTurnMarks] = useState<[number[],number[]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]); // Track marks from previous turn for Momentum Killer
 
   // Card Clash state (populated from sessionStorage by CardClashMatchScorer)
@@ -1393,29 +1394,33 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             });
           }
         }
-        // Card Clash: Early Closer (309) - free mark if turn ends early
-        if (isCardClash && visitDarts.length < 3) {
+        // Card Clash: Early Closer (309) - bonus if close number in turns 1-4 (before turn 5)
+        if (isCardClash && turnCounter < 5) {
           const hasEarlyCloser = activeEffects.some(e => 
             e.cardName === "Early Closer" && e.status === "active" && e.affectsPlayer === turn && e.freeMarkIfEarlyClose
           );
-          if (hasEarlyCloser && absorbed > 0) {
-            // Add bonus mark to closed number
-            nm[turn][numIdx] = Math.min(3, nm[turn][numIdx] + 1);
-            console.log(`[CARD_CLASH:EARLY_CLOSER] Player${turn} gets bonus mark on ${CRICKET_NUMS[numIdx]}`);
+          if (hasEarlyCloser && absorbed > 0 && nm[turn][numIdx] >= 3 && prev[turn][numIdx] < 3) {
+            // Number just closed in early turns - award +30 bonus
+            setScores(ps => {
+              const ns: [number,number] = [...ps];
+              ns[turn] += 30;  // +30 bonus for early close
+              console.log(`[CARD_CLASH:EARLY_CLOSER] Player${turn} closed number on turn ${turnCounter}, +30 bonus`);
+              return ns;
+            });
           }
         }
         
-        // Card Clash: Quick Close (316) - free mark if closing with ≤1 darts
-        if (isCardClash && visitDarts.length <= 1 && absorbed > 0) {
+        // Card Clash: Quick Close (316) - free mark if closing with ≤2 darts (by dart 2)
+        if (isCardClash && visitDarts.length <= 2 && absorbed > 0) {
           const hasQuickClose = activeEffects.some(e => 
             e.cardName === "Quick Close" && e.status === "active" && e.affectsPlayer === turn && e.freeMarkIfQuickClose
           );
           if (hasQuickClose && nm[turn][numIdx] >= 3 && prev[turn][numIdx] < 3) {
-            // Just closed with 1 dart - add free mark to another number
+            // Just closed with 2 or fewer darts - add free mark to another number
             const nextOpenIdx = nm[turn].findIndex(m => m < 3);
             if (nextOpenIdx >= 0) {
               nm[turn][nextOpenIdx] = Math.min(3, nm[turn][nextOpenIdx] + 1);
-              console.log(`[CARD_CLASH:QUICK_CLOSE] Player${turn} quick-closed and gets free mark on ${CRICKET_NUMS[nextOpenIdx]}`);
+              console.log(`[CARD_CLASH:QUICK_CLOSE] Player${turn} quick-closed by dart ${visitDarts.length}, gets free mark on ${CRICKET_NUMS[nextOpenIdx]}`);
             }
           }
         }
@@ -1515,11 +1520,23 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             }
           }
           
-          // 315/320: Mark Multiplier/Dominance - evaluate conditions
-          const markMult = playerEffects.find(e => e.cardName === "Mark Multiplier" && e.conditionalMultiplier);
+          // 315: Mark Multiplier - bonus if mark called number 3+ times this turn
+          // Simplified: if we closed any number this turn (reached 3), award +50
+          const markMult = playerEffects.find(e => e.cardName === "Mark Multiplier");
           if (markMult) {
-            console.log(`[CARD_CLASH:MARK_MULTIPLIER] Condition evaluated at turn end`);
-            markMult._conditionalApplied = true;
+            let numbersClosedThisTurn = 0;
+            for (let i = 0; i < numCount; i++) {
+              // Simple check: if number has 3 marks, count it
+              if (marks[turn][i] === 3) numbersClosedThisTurn++;
+            }
+            if (numbersClosedThisTurn > 0) {
+              setScores(prev => {
+                const newScores: [number, number] = [...prev];
+                newScores[turn] += 50;
+                console.log(`[CARD_CLASH:MARK_MULTIPLIER] Player${turn} +50 for marking this turn`);
+                return newScores;
+              });
+            }
           }
           
           const dominance = playerEffects.find(e => e.cardName === "Dominance" && e.conditionalMultiplier);
@@ -1602,6 +1619,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         if (isCardClash) setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
       }
       
+      // Increment turn counter for Early Closer tracking
+      setTurnCounter(tc => tc + 1);
       setTurn(t => t===0?1:0);
       setLastHit("");
     }
