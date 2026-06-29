@@ -315,7 +315,13 @@ export function ccActivateCard(
     "Distraction":          { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", loseNextMark: true, _loseNextMarkUsed: false },
     "Out of Position":      { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", blockSegmentsForMarks: [20, 19, 18] },
     "Penalty Zone":         { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allowedMarkSegments: [15] },
-    "Re-Opening Block":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending" }, // complex state; placeholder
+    "Re-Opening Block":     { 
+      cardName: name, 
+      appliedBy: byPlayer, 
+      affectsPlayer: opp,  // Effect targets opponent
+      status: "pending",
+      blockClosing: true   // THEME 7: When we close opponent's numbers, lock them so they reopen
+    },
     "Aim Shift":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", segmentRedirect: true },
     "Hesitation":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", hesitateFirstDart: true },
     "Pressure":             { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending" }, // penaltyIfNotClosed — turn-end check
