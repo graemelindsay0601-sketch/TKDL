@@ -22,7 +22,18 @@ import {
   ccValidateCheckoutOnlyCards, ccValidateExactFinishCards,
   ccApplyCricketMarkEffects, ccApplyCricketScoreEffects, ccBlockClosing,
   ccPenaltyPerMark, ccBonusPerMark,
+  ccPreprocessCricketDart, CARD_CLASH_CRICKET_NUMS,
 } from "./card-effect-engine";
+
+// Cricket helpers
+const firstOpenCricketSegment = (marks?: number[]): number => {
+  if (!marks) return 20;
+  const NUMS = [20, 19, 18, 17, 16, 15, 25];
+  for (let i = 0; i < NUMS.length; i += 1) {
+    if ((marks[i] ?? 0) < 3) return NUMS[i];
+  }
+  return 20;
+};
 
 function useFullscreen() {
   const [fs, setFs] = useState(false);
@@ -1215,41 +1226,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     }
   }, []);
 
-  // ── Card Clash: Momentum Killer — remove marks if 2+ were added last turn ──
-  useEffect(() => {
-    if (!isCardClash || activeEffects.length === 0) return;
-    
-    const hasMomentumKiller = activeEffects.some(e => 
-      e.cardName === "Momentum Killer" && e.status === "active" && e.affectsPlayer === turn
-    );
-    
-    if (hasMomentumKiller) {
-      // Calculate marks gained last turn
-      const marksGainedLastTurn = marks[turn].map((current, idx) => 
-        Math.max(0, current - prevTurnMarks[turn][idx])
-      );
-      
-      // Find which numbers gained 2+ marks
-      const numbersToRemove = marksGainedLastTurn
-        .map((gained, idx) => gained >= 2 ? idx : -1)
-        .filter(idx => idx !== -1);
-      
-      if (numbersToRemove.length > 0) {
-        setMarks(prev => {
-          const nm: typeof marks = [[...prev[0]] as any, [...prev[1]] as any];
-          numbersToRemove.forEach(idx => {
-            nm[turn][idx] = prevTurnMarks[turn][idx];
-          });
-          console.log(`[CARD_CLASH:MOMENTUM_KILLER] Player${turn} gained 2+ marks last turn on ${numbersToRemove.length} numbers, removing them`);
-          return nm;
-        });
-      }
-    }
-    
-    // Update prevTurnMarks for next turn
-    setPrevTurnMarks([...marks] as [number[], number[]]);
-  }, [turn, isCardClash, activeEffects, marks, prevTurnMarks]);
-
   // ── Card Clash: Handle card activation ──
   const handleCardActivation = useCallback((cardId: string) => {
     const currentCards = turn === 0 ? p1Cards : p2Cards;
@@ -1290,6 +1266,32 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           return newLocked;
         });
       }
+    }
+
+    // CARD CLASH: Momentum Killer (409) - remove marks gained by opponent last visit
+    if (card.name === "Momentum Killer") {
+      const opp: 0|1 = turn === 0 ? 1 : 0;
+      applyMarkGainRemoval(opp, "all");
+      cardDebugLog("CricketScorer", "[CARD_CLASH:MOMENTUM_KILLER]", { targetPlayer: opp });
+    }
+
+    // CARD CLASH: Streak Breaker (418) - halve marks if opponent gained 3+ last visit
+    if (card.name === "Streak Breaker") {
+      const opp: 0|1 = turn === 0 ? 1 : 0;
+      applyMarkGainRemoval(opp, "half");
+      cardDebugLog("CricketScorer", "[CARD_CLASH:STREAK_BREAKER]", { targetPlayer: opp });
+    }
+
+    // CARD CLASH: Win Bonus Removed (609) - strip opponent's momentum bonuses
+    if (card.name === "Win Bonus Removed") {
+      const opp: 0|1 = turn === 0 ? 1 : 0;
+      setActiveEffects(prev =>
+        prev.filter(e =>
+          e.affectsPlayer !== opp ||
+          !["Lucky Streak", "Momentum Surge", "Hot Hand"].includes(e.cardName)
+        )
+      );
+      cardDebugLog("CricketScorer", "[CARD_CLASH:WIN_BONUS_REMOVED]", { targetPlayer: opp });
     }
 
     effects.forEach(e => {
@@ -1360,24 +1362,30 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       turn,
       visitDarts: [...visitDarts],
     }]);
+    
+    // CARD CLASH: Preprocess dart for Mark Flood and Aim Shift effects
+    const effectiveDart = isCardClash
+      ? ccPreprocessCricketDart(dart, activeEffects, turn, marks[turn])
+      : dart;
+    
     // Cricket No Bull: bull hits are treated as misses
-    if (!includesBull && dart.segment === 25) {
+    if (!includesBull && effectiveDart.segment === 25) {
       const nv = [...visitDarts, dart];
       setVisitDarts(nv);
       setLastHit("Miss (no bull)");
       if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); setLastHit(""); }
       return;
     }
-    const numIdx = CRICKET_NUMS.indexOf(dart.segment);
+    const numIdx = CRICKET_NUMS.indexOf(effectiveDart.segment);
     const nv = [...visitDarts, dart];
 
     if (numIdx >= 0) {
       // Card Clash: apply mark modifiers (Double Strike, Bad Aim, Hesitation, Sluggish, etc.)
-      const rawHits = dart.multiplier;
+      const rawHits = effectiveDart.multiplier;
       let effectiveHits = isCardClash ? (() => {
         const inFinalLeg = legsNeeded - legWins[turn] === 1;
         const effectsForMarks = inFinalLeg ? activeEffects : activeEffects.filter(e => !e.finalLegOnly);
-        return ccApplyCricketMarkEffects(rawHits, dart.segment, visitDarts.length, effectsForMarks, turn);
+        return ccApplyCricketMarkEffects(rawHits, effectiveDart.segment, visitDarts.length, effectsForMarks, turn);
       })() : rawHits;
       
       // Card Clash: Apply conditional Cricket card multipliers (Comeback Marks, Dominance)
@@ -1438,7 +1446,23 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         const toClose = Math.max(0, (effectiveCanClose ? 3 : 2) - nm[turn][numIdx]);
         const absorbed = Math.min(effectiveHitsAfterLock, Math.max(0, toClose));
         const extra = effectiveHitsAfterLock - absorbed;
+        const wasClosedBefore = prev[turn][numIdx] >= 3;
         nm[turn][numIdx] = Math.min(effectiveCanClose ? 3 : 2, nm[turn][numIdx] + absorbed);
+        const closedByThisDart = !wasClosedBefore && nm[turn][numIdx] >= 3;
+        
+        // CARD CLASH: Track mark gains this visit (for Momentum Killer, Streak Breaker, Mark Multiplier)
+        if (isCardClash && absorbed > 0) {
+          setVisitMarkGains(prev => {
+            const next = prev.slice();
+            next[numIdx] += absorbed;
+            return next;
+          });
+          
+          // Track if a number was closed this visit (for Pressure penalty)
+          if (closedByThisDart) {
+            setCricketClosedThisVisit(true);
+          }
+        }
         
         // FIX 306: Closing Protection - mark number as protected if opened with effect active
         if (isCardClash && absorbed > 0 && prev[turn][numIdx] === 0 && nm[turn][numIdx] > 0) {
@@ -1538,7 +1562,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         }
         return nm;
       });
-      const lbl = dart.multiplier === 1 ? `${dart.segment}` : dart.multiplier === 2 ? `D${dart.segment}` : `T${dart.segment}`;
+      const lbl = effectiveDart.multiplier === 1 ? `${effectiveDart.segment}` : effectiveDart.multiplier === 2 ? `D${effectiveDart.segment}` : `T${effectiveDart.segment}`;
       setLastHit(lbl);
       
       // FIX 311/312: Bull Multiplier / Bullseye Rush - mark chosen segments when Bull is hit
@@ -1593,15 +1617,14 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             }
           }
           
-          // 318: High Scorer - bonus if 100+ marks (total across all numbers)
+          // 318: High Scorer - bonus if score >= 100
           const highScorer = playerEffects.find(e => e.cardName === "High Scorer");
-          if (highScorer && highScorer.bonusIfHighMarks) {
-            const totalMarks = marks[turn].reduce((a, b) => a + b, 0);
-            if (totalMarks >= 100) {
+          if (highScorer && highScorer.highScorerBonus) {
+            if (scores[turn] >= (highScorer.highScorerThreshold || 100)) {
               setScores(prev => {
                 const newScores: [number, number] = [...prev];
-                newScores[turn] += highScorer.bonusIfHighMarks;
-                console.log(`[CARD_CLASH:HIGH_SCORER] Player${turn} +${highScorer.bonusIfHighMarks} for 100+ marks`);
+                newScores[turn] += highScorer.highScorerBonus;
+                cardDebugLog("CricketScorer", "[CARD_CLASH:HIGH_SCORER]", { player: turn, currentScore: scores[turn], bonus: highScorer.highScorerBonus });
                 return newScores;
               });
             }
@@ -1631,20 +1654,15 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             }
           }
           
-          // 315: Mark Multiplier - bonus if mark called number 3+ times this turn
-          // Simplified: if we closed any number this turn (reached 3), award +50
+          // 315: Mark Multiplier - bonus if 3+ marks gained this visit
           const markMult = playerEffects.find(e => e.cardName === "Mark Multiplier");
-          if (markMult) {
-            let numbersClosedThisTurn = 0;
-            for (let i = 0; i < numCount; i++) {
-              // Simple check: if number has 3 marks, count it
-              if (marks[turn][i] === 3) numbersClosedThisTurn++;
-            }
-            if (numbersClosedThisTurn > 0) {
+          if (markMult && markMult.markThresholdBonus) {
+            const totalMarksThisVisit = visitMarkGains.reduce((sum, val) => sum + val, 0);
+            if (totalMarksThisVisit >= (markMult.markThresholdBonusAt || 3)) {
               setScores(prev => {
                 const newScores: [number, number] = [...prev];
-                newScores[turn] += 50;
-                console.log(`[CARD_CLASH:MARK_MULTIPLIER] Player${turn} +50 for marking this turn`);
+                newScores[turn] += markMult.markThresholdBonus;
+                cardDebugLog("CricketScorer", "[CARD_CLASH:MARK_MULTIPLIER]", { player: turn, marksGained: totalMarksThisVisit, bonus: markMult.markThresholdBonus });
                 return newScores;
               });
             }
@@ -1742,6 +1760,22 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       } else {
         // Non-Card-Clash: just expire effects normally
         if (isCardClash) setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
+      }
+      
+      // CARD CLASH: Store this visit's mark gains for opponent's Momentum Killer check next turn
+      if (isCardClash) {
+        setLastVisitMarkGains(prev => {
+          const next = [prev[0].slice(), prev[1].slice()] as [number[], number[]];
+          next[turn] = visitMarkGains.slice();
+          cardDebugLog("CricketScorer", "[CARD_CLASH:VISIT_END]", { player: turn, marksGained: visitMarkGains.slice() });
+          return next;
+        });
+        
+        // Reset visit tracking state for next player
+        setVisitMarkGains([0,0,0,0,0,0,0]);
+        setCricketVisitScore(0);
+        setCricketVisitMarks(0);
+        setCricketClosedThisVisit(false);
       }
       
       // Increment turn counter for Early Closer tracking
