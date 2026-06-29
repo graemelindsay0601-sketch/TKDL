@@ -639,6 +639,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       if (e.instant) {
         setScores(prev => {
           const n = [...prev] as [number, number];
+          // THEME 3: Mode-specific instant effects (X01)
+          if (e.instantRemainingPenalty) {
+            n[e.affectsPlayer] = Math.max(1, n[e.affectsPlayer] + e.instantRemainingPenalty);
+            console.log(`[CARD_CLASH:INSTANT_REMAINING] Player${e.affectsPlayer} remaining adjusted by ${e.instantRemainingPenalty} from ${e.cardName}`);
+          }
+          // Legacy fields (deprecated, kept for compatibility)
           if (e.instantP0Delta) n[0] = Math.max(1, n[0] + e.instantP0Delta);
           if (e.instantP1Delta) n[1] = Math.max(1, n[1] + e.instantP1Delta);
           return n;
@@ -1182,6 +1188,12 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       if (e.instant) {
         setScores(prev => {
           const n = [...prev] as [number, number];
+          // THEME 3: Mode-specific instant effects (Cricket)
+          if (e.instantScoreDelta) {
+            n[e.affectsPlayer] = Math.max(0, n[e.affectsPlayer] + e.instantScoreDelta);
+            console.log(`[CARD_CLASH:INSTANT_SCORE] Player${e.affectsPlayer} score adjusted by ${e.instantScoreDelta} from ${e.cardName}`);
+          }
+          // Legacy fields (deprecated, kept for compatibility)
           if (e.instantP0Delta) n[0] = Math.max(0, n[0] + e.instantP0Delta);
           if (e.instantP1Delta) n[1] = Math.max(0, n[1] + e.instantP1Delta);
           return n;

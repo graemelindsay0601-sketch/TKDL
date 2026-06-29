@@ -88,8 +88,12 @@ export interface CCEffect {
 
   // Instant effects (fire immediately on activation)
   instant?: true;
-  instantP0Delta?: number;       // adjust scores[0] by this (negative = lower remaining)
-  instantP1Delta?: number;       // adjust scores[1] by this
+  instantP0Delta?: number;       // adjust scores[0] by this (DEPRECATED - use mode-specific fields)
+  instantP1Delta?: number;       // adjust scores[1] by this (DEPRECATED - use mode-specific fields)
+  
+  // THEME 3: Mode-specific instant effects
+  instantRemainingPenalty?: number;  // X01 only: increase player's remaining score (penalty for player)
+  instantScoreDelta?: number;        // Cricket only: add to player's score
 
   // Cricket: mark-level
   marksMultiplier?: number;      // multiply absorbed hits (Double Strike=2, Bad Aim=0.5)
@@ -241,10 +245,35 @@ export function ccActivateCard(
   // ── Wildcard GOOD ──────────────────────────────────────────────────────────
   const wildcardGood: Record<string, CCEffect | null> = {
     "Coin Flip": (() => {
+      // 50/50 chance: 
+      // - Win: Player gets -40 remaining (X01) or +40 score (Cricket)
+      // - Loss: Opponent gets +30 remaining (X01) or -30 score (Cricket)
       const win = Math.random() > 0.5;
-      return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", instant: true,
-        instantP0Delta: win ? (byPlayer === 0 ? -40 : 40) : (byPlayer === 0 ? 30 : -30),
-        instantP1Delta: win ? (byPlayer === 0 ? 40 : -40) : (byPlayer === 0 ? -30 : 30) } as CCEffect;
+      const opp: 0 | 1 = byPlayer === 0 ? 1 : 0;
+      
+      // X01: remaining score model (lower = better, so penalty increases remaining)
+      // Cricket: accumulating score model (higher = better, so penalty decreases score)
+      if (win) {
+        return {
+          cardName: name,
+          appliedBy: byPlayer,
+          affectsPlayer: byPlayer,
+          status: "active",
+          instant: true,
+          instantRemainingPenalty: -40,  // X01: decrease remaining (GOOD)
+          instantScoreDelta: 40          // Cricket: increase score (GOOD)
+        } as CCEffect;
+      } else {
+        return {
+          cardName: name,
+          appliedBy: byPlayer,
+          affectsPlayer: opp,
+          status: "active",
+          instant: true,
+          instantRemainingPenalty: 30,   // X01: increase remaining (BAD)
+          instantScoreDelta: -30         // Cricket: decrease score (BAD)
+        } as CCEffect;
+      }
     })(),
     
     // CONDITIONAL: Lucky Streak - only if player won previous leg
