@@ -417,6 +417,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                           onToggleFavorite={toggleFavorite}
                           onPreview={(e) => {
                             e.stopPropagation();
+                            setPreviewCard(c);
                           }}
                         />
                       ))}
@@ -442,6 +443,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                           onToggleFavorite={toggleFavorite}
                           onPreview={(e) => {
                             e.stopPropagation();
+                            setPreviewCard(c);
                           }}
                         />
                       ))}
@@ -482,6 +484,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                           onToggleFavorite={toggleFavorite}
                           onPreview={(e) => {
                             e.stopPropagation();
+                            setPreviewCard(c);
                           }}
                         />
                       ))}
@@ -507,6 +510,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
                           onToggleFavorite={toggleFavorite}
                           onPreview={(e) => {
                             e.stopPropagation();
+                            setPreviewCard(c);
                           }}
                         />
                       ))}
