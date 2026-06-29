@@ -340,7 +340,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
       <div style={{ background: "#0d1625", border: "1px solid rgba(255,60,60,0.4)", borderRadius: "14px", padding: "28px", maxWidth: "360px", textAlign: "center" }}>
         <div style={{ fontSize: "36px", marginBottom: "12px" }}>⚠️</div>
         <p style={{ color: "#ff6b6b", marginBottom: "18px", fontFamily: "Arial,sans-serif" }}>{error}</p>
-        <button onClick={onBack} style={{ padding: "10px 24px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: "8px", color: "#fff", cursor: "pointer" }}>Back</button>
+        <button onClick={() => onCancel ? onCancel() : onBack?.()} style={{ padding: "10px 24px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: "8px", color: "#fff", cursor: "pointer" }}>Back</button>
       </div>
     </div>
   );
@@ -696,10 +696,16 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
         )}
 
         <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", gap: "12px", justifyContent: "space-between", flexShrink: 0, background: "rgba(0,0,0,0.6)", position: "sticky", bottom: 0, zIndex: 50 }}>
-          <button onClick={onBack} style={{ flex: 1, padding: "12px 20px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "rgba(255,255,255,0.65)", fontWeight: 700, fontSize: "13px", cursor: "pointer", fontFamily: "Arial,sans-serif", transition: "all 0.2s", whiteSpace: "nowrap" }}>← BACK</button>
+          <button onClick={() => onCancel ? onCancel() : onBack?.()} style={{ flex: 1, padding: "12px 20px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "rgba(255,255,255,0.65)", fontWeight: 700, fontSize: "13px", cursor: "pointer", fontFamily: "Arial,sans-serif", transition: "all 0.2s", whiteSpace: "nowrap" }}>← BACK</button>
 
           <button
-            onClick={() => onConfirm(enrichCardsWithFullData([...selectedGood, ...selectedBad]), [])}
+            onClick={() => {
+              if (onSelect) {
+                onSelect({ goodCards: selectedGood, badCards: selectedBad });
+              } else if (onConfirm) {
+                onConfirm(enrichCardsWithFullData([...selectedGood, ...selectedBad]), []);
+              }
+            }}
             disabled={totalSelected === 0}
             style={{ flex: 1, padding: "12px 20px", background: totalSelected > 0 ? "linear-gradient(135deg,#ffd24a,#ffb700)" : "rgba(255,255,255,0.06)", border: "none", borderRadius: "10px", color: totalSelected > 0 ? "#000" : "rgba(255,255,255,0.25)", fontWeight: 800, fontSize: "13px", cursor: totalSelected > 0 ? "pointer" : "not-allowed", letterSpacing: "0.06em", fontFamily: "'Arial Black',Arial,sans-serif", boxShadow: totalSelected > 0 ? "0 4px 16px rgba(255,210,74,0.3)" : "none", whiteSpace: "nowrap", opacity: totalSelected > 0 ? 1 : 0.5, transition: "all 0.2s" }}
           >
