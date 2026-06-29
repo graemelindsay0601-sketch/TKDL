@@ -20,6 +20,22 @@ function adjacentOf(seg: number): number {
   return adj[Math.floor(Math.random() * 2)];
 }
 
+// ── Cricket card constants and helpers ──────────────────────────────────────────
+export const CARD_CLASH_CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25] as const;
+
+function firstOpenCricketSegment(marks?: number[]): number {
+  if (!marks) return 20;
+  for (let i = 0; i < CARD_CLASH_CRICKET_NUMS.length; i += 1) {
+    if ((marks[i] ?? 0) < 3) return CARD_CLASH_CRICKET_NUMS[i];
+  }
+  return 20;
+}
+
+function cricketMarksFor(gs: X01State | CricketState | undefined, player: 0 | 1): number[] | undefined {
+  const maybe = gs as CricketState | undefined;
+  return Array.isArray(maybe?.marks?.[player]) ? maybe!.marks[player] : undefined;
+}
+
 // ── Active effect descriptor ─────────────────────────────────────────────────
 export interface CCEffect {
   cardName: string;
@@ -255,105 +271,28 @@ export function ccActivateCard(
   };
 
   // ── Cricket GOOD ───────────────────────────────────────────────────────────
-  const cricGood: Record<string, CCEffect | null> = {
-    "Instant Mark":         (() => {
-      // Auto-mark the called number (only works if calledNumber is known)
-      if (gameStateInfo?.calledNumber !== undefined) {
-        const numIdx = CRICKET_NUMS.indexOf(gameStateInfo.calledNumber);
-        if (numIdx >= 0) {
-          return {
-            cardName: name,
-            appliedBy: byPlayer,
-            affectsPlayer: byPlayer,
-            status: "active",
-            instant: true,
-            instantCricketMarks: [{
-              playerIdx: byPlayer,
-              numberIdx: numIdx,
-              markDelta: 1  // Add 1 mark
-            }]
-          } as CCEffect;
-        }
-      }
-      return null;  // Can't activate without called number
-    })(),
+  // ── Cricket GOOD ───────────────────────────────────────────────────────────
+  const cricGood: Record<string, CCEffect> = {
+    "Instant Mark":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", instant: true },
     "Double Strike":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 2 },
-    "Sniper Lock": (() => {
-      // THEME 5: Must hit called segment for next 3 darts or they don't mark
-      if (gameStateInfo?.calledNumber !== undefined) {
-        return {
-          cardName: name,
-          appliedBy: byPlayer,
-          affectsPlayer: opp,  // Affects opponent - they must hit our called segment
-          status: "pending",
-          sniperLockSegment: gameStateInfo.calledNumber,
-          dartsRemainingForSniper: 3  // Duration: next 3 darts
-        } as CCEffect;
-      }
-      return null;  // Need called number
-    })(),
-    "Number Resurrection":  (() => {
-      // Reset opponent's mark on called number back to 0 (reopen it)
-      if (gameStateInfo?.calledNumber !== undefined) {
-        const opp: 0 | 1 = byPlayer === 0 ? 1 : 0;
-        const numIdx = CRICKET_NUMS.indexOf(gameStateInfo.calledNumber);
-        if (numIdx >= 0) {
-          return {
-            cardName: name,
-            appliedBy: byPlayer,
-            affectsPlayer: byPlayer,  // Effect is applied by us
-            status: "active",
-            instant: true,
-            instantCricketMarks: [{
-              playerIdx: opp,            // But affects opponent's marks
-              numberIdx: numIdx,
-              markDelta: -999  // Reset to 0
-            }]
-          } as CCEffect;
-        }
-      }
-      return null;  // Can't activate without called number
-    })(),
+    "Sniper Lock":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", allowedMarkSegments: [firstOpenCricketSegment(cricketMarksFor(gs, byPlayer))] },
+    "Number Resurrection":  { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", instant: true },
     "Scoring Surge":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", extraScoreMultiplier: 1.5 },
-    "Closing Protection":   { 
-      cardName: name, 
-      appliedBy: byPlayer, 
-      affectsPlayer: byPlayer, 
-      status: "active",
-      blockClosing: true  // THEME 5: Prevent opponent from bringing marks to 3
-    },
-    "Mark Flood":           { 
-      cardName: name, 
-      appliedBy: byPlayer, 
-      affectsPlayer: byPlayer, 
-      status: "active",
-      cricketAutoMarkOnAnyDart: true  // Misses become real marks on next open number
-    },
+    "Closing Protection":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" }, // state-flag; handled by overlay
+    "Mark Flood":           { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", cricketAutoMarkOnAnyDart: true },
     "Scoring Momentum":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusPerMark: 5 },
-    "Early Closer":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeMarkIfEarlyClose: true },
+    "Early Closer":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" }, // tracked via turn counter
     "Perfect Round":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfAllMarksThisTurn: 25, _dartsMarkedThisTurn: 0 },
-    "Bull Multiplier":      { 
-      cardName: name, 
-      appliedBy: byPlayer, 
-      affectsPlayer: byPlayer, 
-      status: "active",
-      cricketBullAutoMarks: 3  // Bull hit adds free marks (3 for Multiplier)
-    },
-    "Bullseye Rush":        { 
-      cardName: name, 
-      appliedBy: byPlayer, 
-      affectsPlayer: byPlayer, 
-      status: "active",
-      cricketBullAutoMarks: 2  // Bull hit adds free marks (2 for Rush)
-    },
-    "Comeback Marks":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.5, conditionalMultiplier: true },
+    "Bull Multiplier":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", cricketBullAutoMarks: 3 },
+    "Bullseye Rush":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", cricketBullAutoMarks: 2 },
+    "Comeback Marks":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.5 },
     "Mark Accelerator":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 2 },
     "Mark Multiplier":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", markThresholdBonusAt: 3, markThresholdBonus: 50, _marksThisTurn: 0 },
     "Quick Close":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", quickCloseFreeMark: true },
     "Momentum Arsenal":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusPerMark: 10, _marksThisTurn: 0 },
     "High Scorer":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", highScorerThreshold: 100, highScorerBonus: 20 },
     "Perfect Form":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", extraScoreMultiplier: 1.5 },
-    "Dominance":            { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.3, conditionalMultiplier: true },
+    "Dominance":            { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.3 },
   };
 
   // ── Cricket BAD (affects opponent's next turn) ─────────────────────────────
@@ -387,101 +326,21 @@ export function ccActivateCard(
   };
 
   // ── Wildcard GOOD ──────────────────────────────────────────────────────────
-  const wildcardGood: Record<string, CCEffect | null> = {
+  const wildcardGood: Record<string, CCEffect> = {
     "Coin Flip": (() => {
-      // 50/50 chance: 
-      // - Win: Player gets -40 remaining (X01) or +40 score (Cricket)
-      // - Loss: Opponent gets -30 remaining (X01) or +30 score (Cricket)  
       const win = Math.random() > 0.5;
-      const opp: 0 | 1 = byPlayer === 0 ? 1 : 0;
-      
-      // X01: remaining score model (lower = better, so bonus decreases remaining)
-      // Cricket: accumulating score model (higher = better, so bonus increases score)
-      if (win) {
-        return {
-          cardName: name,
-          appliedBy: byPlayer,
-          affectsPlayer: byPlayer,
-          status: "active",
-          instant: true,
-          instantRemainingPenalty: -40,  // X01: decrease remaining (GOOD for player)
-          instantScoreDelta: 40          // Cricket: increase score (GOOD for player)
-        } as CCEffect;
-      } else {
-        return {
-          cardName: name,
-          appliedBy: byPlayer,
-          affectsPlayer: opp,
-          status: "active",
-          instant: true,
-          instantRemainingPenalty: -30,   // X01: decrease opponent remaining (GOOD for opponent)
-          instantScoreDelta: 30          // Cricket: increase opponent score (GOOD for opponent)
-        } as CCEffect;
-      }
+      return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", instant: true,
+        instantP0Delta: win ? (byPlayer === 0 ? 40 : -40) : (byPlayer === 0 ? -30 : 30),
+        instantP1Delta: win ? (byPlayer === 0 ? -40 : 40) : (byPlayer === 0 ? 30 : -30) } as CCEffect;
     })(),
-    
-    // CONDITIONAL: Lucky Streak - only if player won previous leg
-    "Lucky Streak": (() => {
-      const opp: 0 | 1 = byPlayer === 0 ? 1 : 0;
-      if (gameStateInfo?.legHistory && gameStateInfo.legHistory.length > 0 && 
-          gameStateInfo.legHistory[gameStateInfo.legHistory.length - 1] === byPlayer) {
-        return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50, legDuration: true };
-      }
-      return null;  // Condition not met
-    })(),
-    
-    // CONDITIONAL: Momentum Surge - only if player is ahead in match
-    "Momentum Surge": (() => {
-      const opp: 0 | 1 = byPlayer === 0 ? 1 : 0;
-      if (gs && 'legWins' in gs && gs.legWins[byPlayer] > gs.legWins[opp]) {
-        return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 25, legDuration: true };
-      }
-      return null;  // Condition not met
-    })(),
-    
-    "Finishing Edge": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeRetryOnDoubleMiss: true, finalLegOnly: true },
-    
-    // CONDITIONAL: Comeback Leg - only if player lost previous leg
-    "Comeback Leg": (() => {
-      const opp: 0 | 1 = byPlayer === 0 ? 1 : 0;
-      if (gameStateInfo?.legHistory && gameStateInfo.legHistory.length > 0 && 
-          gameStateInfo.legHistory[gameStateInfo.legHistory.length - 1] === opp) {
-        return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 60, legDuration: true };
-      }
-      return null;  // Condition not met
-    })(),
-    
-    // CONDITIONAL: Hot Hand - only if player won 2+ legs in a row
-    "Hot Hand": (() => {
-      if (gameStateInfo?.legHistory && gameStateInfo.legHistory.length >= 2) {
-        const last2 = gameStateInfo.legHistory.slice(-2);
-        if (last2[0] === byPlayer && last2[1] === byPlayer) {
-          return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 45, legDuration: true };
-        }
-      }
-      return null;  // Condition not met
-    })(),
-    
-    // CONDITIONAL: Underdog - only if player is behind in match
-    "Underdog": (() => {
-      const opp: 0 | 1 = byPlayer === 0 ? 1 : 0;
-      if (gs && 'legWins' in gs && gs.legWins[byPlayer] < gs.legWins[opp]) {
-        return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50, legDuration: true };
-      }
-      return null;  // Condition not met
-    })(),
-    
+    "Lucky Streak":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 },
+    "Momentum Surge": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 25 },
+    "Finishing Edge": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeRetryOnDoubleMiss: true },
+    "Comeback Leg":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 60 },
+    "Hot Hand":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 45 },
+    "Underdog":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 },
     "Perfect Game":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 30 },
-    
-    // CONDITIONAL: Match Point - only if player is 1 leg away from winning
-    "Match Point": (() => {
-      if (gs && 'legWins' in gs && gameStateInfo?.legsNeeded && 
-          gs.legWins[byPlayer] === gameStateInfo.legsNeeded - 1) {
-        return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 70, legDuration: true };
-      }
-      return null;  // Condition not met
-    })(),
-    
+    "Match Point":    { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 70 },
     "Invincible":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true },
   };
 
@@ -495,7 +354,7 @@ export function ccActivateCard(
     "Total Annihilation": { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 100 },
     "Match Pressure":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", penaltyPerDart: 20, marksMultiplier: 0.5, finalLegOnly: true },
     "Underdog Curse":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8, opponentMustBeAhead: true },
-    "Win Bonus Removed":  { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", bonusRemoval: true },
+    "Win Bonus Removed":  { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", removeConditionalBonuses: true },
     "Shutdown":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", maxMarksPerTurn: 2 },
     "Streak Crusher":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", removeLegsIfAhead: 2 }, // Remove 2 legs if opponent is 2+ ahead
   };
@@ -859,6 +718,37 @@ export function ccActivateDeferredNextLegEffects(effects: CCEffect[], newLegStar
 // ═══════════════════════════════════════════════════════════════════════════════
 // CRICKET HOOKS
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/** Preprocess a cricket dart for segment-redirect and mark-flood effects. */
+export function ccPreprocessCricketDart(
+  dart: Dart,
+  effects: CCEffect[],
+  player: 0 | 1,
+  playerMarks?: number[],
+): Dart {
+  const active = effects.filter(e => e.status === "active" && e.affectsPlayer === player);
+  if (active.length === 0) return dart;
+
+  let { segment, multiplier, value, label } = dart;
+
+  for (const e of active) {
+    if (e.segmentRedirect && segment > 0 && segment !== 25) {
+      segment = adjacentOf(segment);
+      multiplier = Math.max(1, multiplier);
+      value = segment * multiplier;
+      label = `${multiplier === 3 ? "T" : multiplier === 2 ? "D" : ""}${segment}`;
+    }
+
+    if (e.cricketAutoMarkOnAnyDart && !CARD_CLASH_CRICKET_NUMS.includes(segment as any)) {
+      segment = firstOpenCricketSegment(playerMarks);
+      multiplier = 1;
+      value = segment;
+      label = `${segment} (Mark Flood)`;
+    }
+  }
+
+  return { segment, multiplier, value, label };
+}
 
 /** Returns the effective hits for a cricket dart, after mark effects. */
 export function ccApplyCricketMarkEffects(
