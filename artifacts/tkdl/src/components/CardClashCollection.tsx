@@ -9,6 +9,7 @@ import React, { useState, useMemo } from 'react';
 import { TKDLCard } from './TKDLCard';
 import { SectionHeader } from './SectionHeader';
 import { ALL_CARDS } from '@/lib/cards-data';
+import { useFavorites } from '@/hooks/useFavorites';
 import type { CardData } from '@/lib/cards-data';
 
 const CATEGORIES = [
@@ -53,6 +54,7 @@ export const CardClashCollection = React.memo(
     const [rarFilter, setRarFilter] = useState<string>('ALL');
     const [showOwned, setShowOwned] = useState<'all' | 'owned' | 'unowned'>('all');
     const [enlargedCard, setEnlargedCard] = useState<CardData | null>(null);
+    const { isFavorited, toggleFavorite } = useFavorites({ gameMode: 'X01' });
 
     const totalOwned = ownedNames.size;
     const completionPct = Math.round((totalOwned / ALL_CARDS.length) * 100);
@@ -277,6 +279,42 @@ export const CardClashCollection = React.memo(
                     NEW
                   </div>
                 )}
+                {/* Favorites button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavorite(card.id, card.name);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: '4px',
+                    left: '4px',
+                    background: isFavorited(card.id) ? 'rgba(255,215,0,0.9)' : 'rgba(0,0,0,0.5)',
+                    border: isFavorited(card.id) ? '2px solid #ffd700' : 'none',
+                    borderRadius: '50%',
+                    width: '28px',
+                    height: '28px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '16px',
+                    cursor: 'pointer',
+                    zIndex: 10,
+                    transition: 'all 0.2s',
+                    boxShadow: isFavorited(card.id) ? '0 0 12px rgba(255,215,0,0.6)' : 'none',
+                  }}
+                  title={isFavorited(card.id) ? 'Remove favorite' : 'Add to favorites'}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = isFavorited(card.id) ? 'rgba(255,215,0,1)' : 'rgba(100,100,100,0.8)';
+                    e.currentTarget.style.transform = 'scale(1.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = isFavorited(card.id) ? 'rgba(255,215,0,0.9)' : 'rgba(0,0,0,0.5)';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                >
+                  {isFavorited(card.id) ? '★' : '☆'}
+                </button>
               </div>
             );
           })}

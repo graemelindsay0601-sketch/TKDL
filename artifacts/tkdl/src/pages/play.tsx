@@ -643,11 +643,11 @@ export default function Play() {
     const isPlayer1 = String(currentUser.id) === String(setupData.team1[0]?.id);
     const isPlayer2 = String(currentUser.id) === String(setupData.team2[0]?.id);
     
-    // Determine which player should select equipment
-    if (equipmentPhase === "player1" && isPlayer1) {
+    // Player 1 equipment selection
+    if (equipmentPhase === "player1") {
       return (
         <CardEquipmentSelector
-          playerId={currentUser.id}
+          playerId={setupData.team1[0]?.id || currentUser.id}
           currentPlayerName={setupData.team1[0]?.name}
           gameMode={setupData.gameType.key === "x01" ? "X01" : "CRICKET"}
           onSelect={(equipment) => {
@@ -659,10 +659,11 @@ export default function Play() {
       );
     }
     
-    if (equipmentPhase === "player2" && isPlayer2) {
+    // Player 2 equipment selection
+    if (equipmentPhase === "player2") {
       return (
         <CardEquipmentSelector
-          playerId={currentUser.id}
+          playerId={setupData.team2[0]?.id || currentUser.id}
           currentPlayerName={setupData.team2[0]?.name}
           gameMode={setupData.gameType.key === "x01" ? "X01" : "CRICKET"}
           onSelect={(equipment) => {
@@ -678,19 +679,6 @@ export default function Play() {
         />
       );
     }
-    
-    // Waiting for the other player
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", textAlign: "center" }}>
-        <div>
-          <h2>Waiting for player equipment selection...</h2>
-          <p>
-            {equipmentPhase === "player1" && !isPlayer1 ? "Waiting for Player 1" : ""}
-            {equipmentPhase === "player2" && !isPlayer2 ? "Waiting for Player 2" : ""}
-          </p>
-        </div>
-      </div>
-    );
   }
 
   if (phase === "playing" && setupData) {
