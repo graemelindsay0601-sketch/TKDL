@@ -139,6 +139,17 @@ export interface CCEffect {
   maxMarksPerTurn?: number;         // Shutdown (610): Cricket 2-number cap
   requiresExactFinish?: boolean;    // Exact Finish (107): only if on double-out
   opponentMustBeAhead?: boolean;    // Underdog Curse (608): only if opponent ahead
+  
+  // MEDIUM PRIORITY CARDS:
+  legDuration?: boolean;            // Effect lasts whole leg not just turn (High Pressure, Scoring Surge, Score Halve, etc)
+  lowestDartMinimum?: number;       // Safety Boost (112): lowest dart minimum value
+  bustingDartReduction?: number;    // Close Control (115): busting dart scores N instead
+  escalatingBonus?: number[];       // Momentum Arsenal/Scoring Momentum: [10,20,30] or [5,10,15]
+  markBoostThisLeg?: number;        // Perfect Form (319): mark multiplier this leg
+  shutoutBonusDeferred?: boolean;   // Perfect Game (508): shutout bonus is deferred_next_leg
+  wipeoutTargetDarts?: number[];    // Wipeout (605): which darts (2,3) wipe across leg
+  doubleAttemptCheck?: boolean;     // Checkout Confidence (106): detect actual double attempt
+  centuryExactOnly?: boolean;       // Century Maker (119): exactly 100 not 100-109
   scoreHalveExtraMultiplier?: number; // Score Halve (opponent's extras * 0.5)
 
   // Internal counters (mutable during a turn)
@@ -183,18 +194,18 @@ export function ccActivateCard(
     "Banking Strategy":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit50Plus: 20, deferBonusToNextTurn: true },
     "Checkout Confidence":  { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeRetryOnDoubleMiss: true },
     "Exact Finish":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true, requiresExactFinish: true },
-    "High Pressure":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfBehindLegs: 40 },
+    "High Pressure":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfBehindLegs: 40, legDuration: true },
     "Perfect Rhythm":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusPerDart: 10 },
     "High Roller":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit100Plus: 25 },
     "Precision Strike":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", minSegment: 6 },
-    "Safety Boost":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", minDartValue: 15 },
+    "Safety Boost":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", lowestDartMinimum: 15 },
     "Treble Boost":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", trebleMultiplier: 1.4 },
     "Safety Net":           { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bustToHalf: true },
     "Close Control":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", preventBustInCheckout: true },
     "Steady Hand":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", missToMin: true },
     "Scoring Arsenal":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", forceFullTurn: true },
     "Finishing Bonus":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfWin: 50 },
-    "Century Maker":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit100Exact: 40 },
+    "Century Maker":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit100Exact: 40, centuryExactOnly: true },
     "Iron Will":            { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", allDartsMultiplier: 1.2 },
   };
 
