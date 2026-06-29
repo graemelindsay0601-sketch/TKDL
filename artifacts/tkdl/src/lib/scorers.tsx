@@ -1110,6 +1110,11 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [protectedNumbers, setProtectedNumbers] = useState<[Set<number>, Set<number>]>([new Set(), new Set()]); // FIX 306: Numbers that can't be closed by opponent
   const [turnCounter, setTurnCounter] = useState<number>(1); // FIX 309: Track turn number in leg (1-based) for Early Closer
   const [prevTurnMarks, setPrevTurnMarks] = useState<[number[],number[]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]); // Track marks from previous turn for Momentum Killer
+  const [lastVisitMarkGains, setLastVisitMarkGains] = useState<[number[],number[]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]); // Track marks gained last visit for Momentum Killer/Streak Breaker
+  const [visitMarkGains, setVisitMarkGains] = useState<number[]>([0,0,0,0,0,0,0]); // Track marks gained this visit
+  const [cricketVisitScore, setCricketVisitScore] = useState(0); // Track score gained this visit
+  const [cricketVisitMarks, setCricketVisitMarks] = useState(0); // Track total marks gained this visit
+  const [cricketClosedThisVisit, setCricketClosedThisVisit] = useState(false); // Track if number was closed this visit
 
   // Card Clash state (populated from sessionStorage by CardClashMatchScorer)
   const [p1Cards, setP1Cards]         = useState<any[]>([]);
@@ -1121,6 +1126,68 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [selectedCard, setSelectedCard] = useState<any>(null);
 
   const names = [p1Name, p2Name];
+
+  // ── Card Clash: Apply mark gain removal (Momentum Killer & Streak Breaker) ──
+  const applyMarkGainRemoval = useCallback((target: 0|1, mode: "all" | "half") => {
+    const gains = lastVisitMarkGains[target] || [];
+    const totalGained = gains.reduce((sum, value) => sum + value, 0);
+    const threshold = mode === "all" ? 2 : 3;
+    if (totalGained < threshold) return;
+
+    setMarks(prev => {
+      const nm: typeof marks = [[...prev[0]] as any, [...prev[1]] as any];
+      gains.forEach((gain, idx) => {
+        if (gain <= 0) return;
+        const reduction = mode === "all" ? gain : Math.ceil(gain / 2);
+        nm[target][idx] = Math.max(0, nm[target][idx] - reduction);
+      });
+      cardDebugLog("CricketScorer", `[CARD_CLASH:${mode === "all" ? "MOMENTUM_KILLER" : "STREAK_BREAKER"}]`, { player: target, marksReduced: gains.length });
+      return nm;
+    });
+  }, [lastVisitMarkGains]);
+
+  // ── Card Clash: End cricket visit and apply visit-end effects ──
+  const endCricketVisit = useCallback((completedPlayer: 0|1) => {
+    // Pressure penalty: -30 if no number was closed this visit
+    const pressurePenalty = activeEffects
+      .filter(e => e.status === "active" && e.affectsPlayer === completedPlayer && e.pressureLoseIfNoClose)
+      .reduce((sum, e) => sum + (e.pressureLoseIfNoClose ?? 0), 0);
+
+    if (pressurePenalty > 0 && !cricketClosedThisVisit) {
+      setScores(prev => {
+        const ns: [number,number] = [...prev] as [number,number];
+        ns[completedPlayer] = Math.max(0, ns[completedPlayer] - pressurePenalty);
+        cardDebugLog("CricketScorer", "[CARD_CLASH:PRESSURE]", { player: completedPlayer, penalty: pressurePenalty });
+        return ns;
+      });
+    }
+
+    // Store this visit's mark gains for next player's Momentum Killer activation
+    setLastVisitMarkGains(prev => {
+      const next = [prev[0].slice(), prev[1].slice()] as [number[], number[]];
+      next[completedPlayer] = visitMarkGains.slice();
+      return next;
+    });
+
+    // Update prevTurnMarks for next comparison
+    setPrevTurnMarks(prev => {
+      const next = [prev[0].slice(), prev[1].slice()] as [number[], number[]];
+      next[completedPlayer] = marks[completedPlayer].slice();
+      return next;
+    });
+
+    // Reset visit state
+    setVisitMarkGains([0,0,0,0,0,0,0]);
+    setCricketVisitScore(0);
+    setCricketVisitMarks(0);
+    setCricketClosedThisVisit(false);
+    setVisitDarts([]);
+
+    // Expire turn-based effects and switch turn
+    if (isCardClash) setActiveEffects(prev => ccExpireOnTurnEnd(prev, completedPlayer));
+    setTurn(t => t===0?1:0);
+    setLastHit("");
+  }, [activeEffects, cricketClosedThisVisit, isCardClash, marks, visitMarkGains]);
 
   // Sync with cardEffects from parent (CardClashMatchScorer)
   useEffect(() => {
