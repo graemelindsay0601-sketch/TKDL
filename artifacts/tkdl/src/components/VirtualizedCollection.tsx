@@ -26,9 +26,9 @@ interface VirtualizedCollectionProps {
   containerHeight?: string | number;
 }
 
-const CARD_WIDTH = 120; // px
-const CARD_HEIGHT = 170; // px including padding
-const GAP = 12; // px between cards
+const CARD_WIDTH = 100; // px - reduced for better mobile fit
+const CARD_HEIGHT = 140; // px including padding - reduced proportionally
+const GAP = 10; // px between cards
 
 export const VirtualizedCollection = React.memo(
   function VirtualizedCollection({
@@ -39,11 +39,13 @@ export const VirtualizedCollection = React.memo(
     const [containerWidth, setContainerWidth] = React.useState(0);
     const containerRef = React.useRef<HTMLDivElement>(null);
 
-    // Calculate grid dimensions
+    // Calculate grid dimensions - responsive for mobile/desktop
     const cardsPerRow = useMemo(() => {
       if (containerWidth === 0) return 4; // Default
       const availableWidth = containerWidth - 24; // Padding
-      return Math.max(2, Math.floor(availableWidth / (CARD_WIDTH + GAP)));
+      // On mobile (< 480px), show 3-4 cards; on tablet/desktop, show 4-6
+      const calculatedCards = Math.floor(availableWidth / (CARD_WIDTH + GAP));
+      return Math.max(3, Math.min(6, calculatedCards));
     }, [containerWidth]);
 
     const totalRows = Math.ceil(cards.length / cardsPerRow);
