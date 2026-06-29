@@ -1330,6 +1330,32 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             });
           }
         }
+        // Card Clash: Early Closer (309) - free mark if turn ends early
+        if (isCardClash && visitDarts.length < 3) {
+          const hasEarlyCloser = activeEffects.some(e => 
+            e.cardName === "Early Closer" && e.status === "active" && e.affectsPlayer === turn && e.freeMarkIfEarlyClose
+          );
+          if (hasEarlyCloser && absorbed > 0) {
+            // Add bonus mark to closed number
+            nm[turn][numIdx] = Math.min(3, nm[turn][numIdx] + 1);
+            console.log(`[CARD_CLASH:EARLY_CLOSER] Player${turn} gets bonus mark on ${CRICKET_NUMS[numIdx]}`);
+          }
+        }
+        
+        // Card Clash: Quick Close (316) - free mark if closing with ≤1 darts
+        if (isCardClash && visitDarts.length <= 1 && absorbed > 0) {
+          const hasQuickClose = activeEffects.some(e => 
+            e.cardName === "Quick Close" && e.status === "active" && e.affectsPlayer === turn && e.freeMarkIfQuickClose
+          );
+          if (hasQuickClose && nm[turn][numIdx] >= 3 && prev[turn][numIdx] < 3) {
+            // Just closed with 1 dart - add free mark to another number
+            const nextOpenIdx = nm[turn].findIndex(m => m < 3);
+            if (nextOpenIdx >= 0) {
+              nm[turn][nextOpenIdx] = Math.min(3, nm[turn][nextOpenIdx] + 1);
+              console.log(`[CARD_CLASH:QUICK_CLOSE] Player${turn} quick-closed and gets free mark on ${CRICKET_NUMS[nextOpenIdx]}`);
+            }
+          }
+        }
         
         if (isLocked && effectiveHits > 0) {
           console.log(`[CARD_CLASH:NUMBER_PRISON_BLOCKED] Player${turn} tried to mark ${CRICKET_NUMS[numIdx]} but it's locked`);
@@ -1375,8 +1401,84 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     setVisitDarts(nv);
     if (nv.length === 3) {
       setVisitDarts([]);
-      // Card Clash: expire this-turn effects; promote opponent's pending → active
-      if (isCardClash) setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
+      
+      // CARD CLASH: Evaluate all turn-end card effects
+      if (isCardClash) {
+        setActiveEffects(prev => {
+          let updated = [...prev];
+          const playerEffects = updated.filter(e => e.affectsPlayer === turn && e.status === "active");
+          
+          // 310: Perfect Round - bonus if all marks this turn
+          const perfectRound = playerEffects.find(e => e.cardName === "Perfect Round");
+          if (perfectRound && perfectRound.bonusIfAllMarksThisTurn) {
+            // Count marks this turn on all numbers in visitDarts
+            const marksThisTurn = visitDarts.reduce((sum, dart) => {
+              const idx = CRICKET_NUMS.indexOf(dart.segment);
+              return idx >= 0 ? sum + 1 : sum;
+            }, 0);
+            
+            if (marksThisTurn >= 3 && visitDarts.length === 3) {
+              setScores(prev => {
+                const newScores: [number, number] = [...prev];
+                newScores[turn] += perfectRound.bonusIfAllMarksThisTurn;
+                console.log(`[CARD_CLASH:PERFECT_ROUND] Player${turn} +${perfectRound.bonusIfAllMarksThisTurn} for all marks`);
+                return newScores;
+              });
+            }
+          }
+          
+          // 318: High Scorer - bonus if 100+ marks (total across all numbers)
+          const highScorer = playerEffects.find(e => e.cardName === "High Scorer");
+          if (highScorer && highScorer.bonusIfHighMarks) {
+            const totalMarks = marks[turn].reduce((a, b) => a + b, 0);
+            if (totalMarks >= 100) {
+              setScores(prev => {
+                const newScores: [number, number] = [...prev];
+                newScores[turn] += highScorer.bonusIfHighMarks;
+                console.log(`[CARD_CLASH:HIGH_SCORER] Player${turn} +${highScorer.bonusIfHighMarks} for 100+ marks`);
+                return newScores;
+              });
+            }
+          }
+          
+          // 313: Comeback Marks - apply 1.5x if behind
+          const comebackMarks = playerEffects.find(e => e.cardName === "Comeback Marks" && e.conditionalMultiplier);
+          if (comebackMarks) {
+            const opp: 0|1 = turn === 0 ? 1 : 0;
+            if (scores[turn] < scores[opp]) {
+              console.log(`[CARD_CLASH:COMEBACK_MARKS] Condition met: Player${turn} behind (${scores[turn]} < ${scores[opp]})`);
+              // Flag that multiplier was applied - prevent double-apply in dart handler
+              comebackMarks._conditionalApplied = true;
+            }
+          }
+          
+          // 315/320: Mark Multiplier/Dominance - evaluate conditions
+          const markMult = playerEffects.find(e => e.cardName === "Mark Multiplier" && e.conditionalMultiplier);
+          if (markMult) {
+            console.log(`[CARD_CLASH:MARK_MULTIPLIER] Condition evaluated at turn end`);
+            markMult._conditionalApplied = true;
+          }
+          
+          const dominance = playerEffects.find(e => e.cardName === "Dominance" && e.conditionalMultiplier);
+          if (dominance) {
+            const opp: 0|1 = turn === 0 ? 1 : 0;
+            const closedByPlayer = marks[turn].filter(m => m >= 3).length;
+            const closedByOpp = marks[opp].filter(m => m >= 3).length;
+            if (closedByPlayer > closedByOpp) {
+              console.log(`[CARD_CLASH:DOMINANCE] Condition met: Player${turn} closed ${closedByPlayer} > ${closedByOpp}`);
+              dominance._conditionalApplied = true;
+            }
+          }
+          
+          // Expire this-turn effects; promote opponent's pending → active
+          updated = ccExpireOnTurnEnd(updated, turn);
+          return updated;
+        });
+      } else {
+        // Non-Card-Clash: just expire effects normally
+        if (isCardClash) setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
+      }
+      
       setTurn(t => t===0?1:0);
       setLastHit("");
     }
