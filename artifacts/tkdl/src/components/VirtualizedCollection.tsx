@@ -26,9 +26,9 @@ interface VirtualizedCollectionProps {
   containerHeight?: string | number;
 }
 
-const CARD_WIDTH = 85; // px - smaller cards for mobile
-const CARD_HEIGHT = 120; // px - reduced height
-const GAP = 16; // px - more breathing room between cards
+const CARD_WIDTH = 160; // px - matches TKDLCard size="sm" width
+const CARD_HEIGHT = 224; // px - matches TKDLCard size="sm" height
+const GAP = 14; // px - between cards
 
 export const VirtualizedCollection = React.memo(
   function VirtualizedCollection({
@@ -130,7 +130,7 @@ export const VirtualizedCollection = React.memo(
             const cardData = getCardData(item);
             return (
               <div key={`${item.cardId}-${item.id}`} style={{ minWidth: 0 }}>
-                <TKDLCard card={cardData} size="md" locked={false} />
+                <TKDLCard card={cardData} size="sm" locked={false} />
                 {item.quantity && item.quantity > 1 && (
                   <div
                     style={{
