@@ -11,7 +11,7 @@ import { AdvancedAdminTools } from "@/components/AdvancedAdminTools";
 import type { PlayerStats } from "@/utils/achievements";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
 import { CardClashPracticeUI } from "@/components/CardClashPracticeUI";
-import { CardClashPracticeGame } from "@/components/CardClashPracticeGame";
+import { CardClashPracticeContainer } from "@/components/CardClashPracticeContainer";
 import { AdminCardClashSettingsPanel } from "@/components/AdminCardClashSettingsPanel";
 import { RulesUI } from "@/components/RulesUI";
 import { TKDLCard } from "@/components/TKDLCard";
@@ -565,37 +565,7 @@ const PACKS = [
               )}
 
               {activeTab==="cc-practice" && playerId && (
-                <div style={{maxWidth:"900px",margin:"0 auto"}}>
-                  {(() => {
-                    const [practiceMatchId, setPracticeMatchId] = useState<number|null>(null);
-                    const [launching, setLaunching] = useState(false);
-
-                    if (launching && practiceMatchId) {
-                      return (
-                        <CardClashPracticeGame
-                          playerId={playerId}
-                          playerName={playerName}
-                          practiceMatchId={practiceMatchId}
-                          onDone={() => {
-                            setLaunching(false);
-                            setPracticeMatchId(null);
-                          }}
-                        />
-                      );
-                    }
-
-                    return (
-                      <CardClashPracticeUI
-                        playerId={playerId}
-                        playerName={playerName}
-                        onMatchCreated={(matchId) => {
-                          setPracticeMatchId(matchId);
-                          setLaunching(true);
-                        }}
-                      />
-                    );
-                  })()}
-                </div>
+                <CardClashPracticeContainer playerId={playerId} playerName={playerName}/>
               )}
 
             {activeTab==="standings" && (
