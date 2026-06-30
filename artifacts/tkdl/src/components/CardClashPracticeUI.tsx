@@ -4,7 +4,7 @@
  * No mixed UI, no confusion - just practice
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { CardEquipmentSelector } from "./CardEquipmentSelector";
 
 interface Props {
@@ -58,9 +58,10 @@ export function CardClashPracticeUI({ playerId, playerName, onMatchCreated }: Pr
         return (id >= 401 && id <= 440);
       });
 
+      // Need 4 GOOD and 4 BAD per preference
       const botGood = [];
       const botBad = [];
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < 4; i++) {
         botGood.push(goodCards[Math.floor(Math.random() * goodCards.length)]);
         botBad.push(badCards[Math.floor(Math.random() * badCards.length)]);
       }
@@ -73,12 +74,16 @@ export function CardClashPracticeUI({ playerId, playerName, onMatchCreated }: Pr
           playerId,
           difficulty: selectedDifficulty,
           gameMode: selectedGameMode,
-          playerEquippedCards: [...equipment.goodCards, ...equipment.badCards],
-          botEquippedCards: [...botGood, ...botBad],
+          playerEquippedCards: equipment.goodCards.concat(equipment.badCards),
+          botEquippedCards: botGood.concat(botBad),
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to create practice match");
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`API Error: ${res.status} - ${errText}`);
+      }
+      
       const { matchId } = await res.json();
       onMatchCreated(matchId);
     } catch (err) {
