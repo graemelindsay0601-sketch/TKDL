@@ -10,7 +10,7 @@ import { AchievementsDisplay } from "@/components/AchievementsDisplay";
 import { AdvancedAdminTools } from "@/components/AdvancedAdminTools";
 import type { PlayerStats } from "@/utils/achievements";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
-import { CardClashPractice } from "@/components/CardClashPractice";
+import { CardClashPracticeUI } from "@/components/CardClashPracticeUI";
 import { CardClashPracticeGame } from "@/components/CardClashPracticeGame";
 import { AdminCardClashSettingsPanel } from "@/components/AdminCardClashSettingsPanel";
 import { RulesUI } from "@/components/RulesUI";
@@ -19,7 +19,7 @@ import { ALL_CARDS } from "@/lib/cards-data";
 import type { CardData, Category, Rarity } from "@/lib/cards-data";
 import { CollectionIcon, ShopIcon, PlayIcon, PracticeIcon, StandingsIcon, AchievementsIcon, RulesIcon, AdminIcon, LeaderboardIcon, ChampionIcon, TrophyIcon } from "@/components/CardClashIcons";
 
-type Tab = "hub" | "collection" | "shop" | "play" | "practice" | "standings" | "achievements" | "rules" | "admin";
+type Tab = "hub" | "collection" | "shop" | "play" | "practice" | "cc-practice" | "standings" | "achievements" | "rules" | "admin";
 
 const CATEGORIES: Category[] = ["X01 GOOD","X01 BAD","CRICKET GOOD","CRICKET BAD","WILDCARD GOOD","WILDCARD BAD"];
 const RARITIES: Rarity[] = ["COMMON","RARE","LEGENDARY"];
@@ -390,7 +390,7 @@ const PACKS = [
                 <HubCard label="Collection" sublabel="Browse & manage your cards" color="#0088ff" glow="rgba(0,136,255,0.35)" delay={0} onClick={()=>goTo("collection")} badge={newCardNames.size>0?newCardNames.size:undefined} icon={<CollectionIcon/>}/>
                 <HubCard label="Shop" sublabel="Buy packs & special offers" color="#ffd24a" glow="rgba(255,210,74,0.4)" delay={0.4} onClick={()=>goTo("shop")} badge={packInventory.length>0?packInventory.length:undefined} icon={<ShopIcon/>}/>
                 <HubCard label="Play" sublabel="Jump into the action" color="#00ff88" glow="rgba(0,255,136,0.4)" delay={0.8} onClick={()=>goTo("play")} icon={<PlayIcon/>}/>
-                <HubCard label="Practice" sublabel="Sharpen your skills" color="#ff4466" glow="rgba(255,68,102,0.4)" delay={1.2} onClick={()=>goTo("practice")} icon={<PracticeIcon/>}/>
+                <HubCard label="Practice" sublabel="Test your card deck" color="#00ff88" glow="rgba(0,255,136,0.4)" delay={1.2} onClick={()=>goTo("cc-practice")} icon={<PracticeIcon/>}/>
                 <HubCard label="Standings" sublabel="See who's on top" color="#c084fc" glow="rgba(192,132,252,0.4)" delay={1.6} onClick={()=>goTo("standings")} icon={<StandingsIcon/>}/>
                 <HubCard label="Achievements" sublabel="Earn & unlock rewards" color="#ff8800" glow="rgba(255,136,0,0.4)" delay={2.0} onClick={()=>goTo("achievements")} icon={<AchievementsIcon/>}/>
                 <HubCard label="Rules" sublabel="Learn the game" color="#00ccff" glow="rgba(0,204,255,0.35)" delay={2.4} onClick={()=>goTo("rules")} icon={<RulesIcon/>}/>
@@ -562,6 +562,40 @@ const PACKS = [
             {/* ── PRACTICE ── */}
               {activeTab==="practice" && (
                 <PracticeTab playerId={playerId} playerName={playerName} standings={standings}/>
+              )}
+
+              {activeTab==="cc-practice" && playerId && (
+                <div style={{maxWidth:"900px",margin:"0 auto"}}>
+                  {(() => {
+                    const [practiceMatchId, setPracticeMatchId] = useState<number|null>(null);
+                    const [launching, setLaunching] = useState(false);
+
+                    if (launching && practiceMatchId) {
+                      return (
+                        <CardClashPracticeGame
+                          playerId={playerId}
+                          playerName={playerName}
+                          practiceMatchId={practiceMatchId}
+                          onDone={() => {
+                            setLaunching(false);
+                            setPracticeMatchId(null);
+                          }}
+                        />
+                      );
+                    }
+
+                    return (
+                      <CardClashPracticeUI
+                        playerId={playerId}
+                        playerName={playerName}
+                        onMatchCreated={(matchId) => {
+                          setPracticeMatchId(matchId);
+                          setLaunching(true);
+                        }}
+                      />
+                    );
+                  })()}
+                </div>
               )}
 
             {activeTab==="standings" && (
