@@ -25,6 +25,9 @@ interface CardClashMatchScorerProps {
   onMatchComplete: (result: GameResult, cardsUsed: string[]) => void;
   onAbandon?: () => void;
   isBot: boolean;
+  legs?: number;
+  setsToWin?: number;
+  legsToWinSet?: number;
 }
 
 export function CardClashMatchScorer({
@@ -38,6 +41,9 @@ export function CardClashMatchScorer({
   onMatchComplete,
   onAbandon,
   isBot,
+  legs,
+  setsToWin = 0,
+  legsToWinSet = 3,
 }: CardClashMatchScorerProps) {
   
   // Set sessionStorage BEFORE rendering scorers (not in useEffect)
@@ -80,6 +86,9 @@ export function CardClashMatchScorer({
         onWin={handleMatchComplete}
         onAbandon={handleAbandon}
         cardEffects={cardEffects}
+        legs={legs}
+        setsToWin={setsToWin}
+        legsToWinSet={legsToWinSet}
       />
     );
   } else {
@@ -91,6 +100,9 @@ export function CardClashMatchScorer({
         onWin={handleMatchComplete}
         onAbandon={handleAbandon}
         cardEffects={cardEffects}
+        legs={legs}
+        setsToWin={setsToWin}
+        legsToWinSet={legsToWinSet}
       />
     );
   }
