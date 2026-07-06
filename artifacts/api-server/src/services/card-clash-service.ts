@@ -201,6 +201,14 @@ export async function finishCardClashMatch(
 
   if (!match[0]) throw new Error("Match not found");
 
+  if (match[0].winnerId != null) {
+    logger.warn(
+      { matchId, existingWinnerId: match[0].winnerId, attemptedWinnerId: winnerId },
+      "finishCardClashMatch: match already finished, ignoring duplicate finish request"
+    );
+    return match[0];
+  }
+
   const loser = match[0].player1Id === winnerId ? match[0].player2Id : match[0].player1Id;
   
   // Parse cards - handle both string format ("cardId:pPlayerId") and object format

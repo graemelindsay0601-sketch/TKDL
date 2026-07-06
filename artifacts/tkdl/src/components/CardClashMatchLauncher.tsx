@@ -103,28 +103,42 @@ export function CardClashMatchLauncher({
     }
   };
 
-  const handleMatchComplete = async (result: GameResult, cardsUsed: string[]) => {
+  const finishMatch = async (winnerId: number, cardsUsed: string[]): Promise<boolean> => {
     try {
-      if (!matchId) {
-        console.error("Cannot finish match: matchId not set");
-        return;
-      }
-      
-      const winnerId = result.winnerIdx === 0 ? currentPlayerId : selectedOpponent!.id;
       const res = await fetch("/api/card-clash/match/finish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ matchId, winnerId, cardsUsedInMatch: cardsUsed }),
       });
-      
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.error("Failed to finish match:", err);
-        // Still navigate away but log the error
-      }
+      if (res.ok) return true;
+      const err = await res.json().catch(() => ({}));
+      console.error("Failed to finish match:", err);
+      return false;
     } catch (e) {
       console.error("Network error sending match result:", e);
-      // Still navigate away - don't block the user
+      return false;
+    }
+  };
+
+  const handleMatchComplete = async (result: GameResult, cardsUsed: string[]) => {
+    if (!matchId) {
+      console.error("Cannot finish match: matchId not set");
+      onMatchComplete();
+      return;
+    }
+
+    const winnerId = result.winnerIdx === 0 ? currentPlayerId : selectedOpponent!.id;
+
+    // The result payload (coins/points) matters for the player, so retry once on
+    // transient failure before giving up. The backend's finish endpoint is
+    // idempotent (guarded by winnerId already set), so a duplicate retry is safe.
+    let ok = await finishMatch(winnerId, cardsUsed);
+    if (!ok) {
+      await new Promise(r => setTimeout(r, 1000));
+      ok = await finishMatch(winnerId, cardsUsed);
+    }
+    if (!ok) {
+      setMatchError("Couldn't save your match result — check your connection. Your win/loss will still be reflected once reconciled.");
     }
     onMatchComplete();
   };

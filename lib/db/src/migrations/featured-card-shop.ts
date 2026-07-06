@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm";
-import type { Database } from "./index";
+import type { db as dbInstance } from "../index";
+
+type Database = typeof dbInstance;
 
 /**
  * Migration: Create featured card shop tables

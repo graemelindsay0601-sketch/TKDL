@@ -364,7 +364,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         const legWinner = newLegState[0] > legWins[0] ? 0 : newLegState[1] > legWins[1] ? 1 : null;
         if (legWinner !== null) {
           setLegHistory(prev => [...prev, legWinner]);
-          console.log(`[CARD_CLASH:LEG_HISTORY] Leg ${prev.length + 1} won by Player${legWinner}`);
+          console.log(`[CARD_CLASH:LEG_HISTORY] Leg ${legHistory.length + 1} won by Player${legWinner}`);
           
           // Check for shutout (opponent scored 0 - Perfect Game bonus)
           const opp: 0|1 = legWinner === 0 ? 1 : 0;
@@ -725,6 +725,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       return; 
     }
     cardDebugLog("X01Scorer", "Card activated", { card: card.name, cardId });
+
+    if (isCardClash) {
+      try {
+        const raw = sessionStorage.getItem("card_clash_cards_used") || "[]";
+        const used: Array<{ cardId: string; turn: 0 | 1 }> = JSON.parse(raw);
+        used.push({ cardId: String(card.id ?? cardId), turn });
+        sessionStorage.setItem("card_clash_cards_used", JSON.stringify(used));
+      } catch { /* non-fatal: worst case card isn't counted for coin/points reward */ }
+    }
 
     const effects = ccActivateCard(card, turn, { scores, legWins }, undefined, { legHistory, legsNeeded });
 
@@ -1339,6 +1348,15 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     }
     cardDebugLog("CricketScorer", "Card activated", { card: card.name });
 
+    if (sessionStorage.getItem("card_clash_mode") === "true") {
+      try {
+        const raw = sessionStorage.getItem("card_clash_cards_used") || "[]";
+        const used: Array<{ cardId: string; turn: 0 | 1 }> = JSON.parse(raw);
+        used.push({ cardId: String(card.id ?? cardId), turn });
+        sessionStorage.setItem("card_clash_cards_used", JSON.stringify(used));
+      } catch { /* non-fatal: worst case card isn't counted for coin/points reward */ }
+    }
+
     // THEME 4: Calculate called number (first unclosed number for this player)
     let calledNumber: number | undefined;
     for (let i = 0; i < numCount; i++) {
@@ -1351,7 +1369,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     // NOTE: CricketScorer has no leg/match concept (single-leg game), so leg-conditioned
     // Wildcard cards (Lucky Streak, Momentum Surge, etc.) correctly never trigger here —
     // legHistory/legsNeeded are intentionally empty/zero, not a bug.
-    const effects = ccActivateCard(card, turn, { marks, scores }, undefined, { legHistory: [], legsNeeded: 0, calledNumber });
+    const effects = ccActivateCard(card, turn, { marks, scores, turn }, undefined, { legHistory: [], legsNeeded: 0, calledNumber });
     
     // Card Clash: Number Prison — randomly lock one of opponent's closed numbers
     if (card.name === "Number Prison") {
@@ -1404,9 +1422,10 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       if (e.instant) {
         // THEME 4: Handle instant Cricket mark mutations
         if (e.instantCricketMarks) {
+          const instantCricketMarks = e.instantCricketMarks;
           setMarks(prev => {
             const newMarks = prev.map(row => [...row]) as typeof marks;
-            for (const markMutation of e.instantCricketMarks) {
+            for (const markMutation of instantCricketMarks) {
               const currentMarks = newMarks[markMutation.playerIdx][markMutation.numberIdx];
               if (markMutation.markDelta === -999) {
                 // Reset to 0 (Number Resurrection)
@@ -1627,10 +1646,11 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           }
           // Decrement dart counter for sniper lock
           if (sniperEffect.dartsRemainingForSniper !== undefined) {
+            const dartsRemainingForSniper = sniperEffect.dartsRemainingForSniper;
             setActiveEffects(prev => prev.map(e => 
-              e === sniperEffect ? { ...e, dartsRemainingForSniper: e.dartsRemainingForSniper - 1 } : e
+              e === sniperEffect ? { ...e, dartsRemainingForSniper: dartsRemainingForSniper - 1 } : e
             ));
-            if (sniperEffect.dartsRemainingForSniper <= 1) {
+            if (dartsRemainingForSniper <= 1) {
               console.log(`[CARD_CLASH:SNIPER_LOCK_EXPIRED] 3-dart limit reached`);
             }
           }
@@ -1793,13 +1813,14 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           e.bullMarksSegments && e.bullMarksSegments.length > 0
         );
         if (bullEffect) {
+          const bullMarksSegments = bullEffect.bullMarksSegments!;
           setMarks(prev => {
             const nm: typeof marks = [[ ...prev[0] ] as any, [ ...prev[1] ] as any];
-            for (const segment of bullEffect.bullMarksSegments) {
+            for (const segment of bullMarksSegments) {
               const segIdx = CRICKET_NUMS.indexOf(segment);
               if (segIdx >= 0) nm[turn][segIdx] = Math.min(3, nm[turn][segIdx] + 1);
             }
-            console.log(`[CARD_CLASH:${bullEffect.cardName.toUpperCase()}] Player${turn} hit Bull → marked ${bullEffect.bullMarksSegments.join(",")}`);
+            console.log(`[CARD_CLASH:${bullEffect.cardName.toUpperCase()}] Player${turn} hit Bull → marked ${bullMarksSegments.join(",")}`);
             return nm;
           });
         }
@@ -1821,6 +1842,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           // 310: Perfect Round - bonus if all marks this turn
           const perfectRound = playerEffects.find(e => e.cardName === "Perfect Round");
           if (perfectRound && perfectRound.bonusIfAllMarksThisTurn) {
+            const perfectRoundBonus = perfectRound.bonusIfAllMarksThisTurn;
             // Count marks this turn on all numbers in visitDarts
             const marksThisTurn = visitDarts.reduce((sum, dart) => {
               const idx = CRICKET_NUMS.indexOf(dart.segment);
@@ -1830,8 +1852,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             if (marksThisTurn >= 3 && visitDarts.length === 3) {
               setScores(prev => {
                 const newScores: [number, number] = [...prev];
-                newScores[turn] += perfectRound.bonusIfAllMarksThisTurn;
-                console.log(`[CARD_CLASH:PERFECT_ROUND] Player${turn} +${perfectRound.bonusIfAllMarksThisTurn} for all marks`);
+                newScores[turn] += perfectRoundBonus;
+                console.log(`[CARD_CLASH:PERFECT_ROUND] Player${turn} +${perfectRoundBonus} for all marks`);
                 return newScores;
               });
             }
@@ -1840,11 +1862,12 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           // 318: High Scorer - bonus if score >= 100
           const highScorer = playerEffects.find(e => e.cardName === "High Scorer");
           if (highScorer && highScorer.highScorerBonus) {
+            const highScorerBonus = highScorer.highScorerBonus;
             if (scores[turn] >= (highScorer.highScorerThreshold || 100)) {
               setScores(prev => {
                 const newScores: [number, number] = [...prev];
-                newScores[turn] += highScorer.highScorerBonus;
-                cardDebugLog("CricketScorer", "[CARD_CLASH:HIGH_SCORER]", { player: turn, currentScore: scores[turn], bonus: highScorer.highScorerBonus });
+                newScores[turn] += highScorerBonus;
+                cardDebugLog("CricketScorer", "[CARD_CLASH:HIGH_SCORER]", { player: turn, currentScore: scores[turn], bonus: highScorerBonus });
                 return newScores;
               });
             }
@@ -1877,12 +1900,13 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           // 315: Mark Multiplier - bonus if 3+ marks gained this visit
           const markMult = playerEffects.find(e => e.cardName === "Mark Multiplier");
           if (markMult && markMult.markThresholdBonus) {
+            const markThresholdBonus = markMult.markThresholdBonus;
             const totalMarksThisVisit = visitMarkGains.reduce((sum, val) => sum + val, 0);
             if (totalMarksThisVisit >= (markMult.markThresholdBonusAt || 3)) {
               setScores(prev => {
                 const newScores: [number, number] = [...prev];
-                newScores[turn] += markMult.markThresholdBonus;
-                cardDebugLog("CricketScorer", "[CARD_CLASH:MARK_MULTIPLIER]", { player: turn, marksGained: totalMarksThisVisit, bonus: markMult.markThresholdBonus });
+                newScores[turn] += markThresholdBonus;
+                cardDebugLog("CricketScorer", "[CARD_CLASH:MARK_MULTIPLIER]", { player: turn, marksGained: totalMarksThisVisit, bonus: markThresholdBonus });
                 return newScores;
               });
             }
@@ -1916,6 +1940,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           // 408: Pressure - penalty if number not closed
           const pressure = playerEffects.find(e => e.cardName === "Pressure");
           if (pressure && pressure.penaltyIfNotClosed) {
+            const penaltyIfNotClosed = pressure.penaltyIfNotClosed;
             // Check if any marked number wasn't closed this turn
             let hasUnclosedNumber = false;
             for (let i = 0; i < numCount; i++) {
@@ -1927,8 +1952,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             if (hasUnclosedNumber) {
               setScores(prev => {
                 const newScores: [number, number] = [...prev];
-                newScores[turn] = Math.max(0, newScores[turn] - pressure.penaltyIfNotClosed);
-                console.log(`[CARD_CLASH:PRESSURE] Player${turn} -${pressure.penaltyIfNotClosed} for unclosed numbers`);
+                newScores[turn] = Math.max(0, newScores[turn] - penaltyIfNotClosed);
+                console.log(`[CARD_CLASH:PRESSURE] Player${turn} -${penaltyIfNotClosed} for unclosed numbers`);
                 return newScores;
               });
             }
@@ -4202,172 +4227,19 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
             </div>
           )}
         </SectionCard>
-        {/* Card Modal - shows as overlay on top when showCards is true */}
-        {showCards && isCardClash && (
-          <div style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.8)",
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "40px 16px 16px 16px",
-            overflowY: "auto"
-          }}
-          onClick={() => setShowCards(false)}
-          >
-            <div style={{
-              background: "linear-gradient(135deg, #0a0015 0%, #1a0033 100%)",
-              border: "1.5px solid rgba(0,180,255,0.3)",
-              borderRadius: "12px",
-              padding: "16px",
-              width: "100%",
-              maxWidth: "480px",
-              maxHeight: "50vh"
-            }}
-            onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "12px"
-              }}>
-                <div style={{
-                  fontSize: "14px",
-                  fontWeight: 900,
-                  color: "#00d4ff",
-                  letterSpacing: "0.05em",
-                  fontFamily: "'Arial Black',sans-serif"
-                }}>⚡ YOUR CARDS</div>
-                <button
-                  onClick={() => setShowCards(false)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "#00d4ff",
-                    fontSize: "24px",
-                    cursor: "pointer",
-                    padding: 0
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* GOOD Cards */}
-              <div style={{ marginBottom: "12px" }}>
-                <div style={{
-                  fontSize: "10px",
-                  fontWeight: 900,
-                  color: "#00cc66",
-                  letterSpacing: "0.1em",
-                  marginBottom: "8px",
-                  textTransform: "uppercase"
-                }}>GOOD CARDS</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "8px" }}>
-                  {(turn === 0 ? p1Cards : p2Cards)
-                    .filter((c: any) => c.category?.includes("GOOD"))
-                    .map((card: any) => {
-                      const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
-                      return (
-                        <div key={card.id} onClick={() => {
-                          if (!isPermanentlyUsed) setSelectedCard(card);
-                        }} style={{
-                          cursor: isPermanentlyUsed ? "not-allowed" : "pointer",
-                          opacity: isPermanentlyUsed ? 0.4 : 1,
-                          transform: !isPermanentlyUsed ? "scale(1)" : "scale(0.9)",
-                          transition: "all 0.2s",
-                          position: "relative"
-                        }}>
-                          <TKDLCard card={card} size="md" locked={isPermanentlyUsed} />
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-
-              {/* BAD Cards */}
-              <div>
-                <div style={{
-                  fontSize: "10px",
-                  fontWeight: 900,
-                  color: "#ff6b6b",
-                  letterSpacing: "0.1em",
-                  marginBottom: "8px",
-                  textTransform: "uppercase"
-                }}>BAD CARDS</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "8px" }}>
-                  {(turn === 0 ? p1Cards : p2Cards)
-                    .filter((c: any) => c.category?.includes("BAD"))
-                    .map((card: any) => {
-                      const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
-                      return (
-                        <div key={card.id} onClick={() => {
-                          if (!isPermanentlyUsed) setSelectedCard(card);
-                        }} style={{
-                          cursor: isPermanentlyUsed ? "not-allowed" : "pointer",
-                          opacity: isPermanentlyUsed ? 0.4 : 1,
-                          transform: !isPermanentlyUsed ? "scale(1)" : "scale(0.9)",
-                          transition: "all 0.2s",
-                          position: "relative"
-                        }}>
-                          <TKDLCard card={card} size="md" locked={isPermanentlyUsed} />
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
         {/* Recent Visits */}
-        {(history.length > 0 || isCardClash) && (
+        {history.length > 0 && (
           <SectionCard>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <div className="text-xs uppercase tracking-widest font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
-                {showCards ? "⚡ Your Cards" : "Recent Visits"}
-              </div>
-              {isCardClash && (
-                <button
-                  onClick={() => setShowCards(!showCards)}
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    color: showCards ? "#00d4ff" : "rgba(255,255,255,0.4)",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "2px 6px",
-                    transition: "color 0.2s",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.color = "#00d4ff";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.color = showCards ? "#00d4ff" : "rgba(255,255,255,0.4)";
-                  }}
-                >
-                  {showCards ? "Hide" : "Cards"}
-                </button>
-              )}
+            <div className="text-xs uppercase tracking-widest font-bold mb-3" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
+              Recent Visits
             </div>
-            
-            {!showCards && (
-              [...(showCards ? [] : history)].reverse().slice(0, 5).map((h, i) => (
-                <div key={i} className="flex justify-between text-xs py-0.5">
-                  <span style={{ color: TEAM_COLORS[h.team], fontFamily: "Oswald, sans-serif" }}>{teamNames[h.team][h.player]}</span>
-                  <span style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>+{h.score}</span>
-                  <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "mono" }}>{h.left} left</span>
-                </div>
-              ))
-            )}
+            {[...history].reverse().slice(0, 5).map((h, i) => (
+              <div key={i} className="flex justify-between text-xs py-0.5">
+                <span style={{ color: TEAM_COLORS[h.team], fontFamily: "Oswald, sans-serif" }}>{teamNames[h.team][h.player]}</span>
+                <span style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>+{h.score}</span>
+                <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "mono" }}>{h.left} left</span>
+              </div>
+            ))}
           </SectionCard>
         )}
       </div>}

@@ -102,26 +102,25 @@ export const CardClashShop = React.memo(
         </div>
 
         {/* Tab content */}
-        {shopTab === 'packs' && (
+        {shopTab === 'packs' && playerId !== undefined && (
           <CardShopUI
             playerId={playerId}
-            playerName={playerName}
             onCardsReceived={handlePackOpened}
           />
         )}
 
-        {shopTab === 'featured' && (
+        {shopTab === 'featured' && playerId !== undefined && (
           <FeaturedCardShop
             playerId={playerId}
-            onPurchase={handlePackOpened}
+            playerCoins={coins}
+            onPurchaseSuccess={handlePackOpened}
           />
         )}
 
-        {shopTab === 'free' && (
+        {shopTab === 'free' && playerId !== undefined && (
           <FreePackDisplay
             playerId={playerId}
-            playerName={playerName}
-            onFreePackOpened={handlePackOpened}
+            onClaimPack={handlePackOpened}
           />
         )}
 

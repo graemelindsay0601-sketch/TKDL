@@ -217,7 +217,7 @@ export function useInventoryFavorites(playerId: number, cards: CardWithFavorite[
         const response = await fetch(`/api/player/${playerId}/cards/favorites`);
         if (response.ok) {
           const data = await response.json();
-          const favIds = new Set(data.favorites.map((card: any) => card.id));
+          const favIds = new Set<number>(data.favorites.map((card: any) => card.id));
           setFavorites(favIds);
         }
       } catch (error) {

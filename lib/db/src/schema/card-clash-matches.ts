@@ -2,6 +2,7 @@ import { pgTable, serial, integer, text, json, timestamp, uuid } from "drizzle-o
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { playersTable } from "./players";
+import { cardClashSeasonsTable } from "./card-clash-seasons";
 
 /**
  * Card Clash Matches - Standalone game mode (no seasons)

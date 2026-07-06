@@ -605,7 +605,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function Play() {
   const { data: appSettings }       = useSettings();
-  const { user: currentUser }       = useCurrentPlayer();
+  const currentUser                 = useCurrentPlayer();
   const cardClashEnabled            = appSettings?.card_clash_enabled ?? false;
 
   const [phase, setPhase]           = useState<"setup" | "equipment" | "playing" | "gameover">("setup");
@@ -640,14 +640,14 @@ export default function Play() {
 
   // ── Equipment Selection Phase ──
   if (phase === "equipment" && setupData && currentUser) {
-    const isPlayer1 = String(currentUser.id) === String(setupData.team1[0]?.id);
-    const isPlayer2 = String(currentUser.id) === String(setupData.team2[0]?.id);
+    const isPlayer1 = String(currentUser.playerId) === String(setupData.team1[0]?.id);
+    const isPlayer2 = String(currentUser.playerId) === String(setupData.team2[0]?.id);
     
     // Player 1 equipment selection
     if (equipmentPhase === "player1") {
       return (
         <CardEquipmentSelector
-          playerId={setupData.team1[0]?.id || currentUser.id}
+          playerId={setupData.team1[0]?.id || currentUser.playerId}
           currentPlayerName={setupData.team1[0]?.name}
           gameMode={setupData.gameType.key === "x01" ? "X01" : "CRICKET"}
           onSelect={(equipment) => {
@@ -663,7 +663,7 @@ export default function Play() {
     if (equipmentPhase === "player2") {
       return (
         <CardEquipmentSelector
-          playerId={setupData.team2[0]?.id || currentUser.id}
+          playerId={setupData.team2[0]?.id || currentUser.playerId}
           currentPlayerName={setupData.team2[0]?.name}
           gameMode={setupData.gameType.key === "x01" ? "X01" : "CRICKET"}
           onSelect={(equipment) => {

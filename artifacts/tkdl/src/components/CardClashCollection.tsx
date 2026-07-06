@@ -285,14 +285,14 @@ export const CardClashCollection = React.memo(
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    toggleFavorite(card.id, card.name);
+                    toggleFavorite(String(card.id), card.name);
                   }}
                   style={{
                     position: 'absolute',
                     top: '4px',
                     left: '4px',
-                    background: isFavorited(card.id) ? 'rgba(255,215,0,0.9)' : 'rgba(0,0,0,0.5)',
-                    border: isFavorited(card.id) ? '2px solid #ffd700' : 'none',
+                    background: isFavorited(String(card.id)) ? 'rgba(255,215,0,0.9)' : 'rgba(0,0,0,0.5)',
+                    border: isFavorited(String(card.id)) ? '2px solid #ffd700' : 'none',
                     borderRadius: '50%',
                     width: '28px',
                     height: '28px',
@@ -303,19 +303,19 @@ export const CardClashCollection = React.memo(
                     cursor: 'pointer',
                     zIndex: 10,
                     transition: 'all 0.2s',
-                    boxShadow: isFavorited(card.id) ? '0 0 12px rgba(255,215,0,0.6)' : 'none',
+                    boxShadow: isFavorited(String(card.id)) ? '0 0 12px rgba(255,215,0,0.6)' : 'none',
                   }}
-                  title={isFavorited(card.id) ? 'Remove favorite' : 'Add to favorites'}
+                  title={isFavorited(String(card.id)) ? 'Remove favorite' : 'Add to favorites'}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = isFavorited(card.id) ? 'rgba(255,215,0,1)' : 'rgba(100,100,100,0.8)';
+                    e.currentTarget.style.background = isFavorited(String(card.id)) ? 'rgba(255,215,0,1)' : 'rgba(100,100,100,0.8)';
                     e.currentTarget.style.transform = 'scale(1.1)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = isFavorited(card.id) ? 'rgba(255,215,0,0.9)' : 'rgba(0,0,0,0.5)';
+                    e.currentTarget.style.background = isFavorited(String(card.id)) ? 'rgba(255,215,0,0.9)' : 'rgba(0,0,0,0.5)';
                     e.currentTarget.style.transform = 'scale(1)';
                   }}
                 >
-                  {isFavorited(card.id) ? '★' : '☆'}
+                  {isFavorited(String(card.id)) ? '★' : '☆'}
                 </button>
               </div>
             );

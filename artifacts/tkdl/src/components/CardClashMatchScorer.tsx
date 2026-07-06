@@ -52,6 +52,8 @@ export function CardClashMatchScorer({
     sessionStorage.setItem("card_clash_mode", "true");
     sessionStorage.setItem("card_clash_p1_cards", JSON.stringify(player1EquippedCards));
     sessionStorage.setItem("card_clash_p2_cards", JSON.stringify(player2EquippedCards));
+    // Reset the cards-used log for this match; scorers append to it as cards are activated.
+    sessionStorage.setItem("card_clash_cards_used", "[]");
   }
 
   // Cleanup on unmount
@@ -60,6 +62,7 @@ export function CardClashMatchScorer({
       sessionStorage.removeItem("card_clash_mode");
       sessionStorage.removeItem("card_clash_p1_cards");
       sessionStorage.removeItem("card_clash_p2_cards");
+      sessionStorage.removeItem("card_clash_cards_used");
     };
   }, []);
 
@@ -67,8 +70,16 @@ export function CardClashMatchScorer({
   // Cards should only activate when player clicks "Confirm"
   const cardEffects: any[] = [];
 
-  const handleMatchComplete = (result: GameResult) => {
-    onMatchComplete(result, []);
+  const handleMatchComplete = (w: 0 | 1, detail?: string) => {
+    let cardsUsed: string[] = [];
+    try {
+      const raw = sessionStorage.getItem("card_clash_cards_used") || "[]";
+      const used: Array<{ cardId: string; turn: 0 | 1 }> = JSON.parse(raw);
+      cardsUsed = used.map(u => `${u.cardId}:p${u.turn === 0 ? player1Id : player2Id}`);
+    } catch {
+      cardsUsed = [];
+    }
+    onMatchComplete({ winnerIdx: w, detail }, cardsUsed);
   };
 
   const handleAbandon = () => {

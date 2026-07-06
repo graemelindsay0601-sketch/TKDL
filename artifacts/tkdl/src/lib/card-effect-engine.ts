@@ -59,7 +59,7 @@ export interface CCEffect {
   cardName: string;
   appliedBy: 0 | 1;        // who played the card
   affectsPlayer: 0 | 1;    // who is affected
-  status: "active" | "pending" | "deferred_next_turn" | "deferred_next_leg"; // pending → activates at start of opponent's turn
+  status: "active" | "pending" | "deferred_next_turn" | "deferred_next_leg" | "expired"; // pending → activates at start of opponent's turn
 
   // ── Deferred application ─────────────────────────────────────────────────────
   // When a bonus needs to apply on a future turn/leg, we defer it with flags.
@@ -86,10 +86,9 @@ export interface CCEffect {
   doublesAsSingles?: boolean;    // doubles → singles value
   treblesAsSingles?: boolean;    // trebles → singles value
   fatigueMults?: [number, number, number]; // per dart multipliers
-  wildDartIndex?: number;        // this dart index (0/1/2) → 0
+  wildDartIndex?: number;        // this dart index (0/1/2) → 0 (Wild Throw: picked once at activation)
   wildDartIndices?: number[];    // multiple dart indices → 0 (e.g., Wipeout: [1, 2])
   randomWildDart?: boolean;      // pick random dart at throw time (Wild Throw)
-  wildDartIndex?: number;        // which dart becomes miss (0, 1, or 2 - picked once at activation)
   minSegment?: number;           // if seg < this, redirect to this (Precision Strike=6)
   clutchPenaltyPerDart?: number; // subtract N from dart value if player remaining <= 100
   bonusPerDart?: number;         // add N to each dart value (Perfect Rhythm=10)
@@ -168,7 +167,6 @@ export interface CCEffect {
   markDrainIfAhead?: boolean;    // Mark Drain (417): remove 1 mark if opponent ahead
   penaltyIfNotClosed?: number;  // Pressure (408): penalty if number not closed this turn
   streakBreakerHalves?: boolean; // Streak Breaker (418): halve marks on 2+ streak
-  deferPenaltyToNextLeg?: boolean;  // Dark Cloud (601): apply penalty on opponent's next leg
   cricketMarksHalved?: boolean;     // Hex (604), Match Pressure: Cricket marks at 50%
   maxMarksPerTurn?: number;         // Shutdown (610): Cricket 2-number cap
   requiresExactFinish?: boolean;    // Exact Finish (107): only if on double-out
@@ -186,7 +184,7 @@ export interface CCEffect {
   quickCloseFreeMark?: boolean;       // Quick Close: closing by dart two grants one free mark
   
   // MEDIUM PRIORITY CARDS:
-  legDuration?: boolean;            // Effect lasts whole leg not just turn (High Pressure, Scoring Surge, Score Halve, etc)
+  extraScoreMultiplier?: number;    // Cricket score-effect multiplier (see ccApplyCricketScoreEffects call sites)
   lowestDartMinimum?: number;       // Safety Boost (112): lowest dart minimum value
   bustingDartReduction?: number;    // Close Control (115): busting dart scores N instead
   escalatingBonus?: number[];       // Momentum Arsenal/Scoring Momentum: [10,20,30] or [5,10,15]
@@ -822,7 +820,7 @@ export function ccPreprocessCricketDart(
   for (const e of active) {
     if (e.segmentRedirect && segment > 0 && segment !== 25) {
       segment = adjacentOf(segment);
-      multiplier = Math.max(1, multiplier);
+      multiplier = (multiplier < 1 ? 1 : multiplier) as 1 | 2 | 3;
       value = segment * multiplier;
       label = `${multiplier === 3 ? "T" : multiplier === 2 ? "D" : ""}${segment}`;
     }
@@ -878,6 +876,10 @@ export function ccApplyCricketMarkEffects(
     if (e.marksMultiplier !== undefined) {
       h = Math.max(0, Math.floor(h * e.marksMultiplier));
     }
+    // Hex (604) / Match Pressure — Cricket marks halved
+    if (e.cricketMarksHalved) {
+      h = Math.max(0, Math.floor(h * 0.5));
+    }
     // Block closing (Closing Blocker)
     // — handled in scorer via blockClosing flag, not here
   }
@@ -894,6 +896,10 @@ export function ccApplyCricketScoreEffects(
   for (const e of active) {
     if (e.extraScoreMultiplier !== undefined) extra = Math.floor(extra * e.extraScoreMultiplier);
     if (e.scoreHalveExtraMultiplier !== undefined) extra = Math.floor(extra * e.scoreHalveExtraMultiplier);
+    // Dark Cloud (601) / Total Annihilation (606) — X01 uses visitPenalty via ccApplyVisitEnd;
+    // Cricket has no equivalent visit-end hook, so apply the same score penalty here so these
+    // Wildcard BAD cards aren't a no-op in Cricket matches.
+    if (e.visitPenalty !== undefined) extra -= e.visitPenalty;
   }
   return extra;
 }

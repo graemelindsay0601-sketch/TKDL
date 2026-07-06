@@ -6,9 +6,9 @@ interface EquipmentPreference {
   badCardsPerMatch: number;
 }
 
-export function useEquipmentPreference(playerId: number) {
+export function useEquipmentPreference(playerId: number | undefined) {
   const [preference, setPreference] = useState<EquipmentPreference>({
-    playerId,
+    playerId: playerId ?? 0,
     goodCardsPerMatch: 2,
     badCardsPerMatch: 2,
   });
@@ -21,6 +21,10 @@ export function useEquipmentPreference(playerId: number) {
   }, [playerId]);
 
   const loadPreference = useCallback(async () => {
+    if (playerId === undefined) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const response = await fetch(`/api/card-clash/player/${playerId}/equipment-preference`);
@@ -33,7 +37,7 @@ export function useEquipmentPreference(playerId: number) {
       setError('Failed to load preferences');
       // Use defaults on error
       setPreference({
-        playerId,
+        playerId: playerId ?? 0,
         goodCardsPerMatch: 2,
         badCardsPerMatch: 2,
       });
@@ -44,6 +48,7 @@ export function useEquipmentPreference(playerId: number) {
 
   const savePreference = useCallback(
     async (goodCards: number, badCards: number) => {
+      if (playerId === undefined) return false;
       try {
         setError(null);
         const response = await fetch(`/api/card-clash/player/${playerId}/equipment-preference`, {
@@ -61,7 +66,7 @@ export function useEquipmentPreference(playerId: number) {
 
         const data = await response.json();
         setPreference({
-          playerId,
+          playerId: playerId ?? 0,
           goodCardsPerMatch: data.goodCardsPerMatch,
           badCardsPerMatch: data.badCardsPerMatch,
         });

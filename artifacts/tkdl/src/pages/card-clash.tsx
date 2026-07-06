@@ -25,7 +25,14 @@ const RARITIES: Rarity[] = ["COMMON","RARE","LEGENDARY"];
 const CAT_COLOR: Record<Category,string> = {"X01 GOOD":"#00b4ff","X01 BAD":"#ff3b3b","CRICKET GOOD":"#00cc66","CRICKET BAD":"#9933ff","WILDCARD GOOD":"#ffaa00","WILDCARD BAD":"#cc1111"};
 const RAR_COLOR: Record<Rarity,string> = { COMMON:"#9ab0c4", RARE:"#c084fc", LEGENDARY:"#ffd24a" };
 
-interface Stats { coins:number; cardsOwned:number; matchesPlayed:number; wins:number; losses:number; }
+interface Stats {
+  coins:number; cardsOwned:number; matchesPlayed:number; wins:number; losses:number;
+  // NOTE: not yet returned by GET /api/card-clash/player/:id/stats — always 0 today.
+  // Wiring these up requires new backend tracking (lifetime coins, win-streak calc,
+  // perfect-match detection, practice-match count). Declared here so the UI compiles
+  // and shows honest zeros instead of `undefined` until that backend work lands.
+  streak?:number; totalCoinsEarned?:number; perfectMatches?:number; practiceMatches?:number; winStreak?:number;
+}
 interface Standing { player_id:number; player_name:string; wins:number; losses:number; total_matches:number; win_percentage?:number; cards_unlocked_count?:number; coins?:number; cards_owned?:number; updated_at?:string; }
 
 // ── TCG-style Pack Art ────────────────────────────────────────────────────────
@@ -486,8 +493,8 @@ const PACKS = [
                 ) : filteredCards.length > 0 ? (
                   <VirtualizedCollection 
                     cards={filteredCards.map(card => ({
-                      id: card.id,
-                      cardId: card.id,
+                      id: String(card.id),
+                      cardId: String(card.id),
                       name: card.name,
                       rarity: card.rarity,
                       quantity: 1
