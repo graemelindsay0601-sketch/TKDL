@@ -41,6 +41,7 @@ interface CardClashCollectionProps {
     cardsOwned?: number;
     [key: string]: any;
   };
+  playerId?: number;
 }
 
 export const CardClashCollection = React.memo(
@@ -48,13 +49,14 @@ export const CardClashCollection = React.memo(
     ownedNames,
     newCardNames,
     stats,
+    playerId,
   }: CardClashCollectionProps) {
     const [search, setSearch] = useState('');
     const [catFilter, setCatFilter] = useState<string>('ALL');
     const [rarFilter, setRarFilter] = useState<string>('ALL');
     const [showOwned, setShowOwned] = useState<'all' | 'owned' | 'unowned'>('all');
     const [enlargedCard, setEnlargedCard] = useState<CardData | null>(null);
-    const { isFavorited, toggleFavorite } = useFavorites({ gameMode: 'X01' });
+    const { isFavorited, toggleFavorite } = useFavorites({ gameMode: 'X01', playerId });
 
     const totalOwned = ownedNames.size;
     const completionPct = Math.round((totalOwned / ALL_CARDS.length) * 100);
