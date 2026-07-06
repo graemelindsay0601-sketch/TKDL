@@ -757,6 +757,13 @@ export function ccExpireOnTurnEnd(effects: CCEffect[], completedPlayer: 0 | 1): 
       return true;
     })
     .map(e => {
+      // BUGFIX (601/606): Dark Cloud / Total Annihilation are "target's NEXT LEG score
+      // reduced", not next turn. Without this check they were promoted straight to
+      // "active" here and fired on the opponent's very next turn instead of next leg.
+      if (e.status === "pending" && e.affectsPlayer === opp && e.deferPenaltyToNextLeg) {
+        console.log(`[CARD_CLASH:DEFER_PENALTY_NEXT_LEG] ${e.cardName} scheduled for Player${opp} next leg (not next turn)`);
+        return { ...e, status: "deferred_next_leg" as const };
+      }
       // Promote pending effects targeting the next player to active
       if (e.status === "pending" && e.affectsPlayer === opp) {
         return { ...e, status: "active" as const };
