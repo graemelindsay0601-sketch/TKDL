@@ -20,7 +20,7 @@ interface CardClashMatchLauncherProps {
   onMatchComplete: () => void;
 }
 
-type Step = "opponent" | "gamemode" | "equipment-p1" | "equipment-p2" | "match";
+type Step = "opponent" | "gamemode" | "matchlength" | "equipment-p1" | "equipment-p2" | "match";
 
 const D = {
   border:  "rgba(255,255,255,0.08)",
@@ -45,6 +45,7 @@ export function CardClashMatchLauncher({
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedOpponent, setSelectedOpponent] = useState<Player | null>(null);
   const [gameMode, setGameMode] = useState<"X01" | "CRICKET" | null>(null);
+  const [matchLength, setMatchLength] = useState<1 | 3 | 5>(1);
   const [player1Cards, setPlayer1Cards] = useState<any[]>([]);
   const [player2Cards, setPlayer2Cards] = useState<any[]>([]);
   const [matchId, setMatchId] = useState<number | null>(null);
@@ -135,6 +136,7 @@ export function CardClashMatchLauncher({
     setPlayer2Cards([]);
     setSelectedOpponent(null);
     setGameMode(null);
+    setMatchLength(1);
     setMatchId(null);
     setMatchError(null);
   };
@@ -230,7 +232,7 @@ export function CardClashMatchLauncher({
         </div>
         <button
           disabled={!gameMode}
-          onClick={() => gameMode && setStep("equipment-p1")}
+          onClick={() => gameMode && setStep("matchlength")}
           style={{
             width: "100%", padding: "13px 24px", borderRadius: "10px", border: "none",
             fontWeight: 800, fontSize: "15px", letterSpacing: "0.06em",
@@ -238,6 +240,65 @@ export function CardClashMatchLauncher({
             background: gameMode ? "linear-gradient(135deg,#0080ff,#0040c0)" : "rgba(255,255,255,0.06)",
             color: gameMode ? "#fff" : "rgba(255,255,255,0.3)",
             boxShadow: gameMode ? "0 6px 24px rgba(0,128,255,0.3)" : "none",
+            transition: "all 0.2s",
+          }}
+        >
+          Next — Match Length →
+        </button>
+      </div>
+    );
+  }
+
+  // ── STEP 2b: Match Length ─────────────────────────────────────────────────
+  if (step === "matchlength") {
+    const options: { value: 1 | 3 | 5; label: string; desc: string }[] = [
+      { value: 1, label: "Single Leg", desc: "First to win 1 leg" },
+      { value: 3, label: "Best of 3", desc: "First to 2 legs" },
+      { value: 5, label: "Best of 5", desc: "First to 3 legs" },
+    ];
+    return (
+      <div style={{ maxWidth: "520px" }}>
+        <button
+          onClick={() => setStep("gamemode")}
+          style={{ background: "transparent", border: "none", color: D.sub, cursor: "pointer", fontSize: "13px", marginBottom: "1.5rem", padding: 0 }}
+        >
+          ← Back
+        </button>
+        <div style={{ fontSize: "11px", color: D.sub, fontWeight: 700, letterSpacing: "0.1em", marginBottom: "4px" }}>MATCH LENGTH</div>
+        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", marginBottom: "1.5rem", margin: "0 0 1.5rem" }}>
+          {gameMode} vs <strong style={{ color: "#fff" }}>{selectedOpponent?.name}</strong>
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "1.5rem" }}>
+          {options.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setMatchLength(opt.value)}
+              style={{
+                padding: "16px 18px", borderRadius: "12px", cursor: "pointer", textAlign: "left",
+                border: `1px solid ${matchLength === opt.value ? D.info : "rgba(255,255,255,0.08)"}`,
+                background: matchLength === opt.value ? `${D.info}18` : "rgba(255,255,255,0.03)",
+                boxShadow: matchLength === opt.value ? `0 0 24px ${D.info}22` : "none",
+                transition: "all 0.2s",
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 900, fontSize: "15px", color: matchLength === opt.value ? D.info : "#fff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.03em" }}>{opt.label}</div>
+                <div style={{ fontSize: "11px", color: D.sub, marginTop: "2px" }}>{opt.desc}</div>
+              </div>
+              {matchLength === opt.value && <span style={{ color: D.info, fontSize: "18px" }}>✓</span>}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setStep("equipment-p1")}
+          style={{
+            width: "100%", padding: "13px 24px", borderRadius: "10px", border: "none",
+            fontWeight: 800, fontSize: "15px", letterSpacing: "0.06em",
+            cursor: "pointer",
+            background: "linear-gradient(135deg,#0080ff,#0040c0)",
+            color: "#fff",
+            boxShadow: "0 6px 24px rgba(0,128,255,0.3)",
             transition: "all 0.2s",
           }}
         >
@@ -251,13 +312,14 @@ export function CardClashMatchLauncher({
   if (step === "equipment-p1") {
     return (
       <CardEquipmentSelector
+        key="p1"
         currentPlayerId={currentPlayerId}
         currentPlayerName={currentPlayerName}
         opponentId={selectedOpponent!.id}
         opponentName={selectedOpponent!.name}
         gameMode={gameMode!}
         onConfirm={handlePlayer1Equip}
-        onBack={() => { setMatchError(null); setStep("gamemode"); }}
+        onBack={() => { setMatchError(null); setStep("matchlength"); }}
         submitError={matchError}
       />
     );
@@ -267,6 +329,7 @@ export function CardClashMatchLauncher({
   if (step === "equipment-p2") {
     return (
       <CardEquipmentSelector
+        key="p2"
         currentPlayerId={selectedOpponent!.id}
         currentPlayerName={selectedOpponent!.name}
         opponentId={currentPlayerId}
@@ -305,6 +368,7 @@ export function CardClashMatchLauncher({
           onMatchComplete={handleMatchComplete}
           onAbandon={handleAbandon}
           isBot={false}
+          legs={matchLength}
         />
       </div>,
       document.body
