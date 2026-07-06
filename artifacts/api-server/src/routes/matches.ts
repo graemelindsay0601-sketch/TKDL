@@ -197,10 +197,13 @@ router.post("/matches", async (req, res): Promise<void> => {
       await addCoinsToPlayer(winnerId, winnerCoins);
       await addCoinsToPlayer(loserId, loserCoins);
 
-      // Consume cards from inventory
+      // Consume cards from inventory. Coins for card usage were already paid
+      // above (winnerCoins/loserCoins include a 10-per-card bonus), so don't
+      // award the "sell card" coin bonus again here (awardCoins=false) or
+      // players get paid twice for the same card.
       for (const card of allCards) {
         try {
-          await removeCardFromPlayer(card.usedBy, card.cardId, 1);
+          await removeCardFromPlayer(card.usedBy, card.cardId, 1, false);
         } catch (e) {
           console.error(`Failed to consume card ${card.cardId} for player ${card.usedBy}:`, e);
         }

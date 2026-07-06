@@ -365,7 +365,12 @@ export async function giveCardToPlayer(playerId: number, cardId: string, quantit
   }
 }
 
-export async function removeCardFromPlayer(playerId: number, cardId: string, quantity: number = 1) {
+export async function removeCardFromPlayer(
+  playerId: number,
+  cardId: string,
+  quantity: number = 1,
+  awardCoins: boolean = true
+) {
   const existingCard = await db
     .select()
     .from(cardInventoryTable)
@@ -393,9 +398,14 @@ export async function removeCardFromPlayer(playerId: number, cardId: string, qua
       );
   }
 
-  // Award coins for selling cards (10 coins per card)
-  const coinsEarned = quantity * 10;
-  await addCoinsToPlayer(playerId, coinsEarned);
+  // Award coins for selling cards (10 coins per card).
+  // Callers that consume cards as part of match completion (which already pay
+  // their own per-card coin bonus) must pass awardCoins=false to avoid a
+  // double payout for the same card.
+  if (awardCoins) {
+    const coinsEarned = quantity * 10;
+    await addCoinsToPlayer(playerId, coinsEarned);
+  }
 }
 
 export async function getPlayerPityStatus(playerId: number) {

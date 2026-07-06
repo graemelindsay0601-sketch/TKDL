@@ -299,10 +299,12 @@ export async function finishCardClashMatch(
     // Don't fail the match if challenges fail
   }
 
-  // Consume cards (remove from inventory)
+  // Consume cards (remove from inventory). Coins for card usage were already
+  // paid above via COIN_REWARDS.PER_CARD_USED, so don't award the "sell
+  // card" coin bonus again here (awardCoins=false) or players get paid twice.
   for (const card of cardsUsed) {
     try {
-      await removeCardFromPlayer(card.usedBy, card.cardId, 1);
+      await removeCardFromPlayer(card.usedBy, card.cardId, 1, false);
     } catch (e) {
       logger.error(`Failed to consume card ${card.cardId} for player ${card.usedBy}:`, e);
     }

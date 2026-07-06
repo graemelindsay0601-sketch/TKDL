@@ -64,10 +64,15 @@ export function FeaturedCardShop({
       const res = await fetch('/api/card-clash/shop/featured');
       if (!res.ok) throw new Error('Failed to load featured cards');
       const data = await res.json();
-      setCards(Array.isArray(data) ? data : data.cards || []);
-      
+      // The API responds with { success, featured, message } — not a bare
+      // array or a `cards` key. Reading `data.cards` here always fell through
+      // to an empty array, which is why the shop appeared empty even when
+      // cards existed.
+      const cardList = Array.isArray(data) ? data : data.featured || data.cards || [];
+      setCards(cardList);
+
       // Check cooldowns for each card
-      checkAllCooldowns(Array.isArray(data) ? data : data.cards || []);
+      checkAllCooldowns(cardList);
     } catch (err) {
       console.error('Error loading featured cards:', err);
     } finally {
