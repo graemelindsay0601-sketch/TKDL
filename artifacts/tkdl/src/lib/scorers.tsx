@@ -1105,16 +1105,26 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
 const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
 
-export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, cardEffects = [] }: {
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3 }: {
   p1Name: string; p2Name: string; cutThroat?: boolean; includesBull?: boolean; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   cardEffects?: any[];
+  legs?: number;
+  setsToWin?: number;
+  legsToWinSet?: number;
 }) {
   const numCount = includesBull ? 7 : 6;
+  const legs = legsProp;
+  const setsNeeded = setsToWin > 0 ? Math.ceil(setsToWin / 2) : 0;
+  const legsNeeded = setsToWin > 0 ? Math.ceil(legsToWinSet / 2) : (legs ? Math.ceil(legs / 2) : 0);
   const [marks, setMarks]       = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
   const [scores, setScores]     = useState<[number,number]>([0,0]);
   const [turn, setTurn]         = useState<0|1>(0);
+  const [legWins, setLegWins]       = useState<[number, number]>([0, 0]);
+  const [setWins, setSetWins]       = useState<[number, number]>([0, 0]);
+  const [legHistory, setLegHistory] = useState<(0|1)[]>([]);
+  const [legStarter, setLegStarter] = useState<0 | 1>(0);
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
   const [lastHit, setLastHit]   = useState<string>("");
   const [snapHistory, setSnapHistory] = useState<{marks: [[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]], scores: [number,number], turn: 0|1, visitDarts: Dart[]}[]>([]);
@@ -1356,6 +1366,80 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     }
     return null;
   };
+
+  const resetForLeg = useCallback((delay: number, newLegState: [number,number]) => {
+    setTimeout(() => {
+      const ns: 0|1 = legStarter === 0 ? 1 : 0;
+      setLegStarter(ns);
+      setMarks([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+      setScores([0,0]);
+      setTurn(ns);
+      setVisitDarts([]);
+      setLastHit("");
+      setLockedNumbers([new Set(), new Set()]);
+      setProtectedNumbers([new Set(), new Set()]);
+      setTurnCounter(1);
+      setPrevTurnMarks([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+      setLastVisitMarkGains([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+      setVisitMarkGains([0,0,0,0,0,0,0]);
+      setCricketVisitScore(0);
+      setCricketVisitMarks(0);
+      setCricketClosedThisVisit(false);
+      setLegWins(newLegState);
+
+      const legWinner = newLegState[0] > legWins[0] ? 0 : newLegState[1] > legWins[1] ? 1 : null;
+      if (legWinner !== null) {
+        setLegHistory(prev => [...prev, legWinner]);
+      }
+    }, delay);
+  }, [legStarter, legWins]);
+
+  const handleLegWin = useCallback((winnerIdx: 0|1) => {
+    // Single-leg match (default / Bo1) — no format selected, behave exactly as before
+    if (setsToWin <= 0 && (!legs || legs <= 1)) {
+      onWin(winnerIdx, cutThroat ? `Cut-Throat — lowest score wins` : undefined);
+      return;
+    }
+
+    if (setsToWin > 0) {
+      setLegWins(prev => {
+        const n: [number,number] = [...prev] as [number,number];
+        n[winnerIdx]++;
+        if (n[winnerIdx] >= legsNeeded) {
+          const ns: [number,number] = [setWins[0], setWins[1]];
+          ns[winnerIdx]++;
+          if (ns[winnerIdx] >= setsNeeded) {
+            setTimeout(() => {
+              setSetWins(ns);
+              onWin(winnerIdx, `${ns[winnerIdx]}–${ns[winnerIdx===0?1:0]} sets`);
+            }, 800);
+          } else {
+            setTimeout(() => {
+              setSetWins(ns);
+              resetForLeg(0, [0, 0]);
+            }, 1500);
+          }
+          return [0, 0];
+        } else {
+          resetForLeg(1200, n);
+          return prev;
+        }
+      });
+    } else {
+      setLegWins(prev => {
+        const n: [number,number] = [...prev] as [number,number];
+        n[winnerIdx]++;
+        if (n[winnerIdx] >= legsNeeded) {
+          setTimeout(() => {
+            onWin(winnerIdx, `${n[winnerIdx]}–${n[winnerIdx===0?1:0]} legs`);
+          }, 200);
+        } else {
+          resetForLeg(1500, n);
+        }
+        return n;
+      });
+    }
+  }, [legs, legsNeeded, setsNeeded, setsToWin, setWins, onWin, cutThroat, resetForLeg]);
 
   const handleDart = useCallback((dart: Dart) => {
     if (visitDarts.length >= 3) return;
@@ -1809,14 +1893,14 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           const w = checkWin(m, sc);
           if (w !== null) setTimeout(() => {
             onPracticeStats?.({ sessionData: { mode: "cricket" } });
-            onWin(w, cutThroat ? `Cut-Throat — lowest score wins` : undefined);
+            handleLegWin(w);
           }, 300);
           return sc;
         });
         return m;
       });
     }, 50);
-  }, [visitDarts, turn, marks, scores, cutThroat, includesBull, numCount, onWin, isCardClash, activeEffects]);
+  }, [visitDarts, turn, marks, scores, cutThroat, includesBull, numCount, onWin, isCardClash, activeEffects, handleLegWin]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => {
@@ -1888,6 +1972,47 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           </h2>
           {cutThroat && <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Lowest score wins · Hitting closed numbers gives OPPONENT points</p>}
         </div>
+      {(setsToWin > 0 || (legs && legs > 1)) && (
+        <div className="flex items-center justify-center gap-6 text-sm" style={{ fontFamily: "Oswald, sans-serif" }}>
+          {setsToWin > 0 ? (
+            <div className="flex items-center gap-8">
+              <div className="text-center">
+                <div style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.5rem", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 4 }}>SETS</div>
+                <div className="flex items-center gap-6">
+                  {[0,1].map(i => (
+                    <div key={i} className="text-center">
+                      <div style={{ color: P_COLOR(i), fontSize: "0.65rem" }}>{names[i].split(" ")[0]}</div>
+                      <div style={{ color: "#ffd24a", fontSize: "1.4rem", fontWeight: 900 }}>{setWins[i]}</div>
+                      <div style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.6rem" }}>/{setsNeeded}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="text-center">
+                <div style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.5rem", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 4 }}>LEGS</div>
+                <div className="flex items-center gap-6">
+                  {[0,1].map(i => (
+                    <div key={i} className="text-center">
+                      <div style={{ color: P_COLOR(i), fontSize: "0.65rem" }}>{names[i].split(" ")[0]}</div>
+                      <div style={{ color: "rgba(255,255,255,0.55)", fontSize: "1.1rem", fontWeight: 900 }}>
+                        {legWins[i]}<span style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.65rem" }}>/{legsNeeded}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            [0,1].map(i => (
+              <div key={i} className="flex items-center gap-1.5">
+                <span style={{ color: P_COLOR(i) }}>{names[i]}</span>
+                <span style={{ color: "#ffd24a", fontSize: "1.2rem", fontWeight: 900 }}>{legWins[i]}</span>
+                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.7rem" }}>/{legsNeeded}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
       {/* Scores */}
       <div className="grid grid-cols-2 gap-3">
         {[0,1].map(i => (
