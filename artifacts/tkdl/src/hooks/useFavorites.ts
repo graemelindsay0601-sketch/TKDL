@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 
 // ────────────────────────────────────────────────────────────────────────
-// CARD CLASH FAVORITES HOOK - LocalStorage Based
+// CARD CLASH FAVORITES HOOK - Server-persisted, per-player account
 // ────────────────────────────────────────────────────────────────────────
 
 export interface CardClashFavorite {
@@ -14,35 +14,45 @@ export interface CardClashFavorite {
 
 interface UseFavoritesOptions {
   gameMode?: "X01" | "CRICKET";
+  playerId?: number;
 }
 
 /**
  * Hook for managing Card Clash card favorites
- * 
+ *
  * Features:
- * - Persistent localStorage storage
+ * - Persisted server-side, tied to the player's account (not the browser/device)
  * - Add/remove favorites
  * - Check if card is favorited
  * - Max 20 favorites per game mode
- * - Auto-sync across tabs
+ *
+ * IMPORTANT: favorites are scoped to `playerId`. When rendering the equip
+ * screen for two different players (e.g. P1 then P2 on the same device),
+ * always pass the correct playerId so each player only ever sees their own
+ * favorites.
  */
 export function useFavorites(options: UseFavoritesOptions = {}) {
   const gameMode = options.gameMode || "X01";
-  const storageKey = `tkdl_favorites_${gameMode}`;
-  
+  const playerId = options.playerId;
+
   const [favorites, setFavorites] = useState<CardClashFavorite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load favorites from localStorage
-  const loadFavorites = useCallback(() => {
+  const loadFavorites = useCallback(async () => {
+    if (!playerId) {
+      setFavorites([]);
+      setIsLoading(false);
+      return;
+    }
     try {
       setIsLoading(true);
       setError(null);
-      
-      const stored = localStorage.getItem(storageKey);
-      const data = stored ? JSON.parse(stored) : [];
-      setFavorites(Array.isArray(data) ? data : []);
+
+      const res = await fetch(`/api/card-clash/favorites/${playerId}?gameMode=${gameMode}`);
+      if (!res.ok) throw new Error("Failed to load favorites");
+      const data = await res.json();
+      setFavorites(Array.isArray(data.favorites) ? data.favorites : []);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       setError(message);
@@ -51,28 +61,17 @@ export function useFavorites(options: UseFavoritesOptions = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [storageKey]);
+  }, [playerId, gameMode]);
 
-  // Load on mount
+  // Load on mount / whenever the player or game mode changes
   useEffect(() => {
     loadFavorites();
   }, [loadFavorites]);
 
-  // Listen for storage changes from other tabs
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === storageKey) {
-        loadFavorites();
-      }
-    };
-    
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, [storageKey, loadFavorites]);
-
   // Add card to favorites
   const addFavorite = useCallback(
     async (cardId: string, cardName: string) => {
+      if (!playerId) return false;
       try {
         const isCurrent = favorites.some((f) => f.cardId === cardId);
         if (isCurrent) return true;
@@ -82,6 +81,13 @@ export function useFavorites(options: UseFavoritesOptions = {}) {
           return false;
         }
 
+        const res = await fetch(`/api/card-clash/favorites/${playerId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cardId, cardName, gameMode }),
+        });
+        if (!res.ok) throw new Error("Failed to add favorite");
+
         const newFavorite: CardClashFavorite = {
           id: `${cardId}-${Date.now()}`,
           cardId,
@@ -89,10 +95,7 @@ export function useFavorites(options: UseFavoritesOptions = {}) {
           gameMode,
           addedAt: new Date().toISOString(),
         };
-
-        const updated = [...favorites, newFavorite];
-        setFavorites(updated);
-        localStorage.setItem(storageKey, JSON.stringify(updated));
+        setFavorites((prev) => [...prev, newFavorite]);
         return true;
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
@@ -101,16 +104,21 @@ export function useFavorites(options: UseFavoritesOptions = {}) {
         return false;
       }
     },
-    [favorites, gameMode, storageKey]
+    [favorites, gameMode, playerId]
   );
 
   // Remove card from favorites
   const removeFavorite = useCallback(
     async (cardId: string) => {
+      if (!playerId) return false;
       try {
-        const updated = favorites.filter((f) => f.cardId !== cardId);
-        setFavorites(updated);
-        localStorage.setItem(storageKey, JSON.stringify(updated));
+        const res = await fetch(
+          `/api/card-clash/favorites/${playerId}/${encodeURIComponent(cardId)}?gameMode=${gameMode}`,
+          { method: "DELETE" }
+        );
+        if (!res.ok) throw new Error("Failed to remove favorite");
+
+        setFavorites((prev) => prev.filter((f) => f.cardId !== cardId));
         return true;
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
@@ -119,15 +127,15 @@ export function useFavorites(options: UseFavoritesOptions = {}) {
         return false;
       }
     },
-    [favorites, storageKey]
+    [gameMode, playerId]
   );
 
   // Toggle favorite status
   const toggleFavorite = useCallback(
     async (cardId: string, cardName: string): Promise<boolean> => {
-      const isFavorited = favorites.some((f) => f.cardId === cardId);
+      const isFavoritedNow = favorites.some((f) => f.cardId === cardId);
 
-      if (isFavorited) {
+      if (isFavoritedNow) {
         return removeFavorite(cardId);
       } else {
         return addFavorite(cardId, cardName);
@@ -146,9 +154,17 @@ export function useFavorites(options: UseFavoritesOptions = {}) {
 
   // Clear all favorites for this game mode
   const clearAllFavorites = useCallback(async () => {
+    if (!playerId) return false;
     try {
+      await Promise.all(
+        favorites.map((f) =>
+          fetch(
+            `/api/card-clash/favorites/${playerId}/${encodeURIComponent(f.cardId)}?gameMode=${gameMode}`,
+            { method: "DELETE" }
+          )
+        )
+      );
       setFavorites([]);
-      localStorage.setItem(storageKey, JSON.stringify([]));
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
@@ -156,7 +172,7 @@ export function useFavorites(options: UseFavoritesOptions = {}) {
       console.error("[useFavorites] Clear error:", err);
       return false;
     }
-  }, [storageKey]);
+  }, [favorites, gameMode, playerId]);
 
   return {
     favorites,
