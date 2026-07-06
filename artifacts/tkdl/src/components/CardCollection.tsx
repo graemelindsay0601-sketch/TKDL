@@ -32,7 +32,7 @@ export function CardCollection({ playerId }: { playerId: number }) {
   const [collection, setCollection] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { isFavorited, toggleFavorite } = useFavorites({ gameMode: "X01" });
+  const { isFavorited, toggleFavorite } = useFavorites({ gameMode: "X01", playerId });
 
   useEffect(() => {
     if (!playerId) return;
