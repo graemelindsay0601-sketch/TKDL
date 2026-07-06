@@ -10,7 +10,6 @@ import { AchievementsDisplay } from "@/components/AchievementsDisplay";
 import { AdvancedAdminTools } from "@/components/AdvancedAdminTools";
 import type { PlayerStats } from "@/utils/achievements";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
-import { CardClashPracticeUI } from "@/components/CardClashPracticeUI";
 import { CardClashPracticeContainer } from "@/components/CardClashPracticeContainer";
 import { AdminCardClashSettingsPanel } from "@/components/AdminCardClashSettingsPanel";
 import { RulesUI } from "@/components/RulesUI";
@@ -749,13 +748,11 @@ const PACKS = [
   type PGame = typeof PRACTICE_GAMES[number];
 
   function PracticeTab({playerId,playerName,standings}:{playerId:number|undefined;playerName:string;standings:Standing[]}){
-    const [practiceType,setPracticeType]=useState<"regular"|"cardclash">("regular");
     const [mode,setMode]=useState<"2p"|"cpu"|"solo">("2p");
     const [gt,setGt]=useState<"practice"|"competitive"|"party"|"mini">("practice");
     const [p2Id,setP2Id]=useState<number|null>(null);
     const [saved,setSaved]=useState<Set<string>>(new Set());
     const [launching,setLaunching]=useState(false);
-    const [practiceMatchId,setPracticeMatchId]=useState<number|null>(null);
 
     const opp=standings.filter(s=>s.player_id!==playerId);
     const filtered=PRACTICE_GAMES.filter(g=>g.type===gt);
@@ -774,19 +771,6 @@ const PACKS = [
     const DIFF_COLOR={BEGINNER:"#00cc66",INTERMEDIATE:"#0077ff",ADVANCED:"#ff4466"} as Record<string,string>;
 
     if(launching){
-      if(practiceType === "cardclash" && practiceMatchId) {
-        return(
-          <CardClashPracticeGame
-            playerId={playerId}
-            playerName={playerName}
-            practiceMatchId={practiceMatchId}
-            onDone={() => {
-              setLaunching(false);
-              setPracticeMatchId(null);
-            }}
-          />
-        );
-      }
       return(
         <div>
           <button onClick={()=>setLaunching(false)} style={{all:"unset",display:"inline-flex",alignItems:"center",gap:"8px",padding:"9px 18px",borderRadius:"8px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.45)",fontSize:"12px",fontWeight:700,letterSpacing:"0.07em",cursor:"pointer",marginBottom:"1.5rem"}}>← BACK</button>
@@ -798,70 +782,6 @@ const PACKS = [
     return(
       <div style={{paddingBottom:"2rem"}}>
 
-        {/* ── PRACTICE TYPE TOGGLE ── */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginBottom:"1.75rem"}}>
-          <button
-            onClick={()=>setPracticeType("regular")}
-            style={{
-              all:"unset",
-              padding:"14px 16px",
-              borderRadius:"12px",
-              cursor:"pointer",
-              background:practiceType==="regular"?"linear-gradient(135deg,rgba(124,58,237,0.35),rgba(76,29,149,0.45))":"rgba(255,255,255,0.03)",
-              border:`1.5px solid ${practiceType==="regular"?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.08)"}`,
-              color:practiceType==="regular"?"#e9d5ff":"rgba(255,255,255,0.45)",
-              fontSize:"13px",
-              fontWeight:700,
-              letterSpacing:"0.06em",
-              textAlign:"center",
-              transition:"all 0.2s",
-              display:"flex",
-              alignItems:"center",
-              justifyContent:"center",
-              gap:"8px"
-            }}
-          >
-            🎯 Regular Practice
-          </button>
-          <button
-            onClick={()=>setPracticeType("cardclash")}
-            style={{
-              all:"unset",
-              padding:"14px 16px",
-              borderRadius:"12px",
-              cursor:"pointer",
-              background:practiceType==="cardclash"?"linear-gradient(135deg,rgba(0,200,150,0.35),rgba(0,150,120,0.45))":"rgba(255,255,255,0.03)",
-              border:`1.5px solid ${practiceType==="cardclash"?"rgba(0,200,150,0.5)":"rgba(255,255,255,0.08)"}`,
-              color:practiceType==="cardclash"?"#7eebd5":"rgba(255,255,255,0.45)",
-              fontSize:"13px",
-              fontWeight:700,
-              letterSpacing:"0.06em",
-              textAlign:"center",
-              transition:"all 0.2s",
-              display:"flex",
-              alignItems:"center",
-              justifyContent:"center",
-              gap:"8px"
-            }}
-          >
-            🎴 Card Clash Practice
-          </button>
-        </div>
-
-        {/* ── CARD CLASH PRACTICE ── */}
-        {practiceType==="cardclash"&&playerId&&(
-          <CardClashPractice
-            playerId={playerId}
-            playerName={playerName}
-            onMatchCreated={(matchId, playerEquipment, botEquipment)=>{
-              setPracticeMatchId(matchId);
-              setLaunching(true);
-            }}
-          />
-        )}
-
-        {/* ── REGULAR PRACTICE ── */}
-        {practiceType==="regular"&&(
         <div style={{position:"relative",borderRadius:"16px",overflow:"hidden",marginBottom:"1.5rem",padding:"28px 22px 20px"}}>
           {/* Background layers */}
           <div style={{position:"absolute",inset:0,background:"linear-gradient(135deg,#0d0020 0%,#06001a 40%,#0a0030 100%)"}}/>
@@ -880,7 +800,6 @@ const PACKS = [
           {/* Decorative glow line */}
           <div style={{position:"absolute",bottom:0,left:0,right:0,height:"2px",background:"linear-gradient(90deg,#7c3aed,#4c1d95,#7c3aed)"}}/>
         </div>
-        )}
 
         {/* ── MODE SELECTOR ── */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"10px",marginBottom:"1.75rem"}}>
@@ -1012,15 +931,6 @@ const PACKS = [
               </button>
             );
           })}
-        </div>
-
-        {/* ── Card Clash Practice CTA ── */}
-        <div style={{borderRadius:"14px",background:"linear-gradient(135deg,rgba(0,255,136,0.08),rgba(0,200,100,0.04))",border:"1px solid rgba(0,255,136,0.2)",padding:"18px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"14px",boxShadow:"0 0 24px rgba(0,255,136,0.06)"}}>
-          <div>
-            <div style={{fontSize:"14px",fontWeight:900,color:"#00ff88",letterSpacing:"0.05em",marginBottom:"4px",fontFamily:"'Arial Black',sans-serif"}}>⚡ CARD CLASH PRACTICE</div>
-            <div style={{fontSize:"11px",color:"rgba(255,255,255,0.32)"}}>No coins spent · No cards consumed · Test your deck</div>
-          </div>
-          <button onClick={()=>setLaunching(true)} style={{all:"unset",padding:"10px 22px",borderRadius:"8px",cursor:"pointer",background:"linear-gradient(135deg,#00cc66,#008833)",color:"#fff",fontSize:"12px",fontWeight:900,letterSpacing:"0.07em",boxShadow:"0 4px 20px rgba(0,200,100,0.4)",flexShrink:0,transition:"all 0.15s"}}>PLAY NOW</button>
         </div>
 
       </div>
