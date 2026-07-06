@@ -210,7 +210,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
     favorites,
     isLoading: favLoading,
     error: favError,
-  } = useFavorites({ gameMode });
+  } = useFavorites({ gameMode, playerId });
 
   useEffect(() => { if (playerId) loadInventory(); }, [playerId, testMode]);
 
