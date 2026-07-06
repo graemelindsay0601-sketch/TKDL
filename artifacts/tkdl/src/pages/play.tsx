@@ -131,7 +131,14 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     setTab(tabs[0]?.key ?? "competitive");
   }, [format]);
 
-  const players = (playersData as Player[] | undefined)?.filter(p => p.status === "ACTIVE") ?? [];
+  // Only exclude eliminated players when the match actually affects league
+  // standings (the "Competitive" 1v1 tab, or any team format — all of which
+  // report to the leaderboard/ELO via matches.ts / team-matches.ts). Casual
+  // formats (Practice, Party, Mini-Games) are non-league features and
+  // eliminated players should still be able to play them.
+  const isLeagueContext = format !== "1v1" || tab === "competitive";
+  const allPlayers = (playersData as Player[] | undefined)?.filter(p => p.isActive !== false) ?? [];
+  const players = isLeagueContext ? allPlayers.filter(p => p.status !== "ELIMINATED") : allPlayers;
 
   // Auto-default Player 1 slot to logged-in player
   useEffect(() => {

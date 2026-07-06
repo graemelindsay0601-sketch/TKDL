@@ -82,29 +82,47 @@ export async function getTodaysFeaturedCards() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const featured = await db
-    .select({
-      id: featuredCardShopTable.id,
-      cardId: featuredCardShopTable.cardId,
-      slotNumber: featuredCardShopTable.slotNumber,
-      priceCoins: featuredCardShopTable.priceCoins,
-      cardName: cardDefinitionsTable.name,
-      rarity: cardDefinitionsTable.rarity,
-      gameMode: cardDefinitionsTable.gameMode,
-      imageUrl: cardDefinitionsTable.imageUrl,
-    })
-    .from(featuredCardShopTable)
-    .leftJoin(
-      cardDefinitionsTable,
-      eq(featuredCardShopTable.cardId, cardDefinitionsTable.id)
-    )
-    .where(
-      and(
-        gte(featuredCardShopTable.rotationDate, today),
-        eq(featuredCardShopTable.isActive, true)
+  const query = () =>
+    db
+      .select({
+        id: featuredCardShopTable.id,
+        cardId: featuredCardShopTable.cardId,
+        slotNumber: featuredCardShopTable.slotNumber,
+        priceCoins: featuredCardShopTable.priceCoins,
+        cardName: cardDefinitionsTable.name,
+        rarity: cardDefinitionsTable.rarity,
+        gameMode: cardDefinitionsTable.gameMode,
+        imageUrl: cardDefinitionsTable.imageUrl,
+      })
+      .from(featuredCardShopTable)
+      .leftJoin(
+        cardDefinitionsTable,
+        eq(featuredCardShopTable.cardId, cardDefinitionsTable.id)
       )
-    )
-    .orderBy(featuredCardShopTable.slotNumber);
+      .where(
+        and(
+          gte(featuredCardShopTable.rotationDate, today),
+          eq(featuredCardShopTable.isActive, true)
+        )
+      )
+      .orderBy(featuredCardShopTable.slotNumber);
+
+  let featured = await query();
+
+  // Self-heal: rotateFeatureCards() is normally only triggered at server
+  // startup or via an admin action, so on a long-running deployment that
+  // hasn't restarted since a previous calendar day, no row will ever match
+  // "today" and the shop appears permanently empty. Rather than depending on
+  // restart timing (or a cron job that may not fire), detect the staleness
+  // here and rotate on demand so the shop is always populated for "today".
+  if (featured.length === 0) {
+    try {
+      await rotateFeatureCards();
+      featured = await query();
+    } catch (error) {
+      logger.error({ error }, "Self-heal rotation failed in getTodaysFeaturedCards");
+    }
+  }
 
   return featured;
 }

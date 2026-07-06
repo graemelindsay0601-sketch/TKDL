@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, desc, and, sql, or } from "drizzle-orm";
-import { db, playersTable, matchesTable, seasonsTable } from "@workspace/db";
+import { db, playersTable, matchesTable, seasonsTable, gameTypesTable } from "@workspace/db";
 import { invalidateProgressCache } from "./players";
 import { z } from "zod";
 import { applyEloChange, calcTier } from "../lib/elo";
@@ -82,13 +82,23 @@ router.post("/matches", async (req, res): Promise<void> => {
   if (!winner) { res.status(400).json({ error: "Winner not found" }); return; }
   if (!loser)  { res.status(400).json({ error: "Loser not found" });  return; }
 
-  if (winner.status === "ELIMINATED") {
-    res.status(400).json({ error: `${winner.name} is eliminated and cannot play` });
-    return;
-  }
-  if (loser.status === "ELIMINATED") {
-    res.status(400).json({ error: `${loser.name} is eliminated and cannot play` });
-    return;
+  // Elimination only restricts league-standing (competitive) play. Practice,
+  // Party, and Mini-Games categories are casual and should remain available
+  // to eliminated players — only look this up (and enforce the block) when
+  // either side is actually eliminated, to avoid an extra query otherwise.
+  if (winner.status === "ELIMINATED" || loser.status === "ELIMINATED") {
+    const [gt] = await db.select().from(gameTypesTable).where(eq(gameTypesTable.key, gameType ?? "501"));
+    const category = gt?.category ?? "competitive";
+    if (category === "competitive") {
+      if (winner.status === "ELIMINATED") {
+        res.status(400).json({ error: `${winner.name} is eliminated and cannot play competitive matches` });
+        return;
+      }
+      if (loser.status === "ELIMINATED") {
+        res.status(400).json({ error: `${loser.name} is eliminated and cannot play competitive matches` });
+        return;
+      }
+    }
   }
 
   const stakeErr = validateStake(stake, winner, loser);
