@@ -18,6 +18,7 @@ import { initializeCardTables, initializeFeatureFlags } from "./lib/cardTablesMi
 import { addFavoritesColumn } from "./db/migrations/add_favorites";
 import { addAchievementRewards } from "./db/migrations/add_achievement_rewards";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
+import { up as createCardClashFavoritesTable } from "./db/migrations/add_card_clash_favorites";
 import { seedCardDefinitions } from "./services/card-definitions-service";
 import { challengeService } from "./services/challenge-service";
 import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
@@ -767,6 +768,7 @@ async function init() {
     await addFavoritesColumn();
     await addAchievementRewards();
     await createCardClashPlayerSettingsTable();
+    await createCardClashFavoritesTable();
     
     // Add performance indexes (CRITICAL for query speed)
     await addPerformanceIndexes();
