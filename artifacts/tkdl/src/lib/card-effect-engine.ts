@@ -324,7 +324,8 @@ export function ccActivateCard(
     "Comeback Marks":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.5 },
     "Mark Accelerator":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 2 },
     "Mark Multiplier":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", markThresholdBonusAt: 3, markThresholdBonus: 50, _marksThisTurn: 0 },
-    "Quick Close":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", quickCloseFreeMark: true },
+    // BUGFIX 316: was setting `quickCloseFreeMark`; scorer's Quick Close check reads `freeMarkIfQuickClose`.
+    "Quick Close":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeMarkIfQuickClose: true },
     "Momentum Arsenal":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusPerMark: 10, _marksThisTurn: 0 },
     "High Scorer":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", highScorerThreshold: 100, highScorerBonus: 20 },
     "Perfect Form":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", extraScoreMultiplier: 1.5 },
