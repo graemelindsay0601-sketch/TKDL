@@ -1,101 +1,119 @@
 /**
  * CardClashPracticeUI
  * Clean, standalone Card Clash practice interface
- * No mixed UI, no confusion - just practice
+ * No mixed UI, no confusion - just practice against a bot, fully client-side
+ * (no DB persistence - practice has no stakes, no leaderboard impact)
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { CardEquipmentSelector } from "./CardEquipmentSelector";
+import { ALL_CARDS } from "@/lib/cards-data";
+import type { CardData } from "@/lib/cards-data";
+
+interface Bot {
+  id: string;
+  name: string;
+  avatar: string;
+  description: string;
+  skillLevel: number; // 1-10
+}
 
 interface Props {
   playerId: number;
   playerName: string;
-  onMatchCreated: (matchId: number) => void;
+  onMatchReady: (opts: {
+    bot: Bot;
+    gameMode: "X01" | "CRICKET";
+    playerCards: CardData[];
+    botCards: CardData[];
+  }) => void;
 }
 
-type Step = "difficulty" | "gamemode" | "equipment" | "launching";
+type Step = "bot" | "gamemode" | "equipment";
 
-const DIFFICULTIES = [
-  { id: "beginner", label: "Beginner", desc: "Easy warmup", emoji: "🟢" },
-  { id: "intermediate", label: "Intermediate", desc: "Fair challenge", emoji: "🟡" },
-  { id: "advanced", label: "Advanced", desc: "Punishing opponent", emoji: "🔴" },
+const BOTS: Bot[] = [
+  { id: "bot-rookie", name: "Rookie Bot", avatar: "🤖", description: "Fresh off the production line — makes weak card picks", skillLevel: 1 },
+  { id: "bot-steady", name: "Steady Eddie", avatar: "🎯", description: "Consistent but unremarkable — a fair warmup", skillLevel: 3 },
+  { id: "bot-sharp", name: "Sharp Shooter", avatar: "🔥", description: "Knows how to play a good card at the right time", skillLevel: 5 },
+  { id: "bot-cyber", name: "Cyber Ace", avatar: "⚡", description: "Aggressive deck, favours rare cards", skillLevel: 7 },
+  { id: "bot-mastermind", name: "Master Mind", avatar: "🧠", description: "Nearly unbeatable — stacks legendary cards", skillLevel: 9 },
+  { id: "bot-legend", name: "Legend Bot", avatar: "👑", description: "The ultimate test. Only the best survive", skillLevel: 10 },
 ];
 
 const GAMEMODES = [
-  { id: "x01", label: "X01", desc: "Standard darts format" },
-  { id: "cricket", label: "Cricket", desc: "Strategic scoring" },
+  { id: "X01" as const, label: "X01", desc: "Standard darts format", emoji: "🎯" },
+  { id: "CRICKET" as const, label: "Cricket", desc: "Strategic scoring", emoji: "🏏" },
 ];
 
-export function CardClashPracticeUI({ playerId, playerName, onMatchCreated }: Props) {
-  const [step, setStep] = useState<Step>("difficulty");
-  const [selectedDifficulty, setSelectedDifficulty] = useState<string | null>(null);
-  const [selectedGameMode, setSelectedGameMode] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+function generateBotCards(bot: Bot, gameMode: "X01" | "CRICKET"): CardData[] {
+  const pool = (cardType: "GOOD" | "BAD") =>
+    ALL_CARDS.filter(c => c.category === `${gameMode} ${cardType}` || c.category === `WILDCARD ${cardType}`);
 
-  const handleDifficultySelect = (id: string) => {
-    setSelectedDifficulty(id);
+  const goodPool = pool("GOOD");
+  const badPool = pool("BAD");
+
+  // Higher skill -> more GOOD cards and a bias toward rarer cards
+  const goodCount = Math.max(1, Math.min(3, Math.round((bot.skillLevel / 10) * 4)));
+  const badCount = 4 - goodCount;
+
+  const rarityWeight = (rarity: CardData["rarity"]) => {
+    if (bot.skillLevel >= 8) return rarity === "LEGENDARY" ? 3 : rarity === "RARE" ? 2 : 1;
+    if (bot.skillLevel >= 5) return rarity === "RARE" ? 2 : 1;
+    return rarity === "COMMON" ? 2 : 1;
+  };
+
+  const weightedPick = (pool: CardData[], count: number): CardData[] => {
+    const bag: CardData[] = [];
+    for (const c of pool) {
+      for (let i = 0; i < rarityWeight(c.rarity); i++) bag.push(c);
+    }
+    const picked: CardData[] = [];
+    const used = new Set<number>();
+    let attempts = 0;
+    while (picked.length < count && attempts < 200 && bag.length > 0) {
+      attempts++;
+      const c = bag[Math.floor(Math.random() * bag.length)];
+      if (!used.has(c.id)) {
+        used.add(c.id);
+        picked.push(c);
+      }
+    }
+    return picked;
+  };
+
+  return [...weightedPick(goodPool, goodCount), ...weightedPick(badPool, badCount)];
+}
+
+export function CardClashPracticeUI({ playerId, playerName, onMatchReady }: Props) {
+  const [step, setStep] = useState<Step>("bot");
+  const [selectedBot, setSelectedBot] = useState<Bot | null>(null);
+  const [selectedGameMode, setSelectedGameMode] = useState<"X01" | "CRICKET" | null>(null);
+
+  const handleBotSelect = (bot: Bot) => {
+    setSelectedBot(bot);
     setStep("gamemode");
   };
 
-  const handleGameModeSelect = (id: string) => {
+  const handleGameModeSelect = (id: "X01" | "CRICKET") => {
     setSelectedGameMode(id);
     setStep("equipment");
   };
 
-  const handleEquipmentConfirm = async (equipment: any) => {
-    try {
-      setStep("launching");
-      setError(null);
-
-      // Get bot equipment (random selection filtered by game mode)
-      const allCards = Array.from({ length: 100 }, (_, i) => i + 1);
-      const goodCards = allCards.filter(id => {
-        if (selectedGameMode === "cricket") return (id >= 301 && id <= 320) || (id >= 101 && id <= 120);
-        return (id >= 101 && id <= 140) || (id >= 201 && id <= 240);
-      });
-      const badCards = allCards.filter(id => {
-        if (selectedGameMode === "cricket") return (id >= 401 && id <= 420);
-        return (id >= 401 && id <= 440);
-      });
-
-      // Need 4 GOOD and 4 BAD per preference
-      const botGood = [];
-      const botBad = [];
-      for (let i = 0; i < 4; i++) {
-        botGood.push(goodCards[Math.floor(Math.random() * goodCards.length)]);
-        botBad.push(badCards[Math.floor(Math.random() * badCards.length)]);
-      }
-
-      // Create practice match
-      const res = await fetch("/api/card-clash/practice/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          playerId,
-          difficulty: selectedDifficulty,
-          gameMode: selectedGameMode,
-          playerEquippedCards: equipment.goodCards.concat(equipment.badCards),
-          botEquippedCards: botGood.concat(botBad),
-        }),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`API Error: ${res.status} - ${errText}`);
-      }
-      
-      const { matchId } = await res.json();
-      onMatchCreated(matchId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create match");
-      setStep("equipment");
-    }
+  const handleEquipmentConfirm = (cards: CardData[]) => {
+    if (!selectedBot || !selectedGameMode) return;
+    const botCards = generateBotCards(selectedBot, selectedGameMode);
+    onMatchReady({
+      bot: selectedBot,
+      gameMode: selectedGameMode,
+      playerCards: cards,
+      botCards,
+    });
   };
 
   // ═══════════════════════════════════════════════════════════════════════
-  // STEP 1: SELECT DIFFICULTY
+  // STEP 1: SELECT BOT OPPONENT
   // ═══════════════════════════════════════════════════════════════════════
-  if (step === "difficulty") {
+  if (step === "bot") {
     return (
       <div style={{ maxWidth: "600px", margin: "0 auto" }}>
         <div style={{
@@ -111,15 +129,15 @@ export function CardClashPracticeUI({ playerId, playerName, onMatchCreated }: Pr
             Card Clash Practice
           </h2>
           <p style={{ margin: 0, fontSize: "13px", color: "rgba(255,255,255,0.5)" }}>
-            Test your deck against AI opponents
+            Test your deck against an AI opponent
           </p>
         </div>
 
         <div style={{ display: "grid", gap: "12px", marginBottom: "20px" }}>
-          {DIFFICULTIES.map(diff => (
+          {BOTS.map(bot => (
             <button
-              key={diff.id}
-              onClick={() => handleDifficultySelect(diff.id)}
+              key={bot.id}
+              onClick={() => handleBotSelect(bot)}
               style={{
                 all: "unset",
                 display: "flex",
@@ -144,12 +162,22 @@ export function CardClashPracticeUI({ playerId, playerName, onMatchCreated }: Pr
                 el.style.borderColor = "rgba(255,255,255,0.08)";
               }}
             >
-              <div style={{ fontSize: "28px" }}>{diff.emoji}</div>
+              <div style={{ fontSize: "28px" }}>{bot.avatar}</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: "#fff", marginBottom: "2px" }}>
-                  {diff.label}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "2px" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>{bot.name}</div>
+                  <div style={{
+                    fontSize: "10px",
+                    fontWeight: 800,
+                    color: "#00cc66",
+                    background: "rgba(0,200,100,0.15)",
+                    padding: "2px 8px",
+                    borderRadius: "10px",
+                  }}>
+                    SKILL {bot.skillLevel}/10
+                  </div>
                 </div>
-                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>{diff.desc}</div>
+                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>{bot.description}</div>
               </div>
             </button>
           ))}
@@ -165,7 +193,7 @@ export function CardClashPracticeUI({ playerId, playerName, onMatchCreated }: Pr
     return (
       <div style={{ maxWidth: "600px", margin: "0 auto" }}>
         <button
-          onClick={() => setStep("difficulty")}
+          onClick={() => setStep("bot")}
           style={{
             all: "unset",
             display: "inline-flex",
@@ -181,14 +209,6 @@ export function CardClashPracticeUI({ playerId, playerName, onMatchCreated }: Pr
             cursor: "pointer",
             marginBottom: "20px",
             transition: "all 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            const el = e.currentTarget as HTMLElement;
-            el.style.background = "rgba(255,255,255,0.1)";
-          }}
-          onMouseLeave={(e) => {
-            const el = e.currentTarget as HTMLElement;
-            el.style.background = "rgba(255,255,255,0.06)";
           }}
         >
           ← BACK
@@ -202,20 +222,20 @@ export function CardClashPracticeUI({ playerId, playerName, onMatchCreated }: Pr
           marginBottom: "24px",
           textAlign: "center",
         }}>
-          <div style={{ fontSize: "40px", marginBottom: "12px" }}>🎮</div>
+          <div style={{ fontSize: "40px", marginBottom: "12px" }}>{selectedBot?.avatar}</div>
           <h2 style={{ margin: "0 0 8px", fontSize: "24px", fontWeight: 900, color: "#fff" }}>
             Select Game Mode
           </h2>
           <p style={{ margin: 0, fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
-            {DIFFICULTIES.find(d => d.id === selectedDifficulty)?.label} difficulty
+            vs {selectedBot?.name}
           </p>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
-          {GAMEMODES.map(mode => (
+          {GAMEMODES.map(gm => (
             <button
-              key={mode.id}
-              onClick={() => handleGameModeSelect(mode.id)}
+              key={gm.id}
+              onClick={() => handleGameModeSelect(gm.id)}
               style={{
                 all: "unset",
                 display: "flex",
@@ -229,26 +249,10 @@ export function CardClashPracticeUI({ playerId, playerName, onMatchCreated }: Pr
                 transition: "all 0.2s",
                 textAlign: "center",
               }}
-              onMouseEnter={(e) => {
-                const el = e.currentTarget as HTMLElement;
-                el.style.background = "rgba(0,200,150,0.12)";
-                el.style.borderColor = "rgba(0,200,150,0.3)";
-              }}
-              onMouseLeave={(e) => {
-                const el = e.currentTarget as HTMLElement;
-                el.style.background = "rgba(255,255,255,0.04)";
-                el.style.borderColor = "rgba(255,255,255,0.08)";
-              }}
             >
-              <div style={{ fontSize: "28px" }}>
-                {mode.id === "x01" ? "🎯" : "🏏"}
-              </div>
-              <div style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>
-                {mode.label}
-              </div>
-              <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>
-                {mode.desc}
-              </div>
+              <div style={{ fontSize: "28px" }}>{gm.emoji}</div>
+              <div style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>{gm.label}</div>
+              <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>{gm.desc}</div>
             </button>
           ))}
         </div>
@@ -259,87 +263,39 @@ export function CardClashPracticeUI({ playerId, playerName, onMatchCreated }: Pr
   // ═══════════════════════════════════════════════════════════════════════
   // STEP 3: EQUIPMENT SELECTION
   // ═══════════════════════════════════════════════════════════════════════
-  if (step === "equipment") {
-    return (
-      <div>
-        <button
-          onClick={() => setStep("gamemode")}
-          style={{
-            all: "unset",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-            padding: "8px 16px",
-            borderRadius: "8px",
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            color: "rgba(255,255,255,0.6)",
-            fontSize: "12px",
-            fontWeight: 700,
-            cursor: "pointer",
-            marginBottom: "20px",
-            transition: "all 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            const el = e.currentTarget as HTMLElement;
-            el.style.background = "rgba(255,255,255,0.1)";
-          }}
-          onMouseLeave={(e) => {
-            const el = e.currentTarget as HTMLElement;
-            el.style.background = "rgba(255,255,255,0.06)";
-          }}
-        >
-          ← BACK
-        </button>
-
-        {error && (
-          <div style={{
-            borderRadius: "12px",
-            background: "rgba(255,100,100,0.1)",
-            border: "1px solid rgba(255,100,100,0.3)",
-            padding: "12px 16px",
-            marginBottom: "20px",
-            fontSize: "13px",
-            color: "#ff6464",
-          }}>
-            ⚠ {error}
-          </div>
-        )}
-
-        <CardEquipmentSelector
-          currentPlayerId={playerId}
-          currentPlayerName={playerName}
-          gameMode={selectedGameMode === "cricket" ? "cricket" : "x01"}
-          testMode={true}
-          onCancel={() => setStep("gamemode")}
-          onSelect={(equipment) => handleEquipmentConfirm(equipment)}
-        />
-      </div>
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // STEP 4: LAUNCHING
-  // ═══════════════════════════════════════════════════════════════════════
   return (
-    <div style={{
-      padding: "60px 20px",
-      textAlign: "center",
-      color: "rgba(255,255,255,0.5)",
-    }}>
-      <div style={{ fontSize: "32px", marginBottom: "16px", animation: "spin 2s linear infinite" }}>
-        🎮
-      </div>
-      <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px", color: "#fff" }}>
-        Loading Practice Match
-      </div>
-      <div style={{ fontSize: "12px" }}>Preparing opponent...</div>
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+    <div>
+      <button
+        onClick={() => setStep("gamemode")}
+        style={{
+          all: "unset",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "6px",
+          padding: "8px 16px",
+          borderRadius: "8px",
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          color: "rgba(255,255,255,0.6)",
+          fontSize: "12px",
+          fontWeight: 700,
+          cursor: "pointer",
+          marginBottom: "20px",
+          transition: "all 0.2s",
+        }}
+      >
+        ← BACK
+      </button>
+
+      <CardEquipmentSelector
+        currentPlayerId={playerId}
+        currentPlayerName={playerName}
+        opponentName={selectedBot?.name}
+        gameMode={selectedGameMode ?? "X01"}
+        testMode={true}
+        onBack={() => setStep("gamemode")}
+        onConfirm={(cards) => handleEquipmentConfirm(cards)}
+      />
     </div>
   );
 }
