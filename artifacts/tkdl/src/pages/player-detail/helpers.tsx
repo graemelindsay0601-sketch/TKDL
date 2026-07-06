@@ -141,6 +141,24 @@ export const RARITY_COLORS: Record<string, { color: string; glow: string; bg: st
   Mythic:    { color: "#ff005c", glow: "rgba(255,0,92,0.4)",    bg: "rgba(255,0,92,0.08)"   },
 };
 
+function RewardBadge({ coinReward, packReward }: { coinReward?: number; packReward?: string | null }) {
+  if (!coinReward && !packReward) return null;
+  return (
+    <div className="flex items-center gap-1.5 mt-1">
+      {!!coinReward && (
+        <span className="flex items-center gap-0.5 text-xs font-black" style={{ color: "#ffd24a", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
+          🪙 {coinReward}
+        </span>
+      )}
+      {!!packReward && (
+        <span className="flex items-center gap-0.5 text-xs font-black" style={{ color: "#0066ff", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
+          📦 {packReward}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function AchievementCard({ a }: { a: any }) {
   const rc = RARITY_COLORS[a.rarity] ?? RARITY_COLORS.Common;
   const isHidden = a.hidden && !a.isUnlocked;
@@ -166,6 +184,7 @@ export function AchievementCard({ a }: { a: any }) {
           {!isHidden && (
             <div className="text-xs leading-tight mb-1" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.62rem" }}>{a.description}</div>
           )}
+          {!isHidden && <RewardBadge coinReward={a.coinReward} packReward={a.packReward} />}
           {!a.isUnlocked && !isHidden && (
             <div>
               <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>

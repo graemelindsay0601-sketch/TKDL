@@ -48,6 +48,24 @@ function getRarityMeta(rarity: string, isHidden: boolean) {
   return RARITY_META[rarity] ?? RARITY_META.Common;
 }
 
+function RewardBadge({ coinReward, packReward }: { coinReward?: number; packReward?: string | null }) {
+  if (!coinReward && !packReward) return null;
+  return (
+    <div className="flex items-center gap-1.5">
+      {!!coinReward && (
+        <span className="flex items-center gap-0.5 text-xs font-black" style={{ color: "#ffd24a", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
+          🪙 {coinReward}
+        </span>
+      )}
+      {!!packReward && (
+        <span className="flex items-center gap-0.5 text-xs font-black" style={{ color: "#0066ff", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
+          📦 {packReward}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function AchCard({ a, hovered, onHover, onClick }: { a: any; hovered: boolean; onHover: (v: boolean) => void; onClick: () => void }) {
   const isHidden = !!(a as any).hidden;
   const rm = getRarityMeta(a.rarity, isHidden);
@@ -102,6 +120,8 @@ function AchCard({ a, hovered, onHover, onClick }: { a: any; hovered: boolean; o
         <div className="text-xs leading-relaxed flex-1" style={{ color: isHidden ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.45)" }}>
           {isHidden ? "Complete a hidden objective to reveal this achievement." : a.description}
         </div>
+
+        {!isHidden && <RewardBadge coinReward={(a as any).coinReward} packReward={(a as any).packReward} />}
 
         {!isHidden && (a as any).category && (
           <div className="mt-auto pt-2 border-t" style={{ borderColor: `${rm.border}` }}>
@@ -469,6 +489,8 @@ function BotTab({ openAchievementModal }: { openAchievementModal: (a: any) => vo
                   <div className="text-xs leading-relaxed flex-1" style={{ color: "rgba(255,255,255,0.45)" }}>
                     {a.description}
                   </div>
+
+                  <RewardBadge coinReward={(a as any).coinReward} packReward={(a as any).packReward} />
 
                   <div className="text-xs font-mono mt-1" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Share Tech Mono, monospace", fontSize: "0.58rem" }}>
                     {a.criteriaValue.toLocaleString()} {BOT_CRITERIA_LABELS[a.criteriaType] ?? ""}

@@ -428,22 +428,22 @@ router.post("/match/finish", async (req: Request, res: Response) => {
     const result = await finishCardClashMatch(matchId, winnerId, cardsUsedInMatch);
     
     // Update challenges for both players
-    const { challengeManager } = await import("../services/challenge-manager");
-    
+    const { challengeService } = await import("../services/challenge-service");
+
     // Get the loser (if available)
     const match = result;
     const loserId = match.player1_id === winnerId ? match.player2_id : match.player1_id;
-    
+
     // Update winner's challenges
-    await challengeManager.updateProgressFromGameResult(winnerId, {
+    await challengeService.updateProgressForGameResult(winnerId, {
       gameMode: "CARD_CLASH",
       won: true,
       cardsUsed: Array.isArray(cardsUsedInMatch) ? cardsUsedInMatch.length : (cardsUsedInMatch || 0),
     });
-    
+
     // Update loser's challenges
     if (loserId) {
-      await challengeManager.updateProgressFromGameResult(loserId, {
+      await challengeService.updateProgressForGameResult(loserId, {
         gameMode: "CARD_CLASH",
         won: false,
         cardsUsed: Array.isArray(cardsUsedInMatch) ? cardsUsedInMatch.length : (cardsUsedInMatch || 0),
@@ -1004,8 +1004,8 @@ router.post("/challenges/reroll-daily", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "playerId and challengeId required" });
     }
 
-    const { challengeManager } = await import("../services/challenge-manager");
-    const result = await challengeManager.rerollDaily(playerId, challengeId);
+    const { challengeService } = await import("../services/challenge-service");
+    const result = await challengeService.rerollDaily(playerId, challengeId);
     res.json(result);
   } catch (error) {
     logger.error("Reroll daily error:", error);
@@ -1021,8 +1021,8 @@ router.post("/challenges/reroll-weekly", async (req: Request, res: Response) => 
       return res.status(400).json({ error: "playerId and challengeId required" });
     }
 
-    const { challengeManager } = await import("../services/challenge-manager");
-    const result = await challengeManager.rerollWeekly(playerId, challengeId);
+    const { challengeService } = await import("../services/challenge-service");
+    const result = await challengeService.rerollWeekly(playerId, challengeId);
     res.json(result);
   } catch (error) {
     logger.error("Reroll weekly error:", error);

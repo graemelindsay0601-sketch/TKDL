@@ -2,7 +2,7 @@ import { Router } from "express";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable, achievementsTable, playerAchievementsTable } from "@workspace/db";
 import { z } from "zod";
-import { checkStatAchievements, checkMatchAchievements, retroactiveSweep } from "../lib/achievements";
+import { checkStatAchievements, checkMatchAchievements, retroactiveSweep, resetAndRecomputeEconomy } from "../lib/achievements";
 import { applyEloChange, calcTier } from "../lib/elo";
 import { getBatchingStats } from "../services/batchingService";
 import { initializeFeatureFlags } from "../services/feature-flags-service";
@@ -263,6 +263,28 @@ router.patch("/admin/players/:id/elo", async (req, res): Promise<void> => {
 router.post("/admin/achievement-sweep", async (_req, res): Promise<void> => {
   const result = await retroactiveSweep();
   res.json({ ok: true, ...result });
+});
+
+// ── Reset & recompute economy ──────────────────────────────────────────────────
+// Zeroes every player's coins, packs, and card inventory, then replays every
+// already-unlocked achievement (league/practice/format-meme/master501/shadow
+// bot/Card Clash) to re-credit the correct reward. Destructive but self-healing —
+// intended as a one-time fix for players who unlocked achievements before
+// rewards existed, and safe to re-run if needed.
+router.post("/admin/reset-and-recompute-economy", async (req, res): Promise<void> => {
+  const { confirm } = req.body ?? {};
+  if (confirm !== "RESET") {
+    res.status(400).json({ error: 'Must confirm with { "confirm": "RESET" }' });
+    return;
+  }
+  try {
+    const result = await resetAndRecomputeEconomy();
+    logger.info(result, "Admin triggered economy reset + recompute");
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    logger.error({ error }, "Failed to reset and recompute economy");
+    res.status(500).json({ error: "Failed to reset and recompute economy" });
+  }
 });
 
 // ── Get all seasons with standings for admin ──────────────────────────────────

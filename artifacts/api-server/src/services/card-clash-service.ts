@@ -274,21 +274,14 @@ export async function finishCardClashMatch(
   // Update challenge progress (fire and forget)
   try {
     const { challengeService } = await import("../services/challenge-service");
-    
-    // Update daily challenges for winner
-    await challengeService.updateDailyProgress(winnerId, "matches_5", 1);
-    await challengeService.updateDailyProgress(winnerId, "card_clash_wins_2", 1);
-    
-    // Update daily challenges for loser
-    await challengeService.updateDailyProgress(loser, "matches_5", 1);
-    await challengeService.updateDailyProgress(loser, "card_clash_wins_2", 0);
-    
-    // Update weekly challenges
-    await challengeService.updateWeeklyProgress(winnerId, "weekly_wins_5", 1);
-    await challengeService.updateWeeklyProgress(winnerId, "weekly_card_clash_3", 1);
-    
-    await challengeService.updateWeeklyProgress(loser, "weekly_wins_5", 0);
-    await challengeService.updateWeeklyProgress(loser, "weekly_card_clash_3", 0);
+
+    // Auto-match every active daily/weekly challenge by requirement_type
+    // (covers both the hardcoded default challenges and the wider
+    // challengePool.ts card-clash entries, e.g. "cardclash_initiate_2").
+    await challengeService.updateProgressForGameResult(winnerId, { gameMode: "CARD_CLASH", won: true });
+    if (loser) {
+      await challengeService.updateProgressForGameResult(loser, { gameMode: "CARD_CLASH", won: false });
+    }
 
     // Update seasonal quests
     const { seasonalQuestService } = await import("../services/seasonal-quest-service");

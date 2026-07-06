@@ -417,15 +417,15 @@ router.patch("/tour/runs/:runId", async (req, res): Promise<void> => {
       void (async () => {
         try {
           const { addCoinsToPlayer } = await import("../services/card-shop-service");
-          const { challengeManager } = await import("../services/challenge-manager");
-          
+          const { challengeService } = await import("../services/challenge-service");
+
           // Award 10 coins per win
           if (playerWon) {
             await addCoinsToPlayer(playerId, 10);
           }
-          
+
           // Update challenges for each match/round result
-          await challengeManager.updateProgressFromGameResult(playerId, {
+          await challengeService.updateProgressForGameResult(playerId, {
             gameMode: "TOUR",
             won: playerWon,
           });

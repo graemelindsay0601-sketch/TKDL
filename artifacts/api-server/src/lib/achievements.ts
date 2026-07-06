@@ -5,9 +5,8 @@ import { logger } from "./logger";
 import { createNotification } from "./communityNotify";
 import { PRACTICE_ACHIEVEMENT_DEFINITIONS, checkPracticeAchievements } from "./practice-achievements";
 import { FORMAT_AND_MEME_ACHIEVEMENT_DEFINITIONS } from "./format-and-meme-achievements";
-import { checkAndAwardShadowBotAchievements } from "./shadow-bot-achievements";
+import { checkAndAwardShadowBotAchievements, SHADOW_BOT_ACHIEVEMENT_DEFS } from "./shadow-bot-achievements";
 import { MASTER501_ACHIEVEMENT_DEFINITIONS } from "./master501-achievements";
-import { getAchievementReward, packRewardToCount } from "./achievement-rewards";
 
 export type AchievementDef = {
   key: string;
@@ -340,6 +339,113 @@ export async function retroactiveSweep(): Promise<{ granted: number; playersChec
   return { granted: totalGranted, playersChecked: players.length };
 }
 
+/**
+ * Full economy reset + recompute.
+ *
+ * Zeroes every player's coins, pack tokens, unopened packs, and owned card
+ * inventory, then replays every already-unlocked achievement across all
+ * four achievement storage tables (league/practice/format-meme/master501
+ * live in `achievements`+`player_achievements`; shadow bot lives in
+ * `shadow_bot_achievements`; Card Clash lives in
+ * `card_clash_achievements_earned`) to re-credit the correct reward for
+ * each one. This exists because rewards were added to the game after many
+ * players had already unlocked achievements, so those players never got
+ * paid — this is the one-time backfill plus a clean slate.
+ *
+ * Safe to re-run: it always zeroes first, so it never double-pays.
+ */
+export async function resetAndRecomputeEconomy(): Promise<{
+  playersProcessed: number;
+  coinsGranted: number;
+  packsGranted: number;
+}> {
+  const { addCoinsToPlayer } = await import("../services/card-shop-service");
+
+  // ── 1. Wipe economy state ────────────────────────────────────────────────
+  await db.execute(sql`DELETE FROM card_clash_pack_inventory`);
+  await db.execute(sql`DELETE FROM player_card_inventory`);
+
+  const players = await db.select().from(playersTable);
+
+  for (const player of players) {
+    await db.execute(sql`
+      INSERT INTO player_currency (player_id, card_points, lifetime_coins_earned, pack_tokens)
+      VALUES (${player.id}, 0, 0, 0)
+      ON CONFLICT (player_id) DO UPDATE SET card_points = 0, lifetime_coins_earned = 0, pack_tokens = 0, updated_at = now()
+    `);
+  }
+
+  let coinsGranted = 0;
+  let packsGranted = 0;
+
+  // ── 2. Replay league/practice/format-meme/master501 achievements ────────
+  const mainUnlocks = await db
+    .select({
+      playerId:   playerAchievementsTable.playerId,
+      key:        achievementsTable.key,
+      coinReward: achievementsTable.coinReward,
+      packReward: achievementsTable.packReward,
+    })
+    .from(playerAchievementsTable)
+    .innerJoin(achievementsTable, eq(playerAchievementsTable.achievementId, achievementsTable.id));
+
+  for (const u of mainUnlocks) {
+    if (!u.coinReward && !u.packReward) continue;
+    await awardAchievementRewards(u.playerId, u.coinReward ?? 0, u.packReward ?? null, u.key);
+    coinsGranted += u.coinReward ?? 0;
+    if (u.packReward) packsGranted++;
+  }
+
+  // ── 3. Replay shadow bot achievements ────────────────────────────────────
+  const shadowUnlocks = (await db.execute(sql`
+    SELECT player_id, achievement_key FROM shadow_bot_achievements
+  `)).rows as { player_id: number; achievement_key: string }[];
+
+  for (const u of shadowUnlocks) {
+    const def = SHADOW_BOT_ACHIEVEMENT_DEFS.find(d => d.key === u.achievement_key);
+    if (!def || (!def.coinReward && !def.packReward)) continue;
+
+    if (def.coinReward && def.coinReward > 0) {
+      await addCoinsToPlayer(u.player_id, def.coinReward);
+      coinsGranted += def.coinReward;
+    }
+    if (def.packReward) {
+      await db.execute(sql`
+        INSERT INTO card_clash_pack_inventory (player_id, pack_type, earned_reason)
+        VALUES (${u.player_id}, ${def.packReward}, ${"ACHIEVEMENT:" + u.achievement_key})
+      `);
+      packsGranted++;
+    }
+  }
+
+  // ── 4. Replay Card Clash achievements (rewards already stored per row) ──
+  const ccUnlocks = (await db.execute(sql`
+    SELECT player_id, achievement_key, coins_awarded, pack_awarded
+    FROM card_clash_achievements_earned
+  `)).rows as { player_id: number; achievement_key: string; coins_awarded: number; pack_awarded: string | null }[];
+
+  for (const u of ccUnlocks) {
+    if (u.coins_awarded > 0) {
+      await addCoinsToPlayer(u.player_id, u.coins_awarded);
+      coinsGranted += u.coins_awarded;
+    }
+    if (u.pack_awarded) {
+      await db.execute(sql`
+        INSERT INTO card_clash_pack_inventory (player_id, pack_type, earned_reason)
+        VALUES (${u.player_id}, ${u.pack_awarded}, ${"ACHIEVEMENT:" + u.achievement_key})
+      `);
+      packsGranted++;
+    }
+  }
+
+  logger.info(
+    { playersProcessed: players.length, coinsGranted, packsGranted },
+    "Economy reset + recompute complete"
+  );
+
+  return { playersProcessed: players.length, coinsGranted, packsGranted };
+}
+
 export async function seedAchievements(): Promise<void> {
   for (const def of ACHIEVEMENT_DEFINITIONS) {
     const [existing] = await db.select({ id: achievementsTable.id })
@@ -380,8 +486,10 @@ async function grantIfNotHas(playerId: number, key: string): Promise<boolean> {
   await db.insert(playerAchievementsTable).values({ playerId, achievementId: ach.id });
   logger.info({ playerId, key }, "Achievement unlocked");
   
-  // Award rewards (coins/packs)
-  await awardAchievementRewards(playerId, key);
+  // Award rewards (coins/packs) — sourced from the achievement's own DB row,
+  // NOT the legacy external COMPREHENSIVE_ACHIEVEMENT_REWARDS map, so every
+  // achievement family stays consistent with a single source of truth.
+  await awardAchievementRewards(playerId, ach.coinReward ?? 0, ach.packReward ?? null, ach.key);
   
   // Notify player
   void createNotification({
@@ -395,48 +503,45 @@ async function grantIfNotHas(playerId: number, key: string): Promise<boolean> {
 }
 
 /**
- * Award coins and pack rewards for an achievement
+ * Award coins and pack rewards for an achievement.
+ * `coinReward`/`packReward` must come from the achievement's own DB row
+ * (achievementsTable.coin_reward / pack_reward) — that is the single source
+ * of truth used consistently across every achievement family.
+ *
+ * Pack rewards are delivered as an actual unopened pack row in
+ * `card_clash_pack_inventory` (earnedReason tagged "ACHIEVEMENT:<key>"),
+ * matching practice/master501/shadow-bot achievements exactly — NOT as a
+ * `player_currency.pack_tokens` counter (that field is a separate
+ * shop-purchase currency, unrelated to achievement-earned packs).
  */
-async function awardAchievementRewards(playerId: number, achievementKey: string): Promise<void> {
-  const reward = getAchievementReward(achievementKey);
-  if (!reward.coinReward && !reward.packReward) return;
-  
+async function awardAchievementRewards(
+  playerId: number,
+  coinReward: number,
+  packReward: string | null,
+  achievementKey?: string
+): Promise<void> {
+  if (!coinReward && !packReward) return;
+
   try {
-    const { playerCurrencyTable } = await import("@workspace/db");
-    
-    // Get current player currency
-    const [playerCurrency] = await db
-      .select()
-      .from(playerCurrencyTable)
-      .where(eq(playerCurrencyTable.playerId, playerId));
-    
-    if (!playerCurrency) {
-      logger.warn({ playerId }, "Player currency record not found for achievement reward");
-      return;
+    const { ensurePlayerCurrency } = await import("./cardTablesMigration");
+    const { addCoinsToPlayer } = await import("../services/card-shop-service");
+    await ensurePlayerCurrency(playerId);
+
+    if (coinReward > 0) {
+      await addCoinsToPlayer(playerId, coinReward);
     }
-    
-    // Calculate pack tokens to add
-    const packTokensToAdd = reward.packReward 
-      ? (reward.packReward === 'TEN' ? 10 : reward.packReward === 'FIVE' ? 5 : 1)
-      : 0;
-    
-    // Award coins and/or packs
-    await db
-      .update(playerCurrencyTable)
-      .set({
-        cardPoints: (playerCurrency.cardPoints || 0) + (reward.coinReward || 0),
-        packTokens: (playerCurrency.packTokens || 0) + packTokensToAdd,
-        lifetimeCoinsEarned: (playerCurrency.lifetimeCoinsEarned || 0) + (reward.coinReward || 0),
-        updatedAt: new Date(),
-      })
-      .where(eq(playerCurrencyTable.playerId, playerId));
-    
-    if (reward.coinReward || packTokensToAdd > 0) {
-      logger.info(
-        { playerId, achievementKey, coins: reward.coinReward, packs: packTokensToAdd },
-        "Achievement reward granted"
-      );
+
+    if (packReward) {
+      await db.execute(sql`
+        INSERT INTO card_clash_pack_inventory (player_id, pack_type, earned_reason)
+        VALUES (${playerId}, ${packReward}, ${"ACHIEVEMENT:" + (achievementKey ?? "unknown")})
+      `);
     }
+
+    logger.info(
+      { playerId, achievementKey, coins: coinReward, packs: packReward },
+      "Achievement reward granted"
+    );
   } catch (error) {
     logger.error({ playerId, achievementKey, error }, "Failed to award achievement rewards");
   }

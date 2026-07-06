@@ -51,6 +51,7 @@ export default function Admin() {
 
   const [seasonName, setSeasonName]               = useState("");
   const [isSweeping, setIsSweeping]               = useState(false);
+  const [isResettingEconomy, setIsResettingEconomy] = useState(false);
   const [eloPlayerId, setEloPlayerId]             = useState<number | null>(null);
   const [eloValue, setEloValue]                   = useState(1000);
   const [eloLoading, setEloLoading]               = useState(false);
@@ -213,6 +214,30 @@ export default function Admin() {
     setIsSweeping(false);
   };
 
+  const handleResetEconomy = async () => {
+    setIsResettingEconomy(true);
+    try {
+      const res = await fetch("/api/admin/reset-and-recompute-economy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "RESET" }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        toast({
+          title: "Economy Reset & Recomputed",
+          description: `${data.playersProcessed} players processed · ${data.coinsGranted} coins and ${data.packsGranted} packs re-granted.`,
+        });
+        queryClient.invalidateQueries();
+      } else {
+        toast({ title: "Error", description: data.error ?? "Unknown error", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Reset failed", description: e.message, variant: "destructive" });
+    }
+    setIsResettingEconomy(false);
+  };
+
   return (
     <div className="space-y-8">
       <div className="pdc-divider" />
@@ -289,6 +314,41 @@ export default function Admin() {
             style={{ background: "#0066ff", border: "none", fontFamily: "Oswald, sans-serif", minWidth: 120 }}>
             {isSweeping ? <><div className="w-3.5 h-3.5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#fff" }} /> Sweeping...</> : <><Zap className="w-4 h-4" /> Run Sweep</>}
           </Button>
+        </div>
+      </CollapsibleAdminSection>
+
+      {/* Reset & Recompute Economy */}
+      <CollapsibleAdminSection title="Reset & Recompute Economy" icon={AlertTriangle} accent="#ff005c" borderColor="rgba(255,0,92,0.2)" background="rgba(255,0,92,0.03)">
+        <div className="p-5 flex items-center justify-between gap-4">
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+            Zeroes every player's coins, packs, and card inventory, then replays every already-unlocked
+            achievement to re-grant the correct reward. Use this to fix players who unlocked achievements
+            before rewards existed. Cannot be undone.
+          </p>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button disabled={isResettingEconomy}
+                className="gap-2 font-bold uppercase tracking-wider shrink-0"
+                style={{ background: "#ff005c", border: "none", fontFamily: "Oswald, sans-serif", minWidth: 160 }}>
+                {isResettingEconomy ? <><div className="w-3.5 h-3.5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#fff" }} /> Resetting...</> : <><AlertTriangle className="w-4 h-4" /> Reset & Recompute</>}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(255,0,92,0.3)" }}>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+                  <AlertTriangle className="w-5 h-5" /> Are you absolutely sure?
+                </AlertDialogTitle>
+                <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
+                  This will zero every player's coins, unopened packs, and owned cards, then re-grant rewards
+                  for every achievement already unlocked. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleResetEconomy} style={{ background: "#ff005c", color: "#fff", border: "none" }}>Yes, Reset Economy</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </CollapsibleAdminSection>
 

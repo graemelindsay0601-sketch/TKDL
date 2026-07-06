@@ -556,12 +556,44 @@ export const SHADOW_BOT_ACHIEVEMENT_DEFS: ShadowBotAchievementDef[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function awardShadowBotAchievement(playerId: number, key: string): Promise<void> {
-  await db.execute(sql`
+  const inserted = await db.execute(sql`
     INSERT INTO shadow_bot_achievements (player_id, achievement_key)
     VALUES (${playerId}, ${key})
     ON CONFLICT (player_id, achievement_key) DO NOTHING
+    RETURNING id
   `);
   logger.info({ playerId, key }, "Shadow bot achievement awarded");
+
+  // Only grant coins/packs the first time this achievement is actually inserted
+  // (ON CONFLICT DO NOTHING means a re-run won't double-pay).
+  if (inserted.rows.length === 0) return;
+
+  const def = SHADOW_BOT_ACHIEVEMENT_DEFS.find(d => d.key === key);
+  if (!def || (!def.coinReward && !def.packReward)) return;
+
+  try {
+    const { addCoinsToPlayer } = await import("../services/card-shop-service");
+    const { ensurePlayerCurrency } = await import("./cardTablesMigration");
+    await ensurePlayerCurrency(playerId);
+
+    if (def.coinReward && def.coinReward > 0) {
+      await addCoinsToPlayer(playerId, def.coinReward);
+    }
+
+    if (def.packReward) {
+      await db.execute(sql`
+        INSERT INTO card_clash_pack_inventory (player_id, pack_type, earned_reason)
+        VALUES (${playerId}, ${def.packReward}, ${"ACHIEVEMENT:" + key})
+      `);
+    }
+
+    logger.info(
+      { playerId, key, coins: def.coinReward, packs: def.packReward },
+      "Shadow bot achievement unlocked with rewards"
+    );
+  } catch (error) {
+    logger.error({ playerId, key, error }, "Failed to award shadow bot achievement rewards");
+  }
 }
 
 export async function checkAndAwardShadowBotAchievements(playerId: number): Promise<void> {

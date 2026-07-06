@@ -289,23 +289,23 @@ router.post("/matches", async (req, res): Promise<void> => {
         await addCoinsToPlayer(winnerId, winCoins);
         await addCoinsToPlayer(loserId, lossCoins);
 
-        // Update challenge progress using new manager system
-        const { challengeManager } = await import("../services/challenge-manager");
-        
+        // Update challenge progress
+        const { challengeService } = await import("../services/challenge-service");
+
         // Map game type to game mode for challenges
         let gameMode: "X01" | "CRICKET" | "LEAGUE" = "LEAGUE";
         if (gameType === "501") gameMode = "X01";
         if (gameType === "Cricket") gameMode = "CRICKET";
-        
+
         // Update winner's challenges
-        await challengeManager.updateProgressFromGameResult(winnerId, {
+        await challengeService.updateProgressForGameResult(winnerId, {
           gameMode,
           won: true,
           score: winnerDarts || 0,
         });
-        
+
         // Update loser's challenges
-        await challengeManager.updateProgressFromGameResult(loserId, {
+        await challengeService.updateProgressForGameResult(loserId, {
           gameMode,
           won: false,
           score: loserDarts || 0,

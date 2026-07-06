@@ -111,28 +111,28 @@ router.post("/practice/sessions", async (req, res): Promise<void> => {
 
         // Update challenge progress for both players
         if (body.player1Id) {
-          const { challengeManager } = await import("../services/challenge-manager");
+          const { challengeService } = await import("../services/challenge-service");
           // Determine game mode from gameTypeKey
           let gameMode: "PRACTICE" | "X01" | "CRICKET" = "PRACTICE";
           if (body.gameTypeKey?.includes("x01")) gameMode = "X01";
           if (body.gameTypeKey?.includes("cricket")) gameMode = "CRICKET";
-          
+
           const won = body.winnerIdx === 0;
-          await challengeManager.updateProgressFromGameResult(body.player1Id, {
+          await challengeService.updateProgressForGameResult(body.player1Id, {
             gameMode,
             won,
             score: body.p1Score || 0,
           });
         }
-        
+
         if (body.player2Id) {
-          const { challengeManager } = await import("../services/challenge-manager");
+          const { challengeService } = await import("../services/challenge-service");
           let gameMode: "PRACTICE" | "X01" | "CRICKET" = "PRACTICE";
           if (body.gameTypeKey?.includes("x01")) gameMode = "X01";
           if (body.gameTypeKey?.includes("cricket")) gameMode = "CRICKET";
-          
+
           const won = body.winnerIdx === 1;
-          await challengeManager.updateProgressFromGameResult(body.player2Id, {
+          await challengeService.updateProgressForGameResult(body.player2Id, {
             gameMode,
             won,
             score: body.p2Score || 0,

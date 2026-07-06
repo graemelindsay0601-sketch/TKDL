@@ -269,14 +269,14 @@ router.patch("/master501/runs/:runId", async (req, res): Promise<void> => {
       // Award coins on M-501 completion (10 coins per win) + update challenges
       try {
         const { addCoinsToPlayer } = await import("../services/card-shop-service");
-        const { challengeManager } = await import("../services/challenge-manager");
-        
+        const { challengeService } = await import("../services/challenge-service");
+
         if (result === "win") {
           await addCoinsToPlayer(Number(run.player_id), 10);
         }
-        
+
         // Update challenges for this M-501 match/round
-        await challengeManager.updateProgressFromGameResult(Number(run.player_id), {
+        await challengeService.updateProgressForGameResult(Number(run.player_id), {
           gameMode: "M501",
           won: result === "win",
         });

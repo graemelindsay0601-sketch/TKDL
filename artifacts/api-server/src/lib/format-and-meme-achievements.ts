@@ -3,7 +3,9 @@ import type { AchievementDef } from "./achievements";
 function fmtAch(key: string, icon: string, name: string, desc: string, n: number, cat: string): AchievementDef {
   const rarity = n >= 10 ? "Epic" : n >= 5 ? "Rare" : "Common";
   const priority = n >= 10 ? 60 : n >= 5 ? 40 : 20;
-  return { key, name: `${icon} ${name}`, description: desc, icon, rarity, category: cat, hidden: false, priority, criteriaType: `FORMAT_WINS_${key}`, criteriaValue: n, engineType: "STAT_BASED" };
+  const coinReward = rarity === "Epic" ? 75 : rarity === "Rare" ? 35 : 15;
+  const packReward = rarity === "Epic" ? "SINGLE" as const : undefined;
+  return { key, name: `${icon} ${name}`, description: desc, icon, rarity, category: cat, hidden: false, priority, criteriaType: `FORMAT_WINS_${key}`, criteriaValue: n, engineType: "STAT_BASED", coinReward, packReward };
 }
 
 // ─── X01 Variants ────────────────────────────────────────────────────────────
