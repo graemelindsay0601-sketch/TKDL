@@ -1246,6 +1246,9 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       }
     }
 
+    // NOTE: CricketScorer has no leg/match concept (single-leg game), so leg-conditioned
+    // Wildcard cards (Lucky Streak, Momentum Surge, etc.) correctly never trigger here —
+    // legHistory/legsNeeded are intentionally empty/zero, not a bug.
     const effects = ccActivateCard(card, turn, { marks, scores }, undefined, { legHistory: [], legsNeeded: 0, calledNumber });
     
     // Card Clash: Number Prison — randomly lock one of opponent's closed numbers
@@ -1442,11 +1445,25 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       const isLocked = isCardClash && lockedNumbers[turn].has(CRICKET_NUMS[numIdx]);
       const effectiveHitsAfterLock = isLocked ? 0 : effectiveHits;
 
+      // BUGFIX AUDIT (610 Shutdown): maxMarksPerTurn field was defined but never enforced —
+      // cap total marks this player can gain across all numbers this turn.
+      const marksCapEffect = isCardClash
+        ? activeEffects.find(e => e.status === "active" && e.affectsPlayer === turn && e.maxMarksPerTurn !== undefined)
+        : undefined;
+      const marksGainedThisTurnSoFar = visitMarkGains.reduce((sum, v) => sum + v, 0);
+      const marksAllowance = marksCapEffect
+        ? Math.max(0, (marksCapEffect.maxMarksPerTurn as number) - marksGainedThisTurnSoFar)
+        : Infinity;
+      const effectiveHitsAfterCap = Math.min(effectiveHitsAfterLock, marksAllowance);
+      if (marksCapEffect && effectiveHitsAfterCap < effectiveHitsAfterLock) {
+        console.log(`[CARD_CLASH:SHUTDOWN_MARK_CAP] Player${turn} capped at ${marksCapEffect.maxMarksPerTurn} marks/turn, allowed ${effectiveHitsAfterCap} of ${effectiveHitsAfterLock}`);
+      }
+
       setMarks(prev => {
         const nm: typeof marks = [[ ...prev[0] ] as any, [ ...prev[1] ] as any];
         const toClose = Math.max(0, (effectiveCanClose ? 3 : 2) - nm[turn][numIdx]);
-        const absorbed = Math.min(effectiveHitsAfterLock, Math.max(0, toClose));
-        const extra = effectiveHitsAfterLock - absorbed;
+        const absorbed = Math.min(effectiveHitsAfterCap, Math.max(0, toClose));
+        const extra = effectiveHitsAfterCap - absorbed;
         const wasClosedBefore = prev[turn][numIdx] >= 3;
         nm[turn][numIdx] = Math.min(effectiveCanClose ? 3 : 2, nm[turn][numIdx] + absorbed);
         const closedByThisDart = !wasClosedBefore && nm[turn][numIdx] >= 3;

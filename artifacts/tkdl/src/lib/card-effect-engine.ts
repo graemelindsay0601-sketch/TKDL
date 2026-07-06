@@ -205,7 +205,13 @@ export interface CCEffect {
 
 // ── Game state snapshots passed into hook functions ──────────────────────────
 export interface X01State { scores: [number,number]; legWins: [number,number] }
-export interface CricketState { marks: number[][]; scores: [number,number]; turn: 0|1 }
+export interface CricketState { marks: number[][]; scores: [number,number]; turn: 0|1; legWins?: [number,number] }
+
+/** Safely extract legWins from either state shape (Cricket may omit it). */
+function getLegWins(gs?: X01State | CricketState): [number, number] {
+  const lw = (gs as any)?.legWins;
+  return Array.isArray(lw) ? (lw as [number, number]) : [0, 0];
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CARD ACTIVATION — maps card names to CCEffect(s)
@@ -350,7 +356,8 @@ export function ccActivateCard(
     "Pressure":             { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", penaltyIfNotClosed: 30 },
     "Momentum Killer":      { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending" }, // streaks — complex
     "Sluggish Marks":       { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", sluggishMarks: true },
-    "Number Hex":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allowedMarkSegments: [20, 25] }, // defaults to 20/bull
+    // BUGFIX AUDIT (411): card text is "locked to ONE number" — was locking to two segments (20 and Bull).
+    "Number Hex":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allowedMarkSegments: [firstOpenCricketSegment(cricketMarksFor(gs, opp))] },
     "Closing Blocker":      { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", blockClosing: true },
     "Mark Erasure":         { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", penaltyPerMark: 10 },
     "Cricket Prison":       { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allowedMarkSegments: [15, 19, 20] },
@@ -362,27 +369,49 @@ export function ccActivateCard(
     "Score Halve":          { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", scoreHalveExtraMultiplier: 0.5 },
   };
 
+  // BUGFIX AUDIT: conditional Wildcard GOOD cards (Lucky Streak/Momentum Surge/Comeback Leg/
+  // Hot Hand/Underdog/Match Point) previously granted their visitBonus unconditionally on manual
+  // play, ignoring the stated trigger condition entirely (ccEvaluateConditionalWildcards had the
+  // correct logic but was never wired into the manual-activation path). Now gated here.
+  const legWinsNow = getLegWins(gs);
+  const legHistoryNow = gameStateInfo?.legHistory ?? [];
+  const legsNeededNow = gameStateInfo?.legsNeeded ?? 0;
+  const wonPrevLeg = legHistoryNow.length > 0 && legHistoryNow[legHistoryNow.length - 1] === byPlayer;
+  const lostPrevLeg = legHistoryNow.length > 0 && legHistoryNow[legHistoryNow.length - 1] === opp;
+  const won2Straight = legHistoryNow.length >= 2 &&
+    legHistoryNow[legHistoryNow.length - 1] === byPlayer && legHistoryNow[legHistoryNow.length - 2] === byPlayer;
+  const isAheadInLegs = legWinsNow[byPlayer] > legWinsNow[opp];
+  const isBehindInLegs = legWinsNow[byPlayer] < legWinsNow[opp];
+  const isMatchPointNow = legsNeededNow > 0 && legWinsNow[byPlayer] === legsNeededNow - 1;
+  const oppIsAheadInLegs = legWinsNow[opp] > legWinsNow[byPlayer];
+
   // ── Wildcard GOOD ──────────────────────────────────────────────────────────
-  const wildcardGood: Record<string, CCEffect> = {
+  const wildcardGood: Record<string, CCEffect | null> = {
     "Coin Flip": (() => {
       const win = Math.random() > 0.5;
       return { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", instant: true,
         instantP0Delta: win ? (byPlayer === 0 ? 40 : -40) : (byPlayer === 0 ? -30 : 30),
         instantP1Delta: win ? (byPlayer === 0 ? -40 : 40) : (byPlayer === 0 ? 30 : -30) } as CCEffect;
     })(),
-    "Lucky Streak":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 },
-    "Momentum Surge": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 25 },
+    // BUGFIX AUDIT (502): "If you won the previous leg" — now gated on legHistory.
+    "Lucky Streak":   wonPrevLeg ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 } : null,
+    // BUGFIX AUDIT (503): "If you're ahead in the match" — now gated on legWins comparison.
+    "Momentum Surge": isAheadInLegs ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 25 } : null,
     "Finishing Edge": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeRetryOnDoubleMiss: true },
-    "Comeback Leg":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 60 },
-    "Hot Hand":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 45 },
-    "Underdog":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 },
+    // BUGFIX AUDIT (505): "If you lost the previous leg" — now gated on legHistory.
+    "Comeback Leg":   lostPrevLeg ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 60 } : null,
+    // BUGFIX AUDIT (506): "If you've won 2 legs in a row" — now gated on legHistory.
+    "Hot Hand":       won2Straight ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 45 } : null,
+    // BUGFIX AUDIT (507): "If you're behind in the match" — now gated on legWins comparison.
+    "Underdog":       isBehindInLegs ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 } : null,
     "Perfect Game":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 30 },
-    "Match Point":    { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 70 },
+    // BUGFIX AUDIT (509): "If you're 1 leg from winning the match" — now gated on legsNeeded.
+    "Match Point":    isMatchPointNow ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 70 } : null,
     "Invincible":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true },
   };
 
   // ── Wildcard BAD ───────────────────────────────────────────────────────────
-  const wildcardBad: Record<string, CCEffect> = {
+  const wildcardBad: Record<string, CCEffect | null> = {
     "Dark Cloud":         { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 35, deferPenaltyToNextLeg: true },
     "Momentum Killer":    { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 0 }, // streak clear
     "Unlucky Night":      { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.75 },
@@ -393,11 +422,15 @@ export function ccActivateCard(
     // (see Dark Cloud above for the same pattern) it applied on the opponent's very next turn instead.
     "Total Annihilation": { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 100, deferPenaltyToNextLeg: true },
     "Match Pressure":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", penaltyPerDart: 20, marksMultiplier: 0.5, finalLegOnly: true },
-    "Underdog Curse":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8, opponentMustBeAhead: true },
+    // BUGFIX AUDIT (608): "If your opponent is ahead" — field `opponentMustBeAhead` was defined but
+    // never read anywhere; the effect was granted regardless of match state. Now gated here.
+    "Underdog Curse":     oppIsAheadInLegs ? { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8 } : null,
     "Win Bonus Removed":  { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", removeConditionalBonuses: true },
     // BUGFIX 610: card text applies to BOTH modes ("50 points X01 / 2 numbers Cricket") — only
     // the Cricket cap was wired up, so the card did nothing in X01 games.
-    "Shutdown":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", maxMarksPerTurn: 2, maxVisitTotal: 50 },
+    // BUGFIX AUDIT: added legDuration so the cap holds for the whole leg, not just the opponent's
+    // very next turn (card text: "target's leg is capped").
+    "Shutdown":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", maxMarksPerTurn: 2, maxVisitTotal: 50, legDuration: true },
     "Streak Crusher":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", removeLegsIfAhead: 2 }, // Remove 2 legs if opponent is 2+ ahead
   };
 
