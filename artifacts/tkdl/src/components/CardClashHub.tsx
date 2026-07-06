@@ -186,7 +186,7 @@ export const CardClashHub = React.memo(
 
           {/* Collection Tab */}
           {activeTab === 'collection' && (
-            <CardClashCollection ownedNames={ownedNames} newCardNames={newCardNames} stats={stats} />
+            <CardClashCollection ownedNames={ownedNames} newCardNames={newCardNames} stats={stats} playerId={playerId} />
           )}
 
           {/* Shop Tab */}
