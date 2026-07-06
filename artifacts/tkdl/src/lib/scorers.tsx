@@ -376,8 +376,9 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
               e.cardName === "Leg Reset" && e.status === "active" && e.affectsPlayer === winnerIdx
             );
             if (hasLegReset) {
-              console.log(`[CARD_CLASH:LEG_RESET] Player${opp} played Leg Reset. Player${winnerIdx} had 2+ streak, reducing by 1`);
-              n[winnerIdx] = Math.max(0, n[winnerIdx] - 1);
+              // BUGFIX 213: card text is "reset target's leg wins to 0", not "reduce by 1".
+              console.log(`[CARD_CLASH:LEG_RESET] Player${opp} played Leg Reset. Player${winnerIdx} had 2+ streak, resetting leg wins to 0`);
+              n[winnerIdx] = 0;
             }
           }
         }

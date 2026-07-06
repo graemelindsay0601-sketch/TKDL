@@ -31,6 +31,24 @@ function firstOpenCricketSegment(marks?: number[]): number {
   return 20;
 }
 
+// BUGFIX 311/312: Bull Multiplier/Bullseye Rush need N open segments to auto-mark.
+function firstNOpenCricketSegments(marks: number[] | undefined, n: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < CARD_CLASH_CRICKET_NUMS.length && out.length < n; i += 1) {
+    if ((marks?.[i] ?? 0) < 3) out.push(CARD_CLASH_CRICKET_NUMS[i]);
+  }
+  return out;
+}
+
+// BUGFIX 304: Number Resurrection needs a closed (opponent) number to reopen.
+function firstClosedCricketSegmentIdx(marks?: number[]): number {
+  if (!marks) return -1;
+  for (let i = 0; i < CARD_CLASH_CRICKET_NUMS.length; i += 1) {
+    if ((marks[i] ?? 0) >= 3) return i;
+  }
+  return -1;
+}
+
 function cricketMarksFor(gs: X01State | CricketState | undefined, player: 0 | 1): number[] | undefined {
   const maybe = gs as CricketState | undefined;
   return Array.isArray(maybe?.marks?.[player]) ? maybe!.marks[player] : undefined;
@@ -182,6 +200,7 @@ export interface CCEffect {
   // Internal counters (mutable during a turn)
   _marksThisTurn?: number;
   _dartsMarkedThisTurn?: number;
+  _trebleMultiplierUsed?: boolean; // BUGFIX 103: Treble Hunter one-shot tracking
 }
 
 // ── Game state snapshots passed into hook functions ──────────────────────────
@@ -225,7 +244,9 @@ export function ccActivateCard(
     "Perfect Rhythm":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusPerDart: 10 },
     "High Roller":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit100Plus: 25 },
     "Precision Strike":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", minSegment: 6 },
-    "Safety Boost":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", lowestDartMinimum: 15 },
+    // BUGFIX 112: was setting `lowestDartMinimum` which no hook ever reads — the card did nothing.
+    // ccPreprocessDart only understands `minDartValue`, so wire it to that (applies the floor per dart).
+    "Safety Boost":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", minDartValue: 15 },
     "Treble Boost":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", trebleMultiplier: 1.4 },
     "Safety Net":           { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bustToHalf: true },
     "Close Control":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", preventBustInCheckout: true },
@@ -273,18 +294,33 @@ export function ccActivateCard(
   // ── Cricket GOOD ───────────────────────────────────────────────────────────
   // ── Cricket GOOD ───────────────────────────────────────────────────────────
   const cricGood: Record<string, CCEffect> = {
-    "Instant Mark":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", instant: true },
+    // BUGFIX 301: was `instant: true` with no payload — CricketScorer only acts on `instantCricketMarks`.
+    "Instant Mark":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", instant: true,
+      instantCricketMarks: [{ playerIdx: byPlayer, numberIdx: Math.max(0, CARD_CLASH_CRICKET_NUMS.indexOf((gameStateInfo?.calledNumber as any) ?? firstOpenCricketSegment(cricketMarksFor(gs, byPlayer)))), markDelta: 1 }] },
     "Double Strike":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 2 },
-    "Sniper Lock":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", allowedMarkSegments: [firstOpenCricketSegment(cricketMarksFor(gs, byPlayer))] },
-    "Number Resurrection":  { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", instant: true },
-    "Scoring Surge":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", extraScoreMultiplier: 1.5 },
+    // BUGFIX 303: scorer's Sniper Lock logic (with 3-dart countdown) reads `sniperLockSegment`, not `allowedMarkSegments`.
+    "Sniper Lock":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", sniperLockSegment: firstOpenCricketSegment(cricketMarksFor(gs, byPlayer)), dartsRemainingForSniper: 3 },
+    // BUGFIX 304: was `instant: true` with no payload — reopen one of the opponent's closed numbers.
+    "Number Resurrection":  (() => {
+      const oppMarks = cricketMarksFor(gs, opp);
+      const idx = gameStateInfo?.chosenNumbers?.length
+        ? CARD_CLASH_CRICKET_NUMS.indexOf(gameStateInfo.chosenNumbers[0] as any)
+        : firstClosedCricketSegmentIdx(oppMarks);
+      return {
+        cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", instant: true,
+        instantCricketMarks: idx >= 0 ? [{ playerIdx: opp, numberIdx: idx, markDelta: -999 }] : [],
+      } as CCEffect;
+    })(),
+    "Scoring Surge":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", extraScoreMultiplier: 1.5, legDuration: true }, // BUGFIX 305: "this leg" needs legDuration
     "Closing Protection":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" }, // state-flag; handled by overlay
     "Mark Flood":           { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", cricketAutoMarkOnAnyDart: true },
     "Scoring Momentum":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusPerMark: 5 },
-    "Early Closer":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active" }, // tracked via turn counter
+    // BUGFIX 309: scorer checks `freeMarkIfEarlyClose`, which was never set.
+    "Early Closer":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeMarkIfEarlyClose: true },
     "Perfect Round":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfAllMarksThisTurn: 25, _dartsMarkedThisTurn: 0 },
-    "Bull Multiplier":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", cricketBullAutoMarks: 3 },
-    "Bullseye Rush":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", cricketBullAutoMarks: 2 },
+    // BUGFIX 311/312: scorer's Bull-hit handler reads `bullMarksSegments` (an array of segments to mark), not `cricketBullAutoMarks` (a count).
+    "Bull Multiplier":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bullMarksSegments: gameStateInfo?.chosenNumbers?.length ? gameStateInfo.chosenNumbers.slice(0, 3) : firstNOpenCricketSegments(cricketMarksFor(gs, byPlayer), 3) },
+    "Bullseye Rush":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bullMarksSegments: gameStateInfo?.chosenNumbers?.length ? gameStateInfo.chosenNumbers.slice(0, 2) : firstNOpenCricketSegments(cricketMarksFor(gs, byPlayer), 2) },
     "Comeback Marks":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 1.5 },
     "Mark Accelerator":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", marksMultiplier: 2 },
     "Mark Multiplier":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", markThresholdBonusAt: 3, markThresholdBonus: 50, _marksThisTurn: 0 },
@@ -350,12 +386,17 @@ export function ccActivateCard(
     "Momentum Killer":    { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 0 }, // streak clear
     "Unlucky Night":      { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.75 },
     "Hex":                { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.5, cricketMarksHalved: true },
-    "Wipeout":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", wildDartIndices: [1, 2] }, // last 2 darts → 0
-    "Total Annihilation": { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 100 },
+    // BUGFIX 605: card text is "last 2 darts THIS LEG" — without legDuration it expired after a single turn.
+    "Wipeout":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", wildDartIndices: [1, 2], legDuration: true },
+    // BUGFIX 606: card text is "target's NEXT LEG score reduced by 100" — without deferPenaltyToNextLeg
+    // (see Dark Cloud above for the same pattern) it applied on the opponent's very next turn instead.
+    "Total Annihilation": { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 100, deferPenaltyToNextLeg: true },
     "Match Pressure":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", penaltyPerDart: 20, marksMultiplier: 0.5, finalLegOnly: true },
     "Underdog Curse":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8, opponentMustBeAhead: true },
     "Win Bonus Removed":  { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", removeConditionalBonuses: true },
-    "Shutdown":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", maxMarksPerTurn: 2 },
+    // BUGFIX 610: card text applies to BOTH modes ("50 points X01 / 2 numbers Cricket") — only
+    // the Cricket cap was wired up, so the card did nothing in X01 games.
+    "Shutdown":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", maxMarksPerTurn: 2, maxVisitTotal: 50 },
     "Streak Crusher":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", removeLegsIfAhead: 2 }, // Remove 2 legs if opponent is 2+ ahead
   };
 
@@ -464,9 +505,19 @@ export function ccPreprocessDart(
       label = `${value}`;
     }
     // Treble multiplier (Treble Hunter, Treble Boost)
+    // BUGFIX 103: Treble Hunter (oneShotTrebleMultiplier) must only apply to the FIRST treble
+    // hit this turn — previously it multiplied every treble for the rest of the turn.
     if (e.trebleMultiplier !== undefined && multiplier === 3) {
-      value = Math.floor(value * e.trebleMultiplier);
-      label = `${value}`;
+      if (e.oneShotTrebleMultiplier) {
+        if (!e._trebleMultiplierUsed) {
+          value = Math.floor(value * e.trebleMultiplier);
+          label = `${value}`;
+          e._trebleMultiplierUsed = true;
+        }
+      } else {
+        value = Math.floor(value * e.trebleMultiplier);
+        label = `${value}`;
+      }
     }
     // Bonus per dart (Perfect Rhythm)
     if (e.bonusPerDart !== undefined && value > 0) {
@@ -524,9 +575,12 @@ export function ccInterceptBust(
   if (active.some(e => e.bustToHalf)) {
     return { prevent: true, halvedVisit: Math.floor(rawCum / 2) };
   }
-  // Close Control — if remaining <= 50, prevent bust (dart counts as 1)
+  // Close Control — if remaining <= 50, prevent bust: only the BUSTING dart is reduced to 1 point,
+  // the darts already scored earlier in this visit (dartsCum) are kept.
+  // BUGFIX 115: previously returned `halvedVisit: 1`, which threw away the whole visit's score
+  // instead of just neutralizing the busting dart.
   if (active.some(e => e.preventBustInCheckout) && remaining <= 50) {
-    return { prevent: true, halvedVisit: 1 };
+    return { prevent: true, halvedVisit: dartsCum + 1 };
   }
   return { prevent: false };
 }
