@@ -169,6 +169,70 @@ function SectionCard({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Card Clash: shows a brief toast when a card effect activates + a persistent bar of currently-live effects */
+function CCEffectsHUD({ effects, names }: { effects: CCEffect[]; names: [string, string] }) {
+  const [toast, setToast] = useState<{ key: string; text: string; buff: boolean } | null>(null);
+  const prevCountRef = useRef(0);
+
+  useEffect(() => {
+    if (effects.length > prevCountRef.current) {
+      const newest = effects[effects.length - 1];
+      if (newest) {
+        const buff = newest.status === "active";
+        setToast({
+          key: `${newest.cardName}-${Date.now()}`,
+          text: `${newest.cardName} → ${names[newest.affectsPlayer]}`,
+          buff,
+        });
+      }
+    }
+    prevCountRef.current = effects.length;
+  }, [effects.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const live = effects.filter(e => e.status === "active" || e.status === "pending" || e.status === "deferred_next_turn" || e.status === "deferred_next_leg");
+
+  return (
+    <>
+      {toast && (
+        <div style={{
+          position: "fixed", top: 10, left: "50%", transform: "translateX(-50%)", zIndex: 2500,
+          padding: "8px 18px", borderRadius: "999px",
+          background: toast.buff ? "linear-gradient(135deg,#00cc66,#008844)" : "linear-gradient(135deg,#ff3b3b,#a30000)",
+          color: "#fff", fontWeight: 900, fontSize: "0.75rem", letterSpacing: "0.04em",
+          boxShadow: "0 6px 24px rgba(0,0,0,0.5)", fontFamily: "Oswald, sans-serif",
+          display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap",
+        }}>
+          <Zap size={13} /> {toast.text}
+        </div>
+      )}
+      {live.length > 0 && (
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
+          {live.map((e, i) => {
+            const buff = e.status === "active";
+            return (
+              <div key={`${e.cardName}-${e.affectsPlayer}-${i}`} style={{
+                fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em",
+                padding: "2px 8px", borderRadius: "999px", fontFamily: "Oswald, sans-serif",
+                color: buff ? "#4dffa0" : "#ff6b6b",
+                background: buff ? "rgba(0,200,100,0.12)" : "rgba(255,60,60,0.12)",
+                border: `1px solid ${buff ? "rgba(0,200,100,0.35)" : "rgba(255,60,60,0.35)"}`,
+              }}>
+                ⚡ {e.cardName} · {names[e.affectsPlayer].split(" ")[0]}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
 /** Full-height layout: portrait = top/bottom stack; landscape = left/right split */
 function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode }) {
   const landscape = useOrientation();
@@ -750,6 +814,33 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     }
   }, [legWins, legHistory, isCardClash, legsNeeded]);
 
+  // Card Clash Practice: bot (player 2) plays its own cards intelligently on its turn
+  useEffect(() => {
+    if (!isCardClash || !botConfig || turn !== 1 || bust) return;
+    const unused = p2Cards.filter((c: any) => !cardsUsed.some((u: any) => u.id === c.id));
+    if (unused.length === 0) return;
+    const timer = setTimeout(() => {
+      const good = unused.filter((c: any) => c.category?.includes("GOOD"));
+      const bad = unused.filter((c: any) => c.category?.includes("BAD"));
+      const oppRemaining = scores[0];
+      const myRemaining = scores[1];
+      const oppInCheckoutRange = oppRemaining <= 170 && oppRemaining >= 2 && started[0];
+      const behindInLegs = legWins[0] > legWins[1];
+      const iAmInCheckoutRange = myRemaining <= 170 && myRemaining >= 2;
+
+      let choice: any = null;
+      if (oppInCheckoutRange && bad.length > 0 && Math.random() < 0.65) {
+        choice = bad[Math.floor(Math.random() * bad.length)];
+      } else if (good.length > 0 && (iAmInCheckoutRange || behindInLegs || Math.random() < 0.35)) {
+        choice = good[Math.floor(Math.random() * good.length)];
+      } else if (bad.length > 0 && Math.random() < 0.2) {
+        choice = bad[Math.floor(Math.random() * bad.length)];
+      }
+      if (choice) handleCardActivation(choice.id?.toString());
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [turn, isCardClash, botConfig, p2Cards, cardsUsed, scores, legWins, started, bust, handleCardActivation]);
+
   const handleDartRef = useRef(handleDart);
   useEffect(() => { handleDartRef.current = handleDart; });
   
@@ -884,6 +975,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
             sub={doubleIn && !started[i] ? "double in required" : undefined} />
         ))}
       </div>
+      {isCardClash && <CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} />}
       {/* Checkout bar — updates live after every dart in the visit */}
       {([0, ...(soloMode ? [] : [1])] as (0|1)[]).map(i => {
         // For the active player, use the live remaining (score minus darts thrown so far this visit)
@@ -1355,6 +1447,32 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       console.log(`[CARD_CLASH:CONSUMED] Card ${card.name} (id:${card.id}) consumed by Player${turn}`);
     }
   }, [p1Cards, p2Cards, cardsUsed, turn, marks, scores]);
+
+  // Card Clash Practice: bot (player 2) plays its own cards intelligently on its turn
+  useEffect(() => {
+    if (!isCardClash || !botConfig || turn !== 1) return;
+    const unused = p2Cards.filter((c: any) => !cardsUsed.some((u: any) => u.id === c.id));
+    if (unused.length === 0) return;
+    const timer = setTimeout(() => {
+      const good = unused.filter((c: any) => c.category?.includes("GOOD"));
+      const bad = unused.filter((c: any) => c.category?.includes("BAD"));
+      const myClosed = marks[1].slice(0, numCount).filter(m => m >= 3).length;
+      const oppClosed = marks[0].slice(0, numCount).filter(m => m >= 3).length;
+      const behindOnScore = scores[0] > scores[1];
+      const oppAheadOnClosures = oppClosed > myClosed;
+
+      let choice: any = null;
+      if (oppAheadOnClosures && bad.length > 0 && Math.random() < 0.6) {
+        choice = bad[Math.floor(Math.random() * bad.length)];
+      } else if (good.length > 0 && (behindOnScore || oppAheadOnClosures || Math.random() < 0.35)) {
+        choice = good[Math.floor(Math.random() * good.length)];
+      } else if (bad.length > 0 && Math.random() < 0.2) {
+        choice = bad[Math.floor(Math.random() * bad.length)];
+      }
+      if (choice) handleCardActivation(choice.id?.toString());
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [turn, isCardClash, botConfig, p2Cards, cardsUsed, marks, scores, numCount, handleCardActivation]);
 
   const checkWin = (m: typeof marks, sc: [number,number]): 0|1|null => {
     for (const p of [0,1] as const) {
@@ -2019,6 +2137,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} />
         ))}
       </div>
+      {isCardClash && <CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} />}
       {/* Cricket scorecard */}
       <SectionCard>
         <div className="grid" style={{ gridTemplateColumns: "1fr auto 1fr", gap: "0.15rem" }}>
