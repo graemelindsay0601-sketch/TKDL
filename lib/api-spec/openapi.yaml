@@ -15,6 +15,8 @@ tags:
   - name: leaderboard
   - name: achievements
   - name: stats
+  - name: tour
+  - name: bots
   - name: team-matches
   - name: storage
 
@@ -411,6 +413,94 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/NarrativeCard"
+
+  /stats/rivalries:
+    get:
+      operationId: getStatsRivalries
+      tags: [stats]
+      summary: Top rivalries ranked by total matches
+      responses:
+        "200":
+          description: Rivalry list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Rivalry"
+
+  /stats/hall-of-fame:
+    get:
+      operationId: getHallOfFame
+      tags: [stats]
+      summary: All-time league records and career milestones
+      responses:
+        "200":
+          description: Hall of fame data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HallOfFame"
+
+  /achievements/recent:
+    get:
+      operationId: getRecentAchievements
+      tags: [achievements]
+      summary: Recent achievement unlocks across all players
+      responses:
+        "200":
+          description: Recent unlocks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecentUnlock"
+
+  # ── Tour ─────────────────────────────────────────────────────────────────────
+  /tour/summary:
+    get:
+      operationId: getTourSummary
+      tags: [tour]
+      summary: High-level tour statistics across all players
+      responses:
+        "200":
+          description: Tour summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TourSummary"
+
+  /tour/all-trophies:
+    get:
+      operationId: getTourAllTrophies
+      tags: [tour]
+      summary: All trophies won across all players, newest first
+      responses:
+        "200":
+          description: Trophy list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TourTrophy"
+
+  # ── Bots ──────────────────────────────────────────────────────────────────────
+  /bots/leaderboard:
+    get:
+      operationId: getBotsLeaderboard
+      tags: [bots]
+      summary: Shadow bot leaderboard showing all players and their bot profiles
+      responses:
+        "200":
+          description: Bot leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BotEntry"
 
   # ── Team Matches ─────────────────────────────────────────────────────────────
   /team-matches:
@@ -1060,6 +1150,131 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TeamMatchParticipant"
+
+    Rivalry:
+      type: object
+      required: [p1_id, p2_id, p1_name, p2_name, total_matches, p1_wins, p2_wins]
+      properties:
+        p1_id:
+          type: integer
+        p2_id:
+          type: integer
+        p1_name:
+          type: string
+        p2_name:
+          type: string
+        total_matches:
+          type: integer
+        p1_wins:
+          type: integer
+        p2_wins:
+          type: integer
+        last_played_at:
+          type: string
+          format: date-time
+
+    HallOfFame:
+      type: object
+      properties:
+        mostCareerWins:
+          type: object
+          properties:
+            playerId: { type: integer }
+            playerName: { type: string }
+            value: { type: integer }
+        highestElo:
+          type: object
+          properties:
+            playerId: { type: integer }
+            playerName: { type: string }
+            value: { type: integer }
+        mostCareerPoints:
+          type: object
+          properties:
+            playerId: { type: integer }
+            playerName: { type: string }
+            value: { type: integer }
+        longestWinStreak:
+          type: object
+          properties:
+            playerId: { type: integer }
+            playerName: { type: string }
+            value: { type: integer }
+
+    RecentUnlock:
+      type: object
+      required: [unlocked_at, player_id, player_name, achievement_name, rarity]
+      properties:
+        unlocked_at:
+          type: string
+          format: date-time
+        player_id:
+          type: integer
+        player_name:
+          type: string
+        achievement_name:
+          type: string
+        icon:
+          type: string
+          nullable: true
+        rarity:
+          type: string
+
+    TourSummary:
+      type: object
+      required: [totalTrophies, activeRuns, completedRuns, eliminatedRuns]
+      properties:
+        totalTrophies:
+          type: integer
+        activeRuns:
+          type: integer
+        completedRuns:
+          type: integer
+        eliminatedRuns:
+          type: integer
+
+    TourTrophy:
+      type: object
+      required: [id, player_name, tour_name, tier, emoji, difficulty, awarded_at]
+      properties:
+        id:
+          type: integer
+        player_name:
+          type: string
+        tour_name:
+          type: string
+        tier:
+          type: integer
+        emoji:
+          type: string
+        difficulty:
+          type: string
+        awarded_at:
+          type: string
+          format: date-time
+
+    BotEntry:
+      type: object
+      required: [playerId, playerName, totalDarts, totalSessions, locked, progressToNext]
+      properties:
+        playerId:
+          type: integer
+        playerName:
+          type: string
+        totalDarts:
+          type: integer
+        totalSessions:
+          type: integer
+        accuracyLevel:
+          type: string
+          nullable: true
+        locked:
+          type: boolean
+        progressToNext:
+          type: number
+        computedAvg:
+          type: number
+          nullable: true
 
     UploadUrlRequest:
       type: object

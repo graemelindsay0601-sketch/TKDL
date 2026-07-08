@@ -1,37 +1,23 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   useGetStatsSummary,
   useGetLeaderboard,
   useGetRecentActivity,
   useGetNarrativeCards,
-  useListAchievements,
+  useGetStatsRivalries,
+  useGetRecentAchievements,
+  useGetTourSummary,
+  useGetTourAllTrophies,
+  useGetBotsLeaderboard,
 } from "@workspace/api-client-react";
 import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
-import { useAuth } from "@/context/auth";
 import { Link } from "wouter";
 import {
   Trophy, Swords, Flame, Skull, Zap, Target, AlertTriangle,
   Star, Medal, CircuitBoard, ChevronRight, Crosshair,
 } from "lucide-react";
 import { format } from "date-fns";
-
-// ── Simple fetch hook ──────────────────────────────────────────────────────────
-
-function useFetch<T>(url: string) {
-  const [data, setData]     = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fetch(url)
-      .then(r => r.json())
-      .then(d => { if (!cancelled) { setData(d); setLoading(false); } })
-      .catch(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [url]);
-  return { data, loading };
-}
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
@@ -173,17 +159,14 @@ function LeagueSection({
 
 // ── TOUR section ───────────────────────────────────────────────────────────────
 
-type TourSummary = { totalTrophies: number; activeRuns: number; completedRuns: number; eliminatedRuns: number };
-type TourTrophy  = { id: number; player_name: string; tour_name: string; tier: number; emoji: string; difficulty: string; awarded_at: string };
-
 const DIFF_COLORS: Record<string, string> = {
   amateur: "#9ca3af", club: "#38bdf8", county: "#34d399", pro: "#ffd24a", elite: "#ff005c",
 };
 const TIER_LABELS: Record<number, string> = { 1: "Amateur", 2: "Club", 3: "County", 4: "Regional", 5: "Pro", 6: "Elite" };
 
 function TourSection() {
-  const { data: summary } = useFetch<TourSummary>("/api/tour/summary");
-  const { data: trophies } = useFetch<TourTrophy[]>("/api/tour/all-trophies");
+  const { data: summary } = useGetTourSummary();
+  const { data: trophies } = useGetTourAllTrophies();
 
   return (
     <div className="section-card" style={{ borderTop: "2px solid #ffd24a" }}>
@@ -258,11 +241,6 @@ function TourSection() {
 
 // ── ACHIEVEMENTS section ───────────────────────────────────────────────────────
 
-type RecentUnlock = {
-  unlocked_at: string; player_id: number; player_name: string;
-  achievement_name: string; icon: string | null; rarity: string;
-};
-
 const RARITY_COLORS: Record<string, string> = {
   Mythic: "#ff005c", Legendary: "#ffd24a", Epic: "#a855f7", Rare: "#0066ff", Common: "#9ca3af",
 };
@@ -278,7 +256,7 @@ function timeAgo(dateStr: string): string {
 }
 
 function AchievementsSection() {
-  const { data: recent, loading } = useFetch<RecentUnlock[]>("/api/achievements/recent");
+  const { data: recent, isLoading: loading } = useGetRecentAchievements();
 
   return (
     <div className="section-card" style={{ borderTop: "2px solid #a855f7" }}>
@@ -356,17 +334,12 @@ function AchievementsSection() {
 
 // ── SHADOW BOT section ─────────────────────────────────────────────────────────
 
-type BotEntry = {
-  playerId: number; playerName: string; totalDarts: number; totalSessions: number;
-  accuracyLevel: string | null; locked: boolean; progressToNext: number; computedAvg: number | null;
-};
-
 const BOT_LEVEL_COLORS: Record<string, string> = {
   elite: "#ff005c", pro: "#ffd24a", county: "#34d399", club: "#38bdf8", amateur: "#9ca3af", beginner: "rgba(255,255,255,0.3)",
 };
 
 function ShadowBotSection() {
-  const { data: bots } = useFetch<BotEntry[]>("/api/bots/leaderboard");
+  const { data: bots } = useGetBotsLeaderboard();
 
   const activeBots    = bots?.filter(b => !b.locked && b.totalDarts > 0) ?? [];
   const lockedBots    = bots?.filter(b => b.locked) ?? [];
@@ -443,15 +416,8 @@ function ShadowBotSection() {
 
 // ── RIVALRIES SECTION ──────────────────────────────────────────────────────────
 
-type Rivalry = {
-  p1_id: number; p2_id: number;
-  p1_name: string; p2_name: string;
-  total_matches: number; p1_wins: number; p2_wins: number;
-  last_played_at: string;
-};
-
 function RivalriesSection() {
-  const { data, loading } = useFetch<Rivalry[]>("/api/stats/rivalries");
+  const { data, isLoading: loading } = useGetStatsRivalries();
 
   return (
     <div className="section-card" style={{ borderTop: "2px solid #ff005c" }}>
@@ -522,8 +488,6 @@ function RivalriesSection() {
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<"leaderboard" | "recent">("leaderboard");
-  const { user } = useAuth();
-  const playerId = user?.id;
 
   const { data: summary }   = useGetStatsSummary();
   const { data: leaderboard } = useGetLeaderboard();

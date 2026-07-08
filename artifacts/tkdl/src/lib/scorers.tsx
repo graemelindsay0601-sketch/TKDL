@@ -1342,7 +1342,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     // NOTE: CricketScorer has no leg/match concept (single-leg game), so leg-conditioned
     // Wildcard cards (Lucky Streak, Momentum Surge, etc.) correctly never trigger here —
     // legHistory/legsNeeded are intentionally empty/zero, not a bug.
-    const effects = ccActivateCard(card, turn, { marks, scores }, undefined, { legHistory: [], legsNeeded: 0, calledNumber });
+    const effects = ccActivateCard(card, turn, { marks, scores } as any, undefined, { legHistory: [], legsNeeded: 0, calledNumber });
     
     // Card Clash: Number Prison — randomly lock one of opponent's closed numbers
     if (card.name === "Number Prison") {
@@ -1396,7 +1396,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         if (e.instantCricketMarks) {
           setMarks(prev => {
             const newMarks = prev.map(row => [...row]) as typeof marks;
-            for (const markMutation of e.instantCricketMarks) {
+            for (const markMutation of e.instantCricketMarks!) {
               const currentMarks = newMarks[markMutation.playerIdx][markMutation.numberIdx];
               if (markMutation.markDelta === -999) {
                 // Reset to 0 (Number Resurrection)
@@ -1613,7 +1613,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           // Decrement dart counter for sniper lock
           if (sniperEffect.dartsRemainingForSniper !== undefined) {
             setActiveEffects(prev => prev.map(e => 
-              e === sniperEffect ? { ...e, dartsRemainingForSniper: e.dartsRemainingForSniper - 1 } : e
+              e === sniperEffect ? { ...e, dartsRemainingForSniper: (e.dartsRemainingForSniper ?? 0) - 1 } : e
             ));
             if (sniperEffect.dartsRemainingForSniper <= 1) {
             }
@@ -1773,7 +1773,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         if (bullEffect) {
           setMarks(prev => {
             const nm: typeof marks = [[ ...prev[0] ] as any, [ ...prev[1] ] as any];
-            for (const segment of bullEffect.bullMarksSegments) {
+            for (const segment of bullEffect.bullMarksSegments ?? []) {
               const segIdx = CRICKET_NUMS.indexOf(segment);
               if (segIdx >= 0) nm[turn][segIdx] = Math.min(3, nm[turn][segIdx] + 1);
             }
@@ -1807,7 +1807,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             if (marksThisTurn >= 3 && visitDarts.length === 3) {
               setScores(prev => {
                 const newScores: [number, number] = [...prev];
-                newScores[turn] += perfectRound.bonusIfAllMarksThisTurn;
+                newScores[turn] += perfectRound.bonusIfAllMarksThisTurn ?? 0;
                 return newScores;
               });
             }
@@ -1819,7 +1819,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             if (scores[turn] >= (highScorer.highScorerThreshold || 100)) {
               setScores(prev => {
                 const newScores: [number, number] = [...prev];
-                newScores[turn] += highScorer.highScorerBonus;
+                newScores[turn] += highScorer.highScorerBonus ?? 0;
                 cardDebugLog("CricketScorer", "[CARD_CLASH:HIGH_SCORER]", { player: turn, currentScore: scores[turn], bonus: highScorer.highScorerBonus });
                 return newScores;
               });
@@ -1856,7 +1856,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             if (totalMarksThisVisit >= (markMult.markThresholdBonusAt || 3)) {
               setScores(prev => {
                 const newScores: [number, number] = [...prev];
-                newScores[turn] += markMult.markThresholdBonus;
+                newScores[turn] += markMult.markThresholdBonus ?? 0;
                 cardDebugLog("CricketScorer", "[CARD_CLASH:MARK_MULTIPLIER]", { player: turn, marksGained: totalMarksThisVisit, bonus: markMult.markThresholdBonus });
                 return newScores;
               });
@@ -1901,7 +1901,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             if (hasUnclosedNumber) {
               setScores(prev => {
                 const newScores: [number, number] = [...prev];
-                newScores[turn] = Math.max(0, newScores[turn] - pressure.penaltyIfNotClosed);
+                newScores[turn] = Math.max(0, newScores[turn] - (pressure.penaltyIfNotClosed ?? 0));
                 return newScores;
               });
             }
@@ -4190,172 +4190,19 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
             </div>
           )}
         </SectionCard>
-        {/* Card Modal - shows as overlay on top when showCards is true */}
-        {showCards && isCardClash && (
-          <div style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.8)",
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "40px 16px 16px 16px",
-            overflowY: "auto"
-          }}
-          onClick={() => setShowCards(false)}
-          >
-            <div style={{
-              background: "linear-gradient(135deg, #0a0015 0%, #1a0033 100%)",
-              border: "1.5px solid rgba(0,180,255,0.3)",
-              borderRadius: "12px",
-              padding: "16px",
-              width: "100%",
-              maxWidth: "480px",
-              maxHeight: "50vh"
-            }}
-            onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "12px"
-              }}>
-                <div style={{
-                  fontSize: "14px",
-                  fontWeight: 900,
-                  color: "#00d4ff",
-                  letterSpacing: "0.05em",
-                  fontFamily: "'Arial Black',sans-serif"
-                }}>⚡ YOUR CARDS</div>
-                <button
-                  onClick={() => setShowCards(false)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "#00d4ff",
-                    fontSize: "24px",
-                    cursor: "pointer",
-                    padding: 0
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* GOOD Cards */}
-              <div style={{ marginBottom: "12px" }}>
-                <div style={{
-                  fontSize: "10px",
-                  fontWeight: 900,
-                  color: "#00cc66",
-                  letterSpacing: "0.1em",
-                  marginBottom: "8px",
-                  textTransform: "uppercase"
-                }}>GOOD CARDS</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "8px" }}>
-                  {(turn === 0 ? p1Cards : p2Cards)
-                    .filter((c: any) => c.category?.includes("GOOD"))
-                    .map((card: any) => {
-                      const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
-                      return (
-                        <div key={card.id} onClick={() => {
-                          if (!isPermanentlyUsed) setSelectedCard(card);
-                        }} style={{
-                          cursor: isPermanentlyUsed ? "not-allowed" : "pointer",
-                          opacity: isPermanentlyUsed ? 0.4 : 1,
-                          transform: !isPermanentlyUsed ? "scale(1)" : "scale(0.9)",
-                          transition: "all 0.2s",
-                          position: "relative"
-                        }}>
-                          <TKDLCard card={card} size="md" locked={isPermanentlyUsed} />
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-
-              {/* BAD Cards */}
-              <div>
-                <div style={{
-                  fontSize: "10px",
-                  fontWeight: 900,
-                  color: "#ff6b6b",
-                  letterSpacing: "0.1em",
-                  marginBottom: "8px",
-                  textTransform: "uppercase"
-                }}>BAD CARDS</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "8px" }}>
-                  {(turn === 0 ? p1Cards : p2Cards)
-                    .filter((c: any) => c.category?.includes("BAD"))
-                    .map((card: any) => {
-                      const isPermanentlyUsed = cardsUsed.some((used: any) => used.id === card.id);
-                      return (
-                        <div key={card.id} onClick={() => {
-                          if (!isPermanentlyUsed) setSelectedCard(card);
-                        }} style={{
-                          cursor: isPermanentlyUsed ? "not-allowed" : "pointer",
-                          opacity: isPermanentlyUsed ? 0.4 : 1,
-                          transform: !isPermanentlyUsed ? "scale(1)" : "scale(0.9)",
-                          transition: "all 0.2s",
-                          position: "relative"
-                        }}>
-                          <TKDLCard card={card} size="md" locked={isPermanentlyUsed} />
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
         {/* Recent Visits */}
-        {(history.length > 0 || isCardClash) && (
+        {history.length > 0 && (
           <SectionCard>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <div className="text-xs uppercase tracking-widest font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
-                {showCards ? "⚡ Your Cards" : "Recent Visits"}
-              </div>
-              {isCardClash && (
-                <button
-                  onClick={() => setShowCards(!showCards)}
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    color: showCards ? "#00d4ff" : "rgba(255,255,255,0.4)",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "2px 6px",
-                    transition: "color 0.2s",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.color = "#00d4ff";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.color = showCards ? "#00d4ff" : "rgba(255,255,255,0.4)";
-                  }}
-                >
-                  {showCards ? "Hide" : "Cards"}
-                </button>
-              )}
+            <div className="text-xs uppercase tracking-widest font-bold mb-3" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
+              Recent Visits
             </div>
-            
-            {!showCards && (
-              [...(showCards ? [] : history)].reverse().slice(0, 5).map((h, i) => (
-                <div key={i} className="flex justify-between text-xs py-0.5">
-                  <span style={{ color: TEAM_COLORS[h.team], fontFamily: "Oswald, sans-serif" }}>{teamNames[h.team][h.player]}</span>
-                  <span style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>+{h.score}</span>
-                  <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "mono" }}>{h.left} left</span>
-                </div>
-              ))
-            )}
+            {[...history].reverse().slice(0, 5).map((h, i) => (
+              <div key={i} className="flex justify-between text-xs py-0.5">
+                <span style={{ color: TEAM_COLORS[h.team], fontFamily: "Oswald, sans-serif" }}>{teamNames[h.team][h.player]}</span>
+                <span style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>+{h.score}</span>
+                <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "mono" }}>{h.left} left</span>
+              </div>
+            ))}
           </SectionCard>
         )}
       </div>}

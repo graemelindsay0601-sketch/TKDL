@@ -22,7 +22,9 @@ import type {
 import type {
   Achievement,
   ActivityItem,
+  BotEntry,
   CareerLeader,
+  HallOfFame,
   HealthStatus,
   LeaderboardEntry,
   ListMatchesParams,
@@ -35,12 +37,16 @@ import type {
   PlayerInput,
   PlayerStats,
   PlayerUpdate,
+  RecentUnlock,
+  Rivalry,
   Season,
   SeasonDetail,
   SeasonResetInput,
   StatsSummary,
   SubmitTeamMatchInput,
   TeamMatchResult,
+  TourSummary,
+  TourTrophy,
   UploadUrlRequest,
   UploadUrlResponse
 } from './api.schemas';
@@ -1709,6 +1715,468 @@ export function useGetNarrativeCards<TData = Awaited<ReturnType<typeof getNarrat
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetNarrativeCardsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetStatsRivalriesUrl = () => {
+
+
+
+
+  return `/api/stats/rivalries`
+}
+
+/**
+ * @summary Top rivalries ranked by total matches
+ */
+export const getStatsRivalries = async ( options?: RequestInit): Promise<Rivalry[]> => {
+
+  return customFetch<Rivalry[]>(getGetStatsRivalriesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStatsRivalriesQueryKey = () => {
+    return [
+    `/api/stats/rivalries`
+    ] as const;
+    }
+
+
+export const getGetStatsRivalriesQueryOptions = <TData = Awaited<ReturnType<typeof getStatsRivalries>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStatsRivalries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStatsRivalriesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStatsRivalries>>> = ({ signal }) => getStatsRivalries({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStatsRivalries>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStatsRivalriesQueryResult = NonNullable<Awaited<ReturnType<typeof getStatsRivalries>>>
+export type GetStatsRivalriesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Top rivalries ranked by total matches
+ */
+
+export function useGetStatsRivalries<TData = Awaited<ReturnType<typeof getStatsRivalries>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStatsRivalries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStatsRivalriesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetHallOfFameUrl = () => {
+
+
+
+
+  return `/api/stats/hall-of-fame`
+}
+
+/**
+ * @summary All-time league records and career milestones
+ */
+export const getHallOfFame = async ( options?: RequestInit): Promise<HallOfFame> => {
+
+  return customFetch<HallOfFame>(getGetHallOfFameUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHallOfFameQueryKey = () => {
+    return [
+    `/api/stats/hall-of-fame`
+    ] as const;
+    }
+
+
+export const getGetHallOfFameQueryOptions = <TData = Awaited<ReturnType<typeof getHallOfFame>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHallOfFame>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHallOfFameQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHallOfFame>>> = ({ signal }) => getHallOfFame({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHallOfFame>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetHallOfFameQueryResult = NonNullable<Awaited<ReturnType<typeof getHallOfFame>>>
+export type GetHallOfFameQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary All-time league records and career milestones
+ */
+
+export function useGetHallOfFame<TData = Awaited<ReturnType<typeof getHallOfFame>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHallOfFame>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetHallOfFameQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetRecentAchievementsUrl = () => {
+
+
+
+
+  return `/api/achievements/recent`
+}
+
+/**
+ * @summary Recent achievement unlocks across all players
+ */
+export const getRecentAchievements = async ( options?: RequestInit): Promise<RecentUnlock[]> => {
+
+  return customFetch<RecentUnlock[]>(getGetRecentAchievementsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRecentAchievementsQueryKey = () => {
+    return [
+    `/api/achievements/recent`
+    ] as const;
+    }
+
+
+export const getGetRecentAchievementsQueryOptions = <TData = Awaited<ReturnType<typeof getRecentAchievements>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRecentAchievements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRecentAchievementsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRecentAchievements>>> = ({ signal }) => getRecentAchievements({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRecentAchievements>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRecentAchievementsQueryResult = NonNullable<Awaited<ReturnType<typeof getRecentAchievements>>>
+export type GetRecentAchievementsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Recent achievement unlocks across all players
+ */
+
+export function useGetRecentAchievements<TData = Awaited<ReturnType<typeof getRecentAchievements>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRecentAchievements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRecentAchievementsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetTourSummaryUrl = () => {
+
+
+
+
+  return `/api/tour/summary`
+}
+
+/**
+ * @summary High-level tour statistics across all players
+ */
+export const getTourSummary = async ( options?: RequestInit): Promise<TourSummary> => {
+
+  return customFetch<TourSummary>(getGetTourSummaryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTourSummaryQueryKey = () => {
+    return [
+    `/api/tour/summary`
+    ] as const;
+    }
+
+
+export const getGetTourSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getTourSummary>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTourSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTourSummaryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTourSummary>>> = ({ signal }) => getTourSummary({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTourSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTourSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getTourSummary>>>
+export type GetTourSummaryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary High-level tour statistics across all players
+ */
+
+export function useGetTourSummary<TData = Awaited<ReturnType<typeof getTourSummary>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTourSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTourSummaryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetTourAllTrophiesUrl = () => {
+
+
+
+
+  return `/api/tour/all-trophies`
+}
+
+/**
+ * @summary All trophies won across all players, newest first
+ */
+export const getTourAllTrophies = async ( options?: RequestInit): Promise<TourTrophy[]> => {
+
+  return customFetch<TourTrophy[]>(getGetTourAllTrophiesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTourAllTrophiesQueryKey = () => {
+    return [
+    `/api/tour/all-trophies`
+    ] as const;
+    }
+
+
+export const getGetTourAllTrophiesQueryOptions = <TData = Awaited<ReturnType<typeof getTourAllTrophies>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTourAllTrophies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTourAllTrophiesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTourAllTrophies>>> = ({ signal }) => getTourAllTrophies({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTourAllTrophies>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTourAllTrophiesQueryResult = NonNullable<Awaited<ReturnType<typeof getTourAllTrophies>>>
+export type GetTourAllTrophiesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary All trophies won across all players, newest first
+ */
+
+export function useGetTourAllTrophies<TData = Awaited<ReturnType<typeof getTourAllTrophies>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTourAllTrophies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTourAllTrophiesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetBotsLeaderboardUrl = () => {
+
+
+
+
+  return `/api/bots/leaderboard`
+}
+
+/**
+ * @summary Shadow bot leaderboard showing all players and their bot profiles
+ */
+export const getBotsLeaderboard = async ( options?: RequestInit): Promise<BotEntry[]> => {
+
+  return customFetch<BotEntry[]>(getGetBotsLeaderboardUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBotsLeaderboardQueryKey = () => {
+    return [
+    `/api/bots/leaderboard`
+    ] as const;
+    }
+
+
+export const getGetBotsLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getBotsLeaderboard>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBotsLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBotsLeaderboardQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBotsLeaderboard>>> = ({ signal }) => getBotsLeaderboard({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBotsLeaderboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBotsLeaderboardQueryResult = NonNullable<Awaited<ReturnType<typeof getBotsLeaderboard>>>
+export type GetBotsLeaderboardQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Shadow bot leaderboard showing all players and their bot profiles
+ */
+
+export function useGetBotsLeaderboard<TData = Awaited<ReturnType<typeof getBotsLeaderboard>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBotsLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBotsLeaderboardQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

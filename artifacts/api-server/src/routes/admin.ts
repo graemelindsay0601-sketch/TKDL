@@ -2,25 +2,46 @@ import { Router } from "express";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable, achievementsTable, playerAchievementsTable } from "@workspace/db";
 import { z } from "zod";
+import rateLimit from "express-rate-limit";
 import { checkStatAchievements, checkMatchAchievements, retroactiveSweep } from "../lib/achievements";
 import { applyEloChange, calcTier } from "../lib/elo";
-import { getBatchingStats } from "../services/batchingService";
-import { initializeFeatureFlags } from "../services/feature-flags-service";
-import { logger } from "../lib/logger";
 
 const router = Router();
 
 // ── PIN verification (stateless — PIN set via env var ADMIN_PIN, default 0601) ──
 const ADMIN_PIN = process.env.ADMIN_PIN ?? "0601";
 
-router.post("/admin/verify-pin", (req, res): void => {
+const pinRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many PIN attempts — try again in 15 minutes" },
+  keyGenerator: (req) => (req.ip ?? "unknown"),
+  skip: () => process.env.NODE_ENV !== "production",
+});
+
+router.post("/admin/verify-pin", pinRateLimit, (req, res): void => {
   const { pin } = req.body ?? {};
   if (pin === ADMIN_PIN) {
+    (req.session as any).isAdmin = true;
+    req.session.save(() => {});
     res.json({ ok: true });
   } else {
     res.status(401).json({ ok: false, error: "Incorrect PIN" });
   }
 });
+
+// ── All routes below require admin session ─────────────────────────────────────
+function requireAdmin(req: any, res: any, next: any): void {
+  if (!(req.session as any)?.isAdmin) {
+    res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+  next();
+}
+
+router.use(/^\/admin\/(?!verify-pin)/, requireAdmin);
 
 // ── Fix / update standings for a specific season ──────────────────────────────
 const UpdateStandingBody = z.object({
@@ -43,7 +64,6 @@ router.patch("/admin/seasons/:id/standings/:playerId", async (req, res): Promise
 
   const { position, wins, losses, points, elo, isChampion } = parsed.data;
 
-  // Upsert standing
   const existing = await db.select().from(seasonStandingsTable)
     .where(and(eq(seasonStandingsTable.seasonId, seasonId), eq(seasonStandingsTable.playerId, playerId)));
 
@@ -55,17 +75,14 @@ router.patch("/admin/seasons/:id/standings/:playerId", async (req, res): Promise
     await db.insert(seasonStandingsTable).values({ seasonId, playerId, position, wins, losses, points, elo, isChampion: isChampion ?? false });
   }
 
-  // If setting champion, update the season row too
   if (isChampion) {
     const [player] = await db.select().from(playersTable).where(eq(playersTable.id, playerId));
     if (player) {
       await db.update(seasonsTable).set({ championId: playerId, championName: player.name }).where(eq(seasonsTable.id, seasonId));
     }
-    // Clear other champions in this season
     await db.update(seasonStandingsTable)
       .set({ isChampion: false })
       .where(and(eq(seasonStandingsTable.seasonId, seasonId)));
-    // Re-set this one
     await db.update(seasonStandingsTable)
       .set({ isChampion: true })
       .where(and(eq(seasonStandingsTable.seasonId, seasonId), eq(seasonStandingsTable.playerId, playerId)));
@@ -111,21 +128,17 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
   const { winnerId, loserId, notes } = parsed.data;
   if (winnerId === loserId) { res.status(400).json({ error: "Winner and loser must be different" }); return; }
 
-  // Fetch original match
   const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, matchId));
   if (!match) { res.status(404).json({ error: "Match not found" }); return; }
 
   const stake = parsed.data.stake ?? match.stake;
 
-  // Fetch all involved players (original + new, de-duped)
   const allIds = [...new Set([match.winnerId, match.loserId, winnerId, loserId])];
   const rows = await db.select().from(playersTable).where(inArray(playersTable.id, allIds));
   if (rows.length < allIds.length) { res.status(404).json({ error: "One or more players not found" }); return; }
 
-  // Mutable copies keyed by player ID
   const pm = new Map(rows.map(p => [p.id, { ...p }]));
 
-  // ── Step 1: Reverse original match effects ──────────────────────────────────
   const origW = pm.get(match.winnerId)!;
   const origL = pm.get(match.loserId)!;
 
@@ -147,7 +160,6 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
   origL.careerGamesPlayed = Math.max(0, origL.careerGamesPlayed - 1);
   if (loserWasElim) origL.status = "ACTIVE";
 
-  // ── Step 2: Apply new match result using reversed state ─────────────────────
   const newW = pm.get(winnerId)!;
   const newL = pm.get(loserId)!;
 
@@ -172,7 +184,6 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
   newL.careerPoints      = newL.careerPoints - stake;
   if (newLoserElim) newL.status = "ELIMINATED";
 
-  // ── Step 3: Persist all affected players ───────────────────────────────────
   for (const p of pm.values()) {
     await db.update(playersTable).set({
       elo:               p.elo,
@@ -188,7 +199,6 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
     }).where(eq(playersTable.id, p.id));
   }
 
-  // ── Step 4: Update match record ─────────────────────────────────────────────
   const newWPlayer = pm.get(winnerId)!;
   const newLPlayer = pm.get(loserId)!;
   const [updated] = await db.update(matchesTable).set({
@@ -213,7 +223,6 @@ router.delete("/admin/players/:id", async (req, res): Promise<void> => {
     .from(playersTable).where(eq(playersTable.id, playerId));
   if (!player) { res.status(404).json({ error: "Player not found" }); return; }
 
-  // Cascade delete everything related to this player (raw SQL for non-Drizzle tables)
   await db.execute(sql`DELETE FROM player_achievements        WHERE player_id = ${playerId}`);
   await db.execute(sql`DELETE FROM season_standings           WHERE player_id = ${playerId}`);
   await db.execute(sql`DELETE FROM player_titles              WHERE player_id = ${playerId}`);
@@ -224,14 +233,11 @@ router.delete("/admin/players/:id", async (req, res): Promise<void> => {
   await db.execute(sql`DELETE FROM practice_sessions          WHERE player1_id = ${playerId} OR player2_id = ${playerId}`);
   await db.execute(sql`DELETE FROM users                      WHERE player_id = ${playerId}`);
 
-  // Delete matches they appeared in (both as winner and loser)
   await db.delete(matchesTable).where(eq(matchesTable.winnerId, playerId));
   await db.delete(matchesTable).where(eq(matchesTable.loserId, playerId));
 
-  // Update seasons if they were champion
   await db.execute(sql`UPDATE seasons SET champion_id = NULL, champion_name = NULL WHERE champion_id = ${playerId}`);
 
-  // Finally delete the player
   await db.delete(playersTable).where(eq(playersTable.id, playerId));
 
   req.log.info({ playerId, name: player.name }, "Player deleted by admin");
@@ -265,27 +271,32 @@ router.post("/admin/achievement-sweep", async (_req, res): Promise<void> => {
   res.json({ ok: true, ...result });
 });
 
-// ── Get all seasons with standings for admin ──────────────────────────────────
+// ── Get all seasons with standings for admin (3 queries total, not N+1) ───────
 router.get("/admin/seasons", async (_req, res): Promise<void> => {
   const seasons = await db.select().from(seasonsTable).orderBy(seasonsTable.id);
-  const result = [];
-  for (const season of seasons) {
-    const standings = await db.select().from(seasonStandingsTable).where(eq(seasonStandingsTable.seasonId, season.id));
-    const players = await db.select({ id: playersTable.id, name: playersTable.name }).from(playersTable);
-    const playerMap = new Map(players.map(p => [p.id, p.name]));
-    const standingsWithNames = standings.map(s => ({
-      ...s,
-      playerName: playerMap.get(s.playerId) ?? "Unknown",
-    })).sort((a, b) => a.position - b.position);
-    result.push({ ...season, standings: standingsWithNames });
-  }
-  res.json(result);
-});
+  if (seasons.length === 0) { res.json([]); return; }
 
-// ── Get all players (id + name) for admin dropdowns ────────────────────────────
-router.get("/admin/players-list", async (_req, res): Promise<void> => {
-  const players = await db.select({ id: playersTable.id, name: playersTable.name }).from(playersTable).orderBy(playersTable.name);
-  res.json(players);
+  const seasonIds = seasons.map(s => s.id);
+  const [allStandings, allPlayers] = await Promise.all([
+    db.select().from(seasonStandingsTable).where(inArray(seasonStandingsTable.seasonId, seasonIds)),
+    db.select({ id: playersTable.id, name: playersTable.name }).from(playersTable),
+  ]);
+
+  const playerMap = new Map(allPlayers.map(p => [p.id, p.name]));
+  const standingsBySeason = new Map<number, typeof allStandings>();
+  for (const s of allStandings) {
+    if (!standingsBySeason.has(s.seasonId)) standingsBySeason.set(s.seasonId, []);
+    standingsBySeason.get(s.seasonId)!.push(s);
+  }
+
+  const result = seasons.map(season => ({
+    ...season,
+    standings: (standingsBySeason.get(season.id) ?? [])
+      .map(s => ({ ...s, playerName: playerMap.get(s.playerId) ?? "Unknown" }))
+      .sort((a, b) => a.position - b.position),
+  }));
+
+  res.json(result);
 });
 
 // ── Test comms: fire fake DM + notifications to Graeme (player 1) ────────────
@@ -293,7 +304,6 @@ router.post("/admin/test-comms", async (req, res): Promise<void> => {
   const GRAEME_ID = 1;
   const SEAN_ID   = 2;
 
-  // Ensure messaging + notifications are enabled
   await db.execute(sql`
     INSERT INTO settings (key, value) VALUES
       ('messaging_enabled',    'true'),
@@ -302,7 +312,6 @@ router.post("/admin/test-comms", async (req, res): Promise<void> => {
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
   `);
 
-  // 1. Fake DM from Sean → Graeme
   const dmResult = await db.execute(sql`
     INSERT INTO direct_messages (sender_id, receiver_id, content)
     VALUES (${SEAN_ID}, ${GRAEME_ID}, '🎯 Test message — comms are working! Nice game today.')
@@ -310,7 +319,6 @@ router.post("/admin/test-comms", async (req, res): Promise<void> => {
   `);
   const dmId = (dmResult.rows[0] as any).id as number;
 
-  // 2. DM notification for Graeme
   await db.execute(sql`
     INSERT INTO notifications (player_id, type, actor_id, entity_id, entity_type, message)
     VALUES (
@@ -319,7 +327,6 @@ router.post("/admin/test-comms", async (req, res): Promise<void> => {
     )
   `);
 
-  // 3. Fake post_liked notification (as if Sean liked a post by Graeme)
   await db.execute(sql`
     INSERT INTO notifications (player_id, type, actor_id, entity_id, entity_type, message)
     VALUES (
@@ -328,7 +335,6 @@ router.post("/admin/test-comms", async (req, res): Promise<void> => {
     )
   `);
 
-  // 4. Fake community post from Sean (auto-approved so it appears in feed)
   const postResult = await db.execute(sql`
     INSERT INTO community_posts (player_id, content, post_type, status)
     VALUES (${SEAN_ID}, '🎯 Test post — community feed working!', 'manual', 'approved')
@@ -336,7 +342,6 @@ router.post("/admin/test-comms", async (req, res): Promise<void> => {
   `);
   const postId = (postResult.rows[0] as any).id as number;
 
-  // 5. post_commented notification — as if Sean commented on a post by Graeme
   await db.execute(sql`
     INSERT INTO notifications (player_id, type, actor_id, entity_id, entity_type, message)
     VALUES (
@@ -355,61 +360,7 @@ router.post("/admin/test-comms", async (req, res): Promise<void> => {
   });
 });
 
-// ── Test Coach Tips (manually trigger) ────────────────────────────────────────
-router.post("/admin/test-coach-tips", async (req, res): Promise<void> => {
-  try {
-    // Get global test function (set by coachTipsScheduler)
-    const testFn = (global as any).TKDL_testCoachTips;
-    
-    if (!testFn) {
-      res.status(500).json({
-        error: "Coach tips scheduler not initialized"
-      });
-      return;
-    }
-
-    // Run the coach tips generator immediately
-    await testFn();
-
-    res.json({
-      ok: true,
-      message: "Coach tips generated and sent to eligible players",
-      triggered_at: new Date().toISOString()
-    });
-  } catch (error) {
-    logger.error("Error in test-coach-tips", { error });
-    res.status(500).json({
-      error: "Failed to generate coach tips",
-      details: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
-
-// ── Notification Batching Stats ──────────────────────────────────────────────
-router.get("/admin/batching-stats", async (_req, res): Promise<void> => {
-  try {
-    const stats = await getBatchingStats();
-    res.json({
-      ok: true,
-      batching: stats,
-      quiet_hours: {
-        start: "23:00",
-        end: "08:00",
-        description: "11 PM to 8 AM UTC"
-      },
-      daily_limit: 3,
-      note: "Critical notifications (threat_alert, announcement) bypass all batching rules"
-    });
-  } catch (error) {
-    logger.error("Error getting batching stats", { error });
-    res.status(500).json({
-      error: "Failed to fetch batching stats",
-      details: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
-
-// ── Full data export (JSON backup) ────────────────────────────────────────────
+// ── Full data export (JSON backup) — requires admin session ───────────────────
 router.get("/admin/export", async (_req, res): Promise<void> => {
   const [players, matches, seasons, standings, achievements, playerAchievements] = await Promise.all([
     db.select().from(playersTable),
@@ -426,70 +377,6 @@ router.get("/admin/export", async (_req, res): Promise<void> => {
     version: "1.0",
     data: { players, matches, seasons, standings, achievements, playerAchievements },
   });
-});
-
-// ── Feature Flags Management (admin only) ──────────────────────────────────────
-import {
-  getAllFeatureFlags,
-  getFeatureStatus,
-  enableFeatureForAll,
-  disableFeature,
-  setAdminTestMode,
-  initializeFeatureFlags,
-} from "../services/feature-flags-service";
-
-// Middleware to verify admin PIN from header
-const verifyAdminPin = (req: any, res: any, next: any) => {
-  const pin = req.headers["x-admin-pin"];
-  if (pin !== ADMIN_PIN) {
-    res.status(401).json({ ok: false, error: "Unauthorized" });
-    return;
-  }
-  next();
-};
-
-router.get("/admin/feature-flags", verifyAdminPin, async (_req, res): Promise<void> => {
-  const flags = await getAllFeatureFlags();
-  res.json(flags);
-});
-
-router.post("/admin/feature-flags/:feature/enable-all", verifyAdminPin, async (req, res): Promise<void> => {
-  const { feature } = req.params;
-  const success = await enableFeatureForAll(feature);
-  if (success) {
-    res.json({ ok: true, message: `Feature ${feature} enabled for all users` });
-  } else {
-    res.status(500).json({ ok: false, error: "Failed to enable feature" });
-  }
-});
-
-router.post("/admin/feature-flags/:feature/disable", verifyAdminPin, async (req, res): Promise<void> => {
-  const { feature } = req.params;
-  const success = await disableFeature(feature);
-  if (success) {
-    res.json({ ok: true, message: `Feature ${feature} disabled` });
-  } else {
-    res.status(500).json({ ok: false, error: "Failed to disable feature" });
-  }
-});
-
-router.post("/admin/feature-flags/:feature/admin-test", verifyAdminPin, async (req, res): Promise<void> => {
-  const { feature } = req.params;
-  const { enabled } = req.body;
-  const success = await setAdminTestMode(feature, enabled === true);
-  if (success) {
-    res.json({
-      ok: true,
-      message: `Feature ${feature} admin test mode set to ${enabled}`,
-    });
-  } else {
-    res.status(500).json({ ok: false, error: "Failed to update admin test mode" });
-  }
-});
-
-router.post("/admin/feature-flags/initialize", verifyAdminPin, async (_req, res): Promise<void> => {
-  await initializeFeatureFlags();
-  res.json({ ok: true, message: "Feature flags initialized" });
 });
 
 export default router;

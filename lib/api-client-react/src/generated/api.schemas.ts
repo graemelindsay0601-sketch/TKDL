@@ -283,6 +283,85 @@ export interface TeamMatchResult {
   participants: TeamMatchParticipant[];
 }
 
+export interface Rivalry {
+  p1_id: number;
+  p2_id: number;
+  p1_name: string;
+  p2_name: string;
+  total_matches: number;
+  p1_wins: number;
+  p2_wins: number;
+  last_played_at?: string;
+}
+
+export type HallOfFameMostCareerWins = {
+  playerId?: number;
+  playerName?: string;
+  value?: number;
+};
+
+export type HallOfFameHighestElo = {
+  playerId?: number;
+  playerName?: string;
+  value?: number;
+};
+
+export type HallOfFameMostCareerPoints = {
+  playerId?: number;
+  playerName?: string;
+  value?: number;
+};
+
+export type HallOfFameLongestWinStreak = {
+  playerId?: number;
+  playerName?: string;
+  value?: number;
+};
+
+export interface HallOfFame {
+  mostCareerWins?: HallOfFameMostCareerWins;
+  highestElo?: HallOfFameHighestElo;
+  mostCareerPoints?: HallOfFameMostCareerPoints;
+  longestWinStreak?: HallOfFameLongestWinStreak;
+}
+
+export interface RecentUnlock {
+  unlocked_at: string;
+  player_id: number;
+  player_name: string;
+  achievement_name: string;
+  icon?: string | null;
+  rarity: string;
+}
+
+export interface TourSummary {
+  totalTrophies: number;
+  activeRuns: number;
+  completedRuns: number;
+  eliminatedRuns: number;
+}
+
+export interface TourTrophy {
+  id: number;
+  player_name: string;
+  tour_name: string;
+  tier: number;
+  emoji: string;
+  difficulty: string;
+  awarded_at: string;
+}
+
+export interface BotEntry {
+  playerId: number;
+  playerName: string;
+  totalDarts: number;
+  totalSessions: number;
+  accuracyLevel?: string | null;
+  locked: boolean;
+  progressToNext: number;
+  computedAvg?: number | null;
+}
+
 export interface UploadUrlRequest {
   /** @minLength 1 */
   name: string;

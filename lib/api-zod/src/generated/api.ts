@@ -650,6 +650,105 @@ export const GetNarrativeCardsResponse = zod.array(GetNarrativeCardsResponseItem
 
 
 /**
+ * @summary Top rivalries ranked by total matches
+ */
+export const GetStatsRivalriesResponseItem = zod.object({
+  "p1_id": zod.number(),
+  "p2_id": zod.number(),
+  "p1_name": zod.string(),
+  "p2_name": zod.string(),
+  "total_matches": zod.number(),
+  "p1_wins": zod.number(),
+  "p2_wins": zod.number(),
+  "last_played_at": zod.coerce.date().optional()
+})
+export const GetStatsRivalriesResponse = zod.array(GetStatsRivalriesResponseItem)
+
+
+/**
+ * @summary All-time league records and career milestones
+ */
+export const GetHallOfFameResponse = zod.object({
+  "mostCareerWins": zod.object({
+  "playerId": zod.number().optional(),
+  "playerName": zod.string().optional(),
+  "value": zod.number().optional()
+}).optional(),
+  "highestElo": zod.object({
+  "playerId": zod.number().optional(),
+  "playerName": zod.string().optional(),
+  "value": zod.number().optional()
+}).optional(),
+  "mostCareerPoints": zod.object({
+  "playerId": zod.number().optional(),
+  "playerName": zod.string().optional(),
+  "value": zod.number().optional()
+}).optional(),
+  "longestWinStreak": zod.object({
+  "playerId": zod.number().optional(),
+  "playerName": zod.string().optional(),
+  "value": zod.number().optional()
+}).optional()
+})
+
+
+/**
+ * @summary Recent achievement unlocks across all players
+ */
+export const GetRecentAchievementsResponseItem = zod.object({
+  "unlocked_at": zod.coerce.date(),
+  "player_id": zod.number(),
+  "player_name": zod.string(),
+  "achievement_name": zod.string(),
+  "icon": zod.string().nullish(),
+  "rarity": zod.string()
+})
+export const GetRecentAchievementsResponse = zod.array(GetRecentAchievementsResponseItem)
+
+
+/**
+ * @summary High-level tour statistics across all players
+ */
+export const GetTourSummaryResponse = zod.object({
+  "totalTrophies": zod.number(),
+  "activeRuns": zod.number(),
+  "completedRuns": zod.number(),
+  "eliminatedRuns": zod.number()
+})
+
+
+/**
+ * @summary All trophies won across all players, newest first
+ */
+export const GetTourAllTrophiesResponseItem = zod.object({
+  "id": zod.number(),
+  "player_name": zod.string(),
+  "tour_name": zod.string(),
+  "tier": zod.number(),
+  "emoji": zod.string(),
+  "difficulty": zod.string(),
+  "awarded_at": zod.coerce.date()
+})
+export const GetTourAllTrophiesResponse = zod.array(GetTourAllTrophiesResponseItem)
+
+
+/**
+ * @summary Shadow bot leaderboard showing all players and their bot profiles
+ */
+export const GetBotsLeaderboardResponseItem = zod.object({
+  "playerId": zod.number(),
+  "playerName": zod.string(),
+  "totalDarts": zod.number(),
+  "totalSessions": zod.number(),
+  "accuracyLevel": zod.string().nullish(),
+  "locked": zod.boolean(),
+  "progressToNext": zod.number(),
+  "computedAvg": zod.number().nullish()
+})
+export const GetBotsLeaderboardResponse = zod.array(GetBotsLeaderboardResponseItem)
+
+
+/**
  * @summary List recent team matches
  */
 export const ListTeamMatchesQueryParams = zod.object({
