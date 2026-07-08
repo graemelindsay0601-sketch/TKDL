@@ -12,10 +12,19 @@ const TeamMatchBody = z.object({
   notes:     z.string().optional(),
 });
 
+const ListTeamMatchesQuery = z.object({
+  limit: z.coerce.number().int().positive().max(500).optional().default(20),
+});
+
 const router = Router();
 
 router.get("/team-matches", async (req, res): Promise<void> => {
-  const limit = Number(req.query.limit) || 20;
+  const parsedQuery = ListTeamMatchesQuery.safeParse(req.query);
+  if (!parsedQuery.success) {
+    res.status(400).json({ error: "Invalid query", details: parsedQuery.error.message });
+    return;
+  }
+  const { limit } = parsedQuery.data;
   const matches = await db.select().from(matchesTable)
     .where(sql`${matchesTable.gameType} LIKE 'team_%' OR ${matchesTable.gameType} = 'multi_killer'`)
     .orderBy(desc(matchesTable.playedAt))

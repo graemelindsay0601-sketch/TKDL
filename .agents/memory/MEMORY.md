@@ -13,3 +13,7 @@
 - [iOS camera play() quirk](ios-camera-play.md) — never call video.play() after awaited getUserMedia on iOS; use autoPlay attr + 'playing' event instead
 - [practice_sessions schema](practice-sessions-schema.md) — player column is player1_id (not player_id); 180s column is p1_180s; always filter WHERE player1_id IS NOT NULL for per-player aggregates
 - [Shadow Bot detail page](shadow-bot-detail.md) — /shadow-bot/:id page, match tracking via session_data.shadowPlayerId, darksNeeded typo fixed, player profile link updated
+- [GitHub push via API](github-push-via-api.md) — verify true main HEAD via API not local git fetch; drop delete-entries for paths already absent from base_tree (avoids GitRPC::BadObjectState)
+- [Card Clash effect engine](card-clash-effect-engine.md) — live flow at pages/card-clash.tsx; deployed app's Card Clash lives in GitHub repo worktree, NOT local Replit tkdl; watch for double-application bugs
+- [Challenge tracking consolidation](challenge-tracking-consolidation.md) — challenge-manager.ts deleted; challenge-service.ts is now sole progress tracker, properly day/week scoped, reward payout gated on wasCompletedBefore
+- [Mechanical timeout-leak fix pattern](safe-timeout-pattern.md) — for a huge file with many components sharing one `setTimeout(fn, ms)` idiom, a drop-in `useSafeTimeout()` hook + scripted find/replace beats manual per-callsite rewrites

@@ -13,6 +13,7 @@ import { EquipCardDisplay } from "@/components/EquipCardDisplay";
 import { cardDebugLog } from "./card-debug";
 import { calculateX01CardEffect, applyX01Effect, formatCardEffectDisplay } from "./x01-card-effects";
 import { calculateCricketCardEffect, applyCricketEffect, formatCricketEffectDisplay } from "./cricket-card-effects";
+import { useSafeTimeout } from "./use-safe-timeout";
 import {
   type CCEffect,
   ccActivateCard, ccPreprocessDart, ccApplyVisitCap, ccInterceptBust,
@@ -282,6 +283,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   legsToWinSet?: number; soloMode?: boolean;
   cardEffects?: any[];
 }) {
+  const safeTimeout = useSafeTimeout();
   const { startingScore = 501, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo } = config;
   const legs = legsProp ?? configLegs;
   const setsNeeded  = setsToWin > 0 ? Math.ceil(setsToWin / 2) : 0;
@@ -337,7 +339,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (bustResetTo !== undefined) {
       setScores(prev => { const n = [...prev] as [number, number]; n[turn] = bustResetTo; return n; });
     }
-    setTimeout(() => { setBust(false); setBustMsg(""); setVisitDarts([]); setTurn(t => soloMode ? 0 : (t === 0 ? 1 : 0)); }, 1500);
+    safeTimeout(() => { setBust(false); setBustMsg(""); setVisitDarts([]); setTurn(t => soloMode ? 0 : (t === 0 ? 1 : 0)); }, 1500);
   }, [turn, bustResetTo]);
 
   const handleWin = useCallback((winnerIdx: 0|1, darts: Dart[]) => {
@@ -353,7 +355,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       } : {}),
     });
     const resetForLeg = (delay: number, newLegState: [number,number]) => {
-      setTimeout(() => {
+      safeTimeout(() => {
         const ns: 0|1 = legStarter === 0 ? 1 : 0;
         setLegStarter(ns); setScores([startingScore, startingScore]);
         setStarted([!doubleIn, !doubleIn]); setVisitDarts([]);
@@ -364,12 +366,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         const legWinner = newLegState[0] > legWins[0] ? 0 : newLegState[1] > legWins[1] ? 1 : null;
         if (legWinner !== null) {
           setLegHistory(prev => [...prev, legWinner]);
-          console.log(`[CARD_CLASH:LEG_HISTORY] Leg ${prev.length + 1} won by Player${legWinner}`);
           
           // Check for shutout (opponent scored 0 - Perfect Game bonus)
           const opp: 0|1 = legWinner === 0 ? 1 : 0;
           if (isCardClash && scores[opp] === startingScore) {
-            console.log(`[CARD_CLASH:SHUTOUT] Player${legWinner} achieved shutout! Perfect Game bonus +30`);
             setActiveEffects(prev => [...prev, {
               cardName: "Perfect Game",
               appliedBy: legWinner,
@@ -393,7 +393,6 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
                 visitBonus: 50,
                 legDuration: true,
               }]);
-              console.log(`[CARD_CLASH:FINISHING_BONUS] Player${legWinner} activated Finishing Bonus +50 for next leg`);
             }
           }
         }
@@ -408,13 +407,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           const ns: [number,number] = [setWins[0], setWins[1]];
           ns[winnerIdx]++;
           if (ns[winnerIdx] >= setsNeeded) {
-            setTimeout(() => {
+            safeTimeout(() => {
               setSetWins(ns);
               onWin(winnerIdx, `${ns[winnerIdx]}–${ns[winnerIdx===0?1:0]} sets`);
               onPracticeStats?.(getStats());
             }, 800);
           } else {
-            setTimeout(() => {
+            safeTimeout(() => {
               setSetWins(ns);
               resetForLeg(0, [0, 0]);
             }, 1500);
@@ -441,7 +440,6 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
             );
             if (hasLegReset) {
               // BUGFIX 213: card text is "reset target's leg wins to 0", not "reduce by 1".
-              console.log(`[CARD_CLASH:LEG_RESET] Player${opp} played Leg Reset. Player${winnerIdx} had 2+ streak, resetting leg wins to 0`);
               n[winnerIdx] = 0;
             }
           }
@@ -455,14 +453,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
               e.cardName === "Streak Crusher" && e.status === "active" && e.affectsPlayer === winnerIdx
             );
             if (hasStreakCrusher) {
-              console.log(`[CARD_CLASH:STREAK_CRUSHER] Player${opp} played Streak Crusher. Player${winnerIdx} is ${leadsBy} ahead, removing 2 wins`);
               n[winnerIdx] = Math.max(0, n[winnerIdx] - 2);
             }
           }
         }
         
         if (n[winnerIdx] >= legsNeeded) {
-          setTimeout(() => {
+          safeTimeout(() => {
             onWin(winnerIdx, `${n[winnerIdx]}–${n[winnerIdx===0?1:0]} legs`);
             onPracticeStats?.(getStats());
           }, 200);
@@ -472,7 +469,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         return n;
       });
     } else {
-      setTimeout(() => {
+      safeTimeout(() => {
         onWin(winnerIdx);
         onPracticeStats?.(getStats());
       }, 200);
@@ -576,7 +573,6 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       // Check if finish is blocked by Scoring Arsenal (forceFullTurn)
       if (isValidOut(dart) && nv.length < 3 &&
           activeEffects.some(e => e.status === "active" && e.affectsPlayer === turn && e.forceFullTurn)) {
-        console.log(`[CARD_CLASH:FORCE_FULL_TURN] Player${turn} attempted early finish but Scoring Arsenal forces full turn`);
         setVisitDarts(nv);
         return;
       }
@@ -603,7 +599,6 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
             setScores(prev => {
               const ns: [number, number] = [...prev];
               ns[turn] = Math.max(0, ns[turn] - 50);  // X01: reduce remaining by 50 (good for player)
-              console.log(`[CARD_CLASH:FINISHING_BONUS] Player${turn} gains +50 bonus on finish`);
               return ns;
             });
           }
@@ -618,7 +613,6 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         const inCheckout = doubleOut && nv.length < 4; // Allow up to 4 darts with retry
         
         if (hasCheckoutConfidence && canUseRetry && inCheckout) {
-          console.log(`[CARD_CLASH:CHECKOUT_CONFIDENCE] Player${turn} missed double finish, granting 1 free retry`);
           setFreeRetriesUsed(prev => {
             const n = [...prev] as [number, number];
             n[turn]++;
@@ -735,7 +729,6 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           // THEME 3: Mode-specific instant effects (X01)
           if (e.instantRemainingPenalty) {
             n[e.affectsPlayer] = Math.max(1, n[e.affectsPlayer] + e.instantRemainingPenalty);
-            console.log(`[CARD_CLASH:INSTANT_REMAINING] Player${e.affectsPlayer} remaining adjusted by ${e.instantRemainingPenalty} from ${e.cardName}`);
           }
           // Legacy fields (deprecated, kept for compatibility)
           if (e.instantP0Delta) n[0] = Math.max(1, n[0] + e.instantP0Delta);
@@ -746,14 +739,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     });
     const nonInstant = effects.filter(e => !e.instant);
     if (nonInstant.length > 0) {
-      console.log(`[CARD_CLASH:ACTIVATE] Player${turn} activated ${card.name}. Effects: ${nonInstant.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`).join(", ")}`);
       setActiveEffects(prev => [...prev, ...nonInstant]);
     }
     
     // Mark card as permanently used (consumed for this match)
     if (!cardsUsed.some((c: any) => c.id === card.id)) {
       setCardsUsed(prev => [...prev, card]);
-      console.log(`[CARD_CLASH:CONSUMED] Card ${card.name} (id:${card.id}) consumed by Player${turn}`);
     }
     
     cardDebugLog("X01Scorer", "Effects queued", { effects: effects.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`) });
@@ -775,7 +766,6 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         if (hasBonusRemoval) {
           updated = updated.filter(e => {
             if (["Lucky Streak", "Momentum Surge", "Hot Hand"].includes(e.cardName) && e.affectsPlayer === turn) {
-              console.log(`[CARD_CLASH:WIN_BONUS_REMOVED] Removed ${e.cardName} from Player${turn}`);
               return false;
             }
             return true;
@@ -819,7 +809,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (!isCardClash || !botConfig || turn !== 1 || bust) return;
     const unused = p2Cards.filter((c: any) => !cardsUsed.some((u: any) => u.id === c.id));
     if (unused.length === 0) return;
-    const timer = setTimeout(() => {
+    const timer = safeTimeout(() => {
       const good = unused.filter((c: any) => c.category?.includes("GOOD"));
       const bad = unused.filter((c: any) => c.category?.includes("BAD"));
       const oppRemaining = scores[0];
@@ -865,9 +855,9 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   useEffect(() => {
     if (!botConfig || turn !== 1) return;
     const [d1, d2, d3] = botX01Visit(scores[1], !!doubleOut, botConfig);
-    const t1 = setTimeout(() => handleDartRef.current(d1), 700);
-    const t2 = setTimeout(() => handleDartRef.current(d2), 1400);
-    const t3 = setTimeout(() => handleDartRef.current(d3), 2100);
+    const t1 = safeTimeout(() => handleDartRef.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRef.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRef.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1206,6 +1196,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   setsToWin?: number;
   legsToWinSet?: number;
 }) {
+  const safeTimeout = useSafeTimeout();
   const numCount = includesBull ? 7 : 6;
   const legs = legsProp;
   const setsNeeded = setsToWin > 0 ? Math.ceil(setsToWin / 2) : 0;
@@ -1368,7 +1359,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         setLockedNumbers(prev => {
           const newLocked = [new Set(prev[0]), new Set(prev[1])] as [Set<number>, Set<number>];
           newLocked[opp].add(lockedNum);
-          console.log(`[CARD_CLASH:NUMBER_PRISON] Player${turn} locked ${lockedNum} on Player${opp}`);
           return newLocked;
         });
       }
@@ -1411,11 +1401,9 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               if (markMutation.markDelta === -999) {
                 // Reset to 0 (Number Resurrection)
                 newMarks[markMutation.playerIdx][markMutation.numberIdx] = 0;
-                console.log(`[CARD_CLASH:INSTANT_MARK_RESET] Player${markMutation.playerIdx} number ${CRICKET_NUMS[markMutation.numberIdx]} marks reset to 0`);
               } else {
                 // Add marks (Instant Mark)
                 newMarks[markMutation.playerIdx][markMutation.numberIdx] = Math.min(3, currentMarks + markMutation.markDelta);
-                console.log(`[CARD_CLASH:INSTANT_MARK] Player${markMutation.playerIdx} number ${CRICKET_NUMS[markMutation.numberIdx]} marks increased to ${newMarks[markMutation.playerIdx][markMutation.numberIdx]}`);
               }
             }
             return newMarks;
@@ -1428,7 +1416,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           // THEME 3: Mode-specific instant effects (Cricket)
           if (e.instantScoreDelta) {
             n[e.affectsPlayer] = Math.max(0, n[e.affectsPlayer] + e.instantScoreDelta);
-            console.log(`[CARD_CLASH:INSTANT_SCORE] Player${e.affectsPlayer} score adjusted by ${e.instantScoreDelta} from ${e.cardName}`);
           }
           // Legacy fields (deprecated, kept for compatibility)
           if (e.instantP0Delta) n[0] = Math.max(0, n[0] + e.instantP0Delta);
@@ -1444,7 +1431,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     cardDebugLog("CricketScorer", "Effects queued", { effects: effects.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`) });
     if (!cardsUsed.some((c: any) => c.id === card.id)) {
       setCardsUsed(prev => [...prev, card]);
-      console.log(`[CARD_CLASH:CONSUMED] Card ${card.name} (id:${card.id}) consumed by Player${turn}`);
     }
   }, [p1Cards, p2Cards, cardsUsed, turn, marks, scores]);
 
@@ -1453,7 +1439,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     if (!isCardClash || !botConfig || turn !== 1) return;
     const unused = p2Cards.filter((c: any) => !cardsUsed.some((u: any) => u.id === c.id));
     if (unused.length === 0) return;
-    const timer = setTimeout(() => {
+    const timer = safeTimeout(() => {
       const good = unused.filter((c: any) => c.category?.includes("GOOD"));
       const bad = unused.filter((c: any) => c.category?.includes("BAD"));
       const myClosed = marks[1].slice(0, numCount).filter(m => m >= 3).length;
@@ -1486,7 +1472,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   };
 
   const resetForLeg = useCallback((delay: number, newLegState: [number,number]) => {
-    setTimeout(() => {
+    safeTimeout(() => {
       const ns: 0|1 = legStarter === 0 ? 1 : 0;
       setLegStarter(ns);
       setMarks([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
@@ -1527,12 +1513,12 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           const ns: [number,number] = [setWins[0], setWins[1]];
           ns[winnerIdx]++;
           if (ns[winnerIdx] >= setsNeeded) {
-            setTimeout(() => {
+            safeTimeout(() => {
               setSetWins(ns);
               onWin(winnerIdx, `${ns[winnerIdx]}–${ns[winnerIdx===0?1:0]} sets`);
             }, 800);
           } else {
-            setTimeout(() => {
+            safeTimeout(() => {
               setSetWins(ns);
               resetForLeg(0, [0, 0]);
             }, 1500);
@@ -1548,7 +1534,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         const n: [number,number] = [...prev] as [number,number];
         n[winnerIdx]++;
         if (n[winnerIdx] >= legsNeeded) {
-          setTimeout(() => {
+          safeTimeout(() => {
             onWin(winnerIdx, `${n[winnerIdx]}–${n[winnerIdx===0?1:0]} legs`);
           }, 200);
         } else {
@@ -1623,7 +1609,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         if (sniperEffect && sniperEffect.sniperLockSegment !== undefined) {
           if (dart.segment !== sniperEffect.sniperLockSegment) {
             effectiveHits = 0;  // Miss the sniper lock - no marks
-            console.log(`[CARD_CLASH:SNIPER_LOCK] Player${turn} hit ${dart.segment}, not locked ${sniperEffect.sniperLockSegment} - no marks`);
           }
           // Decrement dart counter for sniper lock
           if (sniperEffect.dartsRemainingForSniper !== undefined) {
@@ -1631,7 +1616,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               e === sniperEffect ? { ...e, dartsRemainingForSniper: e.dartsRemainingForSniper - 1 } : e
             ));
             if (sniperEffect.dartsRemainingForSniper <= 1) {
-              console.log(`[CARD_CLASH:SNIPER_LOCK_EXPIRED] 3-dart limit reached`);
             }
           }
         }
@@ -1658,7 +1642,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         : Infinity;
       const effectiveHitsAfterCap = Math.min(effectiveHitsAfterLock, marksAllowance);
       if (marksCapEffect && effectiveHitsAfterCap < effectiveHitsAfterLock) {
-        console.log(`[CARD_CLASH:SHUTDOWN_MARK_CAP] Player${turn} capped at ${marksCapEffect.maxMarksPerTurn} marks/turn, allowed ${effectiveHitsAfterCap} of ${effectiveHitsAfterLock}`);
       }
 
       setMarks(prev => {
@@ -1694,7 +1677,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             setProtectedNumbers(prev => {
               const newProtected = [new Set(prev[0]), new Set(prev[1])] as [Set<number>, Set<number>];
               newProtected[turn].add(CRICKET_NUMS[numIdx]);
-              console.log(`[CARD_CLASH:CLOSING_PROTECTION] Player${turn} opened ${CRICKET_NUMS[numIdx]} - opponent can't close it`);
               return newProtected;
             });
           }
@@ -1711,7 +1693,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             setLockedNumbers(prev => {
               const newLocked = [new Set(prev[0]), new Set(prev[1])] as [Set<number>, Set<number>];
               newLocked[turn].add(CRICKET_NUMS[numIdx]);
-              console.log(`[CARD_CLASH:RE_OPENING_BLOCK] Player${turn} closed number, it's locked by opponent's Re-Opening Block`);
               return newLocked;
             });
           }
@@ -1726,7 +1707,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             setScores(ps => {
               const ns: [number,number] = [...ps];
               ns[turn] += 30;  // +30 bonus for early close
-              console.log(`[CARD_CLASH:EARLY_CLOSER] Player${turn} closed number on turn ${turnCounter}, +30 bonus`);
               return ns;
             });
           }
@@ -1742,13 +1722,11 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             const nextOpenIdx = nm[turn].findIndex(m => m < 3);
             if (nextOpenIdx >= 0) {
               nm[turn][nextOpenIdx] = Math.min(3, nm[turn][nextOpenIdx] + 1);
-              console.log(`[CARD_CLASH:QUICK_CLOSE] Player${turn} quick-closed by dart ${visitDarts.length}, gets free mark on ${CRICKET_NUMS[nextOpenIdx]}`);
             }
           }
         }
         
         if (isLocked && effectiveHits > 0) {
-          console.log(`[CARD_CLASH:NUMBER_PRISON_BLOCKED] Player${turn} tried to mark ${CRICKET_NUMS[numIdx]} but it's locked`);
         }
         // Score extra hits (scoring marks beyond closing)
         if (extra > 0) {
@@ -1799,7 +1777,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               const segIdx = CRICKET_NUMS.indexOf(segment);
               if (segIdx >= 0) nm[turn][segIdx] = Math.min(3, nm[turn][segIdx] + 1);
             }
-            console.log(`[CARD_CLASH:${bullEffect.cardName.toUpperCase()}] Player${turn} hit Bull → marked ${bullEffect.bullMarksSegments.join(",")}`);
             return nm;
           });
         }
@@ -1831,7 +1808,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               setScores(prev => {
                 const newScores: [number, number] = [...prev];
                 newScores[turn] += perfectRound.bonusIfAllMarksThisTurn;
-                console.log(`[CARD_CLASH:PERFECT_ROUND] Player${turn} +${perfectRound.bonusIfAllMarksThisTurn} for all marks`);
                 return newScores;
               });
             }
@@ -1867,7 +1843,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
                 setScores(prev => {
                   const newScores: [number, number] = [...prev];
                   newScores[turn] += bonusPoints;
-                  console.log(`[CARD_CLASH:COMEBACK_MARKS] Player${turn} behind, ${marksThisTurn} marks × 1.5x = +${bonusPoints} points`);
                   return newScores;
                 });
               }
@@ -1906,7 +1881,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
                 setScores(prev => {
                   const newScores: [number, number] = [...prev];
                   newScores[turn] += bonusPoints;
-                  console.log(`[CARD_CLASH:DOMINANCE] Player${turn} closing ${closedByPlayer} > ${closedByOpp}, ${marksThisTurn} marks × 1.3x (ceil) = +${bonusPoints} bonus`);
                   return newScores;
                 });
               }
@@ -1928,7 +1902,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               setScores(prev => {
                 const newScores: [number, number] = [...prev];
                 newScores[turn] = Math.max(0, newScores[turn] - pressure.penaltyIfNotClosed);
-                console.log(`[CARD_CLASH:PRESSURE] Player${turn} -${pressure.penaltyIfNotClosed} for unclosed numbers`);
                 return newScores;
               });
             }
@@ -1951,7 +1924,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
                 setMarks(prev => {
                   const nm: typeof marks = [[ ...prev[0] ] as any, [ ...prev[1] ] as any];
                   nm[turn][maxIdx] = Math.max(0, nm[turn][maxIdx] - 1);
-                  console.log(`[CARD_CLASH:MARK_DRAIN] Player${turn} loses 1 mark on ${CRICKET_NUMS[maxIdx]}`);
                   return nm;
                 });
               }
@@ -1970,7 +1942,6 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
                   broke = true;
                 }
               }
-              if (broke) console.log(`[CARD_CLASH:STREAK_BREAKER] Player${turn} marks halved`);
               return nm;
             });
           }
@@ -2005,11 +1976,11 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     }
 
     // Check win after state settles
-    setTimeout(() => {
+    safeTimeout(() => {
       setMarks(m => {
         setScores(sc => {
           const w = checkWin(m, sc);
-          if (w !== null) setTimeout(() => {
+          if (w !== null) safeTimeout(() => {
             onPracticeStats?.({ sessionData: { mode: "cricket" } });
             handleLegWin(w);
           }, 300);
@@ -2046,9 +2017,9 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   useEffect(() => {
     if (!botConfig || turn !== 1) return;
     const [d1, d2, d3] = botCricketVisit([...marks[1]], botConfig);
-    const t1 = setTimeout(() => handleDartRefCri.current(d1), 700);
-    const t2 = setTimeout(() => handleDartRefCri.current(d2), 1400);
-    const t3 = setTimeout(() => handleDartRefCri.current(d3), 2100);
+    const t1 = safeTimeout(() => handleDartRefCri.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefCri.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefCri.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2211,6 +2182,7 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const [phase, setPhase]           = useState<"assign"|"play">("assign");
   const [assigning, setAssigning]   = useState<0|1>(0);
   const [killerNums, setKillerNums] = useState<[number|null, number|null]>([null, null]);
@@ -2227,9 +2199,9 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
     if (!botConfig || assigning !== 1 || killerNums[1] !== null) return;
     const available = Array.from({length:20},(_,i)=>i+1).filter(n => n !== killerNums[0]);
     const pick = available[Math.floor(Math.random() * available.length)];
-    const t = setTimeout(() => {
+    const t = safeTimeout(() => {
       setKillerNums(prev => [prev[0], pick]);
-      setTimeout(() => setPhase("play"), 400);
+      safeTimeout(() => setPhase("play"), 400);
     }, 800);
     return () => clearTimeout(t);
   }, [assigning, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2263,18 +2235,18 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
     if (!isKiller[turn] && isDouble) {
       setIsKiller(prev => { const n=[...prev] as [boolean,boolean]; n[turn]=true; return n; });
       setMsg(`${names[turn]} is now a KILLER!`);
-      setTimeout(() => setMsg(""), 2000);
+      safeTimeout(() => setMsg(""), 2000);
     } else if (isKiller[turn] && hitsOppDouble) {
       setLives(prev => {
         const n = [...prev] as [number,number];
         n[opp]--;
         if (n[opp] <= 0) {
-          setTimeout(() => { onPracticeStats?.({ sessionData: { mode:"killer" } }); onWin(turn, `${names[opp]} eliminated!`); }, 300);
+          safeTimeout(() => { onPracticeStats?.({ sessionData: { mode:"killer" } }); onWin(turn, `${names[opp]} eliminated!`); }, 300);
         }
         return n;
       });
       setMsg(`${names[opp]} loses a life!`);
-      setTimeout(() => setMsg(""), 2000);
+      safeTimeout(() => setMsg(""), 2000);
     }
 
     if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); }
@@ -2301,9 +2273,9 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
     const myNum = killerNums[1] ?? 0;
     const oppNum = killerNums[0] ?? 0;
     const [d1, d2, d3] = botKillerVisit(myNum, oppNum, isKiller[1], botConfig);
-    const t1 = setTimeout(() => handleDartRefKill.current(d1), 700);
-    const t2 = setTimeout(() => handleDartRefKill.current(d2), 1400);
-    const t3 = setTimeout(() => handleDartRefKill.current(d3), 2100);
+    const t1 = safeTimeout(() => handleDartRefKill.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefKill.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefKill.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2393,6 +2365,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
   onPracticeStats?: (s: PracticeStats) => void;
   onTurnChanged?: (t: 0|1) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
 
   // Build the target sequence
@@ -2471,7 +2444,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
         // Check shanghai (all 3 in one visit)
         const nh = { s: shanghaiHits.s || dart.multiplier===1, d: shanghaiHits.d || dart.multiplier===2, t: shanghaiHits.t || dart.multiplier===3 };
         if (nh.s && nh.d && nh.t) {
-          setTimeout(() => onWin(shanghaiTurn, `SHANGHAI on ${n}!`), 300);
+          safeTimeout(() => onWin(shanghaiTurn, `SHANGHAI on ${n}!`), 300);
           return;
         }
       }
@@ -2480,7 +2453,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
         setShanghaiHits({s:false,d:false,t:false});
         if (shanghaiTurn === 1) {
           if (shanghaiRound >= maxRounds) {
-            setTimeout(() => {
+            safeTimeout(() => {
               const [s0,s1] = shanghaiScores;
               onWin(s0 >= s1 ? 0 : 1, `${s0} vs ${s1} after ${maxRounds} rounds`);
             }, 300);
@@ -2533,7 +2506,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
       if (target.mult === 1) pos += (dart.multiplier - 1); // T1 → skip 2 extra? No, each dart advances once. Let extra multiplier advance once.
       const newPos = Math.min(pos, sequence.length);
       setPositions(prev => { const n:[number,number]=[...prev] as [number,number]; n[turn]=newPos; return n; });
-      if (newPos >= sequence.length) { setTimeout(() => { onPracticeStats?.({ sessionData:{mode:"sequence"} }); onWin(turn, `Finished the sequence!`); }, 200); return; }
+      if (newPos >= sequence.length) { safeTimeout(() => { onPracticeStats?.({ sessionData:{mode:"sequence"} }); onWin(turn, `Finished the sequence!`); }, 200); return; }
     }
     setVisitDarts(nv);
     if (nv.length === 3) { setVisitDarts([]); const nt: 0|1 = turn===0?1:0; setTurn(nt); onTurnChanged?.(nt); }
@@ -2548,9 +2521,9 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
   useEffect(() => {
     if (!botConfig || turn !== 1 || !botSeqTarget) return;
     const [d1, d2, d3] = botSequenceVisit(botSeqTarget.seg, (botSeqTarget.mult ?? 1) as 1|2|3, botConfig);
-    const t1 = setTimeout(() => handleDartRefSeq.current(d1), 700);
-    const t2 = setTimeout(() => handleDartRefSeq.current(d2), 1400);
-    const t3 = setTimeout(() => handleDartRefSeq.current(d3), 2100);
+    const t1 = safeTimeout(() => handleDartRefSeq.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefSeq.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefSeq.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2600,6 +2573,7 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const isBobs = gameKey === "bobs_27";
   const targets = isBobs
     ? Array.from({length:20},(_,i)=>i+1)  // doubles 1-20
@@ -2661,7 +2635,7 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
       if (turnInRound === 1) {
         // Both players done this round
         if (round + 1 >= targets.length) {
-          setTimeout(() => {
+          safeTimeout(() => {
             setScores(sc => {
               const w: 0|1 = sc[0] >= sc[1] ? 0 : 1;
               onPracticeStats?.({ sessionData: { mode:"halveit", p1Score:sc[0], p2Score:sc[1] } });
@@ -2691,9 +2665,9 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
     else if (ct === "Bull") { tSeg = 25; tMult = 1; }
     else { tSeg = ct as number; tMult = 1; }
     const [d1, d2, d3] = botHalveItVisit(tSeg, tMult, botConfig);
-    const t1 = setTimeout(() => handleDartRefHalve.current(d1), 700);
-    const t2 = setTimeout(() => handleDartRefHalve.current(d2), 1400);
-    const t3 = setTimeout(() => handleDartRefHalve.current(d3), 2100);
+    const t1 = safeTimeout(() => handleDartRefHalve.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefHalve.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefHalve.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2749,6 +2723,7 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const target = config.target ?? 501;
   const maxRounds = config.rounds ?? 0; // 0 = race to target
   const bullsOnly = config.bullsOnly ?? false;   // Bull Rush: count bull hits only
@@ -2779,14 +2754,14 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
           } else {
             ns[turn] = Math.floor(ns[turn] / 2);
             setHalvMsg(`${names[turn]}: only ${cum} pts — HALVED to ${ns[turn]}!`);
-            setTimeout(() => setHalvMsg(""), 2200);
+            safeTimeout(() => setHalvMsg(""), 2200);
           }
         } else {
           ns[turn] += cum;
         }
         if (maxRounds === 0 && ns[turn] >= target) {
           const label = bullsOnly ? `${ns[turn]} bulls!` : `Reached ${target} pts!`;
-          setTimeout(() => { onPracticeStats?.({ sessionData:{mode:"countup"} }); onWin(turn, label); }, 300);
+          safeTimeout(() => { onPracticeStats?.({ sessionData:{mode:"countup"} }); onWin(turn, label); }, 300);
         }
         return ns;
       });
@@ -2795,7 +2770,7 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
         const nr: [number,number] = [...prev] as [number,number];
         nr[turn]++;
         if (maxRounds > 0 && nr[0] >= maxRounds && nr[1] >= maxRounds) {
-          setTimeout(() => {
+          safeTimeout(() => {
             setScores(sc => {
               onPracticeStats?.({ sessionData:{mode:"countup", p1Score:sc[0], p2Score:sc[1]} });
             onWin(sc[0] >= sc[1] ? 0 : 1, `${sc[0]} vs ${sc[1]}`);
@@ -2822,9 +2797,9 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
   useEffect(() => {
     if (!botConfig || turn !== 1) return;
     const [d1, d2, d3] = botCountUpVisit(botConfig);
-    const t1 = setTimeout(() => handleDartRefCU.current(d1), 700);
-    const t2 = setTimeout(() => handleDartRefCU.current(d2), 1400);
-    const t3 = setTimeout(() => handleDartRefCU.current(d3), 2100);
+    const t1 = safeTimeout(() => handleDartRefCU.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefCU.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefCU.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2871,6 +2846,7 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onTurnChanged?: (t: 0|1) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const [scores, setScores]         = useState<[number,number]>([0,0]);
   const [turn, setTurn]             = useState<0|1>(0);
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
@@ -2892,9 +2868,9 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
         if (projected > target) {
           // Bust — revert
           setMsg("BUST! Back to " + ns[turn]);
-          setTimeout(() => setMsg(""), 1500);
+          safeTimeout(() => setMsg(""), 1500);
         } else if (projected === target) {
-          setTimeout(() => onWin(turn, `Reached exactly ${target}!`), 200);
+          safeTimeout(() => onWin(turn, `Reached exactly ${target}!`), 200);
           ns[turn] = projected;
         } else {
           ns[turn] = projected;
@@ -2902,7 +2878,7 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
             // GOTCHA — reset opponent!
             ns[opp] = 0;
             setMsg(`GOTCHA! ${names[opp]} reset to 0!`);
-            setTimeout(() => setMsg(""), 2000);
+            safeTimeout(() => setMsg(""), 2000);
           }
         }
         return ns;
@@ -2916,9 +2892,9 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
   useEffect(() => {
     if (!botConfig || turn !== 1) return;
     const [d1, d2, d3] = botGotchaVisit(scores[1], target, scores[0], botConfig);
-    const t1 = setTimeout(() => handleDartRefGotcha.current(d1), 700);
-    const t2 = setTimeout(() => handleDartRefGotcha.current(d2), 1400);
-    const t3 = setTimeout(() => handleDartRefGotcha.current(d3), 2100);
+    const t1 = safeTimeout(() => handleDartRefGotcha.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefGotcha.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefGotcha.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2950,6 +2926,7 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, 
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onTurnChanged?: (t: 0|1) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const [inning, setInning]         = useState(1);
   const [half, setHalf]             = useState<0|1>(0); // 0=bottom(P1), 1=top(P2)
   const [runs, setRuns]             = useState<[number,number]>([0,0]);
@@ -2968,7 +2945,7 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, 
       setVisitDarts([]);
       if (half === 1) {
         if (inning >= innings) {
-          setTimeout(() => {
+          safeTimeout(() => {
             setRuns(sc => { onWin(sc[0]>=sc[1]?0:1, `${sc[0]}–${sc[1]} runs`); return sc; });
           }, 300);
         } else { setInning(i=>i+1); setHalf(0); onTurnChanged?.(0); }
@@ -2980,9 +2957,9 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, 
   useEffect(() => {
     if (!botConfig || half !== 1) return;
     const [d1, d2, d3] = botBaseballVisit(inning, botConfig);
-    const t1 = setTimeout(() => handleDartRefBaseball.current(d1), 700);
-    const t2 = setTimeout(() => handleDartRefBaseball.current(d2), 1400);
-    const t3 = setTimeout(() => handleDartRefBaseball.current(d3), 2100);
+    const t1 = safeTimeout(() => handleDartRefBaseball.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefBaseball.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefBaseball.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [half, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3015,6 +2992,7 @@ export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
   p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const [phase, setPhase]             = useState<1|2>(1);
   const [stopper, setStopper]         = useState<0|1>(0);   // who is stopper this phase
   const [closed, setClosed]           = useState<boolean[]>([false,false,false,false,false,false,false]);
@@ -3049,7 +3027,7 @@ export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
         if (cl.every(Boolean)) {
           if (phase === 1) {
             // Start phase 2
-            setTimeout(() => {
+            safeTimeout(() => {
               setPhase(2);
               setStopper(scorer); // swap roles
               setClosed([false,false,false,false,false,false,false]);
@@ -3057,7 +3035,7 @@ export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
             }, 800);
           } else {
             // Both phases done — compare scorer scores
-            setTimeout(() => {
+            safeTimeout(() => {
               setPhaseScores(ps => {
                 onWin(ps[0] >= ps[1] ? 0 : 1, `Phase scores: ${ps[0]} vs ${ps[1]}`);
                 return ps;
@@ -3075,9 +3053,9 @@ export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
   useEffect(() => {
     if (!botConfig || turn !== 1) return;
     const [d1, d2, d3] = botScramVisit(stopper === 1, closed, botConfig);
-    const t1 = setTimeout(() => handleDartRefScram.current(d1), 700);
-    const t2 = setTimeout(() => handleDartRefScram.current(d2), 1400);
-    const t3 = setTimeout(() => handleDartRefScram.current(d3), 2100);
+    const t1 = safeTimeout(() => handleDartRefScram.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefScram.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefScram.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3130,6 +3108,7 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   // null = kickoff (uncontested — both need to hit bull to win possession)
   const [goals, setGoals]           = useState<[number,number]>([0,0]);
   const [possession, setPossession] = useState<0|1|null>(null);
@@ -3151,7 +3130,7 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
           const ng: [number,number] = [...prev] as [number,number];
           ng[turn]++;
           if (ng[turn] >= goalsToWin) {
-            setTimeout(() => {
+            safeTimeout(() => {
               onPracticeStats?.({ sessionData: { mode:"football", goals: ng } });
               onWin(turn, `${ng[turn]} goals!`);
             }, 200);
@@ -3159,14 +3138,14 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
           return ng;
         });
         setMsg(`GOAL! ${names[turn]} scores! ⚽ ${goals[turn]+1}/${goalsToWin}`);
-        setTimeout(() => setMsg(""), 2000);
+        safeTimeout(() => setMsg(""), 2000);
       }
     } else {
       // No possession (kickoff) or opponent has possession: need bull to steal/win it
       if (dart.segment === 25) {
         setPossession(turn);
         setMsg(`${names[turn]} wins possession! 🏈 Now aim for doubles to score!`);
-        setTimeout(() => setMsg(""), 2200);
+        safeTimeout(() => setMsg(""), 2200);
       }
     }
 
@@ -3186,9 +3165,9 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
     if (!botConfig || turn !== 1) return;
     const hasBall = possession === 1;
     const [d1, d2, d3] = botFootballVisit(hasBall, botConfig);
-    const t1 = setTimeout(() => handleDartRefFB.current(d1), 700);
-    const t2 = setTimeout(() => handleDartRefFB.current(d2), 1400);
-    const t3 = setTimeout(() => handleDartRefFB.current(d3), 2100);
+    const t1 = safeTimeout(() => handleDartRefFB.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefFB.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefFB.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3243,6 +3222,7 @@ export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAban
   onPracticeStats?: (s: PracticeStats) => void;
   onTurnChanged?: (t: 0|1) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const [hole, setHole]             = useState(1);
   const [half, setHalf]             = useState<0|1>(0);
   const [totalScores, setTotal]     = useState<[number,number]>([0,0]);
@@ -3256,7 +3236,7 @@ export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAban
       if (half === 1) {
         setHole(h => {
           if (h >= holes) {
-            setTimeout(() => {
+            safeTimeout(() => {
               onPracticeStats?.({ sessionData: { mode:"golf", strokes:[...n] } });
               onWin(n[0] <= n[1] ? 0 : 1, `${n[0]} vs ${n[1]} strokes`);
             }, 300);
@@ -3293,9 +3273,9 @@ export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAban
   useEffect(() => {
     if (!botConfig || half !== 1) return;
     const [d1, d2, d3] = botGolfVisit(hole, botConfig);
-    const t1 = setTimeout(() => handleDartRefGolf.current(d1), 700);
-    const t2 = setTimeout(() => handleDartRefGolf.current(d2), 1400);
-    const t3 = setTimeout(() => handleDartRefGolf.current(d3), 2100);
+    const t1 = safeTimeout(() => handleDartRefGolf.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefGolf.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefGolf.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [half, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3333,6 +3313,7 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
   p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const [phase,   setPhase]   = useState<"throwing"|"declare">("throwing");
   const [thrown,  setThrown]  = useState<[boolean,boolean]>([false,false]);
   const [p1Score, setP1Score] = useState<number|null>(null);
@@ -3349,10 +3330,10 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
   const handleP1Pick = (score: number) => {
     if (p1Score !== null) return;
     setP1Score(score);
-    setTimeout(() => {
+    safeTimeout(() => {
       const bs = computeBotScore(botConfig!.hitAcc);
       setBotScore(bs);
-      setTimeout(() => onWin(score >= bs ? 0 : 1, `${score} vs ${bs}`), 1800);
+      safeTimeout(() => onWin(score >= bs ? 0 : 1, `${score} vs ${bs}`), 1800);
     }, 900);
   };
 
@@ -3513,6 +3494,7 @@ export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onP
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const [ballIdx,    setBallIdx]    = useState(0);
   const [half,       setHalf]       = useState<0|1>(0);
   const [scores,     setScores]     = useState<[number,number]>([0,0]);
@@ -3534,7 +3516,7 @@ export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onP
       setBallIdx(bi + 1);
       setHalf(0);
     } else {
-      setTimeout(() => {
+      safeTimeout(() => {
         setScores(sc => { onPracticeStats?.({ sessionData: { mode: "snooker_darts" } }); onWin(sc[0] >= sc[1] ? 0 : 1, `${sc[0]}–${sc[1]} pts`); return sc; });
       }, 400);
     }
@@ -3552,7 +3534,7 @@ export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onP
   useEffect(() => {
     if (!potted) return;
     const bi = ballIdxRef.current; const h = halfRef.current;
-    const t = setTimeout(() => doAdvance(true, bi, h), 600);
+    const t = safeTimeout(() => doAdvance(true, bi, h), 600);
     return () => clearTimeout(t);
   }, [potted]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3561,9 +3543,9 @@ export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onP
   useEffect(() => {
     if (!botConfig || half !== 1) return;
     const segs = SNOOKER_BALLS[ballIdx].segs;
-    const t1 = setTimeout(() => handleDartRefSnk.current(botSnookerDart(segs, botConfig)), 700);
-    const t2 = setTimeout(() => handleDartRefSnk.current(botSnookerDart(segs, botConfig)), 1400);
-    const t3 = setTimeout(() => handleDartRefSnk.current(botSnookerDart(segs, botConfig)), 2100);
+    const t1 = safeTimeout(() => handleDartRefSnk.current(botSnookerDart(segs, botConfig)), 700);
+    const t2 = safeTimeout(() => handleDartRefSnk.current(botSnookerDart(segs, botConfig)), 1400);
+    const t3 = safeTimeout(() => handleDartRefSnk.current(botSnookerDart(segs, botConfig)), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [half, ballIdx, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3619,6 +3601,7 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAband
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const SH1 = [10,11,12,13,14,15];
   const DBL = [...Array.from({length:20},(_,i)=>i+1), 25];
   const SH2 = [15,16,17,18,19,20];
@@ -3646,7 +3629,7 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAband
           if (phase==="sh1") { setPhase("dbl"); setIdx(0); }
           else if (phase==="dbl") { setPhase("sh2"); setIdx(0); }
           else {
-            setTimeout(()=>{ onPracticeStats?.({sessionData:{mode:"jdc41"}}); onWin(ns[0]>=ns[1]?0:1,`${ns[0]} vs ${ns[1]} pts`); },300);
+            safeTimeout(()=>{ onPracticeStats?.({sessionData:{mode:"jdc41"}}); onWin(ns[0]>=ns[1]?0:1,`${ns[0]} vs ${ns[1]} pts`); },300);
           }
         } else setIdx(nextIdx);
         setTurn(0);
@@ -3660,15 +3643,15 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAband
     if (visitDarts.length>=3) return;
     const nv=[...visitDarts,dart];
     if (phase==="dbl") {
-      if (dart.segment===target&&dart.multiplier===2) { setMsg(`D${target}! ✓`); setTimeout(()=>setMsg(""),1500); advance(target*2); return; }
+      if (dart.segment===target&&dart.multiplier===2) { setMsg(`D${target}! ✓`); safeTimeout(()=>setMsg(""),1500); advance(target*2); return; }
       setVisitDarts(nv);
-      if (nv.length===3) { setMsg("Missed!"); setTimeout(()=>setMsg(""),1200); advance(0); }
+      if (nv.length===3) { setMsg("Missed!"); safeTimeout(()=>setMsg(""),1200); advance(0); }
       return;
     }
     const nh={s:shHits.s||(dart.segment===target&&dart.multiplier===1),d:shHits.d||(dart.segment===target&&dart.multiplier===2),t:shHits.t||(dart.segment===target&&dart.multiplier===3)};
     const pts=dart.segment===target?dart.value:0;
     if(pts>0)setShHits(nh);
-    if(nh.s&&nh.d&&nh.t){setMsg(`SHANGHAI ${target}! 🎯`);setTimeout(()=>setMsg(""),2000);advance(nv.reduce((a,d)=>a+(d.segment===target?d.value:0),0)+50);return;}
+    if(nh.s&&nh.d&&nh.t){setMsg(`SHANGHAI ${target}! 🎯`);safeTimeout(()=>setMsg(""),2000);advance(nv.reduce((a,d)=>a+(d.segment===target?d.value:0),0)+50);return;}
     setVisitDarts(nv);
     if(nv.length===3){advance(nv.reduce((a,d)=>a+(d.segment===target?d.value:0),0));}
   },[visitDarts,phase,target,shHits,turn,advance]);
@@ -3677,9 +3660,9 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAband
   useEffect(() => {
     if (!botConfig || turn !== 1) return;
     const [d1, d2, d3] = botJDCVisit(phase, target, botConfig);
-    const t1 = setTimeout(() => handleDartRefJDC.current(d1), 700);
-    const t2 = setTimeout(() => handleDartRefJDC.current(d2), 1400);
-    const t3 = setTimeout(() => handleDartRefJDC.current(d3), 2100);
+    const t1 = safeTimeout(() => handleDartRefJDC.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefJDC.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefJDC.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3719,6 +3702,7 @@ export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAb
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const TARGETS=[7,8,9,10,11,12];
   const [tIdx,setTIdx]             = useState(0);
   const [half,setHalf]             = useState<0|1>(0);
@@ -3740,7 +3724,7 @@ export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAb
         ns[half]+=Math.round(pts);
         if(half===1){
           if(tIdx+1>=TARGETS.length){
-            setTimeout(()=>{onPracticeStats?.({sessionData:{mode:"exponential_bundle"}});onWin(ns[0]>=ns[1]?0:1,`${ns[0].toLocaleString()} vs ${ns[1].toLocaleString()}`);},300);
+            safeTimeout(()=>{onPracticeStats?.({sessionData:{mode:"exponential_bundle"}});onWin(ns[0]>=ns[1]?0:1,`${ns[0].toLocaleString()} vs ${ns[1].toLocaleString()}`);},300);
           } else {setTIdx(t=>t+1);setHalf(0);}
         } else setHalf(1);
         return ns;
@@ -3753,9 +3737,9 @@ export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAb
   useEffect(() => {
     if (!botConfig || half !== 1) return;
     const [d1, d2, d3] = botExponentialVisit(target, botConfig);
-    const t1 = setTimeout(() => handleDartRefExp.current(d1), 700);
-    const t2 = setTimeout(() => handleDartRefExp.current(d2), 1400);
-    const t3 = setTimeout(() => handleDartRefExp.current(d3), 2100);
+    const t1 = safeTimeout(() => handleDartRefExp.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefExp.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefExp.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [half, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3787,6 +3771,7 @@ export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAban
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const ROUNDS=5;
   const rng=()=>Math.floor(Math.random()*10)+121;
   const [round,setRound]             = useState(0);
@@ -3807,7 +3792,7 @@ export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAban
       ns[half]+=dartsUsed;
       if(half===1){
         if(round+1>=ROUNDS){
-          setTimeout(()=>{onPracticeStats?.({sessionData:{mode:"shooting_gallery"}});onWin(ns[0]<=ns[1]?0:1,`${ns[0]} vs ${ns[1]} darts`);},300);
+          safeTimeout(()=>{onPracticeStats?.({sessionData:{mode:"shooting_gallery"}});onWin(ns[0]<=ns[1]?0:1,`${ns[0]} vs ${ns[1]} darts`);},300);
         } else {
           const next=rng();
           setRound(r=>r+1);setRoundTarget(next);setRemain(next);setHalf(0);
@@ -3821,8 +3806,8 @@ export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAban
   const handleDart=useCallback((dart:Dart)=>{
     const dc=dartCount+1;
     const nr=remain-dart.value;
-    if(nr===0&&dart.multiplier===2){setSgHistory([]);setMsg(`Checkout in ${dc}! 🎯`);setTimeout(()=>setMsg(""),2000);nextPlayer(dc);return;}
-    if(nr<0||nr===1){setSgHistory([]);setMsg("Bust! +10");setTimeout(()=>setMsg(""),1500);nextPlayer(10);return;}
+    if(nr===0&&dart.multiplier===2){setSgHistory([]);setMsg(`Checkout in ${dc}! 🎯`);safeTimeout(()=>setMsg(""),2000);nextPlayer(dc);return;}
+    if(nr<0||nr===1){setSgHistory([]);setMsg("Bust! +10");safeTimeout(()=>setMsg(""),1500);nextPlayer(10);return;}
     setSgHistory(prev=>[...prev,{remain,dartCount}]);
     setRemain(nr);setDartCount(dc);
     if(dc>=9){setSgHistory([]);nextPlayer(10);}
@@ -3839,7 +3824,7 @@ export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAban
   useEffect(() => { handleDartRefSG.current = handleDart; });
   useEffect(() => {
     if (!botConfig || half !== 1) return;
-    const t = setTimeout(() => handleDartRefSG.current(botShootingGalleryDart(remain, botConfig)), 700);
+    const t = safeTimeout(() => handleDartRefSG.current(botShootingGalleryDart(remain, botConfig)), 700);
     return () => clearTimeout(t);
   }, [half, remain, dartCount, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3874,6 +3859,7 @@ export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin,
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const [scores,setScores]         = useState<[number,number]>([0,0]);
   const [turn,setTurn]             = useState<0|1>(0);
   const [visitDarts,setVisitDarts] = useState<Dart[]>([]);
@@ -3888,7 +3874,7 @@ export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin,
     const nv=[...visitDarts,dart];
     setVisitDarts(nv);
     const nowBusted=busted||!isBull;
-    if(!isBull){setBusted(true);setMsg(`${names[turn]} BUSTED — reset!`);setTimeout(()=>setMsg(""),2000);}
+    if(!isBull){setBusted(true);setMsg(`${names[turn]} BUSTED — reset!`);safeTimeout(()=>setMsg(""),2000);}
     else setVisitPts(p=>p+dart.value);
     if(nv.length===3){
       setScores(prev=>{
@@ -3896,7 +3882,7 @@ export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin,
         if(nowBusted){ns[turn]=0;}
         else{
           ns[turn]+=visitPts+(isBull?dart.value:0);
-          if(ns[turn]>=target){setTimeout(()=>{onPracticeStats?.({sessionData:{mode:"dead_centre"}});onWin(turn,`${ns[turn]} pts!`);},200);}
+          if(ns[turn]>=target){safeTimeout(()=>{onPracticeStats?.({sessionData:{mode:"dead_centre"}});onWin(turn,`${ns[turn]} pts!`);},200);}
         }
         return ns;
       });
@@ -3914,9 +3900,9 @@ export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin,
       if(Math.random()>acc)return{segment:0,multiplier:1,value:0,label:"Miss"};
       return Math.random()<0.4?{segment:25,multiplier:2,value:50,label:"DB"}:{segment:25,multiplier:1,value:25,label:"Bull"};
     };
-    const t1=setTimeout(()=>handleDartRefDC.current(mk()),700);
-    const t2=setTimeout(()=>handleDartRefDC.current(mk()),1400);
-    const t3=setTimeout(()=>handleDartRefDC.current(mk()),2100);
+    const t1=safeTimeout(()=>handleDartRefDC.current(mk()),700);
+    const t2=safeTimeout(()=>handleDartRefDC.current(mk()),1400);
+    const t3=safeTimeout(()=>handleDartRefDC.current(mk()),2100);
     return()=>{clearTimeout(t1);clearTimeout(t2);clearTimeout(t3);};
   },[turn,botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3950,6 +3936,7 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
   p1Name: string; p2Name: string; winsNeeded?: number; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const [roundWins, setRoundWins]   = useState<[number,number]>([0,0]);
   const [turn, setTurn]             = useState<0|1>(0);
   const [phase, setPhase]           = useState<"call"|"throw">("call");
@@ -3974,7 +3961,7 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
           const n:[number,number]=[...prev] as [number,number];
           n[turn]++;
           if (n[turn] >= winsNeeded) {
-            setTimeout(() => onWin(turn, `${n[turn]} three-in-a-beds!`), 600);
+            safeTimeout(() => onWin(turn, `${n[turn]} three-in-a-beds!`), 600);
           }
           return n;
         });
@@ -3982,7 +3969,7 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
         const inBedCount = nd.filter(d => d.segment === target && d.multiplier === 3).length;
         setMsg(inBedCount === 0 ? `Miss — none in T${target}` : `${inBedCount}/3 in T${target} — not enough!`);
       }
-      setTimeout(() => {
+      safeTimeout(() => {
         setMsg(""); setVisitDarts([]); setTarget(null); setPhase("call");
         setTurn(t => t===0?1:0);
       }, 1800);
@@ -3998,7 +3985,7 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
     // Smarter bots aim higher — scale 0.25→1.0 hitAcc into num range 5→20
     const maxNum = Math.max(5, Math.round(botConfig.hitAcc * 20));
     const botNum = Math.floor(Math.random() * maxNum) + 1;
-    const t = setTimeout(() => callTarget(Math.min(20, botNum)), 600);
+    const t = safeTimeout(() => callTarget(Math.min(20, botNum)), 600);
     return () => clearTimeout(t);
   }, [turn, phase, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -4011,9 +3998,9 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
         return { segment: 0, multiplier: 1, value: 0, label: "Miss" };
       return { segment: target, multiplier: 3, value: target * 3, label: `T${target}` };
     };
-    const t1 = setTimeout(() => handleDartRef3B.current(mk()), 700);
-    const t2 = setTimeout(() => handleDartRef3B.current(mk()), 1400);
-    const t3 = setTimeout(() => handleDartRef3B.current(mk()), 2100);
+    const t1 = safeTimeout(() => handleDartRef3B.current(mk()), 700);
+    const t2 = safeTimeout(() => handleDartRef3B.current(mk()), 1400);
+    const t3 = safeTimeout(() => handleDartRef3B.current(mk()), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, phase, target, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -4086,6 +4073,7 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
   onWin: (w: 0|1, detail?: string) => void;
   onAbandon: () => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const { startingScore = 501, doubleOut = true } = config;
   const [scores, setScores]         = useState<[number, number]>([startingScore, startingScore]);
   const [teamTurn, setTeamTurn]     = useState<0|1>(0);
@@ -4123,18 +4111,18 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
       setBust(true);
       setBustMsg(rem < 0 ? "BUST — overshot!" : "BUST — can't leave 1!");
       setVisitDarts(nv);
-      setTimeout(() => advanceTurn(capturedTeam), 1500);
+      safeTimeout(() => advanceTurn(capturedTeam), 1500);
       return;
     }
     if (rem === 0) {
       if (isValidOut(dart)) {
         setVisitDarts(nv);
-        setTimeout(() => onWin(capturedTeam, `${teamNames[capturedTeam].join(" & ")} win!`), 300);
+        safeTimeout(() => onWin(capturedTeam, `${teamNames[capturedTeam].join(" & ")} win!`), 300);
       } else {
         setBust(true);
         setBustMsg(doubleOut ? "BUST — must finish on a double!" : "BUST!");
         setVisitDarts(nv);
-        setTimeout(() => advanceTurn(capturedTeam), 1500);
+        safeTimeout(() => advanceTurn(capturedTeam), 1500);
       }
       return;
     }
@@ -4386,6 +4374,7 @@ export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAband
   onWin: (w: 0|1, detail?: string) => void;
   onAbandon: () => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const [marks, setMarks]           = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
   const [scores, setScores]         = useState<[number,number]>([0,0]);
   const [teamTurn, setTeamTurn]     = useState<0|1>(0);
@@ -4449,11 +4438,11 @@ export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAband
       setTeamTurn(t => t === 0 ? 1 : 0);
     }
 
-    setTimeout(() => {
+    safeTimeout(() => {
       setMarks(m => {
         setScores(sc => {
           const w = checkWin(m, sc);
-          if (w !== null) setTimeout(() => onWin(w, cutThroat ? "Cut-Throat — lowest score wins" : undefined), 300);
+          if (w !== null) safeTimeout(() => onWin(w, cutThroat ? "Cut-Throat — lowest score wins" : undefined), 300);
           return sc;
         });
         return m;
@@ -4535,6 +4524,7 @@ export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon }: 
   onWin: (winnerIdx: number, detail?: string) => void;
   onAbandon: () => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const n = playerNames.length;
   const MCOLORS = ["#22c55e","#ee0a78","#ffd24a","#38bdf8","#f97316","#a78bfa"];
   const pColor = (i: number) => MCOLORS[i % MCOLORS.length];
@@ -4579,7 +4569,7 @@ export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon }: 
     if (!isKiller[capturedTurn] && isMyDouble) {
       setIsKiller(prev => { const n2 = [...prev]; n2[capturedTurn] = true; return n2; });
       setMsg(`${playerNames[capturedTurn]} is now a KILLER!`);
-      setTimeout(() => setMsg(""), 2000);
+      safeTimeout(() => setMsg(""), 2000);
     } else if (isKiller[capturedTurn]) {
       for (let opp = 0; opp < n; opp++) {
         if (opp === capturedTurn || eliminated[opp]) continue;
@@ -4595,15 +4585,15 @@ export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon }: 
                 const survivors = newElim.filter(e => !e).length;
                 if (survivors === 1) {
                   const winnerIdx = newElim.findIndex(e => !e);
-                  setTimeout(() => onWin(winnerIdx, `${playerNames[winnerIdx]} is the last survivor!`), 500);
+                  safeTimeout(() => onWin(winnerIdx, `${playerNames[winnerIdx]} is the last survivor!`), 500);
                 } else {
-                  setTimeout(() => setMsg(""), 2000);
+                  safeTimeout(() => setMsg(""), 2000);
                 }
                 return newElim;
               });
             } else {
               setMsg(`${playerNames[opp]} loses a life!`);
-              setTimeout(() => setMsg(""), 2000);
+              safeTimeout(() => setMsg(""), 2000);
             }
             return newL;
           });
@@ -4718,6 +4708,7 @@ export function DoublesTeamCricketScorer({ team1, team2, cutThroat = false, incl
   cutThroat?: boolean; includesBull?: boolean;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const numCount = includesBull ? 7 : 6;
   const [marks, setMarks]       = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
   const [scores, setScores]     = useState<[number,number]>([0,0]);
@@ -4788,11 +4779,11 @@ export function DoublesTeamCricketScorer({ team1, team2, cutThroat = false, incl
       setActive(prev => { const n = [...prev] as [0|1, 0|1]; n[turn] = n[turn] === 0 ? 1 : 0; return n; });
       setTurn(t => t===0?1:0);
     }
-    setTimeout(() => {
+    safeTimeout(() => {
       setMarks(m => {
         setScores(sc => {
           const w = checkWin(m, sc);
-          if (w !== null) setTimeout(() => onWin(w, cutThroat ? "Cut-Throat — lowest score wins" : undefined), 300);
+          if (w !== null) safeTimeout(() => onWin(w, cutThroat ? "Cut-Throat — lowest score wins" : undefined), 300);
           return sc;
         });
         return m;
@@ -4859,6 +4850,7 @@ export function TeamHalveItScorer({ team1, team2, gameKey, onWin, onAbandon }: {
   team1: [string, string]; team2: [string, string]; gameKey: string;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const isBobs = gameKey === "bobs_27";
   const targets = isBobs ? Array.from({length:20},(_,i)=>i+1) : HALVEIT_TARGETS;
   const targetLabels = isBobs ? targets.map(n=>`D${n}`) : HALVEIT_LABELS;
@@ -4902,7 +4894,7 @@ export function TeamHalveItScorer({ team1, team2, gameKey, onWin, onAbandon }: {
       setActive(prev => { const n = [...prev] as [0|1, 0|1]; n[turn] = n[turn]===0?1:0; return n; });
       if (turn === 1) {
         if (round + 1 >= targets.length) {
-          setTimeout(() => { setScores(sc => { onWin(sc[0]>=sc[1]?0:1, `${sc[0]} vs ${sc[1]}`); return sc; }); }, 300);
+          safeTimeout(() => { setScores(sc => { onWin(sc[0]>=sc[1]?0:1, `${sc[0]} vs ${sc[1]}`); return sc; }); }, 300);
         } else { setRound(r => r+1); setTurn(0); }
       } else { setTurn(1); }
     }
@@ -4962,6 +4954,7 @@ export function TeamCountUpScorer({ team1, team2, config, onWin, onAbandon }: {
   config: { target?: number; rounds?: number; bullsOnly?: boolean };
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const target    = config.target ?? 501;
   const maxRounds = config.rounds ?? 0;
   const bullsOnly = config.bullsOnly ?? false;
@@ -4987,7 +4980,7 @@ export function TeamCountUpScorer({ team1, team2, config, onWin, onAbandon }: {
         ns[turn] += cum;
         if (maxRounds === 0 && ns[turn] >= target) {
           const label = bullsOnly ? `${ns[turn]} bulls!` : `Reached ${target} pts!`;
-          setTimeout(() => onWin(turn, label), 300);
+          safeTimeout(() => onWin(turn, label), 300);
         }
         return ns;
       });
@@ -4995,7 +4988,7 @@ export function TeamCountUpScorer({ team1, team2, config, onWin, onAbandon }: {
         const nr: [number,number] = [...prev] as [number,number];
         nr[turn]++;
         if (maxRounds > 0 && nr[0] >= maxRounds && nr[1] >= maxRounds) {
-          setTimeout(() => { setScores(sc => { onWin(sc[0]>=sc[1]?0:1, `${sc[0]} vs ${sc[1]}`); return sc; }); }, 300);
+          safeTimeout(() => { setScores(sc => { onWin(sc[0]>=sc[1]?0:1, `${sc[0]} vs ${sc[1]}`); return sc; }); }, 300);
         }
         return nr;
       });
@@ -5060,6 +5053,7 @@ export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPrac
   onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const variant = config.variant ?? "standard";
   const [target, setTarget]         = useState<number | null>(null);
   const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
@@ -5095,7 +5089,7 @@ export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPrac
         ? (dart.multiplier === 3 ? "TREBLE!" : dart.multiplier === 2 ? "Double!" : "Hit!")
         : "HIT!";
       setFlashMsg(`${label} +${pts}`);
-      setTimeout(() => setFlashMsg(null), 800);
+      safeTimeout(() => setFlashMsg(null), 800);
     }
     const nv = [...visitDarts, dart];
     setVisitDarts(nv);
@@ -5107,7 +5101,7 @@ export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPrac
         if (newDarts >= TOTAL_DARTS) {
           setDone(true);
           const pct = Math.round((ns / maxScore) * 100);
-          setTimeout(() => {
+          safeTimeout(() => {
             onPracticeStats?.({ sessionData: { mode: "99darts" } });
             onWin(0, `${ns}/${maxScore} (${pct}%)`);
           }, 1000);
@@ -5242,6 +5236,7 @@ export function Master501Scorer({
   onAbandon:  () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
+  const safeTimeout = useSafeTimeout();
   const START = 501;
   const [score,      setScore]      = useState(START);
   const [legWins,    setLegWins]    = useState(0);
@@ -5283,12 +5278,12 @@ export function Master501Scorer({
       p1CheckoutHits: coHitsRef.current,
       dartLog: [...dartLogRef.current],
     });
-    const t = setTimeout(() => onMatchResult(matchDone, legWinsRef.current, legLossesRef.current), 1500);
+    const t = safeTimeout(() => onMatchResult(matchDone, legWinsRef.current, legLossesRef.current), 1500);
     return () => clearTimeout(t);
   }, [matchDone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const resetLeg = useCallback(() => {
-    setTimeout(() => {
+    safeTimeout(() => {
       setScore(START); setDil(0); setVD([]);
       setBust(false); setBustMsg(""); setLegDone(null); setFlash("");
     }, 2000);
@@ -5332,7 +5327,7 @@ export function Master501Scorer({
       const newDil = dil + nv.length;
       setDil(newDil); setBust(true);
       setBustMsg(rem < 0 ? "BUST — overshot!" : "BUST — can't leave 1!");
-      setTimeout(() => {
+      safeTimeout(() => {
         setBust(false); setBustMsg(""); setVD([]);
         if (newDil >= dartLimit) lossLeg();
       }, 1200);
@@ -5345,7 +5340,7 @@ export function Master501Scorer({
       setDil(newDil);
       if (valid) { totalScoreRef.current += score; coHitsRef.current++; setVD(nv); winLeg(); return; }
       setBust(true); setBustMsg("BUST — must finish on a double!");
-      setTimeout(() => {
+      safeTimeout(() => {
         setBust(false); setBustMsg(""); setVD([]);
         if (newDil >= dartLimit) lossLeg();
       }, 1200);
@@ -5358,7 +5353,7 @@ export function Master501Scorer({
       totalScoreRef.current += cum;
       if (cum === 180) s180sRef.current++;
       setDil(newDil); setScore(prev => prev - cum); setVD([]);
-      if (newDil >= dartLimit) setTimeout(() => lossLeg(), 400);
+      if (newDil >= dartLimit) safeTimeout(() => lossLeg(), 400);
     }
   }, [bust, legDone, matchDone, visitDarts, score, dil, dartLimit, winLeg, lossLeg]);
 

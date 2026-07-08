@@ -38,11 +38,20 @@ const SubmitMatchBody = z.object({
   }).optional(),
 });
 
+const ListMatchesQuery = z.object({
+  limit:    z.coerce.number().int().positive().max(500).optional().default(20),
+  seasonId: z.coerce.number().int().positive().optional(),
+});
+
 const router = Router();
 
 router.get("/matches", async (req, res): Promise<void> => {
-  const limit = Number(req.query.limit) || 20;
-  const seasonId = req.query.seasonId ? Number(req.query.seasonId) : undefined;
+  const parsedQuery = ListMatchesQuery.safeParse(req.query);
+  if (!parsedQuery.success) {
+    res.status(400).json({ error: "Invalid query", details: parsedQuery.error.message });
+    return;
+  }
+  const { limit, seasonId } = parsedQuery.data;
 
   let matches;
   if (seasonId) {
@@ -329,17 +338,21 @@ router.post("/matches", async (req, res): Promise<void> => {
   });
 });
 
+const IdParam = z.object({ id: z.coerce.number().int().positive() });
+
 router.get("/matches/:id", async (req, res): Promise<void> => {
-  const id = Number(req.params.id);
-  if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { id } = params.data;
   const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, id));
   if (!match) { res.status(404).json({ error: "Match not found" }); return; }
   res.json(match);
 });
 
 router.delete("/matches/:id", async (req, res): Promise<void> => {
-  const id = Number(req.params.id);
-  if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { id } = params.data;
 
   // Fetch match before deleting so we can revert stats
   const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, id));

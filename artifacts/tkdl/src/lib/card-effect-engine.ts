@@ -579,7 +579,6 @@ export function ccPreprocessDart(
   
   // DEBUG: Log final modified dart (first dart of visit only)
   if (dartIdx === 0 && active.length > 0) {
-    console.log(`[CARD_CLASH:PREPROCESS] Player${player} final: segment=${segment} value=${value} (was 60). Effects applied: ${active.map(e => e.cardName).join(", ")}`);
   }
   
   return { segment, multiplier, value, label };
@@ -655,14 +654,12 @@ export function ccApplyVisitEnd(
     // Dark Cloud, Total Annihilation: reduce this player's visit total
     if (e.visitPenalty) {
       extraPenalty += e.visitPenalty;
-      console.log(`[CARD_CLASH:VISIT_PENALTY] Player${player} hit with ${e.visitPenalty} penalty from ${e.cardName}`);
     }
     
     // Mental Block: each dart costs 10 points
     if (e.penaltyPerDart) {
       const dartPenalty = e.penaltyPerDart * dartsThrown;
       extraPenalty += dartPenalty;
-      console.log(`[CARD_CLASH:PENALTY_PER_DART] Player${player} hit with ${dartPenalty} penalty (${e.penaltyPerDart}×${dartsThrown} darts) from ${e.cardName}`);
     }
     
     // ── CONDITIONAL BONUSES ──
@@ -718,7 +715,6 @@ export function ccApplyVisitEnd(
           visitBonus: bonusAmount,
           legDuration: false, // Expire after one turn
         });
-        console.log(`[CARD_CLASH:DEFERRED_NEXT_TURN] ${e.cardName || cardName} defers +${bonusAmount} bonus to Player${player}'s next turn`);
       } else if (e.deferBonusToNextLeg) {
         // DEFERRED TO NEXT LEG: Create new effect that will activate on next leg
         newDeferredEffects.push({
@@ -729,11 +725,9 @@ export function ccApplyVisitEnd(
           visitBonus: bonusAmount,
           legDuration: false, // Expire after one use
         });
-        console.log(`[CARD_CLASH:DEFERRED_NEXT_LEG] ${e.cardName || cardName} defers +${bonusAmount} bonus to Player${player}'s next leg`);
       } else {
         // APPLY IMMEDIATELY
         bonusReduction += bonusAmount;
-        console.log(`[CARD_CLASH:BONUS_APPLIED] ${e.cardName || cardName} grants +${bonusAmount} immediate bonus to Player${player}`);
       }
     }
     
@@ -765,7 +759,6 @@ export function ccExpireOnTurnEnd(effects: CCEffect[], completedPlayer: 0 | 1): 
       }
       // Activate deferred-next-turn bonuses for the player whose turn just ended
       if (e.status === "active" && e.affectsPlayer === completedPlayer && e.deferBonusToNextTurn) {
-        console.log(`[CARD_CLASH:DEFER_NEXT_TURN] ${e.cardName} scheduled for Player${completedPlayer} next turn`);
         return { ...e, status: "deferred_next_turn" as const };
       }
       // Keep deferred-next-leg bonuses (will be activated at leg end)
@@ -776,7 +769,6 @@ export function ccExpireOnTurnEnd(effects: CCEffect[], completedPlayer: 0 | 1): 
     });
   
   const after = result.filter(e => e.status === "active").map(e => `${e.cardName}→P${e.affectsPlayer}`).join(", ");
-  console.log(`[CARD_CLASH:EXPIRE] Player${completedPlayer} turn ended. Before: ${before || "none"}. After: ${after || "none"}`);
   
   return result;
 }
@@ -785,7 +777,6 @@ export function ccExpireOnTurnEnd(effects: CCEffect[], completedPlayer: 0 | 1): 
 export function ccActivateDeferredNextTurnEffects(effects: CCEffect[], player: 0 | 1): CCEffect[] {
   return effects.map(e => {
     if (e.status === "deferred_next_turn" && e.affectsPlayer === player) {
-      console.log(`[CARD_CLASH:ACTIVATE_DEFERRED] ${e.cardName} now active for Player${player}`);
       return { ...e, status: "active" as const };
     }
     return e;
@@ -796,7 +787,6 @@ export function ccActivateDeferredNextTurnEffects(effects: CCEffect[], player: 0
 export function ccActivateDeferredNextLegEffects(effects: CCEffect[], newLegStartPlayer: 0 | 1): CCEffect[] {
   return effects.map(e => {
     if (e.status === "deferred_next_leg" && e.affectsPlayer === newLegStartPlayer) {
-      console.log(`[CARD_CLASH:ACTIVATE_DEFERRED_LEG] ${e.cardName} now active for Player${newLegStartPlayer} next leg`);
       return { ...e, status: "active" as const };
     }
     return e;
@@ -1001,7 +991,6 @@ export function ccEvaluateConditionalWildcards(
     });
   }
   
-  console.log(`[CARD_CLASH:CONDITIONAL_WILDCARDS] Player${player} leg start: ${effects.map(e => `${e.cardName}(+${e.visitBonus})`).join(", ") || "none"}`);
   return effects;
 }
 
@@ -1017,7 +1006,6 @@ export function ccEvaluateOpponentWildcards(
   // Underdog Curse (608): Removed auto-grant - only manual activation allowed per audit
   // Gate condition at activation: only works if opponent IS ahead
   
-  console.log(`[CARD_CLASH:OPPONENT_WILDCARDS] Player${player} turn start: ${effects.map(e => `${e.cardName}(${e.allDartsMultiplier}x)`).join(", ") || "none"}`);
   return effects;
 }
 
@@ -1034,7 +1022,6 @@ export function ccValidateCheckoutOnlyCards(effects: CCEffect[], scores: [number
       const remaining = scores[player];
       const isOnCheckout = remaining > 0 && remaining <= 170;
       if (!isOnCheckout) {
-        console.log(`[CARD_CLASH:CHECKOUT_ONLY_INVALID] ${e.cardName} deactivated - Player${player} not on checkout`);
         return { ...e, status: "expired" };
       }
     }
@@ -1050,7 +1037,6 @@ export function ccValidateExactFinishCards(effects: CCEffect[], scores: [number,
       const remaining = scores[player];
       const isExactFinish = remaining > 0 && remaining <= 50;
       if (!isExactFinish) {
-        console.log(`[CARD_CLASH:EXACT_FINISH_INVALID] ${e.cardName} deactivated - Player${player} not in final 50`);
         return { ...e, status: "expired" };
       }
     }
@@ -1067,7 +1053,6 @@ export function ccApplyPenaltyBlockingIfNeeded(effects: CCEffect[], player: 0 | 
   // Remove effects where: status=active AND affectsPlayer=player AND effect comes from opponent (appliedBy=opp)
   return effects.filter(e => {
     if (e.status === "active" && e.affectsPlayer === player && e.appliedBy === opp) {
-      console.log(`[CARD_CLASH:BLOCK_PENALTY] Blocked ${e.cardName} for Player${player}`);
       return false;
     }
     return true;
