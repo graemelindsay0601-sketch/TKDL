@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "generate-cards": "tsx ./src/generate-cards.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.0",
     "@types/node": "catalog:",
     "tsx": "catalog:"
   }

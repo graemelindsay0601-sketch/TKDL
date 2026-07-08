@@ -69,6 +69,7 @@ catalog:
 autoInstallPeers: false
 
 onlyBuiltDependencies:
+  - '@napi-rs/canvas'
   - '@swc/core'
   - esbuild
   - msw

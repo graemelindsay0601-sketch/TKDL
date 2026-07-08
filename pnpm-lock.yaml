@@ -706,11 +706,10 @@ importers:
         version: 19.2.14
 
   scripts:
-    dependencies:
+    devDependencies:
       '@napi-rs/canvas':
         specifier: ^1.0.0
         version: 1.0.0
-    devDependencies:
       '@types/node':
         specifier: 'catalog:'
         version: 25.6.2
