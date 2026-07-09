@@ -7,6 +7,7 @@ import {
   cardInventoryTable,
 } from "@workspace/db";
 import { eq, and, gte, sql } from "drizzle-orm";
+import cron from "node-cron";
 import { logger } from "../lib/logger";
 
 /**
@@ -265,32 +266,34 @@ export async function getShopPurchaseHistory(limit: number = 100) {
 }
 
 /**
- * Get shop statistics for auditing
+ * Initialize the featured card shop scheduler
+ *
+ * Previously, rotation only happened once at server startup, which meant
+ * the shop went empty every day the server didn't happen to restart
+ * (rotateFeatureCards only returns rows where rotationDate >= today).
+ * This schedules a daily rotation so the shop refreshes itself regardless
+ * of deploys/restarts.
  */
-export async function getShopStatistics() {
-  const totalPurchases = await db
-    .select({ count: sql`COUNT(*)` })
-    .from(shopPurchaseHistoryTable);
+export function initializeFeaturedCardScheduler(): void {
+  try {
+    // Every day at 00:05 UTC (a few minutes after midnight to avoid any
+    // edge-of-day race with the `today` cutoff used in rotateFeatureCards)
+    cron.schedule("5 0 * * *", async () => {
+      try {
+        await rotateFeatureCards();
+        logger.info("Featured card shop: daily rotation complete");
+      } catch (error) {
+        logger.error({ error }, "Featured card shop: scheduled rotation failed");
+      }
+    }, {
+      runOnInit: false,
+    });
 
-  const coinsSpent = await db
-    .select({ total: sql`SUM(${shopPurchaseHistoryTable.priceCoins})` })
-    .from(shopPurchaseHistoryTable);
+    logger.info("Featured card shop scheduler initialized (daily at 00:05 UTC)");
 
-  const cardDistribution = await db
-    .select({
-      rarity: cardDefinitionsTable.rarity,
-      count: sql`COUNT(*)`,
-    })
-    .from(shopPurchaseHistoryTable)
-    .leftJoin(
-      cardDefinitionsTable,
-      eq(shopPurchaseHistoryTable.cardId, cardDefinitionsTable.id)
-    )
-    .groupBy(cardDefinitionsTable.rarity);
-
-  return {
-    totalPurchases: totalPurchases[0]?.count || 0,
-    totalCoinsSpent: coinsSpent[0]?.total || 0,
-    purchasesByRarity: cardDistribution,
-  };
+    // Expose for testing
+    (global as any).TKDL_testFeaturedCardRotation = rotateFeatureCards;
+  } catch (error) {
+    logger.error({ error }, "Failed to initialize featured card shop scheduler");
+  }
 }

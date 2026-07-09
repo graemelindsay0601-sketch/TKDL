@@ -22,6 +22,7 @@ import { up as createCardClashFavoritesTable } from "./db/migrations/add_card_cl
 import { seedCardDefinitions } from "./services/card-definitions-service";
 import { challengeService } from "./services/challenge-service";
 import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
+import { initializeFeaturedCardScheduler } from "./services/featured-card-shop-service";
 import webpush from "web-push";
 import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
 import bcrypt from "bcryptjs";
@@ -788,6 +789,7 @@ async function init() {
     
     // Initialize scheduled systems
     initializeCoachTipsScheduler();
+    initializeFeaturedCardScheduler();
     await seedSessions();
     await seedUsers();
     await seedTitles();
