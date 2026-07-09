@@ -194,10 +194,24 @@ router.put('/card-clash/settings', async (req: Request, res: Response) => {
       (req as any).log?.warn({ auditErr }, 'Failed to log settings change');
     }
 
+    // Reset all per-player equipment overrides so the new admin default
+    // actually takes effect for everyone. Without this, any player who
+    // previously saved a preference (e.g. via the gear icon on the equip
+    // screen) would keep using their old stored value forever, silently
+    // overriding this admin change.
+    let playersReset = 0;
+    try {
+      const deleted = await db.delete(cardClashPlayerSettingsTable).returning({ playerId: cardClashPlayerSettingsTable.playerId });
+      playersReset = deleted.length;
+    } catch (resetErr) {
+      (req as any).log?.warn({ resetErr }, 'Failed to reset per-player equipment overrides');
+    }
+
     res.json({
       success: true,
       settings: updateData,
-      message: `Settings updated: ${equipable_good_cards} GOOD, ${equipable_bad_cards} BAD cards per game`,
+      playersReset,
+      message: `Settings updated: ${equipable_good_cards} GOOD, ${equipable_bad_cards} BAD cards per game${playersReset > 0 ? ` (reset ${playersReset} player override${playersReset === 1 ? '' : 's'})` : ''}`,
     });
   } catch (err) {
     (req as any).log?.error({ err }, 'Failed to update settings');
