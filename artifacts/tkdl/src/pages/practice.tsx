@@ -314,6 +314,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [gameLb, setGameLb]             = useState<any[]>([]);
   const [cardClash, setCardClash]       = useState(false);
   const [cardClashChaos, setCardClashChaos] = useState(false);
+  const [chaosModeSelected, setChaosModeSelected] = useState(false);
+  const [chaosEngine, setChaosEngine]   = useState<"X01" | "Cricket">("X01");
   const [p1CardIds, setP1CardIds]       = useState<number[]>([]);
   const [p2CardIds, setP2CardIds]       = useState<number[]>([]);
 
@@ -380,6 +382,27 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   );
 
   const tabGames = gameTypes.filter(g => g.category === tab && g.enabled !== false);
+
+  function pickChaosGameType(engine: "X01" | "Cricket"): GameTypeOption | null {
+    const preferredKey = engine === "X01" ? "501_double_out" : "cricket";
+    return gameTypes.find(g => g.key === preferredKey) ?? gameTypes.find(g => g.engine === engine) ?? null;
+  }
+
+  function selectChaosMode(engine: "X01" | "Cricket") {
+    const gt = pickChaosGameType(engine);
+    setChaosModeSelected(true);
+    setChaosEngine(engine);
+    if (gt) setGame(gt);
+    setCardClash(true);
+    setCardClashChaos(true);
+  }
+
+  function selectNormalGame(gt: GameTypeOption) {
+    setChaosModeSelected(false);
+    setCardClash(false);
+    setCardClashChaos(false);
+    setGame(gt);
+  }
 
   function formatProps() {
     const isX01 = selectedGame?.key?.startsWith("x01") || selectedGame?.key?.startsWith("501") || selectedGame?.key?.startsWith("301");
@@ -629,6 +652,42 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
             </button>
           ))}
         </div>
+        {mode !== "solo" && (
+        <div onClick={() => selectChaosMode(chaosEngine)} className="pdc-card p-3 mb-2 cursor-pointer transition-all relative overflow-hidden"
+          style={{
+            borderColor: chaosModeSelected ? "#f472b6" : "rgba(244,114,182,0.35)",
+            background: chaosModeSelected ? "rgba(244,114,182,0.1)" : "rgba(244,114,182,0.04)",
+            boxShadow: chaosModeSelected ? "0 0 18px rgba(244,114,182,0.18)" : undefined,
+          }}>
+          {chaosModeSelected && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: "#f472b6" }} />}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-sm flex items-center gap-1.5" style={{ fontFamily: "Oswald, sans-serif", color: chaosModeSelected ? "#fff" : "rgba(255,255,255,0.8)", letterSpacing: "0.05em" }}>
+                🌀 Chaos Mode
+              </div>
+              <div className="text-xs mt-0.5 leading-tight" style={{ color: "rgba(255,255,255,0.35)" }}>
+                Mystery cards drawn every visit — pick your engine below
+              </div>
+            </div>
+          </div>
+          {chaosModeSelected && (
+            <div className="flex gap-1.5 mt-2" onClick={e => e.stopPropagation()}>
+              {(["X01", "Cricket"] as const).map(eng => (
+                <button key={eng} onClick={() => selectChaosMode(eng)}
+                  className="px-3 py-1 text-xs font-bold rounded-lg transition-all"
+                  style={{
+                    fontFamily: "Oswald, sans-serif", cursor: "pointer",
+                    background: chaosEngine === eng ? "#f472b6" : "rgba(244,114,182,0.1)",
+                    color: chaosEngine === eng ? "#1a0a12" : "#f472b6",
+                    border: "1px solid rgba(244,114,182,0.4)",
+                  }}>
+                  {eng}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
           {tabGames.length === 0 && (
             <div className="col-span-2 text-center py-8 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
@@ -637,8 +696,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           )}
           {tabGames.map(gt => (
             <GameCard key={gt.key} gt={gt}
-              selected={selectedGame?.key === gt.key}
-              onSelect={() => setGame(gt)}
+              selected={!chaosModeSelected && selectedGame?.key === gt.key}
+              onSelect={() => selectNormalGame(gt)}
               onRules={() => setRulesGame(gt)} />
           ))}
         </div>
@@ -765,8 +824,16 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         </div>
       )}
 
+      {/* Chaos Mode confirmation (selected via the Chaos Mode tile above) */}
+      {chaosModeSelected && cardClashSupported && (
+        <div className="px-3 py-2.5 rounded-lg text-xs flex items-center gap-2" style={{ background: "rgba(244,114,182,0.06)", border: "1px solid rgba(244,114,182,0.2)", color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
+          <span style={{ fontSize: 16 }}>🎲</span>
+          No pre-match equipping — at the start of every visit you'll get 3 face-down cards. Pick one to reveal and it applies instantly.
+        </div>
+      )}
+
       {/* Card Clash toggle (X01/Cricket, 2p/bot modes only) */}
-      {cardClashSupported && (
+      {cardClashSupported && !chaosModeSelected && (
         <div>
           <button onClick={() => setCardClash(v => !v)}
             className="w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all"
