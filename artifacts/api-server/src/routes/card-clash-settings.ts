@@ -33,54 +33,61 @@ const DEFAULT_SETTINGS = {
 const router = Router();
 
 /**
+ * Shared helper: read the global Card Clash settings row, falling back to
+ * DEFAULT_SETTINGS if the table/row doesn't exist. Used both by the public
+ * GET /settings endpoint and as the fallback for players who haven't set
+ * their own per-player equipment preference yet.
+ */
+async function getGlobalCardClashSettings(): Promise<typeof DEFAULT_SETTINGS> {
+  try {
+    const [settings] = await db.execute(sql`
+      SELECT 
+        equipable_good_cards,
+        equipable_bad_cards,
+        card_clash_enabled,
+        practice_mode_enabled,
+        practice_reward_multiplier,
+        min_cards_per_type,
+        max_cards_per_type
+      FROM card_clash_settings
+      WHERE id = 1
+      LIMIT 1
+    `);
+
+    if (settings) {
+      return {
+        ...DEFAULT_SETTINGS,
+        equipable_good_cards: (settings as any).equipable_good_cards,
+        equipable_bad_cards: (settings as any).equipable_bad_cards,
+        card_clash_enabled: (settings as any).card_clash_enabled,
+        practice_mode_enabled: (settings as any).practice_mode_enabled,
+        practice_reward_multiplier: (settings as any).practice_reward_multiplier,
+        min_cards_per_type: (settings as any).min_cards_per_type,
+        max_cards_per_type: (settings as any).max_cards_per_type,
+      };
+    }
+  } catch (dbErr) {
+    // Table not available yet — fall back to defaults below
+  }
+  return DEFAULT_SETTINGS;
+}
+
+/**
  * GET /api/card-clash/settings
  * Get current game settings (public)
  */
 router.get('/card-clash/settings', async (req: Request, res: Response) => {
   try {
-    // Try to get from card_clash_settings table, otherwise return defaults
-    try {
-      const [settings] = await db.execute(sql`
-        SELECT 
-          equipable_good_cards,
-          equipable_bad_cards,
-          card_clash_enabled,
-          practice_mode_enabled,
-          practice_reward_multiplier,
-          min_cards_per_type,
-          max_cards_per_type
-        FROM card_clash_settings
-        WHERE id = 1
-        LIMIT 1
-      `);
-
-      if (settings) {
-        return res.json({
-          settings: {
-            equipable_good_cards: (settings as any).equipable_good_cards,
-            equipable_bad_cards: (settings as any).equipable_bad_cards,
-            card_clash_enabled: (settings as any).card_clash_enabled,
-            practice_mode_enabled: (settings as any).practice_mode_enabled,
-            practice_reward_multiplier: (settings as any).practice_reward_multiplier,
-            min_cards_per_type: (settings as any).min_cards_per_type,
-            max_cards_per_type: (settings as any).max_cards_per_type,
-          },
-        });
-      }
-    } catch (dbErr) {
-      (req as any).log?.warn({ dbErr }, 'Card Clash settings table not available, using defaults');
-    }
-
-    // Fall back to defaults
+    const settings = await getGlobalCardClashSettings();
     res.json({
       settings: {
-        equipable_good_cards: DEFAULT_SETTINGS.equipable_good_cards,
-        equipable_bad_cards: DEFAULT_SETTINGS.equipable_bad_cards,
-        card_clash_enabled: DEFAULT_SETTINGS.card_clash_enabled,
-        practice_mode_enabled: DEFAULT_SETTINGS.practice_mode_enabled,
-        practice_reward_multiplier: DEFAULT_SETTINGS.practice_reward_multiplier,
-        min_cards_per_type: DEFAULT_SETTINGS.min_cards_per_type,
-        max_cards_per_type: DEFAULT_SETTINGS.max_cards_per_type,
+        equipable_good_cards: settings.equipable_good_cards,
+        equipable_bad_cards: settings.equipable_bad_cards,
+        card_clash_enabled: settings.card_clash_enabled,
+        practice_mode_enabled: settings.practice_mode_enabled,
+        practice_reward_multiplier: settings.practice_reward_multiplier,
+        min_cards_per_type: settings.min_cards_per_type,
+        max_cards_per_type: settings.max_cards_per_type,
       },
     });
   } catch (err) {
@@ -255,12 +262,19 @@ router.get('/card-clash/player/:playerId/equipment-preference', async (req: Requ
     console.log(`[equipment-preference GET] playerId: ${playerId}, result length: ${result.length}, result:`, result);
 
     if (result.length === 0) {
-      // Return defaults if no preference set yet
-      console.log(`[equipment-preference GET] No settings found, returning defaults`);
+      // No player-specific override yet — fall back to the admin's global
+      // Card Clash settings (equipable_good_cards / equipable_bad_cards)
+      // instead of a hardcoded value, so admin changes apply to everyone
+      // who hasn't personally customized their own card count.
+      const globalSettings = await getGlobalCardClashSettings();
+      console.log(`[equipment-preference GET] No player override found, falling back to admin defaults:`, {
+        goodCardsPerMatch: globalSettings.equipable_good_cards,
+        badCardsPerMatch: globalSettings.equipable_bad_cards,
+      });
       return res.json({
         playerId,
-        goodCardsPerMatch: 2,
-        badCardsPerMatch: 2,
+        goodCardsPerMatch: globalSettings.equipable_good_cards,
+        badCardsPerMatch: globalSettings.equipable_bad_cards,
       });
     }
 
