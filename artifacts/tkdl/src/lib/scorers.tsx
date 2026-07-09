@@ -8,8 +8,10 @@ import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Min
 import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart } from "./bot-engine";
 import { type PracticeStats, type DartThrow } from "./stats-types";
 import { CardActivationOverlay } from "@/components/CardActivationOverlay";
+import { ChaosCardReveal } from "@/components/ChaosCardReveal";
 import { TKDLCard } from "@/components/TKDLCard";
 import { EquipCardDisplay } from "@/components/EquipCardDisplay";
+import { drawChaosOptions, type CardData } from "./cards-data";
 import { cardDebugLog } from "./card-debug";
 import { calculateX01CardEffect, applyX01Effect, formatCardEffectDisplay } from "./x01-card-effects";
 import { calculateCricketCardEffect, applyCricketEffect, formatCricketEffectDisplay } from "./cricket-card-effects";
@@ -310,6 +312,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
   const [showCards, setShowCards] = useState(false);
   const [selectedCard, setSelectedCard] = useState<any>(null);
+
+  // Chaos Mode state (no equip — random mystery card dealt each visit)
+  const [isChaosMode, setIsChaosMode] = useState(false);
+  const [chaosOptions, setChaosOptions] = useState<CardData[] | null>(null);
+  const chaosResolvedKeyRef = useRef<string>("");
 
   const names = [p1Name, p2Name];
 
@@ -870,6 +877,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   useEffect(() => {
     if (sessionStorage.getItem("card_clash_mode") !== "true") return;
     setIsCardClash(true);
+    setIsChaosMode(sessionStorage.getItem("card_clash_chaos_mode") === "true");
     try {
       const p1Raw = sessionStorage.getItem("card_clash_p1_cards") || "[]";
       const p2Raw = sessionStorage.getItem("card_clash_p2_cards") || "[]";
@@ -884,6 +892,48 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       cardDebugLog("X01Scorer", "Failed to load Card Clash cards from sessionStorage", e);
     }
   }, []);
+
+  // ── Chaos Mode: deal 3 face-down mystery cards at the start of each fresh visit ──
+  useEffect(() => {
+    if (!isCardClash || !isChaosMode) return;
+    if (!started[turn]) return;
+    if (visitDarts.length !== 0) return;
+    const key = `${turn}:${history.length}`;
+    if (chaosResolvedKeyRef.current === key) return;
+    if (turn === 1 && botConfig) {
+      // Bot picks instantly, no UI
+      const opts = drawChaosOptions("X01", 3);
+      chaosResolvedKeyRef.current = key;
+      const pick = opts[Math.floor(Math.random() * opts.length)];
+      handleChaosCardActivationRef.current?.(pick);
+      return;
+    }
+    setChaosOptions(drawChaosOptions("X01", 3));
+  }, [turn, visitDarts.length, started, isCardClash, isChaosMode, history.length, botConfig]);
+
+  // ── Chaos Mode: apply a revealed mystery card directly (no equip lookup) ──
+  const handleChaosCardActivation = useCallback((card: CardData) => {
+    cardDebugLog("X01Scorer", "Chaos card activated", { card: card.name });
+    const effects = ccActivateCard(card, turn, { scores, legWins }, undefined, { legHistory, legsNeeded });
+    effects.forEach(e => {
+      if (e.instant) {
+        setScores(prev => {
+          const n = [...prev] as [number, number];
+          if (e.instantRemainingPenalty) n[e.affectsPlayer] = Math.max(1, n[e.affectsPlayer] + e.instantRemainingPenalty);
+          if (e.instantP0Delta) n[0] = Math.max(1, n[0] + e.instantP0Delta);
+          if (e.instantP1Delta) n[1] = Math.max(1, n[1] + e.instantP1Delta);
+          return n;
+        });
+      }
+    });
+    const nonInstant = effects.filter(e => !e.instant);
+    if (nonInstant.length > 0) setActiveEffects(prev => [...prev, ...nonInstant]);
+    setChaosOptions(null);
+    chaosResolvedKeyRef.current = `${turn}:${history.length}`;
+  }, [turn, scores, legWins, legHistory, legsNeeded, history.length]);
+
+  const handleChaosCardActivationRef = useRef(handleChaosCardActivation);
+  handleChaosCardActivationRef.current = handleChaosCardActivation;
 
   return (
     <>
@@ -1178,6 +1228,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       onCardActivate={handleCardActivation}
       onClose={() => setSelectedCard(null)}
     />
+    {isCardClash && isChaosMode && chaosOptions && !(turn === 1 && botConfig) && (
+      <ChaosCardReveal
+        options={chaosOptions}
+        playerLabel={names[turn]}
+        onResolve={handleChaosCardActivation}
+      />
+    )}
     </>
   );
 }
@@ -1229,6 +1286,11 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
   const [showCards, setShowCards] = useState(false);
   const [selectedCard, setSelectedCard] = useState<any>(null);
+
+  // Chaos Mode state (no equip — random mystery card dealt each visit)
+  const [isChaosMode, setIsChaosMode] = useState(false);
+  const [chaosOptions, setChaosOptions] = useState<CardData[] | null>(null);
+  const chaosResolvedKeyRef = useRef<string>("");
 
   const names = [p1Name, p2Name];
 
@@ -1305,6 +1367,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   useEffect(() => {
     if (sessionStorage.getItem("card_clash_mode") !== "true") return;
     setIsCardClash(true);
+    setIsChaosMode(sessionStorage.getItem("card_clash_chaos_mode") === "true");
     try {
       const p1Raw = sessionStorage.getItem("card_clash_p1_cards") || "[]";
       const p2Raw = sessionStorage.getItem("card_clash_p2_cards") || "[]";
@@ -1319,6 +1382,35 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       cardDebugLog("CricketScorer", "Failed to load Card Clash cards from sessionStorage", e);
     }
   }, []);
+
+  // ── Chaos Mode: deal 3 face-down mystery cards at the start of each fresh visit ──
+  useEffect(() => {
+    if (!isCardClash || !isChaosMode) return;
+    if (visitDarts.length !== 0) return;
+    const key = `${turn}:${turnCounter}`;
+    if (chaosResolvedKeyRef.current === key) return;
+    if (turn === 1 && botConfig) {
+      const opts = drawChaosOptions("CRICKET", 3);
+      chaosResolvedKeyRef.current = key;
+      const pick = opts[Math.floor(Math.random() * opts.length)];
+      handleChaosCardActivationRef.current?.(pick);
+      return;
+    }
+    setChaosOptions(drawChaosOptions("CRICKET", 3));
+  }, [turn, visitDarts.length, isCardClash, isChaosMode, turnCounter, botConfig]);
+
+  // ── Chaos Mode: apply a revealed mystery card directly (no equip lookup) ──
+  const handleChaosCardActivation = useCallback((card: CardData) => {
+    cardDebugLog("CricketScorer", "Chaos card activated", { card: card.name });
+    const effects = ccActivateCard(card, turn, { scores, legWins }, undefined, { legHistory, legsNeeded });
+    const nonInstant = effects.filter(e => !e.instant);
+    if (nonInstant.length > 0) setActiveEffects(prev => [...prev, ...nonInstant]);
+    setChaosOptions(null);
+    chaosResolvedKeyRef.current = `${turn}:${turnCounter}`;
+  }, [turn, scores, legWins, legHistory, legsNeeded, turnCounter]);
+
+  const handleChaosCardActivationRef = useRef(handleChaosCardActivation);
+  handleChaosCardActivationRef.current = handleChaosCardActivation;
 
   // ── Card Clash: Handle card activation ──
   const handleCardActivation = useCallback((cardId: string) => {
@@ -2172,6 +2264,13 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       onCardActivate={handleCardActivation}
       onClose={() => setSelectedCard(null)}
     />
+    {isCardClash && isChaosMode && chaosOptions && !(turn === 1 && botConfig) && (
+      <ChaosCardReveal
+        options={chaosOptions}
+        playerLabel={names[turn]}
+        onResolve={handleChaosCardActivation}
+      />
+    )}
     </>
   );
 }

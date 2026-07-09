@@ -45,13 +45,12 @@ export function CardActivationOverlay({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.85)",
+        background: "rgba(0,0,0,0.35)",
         display: "flex",
         alignItems: "center",
-        justifyContent: "center",
+        justifyContent: "flex-end",
         zIndex: 50,
-        padding: "16px",
-        backdropFilter: "blur(4px)",
+        pointerEvents: "auto",
       }}
       onClick={() => setEnlargedCard(null)}
     >
@@ -61,14 +60,30 @@ export function CardActivationOverlay({
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: "20px",
-          maxWidth: "360px",
+          gap: "14px",
+          width: "min(78vw, 220px)",
+          maxHeight: "92vh",
+          overflowY: "auto",
+          margin: "12px",
+          padding: "16px 14px",
+          background: "rgba(10,14,20,0.92)",
+          border: "1px solid rgba(0,180,255,0.25)",
+          borderRadius: "16px",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          animation: "cc-panel-in 0.18s ease-out",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Enlarged card */}
-        <div style={{ transform: "scale(1.3)", transformOrigin: "center" }}>
-          <TKDLCard card={enlargedCard} size="lg" locked={false} />
+        <style>{`
+          @keyframes cc-panel-in {
+            from { opacity: 0; transform: translateX(24px); }
+            to { opacity: 1; transform: translateX(0); }
+          }
+        `}</style>
+
+        {/* Card */}
+        <div>
+          <TKDLCard card={enlargedCard} size="sm" locked={false} />
         </div>
 
         {/* Effect details */}
@@ -76,56 +91,31 @@ export function CardActivationOverlay({
           style={{
             background: "rgba(0,180,255,0.05)",
             border: "1px solid rgba(0,180,255,0.3)",
-            borderRadius: "12px",
-            padding: "16px",
+            borderRadius: "10px",
+            padding: "10px",
             width: "100%",
             textAlign: "center",
           }}
         >
           <div
             style={{
-              fontSize: "12px",
+              fontSize: "10px",
               fontWeight: 700,
               color: "#00d4ff",
-              marginBottom: "8px",
+              marginBottom: "6px",
               textTransform: "uppercase",
               letterSpacing: "0.1em",
             }}
           >
             Effect
           </div>
-          <div style={{ fontSize: "13px", color: "#fff", lineHeight: 1.5 }}>
+          <div style={{ fontSize: "11px", color: "#fff", lineHeight: 1.4 }}>
             {enlargedCard.effect}
           </div>
         </div>
 
         {/* Action buttons */}
-        <div style={{ display: "flex", gap: "10px", width: "100%" }}>
-          <button
-            onClick={() => setEnlargedCard(null)}
-            style={{
-              flex: 1,
-              padding: "14px 20px",
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.16)",
-              borderRadius: "10px",
-              color: "#fff",
-              fontWeight: 700,
-              fontSize: "13px",
-              cursor: "pointer",
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background =
-                "rgba(255,255,255,0.12)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background =
-                "rgba(255,255,255,0.08)";
-            }}
-          >
-            CLOSE
-          </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
           {!enlargedCard.isActive && (
             <button
               onClick={() => {
@@ -133,34 +123,39 @@ export function CardActivationOverlay({
                 setEnlargedCard(null);
               }}
               style={{
-                flex: 1,
-                padding: "14px 20px",
+                width: "100%",
+                padding: "12px 16px",
                 background: "linear-gradient(135deg, #00d4ff, #0088ff)",
                 border: "none",
-                borderRadius: "10px",
+                borderRadius: "9px",
                 color: "#000",
                 fontWeight: 900,
-                fontSize: "13px",
+                fontSize: "12px",
                 cursor: "pointer",
                 transition: "all 0.2s",
-                boxShadow: "0 4px 16px rgba(0,180,255,0.4)",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.boxShadow =
-                  "0 6px 24px rgba(0,180,255,0.6)";
-                (e.currentTarget as HTMLButtonElement).style.transform =
-                  "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.boxShadow =
-                  "0 4px 16px rgba(0,180,255,0.4)";
-                (e.currentTarget as HTMLButtonElement).style.transform =
-                  "translateY(0)";
+                boxShadow: "0 4px 16px rgba(0,180,255,0.35)",
               }}
             >
               ⚡ CONFIRM
             </button>
           )}
+          <button
+            onClick={() => setEnlargedCard(null)}
+            style={{
+              width: "100%",
+              padding: "10px 16px",
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.16)",
+              borderRadius: "9px",
+              color: "#fff",
+              fontWeight: 700,
+              fontSize: "12px",
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+          >
+            CLOSE
+          </button>
         </div>
       </div>
     </div>

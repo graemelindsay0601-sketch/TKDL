@@ -11,6 +11,48 @@ import {
   BOT_PERSONAS, BOT_LEVELS, getBotConfig, numLevelConfig, numLevelLabel, numLevelColor,
   type BotPersona, type BotConfig, type ShadowProfile,
 } from "@/lib/bot-engine";
+import { ALL_CARDS, type CardData } from "@/lib/cards-data";
+
+function clearCardClashSession() {
+  sessionStorage.removeItem("card_clash_mode");
+  sessionStorage.removeItem("card_clash_chaos_mode");
+  sessionStorage.removeItem("card_clash_p1_cards");
+  sessionStorage.removeItem("card_clash_p2_cards");
+}
+
+function CardPicker({ label, pool, selected, onToggle }: {
+  label: string; pool: CardData[]; selected: number[]; onToggle: (id: number) => void;
+}) {
+  return (
+    <div>
+      <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
+        {label} ({selected.length}/4)
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
+        {pool.map(c => {
+          const isSel = selected.includes(c.id);
+          const good = c.category.endsWith("GOOD");
+          return (
+            <button key={c.id} onClick={() => onToggle(c.id)}
+              className="text-left p-2 rounded-lg transition-all"
+              style={{
+                background: isSel ? (good ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)") : "rgba(255,255,255,0.02)",
+                border: `1px solid ${isSel ? (good ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)") : "rgba(255,255,255,0.07)"}`,
+                cursor: "pointer",
+              }}>
+              <div className="text-xs font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: isSel ? "#fff" : "rgba(255,255,255,0.7)" }}>
+                {c.name}
+              </div>
+              <div className="text-xs mt-0.5 line-clamp-2 leading-tight" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.65rem" }}>
+                {c.effect}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 type Player = { id: number; name: string; points: number; elo: number; status: string; isActive: boolean };
 
@@ -56,9 +98,9 @@ function GameCard({ gt, selected, onSelect, onRules }: {
   return (
     <div onClick={onSelect} className="pdc-card p-3 cursor-pointer transition-all relative overflow-hidden"
       style={{
-        borderColor: selected ? "#a78bfa" : "rgba(255,255,255,0.09)",
-          background: selected ? "rgba(167,139,250,0.09)" : "rgba(255,255,255,0.015)",
-          boxShadow: selected ? "0 0 22px rgba(167,139,250,0.18), inset 0 1px 0 rgba(167,139,250,0.12)" : "none",
+        borderColor: selected ? "#a78bfa" : "rgba(255,255,255,0.07)",
+        background: selected ? "rgba(167,139,250,0.06)" : "rgba(255,255,255,0.02)",
+        boxShadow: selected ? "0 0 18px rgba(167,139,250,0.12)" : undefined,
       }}>
       {selected && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: "#a78bfa" }} />}
       <div className="flex items-start justify-between gap-2">
@@ -270,6 +312,18 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [selectedSets, setSelectedSets] = useState({ sets: 3, legsPerSet: 3 });
   const [bullUp, setBullUp]             = useState(false);
   const [gameLb, setGameLb]             = useState<any[]>([]);
+  const [cardClash, setCardClash]       = useState(false);
+  const [cardClashChaos, setCardClashChaos] = useState(false);
+  const [p1CardIds, setP1CardIds]       = useState<number[]>([]);
+  const [p2CardIds, setP2CardIds]       = useState<number[]>([]);
+
+  const cardClashEngine = selectedGame?.engine === "X01" ? "X01" : selectedGame?.engine === "Cricket" ? "CRICKET" : null;
+  const cardClashSupported = cardClashEngine !== null && mode !== "solo";
+  const cardPool = cardClashEngine
+    ? ALL_CARDS.filter(c => c.category.startsWith(cardClashEngine) || c.category.startsWith("WILDCARD"))
+    : [];
+  const toggleP1Card = (id: number) => setP1CardIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : (prev.length >= 4 ? prev : [...prev, id]));
+  const toggleP2Card = (id: number) => setP2CardIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : (prev.length >= 4 ? prev : [...prev, id]));
 
   useEffect(() => {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
@@ -394,20 +448,17 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
-        <div className="relative overflow-hidden rounded-2xl px-5 py-5"
-          style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.18) 0%, rgba(167,139,250,0.06) 100%)", border: "1px solid rgba(167,139,250,0.25)", boxShadow: "0 0 60px rgba(124,58,237,0.12) inset, 0 4px 32px rgba(0,0,0,0.4)", marginBottom: "8px" }}>
-          <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 20% 50%, rgba(167,139,250,0.12) 0%, transparent 60%)" }} />
-          <div className="flex items-center gap-4 relative">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "rgba(124,58,237,0.3)", border: "1px solid rgba(167,139,250,0.45)", boxShadow: "0 0 24px rgba(124,58,237,0.5)" }}>
-              <Dumbbell className="w-7 h-7" style={{ color: "#c4b5fd" }} />
-            </div>
-            <div>
-              <h1 className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.14em", fontSize: "1.8rem", lineHeight: 1, color: "#fff", textShadow: "0 0 32px rgba(167,139,250,0.6)" }}>Practice Arena</h1>
-              <p className="text-xs mt-1" style={{ color: "rgba(167,139,250,0.7)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>No stakes · No leaderboard · Just reps</p>
-            </div>
-          </div>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+          style={{ background: "rgba(167,139,250,0.15)", border: "1px solid rgba(167,139,250,0.3)" }}>
+          <Dumbbell className="w-5 h-5" style={{ color: "#a78bfa" }} />
         </div>
+        <div>
+          <h1 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>Practice</h1>
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>No stakes · No leaderboard · Just reps</p>
+        </div>
+      </div>
+      <div className="pdc-divider" />
 
       {/* Mode toggle */}
       <div className="flex gap-2">
@@ -420,11 +471,10 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
             className="flex-1 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
             style={{
               fontFamily: "Oswald, sans-serif",
-              background: mode === v ? "rgba(124,58,237,0.22)" : "rgba(255,255,255,0.03)",
-                border: mode === v ? "1px solid rgba(167,139,250,0.5)" : "1px solid rgba(255,255,255,0.07)",
-                color: mode === v ? "#c4b5fd" : "rgba(255,255,255,0.3)",
-                cursor: "pointer",
-                boxShadow: mode === v ? "0 0 18px rgba(124,58,237,0.3)" : "none",
+              background: mode === v ? "rgba(167,139,250,0.15)" : "rgba(255,255,255,0.03)",
+              border: mode === v ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.07)",
+              color: mode === v ? "#a78bfa" : "rgba(255,255,255,0.3)",
+              cursor: "pointer",
             }}>
             {icon}{l}
           </button>
@@ -715,6 +765,84 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         </div>
       )}
 
+      {/* Card Clash toggle (X01/Cricket, 2p/bot modes only) */}
+      {cardClashSupported && (
+        <div>
+          <button onClick={() => setCardClash(v => !v)}
+            className="w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all"
+            style={{
+              background: cardClash ? "rgba(0,212,255,0.08)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${cardClash ? "rgba(0,212,255,0.35)" : "rgba(255,255,255,0.07)"}`,
+              cursor: "pointer",
+            }}>
+            <span style={{ fontSize: 18 }}>🃏</span>
+            <div className="flex-1 text-left">
+              <div className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: cardClash ? "#00d4ff" : "rgba(255,255,255,0.45)" }}>
+                Card Clash Mode
+              </div>
+              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem" }}>
+                Equip up to 4 cards each that trigger during the match
+              </div>
+            </div>
+            <div className="w-10 h-5 rounded-full relative transition-all flex-shrink-0"
+              style={{ background: cardClash ? "rgba(0,212,255,0.5)" : "rgba(255,255,255,0.1)" }}>
+              <div className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
+                style={{ background: cardClash ? "#00d4ff" : "rgba(255,255,255,0.3)", left: cardClash ? "calc(100% - 18px)" : "2px" }} />
+            </div>
+          </button>
+
+          {cardClash && (
+            <div className="mt-3 space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => setCardClashChaos(false)}
+                  className="px-3 py-2.5 rounded-lg text-left transition-all"
+                  style={{
+                    background: !cardClashChaos ? "rgba(0,212,255,0.1)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${!cardClashChaos ? "rgba(0,212,255,0.4)" : "rgba(255,255,255,0.07)"}`,
+                    cursor: "pointer",
+                  }}>
+                  <div className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: !cardClashChaos ? "#00d4ff" : "rgba(255,255,255,0.45)" }}>
+                    Equip Cards
+                  </div>
+                  <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
+                    Pick your cards up front
+                  </div>
+                </button>
+                <button onClick={() => setCardClashChaos(true)}
+                  className="px-3 py-2.5 rounded-lg text-left transition-all"
+                  style={{
+                    background: cardClashChaos ? "rgba(255,74,158,0.1)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${cardClashChaos ? "rgba(255,74,158,0.4)" : "rgba(255,255,255,0.07)"}`,
+                    cursor: "pointer",
+                  }}>
+                  <div className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: cardClashChaos ? "#ff4a9e" : "rgba(255,255,255,0.45)" }}>
+                    Chaos Mode
+                  </div>
+                  <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
+                    Mystery cards every visit
+                  </div>
+                </button>
+              </div>
+
+              {cardClashChaos ? (
+                <div className="px-3 py-2 rounded-lg text-xs" style={{ background: "rgba(255,74,158,0.05)", border: "1px solid rgba(255,74,158,0.15)", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
+                  🎲 No pre-match equipping — at the start of every visit you'll get 3 face-down cards. Pick one to reveal and it applies instantly.
+                </div>
+              ) : (
+                <>
+                  <CardPicker label={mode === "2p" ? "Your Cards (P1)" : "Your Cards"}
+                    pool={cardPool} selected={p1CardIds} onToggle={toggleP1Card} />
+                  {mode === "2p" && (
+                    <CardPicker label="Opponent Cards (P2)"
+                      pool={cardPool} selected={p2CardIds} onToggle={toggleP2Card} />
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Bull Up toggle (2p / bot modes only) */}
       {mode !== "solo" && (
         <button onClick={() => setBullUp(v => !v)}
@@ -742,16 +870,32 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       )}
 
       <button
-        onClick={() => canStart && onStart(buildSetupData())}
+        onClick={() => {
+          if (!canStart) return;
+          if (cardClash) {
+            sessionStorage.setItem("card_clash_mode", "true");
+            if (cardClashChaos) {
+              sessionStorage.setItem("card_clash_chaos_mode", "true");
+              sessionStorage.setItem("card_clash_p1_cards", "[]");
+              sessionStorage.setItem("card_clash_p2_cards", "[]");
+            } else {
+              sessionStorage.removeItem("card_clash_chaos_mode");
+              sessionStorage.setItem("card_clash_p1_cards", JSON.stringify(cardPool.filter(c => p1CardIds.includes(c.id))));
+              sessionStorage.setItem("card_clash_p2_cards", JSON.stringify(mode === "2p" ? cardPool.filter(c => p2CardIds.includes(c.id)) : []));
+            }
+          } else {
+            clearCardClashSession();
+          }
+          onStart(buildSetupData());
+        }}
         disabled={!canStart}
         className="w-full py-4 text-base font-black uppercase tracking-widest rounded-xl transition-all"
         style={{
-          background: canStart ? "linear-gradient(135deg, #5b21b6, #7c3aed 50%, #a78bfa)" : "rgba(255,255,255,0.04)",
-            color: canStart ? "#fff" : "rgba(255,255,255,0.2)",
-            border: canStart ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.06)",
-            fontFamily: "Oswald, sans-serif", cursor: canStart ? "pointer" : "not-allowed",
-            boxShadow: canStart ? "0 0 40px rgba(124,58,237,0.45), 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15)" : undefined,
-            textShadow: canStart ? "0 0 18px rgba(255,255,255,0.5)" : undefined,
+          background: canStart ? "linear-gradient(135deg, #7c3aed, #a78bfa)" : "rgba(255,255,255,0.04)",
+          color: canStart ? "#fff" : "rgba(255,255,255,0.2)",
+          border: canStart ? "none" : "1px solid rgba(255,255,255,0.06)",
+          fontFamily: "Oswald, sans-serif", cursor: canStart ? "pointer" : "not-allowed",
+          boxShadow: canStart ? "0 8px 32px rgba(124,58,237,0.3)" : undefined,
         }}>
         {canStart
           ? mode === "bot"
@@ -928,8 +1072,8 @@ export default function Practice() {
           legsToWinSet={setupData.legsToWinSet}
           soloMode={setupData.soloPlay}
           bullUp={setupData.bullUp}
-          onWin={r => { setResult(r); setPhase("done"); }}
-          onAbandon={() => setPhase("setup")}
+          onWin={r => { clearCardClashSession(); setResult(r); setPhase("done"); }}
+          onAbandon={() => { clearCardClashSession(); setPhase("setup"); }}
           onPracticeStats={s => setPracticeStats(s)}
         />
       </div>,
@@ -943,7 +1087,7 @@ export default function Practice() {
         result={gameResult}
         data={setupData}
         stats={practiceStats}
-        onBack={() => { setPhase("setup"); setResult(null); setSetupData(null); setPracticeStats(null); }}
+        onBack={() => { clearCardClashSession(); setPhase("setup"); setResult(null); setSetupData(null); setPracticeStats(null); }}
       />
     );
   }
