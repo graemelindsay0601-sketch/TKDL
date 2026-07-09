@@ -28,6 +28,9 @@ interface CardClashMatchScorerProps {
   legs?: number;
   setsToWin?: number;
   legsToWinSet?: number;
+  /** Chaos Mode: no pre-match equipping — 3 face-down mystery cards are
+   *  dealt every visit instead. When true, equipped cards are ignored. */
+  chaosMode?: boolean;
 }
 
 export function CardClashMatchScorer({
@@ -44,20 +47,29 @@ export function CardClashMatchScorer({
   legs,
   setsToWin = 0,
   legsToWinSet = 3,
+  chaosMode = false,
 }: CardClashMatchScorerProps) {
   
   // Set sessionStorage BEFORE rendering scorers (not in useEffect)
   // This ensures scorers see the flag when they mount
   if (typeof window !== "undefined") {
     sessionStorage.setItem("card_clash_mode", "true");
-    sessionStorage.setItem("card_clash_p1_cards", JSON.stringify(player1EquippedCards));
-    sessionStorage.setItem("card_clash_p2_cards", JSON.stringify(player2EquippedCards));
+    if (chaosMode) {
+      sessionStorage.setItem("card_clash_chaos_mode", "true");
+      sessionStorage.setItem("card_clash_p1_cards", "[]");
+      sessionStorage.setItem("card_clash_p2_cards", "[]");
+    } else {
+      sessionStorage.removeItem("card_clash_chaos_mode");
+      sessionStorage.setItem("card_clash_p1_cards", JSON.stringify(player1EquippedCards));
+      sessionStorage.setItem("card_clash_p2_cards", JSON.stringify(player2EquippedCards));
+    }
   }
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       sessionStorage.removeItem("card_clash_mode");
+      sessionStorage.removeItem("card_clash_chaos_mode");
       sessionStorage.removeItem("card_clash_p1_cards");
       sessionStorage.removeItem("card_clash_p2_cards");
     };

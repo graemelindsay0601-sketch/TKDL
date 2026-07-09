@@ -1,12 +1,21 @@
 /**
  * CardClashMatchLauncher
- * Handles: opponent selection → game mode → equipment → launch match
+ * Unified entry point for Card Clash: mode (2 Players / Solo vs CPU) →
+ * opponent/bot → game mode (X01 / Cricket / Chaos) → match length →
+ * equipment → launch match.
+ *
+ * Visual language (mode-toggle pills, pdc-card tiles, Oswald uppercase
+ * headers) is ported from the Practice page's setup screen so Card Clash
+ * feels consistent with the rest of the app, while keeping its own game
+ * modes (X01 / Cricket / Chaos Mode) rather than Practice's full game list.
  */
 
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { Users, Bot as BotIcon } from "lucide-react";
 import { CardClashMatchScorer } from "./CardClashMatchScorer";
 import { CardEquipmentSelector } from "./CardEquipmentSelector";
+import { CARD_CLASH_BOTS, generateBotCards, type CardClashBot } from "@/lib/card-clash-bots";
 import type { GameResult } from "./game-scorer";
 
 interface Player {
@@ -20,37 +29,85 @@ interface CardClashMatchLauncherProps {
   onMatchComplete: () => void;
 }
 
-type Step = "opponent" | "gamemode" | "matchlength" | "equipment-p1" | "equipment-p2" | "match";
+type VsMode = "2p" | "bot";
+type GameEngine = "X01" | "CRICKET";
+type Step = "mode" | "opponent" | "bot" | "gamemode" | "matchlength" | "equipment-p1" | "equipment-p2" | "match";
 
 const D = {
   border:  "rgba(255,255,255,0.08)",
   sub:     "rgba(255,255,255,0.4)",
-  info:    "#00b4ff",
-  success: "#00cc66",
+  gold:    "#ffd24a",
+  cyan:    "#00d4ff",
+  green:   "#00cc66",
+  chaos:   "#f472b6",
 };
 
-const selectStyle: React.CSSProperties = {
-  width: "100%", padding: "13px 40px 13px 16px", borderRadius: "10px",
-  appearance: "none", background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.12)", color: "#fff",
-  fontSize: "15px", outline: "none", cursor: "pointer", boxSizing: "border-box",
-};
+function PrimaryButton({ disabled, onClick, children }: { disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        width: "100%", padding: "13px 24px", borderRadius: "10px", border: "none",
+        fontWeight: 800, fontSize: "15px", letterSpacing: "0.06em",
+        fontFamily: "Oswald, sans-serif", textTransform: "uppercase",
+        cursor: disabled ? "not-allowed" : "pointer",
+        background: disabled ? "rgba(255,255,255,0.06)" : `linear-gradient(135deg, ${D.gold}, #ff9d00)`,
+        color: disabled ? "rgba(255,255,255,0.3)" : "#1a1200",
+        boxShadow: disabled ? "none" : `0 6px 24px rgba(255,210,74,0.3)`,
+        transition: "all 0.2s",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{ background: "transparent", border: "none", color: D.sub, cursor: "pointer", fontSize: "13px", marginBottom: "1.25rem", padding: 0, fontFamily: "Oswald, sans-serif" }}
+    >
+      ← Back
+    </button>
+  );
+}
+
+function StepHeader({ label, sub }: { label: string; sub?: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: "1.25rem" }}>
+      <div style={{ fontSize: "11px", color: D.sub, fontWeight: 700, letterSpacing: "0.1em", fontFamily: "Oswald, sans-serif", marginBottom: sub ? "4px" : 0 }}>
+        {label}
+      </div>
+      {sub && <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>{sub}</p>}
+    </div>
+  );
+}
 
 export function CardClashMatchLauncher({
   currentPlayerId,
   currentPlayerName,
   onMatchComplete,
 }: CardClashMatchLauncherProps) {
-  const [step, setStep] = useState<Step>("opponent");
+  const [step, setStep] = useState<Step>("mode");
+  const [vsMode, setVsMode] = useState<VsMode>("2p");
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedOpponent, setSelectedOpponent] = useState<Player | null>(null);
-  const [gameMode, setGameMode] = useState<"X01" | "CRICKET" | null>(null);
+  const [selectedBot, setSelectedBot] = useState<CardClashBot | null>(null);
+
+  const [selectedTile, setSelectedTile] = useState<GameEngine | "CHAOS" | null>(null);
+  const [chaosEngine, setChaosEngine] = useState<GameEngine>("X01");
+  const gameMode: GameEngine | null = selectedTile === "CHAOS" ? chaosEngine : selectedTile;
+  const isChaos = selectedTile === "CHAOS";
+
   const [matchLength, setMatchLength] = useState<1 | 3 | 5>(1);
   const [player1Cards, setPlayer1Cards] = useState<any[]>([]);
   const [player2Cards, setPlayer2Cards] = useState<any[]>([]);
   const [matchId, setMatchId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [matchError, setMatchError] = useState<string | null>(null);
+  const [startingChaos, setStartingChaos] = useState(false);
 
   useEffect(() => {
     fetch("/api/players")
@@ -62,18 +119,31 @@ export function CardClashMatchLauncher({
       .catch(() => setLoading(false));
   }, [currentPlayerId]);
 
-  const handleOpponentChange = (val: string) => {
-    const id = parseInt(val);
-    setSelectedOpponent(players.find(pl => pl.id === id) ?? null);
+  const resetAll = () => {
+    setStep("mode");
+    setPlayer1Cards([]);
+    setPlayer2Cards([]);
+    setSelectedOpponent(null);
+    setSelectedBot(null);
+    setSelectedTile(null);
+    setMatchLength(1);
+    setMatchId(null);
+    setMatchError(null);
   };
 
-  const handlePlayer1Equip = (p1Cards: any[], _: any[]) => {
+  const handlePlayer1Equip = (p1Cards: any[]) => {
     setPlayer1Cards(p1Cards);
-    setStep("equipment-p2");
+    if (vsMode === "bot") {
+      // Client-side only, no stakes — generate bot deck and jump straight in
+      const botCards = generateBotCards(selectedBot!, gameMode!);
+      setPlayer2Cards(botCards);
+      setStep("match");
+    } else {
+      setStep("equipment-p2");
+    }
   };
 
-  const handlePlayer2Equip = async (p2Cards: any[], _: any[]) => {
-    setPlayer2Cards(p2Cards);
+  const startMatchOnServer = async (p1Cards: any[], p2Cards: any[]) => {
     setMatchError(null);
     try {
       const res = await fetch("/api/card-clash/match/start", {
@@ -84,7 +154,7 @@ export function CardClashMatchLauncher({
           player1Id: currentPlayerId,
           player2Id: selectedOpponent!.id,
           equippedCards: {
-            player1: player1Cards.map((c: any) => ({ cardId: c.id || c.cardId || c.name, cardType: c.cardType || "GOOD" })),
+            player1: p1Cards.map((c: any) => ({ cardId: c.id || c.cardId || c.name, cardType: c.cardType || "GOOD" })),
             player2: p2Cards.map((c: any) => ({ cardId: c.id || c.cardId || c.name, cardType: c.cardType || "GOOD" })),
           },
         }),
@@ -93,163 +163,267 @@ export function CardClashMatchLauncher({
         const match = await res.json();
         setMatchId(match.id ?? null);
         setStep("match");
+        return true;
       } else {
         const err = await res.json().catch(() => ({}));
         setMatchError(err.error ?? `Failed to start match (${res.status})`);
-        setStep("equipment-p2");
+        return false;
       }
     } catch (e) {
       setMatchError("Network error — check your connection and try again");
+      return false;
     }
   };
 
+  const handlePlayer2Equip = async (p2Cards: any[]) => {
+    setPlayer2Cards(p2Cards);
+    const ok = await startMatchOnServer(player1Cards, p2Cards);
+    if (!ok) setStep("equipment-p2");
+  };
+
+  const handleStartChaos = async () => {
+    setPlayer1Cards([]);
+    setPlayer2Cards([]);
+    if (vsMode === "bot") {
+      // No stakes, fully client-side — chaos mode ignores equipped cards anyway
+      setStep("match");
+      return;
+    }
+    setStartingChaos(true);
+    const ok = await startMatchOnServer([], []);
+    setStartingChaos(false);
+    if (!ok) setStep("matchlength");
+  };
+
   const handleMatchComplete = async (result: GameResult, cardsUsed: string[]) => {
+    if (vsMode === "bot") {
+      // Practice vs CPU — no stakes, no DB persistence, matches prior behavior
+      onMatchComplete();
+      return;
+    }
     try {
       if (!matchId) {
         console.error("Cannot finish match: matchId not set");
-        return;
-      }
-      
-      const winnerId = result.winnerIdx === 0 ? currentPlayerId : selectedOpponent!.id;
-      const res = await fetch("/api/card-clash/match/finish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId, winnerId, cardsUsedInMatch: cardsUsed }),
-      });
-      
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.error("Failed to finish match:", err);
-        // Still navigate away but log the error
+      } else {
+        const winnerId = result.winnerIdx === 0 ? currentPlayerId : selectedOpponent!.id;
+        const res = await fetch("/api/card-clash/match/finish", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ matchId, winnerId, cardsUsedInMatch: cardsUsed }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          console.error("Failed to finish match:", err);
+        }
       }
     } catch (e) {
       console.error("Network error sending match result:", e);
-      // Still navigate away - don't block the user
     }
     onMatchComplete();
   };
 
-  const handleAbandon = () => {
-    // Clear match state and go back to opponent selection
-    setStep("opponent");
-    setPlayer1Cards([]);
-    setPlayer2Cards([]);
-    setSelectedOpponent(null);
-    setGameMode(null);
-    setMatchLength(1);
-    setMatchId(null);
-    setMatchError(null);
-  };
+  const handleAbandon = () => resetAll();
 
-  // ── STEP 1: Opponent Selection ────────────────────────────────────────────
+  const opponentLabel = vsMode === "bot" ? selectedBot?.name : selectedOpponent?.name;
+
+  // ── STEP 0: Mode Toggle ─────────────────────────────────────────────────
+  if (step === "mode") {
+    return (
+      <div style={{ maxWidth: "520px" }}>
+        <StepHeader label="CARD CLASH" sub="Battle another player, or warm up against the CPU" />
+        <div className="flex gap-2" style={{ marginBottom: "1.5rem" }}>
+          {([
+            { v: "2p" as const, l: "2 Players", icon: <Users className="w-4 h-4 shrink-0" /> },
+            { v: "bot" as const, l: "Solo vs CPU", icon: <BotIcon className="w-4 h-4 shrink-0" /> },
+          ]).map(({ v, l, icon }) => (
+            <button
+              key={v}
+              onClick={() => setVsMode(v)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+              style={{
+                fontFamily: "Oswald, sans-serif",
+                background: vsMode === v ? "rgba(255,210,74,0.15)" : "rgba(255,255,255,0.03)",
+                border: vsMode === v ? `1px solid rgba(255,210,74,0.4)` : "1px solid rgba(255,255,255,0.07)",
+                color: vsMode === v ? D.gold : "rgba(255,255,255,0.3)",
+                cursor: "pointer",
+              }}
+            >
+              {icon}{l}
+            </button>
+          ))}
+        </div>
+        <PrimaryButton onClick={() => setStep(vsMode === "2p" ? "opponent" : "bot")}>
+          Next →
+        </PrimaryButton>
+      </div>
+    );
+  }
+
+  // ── STEP 1a: Opponent Selection (2 Players) ─────────────────────────────
   if (step === "opponent") {
     return (
       <div style={{ maxWidth: "520px" }}>
-        <div style={{ fontSize: "11px", color: D.sub, fontWeight: 700, letterSpacing: "0.1em", marginBottom: "10px" }}>
-          SELECT OPPONENT
-        </div>
+        <BackButton onClick={() => setStep("mode")} />
+        <StepHeader label="PLAYERS" />
         {loading ? (
           <div style={{ color: D.sub, fontSize: "13px" }}>Loading players…</div>
         ) : players.length === 0 ? (
           <div style={{ color: D.sub, fontSize: "13px" }}>No other players available.</div>
         ) : (
           <>
-            <div style={{ position: "relative", marginBottom: "1.5rem" }}>
-              <select
-                value={selectedOpponent?.id ?? ""}
-                onChange={e => handleOpponentChange(e.target.value)}
-                style={selectStyle}
-              >
-                <option value="" style={{ background: "#0a0e18", color: "rgba(255,255,255,0.4)" }}>
-                  Choose an opponent…
-                </option>
-                {players.map(p => (
-                  <option key={p.id} value={p.id} style={{ background: "#0a0e18", color: "#fff" }}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              <span style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", color: D.sub, pointerEvents: "none" }}>▾</span>
+            <div className="grid grid-cols-2 gap-3" style={{ marginBottom: "1.5rem" }}>
+              <div className="pdc-card p-3">
+                <div className="text-xs font-bold uppercase mb-2" style={{ fontFamily: "Oswald, sans-serif", color: "#22c55e", letterSpacing: "0.1em" }}>
+                  Player 1
+                </div>
+                <div className="w-full rounded-lg px-3 py-2 text-sm" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", fontFamily: "Oswald, sans-serif" }}>
+                  {currentPlayerName} <span style={{ color: "rgba(255,255,255,0.3)" }}>(you)</span>
+                </div>
+              </div>
+              <div className="pdc-card p-3" style={{ borderColor: selectedOpponent ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.05)" }}>
+                <div className="text-xs font-bold uppercase mb-2" style={{ fontFamily: "Oswald, sans-serif", color: "#ee0a78", letterSpacing: "0.1em" }}>
+                  Player 2
+                </div>
+                <select
+                  value={selectedOpponent?.id ?? ""}
+                  onChange={e => setSelectedOpponent(players.find(p => p.id === parseInt(e.target.value)) ?? null)}
+                  className="w-full rounded-lg px-3 py-2 text-sm"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: selectedOpponent ? "#fff" : "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}
+                >
+                  <option value="" style={{ color: "#111" }}>Select…</option>
+                  {players.map(p => (
+                    <option key={p.id} value={p.id} style={{ color: "#111" }}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <button
-              disabled={!selectedOpponent}
-              onClick={() => selectedOpponent && setStep("gamemode")}
-              style={{
-                width: "100%", padding: "13px 24px", borderRadius: "10px", border: "none",
-                fontWeight: 800, fontSize: "15px", letterSpacing: "0.06em",
-                cursor: selectedOpponent ? "pointer" : "not-allowed",
-                background: selectedOpponent ? "linear-gradient(135deg,#0080ff,#0040c0)" : "rgba(255,255,255,0.06)",
-                color: selectedOpponent ? "#fff" : "rgba(255,255,255,0.3)",
-                boxShadow: selectedOpponent ? "0 6px 24px rgba(0,128,255,0.3)" : "none",
-                transition: "all 0.2s",
-              }}
-            >
+            <PrimaryButton disabled={!selectedOpponent} onClick={() => selectedOpponent && setStep("gamemode")}>
               Next — Pick Game Mode →
-            </button>
+            </PrimaryButton>
           </>
         )}
       </div>
     );
   }
 
-  // ── STEP 2: Game Mode ─────────────────────────────────────────────────────
-  if (step === "gamemode") {
+  // ── STEP 1b: Bot Selection (Solo vs CPU) ────────────────────────────────
+  if (step === "bot") {
     return (
       <div style={{ maxWidth: "520px" }}>
-        <button
-          onClick={() => setStep("opponent")}
-          style={{ background: "transparent", border: "none", color: D.sub, cursor: "pointer", fontSize: "13px", marginBottom: "1.5rem", padding: 0 }}
-        >
-          ← Back
-        </button>
-        <div style={{ fontSize: "11px", color: D.sub, fontWeight: 700, letterSpacing: "0.1em", marginBottom: "4px" }}>GAME MODE</div>
-        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", marginBottom: "1.5rem", margin: "0 0 1.5rem" }}>
-          vs <strong style={{ color: "#fff" }}>{selectedOpponent?.name}</strong>
-        </p>
-        <div style={{ display: "flex", gap: "16px", marginBottom: "1.5rem" }}>
-          {(["X01", "CRICKET"] as const).map(mode => {
-            const color = mode === "X01" ? D.info : D.success;
-            const icon  = mode === "X01" ? "🎯" : "🏏";
-            const desc  = mode === "X01" ? "501 · Double Out" : "Marks & Close";
-            return (
-              <button
-                key={mode}
-                onClick={() => setGameMode(mode)}
-                style={{
-                  flex: 1, padding: "20px 16px", borderRadius: "12px", cursor: "pointer", textAlign: "center",
-                  border: `1px solid ${gameMode === mode ? color : "rgba(255,255,255,0.08)"}`,
-                  background: gameMode === mode ? `${color}18` : "rgba(255,255,255,0.03)",
-                  boxShadow: gameMode === mode ? `0 0 24px ${color}22` : "none",
-                  transition: "all 0.2s",
-                }}
-              >
-                <div style={{ fontSize: "36px", marginBottom: "10px" }}>{icon}</div>
-                <div style={{ fontWeight: 900, fontSize: "18px", color: gameMode === mode ? color : "#fff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.05em", marginBottom: "4px" }}>{mode}</div>
-                <div style={{ fontSize: "11px", color: D.sub }}>{desc}</div>
-              </button>
-            );
-          })}
+        <BackButton onClick={() => setStep("mode")} />
+        <StepHeader label="CHOOSE YOUR OPPONENT" />
+        <div className="space-y-2" style={{ marginBottom: "1.5rem", maxHeight: "420px", overflowY: "auto", paddingRight: "4px" }}>
+          {CARD_CLASH_BOTS.map(bot => (
+            <button
+              key={bot.id}
+              onClick={() => setSelectedBot(bot)}
+              className="pdc-card w-full p-3 flex items-center gap-3 text-left transition-all"
+              style={{
+                cursor: "pointer",
+                borderColor: selectedBot?.id === bot.id ? D.gold : undefined,
+                background: selectedBot?.id === bot.id ? "rgba(255,210,74,0.08)" : undefined,
+                boxShadow: selectedBot?.id === bot.id ? `0 0 20px rgba(255,210,74,0.15)` : undefined,
+              }}
+            >
+              <div style={{ fontSize: "26px" }}>{bot.avatar}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <div className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>{bot.name}</div>
+                  <div style={{ fontSize: "10px", fontWeight: 800, color: D.green, background: "rgba(0,200,100,0.15)", padding: "2px 8px", borderRadius: "10px", fontFamily: "Oswald, sans-serif" }}>
+                    SKILL {bot.skillLevel}/10
+                  </div>
+                </div>
+                <div className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{bot.description}</div>
+              </div>
+            </button>
+          ))}
         </div>
-        <button
-          disabled={!gameMode}
-          onClick={() => gameMode && setStep("matchlength")}
-          style={{
-            width: "100%", padding: "13px 24px", borderRadius: "10px", border: "none",
-            fontWeight: 800, fontSize: "15px", letterSpacing: "0.06em",
-            cursor: gameMode ? "pointer" : "not-allowed",
-            background: gameMode ? "linear-gradient(135deg,#0080ff,#0040c0)" : "rgba(255,255,255,0.06)",
-            color: gameMode ? "#fff" : "rgba(255,255,255,0.3)",
-            boxShadow: gameMode ? "0 6px 24px rgba(0,128,255,0.3)" : "none",
-            transition: "all 0.2s",
-          }}
-        >
-          Next — Match Length →
-        </button>
+        <PrimaryButton disabled={!selectedBot} onClick={() => selectedBot && setStep("gamemode")}>
+          Next — Pick Game Mode →
+        </PrimaryButton>
       </div>
     );
   }
 
-  // ── STEP 2b: Match Length ─────────────────────────────────────────────────
+  // ── STEP 2: Game Mode (X01 / Cricket / Chaos) ───────────────────────────
+  if (step === "gamemode") {
+    return (
+      <div style={{ maxWidth: "520px" }}>
+        <BackButton onClick={() => setStep(vsMode === "2p" ? "opponent" : "bot")} />
+        <StepHeader label="GAME MODE" sub={<>vs <strong style={{ color: "#fff" }}>{opponentLabel}</strong></>} />
+        <div className="flex gap-3" style={{ marginBottom: "0.75rem" }}>
+          {([
+            { id: "X01" as const, color: D.cyan, icon: "🎯", desc: "501 · Double Out" },
+            { id: "CRICKET" as const, color: D.green, icon: "🏏", desc: "Marks & Close" },
+          ]).map(({ id, color, icon, desc }) => (
+            <button
+              key={id}
+              onClick={() => { setSelectedTile(id); }}
+              className="pdc-card flex-1 p-4 text-center transition-all"
+              style={{
+                cursor: "pointer",
+                borderColor: selectedTile === id ? color : undefined,
+                background: selectedTile === id ? `${color}18` : undefined,
+                boxShadow: selectedTile === id ? `0 0 24px ${color}22` : undefined,
+              }}
+            >
+              <div style={{ fontSize: "32px", marginBottom: "8px" }}>{icon}</div>
+              <div style={{ fontWeight: 900, fontSize: "16px", color: selectedTile === id ? color : "#fff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.05em", marginBottom: "4px" }}>{id}</div>
+              <div style={{ fontSize: "11px", color: D.sub }}>{desc}</div>
+            </button>
+          ))}
+        </div>
+
+        <div
+          onClick={() => setSelectedTile("CHAOS")}
+          className="pdc-card p-3 cursor-pointer transition-all relative overflow-hidden"
+          style={{
+            marginBottom: "1.5rem",
+            borderColor: isChaos ? D.chaos : "rgba(244,114,182,0.35)",
+            background: isChaos ? "rgba(244,114,182,0.1)" : "rgba(244,114,182,0.04)",
+            boxShadow: isChaos ? `0 0 18px rgba(244,114,182,0.18)` : undefined,
+          }}
+        >
+          {isChaos && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: D.chaos }} />}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-sm flex items-center gap-1.5" style={{ fontFamily: "Oswald, sans-serif", color: isChaos ? "#fff" : "rgba(255,255,255,0.8)", letterSpacing: "0.05em" }}>
+                🌀 Chaos Mode
+              </div>
+              <div className="text-xs mt-0.5 leading-tight" style={{ color: "rgba(255,255,255,0.35)" }}>
+                No pre-match equipping — mystery cards drawn every visit
+              </div>
+            </div>
+          </div>
+          {isChaos && (
+            <div className="flex gap-1.5 mt-2" onClick={e => e.stopPropagation()}>
+              {(["X01", "CRICKET"] as const).map(eng => (
+                <button
+                  key={eng}
+                  onClick={() => setChaosEngine(eng)}
+                  className="px-3 py-1 text-xs font-bold rounded-lg transition-all"
+                  style={{
+                    fontFamily: "Oswald, sans-serif", cursor: "pointer",
+                    background: chaosEngine === eng ? D.chaos : "rgba(244,114,182,0.1)",
+                    color: chaosEngine === eng ? "#1a0a12" : D.chaos,
+                    border: "1px solid rgba(244,114,182,0.4)",
+                  }}
+                >
+                  {eng === "X01" ? "X01" : "Cricket"}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <PrimaryButton disabled={!selectedTile} onClick={() => selectedTile && setStep("matchlength")}>
+          Next — Match Length →
+        </PrimaryButton>
+      </div>
+    );
+  }
+
+  // ── STEP 3: Match Length ─────────────────────────────────────────────────
   if (step === "matchlength") {
     const options: { value: 1 | 3 | 5; label: string; desc: string }[] = [
       { value: 1, label: "Single Leg", desc: "First to win 1 leg" },
@@ -258,66 +432,64 @@ export function CardClashMatchLauncher({
     ];
     return (
       <div style={{ maxWidth: "520px" }}>
-        <button
-          onClick={() => setStep("gamemode")}
-          style={{ background: "transparent", border: "none", color: D.sub, cursor: "pointer", fontSize: "13px", marginBottom: "1.5rem", padding: 0 }}
-        >
-          ← Back
-        </button>
-        <div style={{ fontSize: "11px", color: D.sub, fontWeight: 700, letterSpacing: "0.1em", marginBottom: "4px" }}>MATCH LENGTH</div>
-        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", marginBottom: "1.5rem", margin: "0 0 1.5rem" }}>
-          {gameMode} vs <strong style={{ color: "#fff" }}>{selectedOpponent?.name}</strong>
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "1.5rem" }}>
+        <BackButton onClick={() => setStep("gamemode")} />
+        <StepHeader label="MATCH LENGTH" sub={<>{isChaos ? `${gameMode} · Chaos Mode` : gameMode} vs <strong style={{ color: "#fff" }}>{opponentLabel}</strong></>} />
+        <div className="flex flex-col gap-2.5" style={{ marginBottom: "1.5rem" }}>
           {options.map(opt => (
             <button
               key={opt.value}
               onClick={() => setMatchLength(opt.value)}
+              className="pdc-card transition-all"
               style={{
-                padding: "16px 18px", borderRadius: "12px", cursor: "pointer", textAlign: "left",
-                border: `1px solid ${matchLength === opt.value ? D.info : "rgba(255,255,255,0.08)"}`,
-                background: matchLength === opt.value ? `${D.info}18` : "rgba(255,255,255,0.03)",
-                boxShadow: matchLength === opt.value ? `0 0 24px ${D.info}22` : "none",
-                transition: "all 0.2s",
+                padding: "16px 18px", cursor: "pointer", textAlign: "left",
+                borderColor: matchLength === opt.value ? D.gold : undefined,
+                background: matchLength === opt.value ? "rgba(255,210,74,0.08)" : undefined,
+                boxShadow: matchLength === opt.value ? `0 0 24px rgba(255,210,74,0.12)` : undefined,
                 display: "flex", justifyContent: "space-between", alignItems: "center",
               }}
             >
               <div>
-                <div style={{ fontWeight: 900, fontSize: "15px", color: matchLength === opt.value ? D.info : "#fff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.03em" }}>{opt.label}</div>
+                <div style={{ fontWeight: 900, fontSize: "15px", color: matchLength === opt.value ? D.gold : "#fff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.03em" }}>{opt.label}</div>
                 <div style={{ fontSize: "11px", color: D.sub, marginTop: "2px" }}>{opt.desc}</div>
               </div>
-              {matchLength === opt.value && <span style={{ color: D.info, fontSize: "18px" }}>✓</span>}
+              {matchLength === opt.value && <span style={{ color: D.gold, fontSize: "18px" }}>✓</span>}
             </button>
           ))}
         </div>
-        <button
-          onClick={() => setStep("equipment-p1")}
-          style={{
-            width: "100%", padding: "13px 24px", borderRadius: "10px", border: "none",
-            fontWeight: 800, fontSize: "15px", letterSpacing: "0.06em",
-            cursor: "pointer",
-            background: "linear-gradient(135deg,#0080ff,#0040c0)",
-            color: "#fff",
-            boxShadow: "0 6px 24px rgba(0,128,255,0.3)",
-            transition: "all 0.2s",
-          }}
-        >
-          Next — Equip Cards →
-        </button>
+        {matchError && (
+          <div style={{ marginBottom: "1rem", padding: "10px 14px", borderRadius: "10px", background: "rgba(255,68,68,0.1)", border: "1px solid rgba(255,68,68,0.3)", color: "#ff8080", fontSize: "13px" }}>
+            {matchError}
+          </div>
+        )}
+        {isChaos ? (
+          <>
+            <div style={{ marginBottom: "1rem", padding: "10px 14px", borderRadius: "10px", background: "rgba(244,114,182,0.06)", border: "1px solid rgba(244,114,182,0.2)", color: "rgba(255,255,255,0.4)", fontSize: "12px", fontFamily: "Oswald, sans-serif" }}>
+              🎲 No pre-match equipping — at the start of every visit you'll get 3 face-down cards. Pick one to reveal and it applies instantly.
+            </div>
+            <PrimaryButton disabled={startingChaos} onClick={handleStartChaos}>
+              {startingChaos ? "Starting…" : "Start Chaos Match →"}
+            </PrimaryButton>
+          </>
+        ) : (
+          <PrimaryButton onClick={() => setStep("equipment-p1")}>
+            Next — Equip Cards →
+          </PrimaryButton>
+        )}
       </div>
     );
   }
 
-  // ── STEP 3a: Player 1 Equipment Selection ────────────────────────────────
+  // ── STEP 4a: Player 1 Equipment Selection ────────────────────────────────
   if (step === "equipment-p1") {
     return (
       <CardEquipmentSelector
         key="p1"
         currentPlayerId={currentPlayerId}
         currentPlayerName={currentPlayerName}
-        opponentId={selectedOpponent!.id}
-        opponentName={selectedOpponent!.name}
+        opponentId={vsMode === "2p" ? selectedOpponent!.id : undefined}
+        opponentName={opponentLabel}
         gameMode={gameMode!}
+        testMode={vsMode === "bot"}
         onConfirm={handlePlayer1Equip}
         onBack={() => { setMatchError(null); setStep("matchlength"); }}
         submitError={matchError}
@@ -325,7 +497,7 @@ export function CardClashMatchLauncher({
     );
   }
 
-  // ── STEP 3b: Player 2 Equipment Selection ────────────────────────────────
+  // ── STEP 4b: Player 2 Equipment Selection (2 Players only) ──────────────
   if (step === "equipment-p2") {
     return (
       <CardEquipmentSelector
@@ -342,33 +514,27 @@ export function CardClashMatchLauncher({
     );
   }
 
-  // ── STEP 4: Live match ────────────────────────────────────────────────────
+  // ── STEP 5: Live match ────────────────────────────────────────────────────
   if (step === "match") {
-    // Initialize cards with used: false
     const p1CardsWithUsed = player1Cards.map(c => ({ ...c, used: false }));
     const p2CardsWithUsed = player2Cards.map(c => ({ ...c, used: false }));
-    
-    // Render via createPortal to document.body (like Practice mode)
-    // This takes match completely out of page layout
+
+    // Render via createPortal to document.body so match is truly fullscreen
     return createPortal(
-      <div style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-        background: "#06040e",
-      }}>
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#06040e" }}>
         <CardClashMatchScorer
           player1Id={currentPlayerId}
           player1Name={currentPlayerName}
-          player2Id={selectedOpponent!.id}
-          player2Name={selectedOpponent!.name}
+          player2Id={vsMode === "2p" ? selectedOpponent!.id : -1}
+          player2Name={opponentLabel!}
           gameMode={gameMode!}
           player1EquippedCards={p1CardsWithUsed}
           player2EquippedCards={p2CardsWithUsed}
           onMatchComplete={handleMatchComplete}
           onAbandon={handleAbandon}
-          isBot={false}
+          isBot={vsMode === "bot"}
           legs={matchLength}
+          chaosMode={isChaos}
         />
       </div>,
       document.body

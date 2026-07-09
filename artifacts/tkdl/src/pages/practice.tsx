@@ -11,48 +11,6 @@ import {
   BOT_PERSONAS, BOT_LEVELS, getBotConfig, numLevelConfig, numLevelLabel, numLevelColor,
   type BotPersona, type BotConfig, type ShadowProfile,
 } from "@/lib/bot-engine";
-import { ALL_CARDS, type CardData } from "@/lib/cards-data";
-
-function clearCardClashSession() {
-  sessionStorage.removeItem("card_clash_mode");
-  sessionStorage.removeItem("card_clash_chaos_mode");
-  sessionStorage.removeItem("card_clash_p1_cards");
-  sessionStorage.removeItem("card_clash_p2_cards");
-}
-
-function CardPicker({ label, pool, selected, onToggle }: {
-  label: string; pool: CardData[]; selected: number[]; onToggle: (id: number) => void;
-}) {
-  return (
-    <div>
-      <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
-        {label} ({selected.length}/4)
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
-        {pool.map(c => {
-          const isSel = selected.includes(c.id);
-          const good = c.category.endsWith("GOOD");
-          return (
-            <button key={c.id} onClick={() => onToggle(c.id)}
-              className="text-left p-2 rounded-lg transition-all"
-              style={{
-                background: isSel ? (good ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)") : "rgba(255,255,255,0.02)",
-                border: `1px solid ${isSel ? (good ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)") : "rgba(255,255,255,0.07)"}`,
-                cursor: "pointer",
-              }}>
-              <div className="text-xs font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: isSel ? "#fff" : "rgba(255,255,255,0.7)" }}>
-                {c.name}
-              </div>
-              <div className="text-xs mt-0.5 line-clamp-2 leading-tight" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.65rem" }}>
-                {c.effect}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 type Player = { id: number; name: string; points: number; elo: number; status: string; isActive: boolean };
 
@@ -312,20 +270,6 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [selectedSets, setSelectedSets] = useState({ sets: 3, legsPerSet: 3 });
   const [bullUp, setBullUp]             = useState(false);
   const [gameLb, setGameLb]             = useState<any[]>([]);
-  const [cardClash, setCardClash]       = useState(false);
-  const [cardClashChaos, setCardClashChaos] = useState(false);
-  const [chaosModeSelected, setChaosModeSelected] = useState(false);
-  const [chaosEngine, setChaosEngine]   = useState<"X01" | "Cricket">("X01");
-  const [p1CardIds, setP1CardIds]       = useState<number[]>([]);
-  const [p2CardIds, setP2CardIds]       = useState<number[]>([]);
-
-  const cardClashEngine = selectedGame?.engine === "X01" ? "X01" : selectedGame?.engine === "Cricket" ? "CRICKET" : null;
-  const cardClashSupported = cardClashEngine !== null && mode !== "solo";
-  const cardPool = cardClashEngine
-    ? ALL_CARDS.filter(c => c.category.startsWith(cardClashEngine) || c.category.startsWith("WILDCARD"))
-    : [];
-  const toggleP1Card = (id: number) => setP1CardIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : (prev.length >= 4 ? prev : [...prev, id]));
-  const toggleP2Card = (id: number) => setP2CardIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : (prev.length >= 4 ? prev : [...prev, id]));
 
   useEffect(() => {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
@@ -382,27 +326,6 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   );
 
   const tabGames = gameTypes.filter(g => g.category === tab && g.enabled !== false);
-
-  function pickChaosGameType(engine: "X01" | "Cricket"): GameTypeOption | null {
-    const preferredKey = engine === "X01" ? "501_double_out" : "cricket";
-    return gameTypes.find(g => g.key === preferredKey) ?? gameTypes.find(g => g.engine === engine) ?? null;
-  }
-
-  function selectChaosMode(engine: "X01" | "Cricket") {
-    const gt = pickChaosGameType(engine);
-    setChaosModeSelected(true);
-    setChaosEngine(engine);
-    if (gt) setGame(gt);
-    setCardClash(true);
-    setCardClashChaos(true);
-  }
-
-  function selectNormalGame(gt: GameTypeOption) {
-    setChaosModeSelected(false);
-    setCardClash(false);
-    setCardClashChaos(false);
-    setGame(gt);
-  }
 
   function formatProps() {
     const isX01 = selectedGame?.key?.startsWith("x01") || selectedGame?.key?.startsWith("501") || selectedGame?.key?.startsWith("301");
@@ -652,42 +575,6 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
             </button>
           ))}
         </div>
-        {mode !== "solo" && (
-        <div onClick={() => selectChaosMode(chaosEngine)} className="pdc-card p-3 mb-2 cursor-pointer transition-all relative overflow-hidden"
-          style={{
-            borderColor: chaosModeSelected ? "#f472b6" : "rgba(244,114,182,0.35)",
-            background: chaosModeSelected ? "rgba(244,114,182,0.1)" : "rgba(244,114,182,0.04)",
-            boxShadow: chaosModeSelected ? "0 0 18px rgba(244,114,182,0.18)" : undefined,
-          }}>
-          {chaosModeSelected && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: "#f472b6" }} />}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <div className="font-bold text-sm flex items-center gap-1.5" style={{ fontFamily: "Oswald, sans-serif", color: chaosModeSelected ? "#fff" : "rgba(255,255,255,0.8)", letterSpacing: "0.05em" }}>
-                🌀 Chaos Mode
-              </div>
-              <div className="text-xs mt-0.5 leading-tight" style={{ color: "rgba(255,255,255,0.35)" }}>
-                Mystery cards drawn every visit — pick your engine below
-              </div>
-            </div>
-          </div>
-          {chaosModeSelected && (
-            <div className="flex gap-1.5 mt-2" onClick={e => e.stopPropagation()}>
-              {(["X01", "Cricket"] as const).map(eng => (
-                <button key={eng} onClick={() => selectChaosMode(eng)}
-                  className="px-3 py-1 text-xs font-bold rounded-lg transition-all"
-                  style={{
-                    fontFamily: "Oswald, sans-serif", cursor: "pointer",
-                    background: chaosEngine === eng ? "#f472b6" : "rgba(244,114,182,0.1)",
-                    color: chaosEngine === eng ? "#1a0a12" : "#f472b6",
-                    border: "1px solid rgba(244,114,182,0.4)",
-                  }}>
-                  {eng}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
           {tabGames.length === 0 && (
             <div className="col-span-2 text-center py-8 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
@@ -696,8 +583,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           )}
           {tabGames.map(gt => (
             <GameCard key={gt.key} gt={gt}
-              selected={!chaosModeSelected && selectedGame?.key === gt.key}
-              onSelect={() => selectNormalGame(gt)}
+              selected={selectedGame?.key === gt.key}
+              onSelect={() => setGame(gt)}
               onRules={() => setRulesGame(gt)} />
           ))}
         </div>
@@ -824,92 +711,6 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         </div>
       )}
 
-      {/* Chaos Mode confirmation (selected via the Chaos Mode tile above) */}
-      {chaosModeSelected && cardClashSupported && (
-        <div className="px-3 py-2.5 rounded-lg text-xs flex items-center gap-2" style={{ background: "rgba(244,114,182,0.06)", border: "1px solid rgba(244,114,182,0.2)", color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
-          <span style={{ fontSize: 16 }}>🎲</span>
-          No pre-match equipping — at the start of every visit you'll get 3 face-down cards. Pick one to reveal and it applies instantly.
-        </div>
-      )}
-
-      {/* Card Clash toggle (X01/Cricket, 2p/bot modes only) */}
-      {cardClashSupported && !chaosModeSelected && (
-        <div>
-          <button onClick={() => setCardClash(v => !v)}
-            className="w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all"
-            style={{
-              background: cardClash ? "rgba(0,212,255,0.08)" : "rgba(255,255,255,0.03)",
-              border: `1px solid ${cardClash ? "rgba(0,212,255,0.35)" : "rgba(255,255,255,0.07)"}`,
-              cursor: "pointer",
-            }}>
-            <span style={{ fontSize: 18 }}>🃏</span>
-            <div className="flex-1 text-left">
-              <div className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: cardClash ? "#00d4ff" : "rgba(255,255,255,0.45)" }}>
-                Card Clash Mode
-              </div>
-              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem" }}>
-                Equip up to 4 cards each that trigger during the match
-              </div>
-            </div>
-            <div className="w-10 h-5 rounded-full relative transition-all flex-shrink-0"
-              style={{ background: cardClash ? "rgba(0,212,255,0.5)" : "rgba(255,255,255,0.1)" }}>
-              <div className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
-                style={{ background: cardClash ? "#00d4ff" : "rgba(255,255,255,0.3)", left: cardClash ? "calc(100% - 18px)" : "2px" }} />
-            </div>
-          </button>
-
-          {cardClash && (
-            <div className="mt-3 space-y-4">
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => setCardClashChaos(false)}
-                  className="px-3 py-2.5 rounded-lg text-left transition-all"
-                  style={{
-                    background: !cardClashChaos ? "rgba(0,212,255,0.1)" : "rgba(255,255,255,0.03)",
-                    border: `1px solid ${!cardClashChaos ? "rgba(0,212,255,0.4)" : "rgba(255,255,255,0.07)"}`,
-                    cursor: "pointer",
-                  }}>
-                  <div className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: !cardClashChaos ? "#00d4ff" : "rgba(255,255,255,0.45)" }}>
-                    Equip Cards
-                  </div>
-                  <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
-                    Pick your cards up front
-                  </div>
-                </button>
-                <button onClick={() => setCardClashChaos(true)}
-                  className="px-3 py-2.5 rounded-lg text-left transition-all"
-                  style={{
-                    background: cardClashChaos ? "rgba(255,74,158,0.1)" : "rgba(255,255,255,0.03)",
-                    border: `1px solid ${cardClashChaos ? "rgba(255,74,158,0.4)" : "rgba(255,255,255,0.07)"}`,
-                    cursor: "pointer",
-                  }}>
-                  <div className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: cardClashChaos ? "#ff4a9e" : "rgba(255,255,255,0.45)" }}>
-                    Chaos Mode
-                  </div>
-                  <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
-                    Mystery cards every visit
-                  </div>
-                </button>
-              </div>
-
-              {cardClashChaos ? (
-                <div className="px-3 py-2 rounded-lg text-xs" style={{ background: "rgba(255,74,158,0.05)", border: "1px solid rgba(255,74,158,0.15)", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
-                  🎲 No pre-match equipping — at the start of every visit you'll get 3 face-down cards. Pick one to reveal and it applies instantly.
-                </div>
-              ) : (
-                <>
-                  <CardPicker label={mode === "2p" ? "Your Cards (P1)" : "Your Cards"}
-                    pool={cardPool} selected={p1CardIds} onToggle={toggleP1Card} />
-                  {mode === "2p" && (
-                    <CardPicker label="Opponent Cards (P2)"
-                      pool={cardPool} selected={p2CardIds} onToggle={toggleP2Card} />
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Bull Up toggle (2p / bot modes only) */}
       {mode !== "solo" && (
         <button onClick={() => setBullUp(v => !v)}
@@ -939,20 +740,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       <button
         onClick={() => {
           if (!canStart) return;
-          if (cardClash) {
-            sessionStorage.setItem("card_clash_mode", "true");
-            if (cardClashChaos) {
-              sessionStorage.setItem("card_clash_chaos_mode", "true");
-              sessionStorage.setItem("card_clash_p1_cards", "[]");
-              sessionStorage.setItem("card_clash_p2_cards", "[]");
-            } else {
-              sessionStorage.removeItem("card_clash_chaos_mode");
-              sessionStorage.setItem("card_clash_p1_cards", JSON.stringify(cardPool.filter(c => p1CardIds.includes(c.id))));
-              sessionStorage.setItem("card_clash_p2_cards", JSON.stringify(mode === "2p" ? cardPool.filter(c => p2CardIds.includes(c.id)) : []));
-            }
-          } else {
-            clearCardClashSession();
-          }
+          // Defensive: clear any card-clash session flags left over from the
+          // Card Clash tab, since Practice never sets these itself.
+          clearCardClashSession();
           onStart(buildSetupData());
         }}
         disabled={!canStart}
@@ -1110,6 +900,13 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
 }
 
 // ── Main Practice Page ─────────────────────────────────────────────────────────
+function clearCardClashSession() {
+  sessionStorage.removeItem("card_clash_mode");
+  sessionStorage.removeItem("card_clash_chaos_mode");
+  sessionStorage.removeItem("card_clash_p1_cards");
+  sessionStorage.removeItem("card_clash_p2_cards");
+}
+
 export default function Practice() {
   const [phase, setPhase]             = useState<"setup" | "playing" | "done">("setup");
   const [setupData, setSetupData]     = useState<SetupData | null>(null);

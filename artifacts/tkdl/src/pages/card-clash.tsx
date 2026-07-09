@@ -10,15 +10,14 @@ import { AchievementsDisplay } from "@/components/AchievementsDisplay";
 import { AdvancedAdminTools } from "@/components/AdvancedAdminTools";
 import type { PlayerStats } from "@/utils/achievements";
 import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
-import { CardClashPracticeContainer } from "@/components/CardClashPracticeContainer";
 import { AdminCardClashSettingsPanel } from "@/components/AdminCardClashSettingsPanel";
 import { RulesUI } from "@/components/RulesUI";
 import { TKDLCard } from "@/components/TKDLCard";
 import { ALL_CARDS } from "@/lib/cards-data";
 import type { CardData, Category, Rarity } from "@/lib/cards-data";
-import { CollectionIcon, ShopIcon, PlayIcon, PracticeIcon, StandingsIcon, AchievementsIcon, RulesIcon, AdminIcon, LeaderboardIcon, ChampionIcon, TrophyIcon } from "@/components/CardClashIcons";
+import { CollectionIcon, ShopIcon, PlayIcon, StandingsIcon, AchievementsIcon, RulesIcon, AdminIcon, LeaderboardIcon, ChampionIcon, TrophyIcon } from "@/components/CardClashIcons";
 
-type Tab = "hub" | "collection" | "shop" | "play" | "practice" | "cc-practice" | "standings" | "achievements" | "rules" | "admin";
+type Tab = "hub" | "collection" | "shop" | "play" | "practice" | "standings" | "achievements" | "rules" | "admin";
 
 const CATEGORIES: Category[] = ["X01 GOOD","X01 BAD","CRICKET GOOD","CRICKET BAD","WILDCARD GOOD","WILDCARD BAD"];
 const RARITIES: Rarity[] = ["COMMON","RARE","LEGENDARY"];
@@ -388,12 +387,11 @@ const PACKS = [
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px",marginBottom:"2.5rem"}}>
                 <HubCard label="Collection" sublabel="Browse & manage your cards" color="#0088ff" glow="rgba(0,136,255,0.35)" delay={0} onClick={()=>goTo("collection")} badge={newCardNames.size>0?newCardNames.size:undefined} icon={<CollectionIcon/>}/>
                 <HubCard label="Shop" sublabel="Buy packs & special offers" color="#ffd24a" glow="rgba(255,210,74,0.4)" delay={0.4} onClick={()=>goTo("shop")} badge={packInventory.length>0?packInventory.length:undefined} icon={<ShopIcon/>}/>
-                <HubCard label="Play" sublabel="Jump into the action" color="#00ff88" glow="rgba(0,255,136,0.4)" delay={0.8} onClick={()=>goTo("play")} icon={<PlayIcon/>}/>
-                <HubCard label="Practice" sublabel="Test your card deck" color="#00ff88" glow="rgba(0,255,136,0.4)" delay={1.2} onClick={()=>goTo("cc-practice")} icon={<PracticeIcon/>}/>
-                <HubCard label="Standings" sublabel="See who's on top" color="#c084fc" glow="rgba(192,132,252,0.4)" delay={1.6} onClick={()=>goTo("standings")} icon={<StandingsIcon/>}/>
-                <HubCard label="Achievements" sublabel="Earn & unlock rewards" color="#ff8800" glow="rgba(255,136,0,0.4)" delay={2.0} onClick={()=>goTo("achievements")} icon={<AchievementsIcon/>}/>
-                <HubCard label="Rules" sublabel="Learn the game" color="#00ccff" glow="rgba(0,204,255,0.35)" delay={2.4} onClick={()=>goTo("rules")} icon={<RulesIcon/>}/>
-                <HubCard label="Admin" sublabel="League management" color="#ff2244" glow="rgba(255,34,68,0.4)" delay={2.8} onClick={()=>goTo("admin")} icon={<AdminIcon/>}/>
+                <HubCard label="Play" sublabel="Battle a player or the CPU" color="#00ff88" glow="rgba(0,255,136,0.4)" delay={0.8} onClick={()=>goTo("play")} icon={<PlayIcon/>}/>
+                <HubCard label="Standings" sublabel="See who's on top" color="#c084fc" glow="rgba(192,132,252,0.4)" delay={1.2} onClick={()=>goTo("standings")} icon={<StandingsIcon/>}/>
+                <HubCard label="Achievements" sublabel="Earn & unlock rewards" color="#ff8800" glow="rgba(255,136,0,0.4)" delay={1.6} onClick={()=>goTo("achievements")} icon={<AchievementsIcon/>}/>
+                <HubCard label="Rules" sublabel="Learn the game" color="#00ccff" glow="rgba(0,204,255,0.35)" delay={2.0} onClick={()=>goTo("rules")} icon={<RulesIcon/>}/>
+                <HubCard label="Admin" sublabel="League management" color="#ff2244" glow="rgba(255,34,68,0.4)" delay={2.4} onClick={()=>goTo("admin")} icon={<AdminIcon/>}/>
               </div>
 
               {/* Pack showcase */}
@@ -552,7 +550,7 @@ const PACKS = [
             {/* ── PLAY ── */}
             {activeTab==="play" && (
               <div>
-                <SectionHeader title="⚡ Enter the Clash" subtitle="Pick your opponent · Equip up to 4 cards · Play"/>
+                <SectionHeader title="⚡ Enter the Clash" subtitle="2 Players or Solo vs CPU · Equip up to 4 cards · Play"/>
                 <CardClashMatchLauncher currentPlayerId={playerId} currentPlayerName={playerName} onMatchComplete={()=>{goTo("collection");loadData();}}/>
                 {/* Challenges moved to player profile "Challenges" tab */}
               </div>
@@ -561,10 +559,6 @@ const PACKS = [
             {/* ── PRACTICE ── */}
               {activeTab==="practice" && (
                 <PracticeTab playerId={playerId} playerName={playerName} standings={standings}/>
-              )}
-
-              {activeTab==="cc-practice" && playerId && (
-                <CardClashPracticeContainer playerId={playerId} playerName={playerName}/>
               )}
 
             {activeTab==="standings" && (
