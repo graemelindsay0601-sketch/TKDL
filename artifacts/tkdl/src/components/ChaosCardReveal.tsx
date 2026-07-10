@@ -4,7 +4,7 @@
  * to reveal the card, then auto-applies after a short beat.
  */
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { TKDLCard } from "./TKDLCard";
 import type { CardData } from "@/lib/cards-data";
 
@@ -16,13 +16,22 @@ interface ChaosCardRevealProps {
 
 export function ChaosCardReveal({ options, playerLabel, onResolve }: ChaosCardRevealProps) {
   const [pickedIndex, setPickedIndex] = useState<number | null>(null);
+  const [revealed, setRevealed] = useState(false);
+  const resolvedRef = useRef(false);
+
+  const resolveOnce = (card: CardData) => {
+    if (resolvedRef.current) return;
+    resolvedRef.current = true;
+    onResolve(card);
+  };
 
   const handlePick = (idx: number) => {
     if (pickedIndex !== null) return;
     setPickedIndex(idx);
-    window.setTimeout(() => {
-      onResolve(options[idx]);
-    }, 950);
+    // Let the flip animation finish, then show the revealed card long enough to actually read it.
+    window.setTimeout(() => setRevealed(true), 500);
+    // Safety-net auto-continue in case the player doesn't tap — long enough to read the full effect text.
+    window.setTimeout(() => resolveOnce(options[idx]), 5000);
   };
 
   return (
@@ -74,7 +83,7 @@ export function ChaosCardReveal({ options, playerLabel, onResolve }: ChaosCardRe
           🌀 Chaos Draw — {playerLabel}
         </div>
         <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.45)", marginTop: "-8px" }}>
-          {pickedIndex === null ? "Pick a card — it applies instantly" : "Revealing..."}
+          {pickedIndex === null ? "Pick a card — it applies instantly" : revealed ? "Tap the card to continue" : "Revealing..."}
         </div>
 
         <div style={{ display: "flex", gap: "14px" }}>
@@ -91,8 +100,11 @@ export function ChaosCardReveal({ options, playerLabel, onResolve }: ChaosCardRe
                 }}
               >
                 {isPicked ? (
-                  <div style={{ animation: "chaos-flip 0.5s ease-in-out" }}>
-                    <TKDLCard card={card} size="sm" locked={false} />
+                  <div
+                    style={{ animation: "chaos-flip 0.5s ease-in-out", cursor: revealed ? "pointer" : "default" }}
+                    onClick={() => revealed && resolveOnce(card)}
+                  >
+                    <TKDLCard card={card} size={revealed ? "md" : "sm"} locked={false} />
                   </div>
                 ) : (
                   <div className="chaos-card-back" onClick={() => handlePick(idx)}>
@@ -103,6 +115,20 @@ export function ChaosCardReveal({ options, playerLabel, onResolve }: ChaosCardRe
             );
           })}
         </div>
+
+        {revealed && pickedIndex !== null && (
+          <button
+            onClick={() => resolveOnce(options[pickedIndex])}
+            style={{
+              marginTop: "4px", padding: "9px 26px", borderRadius: "10px", border: "1px solid rgba(167,139,250,0.4)",
+              background: "rgba(167,139,250,0.15)", color: "#a78bfa",
+              fontFamily: "Oswald, sans-serif", fontWeight: 800, fontSize: "12px",
+              letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer",
+            }}
+          >
+            Continue →
+          </button>
+        )}
       </div>
     </div>
   );

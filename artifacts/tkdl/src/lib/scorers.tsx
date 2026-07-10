@@ -11,7 +11,7 @@ import { CardActivationOverlay } from "@/components/CardActivationOverlay";
 import { ChaosCardReveal } from "@/components/ChaosCardReveal";
 import { TKDLCard } from "@/components/TKDLCard";
 import { EquipCardDisplay } from "@/components/EquipCardDisplay";
-import { drawChaosOptions, type CardData } from "./cards-data";
+import { drawChaosOptions, ALL_CARDS, type CardData } from "./cards-data";
 import { cardDebugLog } from "./card-debug";
 import { calculateX01CardEffect, applyX01Effect, formatCardEffectDisplay } from "./x01-card-effects";
 import { calculateCricketCardEffect, applyCricketEffect, formatCricketEffectDisplay } from "./cricket-card-effects";
@@ -172,9 +172,12 @@ function SectionCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Card Clash: shows a brief toast when a card effect activates + a persistent bar of currently-live effects */
+/** Card Clash: shows a brief toast when a card effect activates + a persistent bar of currently-live effects.
+ *  Each live effect pill is clickable — reopens a popover with the full card art/effect text so players
+ *  can re-check what an active effect actually does mid-match. */
 function CCEffectsHUD({ effects, names }: { effects: CCEffect[]; names: [string, string] }) {
   const [toast, setToast] = useState<{ key: string; text: string; buff: boolean } | null>(null);
+  const [viewing, setViewing] = useState<CCEffect | null>(null);
   const prevCountRef = useRef(0);
 
   useEffect(() => {
@@ -199,6 +202,7 @@ function CCEffectsHUD({ effects, names }: { effects: CCEffect[]; names: [string,
   }, [toast]);
 
   const live = effects.filter(e => e.status === "active" || e.status === "pending" || e.status === "deferred_next_turn" || e.status === "deferred_next_leg");
+  const viewingCard = viewing ? ALL_CARDS.find(c => c.name === viewing.cardName) : null;
 
   return (
     <>
@@ -219,17 +223,67 @@ function CCEffectsHUD({ effects, names }: { effects: CCEffect[]; names: [string,
           {live.map((e, i) => {
             const buff = e.status === "active";
             return (
-              <div key={`${e.cardName}-${e.affectsPlayer}-${i}`} style={{
-                fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em",
-                padding: "2px 8px", borderRadius: "999px", fontFamily: "Oswald, sans-serif",
-                color: buff ? "#4dffa0" : "#ff6b6b",
-                background: buff ? "rgba(0,200,100,0.12)" : "rgba(255,60,60,0.12)",
-                border: `1px solid ${buff ? "rgba(0,200,100,0.35)" : "rgba(255,60,60,0.35)"}`,
-              }}>
+              <button
+                key={`${e.cardName}-${e.affectsPlayer}-${i}`}
+                onClick={() => setViewing(e)}
+                style={{
+                  fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em",
+                  padding: "2px 8px", borderRadius: "999px", fontFamily: "Oswald, sans-serif",
+                  color: buff ? "#4dffa0" : "#ff6b6b",
+                  background: buff ? "rgba(0,200,100,0.12)" : "rgba(255,60,60,0.12)",
+                  border: `1px solid ${buff ? "rgba(0,200,100,0.35)" : "rgba(255,60,60,0.35)"}`,
+                  cursor: "pointer",
+                }}
+              >
                 ⚡ {e.cardName} · {names[e.affectsPlayer].split(" ")[0]}
-              </div>
+              </button>
             );
           })}
+        </div>
+      )}
+      {viewing && (
+        <div
+          onClick={() => setViewing(null)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 2600, background: "rgba(0,0,0,0.6)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: "20px",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="pdc-card"
+            style={{ padding: "20px", maxWidth: "320px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}
+          >
+            {viewingCard ? (
+              <TKDLCard card={viewingCard} size="sm" locked={false} />
+            ) : (
+              <div style={{ fontSize: "26px" }}>⚡</div>
+            )}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontWeight: 900, fontSize: "15px", color: "#fff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" }}>
+                {viewing.cardName}
+              </div>
+              <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", marginTop: "2px", fontFamily: "Oswald, sans-serif" }}>
+                Affecting {names[viewing.affectsPlayer]}
+              </div>
+              {viewingCard && (
+                <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.75)", marginTop: "10px", lineHeight: 1.4 }}>
+                  {viewingCard.effect}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => setViewing(null)}
+              style={{
+                marginTop: "4px", padding: "8px 20px", borderRadius: "10px", border: "none",
+                background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)",
+                fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "12px",
+                letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
         </div>
       )}
     </>

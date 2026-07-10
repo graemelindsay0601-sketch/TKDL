@@ -5,17 +5,24 @@
  * equipment → launch match.
  *
  * Visual language (mode-toggle pills, pdc-card tiles, Oswald uppercase
- * headers) is ported from the Practice page's setup screen so Card Clash
- * feels consistent with the rest of the app, while keeping its own game
- * modes (X01 / Cricket / Chaos Mode) rather than Practice's full game list.
+ * headers) AND the full Solo vs CPU bot system (Level Bot / Play a Pro /
+ * Player Clone) are ported from the Practice page's setup screen so Card
+ * Clash feels consistent with the rest of the app, while keeping its own
+ * game modes (X01 / Cricket / Chaos Mode) rather than Practice's full game
+ * list.
  */
 
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Users, Bot as BotIcon } from "lucide-react";
+import { Users, Bot as BotIcon, Cpu, Trophy, Ghost } from "lucide-react";
 import { CardClashMatchScorer } from "./CardClashMatchScorer";
 import { CardEquipmentSelector } from "./CardEquipmentSelector";
-import { CARD_CLASH_BOTS, generateBotCards, type CardClashBot } from "@/lib/card-clash-bots";
+import { LevelBotPicker, PersonaCard, ShadowPlayerPicker, type SoloBotMode, type ShadowProfileData, type ShadowProfileResult } from "./BotPickers";
+import { generateBotCards } from "@/lib/card-clash-bots";
+import {
+  BOT_PERSONAS, BOT_LEVELS, getBotConfig, numLevelConfig, numLevelLabel, numLevelColor,
+  type BotPersona, type BotConfig, type ShadowProfile,
+} from "@/lib/bot-engine";
 import type { GameResult } from "./game-scorer";
 
 interface Player {
@@ -32,6 +39,14 @@ interface CardClashMatchLauncherProps {
 type VsMode = "2p" | "bot";
 type GameEngine = "X01" | "CRICKET";
 type Step = "mode" | "opponent" | "bot" | "gamemode" | "matchlength" | "equipment-p1" | "equipment-p2" | "match";
+
+interface ResolvedBot {
+  name: string;
+  subtitle: string;
+  flag?: string;
+  color: string;
+  config: BotConfig;
+}
 
 const D = {
   border:  "rgba(255,255,255,0.08)",
@@ -94,7 +109,13 @@ export function CardClashMatchLauncher({
   const [vsMode, setVsMode] = useState<VsMode>("2p");
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedOpponent, setSelectedOpponent] = useState<Player | null>(null);
-  const [selectedBot, setSelectedBot] = useState<CardClashBot | null>(null);
+
+  // Solo vs CPU — same three modes as Practice
+  const [botMode, setBotMode] = useState<SoloBotMode>("level");
+  const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
+  const [selectedPersona, setSelectedPersona] = useState<BotPersona | null>(null);
+  const [selectedShadowId, setSelectedShadowId] = useState<number | null>(null);
+  const [shadowProfiles, setShadowProfiles] = useState<Record<number, ShadowProfileResult>>({});
 
   const [selectedTile, setSelectedTile] = useState<GameEngine | "CHAOS" | null>(null);
   const [chaosEngine, setChaosEngine] = useState<GameEngine>("X01");
@@ -119,12 +140,78 @@ export function CardClashMatchLauncher({
       .catch(() => setLoading(false));
   }, [currentPlayerId]);
 
+  // Fetch shadow (player-clone) profiles once players are known — same as Practice
+  useEffect(() => {
+    if (players.length === 0) return;
+    const needed = players.filter(p => !(p.id in shadowProfiles));
+    if (needed.length === 0) return;
+    needed.forEach(p => {
+      fetch(`/api/players/${p.id}/shadow-profile`).then(r => r.json())
+        .then(data => {
+          setShadowProfiles(prev => ({ ...prev, [p.id]: { ...data, playerName: p.name } }));
+        })
+        .catch(() => {});
+    });
+  }, [players]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const resolveBot = (): ResolvedBot | null => {
+    if (botMode === "level" && selectedLevel !== null) {
+      const color = numLevelColor(selectedLevel);
+      return {
+        name: `Level ${selectedLevel} Bot`,
+        subtitle: `${numLevelLabel(selectedLevel)} · ${numLevelConfig(selectedLevel).avg} avg`,
+        color,
+        config: numLevelConfig(selectedLevel),
+      };
+    }
+    if (botMode === "shadow" && selectedShadowId !== null) {
+      const prof = shadowProfiles[selectedShadowId] as ShadowProfileData;
+      if (!prof || (prof as any).locked) return null;
+      const shadowPlayer = players.find(p => p.id === selectedShadowId);
+      if (!shadowPlayer) return null;
+      const sp: ShadowProfile = {
+        playerId: selectedShadowId,
+        playerName: shadowPlayer.name,
+        totalDarts: prof.totalDarts,
+        primarySeg: prof.primarySeg,
+        treblePct: prof.treblePct,
+        singlePct: prof.singlePct,
+        checkoutSegs: prof.checkoutSegs,
+        doubleHitPct: prof.doubleHitPct,
+        computedAvg: prof.computedAvg,
+      };
+      return {
+        name: `Shadow ${shadowPlayer.name}`,
+        subtitle: `Player Clone · ${Number(prof.computedAvg).toFixed(1)} avg`,
+        flag: "👻",
+        color: "#a78bfa",
+        config: { ...getBotConfig("club"), shadowProfile: sp },
+      };
+    }
+    if (botMode === "pro" && selectedPersona) {
+      const lvl = BOT_LEVELS[selectedPersona.level];
+      return {
+        name: selectedPersona.name,
+        subtitle: `${selectedPersona.nickname} · ${lvl.label} · ${selectedPersona.avg} avg`,
+        flag: selectedPersona.flag,
+        color: lvl.color,
+        config: getBotConfig(selectedPersona.level),
+      };
+    }
+    return null;
+  };
+
+  const resolvedBot = vsMode === "bot" ? resolveBot() : null;
+
   const resetAll = () => {
     setStep("mode");
     setPlayer1Cards([]);
     setPlayer2Cards([]);
     setSelectedOpponent(null);
-    setSelectedBot(null);
+    setBotMode("level");
+    setSelectedLevel(null);
+    setSelectedPersona(null);
+    setSelectedShadowId(null);
     setSelectedTile(null);
     setMatchLength(1);
     setMatchId(null);
@@ -134,8 +221,8 @@ export function CardClashMatchLauncher({
   const handlePlayer1Equip = (p1Cards: any[]) => {
     setPlayer1Cards(p1Cards);
     if (vsMode === "bot") {
-      // Client-side only, no stakes — generate bot deck and jump straight in
-      const botCards = generateBotCards(selectedBot!, gameMode!);
+      // Client-side only, no stakes — generate bot deck from its real avg and jump straight in
+      const botCards = generateBotCards(resolvedBot!.config.avg, gameMode!);
       setPlayer2Cards(botCards);
       setStep("match");
     } else {
@@ -224,7 +311,7 @@ export function CardClashMatchLauncher({
 
   const handleAbandon = () => resetAll();
 
-  const opponentLabel = vsMode === "bot" ? selectedBot?.name : selectedOpponent?.name;
+  const opponentLabel = vsMode === "bot" ? resolvedBot?.name : selectedOpponent?.name;
 
   // ── STEP 0: Mode Toggle ─────────────────────────────────────────────────
   if (step === "mode") {
@@ -306,39 +393,78 @@ export function CardClashMatchLauncher({
     );
   }
 
-  // ── STEP 1b: Bot Selection (Solo vs CPU) ────────────────────────────────
+  // ── STEP 1b: Bot Selection (Solo vs CPU) — same Level Bot / Play a Pro /
+  //     Player Clone system as Practice ──────────────────────────────────
   if (step === "bot") {
     return (
       <div style={{ maxWidth: "520px" }}>
         <BackButton onClick={() => setStep("mode")} />
         <StepHeader label="CHOOSE YOUR OPPONENT" />
-        <div className="space-y-2" style={{ marginBottom: "1.5rem", maxHeight: "420px", overflowY: "auto", paddingRight: "4px" }}>
-          {CARD_CLASH_BOTS.map(bot => (
-            <button
-              key={bot.id}
-              onClick={() => setSelectedBot(bot)}
-              className="pdc-card w-full p-3 flex items-center gap-3 text-left transition-all"
+
+        <div className="flex gap-1 p-1 rounded-xl mb-4"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          {([
+            { key: "level" as SoloBotMode, label: "Level Bot", icon: <Cpu className="w-3.5 h-3.5" /> },
+            { key: "pro" as SoloBotMode, label: "Play a Pro", icon: <Trophy className="w-3.5 h-3.5" /> },
+            { key: "shadow" as SoloBotMode, label: "Player Clone", icon: <Ghost className="w-3.5 h-3.5" /> },
+          ]).map(({ key, label, icon }) => (
+            <button key={key} onClick={() => setBotMode(key)}
+              className="flex-1 py-1.5 text-xs font-bold uppercase rounded-lg transition-all flex items-center justify-center gap-1.5"
               style={{
-                cursor: "pointer",
-                borderColor: selectedBot?.id === bot.id ? D.gold : undefined,
-                background: selectedBot?.id === bot.id ? "rgba(255,210,74,0.08)" : undefined,
-                boxShadow: selectedBot?.id === bot.id ? `0 0 20px rgba(255,210,74,0.15)` : undefined,
-              }}
-            >
-              <div style={{ fontSize: "26px" }}>{bot.avatar}</div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <div className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>{bot.name}</div>
-                  <div style={{ fontSize: "10px", fontWeight: 800, color: D.green, background: "rgba(0,200,100,0.15)", padding: "2px 8px", borderRadius: "10px", fontFamily: "Oswald, sans-serif" }}>
-                    SKILL {bot.skillLevel}/10
-                  </div>
-                </div>
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{bot.description}</div>
-              </div>
+                fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em", cursor: "pointer",
+                background: botMode === key ? "rgba(255,210,74,0.15)" : "transparent",
+                color: botMode === key ? D.gold : "rgba(255,255,255,0.3)",
+                border: botMode === key ? "1px solid rgba(255,210,74,0.3)" : "1px solid transparent",
+              }}>
+              {icon}{label}
             </button>
           ))}
         </div>
-        <PrimaryButton disabled={!selectedBot} onClick={() => selectedBot && setStep("gamemode")}>
+
+        <div style={{ marginBottom: "1.5rem" }}>
+          {botMode === "level" ? (
+            <div>
+              <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+                Pick a difficulty from 1 (pub rookie) to 20 (world-class). Card deck strength scales with it too.
+              </p>
+              <LevelBotPicker selected={selectedLevel} onSelect={setSelectedLevel} />
+            </div>
+          ) : botMode === "pro" ? (
+            <div>
+              <div className="flex gap-2 flex-wrap mb-3">
+                {(Object.entries(BOT_LEVELS) as [string, typeof BOT_LEVELS[keyof typeof BOT_LEVELS]][])
+                  .reverse()
+                  .map(([key, lvl]) => (
+                    <span key={key} className="text-xs px-2 py-0.5 rounded-full font-bold"
+                      style={{ background: `${lvl.color}18`, color: lvl.color, fontFamily: "Oswald, sans-serif", border: `1px solid ${lvl.color}44` }}>
+                      {lvl.label} · {lvl.avg}+ avg
+                    </span>
+                  ))}
+              </div>
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                {BOT_PERSONAS.map(p => (
+                  <PersonaCard key={p.id} persona={p}
+                    selected={selectedPersona?.id === p.id}
+                    onSelect={() => setSelectedPersona(p)} />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+                Play against a bot that mirrors how a real player actually throws. Unlocks at 250 combined darts.
+              </p>
+              <ShadowPlayerPicker
+                players={players}
+                profiles={shadowProfiles}
+                selected={selectedShadowId}
+                onSelect={setSelectedShadowId}
+              />
+            </div>
+          )}
+        </div>
+
+        <PrimaryButton disabled={!resolvedBot} onClick={() => resolvedBot && setStep("gamemode")}>
           Next — Pick Game Mode →
         </PrimaryButton>
       </div>
@@ -533,6 +659,7 @@ export function CardClashMatchLauncher({
           onMatchComplete={handleMatchComplete}
           onAbandon={handleAbandon}
           isBot={vsMode === "bot"}
+          botConfig={resolvedBot?.config}
           legs={matchLength}
           chaosMode={isChaos}
         />

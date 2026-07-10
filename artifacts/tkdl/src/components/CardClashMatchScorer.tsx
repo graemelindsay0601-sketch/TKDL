@@ -9,6 +9,7 @@ import { X01Scorer, CricketScorer } from "@/lib/scorers";
 import { ccActivateCard } from "@/lib/card-effect-engine";
 import type { GameResult } from "./game-scorer";
 import type { CardData } from "@/lib/cards-data";
+import type { BotConfig } from "@/lib/bot-engine";
 
 interface EquippedCard extends CardData {
   used?: boolean;
@@ -25,6 +26,9 @@ interface CardClashMatchScorerProps {
   onMatchComplete: (result: GameResult, cardsUsed: string[]) => void;
   onAbandon?: () => void;
   isBot: boolean;
+  /** The chosen bot's actual stats (Level Bot / Play a Pro / Player Clone).
+   *  Falls back to a fixed mid-tier bot if isBot is true but this isn't set. */
+  botConfig?: BotConfig;
   legs?: number;
   setsToWin?: number;
   legsToWinSet?: number;
@@ -44,6 +48,7 @@ export function CardClashMatchScorer({
   onMatchComplete,
   onAbandon,
   isBot,
+  botConfig,
   legs,
   setsToWin = 0,
   legsToWinSet = 3,
@@ -87,6 +92,8 @@ export function CardClashMatchScorer({
     onAbandon?.();
   };
 
+  const resolvedBotConfig = isBot ? (botConfig ?? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 }) : undefined;
+
   // Render scorer directly - no wrapper, just like GameScorer/Practice mode
   if (gameMode === "X01") {
     return (
@@ -94,7 +101,7 @@ export function CardClashMatchScorer({
         p1Name={player1Name}
         p2Name={player2Name}
         config={{ startingScore: 501, doubleOut: true }}
-        botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
+        botConfig={resolvedBotConfig}
         onWin={handleMatchComplete}
         onAbandon={handleAbandon}
         cardEffects={cardEffects}
@@ -108,7 +115,7 @@ export function CardClashMatchScorer({
       <CricketScorer
         p1Name={player1Name}
         p2Name={player2Name}
-        botConfig={isBot ? { avg: 62, sd: 12, checkoutPct: 0.34, hitAcc: 0.45 } : undefined}
+        botConfig={resolvedBotConfig}
         onWin={handleMatchComplete}
         onAbandon={handleAbandon}
         cardEffects={cardEffects}
