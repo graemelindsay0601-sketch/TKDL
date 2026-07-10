@@ -175,25 +175,27 @@ function SectionCard({ children }: { children: React.ReactNode }) {
 /** Card Clash: shows a brief toast when a card effect activates + a persistent bar of currently-live effects.
  *  Each live effect pill is clickable — reopens a popover with the full card art/effect text so players
  *  can re-check what an active effect actually does mid-match. */
-function CCEffectsHUD({ effects, names }: { effects: CCEffect[]; names: [string, string] }) {
+function CCEffectsHUD({ effects, names, lastActivation }: {
+  effects: CCEffect[];
+  names: [string, string];
+  lastActivation?: { cardName: string; player: 0 | 1; key: string } | null;
+}) {
   const [toast, setToast] = useState<{ key: string; text: string; buff: boolean } | null>(null);
   const [viewing, setViewing] = useState<CCEffect | null>(null);
-  const prevCountRef = useRef(0);
+  const lastKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (effects.length > prevCountRef.current) {
-      const newest = effects[effects.length - 1];
-      if (newest) {
-        const buff = newest.status === "active";
-        setToast({
-          key: `${newest.cardName}-${Date.now()}`,
-          text: `${newest.cardName} → ${names[newest.affectsPlayer]}`,
-          buff,
-        });
-      }
-    }
-    prevCountRef.current = effects.length;
-  }, [effects.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!lastActivation || lastActivation.key === lastKeyRef.current) return;
+    lastKeyRef.current = lastActivation.key;
+    // Try to determine buff/debuff from the card's own data (GOOD vs BAD category)
+    const cardDef = ALL_CARDS.find(c => c.name === lastActivation.cardName);
+    const buff = cardDef ? cardDef.category.endsWith("GOOD") : true;
+    setToast({
+      key: lastActivation.key,
+      text: `${lastActivation.cardName} → ${names[lastActivation.player]}`,
+      buff,
+    });
+  }, [lastActivation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!toast) return;
@@ -364,6 +366,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [cardsUsed, setCardsUsed]     = useState<any[]>([]);
   const [isCardClash, setIsCardClash] = useState(false);
   const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
+  const [lastActivation, setLastActivation] = useState<{ cardName: string; player: 0 | 1; key: string } | null>(null);
   const [showCards, setShowCards] = useState(false);
   const [selectedCard, setSelectedCard] = useState<any>(null);
 
@@ -802,6 +805,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (nonInstant.length > 0) {
       setActiveEffects(prev => [...prev, ...nonInstant]);
     }
+    setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
     
     // Mark card as permanently used (consumed for this match)
     if (!cardsUsed.some((c: any) => c.id === card.id)) {
@@ -982,6 +986,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     });
     const nonInstant = effects.filter(e => !e.instant);
     if (nonInstant.length > 0) setActiveEffects(prev => [...prev, ...nonInstant]);
+    setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
     setChaosOptions(null);
     chaosResolvedKeyRef.current = `${turn}:${history.length}`;
   }, [turn, scores, legWins, legHistory, legsNeeded, history.length]);
@@ -1069,7 +1074,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
             sub={doubleIn && !started[i] ? "double in required" : undefined} />
         ))}
       </div>
-      {isCardClash && <CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} />}
+      {isCardClash && <CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} lastActivation={lastActivation} />}
       {/* Checkout bar — updates live after every dart in the visit */}
       {([0, ...(soloMode ? [] : [1])] as (0|1)[]).map(i => {
         // For the active player, use the live remaining (score minus darts thrown so far this visit)
@@ -1338,6 +1343,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [cardsUsed, setCardsUsed]     = useState<any[]>([]);
   const [isCardClash, setIsCardClash] = useState(false);
   const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
+  const [lastActivation, setLastActivation] = useState<{ cardName: string; player: 0 | 1; key: string } | null>(null);
   const [showCards, setShowCards] = useState(false);
   const [selectedCard, setSelectedCard] = useState<any>(null);
 
@@ -1459,6 +1465,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     const effects = ccActivateCard(card, turn, { scores, legWins }, undefined, { legHistory, legsNeeded });
     const nonInstant = effects.filter(e => !e.instant);
     if (nonInstant.length > 0) setActiveEffects(prev => [...prev, ...nonInstant]);
+    setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
     setChaosOptions(null);
     chaosResolvedKeyRef.current = `${turn}:${turnCounter}`;
   }, [turn, scores, legWins, legHistory, legsNeeded, turnCounter]);
@@ -1574,6 +1581,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     if (nonInstant.length > 0) {
       setActiveEffects(prev => [...prev, ...nonInstant]);
     }
+    setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
     cardDebugLog("CricketScorer", "Effects queued", { effects: effects.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`) });
     if (!cardsUsed.some((c: any) => c.id === card.id)) {
       setCardsUsed(prev => [...prev, card]);
@@ -2254,7 +2262,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} />
         ))}
       </div>
-      {isCardClash && <CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} />}
+      {isCardClash && <CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} lastActivation={lastActivation} />}
       {/* Cricket scorecard */}
       <SectionCard>
         <div className="grid" style={{ gridTemplateColumns: "1fr auto 1fr", gap: "0.15rem" }}>

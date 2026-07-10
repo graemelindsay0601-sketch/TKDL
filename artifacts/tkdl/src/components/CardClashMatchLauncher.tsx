@@ -122,7 +122,12 @@ export function CardClashMatchLauncher({
   const gameMode: GameEngine | null = selectedTile === "CHAOS" ? chaosEngine : selectedTile;
   const isChaos = selectedTile === "CHAOS";
 
-  const [matchLength, setMatchLength] = useState<1 | 3 | 5>(1);
+  const [formatMode, setFormatMode] = useState<"legs" | "sets">("legs");
+  const [selectedLegs, setSelectedLegs] = useState(1);
+  const [selectedSets, setSelectedSets] = useState({ sets: 3, legsPerSet: 3 });
+  const matchFormat = formatMode === "sets"
+    ? { legs: selectedSets.legsPerSet, setsToWin: selectedSets.sets, legsToWinSet: selectedSets.legsPerSet }
+    : { legs: selectedLegs, setsToWin: undefined as number | undefined, legsToWinSet: undefined as number | undefined };
   const [player1Cards, setPlayer1Cards] = useState<any[]>([]);
   const [player2Cards, setPlayer2Cards] = useState<any[]>([]);
   const [matchId, setMatchId] = useState<number | null>(null);
@@ -213,7 +218,9 @@ export function CardClashMatchLauncher({
     setSelectedPersona(null);
     setSelectedShadowId(null);
     setSelectedTile(null);
-    setMatchLength(1);
+    setFormatMode("legs");
+    setSelectedLegs(1);
+    setSelectedSets({ sets: 3, legsPerSet: 3 });
     setMatchId(null);
     setMatchError(null);
   };
@@ -549,39 +556,95 @@ export function CardClashMatchLauncher({
     );
   }
 
-  // ── STEP 3: Match Length ─────────────────────────────────────────────────
+  // ── STEP 3: Match Length (legs or sets, same picker as Practice) ────────
   if (step === "matchlength") {
-    const options: { value: 1 | 3 | 5; label: string; desc: string }[] = [
-      { value: 1, label: "Single Leg", desc: "First to win 1 leg" },
-      { value: 3, label: "Best of 3", desc: "First to 2 legs" },
-      { value: 5, label: "Best of 5", desc: "First to 3 legs" },
-    ];
     return (
       <div style={{ maxWidth: "520px" }}>
         <BackButton onClick={() => setStep("gamemode")} />
         <StepHeader label="MATCH LENGTH" sub={<>{isChaos ? `${gameMode} · Chaos Mode` : gameMode} vs <strong style={{ color: "#fff" }}>{opponentLabel}</strong></>} />
-        <div className="flex flex-col gap-2.5" style={{ marginBottom: "1.5rem" }}>
-          {options.map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => setMatchLength(opt.value)}
-              className="pdc-card transition-all"
+
+        <div className="flex gap-1 p-1 rounded-xl mb-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          {([
+            { key: "legs" as const, label: "Best of Legs" },
+            { key: "sets" as const, label: "Sets" },
+          ]).map(({ key, label }) => (
+            <button key={key} onClick={() => setFormatMode(key)}
+              className="flex-1 py-1.5 text-xs font-bold uppercase rounded-lg transition-all"
               style={{
-                padding: "16px 18px", cursor: "pointer", textAlign: "left",
-                borderColor: matchLength === opt.value ? D.gold : undefined,
-                background: matchLength === opt.value ? "rgba(255,210,74,0.08)" : undefined,
-                boxShadow: matchLength === opt.value ? `0 0 24px rgba(255,210,74,0.12)` : undefined,
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: 900, fontSize: "15px", color: matchLength === opt.value ? D.gold : "#fff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.03em" }}>{opt.label}</div>
-                <div style={{ fontSize: "11px", color: D.sub, marginTop: "2px" }}>{opt.desc}</div>
-              </div>
-              {matchLength === opt.value && <span style={{ color: D.gold, fontSize: "18px" }}>✓</span>}
+                fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", cursor: "pointer",
+                background: formatMode === key ? "rgba(255,210,74,0.15)" : "transparent",
+                color: formatMode === key ? D.gold : "rgba(255,255,255,0.3)",
+                border: formatMode === key ? "1px solid rgba(255,210,74,0.3)" : "1px solid transparent",
+              }}>
+              {label}
             </button>
           ))}
         </div>
+
+        {formatMode === "legs" ? (
+          <div style={{ marginBottom: "1.5rem" }}>
+            <div className="text-xs mb-3" style={{ color: D.sub, fontFamily: "Oswald, sans-serif" }}>
+              Best of how many legs?
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {[1, 3, 5, 7, 9, 11].map(n => (
+                <button key={n} onClick={() => setSelectedLegs(n)}
+                  className="px-4 py-2 rounded-lg text-sm font-black uppercase transition-all"
+                  style={{
+                    fontFamily: "Oswald, sans-serif", cursor: "pointer",
+                    background: selectedLegs === n ? "rgba(255,210,74,0.2)" : "rgba(255,255,255,0.04)",
+                    color: selectedLegs === n ? D.gold : "rgba(255,255,255,0.4)",
+                    border: selectedLegs === n ? `1px solid rgba(255,210,74,0.4)` : "1px solid rgba(255,255,255,0.07)",
+                  }}>
+                  {n === 1 ? "Single" : `BO${n}`}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4" style={{ marginBottom: "1.5rem" }}>
+            <div>
+              <div className="text-xs mb-2" style={{ color: D.sub, fontFamily: "Oswald, sans-serif" }}>Sets to win match</div>
+              <div className="flex gap-1.5 flex-wrap">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button key={n} onClick={() => setSelectedSets(s => ({ ...s, sets: n }))}
+                    className="w-10 h-10 rounded-lg text-sm font-black transition-all"
+                    style={{
+                      fontFamily: "Oswald, sans-serif", cursor: "pointer",
+                      background: selectedSets.sets === n ? "rgba(255,210,74,0.2)" : "rgba(255,255,255,0.04)",
+                      color: selectedSets.sets === n ? D.gold : "rgba(255,255,255,0.4)",
+                      border: selectedSets.sets === n ? `1px solid rgba(255,210,74,0.4)` : "1px solid rgba(255,255,255,0.07)",
+                    }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs mb-2" style={{ color: D.sub, fontFamily: "Oswald, sans-serif" }}>Legs per set</div>
+              <div className="flex gap-1.5 flex-wrap">
+                {[3, 5, 7].map(n => (
+                  <button key={n} onClick={() => setSelectedSets(s => ({ ...s, legsPerSet: n }))}
+                    className="w-10 h-10 rounded-lg text-sm font-black transition-all"
+                    style={{
+                      fontFamily: "Oswald, sans-serif", cursor: "pointer",
+                      background: selectedSets.legsPerSet === n ? "rgba(255,210,74,0.2)" : "rgba(255,255,255,0.04)",
+                      color: selectedSets.legsPerSet === n ? D.gold : "rgba(255,255,255,0.4)",
+                      border: selectedSets.legsPerSet === n ? `1px solid rgba(255,210,74,0.4)` : "1px solid rgba(255,255,255,0.07)",
+                    }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="col-span-2">
+              <div className="px-3 py-2 rounded-lg text-xs" style={{ background: "rgba(255,210,74,0.05)", border: "1px solid rgba(255,210,74,0.15)", color: D.sub, fontFamily: "Oswald, sans-serif" }}>
+                Best of {selectedSets.sets} sets · {selectedSets.legsPerSet} legs/set · First to {Math.ceil(selectedSets.sets / 2)} sets
+              </div>
+            </div>
+          </div>
+        )}
+
         {matchError && (
           <div style={{ marginBottom: "1rem", padding: "10px 14px", borderRadius: "10px", background: "rgba(255,68,68,0.1)", border: "1px solid rgba(255,68,68,0.3)", color: "#ff8080", fontSize: "13px" }}>
             {matchError}
@@ -660,7 +723,9 @@ export function CardClashMatchLauncher({
           onAbandon={handleAbandon}
           isBot={vsMode === "bot"}
           botConfig={resolvedBot?.config}
-          legs={matchLength}
+          legs={matchFormat.legs}
+          setsToWin={matchFormat.setsToWin}
+          legsToWinSet={matchFormat.legsToWinSet}
           chaosMode={isChaos}
         />
       </div>,
