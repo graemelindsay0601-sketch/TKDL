@@ -127,8 +127,14 @@ export const seasonalQuestService = {
         ),
       });
 
+      // Tracked separately from playerQuest itself, since playerQuest gets
+      // reassigned to the post-update row below — checking completed_at on
+      // that row afterward would always see it as already set.
+      let newlyCompleted = false;
+
       if (!playerQuest) {
         // Create if missing
+        const nowCompleted = incrementBy >= questDef.requirement_value;
         const [created] = await db
           .insert(playerSeasonalQuests)
           .values({
@@ -137,15 +143,16 @@ export const seasonalQuestService = {
             quest_id: questDef.id,
             quest_key: questKey,
             progress: incrementBy,
-            is_completed: incrementBy >= questDef.requirement_value,
-            completed_at:
-              incrementBy >= questDef.requirement_value ? new Date() : null,
+            is_completed: nowCompleted,
+            completed_at: nowCompleted ? new Date() : null,
           })
           .returning();
 
         playerQuest = created;
+        newlyCompleted = nowCompleted;
       } else {
         // Update progress
+        const wasCompleted = playerQuest.is_completed;
         const newProgress = (playerQuest.progress || 0) + incrementBy;
         const isCompleted = newProgress >= questDef.requirement_value;
 
@@ -154,18 +161,19 @@ export const seasonalQuestService = {
           .set({
             progress: newProgress,
             is_completed: isCompleted,
-            completed_at: isCompleted && !playerQuest.is_completed ? new Date() : playerQuest.completed_at,
+            completed_at: isCompleted && !wasCompleted ? new Date() : playerQuest.completed_at,
             updated_at: new Date(),
           })
           .where(eq(playerSeasonalQuests.id, playerQuest.id))
           .returning();
 
         playerQuest = updated;
+        newlyCompleted = isCompleted && !wasCompleted;
       }
 
       // If newly completed, award coins
       let coinsAwarded = 0;
-      if (playerQuest.is_completed && !playerQuest.completed_at) {
+      if (newlyCompleted) {
         coinsAwarded = questDef.reward_coins;
         await this.awardCoins(playerId, coinsAwarded);
       }

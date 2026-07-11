@@ -182,8 +182,14 @@ export const challengeService = {
         ),
       });
 
+      // Tracked separately from playerChallenge itself, since playerChallenge
+      // gets reassigned to the post-update row below — checking completed_at
+      // on that row afterward would always see it as already set.
+      let newlyCompleted = false;
+
       if (!playerChallenge) {
         // Create if missing
+        const nowCompleted = incrementBy >= challengeDef.requirement_value;
         const [created] = await db
           .insert(playerDailyChallenges)
           .values({
@@ -191,15 +197,16 @@ export const challengeService = {
             challenge_id: challengeDef.id,
             challenge_key: challengeKey,
             progress: incrementBy,
-            is_completed: incrementBy >= challengeDef.requirement_value,
-            completed_at:
-              incrementBy >= challengeDef.requirement_value ? new Date() : null,
+            is_completed: nowCompleted,
+            completed_at: nowCompleted ? new Date() : null,
           })
           .returning();
 
         playerChallenge = created;
+        newlyCompleted = nowCompleted;
       } else {
         // Update progress
+        const wasCompleted = playerChallenge.is_completed;
         const newProgress = (playerChallenge.progress || 0) + incrementBy;
         const isCompleted = newProgress >= challengeDef.requirement_value;
 
@@ -208,18 +215,19 @@ export const challengeService = {
           .set({
             progress: newProgress,
             is_completed: isCompleted,
-            completed_at: isCompleted && !playerChallenge.is_completed ? new Date() : playerChallenge.completed_at,
+            completed_at: isCompleted && !wasCompleted ? new Date() : playerChallenge.completed_at,
             updated_at: new Date(),
           })
           .where(eq(playerDailyChallenges.id, playerChallenge.id))
           .returning();
 
         playerChallenge = updated;
+        newlyCompleted = isCompleted && !wasCompleted;
       }
 
       // If newly completed, award coins
       let coinsAwarded = 0;
-      if (playerChallenge.is_completed && !playerChallenge.completed_at) {
+      if (newlyCompleted) {
         coinsAwarded = challengeDef.reward_coins;
         await this.awardCoins(playerId, coinsAwarded);
       }
@@ -269,8 +277,14 @@ export const challengeService = {
         ),
       });
 
+      // Tracked separately from playerChallenge itself, since playerChallenge
+      // gets reassigned to the post-update row below — checking completed_at
+      // on that row afterward would always see it as already set.
+      let newlyCompleted = false;
+
       if (!playerChallenge) {
         // Create if missing
+        const nowCompleted = incrementBy >= challengeDef.requirement_value;
         const [created] = await db
           .insert(playerWeeklyChallenges)
           .values({
@@ -278,16 +292,17 @@ export const challengeService = {
             challenge_id: challengeDef.id,
             challenge_key: challengeKey,
             progress: incrementBy,
-            is_completed: incrementBy >= challengeDef.requirement_value,
-            completed_at:
-              incrementBy >= challengeDef.requirement_value ? new Date() : null,
+            is_completed: nowCompleted,
+            completed_at: nowCompleted ? new Date() : null,
             week_number: weekNumber,
           })
           .returning();
 
         playerChallenge = created;
+        newlyCompleted = nowCompleted;
       } else {
         // Update progress
+        const wasCompleted = playerChallenge.is_completed;
         const newProgress = (playerChallenge.progress || 0) + incrementBy;
         const isCompleted = newProgress >= challengeDef.requirement_value;
 
@@ -296,18 +311,19 @@ export const challengeService = {
           .set({
             progress: newProgress,
             is_completed: isCompleted,
-            completed_at: isCompleted && !playerChallenge.is_completed ? new Date() : playerChallenge.completed_at,
+            completed_at: isCompleted && !wasCompleted ? new Date() : playerChallenge.completed_at,
             updated_at: new Date(),
           })
           .where(eq(playerWeeklyChallenges.id, playerChallenge.id))
           .returning();
 
         playerChallenge = updated;
+        newlyCompleted = isCompleted && !wasCompleted;
       }
 
       // If newly completed, award coins
       let coinsAwarded = 0;
-      if (playerChallenge.is_completed && !playerChallenge.completed_at) {
+      if (newlyCompleted) {
         coinsAwarded = challengeDef.reward_coins;
         await this.awardCoins(playerId, coinsAwarded);
       }
