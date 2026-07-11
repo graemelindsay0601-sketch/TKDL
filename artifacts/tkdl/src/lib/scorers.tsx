@@ -330,7 +330,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 }
 
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
-export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [] }: {
+export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange }: {
   p1Name: string; p2Name: string;
   config: { startingScore: number; doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; noTrebles?: boolean; legs?: number; bustResetTo?: number };
   botConfig?: BotConfig;
@@ -340,6 +340,8 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   setsToWin?: number;
   legsToWinSet?: number; soloMode?: boolean;
   cardEffects?: any[];
+  /** Card Clash: fires with every card activation (equip mode AND chaos mode, both players) for reward reporting. */
+  onCardsUsedChange?: (log: { cardId: string; usedBy: 0 | 1 }[]) => void;
 }) {
   const safeTimeout = useSafeTimeout();
   const { startingScore = 501, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo } = config;
@@ -364,11 +366,17 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [p1Cards, setP1Cards]         = useState<any[]>([]);
   const [p2Cards, setP2Cards]         = useState<any[]>([]);
   const [cardsUsed, setCardsUsed]     = useState<any[]>([]);
+  // Purpose-built log for reward reporting (separate from cardsUsed, which drives UI "already used" checks). Tracks every activation, equip-mode AND chaos.
+  const [cardActivationLog, setCardActivationLog] = useState<{ cardId: string; usedBy: 0 | 1 }[]>([]);
   const [isCardClash, setIsCardClash] = useState(false);
   const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
   const [lastActivation, setLastActivation] = useState<{ cardName: string; player: 0 | 1; key: string } | null>(null);
   const [showCards, setShowCards] = useState(false);
   const [selectedCard, setSelectedCard] = useState<any>(null);
+
+  useEffect(() => {
+    onCardsUsedChange?.(cardActivationLog);
+  }, [cardActivationLog]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Chaos Mode state (no equip — random mystery card dealt each visit)
   const [isChaosMode, setIsChaosMode] = useState(false);
@@ -806,6 +814,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       setActiveEffects(prev => [...prev, ...nonInstant]);
     }
     setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
+    setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
     
     // Mark card as permanently used (consumed for this match)
     if (!cardsUsed.some((c: any) => c.id === card.id)) {
@@ -987,6 +996,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     const nonInstant = effects.filter(e => !e.instant);
     if (nonInstant.length > 0) setActiveEffects(prev => [...prev, ...nonInstant]);
     setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
+    setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
     setChaosOptions(null);
     chaosResolvedKeyRef.current = `${turn}:${history.length}`;
   }, [turn, scores, legWins, legHistory, legsNeeded, history.length]);
@@ -1303,7 +1313,7 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
 const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
 
-export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3 }: {
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, onCardsUsedChange }: {
   p1Name: string; p2Name: string; cutThroat?: boolean; includesBull?: boolean; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
@@ -1311,6 +1321,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   legs?: number;
   setsToWin?: number;
   legsToWinSet?: number;
+  /** Card Clash: fires with every card activation (equip mode AND chaos mode, both players) for reward reporting. */
+  onCardsUsedChange?: (log: { cardId: string; usedBy: 0 | 1 }[]) => void;
 }) {
   const safeTimeout = useSafeTimeout();
   const numCount = includesBull ? 7 : 6;
@@ -1341,11 +1353,17 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [p1Cards, setP1Cards]         = useState<any[]>([]);
   const [p2Cards, setP2Cards]         = useState<any[]>([]);
   const [cardsUsed, setCardsUsed]     = useState<any[]>([]);
+  // Purpose-built log for reward reporting (separate from cardsUsed, which drives UI "already used" checks). Tracks every activation, equip-mode AND chaos.
+  const [cardActivationLog, setCardActivationLog] = useState<{ cardId: string; usedBy: 0 | 1 }[]>([]);
   const [isCardClash, setIsCardClash] = useState(false);
   const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
   const [lastActivation, setLastActivation] = useState<{ cardName: string; player: 0 | 1; key: string } | null>(null);
   const [showCards, setShowCards] = useState(false);
   const [selectedCard, setSelectedCard] = useState<any>(null);
+
+  useEffect(() => {
+    onCardsUsedChange?.(cardActivationLog);
+  }, [cardActivationLog]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Chaos Mode state (no equip — random mystery card dealt each visit)
   const [isChaosMode, setIsChaosMode] = useState(false);
@@ -1550,6 +1568,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     const nonInstant = effects.filter(e => !e.instant);
     if (nonInstant.length > 0) setActiveEffects(prev => [...prev, ...nonInstant]);
     setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
+    setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
     setChaosOptions(null);
     chaosResolvedKeyRef.current = `${turn}:${turnCounter}`;
   }, [turn, marks, scores, legHistory, legsNeeded, turnCounter, numCount, applyMarkGainRemoval]);
@@ -1666,6 +1685,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       setActiveEffects(prev => [...prev, ...nonInstant]);
     }
     setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
+    setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
     cardDebugLog("CricketScorer", "Effects queued", { effects: effects.map(e => `${e.cardName}→P${e.affectsPlayer}[${e.status}]`) });
     if (!cardsUsed.some((c: any) => c.id === card.id)) {
       setCardsUsed(prev => [...prev, card]);

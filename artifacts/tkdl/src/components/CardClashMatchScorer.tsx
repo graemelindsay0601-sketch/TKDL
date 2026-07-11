@@ -4,7 +4,7 @@
  * Card effects and UI already built into those scorers
  */
 
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { X01Scorer, CricketScorer } from "@/lib/scorers";
 import { ccActivateCard } from "@/lib/card-effect-engine";
 import type { GameResult } from "./game-scorer";
@@ -23,7 +23,7 @@ interface CardClashMatchScorerProps {
   gameMode: "X01" | "CRICKET";
   player1EquippedCards: EquippedCard[];
   player2EquippedCards: EquippedCard[];
-  onMatchComplete: (result: GameResult, cardsUsed: string[]) => void;
+  onMatchComplete: (result: GameResult, cardsUsed: { cardId: string; usedBy: 0 | 1 }[]) => void;
   onAbandon?: () => void;
   isBot: boolean;
   /** The chosen bot's actual stats (Level Bot / Play a Pro / Player Clone).
@@ -84,8 +84,25 @@ export function CardClashMatchScorer({
   // Cards should only activate when player clicks "Confirm"
   const cardEffects: any[] = [];
 
-  const handleMatchComplete = (result: GameResult) => {
-    onMatchComplete(result, []);
+  // Tracks every card activation (equip mode AND chaos mode, both players) so the
+  // real list can be reported on match completion instead of a hardcoded [].
+  const cardsUsedRef = useRef<{ cardId: string; usedBy: 0 | 1 }[]>([]);
+  const handleCardsUsedChange = (log: { cardId: string; usedBy: 0 | 1 }[]) => {
+    cardsUsedRef.current = log;
+  };
+
+  // IMPORTANT: X01Scorer/CricketScorer call onWin as onWin(winnerIdx, detail) —
+  // two separate positional args, NOT a single GameResult object. This was
+  // previously bound directly as onWin={handleMatchComplete} with a
+  // (result: GameResult) signature, which meant `result` was actually just
+  // the raw winnerIdx number at runtime. Downstream code reading
+  // `result.winnerIdx` on that number always got `undefined`, so the winner
+  // was silently always resolved to "the opponent" regardless of who
+  // actually won — every 2-player Card Clash match recorded the wrong
+  // winner. Fixed by matching the real (w: 0|1, detail?) signature here and
+  // constructing the GameResult object ourselves.
+  const handleMatchComplete = (winnerIdx: 0 | 1, detail?: string) => {
+    onMatchComplete({ winnerIdx, detail }, cardsUsedRef.current);
   };
 
   const handleAbandon = () => {
@@ -108,6 +125,7 @@ export function CardClashMatchScorer({
         legs={legs}
         setsToWin={setsToWin}
         legsToWinSet={legsToWinSet}
+        onCardsUsedChange={handleCardsUsedChange}
       />
     );
   } else {
@@ -122,6 +140,7 @@ export function CardClashMatchScorer({
         legs={legs}
         setsToWin={setsToWin}
         legsToWinSet={legsToWinSet}
+        onCardsUsedChange={handleCardsUsedChange}
       />
     );
   }

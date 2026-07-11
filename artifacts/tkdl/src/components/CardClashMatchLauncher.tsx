@@ -289,7 +289,7 @@ export function CardClashMatchLauncher({
     if (!ok) setStep("matchlength");
   };
 
-  const handleMatchComplete = async (result: GameResult, cardsUsed: string[]) => {
+  const handleMatchComplete = async (result: GameResult, cardsUsed: { cardId: string; usedBy: 0 | 1 }[]) => {
     if (vsMode === "bot") {
       // Practice vs CPU — no stakes, no DB persistence, matches prior behavior
       onMatchComplete();
@@ -300,10 +300,15 @@ export function CardClashMatchLauncher({
         console.error("Cannot finish match: matchId not set");
       } else {
         const winnerId = result.winnerIdx === 0 ? currentPlayerId : selectedOpponent!.id;
+        // Backend expects "cardId:pPlayerId" strings — map turn index (0|1) to the real player IDs
+        const cardsUsedInMatch = cardsUsed.map(c => {
+          const realPlayerId = c.usedBy === 0 ? currentPlayerId : selectedOpponent!.id;
+          return `${c.cardId}:p${realPlayerId}`;
+        });
         const res = await fetch("/api/card-clash/match/finish", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ matchId, winnerId, cardsUsedInMatch: cardsUsed }),
+          body: JSON.stringify({ matchId, winnerId, cardsUsedInMatch }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
