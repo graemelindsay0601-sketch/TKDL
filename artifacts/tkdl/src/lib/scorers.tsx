@@ -1462,13 +1462,97 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   // ── Chaos Mode: apply a revealed mystery card directly (no equip lookup) ──
   const handleChaosCardActivation = useCallback((card: CardData) => {
     cardDebugLog("CricketScorer", "Chaos card activated", { card: card.name });
-    const effects = ccActivateCard(card, turn, { scores, legWins }, undefined, { legHistory, legsNeeded });
+
+    // Same "called number" calculation as the equip-mode handler
+    let calledNumber: number | undefined;
+    for (let i = 0; i < numCount; i++) {
+      if (marks[turn][i] < 3) {
+        calledNumber = CRICKET_NUMS[i];
+        break;
+      }
+    }
+
+    const effects = ccActivateCard(card, turn, { marks, scores } as any, undefined, { legHistory, legsNeeded, calledNumber });
+
+    // Card Clash: Number Prison — randomly lock one of opponent's closed numbers
+    if (card.name === "Number Prison") {
+      const opp: 0|1 = turn === 0 ? 1 : 0;
+      const oppMarks = marks[opp];
+      const closedNumbers: number[] = [];
+      CRICKET_NUMS.forEach((num, idx) => {
+        if (oppMarks[idx] >= 3) closedNumbers.push(num);
+      });
+      if (closedNumbers.length > 0) {
+        const randomIdx = Math.floor(Math.random() * closedNumbers.length);
+        const lockedNum = closedNumbers[randomIdx];
+        setLockedNumbers(prev => {
+          const newLocked = [new Set(prev[0]), new Set(prev[1])] as [Set<number>, Set<number>];
+          newLocked[opp].add(lockedNum);
+          return newLocked;
+        });
+      }
+    }
+
+    // CARD CLASH: Momentum Killer (409) - remove marks gained by opponent last visit
+    if (card.name === "Momentum Killer") {
+      const opp: 0|1 = turn === 0 ? 1 : 0;
+      applyMarkGainRemoval(opp, "all");
+      cardDebugLog("CricketScorer", "[CARD_CLASH:MOMENTUM_KILLER]", { targetPlayer: opp });
+    }
+
+    // CARD CLASH: Streak Breaker (418) - halve marks if opponent gained 3+ last visit
+    if (card.name === "Streak Breaker") {
+      const opp: 0|1 = turn === 0 ? 1 : 0;
+      applyMarkGainRemoval(opp, "half");
+      cardDebugLog("CricketScorer", "[CARD_CLASH:STREAK_BREAKER]", { targetPlayer: opp });
+    }
+
+    // CARD CLASH: Win Bonus Removed (609) - strip opponent's momentum bonuses
+    if (card.name === "Win Bonus Removed") {
+      const opp: 0|1 = turn === 0 ? 1 : 0;
+      setActiveEffects(prev =>
+        prev.filter(e =>
+          e.affectsPlayer !== opp ||
+          !["Lucky Streak", "Momentum Surge", "Hot Hand"].includes(e.cardName)
+        )
+      );
+      cardDebugLog("CricketScorer", "[CARD_CLASH:WIN_BONUS_REMOVED]", { targetPlayer: opp });
+    }
+
+    effects.forEach(e => {
+      if (e.instant) {
+        if (e.instantCricketMarks) {
+          setMarks(prev => {
+            const newMarks = prev.map(row => [...row]) as typeof marks;
+            for (const markMutation of e.instantCricketMarks!) {
+              const currentMarks = newMarks[markMutation.playerIdx][markMutation.numberIdx];
+              if (markMutation.markDelta === -999) {
+                newMarks[markMutation.playerIdx][markMutation.numberIdx] = 0;
+              } else {
+                newMarks[markMutation.playerIdx][markMutation.numberIdx] = Math.min(3, currentMarks + markMutation.markDelta);
+              }
+            }
+            return newMarks;
+          });
+        }
+        setScores(prev => {
+          const n = [...prev] as [number, number];
+          if (e.instantScoreDelta) {
+            n[e.affectsPlayer] = Math.max(0, n[e.affectsPlayer] + e.instantScoreDelta);
+          }
+          if (e.instantP0Delta) n[0] = Math.max(0, n[0] + e.instantP0Delta);
+          if (e.instantP1Delta) n[1] = Math.max(0, n[1] + e.instantP1Delta);
+          return n;
+        });
+      }
+    });
+
     const nonInstant = effects.filter(e => !e.instant);
     if (nonInstant.length > 0) setActiveEffects(prev => [...prev, ...nonInstant]);
     setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
     setChaosOptions(null);
     chaosResolvedKeyRef.current = `${turn}:${turnCounter}`;
-  }, [turn, scores, legWins, legHistory, legsNeeded, turnCounter]);
+  }, [turn, marks, scores, legHistory, legsNeeded, turnCounter, numCount, applyMarkGainRemoval]);
 
   const handleChaosCardActivationRef = useRef(handleChaosCardActivation);
   handleChaosCardActivationRef.current = handleChaosCardActivation;
@@ -1492,10 +1576,10 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       }
     }
 
-    // NOTE: CricketScorer has no leg/match concept (single-leg game), so leg-conditioned
-    // Wildcard cards (Lucky Streak, Momentum Surge, etc.) correctly never trigger here —
-    // legHistory/legsNeeded are intentionally empty/zero, not a bug.
-    const effects = ccActivateCard(card, turn, { marks, scores } as any, undefined, { legHistory: [], legsNeeded: 0, calledNumber });
+    // NOTE: Cricket now supports multi-leg matches (Best of Legs / Sets), same as X01,
+    // so leg-conditioned Wildcard cards (Lucky Streak, Momentum Surge, etc.) use the
+    // real legHistory/legsNeeded here instead of the single-leg-only stub this used to be.
+    const effects = ccActivateCard(card, turn, { marks, scores } as any, undefined, { legHistory, legsNeeded, calledNumber });
     
     // Card Clash: Number Prison — randomly lock one of opponent's closed numbers
     if (card.name === "Number Prison") {
@@ -1586,7 +1670,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     if (!cardsUsed.some((c: any) => c.id === card.id)) {
       setCardsUsed(prev => [...prev, card]);
     }
-  }, [p1Cards, p2Cards, cardsUsed, turn, marks, scores]);
+  }, [p1Cards, p2Cards, cardsUsed, turn, marks, scores, legHistory, legsNeeded]);
 
   // Card Clash Practice: bot (player 2) plays its own cards intelligently on its turn
   useEffect(() => {
