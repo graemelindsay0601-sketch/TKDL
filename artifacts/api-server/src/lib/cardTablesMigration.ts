@@ -325,3 +325,61 @@ export async function initializeFeatureFlags() {
     // Don't throw - this is not critical
   }
 }
+
+/**
+ * Initialize the featured card shop tables (featured_card_shop, shop_purchase_history).
+ *
+ * These tables were defined in the Drizzle schema and had a migration function
+ * written for them (lib/db/src/migrations/featured-card-shop.ts), but that
+ * function was never actually called anywhere in the app's startup sequence —
+ * and it also had a broken relative import that meant it couldn't have run
+ * successfully even if it had been wired in. That's the real root cause of the
+ * featured shop always appearing empty: the table itself likely never existed
+ * in production, so every insert/select against it silently failed and got
+ * swallowed by the "non-critical" try/catch around rotateFeatureCards() in
+ * app.ts's init().
+ */
+export async function initializeFeaturedCardShopTables() {
+  try {
+    logger.info("Initializing featured card shop tables...");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS featured_card_shop (
+        id SERIAL PRIMARY KEY,
+        card_id INTEGER NOT NULL REFERENCES card_definitions(id),
+        slot_number INTEGER NOT NULL,
+        price_coins INTEGER NOT NULL,
+        rotation_date TIMESTAMP WITH TIME ZONE NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS shop_purchase_history (
+        id SERIAL PRIMARY KEY,
+        player_id INTEGER NOT NULL REFERENCES players(id),
+        card_id INTEGER NOT NULL REFERENCES card_definitions(id),
+        slot_number INTEGER NOT NULL,
+        price_coins INTEGER NOT NULL,
+        purchased_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    const indexes = [
+      sql`CREATE INDEX IF NOT EXISTS idx_featured_card_shop_rotation_date ON featured_card_shop(rotation_date)`,
+      sql`CREATE INDEX IF NOT EXISTS idx_featured_card_shop_is_active ON featured_card_shop(is_active)`,
+      sql`CREATE INDEX IF NOT EXISTS idx_shop_purchase_history_player_id ON shop_purchase_history(player_id)`,
+      sql`CREATE INDEX IF NOT EXISTS idx_shop_purchase_history_purchased_at ON shop_purchase_history(purchased_at)`,
+    ];
+    for (const idx of indexes) {
+      try { await db.execute(idx); } catch (e) { logger.warn({ e }, "Featured shop index creation skipped (may already exist)"); }
+    }
+
+    logger.info("Featured card shop tables initialized successfully");
+  } catch (error) {
+    logger.error({ error }, "Failed to initialize featured card shop tables");
+    // Don't throw — featured shop is not critical for app startup
+  }
+}

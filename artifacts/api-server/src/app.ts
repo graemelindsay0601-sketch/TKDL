@@ -14,7 +14,7 @@ import { maybeAutoResetSeason } from "./lib/seasonReset";
 import { addPerformanceIndexes } from "./db/migrations/add_performance_indexes";
 import { seedTourSystem } from "./lib/tourSeed";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
-import { initializeCardTables, initializeFeatureFlags } from "./lib/cardTablesMigration";
+import { initializeCardTables, initializeFeatureFlags, initializeFeaturedCardShopTables } from "./lib/cardTablesMigration";
 import { addFavoritesColumn } from "./db/migrations/add_favorites";
 import { addAchievementRewards } from "./db/migrations/add_achievement_rewards";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
@@ -753,6 +753,7 @@ async function init() {
     await initializeCardTables();
     await initializeFeatureFlags();
     await seedCardDefinitions();
+    await initializeFeaturedCardShopTables();
     
     // Initialize featured card shop - rotate featured cards daily
     try {

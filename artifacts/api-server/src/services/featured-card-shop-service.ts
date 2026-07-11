@@ -27,19 +27,15 @@ export async function getTodaysFeaturedCards() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const featured = await db
+  const rows = await db
     .select({
       id: featuredCardShopTable.id,
       cardId: featuredCardShopTable.cardId,
       slotNumber: featuredCardShopTable.slotNumber,
       priceCoins: featuredCardShopTable.priceCoins,
-      card: {
-        id: cardDefinitionsTable.id,
-        name: cardDefinitionsTable.name,
-        rarity: cardDefinitionsTable.rarity,
-        icon: cardDefinitionsTable.icon,
-        category: cardDefinitionsTable.category,
-      },
+      name: cardDefinitionsTable.name,
+      rarity: cardDefinitionsTable.rarity,
+      imageUrl: cardDefinitionsTable.imageUrl,
     })
     .from(featuredCardShopTable)
     .leftJoin(
@@ -54,7 +50,18 @@ export async function getTodaysFeaturedCards() {
     )
     .orderBy(featuredCardShopTable.slotNumber);
 
-  return featured;
+  // Frontend expects a flat shape (id, cardId, name, rarity, priceCoins, imageUrl)
+  // directly on each item — not nested under a `card` sub-object.
+  return rows.map(r => ({
+    id: r.id,
+    cardId: r.cardId,
+    slotNumber: r.slotNumber,
+    priceCoins: r.priceCoins,
+    name: r.name,
+    cardName: r.name,
+    rarity: r.rarity,
+    imageUrl: r.imageUrl,
+  }));
 }
 
 /**
@@ -263,6 +270,37 @@ export async function getShopPurchaseHistory(limit: number = 100) {
     )
     .orderBy(sql`${shopPurchaseHistoryTable.purchasedAt} DESC`)
     .limit(limit);
+}
+
+/**
+ * Get shop statistics for auditing
+ */
+export async function getShopStatistics() {
+  const totalPurchases = await db
+    .select({ count: sql`COUNT(*)` })
+    .from(shopPurchaseHistoryTable);
+
+  const coinsSpent = await db
+    .select({ total: sql`SUM(${shopPurchaseHistoryTable.priceCoins})` })
+    .from(shopPurchaseHistoryTable);
+
+  const cardDistribution = await db
+    .select({
+      rarity: cardDefinitionsTable.rarity,
+      count: sql`COUNT(*)`,
+    })
+    .from(shopPurchaseHistoryTable)
+    .leftJoin(
+      cardDefinitionsTable,
+      eq(shopPurchaseHistoryTable.cardId, cardDefinitionsTable.id)
+    )
+    .groupBy(cardDefinitionsTable.rarity);
+
+  return {
+    totalPurchases: totalPurchases[0]?.count || 0,
+    totalCoinsSpent: coinsSpent[0]?.total || 0,
+    purchasesByRarity: cardDistribution,
+  };
 }
 
 /**
