@@ -204,33 +204,77 @@ export async function purchaseFeaturedCard(
       };
     }
 
-    // Get card details
+    // Get card details (including its real UUID cardId — the inventory table
+    // keys on cardDefinitionsTable.cardId, NOT cardDefinitionsTable.id, which
+    // is what this function's `cardId` parameter and featuredCardShopTable
+    // actually store. Using the wrong one here previously made every single
+    // featured-card purchase fail at the inventory insert step with a
+    // Postgres "invalid input syntax for type uuid" error — after coins had
+    // already been deducted, since none of this was wrapped in a transaction.)
     const [card] = await db
       .select()
       .from(cardDefinitionsTable)
       .where(eq(cardDefinitionsTable.id, cardId));
 
-    // Deduct coins
-    await db
-      .update(playerCurrencyTable)
-      .set({
-        cardPoints: (playerCurrency.cardPoints || 0) - featured.priceCoins,
-        updatedAt: new Date(),
-      })
-      .where(eq(playerCurrencyTable.playerId, playerId));
+    if (!card) {
+      return { success: false, message: "Card definition not found" };
+    }
 
-    // Give card to player
-    await db.insert(cardInventoryTable).values({
-      playerId,
-      cardId,
-    });
+    // Wrap the coin deduction, inventory update, and purchase-history record
+    // in a single transaction — if anything fails partway through, everything
+    // rolls back together instead of leaving the player's coins gone with no
+    // card delivered.
+    await db.transaction(async (tx) => {
+      // Deduct coins
+      await tx
+        .update(playerCurrencyTable)
+        .set({
+          cardPoints: (playerCurrency.cardPoints || 0) - featured.priceCoins,
+          updatedAt: new Date(),
+        })
+        .where(eq(playerCurrencyTable.playerId, playerId));
 
-    // Record purchase in history (for auditing)
-    await db.insert(shopPurchaseHistoryTable).values({
-      playerId,
-      cardId,
-      slotNumber: featured.slotNumber,
-      priceCoins: featured.priceCoins,
+      // Give card to player — cards are consumed on use during a match, so
+      // players are meant to be able to stack multiple of the same card for
+      // future matches. If they already own this card, increment quantity
+      // instead of erroring on the unique (player_id, card_id) constraint.
+      const [existing] = await tx
+        .select()
+        .from(cardInventoryTable)
+        .where(
+          and(
+            eq(cardInventoryTable.playerId, playerId),
+            eq(cardInventoryTable.cardId, card.cardId)
+          )
+        )
+        .limit(1);
+
+      if (existing) {
+        await tx
+          .update(cardInventoryTable)
+          .set({ quantity: existing.quantity + 1, updatedAt: new Date() })
+          .where(
+            and(
+              eq(cardInventoryTable.playerId, playerId),
+              eq(cardInventoryTable.cardId, card.cardId)
+            )
+          );
+      } else {
+        await tx.insert(cardInventoryTable).values({
+          playerId,
+          cardId: card.cardId,
+          quantity: 1,
+        });
+      }
+
+      // Record purchase in history (for auditing) — this uses the integer
+      // card_definitions.id, matching shopPurchaseHistoryTable's schema.
+      await tx.insert(shopPurchaseHistoryTable).values({
+        playerId,
+        cardId,
+        slotNumber: featured.slotNumber,
+        priceCoins: featured.priceCoins,
+      });
     });
 
     logger.info(
