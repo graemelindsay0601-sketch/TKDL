@@ -4,6 +4,7 @@ import {
   cardClashStandingsTable,
   cardClashSeasonsTable,
   cardInventoryTable,
+  cardDefinitionsTable,
 } from "@workspace/db";
 import { eq, and, or, leftJoin, desc, sql } from "drizzle-orm";
 import { addCoinsToPlayer, removeCardFromPlayer } from "./card-shop-service";
@@ -20,6 +21,31 @@ const COIN_REWARDS = {
   LOSS_BASE: 25,
   PER_CARD_USED: 10,
 };
+
+/**
+ * The Card Clash equip screen, match scorer, and cardsUsedInMatch log all
+ * track cards by cardDefinitionsTable.id (an integer) — but the actual
+ * inventory table (player_card_inventory) keys on cardDefinitionsTable.cardId
+ * (a separate UUID field). Without this resolution step, removeCardFromPlayer
+ * was being asked to find a UUID matching an integer string, which never
+ * matched anything — so cards used in a match were never actually being
+ * removed from inventory. Falls back to matching by card name if the value
+ * isn't a parseable integer (matches the fallback used when logging card
+ * usage client-side, in case `card.id` was ever missing).
+ */
+async function resolveCardUuid(cardIdOrName: string): Promise<string | null> {
+  const asInt = parseInt(cardIdOrName, 10);
+  const [card] = await db
+    .select({ cardId: cardDefinitionsTable.cardId })
+    .from(cardDefinitionsTable)
+    .where(
+      !isNaN(asInt)
+        ? eq(cardDefinitionsTable.id, asInt)
+        : eq(cardDefinitionsTable.name, cardIdOrName)
+    )
+    .limit(1);
+  return card?.cardId ?? null;
+}
 
 async function ensureSeasonSchema() {
   for (const alter of [
@@ -294,7 +320,12 @@ export async function finishCardClashMatch(
   // Consume cards (remove from inventory)
   for (const card of cardsUsed) {
     try {
-      await removeCardFromPlayer(card.usedBy, card.cardId, 1);
+      const realCardId = await resolveCardUuid(card.cardId);
+      if (!realCardId) {
+        logger.warn(`Could not resolve card "${card.cardId}" to a real card definition — skipping consumption`);
+        continue;
+      }
+      await removeCardFromPlayer(card.usedBy, realCardId, 1);
     } catch (e) {
       logger.error(`Failed to consume card ${card.cardId} for player ${card.usedBy}:`, e);
     }
@@ -393,15 +424,20 @@ export async function deleteCardClashMatch(matchId: number) {
   // Return cards to inventory
   const cardsUsed = JSON.parse(match[0].cardsUsedInMatch as string);
   for (const cardUsage of cardsUsed) {
+    const realCardId = await resolveCardUuid(cardUsage.cardId);
+    if (!realCardId) {
+      logger.warn(`Could not resolve card "${cardUsage.cardId}" while reverting match ${matchId} — skipping return to inventory`);
+      continue;
+    }
     await db
       .update(cardInventoryTable)
       .set({
-        quantity: cardInventoryTable.quantity + 1,
+        quantity: sql`${cardInventoryTable.quantity} + 1`,
       })
       .where(
         and(
           eq(cardInventoryTable.playerId, cardUsage.usedBy),
-          eq(cardInventoryTable.cardId, cardUsage.cardId)
+          eq(cardInventoryTable.cardId, realCardId)
         )
       );
   }
