@@ -55,6 +55,7 @@ const D = {
   cyan:    "#00d4ff",
   green:   "#00cc66",
   chaos:   "#f472b6",
+  chaosLab: "#a78bfa",
 };
 
 function PrimaryButton({ disabled, onClick, children }: { disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -117,10 +118,15 @@ export function CardClashMatchLauncher({
   const [selectedShadowId, setSelectedShadowId] = useState<number | null>(null);
   const [shadowProfiles, setShadowProfiles] = useState<Record<number, ShadowProfileResult>>({});
 
-  const [selectedTile, setSelectedTile] = useState<GameEngine | "CHAOS" | null>(null);
+  const [selectedTile, setSelectedTile] = useState<GameEngine | "CHAOS" | "CHAOS_LAB" | null>(null);
   const [chaosEngine, setChaosEngine] = useState<GameEngine>("X01");
-  const gameMode: GameEngine | null = selectedTile === "CHAOS" ? chaosEngine : selectedTile;
+  const [chaosLabEngine, setChaosLabEngine] = useState<GameEngine>("X01");
+  const gameMode: GameEngine | null =
+    selectedTile === "CHAOS" ? chaosEngine :
+    selectedTile === "CHAOS_LAB" ? chaosLabEngine :
+    selectedTile;
   const isChaos = selectedTile === "CHAOS";
+  const isChaosLab = selectedTile === "CHAOS_LAB";
 
   const [formatMode, setFormatMode] = useState<"legs" | "sets">("legs");
   const [selectedLegs, setSelectedLegs] = useState(1);
@@ -554,6 +560,48 @@ export function CardClashMatchLauncher({
           )}
         </div>
 
+        <div
+          onClick={() => setSelectedTile("CHAOS_LAB")}
+          className="pdc-card p-3 cursor-pointer transition-all relative overflow-hidden"
+          style={{
+            marginBottom: "1.5rem",
+            borderColor: isChaosLab ? D.chaosLab : "rgba(124,58,237,0.35)",
+            background: isChaosLab ? "rgba(124,58,237,0.1)" : "rgba(124,58,237,0.04)",
+            boxShadow: isChaosLab ? `0 0 18px rgba(124,58,237,0.18)` : undefined,
+          }}
+        >
+          {isChaosLab && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: D.chaosLab }} />}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-sm flex items-center gap-1.5" style={{ fontFamily: "Oswald, sans-serif", color: isChaosLab ? "#fff" : "rgba(255,255,255,0.8)", letterSpacing: "0.05em" }}>
+                ⚡ Chaos Lab <span style={{ fontSize: "9px", fontWeight: 900, color: D.chaosLab, background: "rgba(124,58,237,0.15)", padding: "1px 6px", borderRadius: "999px", letterSpacing: "0.08em" }}>EXPERIMENTAL</span>
+              </div>
+              <div className="text-xs mt-0.5 leading-tight" style={{ color: "rgba(255,255,255,0.35)" }}>
+                Mystery cards can mark the board — hot, cold, trapped, or shielded targets change the game without touching your score
+              </div>
+            </div>
+          </div>
+          {isChaosLab && (
+            <div className="flex gap-1.5 mt-2" onClick={e => e.stopPropagation()}>
+              {(["X01", "CRICKET"] as const).map(eng => (
+                <button
+                  key={eng}
+                  onClick={() => setChaosLabEngine(eng)}
+                  className="px-3 py-1 text-xs font-bold rounded-lg transition-all"
+                  style={{
+                    fontFamily: "Oswald, sans-serif", cursor: "pointer",
+                    background: chaosLabEngine === eng ? D.chaosLab : "rgba(124,58,237,0.1)",
+                    color: chaosLabEngine === eng ? "#fff" : D.chaosLab,
+                    border: "1px solid rgba(124,58,237,0.4)",
+                  }}
+                >
+                  {eng === "X01" ? "X01" : "Cricket"}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <PrimaryButton disabled={!selectedTile} onClick={() => selectedTile && setStep("matchlength")}>
           Next — Match Length →
         </PrimaryButton>
@@ -566,7 +614,7 @@ export function CardClashMatchLauncher({
     return (
       <div style={{ maxWidth: "520px" }}>
         <BackButton onClick={() => setStep("gamemode")} />
-        <StepHeader label="MATCH LENGTH" sub={<>{isChaos ? `${gameMode} · Chaos Mode` : gameMode} vs <strong style={{ color: "#fff" }}>{opponentLabel}</strong></>} />
+        <StepHeader label="MATCH LENGTH" sub={<>{isChaos ? `${gameMode} · Chaos Mode` : isChaosLab ? `${gameMode} · Chaos Lab` : gameMode} vs <strong style={{ color: "#fff" }}>{opponentLabel}</strong></>} />
 
         <div className="flex gap-1 p-1 rounded-xl mb-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
           {([
@@ -655,13 +703,15 @@ export function CardClashMatchLauncher({
             {matchError}
           </div>
         )}
-        {isChaos ? (
+        {(isChaos || isChaosLab) ? (
           <>
-            <div style={{ marginBottom: "1rem", padding: "10px 14px", borderRadius: "10px", background: "rgba(244,114,182,0.06)", border: "1px solid rgba(244,114,182,0.2)", color: "rgba(255,255,255,0.4)", fontSize: "12px", fontFamily: "Oswald, sans-serif" }}>
-              🎲 No pre-match equipping — at the start of every visit you'll get 3 face-down cards. Pick one to reveal and it applies instantly.
+            <div style={{ marginBottom: "1rem", padding: "10px 14px", borderRadius: "10px", background: isChaosLab ? "rgba(124,58,237,0.06)" : "rgba(244,114,182,0.06)", border: `1px solid ${isChaosLab ? "rgba(124,58,237,0.2)" : "rgba(244,114,182,0.2)"}`, color: "rgba(255,255,255,0.4)", fontSize: "12px", fontFamily: "Oswald, sans-serif" }}>
+              {isChaosLab
+                ? "🎲 No pre-match equipping — at the start of every visit you'll get 3 face-down cards, some of which can mark the board itself. Your score is never affected — only what Card Clash effects can do next."
+                : "🎲 No pre-match equipping — at the start of every visit you'll get 3 face-down cards. Pick one to reveal and it applies instantly."}
             </div>
             <PrimaryButton disabled={startingChaos} onClick={handleStartChaos}>
-              {startingChaos ? "Starting…" : "Start Chaos Match →"}
+              {startingChaos ? "Starting…" : isChaosLab ? "Start Chaos Lab Match →" : "Start Chaos Match →"}
             </PrimaryButton>
           </>
         ) : (
@@ -732,6 +782,7 @@ export function CardClashMatchLauncher({
           setsToWin={matchFormat.setsToWin}
           legsToWinSet={matchFormat.legsToWinSet}
           chaosMode={isChaos}
+          chaosLabMode={isChaosLab}
         />
       </div>,
       document.body

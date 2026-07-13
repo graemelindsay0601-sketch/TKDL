@@ -17,6 +17,10 @@ export interface CardData {
   flavourText: string;
   energyCost?: number;
   artworkUrl?: string;
+  /** Cards flagged for a specific mode are exclusive to it — never added to
+   *  card_definitions in the backend, so they're never purchasable, packable,
+   *  or equippable. Currently only "chaos_lab" uses this. */
+  mode?: "chaos_lab";
 }
 
 export const ALL_CARDS: CardData[] = [
@@ -131,6 +135,14 @@ export const ALL_CARDS: CardData[] = [
   { id: 608, name: "Underdog Curse", category: "WILDCARD BAD", rarity: "COMMON", effect: "If target is ahead, all their darts score at 0.8x value this leg.", flavourText: "The lead is a burden.", energyCost: 1 },
   { id: 609, name: "Win Bonus Removed", category: "WILDCARD BAD", rarity: "COMMON", effect: "If target won last leg, they lose that momentum bonus.", flavourText: "What you earned doesn't last.", energyCost: 1 },
   { id: 610, name: "Shutdown", category: "WILDCARD BAD", rarity: "RARE", effect: "Target's leg capped at 50 points (X01) or 2 numbers max (Cricket).", flavourText: "Hard stop.", energyCost: 2 },
+
+  // ── CHAOS LAB — Board Marks v1 prototype cards (4) ──────────────────────────
+  // Exclusive to the Chaos Lab mode's mystery-card pool. Never appear in packs,
+  // the shop, or the equip screen — see lib/card-clash/boardMarks.
+  { id: 701, name: "Hot Bull", category: "WILDCARD GOOD", rarity: "RARE", effect: "Marks Bull as Hot. The next player to hit Bull triggers a bonus event — Bull still scores normally.", flavourText: "The middle of the board just got interesting.", mode: "chaos_lab" },
+  { id: 702, name: "Cold 20s", category: "WILDCARD BAD", rarity: "RARE", effect: "Marks the 20 bed Cold against your opponent — their darts on 20 still score, but can't trigger Card Clash effects until their visit ends.", flavourText: "The board goes quiet where they need it loud.", mode: "chaos_lab" },
+  { id: 703, name: "Trap T20", category: "WILDCARD BAD", rarity: "RARE", effect: "Traps T20 against your opponent — if they hit it, they still score 60, but their Card Clash trigger from that dart is cancelled. Trap is removed once sprung.", flavourText: "The best route is the one they don't see coming.", mode: "chaos_lab" },
+  { id: 704, name: "Shield D16", category: "WILDCARD GOOD", rarity: "RARE", effect: "Shields D16 for you — enemy Cold and Trap marks can't be placed there until your next visit ends. Checking out on D16 is unaffected.", flavourText: "Some doors don't open for anyone else.", mode: "chaos_lab" },
 ];
 
 /**
@@ -156,6 +168,39 @@ function isGoodCard(card: CardData): boolean {
 /** Draw 3 random mystery cards for Chaos Mode: each drawn 50/50 good vs bad, no duplicates. */
 export function drawChaosOptions(gameType: "X01" | "CRICKET", count = 3): CardData[] {
   const pool = getChaosCardPool(gameType);
+  const good = pool.filter(isGoodCard);
+  const bad = pool.filter((c) => !isGoodCard(c));
+  const used = new Set<number>();
+  const options: CardData[] = [];
+  let attempts = 0;
+  while (options.length < count && attempts < count * 20) {
+    attempts++;
+    const wantGood = Math.random() < 0.5;
+    const source = wantGood ? good : bad;
+    if (source.length === 0) continue;
+    const card = source[Math.floor(Math.random() * source.length)];
+    if (used.has(card.id)) continue;
+    used.add(card.id);
+    options.push(card);
+  }
+  return options;
+}
+
+/**
+ * Chaos Lab's card pool: the normal chaos pool (X01 or Cricket, plus
+ * wildcards) with the Board Marks prototype cards mixed in. Board Marks
+ * cards work identically on both engines (they mark physical board
+ * segments, not X01- or Cricket-specific mechanics), so all 4 are always
+ * included regardless of gameType.
+ */
+export function getChaosLabCardPool(gameType: "X01" | "CRICKET"): CardData[] {
+  const boardMarkCards = ALL_CARDS.filter((c) => c.mode === "chaos_lab");
+  return [...getChaosCardPool(gameType), ...boardMarkCards];
+}
+
+/** Same draw mechanics as drawChaosOptions, but from Chaos Lab's mixed pool. Regular Chaos Mode is untouched by this. */
+export function drawChaosLabOptions(gameType: "X01" | "CRICKET", count = 3): CardData[] {
+  const pool = getChaosLabCardPool(gameType);
   const good = pool.filter(isGoodCard);
   const bad = pool.filter((c) => !isGoodCard(c));
   const used = new Set<number>();

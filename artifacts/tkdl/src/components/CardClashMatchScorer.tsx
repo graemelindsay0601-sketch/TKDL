@@ -35,6 +35,10 @@ interface CardClashMatchScorerProps {
   /** Chaos Mode: no pre-match equipping — 3 face-down mystery cards are
    *  dealt every visit instead. When true, equipped cards are ignored. */
   chaosMode?: boolean;
+  /** Chaos Lab (Board Marks v1): a separate mode from Chaos Mode — mystery
+   *  cards mix in Board Mark cards (Hot/Cold/Trap/Shield) alongside the
+   *  normal chaos pool. Also skips pre-match equipping. */
+  chaosLabMode?: boolean;
 }
 
 export function CardClashMatchScorer({
@@ -53,18 +57,21 @@ export function CardClashMatchScorer({
   setsToWin = 0,
   legsToWinSet = 3,
   chaosMode = false,
+  chaosLabMode = false,
 }: CardClashMatchScorerProps) {
   
   // Set sessionStorage BEFORE rendering scorers (not in useEffect)
   // This ensures scorers see the flag when they mount
   if (typeof window !== "undefined") {
     sessionStorage.setItem("card_clash_mode", "true");
-    if (chaosMode) {
-      sessionStorage.setItem("card_clash_chaos_mode", "true");
+    if (chaosMode || chaosLabMode) {
+      sessionStorage.setItem("card_clash_chaos_mode", chaosMode ? "true" : "false");
+      sessionStorage.setItem("card_clash_chaos_lab_mode", chaosLabMode ? "true" : "false");
       sessionStorage.setItem("card_clash_p1_cards", "[]");
       sessionStorage.setItem("card_clash_p2_cards", "[]");
     } else {
       sessionStorage.removeItem("card_clash_chaos_mode");
+      sessionStorage.removeItem("card_clash_chaos_lab_mode");
       sessionStorage.setItem("card_clash_p1_cards", JSON.stringify(player1EquippedCards));
       sessionStorage.setItem("card_clash_p2_cards", JSON.stringify(player2EquippedCards));
     }
@@ -75,6 +82,7 @@ export function CardClashMatchScorer({
     return () => {
       sessionStorage.removeItem("card_clash_mode");
       sessionStorage.removeItem("card_clash_chaos_mode");
+      sessionStorage.removeItem("card_clash_chaos_lab_mode");
       sessionStorage.removeItem("card_clash_p1_cards");
       sessionStorage.removeItem("card_clash_p2_cards");
     };

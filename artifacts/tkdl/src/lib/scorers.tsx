@@ -11,7 +11,16 @@ import { CardActivationOverlay } from "@/components/CardActivationOverlay";
 import { ChaosCardReveal } from "@/components/ChaosCardReveal";
 import { TKDLCard } from "@/components/TKDLCard";
 import { EquipCardDisplay } from "@/components/EquipCardDisplay";
-import { drawChaosOptions, ALL_CARDS, type CardData } from "./cards-data";
+import { drawChaosOptions, drawChaosLabOptions, ALL_CARDS, type CardData } from "./cards-data";
+import {
+  type BoardMark,
+  resolveBoardMarksForDart,
+  expireBoardMarksForVisitEnd,
+  placeBoardMark,
+  createBoardMarkFromPrototypeCard,
+  BOARD_MARK_CARD_ID_MAP,
+  toBoardMarkDartResult,
+} from "./card-clash/boardMarks";
 import { cardDebugLog } from "./card-debug";
 import { calculateX01CardEffect, applyX01Effect, formatCardEffectDisplay } from "./x01-card-effects";
 import { calculateCricketCardEffect, applyCricketEffect, formatCricketEffectDisplay } from "./cricket-card-effects";
@@ -292,6 +301,39 @@ function CCEffectsHUD({ effects, names, lastActivation }: {
   );
 }
 
+/** Chaos Lab: shows currently active Board Marks as small badges — target, type, and who placed it. Read-only, purely informational. */
+function BoardMarksHUD({ marks, names }: { marks: BoardMark[]; names: [string, string] }) {
+  if (marks.length === 0) return null;
+  const ICON: Record<BoardMark["type"], string> = { hot: "\u{1F525}", cold: "\u2744\uFE0F", trap: "\u26A0\uFE0F", shield: "\u{1F6E1}\uFE0F" };
+  const COLOR: Record<BoardMark["type"], string> = { hot: "#ff8a3d", cold: "#5ec8ff", trap: "#ffcc4d", shield: "#7cf29c" };
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-1.5">
+      {marks.map((m) => {
+        const label = m.target.type === "bull" ? "Bull"
+          : m.target.type === "number" ? `${m.target.value} bed`
+          : m.target.type === "treble" ? `T${m.target.value}`
+          : `D${m.target.value}`;
+        const ownerIdx = Number(m.ownerPlayerId) === 0 ? 0 : 1;
+        return (
+          <div
+            key={m.id}
+            title={`${m.type} on ${label} \u2014 placed by ${names[ownerIdx]}`}
+            style={{
+              fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em",
+              padding: "2px 8px", borderRadius: "999px", fontFamily: "Oswald, sans-serif",
+              color: COLOR[m.type],
+              background: `${COLOR[m.type]}1f`,
+              border: `1px solid ${COLOR[m.type]}55`,
+            }}
+          >
+            {ICON[m.type]} {label}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Full-height layout: portrait = top/bottom stack; landscape = left/right split */
 function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode }) {
   const landscape = useOrientation();
@@ -382,6 +424,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [isChaosMode, setIsChaosMode] = useState(false);
   const [chaosOptions, setChaosOptions] = useState<CardData[] | null>(null);
   const chaosResolvedKeyRef = useRef<string>("");
+
+  // Chaos Lab state (Board Marks v1) — a separate mode from regular Chaos Mode,
+  // never required by Standard Card Clash or existing Chaos Mode.
+  const [isChaosLabMode, setIsChaosLabMode] = useState(false);
+  const [activeBoardMarks, setActiveBoardMarks] = useState<BoardMark[]>([]);
+  const boardMarkVisitEndKeyRef = useRef<string>("");
 
   const names = [p1Name, p2Name];
 
@@ -590,6 +638,25 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       dart = ccPreprocessDart(dart, visitDarts.length, effectsForDart, turn, scores[turn]);
     }
 
+    // Chaos Lab: resolve Board Marks against this dart. Read-only with respect
+    // to scoring — only ever updates activeBoardMarks and surfaces a toast.
+    // Runs on the real, already-preprocessed dart, and never influences cum/
+    // nv/rem below in any way.
+    if (isCardClash && isChaosLabMode && activeBoardMarks.length > 0) {
+      const dartResult = toBoardMarkDartResult(dart, String(turn));
+      const resolved = resolveBoardMarksForDart(activeBoardMarks, { dartResult });
+      if (resolved.events.length > 0) {
+        setActiveBoardMarks(resolved.marks);
+        const hot = resolved.events.find(e => e.type === "board_mark_hot_triggered");
+        const cold = resolved.events.find(e => e.type === "card_clash_trigger_blocked_by_cold_mark");
+        const trap = resolved.events.find(e => e.type === "card_clash_trigger_cancelled_by_trap_mark");
+        if (hot) setLastActivation({ cardName: "🔥 Hot triggered!", player: turn as 0 | 1, key: `boardmark-hot-${Date.now()}` });
+        else if (trap) setLastActivation({ cardName: "⚠️ Trap sprung!", player: turn as 0 | 1, key: `boardmark-trap-${Date.now()}` });
+        else if (cold) setLastActivation({ cardName: "❄️ Blocked by Cold", player: turn as 0 | 1, key: `boardmark-cold-${Date.now()}` });
+        cardDebugLog("X01Scorer", "[CHAOS_LAB] Board Mark events", resolved.events);
+      }
+    }
+
     const nv = [...visitDarts, dart];
     let cum = nv.reduce((s, d) => s + d.value, 0);
     // Card Clash: apply visit-total cap (Mercy Killer=60, Shutdown=50)
@@ -742,7 +809,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       if (isCardClash) setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
       setTurn(t => soloMode ? 0 : (t===0?1:0));
     }
-  }, [bust, visitDarts, turn, started, doubleIn, scores, legWins, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut, noTrebles, isCardClash, activeEffects]);
+  }, [bust, visitDarts, turn, started, doubleIn, scores, legWins, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut, noTrebles, isCardClash, activeEffects, isChaosLabMode, activeBoardMarks]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => {
@@ -945,6 +1012,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (sessionStorage.getItem("card_clash_mode") !== "true") return;
     setIsCardClash(true);
     setIsChaosMode(sessionStorage.getItem("card_clash_chaos_mode") === "true");
+    setIsChaosLabMode(sessionStorage.getItem("card_clash_chaos_lab_mode") === "true");
     try {
       const p1Raw = sessionStorage.getItem("card_clash_p1_cards") || "[]";
       const p2Raw = sessionStorage.getItem("card_clash_p2_cards") || "[]";
@@ -960,27 +1028,61 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     }
   }, []);
 
-  // ── Chaos Mode: deal 3 face-down mystery cards at the start of each fresh visit ──
+  // ── Chaos Mode / Chaos Lab: deal 3 face-down mystery cards at the start of each fresh visit ──
   useEffect(() => {
-    if (!isCardClash || !isChaosMode) return;
+    if (!isCardClash || !(isChaosMode || isChaosLabMode)) return;
     if (!started[turn]) return;
     if (visitDarts.length !== 0) return;
     const key = `${turn}:${history.length}`;
+
+    // Chaos Lab: expire visit-end Board Marks for whoever's visit just ended
+    // (the other player, relative to this fresh visit starting now). Safe
+    // no-op when activeBoardMarks is empty (e.g. every non-Chaos-Lab match).
+    if (isChaosLabMode && boardMarkVisitEndKeyRef.current !== key) {
+      boardMarkVisitEndKeyRef.current = key;
+      const justEndedPlayer = String(turn === 0 ? 1 : 0);
+      setActiveBoardMarks(prev => expireBoardMarksForVisitEnd(prev, { visitId: key, visitPlayerId: justEndedPlayer }));
+    }
+
     if (chaosResolvedKeyRef.current === key) return;
+    const drawOptions = () => isChaosLabMode ? drawChaosLabOptions("X01", 3) : drawChaosOptions("X01", 3);
     if (turn === 1 && botConfig) {
       // Bot picks instantly, no UI
-      const opts = drawChaosOptions("X01", 3);
+      const opts = drawOptions();
       chaosResolvedKeyRef.current = key;
       const pick = opts[Math.floor(Math.random() * opts.length)];
       handleChaosCardActivationRef.current?.(pick);
       return;
     }
-    setChaosOptions(drawChaosOptions("X01", 3));
-  }, [turn, visitDarts.length, started, isCardClash, isChaosMode, history.length, botConfig]);
+    setChaosOptions(drawOptions());
+  }, [turn, visitDarts.length, started, isCardClash, isChaosMode, isChaosLabMode, history.length, botConfig]);
 
   // ── Chaos Mode: apply a revealed mystery card directly (no equip lookup) ──
   const handleChaosCardActivation = useCallback((card: CardData) => {
     cardDebugLog("X01Scorer", "Chaos card activated", { card: card.name });
+
+    // Chaos Lab: Board Mark cards don't run through the normal effect engine
+    // at all — they place a mark, which only ever affects future Card Clash
+    // triggers via the Board Marks resolver, never scoring.
+    const boardMarkConfig = BOARD_MARK_CARD_ID_MAP[card.id];
+    if (boardMarkConfig) {
+      const opponentPlayerId = String(turn === 0 ? 1 : 0);
+      const newMark = createBoardMarkFromPrototypeCard(boardMarkConfig, {
+        ownerPlayerId: String(turn),
+        opponentPlayerId,
+        createdAtVisitId: `${turn}:${history.length}`,
+      });
+      setActiveBoardMarks(prev => {
+        const result = placeBoardMark(prev, newMark);
+        return result.ok ? result.marks : prev; // placement conflicts silently no-op in v1 (logic-first per spec)
+      });
+      setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
+      setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
+      setChaosOptions(null);
+      chaosResolvedKeyRef.current = `${turn}:${history.length}`;
+      return;
+    }
+
     const effects = ccActivateCard(card, turn, { scores, legWins }, undefined, { legHistory, legsNeeded });
     effects.forEach(e => {
       if (e.instant) {
@@ -1085,6 +1187,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         ))}
       </div>
       {isCardClash && <CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} lastActivation={lastActivation} />}
+      {isCardClash && isChaosLabMode && <BoardMarksHUD marks={activeBoardMarks} names={[p1Name, p2Name]} />}
       {/* Checkout bar — updates live after every dart in the visit */}
       {([0, ...(soloMode ? [] : [1])] as (0|1)[]).map(i => {
         // For the active player, use the live remaining (score minus darts thrown so far this visit)
@@ -1297,7 +1400,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       onCardActivate={handleCardActivation}
       onClose={() => setSelectedCard(null)}
     />
-    {isCardClash && isChaosMode && chaosOptions && !(turn === 1 && botConfig) && (
+    {isCardClash && (isChaosMode || isChaosLabMode) && chaosOptions && !(turn === 1 && botConfig) && (
       <ChaosCardReveal
         options={chaosOptions}
         playerLabel={names[turn]}
@@ -1369,6 +1472,12 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [isChaosMode, setIsChaosMode] = useState(false);
   const [chaosOptions, setChaosOptions] = useState<CardData[] | null>(null);
   const chaosResolvedKeyRef = useRef<string>("");
+
+  // Chaos Lab state (Board Marks v1) — a separate mode from regular Chaos Mode,
+  // never required by Standard Card Clash or existing Chaos Mode.
+  const [isChaosLabMode, setIsChaosLabMode] = useState(false);
+  const [activeBoardMarks, setActiveBoardMarks] = useState<BoardMark[]>([]);
+  const boardMarkVisitEndKeyRef = useRef<string>("");
 
   const names = [p1Name, p2Name];
 
@@ -1446,6 +1555,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     if (sessionStorage.getItem("card_clash_mode") !== "true") return;
     setIsCardClash(true);
     setIsChaosMode(sessionStorage.getItem("card_clash_chaos_mode") === "true");
+    setIsChaosLabMode(sessionStorage.getItem("card_clash_chaos_lab_mode") === "true");
     try {
       const p1Raw = sessionStorage.getItem("card_clash_p1_cards") || "[]";
       const p2Raw = sessionStorage.getItem("card_clash_p2_cards") || "[]";
@@ -1461,25 +1571,56 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     }
   }, []);
 
-  // ── Chaos Mode: deal 3 face-down mystery cards at the start of each fresh visit ──
+  // ── Chaos Mode / Chaos Lab: deal 3 face-down mystery cards at the start of each fresh visit ──
   useEffect(() => {
-    if (!isCardClash || !isChaosMode) return;
+    if (!isCardClash || !(isChaosMode || isChaosLabMode)) return;
     if (visitDarts.length !== 0) return;
     const key = `${turn}:${turnCounter}`;
+
+    // Chaos Lab: expire visit-end Board Marks for whoever's visit just ended.
+    if (isChaosLabMode && boardMarkVisitEndKeyRef.current !== key) {
+      boardMarkVisitEndKeyRef.current = key;
+      const justEndedPlayer = String(turn === 0 ? 1 : 0);
+      setActiveBoardMarks(prev => expireBoardMarksForVisitEnd(prev, { visitId: key, visitPlayerId: justEndedPlayer }));
+    }
+
     if (chaosResolvedKeyRef.current === key) return;
+    const drawOptions = () => isChaosLabMode ? drawChaosLabOptions("CRICKET", 3) : drawChaosOptions("CRICKET", 3);
     if (turn === 1 && botConfig) {
-      const opts = drawChaosOptions("CRICKET", 3);
+      const opts = drawOptions();
       chaosResolvedKeyRef.current = key;
       const pick = opts[Math.floor(Math.random() * opts.length)];
       handleChaosCardActivationRef.current?.(pick);
       return;
     }
-    setChaosOptions(drawChaosOptions("CRICKET", 3));
-  }, [turn, visitDarts.length, isCardClash, isChaosMode, turnCounter, botConfig]);
+    setChaosOptions(drawOptions());
+  }, [turn, visitDarts.length, isCardClash, isChaosMode, isChaosLabMode, turnCounter, botConfig]);
 
   // ── Chaos Mode: apply a revealed mystery card directly (no equip lookup) ──
   const handleChaosCardActivation = useCallback((card: CardData) => {
     cardDebugLog("CricketScorer", "Chaos card activated", { card: card.name });
+
+    // Chaos Lab: Board Mark cards don't run through the normal effect engine
+    // at all — they place a mark, which only ever affects future Card Clash
+    // triggers via the Board Marks resolver, never scoring.
+    const boardMarkConfig = BOARD_MARK_CARD_ID_MAP[card.id];
+    if (boardMarkConfig) {
+      const opponentPlayerId = String(turn === 0 ? 1 : 0);
+      const newMark = createBoardMarkFromPrototypeCard(boardMarkConfig, {
+        ownerPlayerId: String(turn),
+        opponentPlayerId,
+        createdAtVisitId: `${turn}:${turnCounter}`,
+      });
+      setActiveBoardMarks(prev => {
+        const result = placeBoardMark(prev, newMark);
+        return result.ok ? result.marks : prev;
+      });
+      setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
+      setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
+      setChaosOptions(null);
+      chaosResolvedKeyRef.current = `${turn}:${turnCounter}`;
+      return;
+    }
 
     // Same "called number" calculation as the equip-mode handler
     let calledNumber: number | undefined;
@@ -1817,6 +1958,23 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     const effectiveDart = isCardClash
       ? ccPreprocessCricketDart(dart, activeEffects, turn, marks[turn])
       : dart;
+
+    // Chaos Lab: resolve Board Marks against this dart. Read-only with respect
+    // to scoring/marks — only ever updates activeBoardMarks and surfaces a toast.
+    if (isCardClash && isChaosLabMode && activeBoardMarks.length > 0) {
+      const dartResult = toBoardMarkDartResult(effectiveDart, String(turn));
+      const resolved = resolveBoardMarksForDart(activeBoardMarks, { dartResult });
+      if (resolved.events.length > 0) {
+        setActiveBoardMarks(resolved.marks);
+        const hot = resolved.events.find(e => e.type === "board_mark_hot_triggered");
+        const cold = resolved.events.find(e => e.type === "card_clash_trigger_blocked_by_cold_mark");
+        const trap = resolved.events.find(e => e.type === "card_clash_trigger_cancelled_by_trap_mark");
+        if (hot) setLastActivation({ cardName: "🔥 Hot triggered!", player: turn as 0 | 1, key: `boardmark-hot-${Date.now()}` });
+        else if (trap) setLastActivation({ cardName: "⚠️ Trap sprung!", player: turn as 0 | 1, key: `boardmark-trap-${Date.now()}` });
+        else if (cold) setLastActivation({ cardName: "❄️ Blocked by Cold", player: turn as 0 | 1, key: `boardmark-cold-${Date.now()}` });
+        cardDebugLog("CricketScorer", "[CHAOS_LAB] Board Mark events", resolved.events);
+      }
+    }
     
     // Cricket No Bull: bull hits are treated as misses
     if (!includesBull && effectiveDart.segment === 25) {
@@ -2247,7 +2405,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         return m;
       });
     }, 50);
-  }, [visitDarts, turn, marks, scores, cutThroat, includesBull, numCount, onWin, isCardClash, activeEffects, handleLegWin]);
+  }, [visitDarts, turn, marks, scores, cutThroat, includesBull, numCount, onWin, isCardClash, activeEffects, handleLegWin, isChaosLabMode, activeBoardMarks]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => {
@@ -2367,6 +2525,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         ))}
       </div>
       {isCardClash && <CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} lastActivation={lastActivation} />}
+      {isCardClash && isChaosLabMode && <BoardMarksHUD marks={activeBoardMarks} names={[p1Name, p2Name]} />}
       {/* Cricket scorecard */}
       <SectionCard>
         <div className="grid" style={{ gridTemplateColumns: "1fr auto 1fr", gap: "0.15rem" }}>
@@ -2430,7 +2589,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       onCardActivate={handleCardActivation}
       onClose={() => setSelectedCard(null)}
     />
-    {isCardClash && isChaosMode && chaosOptions && !(turn === 1 && botConfig) && (
+    {isCardClash && (isChaosMode || isChaosLabMode) && chaosOptions && !(turn === 1 && botConfig) && (
       <ChaosCardReveal
         options={chaosOptions}
         playerLabel={names[turn]}
