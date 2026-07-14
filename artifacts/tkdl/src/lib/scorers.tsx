@@ -488,16 +488,24 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           setLegHistory(prev => [...prev, legWinner]);
           
           // Check for shutout (opponent scored 0 - Perfect Game bonus)
+          // BUGFIX: this previously fired for EVERY shutout regardless of
+          // whether the winner actually had "Perfect Game" equipped, making
+          // the purchasable card itself meaningless to own. Now gated the
+          // same way "Finishing Bonus" right below it already correctly is.
           const opp: 0|1 = legWinner === 0 ? 1 : 0;
           if (isCardClash && scores[opp] === startingScore) {
-            setActiveEffects(prev => [...prev, {
-              cardName: "Perfect Game",
-              appliedBy: legWinner,
-              affectsPlayer: legWinner,
-              status: "active",
-              visitBonus: 30,
-              legDuration: true,
-            }]);
+            const winnerCardsForShutout = legWinner === 0 ? p1Cards : p2Cards;
+            const hasPerfectGame = winnerCardsForShutout.some((c: any) => c.name?.trim() === "Perfect Game");
+            if (hasPerfectGame) {
+              setActiveEffects(prev => [...prev, {
+                cardName: "Perfect Game",
+                appliedBy: legWinner,
+                affectsPlayer: legWinner,
+                status: "active",
+                visitBonus: 30,
+                legDuration: true,
+              }]);
+            }
           }
           
           // THEME 2: Finishing Bonus - applies +50 on winner's next leg
@@ -1929,9 +1937,29 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       const legWinner = newLegState[0] > legWins[0] ? 0 : newLegState[1] > legWins[1] ? 1 : null;
       if (legWinner !== null) {
         setLegHistory(prev => [...prev, legWinner]);
+
+        // Card Clash: Perfect Game — shutout bonus (opponent scored 0 this leg).
+        // BUGFIX: Perfect Game is a WILDCARD GOOD card (meant to work in both
+        // X01 and Cricket) but this whole leg-transition bonus check only
+        // existed in X01Scorer — it never fired in Cricket matches at all.
+        const opp: 0|1 = legWinner === 0 ? 1 : 0;
+        if (isCardClash && scores[opp] === 0) {
+          const winnerCardsForShutout = legWinner === 0 ? p1Cards : p2Cards;
+          const hasPerfectGame = winnerCardsForShutout.some((c: any) => c.name?.trim() === "Perfect Game");
+          if (hasPerfectGame) {
+            setActiveEffects(prev => [...prev, {
+              cardName: "Perfect Game",
+              appliedBy: legWinner,
+              affectsPlayer: legWinner,
+              status: "active",
+              visitBonus: 30,
+              legDuration: true,
+            }]);
+          }
+        }
       }
     }, delay);
-  }, [legStarter, legWins]);
+  }, [legStarter, legWins, isCardClash, scores, p1Cards, p2Cards]);
 
   const handleLegWin = useCallback((winnerIdx: 0|1) => {
     // Single-leg match (default / Bo1) — no format selected, behave exactly as before

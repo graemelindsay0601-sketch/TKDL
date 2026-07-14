@@ -403,7 +403,7 @@ export function ccActivateCard(
     "Hot Hand":       won2Straight ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 45 } : null,
     // BUGFIX AUDIT (507): "If you're behind in the match" — now gated on legWins comparison.
     "Underdog":       isBehindInLegs ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50, legDuration: true } : null, // BUGFIX 507: card text is "this leg"
-    "Perfect Game":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 30 },
+    "Perfect Game":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", shutoutBonusDeferred: true }, // BUGFIX 508: was using the live visitBonus field with no shutout check, so manually activating it gave a free, unconditional +30 bonus. This card is auto-detected/granted at leg end (see resetForLeg in scorers.tsx) if the winner owns it — manual activation is now a safe no-op, matching how Finishing Bonus is already structured.
     // BUGFIX AUDIT (509): "If you're 1 leg from winning the match" — now gated on legsNeeded.
     "Match Point":    isMatchPointNow ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 70 } : null,
     "Invincible":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true },
