@@ -752,7 +752,15 @@ export function ccExpireOnTurnEnd(effects: CCEffect[], completedPlayer: 0 | 1): 
       return true;
     })
     .map(e => {
-      // Promote pending effects targeting the next player to active
+      // Promote pending effects targeting the next player to active — UNLESS
+      // they're meant to wait for that player's next LEG instead of their
+      // very next turn (Dark Cloud, Total Annihilation: deferPenaltyToNextLeg).
+      // BUGFIX: this flag was declared and assigned to real cards but never
+      // actually read anywhere, so both applied immediately on the
+      // opponent's next visit rather than being held until their next leg.
+      if (e.status === "pending" && e.affectsPlayer === opp && e.deferPenaltyToNextLeg) {
+        return { ...e, status: "deferred_next_leg" as const };
+      }
       if (e.status === "pending" && e.affectsPlayer === opp) {
         return { ...e, status: "active" as const };
       }
