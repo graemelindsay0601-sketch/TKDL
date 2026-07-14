@@ -522,7 +522,40 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (setsToWin > 0) {
       setLegWins(prev => {
         const n: [number,number] = [...prev] as [number,number];
+        const opp: 0|1 = winnerIdx === 0 ? 1 : 0;
         n[winnerIdx]++;
+
+        // Card Clash: Leg Reset — if target won 2+ legs in a row (including this
+        // one) and has Leg Reset against them, their leg wins reset to 0.
+        // BUGFIX: previously only wired into the Best-of-Legs branch below —
+        // never fired at all when a match used Sets format instead.
+        if (isCardClash && legHistory.length >= 1) {
+          const prevLeg = legHistory[legHistory.length - 1];
+          if (prevLeg === winnerIdx) {
+            const hasLegReset = activeEffects.some(e =>
+              e.cardName === "Leg Reset" && e.status === "active" && e.affectsPlayer === winnerIdx
+            );
+            if (hasLegReset) {
+              n[winnerIdx] = 0;
+            }
+          }
+        }
+
+        // Card Clash: Streak Crusher — if target is now 2+ legs ahead (within this
+        // set) and has Streak Crusher against them, remove 2 of their leg wins.
+        // BUGFIX: same Sets-format gap as Leg Reset above.
+        if (isCardClash) {
+          const leadsBy = n[winnerIdx] - n[opp];
+          if (leadsBy >= 2) {
+            const hasStreakCrusher = activeEffects.some(e =>
+              e.cardName === "Streak Crusher" && e.status === "active" && e.affectsPlayer === winnerIdx
+            );
+            if (hasStreakCrusher) {
+              n[winnerIdx] = Math.max(0, n[winnerIdx] - 2);
+            }
+          }
+        }
+
         if (n[winnerIdx] >= legsNeeded) {
           const ns: [number,number] = [setWins[0], setWins[1]];
           ns[winnerIdx]++;
@@ -550,11 +583,14 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         const opp: 0|1 = winnerIdx === 0 ? 1 : 0;
         n[winnerIdx]++;
         
-        // Card Clash: Leg Reset — if opponent wins with 2+ streak and has Leg Reset against them, reduce their wins
-        if (isCardClash && legHistory.length >= 2) {
-          const last2Wins = legHistory.slice(-2);
-          if (last2Wins[0] === winnerIdx && last2Wins[1] === winnerIdx) {
-            // Opponent just won their 2+ leg streak
+        // Card Clash: Leg Reset — if target won 2+ legs in a row (including this
+        // one) and has Leg Reset against them, their leg wins reset to 0.
+        // BUGFIX: was checking legHistory.slice(-2) for two PRIOR wins, which
+        // combined with this win required 3 straight wins to trigger instead of
+        // the "2+ in a row" the card text promises.
+        if (isCardClash && legHistory.length >= 1) {
+          const prevLeg = legHistory[legHistory.length - 1];
+          if (prevLeg === winnerIdx) {
             const hasLegReset = activeEffects.some(e => 
               e.cardName === "Leg Reset" && e.status === "active" && e.affectsPlayer === winnerIdx
             );

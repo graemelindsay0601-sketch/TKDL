@@ -365,7 +365,7 @@ export function ccActivateCard(
     "Mark Drain":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", markDrainIfAhead: true },
     "Streak Breaker":       { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", streakBreakerHalves: true },
     "Number Prison":        { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending" }, // mark random closed num = -1
-    "Score Halve":          { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", scoreHalveExtraMultiplier: 0.5 },
+    "Score Halve":          { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", scoreHalveExtraMultiplier: 0.5, legDuration: true }, // BUGFIX 420: card text is "this leg"
   };
 
   // BUGFIX AUDIT: conditional Wildcard GOOD cards (Lucky Streak/Momentum Surge/Comeback Leg/
@@ -393,16 +393,16 @@ export function ccActivateCard(
         instantP1Delta: win ? (byPlayer === 0 ? -40 : 40) : (byPlayer === 0 ? 30 : -30) } as CCEffect;
     })(),
     // BUGFIX AUDIT (502): "If you won the previous leg" — now gated on legHistory.
-    "Lucky Streak":   wonPrevLeg ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 } : null,
+    "Lucky Streak":   wonPrevLeg ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50, legDuration: true } : null, // BUGFIX 502: card text is "this leg"
     // BUGFIX AUDIT (503): "If you're ahead in the match" — now gated on legWins comparison.
-    "Momentum Surge": isAheadInLegs ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 25 } : null,
+    "Momentum Surge": isAheadInLegs ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 25, legDuration: true } : null, // BUGFIX 503: card text is "this leg"
     "Finishing Edge": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeRetryOnDoubleMiss: true },
     // BUGFIX AUDIT (505): "If you lost the previous leg" — now gated on legHistory.
-    "Comeback Leg":   lostPrevLeg ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 60 } : null,
+    "Comeback Leg":   lostPrevLeg ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 60, legDuration: true } : null, // BUGFIX 505: card text is "this leg"
     // BUGFIX AUDIT (506): "If you've won 2 legs in a row" — now gated on legHistory.
     "Hot Hand":       won2Straight ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 45 } : null,
     // BUGFIX AUDIT (507): "If you're behind in the match" — now gated on legWins comparison.
-    "Underdog":       isBehindInLegs ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 } : null,
+    "Underdog":       isBehindInLegs ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50, legDuration: true } : null, // BUGFIX 507: card text is "this leg"
     "Perfect Game":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 30 },
     // BUGFIX AUDIT (509): "If you're 1 leg from winning the match" — now gated on legsNeeded.
     "Match Point":    isMatchPointNow ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 70 } : null,
@@ -413,8 +413,8 @@ export function ccActivateCard(
   const wildcardBad: Record<string, CCEffect | null> = {
     "Dark Cloud":         { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 35, deferPenaltyToNextLeg: true },
     "Momentum Killer":    { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", visitPenalty: 0 }, // streak clear
-    "Unlucky Night":      { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.75 },
-    "Hex":                { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.5, cricketMarksHalved: true },
+    "Unlucky Night":      { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.75, legDuration: true }, // BUGFIX 603: card text is "this leg"
+    "Hex":                { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.5, marksMultiplier: 0.5, legDuration: true }, // BUGFIX 604: cricketMarksHalved was never read anywhere — marksMultiplier is the real, working field for this (see ccApplyCricketMarkEffects). Card text is "this leg".
     // BUGFIX 605: card text is "last 2 darts THIS LEG" — without legDuration it expired after a single turn.
     "Wipeout":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", wildDartIndices: [1, 2], legDuration: true },
     // BUGFIX 606: card text is "target's NEXT LEG score reduced by 100" — without deferPenaltyToNextLeg
@@ -423,7 +423,7 @@ export function ccActivateCard(
     "Match Pressure":     { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", penaltyPerDart: 20, marksMultiplier: 0.5, finalLegOnly: true },
     // BUGFIX AUDIT (608): "If your opponent is ahead" — field `opponentMustBeAhead` was defined but
     // never read anywhere; the effect was granted regardless of match state. Now gated here.
-    "Underdog Curse":     oppIsAheadInLegs ? { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8 } : null,
+    "Underdog Curse":     oppIsAheadInLegs ? { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allDartsMultiplier: 0.8, legDuration: true } : null, // BUGFIX 608: card text is "this leg"
     "Win Bonus Removed":  { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", removeConditionalBonuses: true },
     // BUGFIX 610: card text applies to BOTH modes ("50 points X01 / 2 numbers Cricket") — only
     // the Cricket cap was wired up, so the card did nothing in X01 games.
