@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, json, timestamp, uuid } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, json, timestamp, uuid, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { playersTable } from "./players";
@@ -21,6 +21,7 @@ export const cardClashMatchesTable = pgTable("card_clash_matches", {
   player1PointsEarned: integer("player_1_points_earned").notNull().default(0),
   player2PointsEarned: integer("player_2_points_earned").notNull().default(0),
   isMock: integer("is_mock").notNull().default(0), // 1 = mock game, 0 = real match
+  isChaosMatch: boolean("is_chaos_match").notNull().default(false), // true = Chaos Mode or Chaos Lab — cards used are mystery draws, never taken from inventory
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

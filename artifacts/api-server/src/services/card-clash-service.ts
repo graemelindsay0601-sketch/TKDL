@@ -75,7 +75,8 @@ export async function startCardClashMatch(
   equippedCards?: {
     player1?: Array<{ cardId: string; cardType: "GOOD" | "BAD" }>;
     player2?: Array<{ cardId: string; cardType: "GOOD" | "BAD" }>;
-  }
+  },
+  isChaosMatch: boolean = false
 ) {
   const p1Cards = equippedCards?.player1 ?? [];
   const p2Cards = equippedCards?.player2 ?? [];
@@ -107,6 +108,7 @@ export async function startCardClashMatch(
     sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSONB DEFAULT '[]'`,
     sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_points_earned INTEGER DEFAULT 0`,
     sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER DEFAULT 0`,
+    sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS is_chaos_match BOOLEAN NOT NULL DEFAULT false`,
   ]) {
     try {
       await db.execute(alter);
@@ -129,6 +131,7 @@ export async function startCardClashMatch(
         cardsUsedInMatch: [] as any,
         player1PointsEarned: 0,
         player2PointsEarned: 0,
+        isChaosMatch,
       })
       .returning();
     
@@ -217,7 +220,8 @@ export async function finishCardClashMatch(
   winnerId: number,
   cardsUsedInMatch?: string[] | Array<{ cardId: string; usedBy: number }>,
   player1PointsEarned: number = 0,
-  player2PointsEarned: number = 0
+  player2PointsEarned: number = 0,
+  isChaosMatch: boolean = false
 ) {
   const match = await db
     .select()
@@ -317,17 +321,23 @@ export async function finishCardClashMatch(
     // Don't fail the match if challenges fail
   }
 
-  // Consume cards (remove from inventory)
-  for (const card of cardsUsed) {
-    try {
-      const realCardId = await resolveCardUuid(card.cardId);
-      if (!realCardId) {
-        logger.warn(`Could not resolve card "${card.cardId}" to a real card definition — skipping consumption`);
-        continue;
+  // Consume cards (remove from inventory) — Chaos Mode / Chaos Lab cards are
+  // mystery draws from the shared card pool, never actually taken from the
+  // player's own collection, so they must never touch real inventory. Without
+  // this check, a chaos-drawn card that happened to share an id with a card
+  // the player separately owns from packs would get wrongly decremented.
+  if (!isChaosMatch) {
+    for (const card of cardsUsed) {
+      try {
+        const realCardId = await resolveCardUuid(card.cardId);
+        if (!realCardId) {
+          logger.warn(`Could not resolve card "${card.cardId}" to a real card definition — skipping consumption`);
+          continue;
+        }
+        await removeCardFromPlayer(card.usedBy, realCardId, 1);
+      } catch (e) {
+        logger.error(`Failed to consume card ${card.cardId} for player ${card.usedBy}:`, e);
       }
-      await removeCardFromPlayer(card.usedBy, realCardId, 1);
-    } catch (e) {
-      logger.error(`Failed to consume card ${card.cardId} for player ${card.usedBy}:`, e);
     }
   }
 
@@ -421,25 +431,30 @@ export async function deleteCardClashMatch(matchId: number) {
       );
   }
 
-  // Return cards to inventory
-  const cardsUsed = JSON.parse(match[0].cardsUsedInMatch as string);
-  for (const cardUsage of cardsUsed) {
-    const realCardId = await resolveCardUuid(cardUsage.cardId);
-    if (!realCardId) {
-      logger.warn(`Could not resolve card "${cardUsage.cardId}" while reverting match ${matchId} — skipping return to inventory`);
-      continue;
+  // Return cards to inventory — skipped for chaos-mode matches, since those
+  // cards were never actually removed from inventory in the first place
+  // (see finishCardClashMatch). "Returning" them here would wrongly hand
+  // the player an extra copy of a card they never lost.
+  if (!match[0].isChaosMatch) {
+    const cardsUsed = JSON.parse(match[0].cardsUsedInMatch as string);
+    for (const cardUsage of cardsUsed) {
+      const realCardId = await resolveCardUuid(cardUsage.cardId);
+      if (!realCardId) {
+        logger.warn(`Could not resolve card "${cardUsage.cardId}" while reverting match ${matchId} — skipping return to inventory`);
+        continue;
+      }
+      await db
+        .update(cardInventoryTable)
+        .set({
+          quantity: sql`${cardInventoryTable.quantity} + 1`,
+        })
+        .where(
+          and(
+            eq(cardInventoryTable.playerId, cardUsage.usedBy),
+            eq(cardInventoryTable.cardId, realCardId)
+          )
+        );
     }
-    await db
-      .update(cardInventoryTable)
-      .set({
-        quantity: sql`${cardInventoryTable.quantity} + 1`,
-      })
-      .where(
-        and(
-          eq(cardInventoryTable.playerId, cardUsage.usedBy),
-          eq(cardInventoryTable.cardId, realCardId)
-        )
-      );
   }
 
   // Delete match

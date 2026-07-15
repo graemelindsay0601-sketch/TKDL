@@ -109,19 +109,20 @@ export async function initializeCardTables() {
       logger.warn("Could not verify card_clash_seasons table existence");
     }
 
-    // EMERGENCY FIX: Drop card_clash_matches table and recreate with correct schema
-    try {
-      logger.info("Dropping old card_clash_matches table for schema rebuild...");
-      await db.execute(sql`DROP TABLE IF EXISTS card_clash_matches CASCADE`);
-      logger.info("✓ Dropped card_clash_matches");
-    } catch (e) {
-      logger.warn("Could not drop card_clash_matches (may not exist)");
-    }
-
-    // Create card_clash_matches table with CORRECT schema (no player_id, only player_1_id and player_2_id)
-    logger.info("Recreating card_clash_matches with correct schema...");
+    // Create card_clash_matches table if it doesn't exist.
+    //
+    // IMPORTANT: this used to unconditionally run
+    // `DROP TABLE IF EXISTS card_clash_matches CASCADE` before every
+    // CREATE, labeled "EMERGENCY FIX ... for schema rebuild". That was
+    // clearly meant as a one-time correction for a broken schema, but
+    // because initializeCardTables() runs on every single server startup,
+    // it silently wiped EVERY Card Clash match's history — who played,
+    // cards used, points earned, everything — on every deploy or restart,
+    // indefinitely. Fixed to the same idempotent IF NOT EXISTS pattern
+    // every other table here already uses, so match history now actually
+    // persists.
     await db.execute(sql`
-      CREATE TABLE card_clash_matches (
+      CREATE TABLE IF NOT EXISTS card_clash_matches (
         id SERIAL PRIMARY KEY,
         match_id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
         season_id INTEGER REFERENCES card_clash_seasons(id) ON DELETE CASCADE,
@@ -135,11 +136,18 @@ export async function initializeCardTables() {
         player_1_points_earned INTEGER NOT NULL DEFAULT 0,
         player_2_points_earned INTEGER NOT NULL DEFAULT 0,
         is_mock INTEGER NOT NULL DEFAULT 0,
+        is_chaos_match BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    logger.info("✓ Recreated card_clash_matches with correct schema");
+    // Defensive: add is_chaos_match to any pre-existing table from before this fix.
+    try {
+      await db.execute(sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS is_chaos_match BOOLEAN NOT NULL DEFAULT false`);
+    } catch (e) {
+      logger.warn("Could not add is_chaos_match column (may already exist)");
+    }
+    logger.info("✓ card_clash_matches table verified (not dropped)");
 
     // Create indexes for performance
     try {

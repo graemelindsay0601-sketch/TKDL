@@ -395,7 +395,7 @@ router.post("/admin/season/create", async (req: Request, res: Response) => {
 // Start match
 router.post("/match/start", async (req: Request, res: Response) => {
   try {
-    const { gameMode, player1Id, player2Id, equippedCards } = req.body;
+    const { gameMode, player1Id, player2Id, equippedCards, isChaosMatch } = req.body;
     
     // Validate gameMode
     if (!gameMode || !["X01", "CRICKET"].includes(gameMode)) {
@@ -411,7 +411,7 @@ router.post("/match/start", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Cannot play against yourself" });
     }
     
-    const match = await startCardClashMatch(gameMode, player1Id, player2Id, equippedCards);
+    const match = await startCardClashMatch(gameMode, player1Id, player2Id, equippedCards, !!isChaosMatch);
     res.json(match);
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : "Unknown error" });
@@ -421,11 +421,11 @@ router.post("/match/start", async (req: Request, res: Response) => {
 // Finish match
 router.post("/match/finish", async (req: Request, res: Response) => {
   try {
-    const { matchId, winnerId, cardsUsedInMatch } = req.body;
+    const { matchId, winnerId, cardsUsedInMatch, isChaosMatch } = req.body;
     if (!matchId || !winnerId) {
       return res.status(400).json({ error: "matchId and winnerId required" });
     }
-    const result = await finishCardClashMatch(matchId, winnerId, cardsUsedInMatch);
+    const result = await finishCardClashMatch(matchId, winnerId, cardsUsedInMatch, 0, 0, !!isChaosMatch);
     
     // Update challenges for both players
     const { challengeManager } = await import("../services/challenge-manager");

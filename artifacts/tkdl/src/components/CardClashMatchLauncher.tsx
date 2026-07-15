@@ -257,6 +257,7 @@ export function CardClashMatchLauncher({
             player1: p1Cards.map((c: any) => ({ cardId: c.id || c.cardId || c.name, cardType: c.cardType || "GOOD" })),
             player2: p2Cards.map((c: any) => ({ cardId: c.id || c.cardId || c.name, cardType: c.cardType || "GOOD" })),
           },
+          isChaosMatch: isChaos || isChaosLab,
         }),
       });
       if (res.ok) {
@@ -314,7 +315,7 @@ export function CardClashMatchLauncher({
         const res = await fetch("/api/card-clash/match/finish", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ matchId, winnerId, cardsUsedInMatch }),
+          body: JSON.stringify({ matchId, winnerId, cardsUsedInMatch, isChaosMatch: isChaos || isChaosLab }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
