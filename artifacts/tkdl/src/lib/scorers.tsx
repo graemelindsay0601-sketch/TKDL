@@ -492,10 +492,14 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           // whether the winner actually had "Perfect Game" equipped, making
           // the purchasable card itself meaningless to own. Now gated the
           // same way "Finishing Bonus" right below it already correctly is.
+          // Also checks activeEffects (not just the equipped-cards list) so
+          // a Chaos-mode draw of this card is detected too — Chaos Mode has
+          // no persistent "equipped" state, only activeEffects.
           const opp: 0|1 = legWinner === 0 ? 1 : 0;
           if (isCardClash && scores[opp] === startingScore) {
             const winnerCardsForShutout = legWinner === 0 ? p1Cards : p2Cards;
-            const hasPerfectGame = winnerCardsForShutout.some((c: any) => c.name?.trim() === "Perfect Game");
+            const hasPerfectGame = winnerCardsForShutout.some((c: any) => c.name?.trim() === "Perfect Game")
+              || activeEffects.some(e => e.status === "active" && e.affectsPlayer === legWinner && e.cardName === "Perfect Game");
             if (hasPerfectGame) {
               setActiveEffects(prev => [...prev, {
                 cardName: "Perfect Game",
@@ -508,21 +512,18 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
             }
           }
           
-          // THEME 2: Finishing Bonus - applies +50 on winner's next leg
-          if (isCardClash) {
-            const winnerCards = legWinner === 0 ? p1Cards : p2Cards;
-            const hasFinishingBonus = winnerCards.some((c: any) => c.name?.trim() === "Finishing Bonus");
-            if (hasFinishingBonus) {
-              setActiveEffects(prev => [...prev, {
-                cardName: "Finishing Bonus",
-                appliedBy: legWinner,
-                affectsPlayer: legWinner,
-                status: "active",
-                visitBonus: 50,
-                legDuration: true,
-              }]);
-            }
-          }
+          // THEME 2 (removed) — this used to grant a DUPLICATE, much larger
+          // "Finishing Bonus" of +50 EVERY visit for the winner's entire next
+          // leg, on top of the correct, card-text-matching +50-once-on-checkout
+          // implementation a bit further down (search "CARD CLASH FIX 118").
+          // "Finishing Bonus" text is "if you finish this visit, gain +50" —
+          // a single visit's bonus, not a recurring one for a whole leg. This
+          // block fired on every single leg win for anyone with the card
+          // equipped, making it far more powerful than the card was ever
+          // meant to be, and had no effect at all in Chaos Mode besides
+          // (since it read the equipped-cards list, which Chaos never
+          // populates). The correct implementation already handles both
+          // modes via activeEffects.
         }
       }, delay);
     };
@@ -1942,10 +1943,13 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         // BUGFIX: Perfect Game is a WILDCARD GOOD card (meant to work in both
         // X01 and Cricket) but this whole leg-transition bonus check only
         // existed in X01Scorer — it never fired in Cricket matches at all.
+        // Also checks activeEffects so a Chaos-mode draw is detected too —
+        // Chaos Mode has no persistent "equipped" state, only activeEffects.
         const opp: 0|1 = legWinner === 0 ? 1 : 0;
         if (isCardClash && scores[opp] === 0) {
           const winnerCardsForShutout = legWinner === 0 ? p1Cards : p2Cards;
-          const hasPerfectGame = winnerCardsForShutout.some((c: any) => c.name?.trim() === "Perfect Game");
+          const hasPerfectGame = winnerCardsForShutout.some((c: any) => c.name?.trim() === "Perfect Game")
+            || activeEffects.some(e => e.status === "active" && e.affectsPlayer === legWinner && e.cardName === "Perfect Game");
           if (hasPerfectGame) {
             setActiveEffects(prev => [...prev, {
               cardName: "Perfect Game",
