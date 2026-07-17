@@ -241,10 +241,10 @@ export function ccActivateCard(
     "Big Game Player":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit80Plus: 35, deferBonusToNextLeg: true, legDuration: true },
     "Power Surge +50":      { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 50 },
     "Treble Hunter":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", trebleMultiplier: 1.3, oneShotTrebleMultiplier: true },
-    "Unstoppable Checkout": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true, checkoutOnly: true },
+    "Unstoppable Checkout": { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true, checkoutOnly: true, legDuration: true }, // BUGFIX 104: without legDuration, ccExpireOnTurnEnd stripped this at the end of the very turn it was cast, so it could never survive to actually block a penalty promoted on a later turn. checkoutOnly still correctly deactivates it once no longer on a valid double-out.
     "Banking Strategy":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit50Plus: 20, deferBonusToNextTurn: true },
     "Checkout Confidence":  { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", freeRetryOnDoubleMiss: true },
-    "Exact Finish":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true, requiresExactFinish: true },
+    "Exact Finish":         { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true, requiresExactFinish: true, legDuration: true }, // BUGFIX 107: same persistence gap as Unstoppable Checkout above. requiresExactFinish still correctly deactivates it once out of range.
     "High Pressure":        { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfBehindLegs: 40, legDuration: true },
     "Perfect Rhythm":       { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusPerDart: 10 },
     "High Roller":          { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", bonusIfVisit100Plus: 25 },
@@ -362,7 +362,7 @@ export function ccActivateCard(
     "Cricket Prison":       { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", allowedMarkSegments: [15, 19, 20] },
     "Bull Void":            { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", blockBullMarks: true },
     "Mark Killer":          { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", blockFinalDartMark: true },
-    "Mark Drain":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", markDrainIfAhead: true },
+    "Mark Drain":           { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", markDrainIfAhead: true, legDuration: true }, // BUGFIX 417: card text is "each visit" (repeating), but without legDuration it only ever applied once before ccExpireOnTurnEnd stripped it.
     "Streak Breaker":       { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", streakBreakerHalves: true },
     "Number Prison":        { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending" }, // mark random closed num = -1
     "Score Halve":          { cardName: name, appliedBy: byPlayer, affectsPlayer: opp, status: "pending", scoreHalveExtraMultiplier: 0.5, legDuration: true }, // BUGFIX 420: card text is "this leg"
@@ -406,7 +406,7 @@ export function ccActivateCard(
     "Perfect Game":   { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", shutoutBonusDeferred: true, legDuration: true }, // BUGFIX 508: was using the live visitBonus field with no shutout check, so manually activating it gave a free, unconditional +30 bonus. This card is auto-detected/granted at leg end (see resetForLeg in scorers.tsx) if the winner owns it — manual activation is now a safe no-op, matching how Finishing Bonus is already structured. legDuration added so a Chaos-mode draw (no persistent "equipped" state) survives to leg-end instead of expiring after one turn — its condition ("if this leg is a shutout") is inherently leg-level.
     // BUGFIX AUDIT (509): "If you're 1 leg from winning the match" — now gated on legsNeeded.
     "Match Point":    isMatchPointNow ? { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", visitBonus: 70 } : null,
-    "Invincible":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true },
+    "Invincible":     { cardName: name, appliedBy: byPlayer, affectsPlayer: byPlayer, status: "active", blockOpponentPenalties: true, legDuration: true }, // BUGFIX 510: card text says "your next visit", but without ANY persistence flag, ccExpireOnTurnEnd stripped this at the end of the very turn it was cast — it could never survive long enough to actually protect a future visit at all. No narrower "protect exactly one future visit" mechanism exists in this engine (deferBonusToNextTurn only applies to conditional-bonus numeric fields evaluated in ccApplyVisitEnd, not a generic persistent flag), so legDuration is the safest available fix — more generous than "one visit" but the only way to make this card do anything at all instead of nothing.
   };
 
   // ── Wildcard BAD ───────────────────────────────────────────────────────────
@@ -1019,6 +1019,22 @@ export function ccEvaluateOpponentWildcards(
 /** Check if opponent penalty effects are blocked for current player. */
 export function ccOpponentPenaltiesBlocked(effects: CCEffect[], player: 0 | 1): boolean {
   return effects.some(e => e.status === "active" && e.affectsPlayer === player && e.blockOpponentPenalties);
+}
+
+/**
+ * BUGFIX: ccOpponentPenaltiesBlocked existed and was correctly maintained
+ * (activated/deactivated via ccValidateCheckoutOnlyCards/
+ * ccValidateExactFinishCards), but nothing anywhere ever actually called it
+ * to block anything — so Unstoppable Checkout, Exact Finish, and Invincible
+ * tracked their own on/off state perfectly while doing nothing at all in
+ * practice. Filters out any newly-activated cross-player debuff whose
+ * target currently has an active blockOpponentPenalties shield.
+ */
+export function ccFilterBlockedEffects(newEffects: CCEffect[], existingActiveEffects: CCEffect[]): CCEffect[] {
+  return newEffects.filter(e => {
+    if (e.affectsPlayer === e.appliedBy) return true; // self-targeting, not a "penalty" on an opponent
+    return !ccOpponentPenaltiesBlocked(existingActiveEffects, e.affectsPlayer);
+  });
 }
 
 /** FIX 104: Validate checkoutOnly cards - deactivate if not on valid double-out */
