@@ -75,9 +75,16 @@ Chaos Lab reuses Chaos Mode's existing "3 face-down mystery cards dealt at
 the start of each visit" mechanic — it does **not** add a new UI flow. The
 differences:
 
-- **Draw pool**: `drawChaosLabOptions()` (in `cards-data.ts`) mixes the 4
-  Board Mark cards into the normal chaos pool. `drawChaosOptions()` — what
-  regular Chaos Mode uses — is completely untouched.
+- **Draw pool**: `drawChaosLabOptions()` (in `cards-data.ts`) draws
+  exclusively from the 4 Board Mark cards — every draw is guaranteed to be
+  a mark, not a normal score-boost card. This is intentional: Chaos Lab is
+  meant to be a genuinely distinct tactical mode (per the design spec),
+  not regular Chaos Mode with a few marks occasionally mixed in.
+  `drawChaosOptions()` — what regular Chaos Mode uses — is completely
+  untouched. With only 4 v1 prototype cards, a 3-card draw will show most
+  of the pool most of the time — expected for a proof-of-concept; a future
+  card expansion (see section 15 of the design spec) would make draws feel
+  more varied.
 - **Card activation**: in `handleChaosCardActivation` (both `X01Scorer` and
   `CricketScorer`), if the drawn card's id is in `BOARD_MARK_CARD_ID_MAP`,
   it's routed to `createBoardMarkFromPrototypeCard` + `placeBoardMark`

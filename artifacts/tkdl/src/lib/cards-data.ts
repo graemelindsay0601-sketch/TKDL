@@ -187,18 +187,19 @@ export function drawChaosOptions(gameType: "X01" | "CRICKET", count = 3): CardDa
 }
 
 /**
- * Chaos Lab's card pool: the normal chaos pool (X01 or Cricket, plus
- * wildcards) with the Board Marks prototype cards mixed in. Board Marks
- * cards work identically on both engines (they mark physical board
- * segments, not X01- or Cricket-specific mechanics), so all 4 are always
- * included regardless of gameType.
+ * Chaos Lab's card pool: exclusively the Board Marks prototype cards —
+ * this mode is meant to be a genuinely distinct tactical layer (per the
+ * original design spec), not just the same score-boost cards as regular
+ * Chaos Mode with a few marks sprinkled in. Board Marks cards work
+ * identically on both engines (they mark physical board segments, not
+ * X01- or Cricket-specific mechanics), so all 4 are always included
+ * regardless of gameType.
  */
 export function getChaosLabCardPool(gameType: "X01" | "CRICKET"): CardData[] {
-  const boardMarkCards = ALL_CARDS.filter((c) => c.mode === "chaos_lab");
-  return [...getChaosCardPool(gameType), ...boardMarkCards];
+  return ALL_CARDS.filter((c) => c.mode === "chaos_lab");
 }
 
-/** Same draw mechanics as drawChaosOptions, but from Chaos Lab's mixed pool. Regular Chaos Mode is untouched by this. */
+/** Same draw mechanics as drawChaosOptions, but from Chaos Lab's Board-Marks-only pool. Regular Chaos Mode is untouched by this. */
 export function drawChaosLabOptions(gameType: "X01" | "CRICKET", count = 3): CardData[] {
   const pool = getChaosLabCardPool(gameType);
   const good = pool.filter(isGoodCard);
