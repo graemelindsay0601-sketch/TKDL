@@ -198,6 +198,29 @@ draws exclusively from this set — never mixed with the regular chaos pool.
 - Don't add new mark types (`claim`, `contested`, etc.) without updating
   this doc and the conflict rules in `boardMarkConflicts.ts` first.
 
+## Visibility (fixed — was a real gap)
+
+Board Marks used to only surface as tiny hover-tooltip pills — useless on
+a mobile-first, touch-only scoring app where hover doesn't exist. Fixed
+two ways:
+
+- **The dart input board itself highlights marked buttons.** `DartInputBoard`
+  (`dartboard.tsx`) got a new, purely additive `markedSegments` prop —
+  `{ segment, color }[]` — layered on top of the existing `highlightSegments`
+  prop used by every other game mode in the app (untouched, zero risk to
+  them). Both scorers pass `boardMarksToSegments(activeBoardMarks)` only
+  when `isChaosLabMode` is true. The number button, and both Bull buttons,
+  get a colored glow matching the mark's type (orange=hot, blue=cold,
+  yellow=trap, green=shield) — so you see it right where you're about to
+  aim, not in a side panel you might not be looking at.
+- **`BoardMarksHUD` is a real panel now, not a tooltip.** Every active mark
+  shows its type spelled out, the exact target (T20 vs D20 vs "20 bed" —
+  the button highlight alone can't distinguish the multiplier), a
+  plain-language "who this affects" line from the *current viewer's*
+  perspective ("Blocks YOUR trigger there" vs "Blocks Sam's trigger
+  there"), a STEAL badge where relevant, and the live reward/penalty
+  number for Hot/Trap. No hover required anywhere.
+
 ## Manual test checklist
 
 - Standard Card Clash and regular Chaos Mode: unaffected, no Board Marks state involved.

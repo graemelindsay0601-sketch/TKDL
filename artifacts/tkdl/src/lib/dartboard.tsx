@@ -87,6 +87,7 @@ export function DartInputBoard({
   onDart, onMiss, onUndo,
   activeSegments,
   highlightSegments,
+  markedSegments,
   disabled = false,
 }: {
   onDart: (dart: Dart) => void;
@@ -94,6 +95,8 @@ export function DartInputBoard({
   onUndo: () => void;
   activeSegments?: number[];
   highlightSegments?: number[];
+  /** Chaos Lab Board Marks — additive to highlightSegments, doesn't affect any other game mode. One color-coded ring per marked segment/bull. */
+  markedSegments?: { segment: number; color: string }[];
   disabled?: boolean;
 }) {
   const [mult, setMult] = useState<1 | 2 | 3>(1);
@@ -127,16 +130,20 @@ export function DartInputBoard({
 
   const isActive = (n: number) => !activeSegments || activeSegments.includes(n);
   const isHigh   = (n: number) => !!highlightSegments?.includes(n);
+  const markFor  = (n: number) => markedSegments?.find(m => m.segment === n);
 
   const mc = MULT_CFG[mult];
 
   const numBtnStyle = (n: number): React.CSSProperties => {
     const active = isActive(n);
     const hi = isHigh(n);
+    const mark = markFor(n);
     return {
       padding: "0",
       minHeight: "52px",
-      border: hi
+      border: mark
+        ? `2px solid ${mark.color}`
+        : hi
         ? "2px solid rgba(255,210,74,0.6)"
         : active && mult > 1
         ? `2px solid ${mc.border}`
@@ -144,14 +151,17 @@ export function DartInputBoard({
         ? "1.5px solid rgba(255,255,255,0.12)"
         : "1px solid rgba(255,255,255,0.04)",
       borderRadius: "0.5rem",
-      background: hi
+      background: mark
+        ? `${mark.color}22`
+        : hi
         ? "rgba(255,210,74,0.12)"
         : active && mult > 1
         ? mc.bg
         : active
         ? "rgba(255,255,255,0.06)"
         : "rgba(255,255,255,0.02)",
-      color: active ? (hi ? "#ffd24a" : mc.color) : "rgba(255,255,255,0.15)",
+      boxShadow: mark ? `0 0 10px ${mark.color}66` : undefined,
+      color: active ? (mark ? mark.color : hi ? "#ffd24a" : mc.color) : "rgba(255,255,255,0.15)",
       fontFamily: "Oswald, sans-serif",
       fontWeight: 900,
       fontSize: "1.35rem",
@@ -219,9 +229,10 @@ export function DartInputBoard({
             fontFamily: "Oswald, sans-serif",
             fontWeight: 800,
             cursor: "pointer",
-            border: isHigh(25) ? "2px solid rgba(255,210,74,0.6)" : "1.5px solid rgba(34,197,94,0.3)",
-            background: isHigh(25) ? "rgba(255,210,74,0.12)" : "rgba(34,197,94,0.08)",
-            color: isHigh(25) ? "#ffd24a" : "#22c55e",
+            border: markFor(25) ? `2px solid ${markFor(25)!.color}` : isHigh(25) ? "2px solid rgba(255,210,74,0.6)" : "1.5px solid rgba(34,197,94,0.3)",
+            background: markFor(25) ? `${markFor(25)!.color}22` : isHigh(25) ? "rgba(255,210,74,0.12)" : "rgba(34,197,94,0.08)",
+            boxShadow: markFor(25) ? `0 0 10px ${markFor(25)!.color}66` : undefined,
+            color: markFor(25) ? markFor(25)!.color : isHigh(25) ? "#ffd24a" : "#22c55e",
             fontSize: "1rem",
             display: "flex",
             flexDirection: "column" as const,
@@ -243,9 +254,10 @@ export function DartInputBoard({
             fontFamily: "Oswald, sans-serif",
             fontWeight: 800,
             cursor: "pointer",
-            border: "1.5px solid rgba(56,189,248,0.35)",
-            background: "rgba(56,189,248,0.10)",
-            color: "#38bdf8",
+            border: markFor(25) ? `2px solid ${markFor(25)!.color}` : "1.5px solid rgba(56,189,248,0.35)",
+            background: markFor(25) ? `${markFor(25)!.color}22` : "rgba(56,189,248,0.10)",
+            boxShadow: markFor(25) ? `0 0 10px ${markFor(25)!.color}66` : undefined,
+            color: markFor(25) ? markFor(25)!.color : "#38bdf8",
             fontSize: "1rem",
             display: "flex",
             flexDirection: "column" as const,

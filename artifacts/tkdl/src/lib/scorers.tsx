@@ -300,32 +300,82 @@ function CCEffectsHUD({ effects, names, lastActivation }: {
   );
 }
 
+// Chaos Lab: shared Board Mark visual identity — used by both the HUD panel
+// and the dartboard's marked-segment highlighting, so they always match.
+const BOARD_MARK_ICON: Record<BoardMark["type"], string> = { hot: "\u{1F525}", cold: "\u2744\uFE0F", trap: "\u26A0\uFE0F", shield: "\u{1F6E1}\uFE0F" };
+const BOARD_MARK_COLOR: Record<BoardMark["type"], string> = { hot: "#ff8a3d", cold: "#5ec8ff", trap: "#ffcc4d", shield: "#7cf29c" };
+
+/** Converts active Board Marks into the DartInputBoard's markedSegments prop shape. Bull → segment 25; numbers/trebles/doubles use their own value. */
+function boardMarksToSegments(marks: BoardMark[]): { segment: number; color: string }[] {
+  return marks
+    .filter(m => m.target.type !== "bull" ? typeof m.target.value === "number" : true)
+    .map(m => ({
+      segment: m.target.type === "bull" ? 25 : (m.target.value as number),
+      color: BOARD_MARK_COLOR[m.type],
+    }));
+}
+
 /** Chaos Lab: shows currently active Board Marks as small badges — target, type, and who placed it. Read-only, purely informational. */
-function BoardMarksHUD({ marks, names }: { marks: BoardMark[]; names: [string, string] }) {
+function BoardMarksHUD({ marks, names, engine, viewerIdx }: { marks: BoardMark[]; names: [string, string]; engine: "X01" | "CRICKET"; viewerIdx: 0 | 1 }) {
   if (marks.length === 0) return null;
-  const ICON: Record<BoardMark["type"], string> = { hot: "\u{1F525}", cold: "\u2744\uFE0F", trap: "\u26A0\uFE0F", shield: "\u{1F6E1}\uFE0F" };
-  const COLOR: Record<BoardMark["type"], string> = { hot: "#ff8a3d", cold: "#5ec8ff", trap: "#ffcc4d", shield: "#7cf29c" };
+  const ICON = BOARD_MARK_ICON;
+  const COLOR = BOARD_MARK_COLOR;
+  const TYPE_LABEL: Record<BoardMark["type"], string> = { hot: "HOT", cold: "COLD", trap: "TRAP", shield: "SHIELD" };
   return (
-    <div className="flex flex-wrap items-center justify-center gap-1.5">
+    <div className="flex flex-col gap-1.5" style={{ maxWidth: "340px", margin: "0 auto" }}>
+      <div style={{ fontSize: "0.6rem", fontWeight: 800, letterSpacing: "0.12em", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", textAlign: "center" }}>
+        ACTIVE BOARD MARKS
+      </div>
       {marks.map((m) => {
         const label = m.target.type === "bull" ? "Bull"
           : m.target.type === "number" ? `${m.target.value} bed`
           : m.target.type === "treble" ? `T${m.target.value}`
           : `D${m.target.value}`;
-        const ownerIdx = Number(m.ownerPlayerId) === 0 ? 0 : 1;
+        const ownerIdx = (Number(m.ownerPlayerId) === 0 ? 0 : 1) as 0 | 1;
+        const isSteal = !!m.metadata?.steal;
+
+        // Plain-language "who does this affect" line, from the current viewer's perspective
+        let affects: string;
+        if (m.type === "shield") {
+          affects = ownerIdx === viewerIdx ? "Protects you" : `Protects ${names[ownerIdx]}`;
+        } else if (m.appliesTo === "neutral" || m.appliesTo === "both") {
+          affects = isSteal ? "Race — hit it before they do (steals from them)" : "Race — either player can trigger it";
+        } else {
+          const affectedIdx = (Number(m.affectedPlayerId ?? "0") === 0 ? 0 : 1) as 0 | 1;
+          const isYou = affectedIdx === viewerIdx;
+          if (m.type === "cold") affects = isYou ? "Blocks YOUR trigger there" : `Blocks ${names[affectedIdx]}'s trigger there`;
+          else affects = isYou ? "Punishes YOU if you hit it" : `Punishes ${names[affectedIdx]} if hit`;
+        }
+
+        let magnitudeLabel = "";
+        if (m.type === "hot") {
+          const mag = getBoardMarkMagnitude(m.target.type, engine, "hot");
+          magnitudeLabel = engine === "X01" ? `−${mag}` : `+${mag}`;
+        } else if (m.type === "trap") {
+          const mag = getBoardMarkMagnitude(m.target.type, engine, "trap");
+          magnitudeLabel = engine === "X01" ? `+${mag}` : `−${mag}`;
+        }
+
         return (
           <div
             key={m.id}
-            title={`${m.type} on ${label} \u2014 placed by ${names[ownerIdx]}`}
             style={{
-              fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em",
-              padding: "2px 8px", borderRadius: "999px", fontFamily: "Oswald, sans-serif",
-              color: COLOR[m.type],
-              background: `${COLOR[m.type]}1f`,
-              border: `1px solid ${COLOR[m.type]}55`,
+              display: "flex", alignItems: "center", gap: "8px",
+              padding: "5px 10px", borderRadius: "8px", fontFamily: "Oswald, sans-serif",
+              background: `${COLOR[m.type]}14`,
+              border: `1px solid ${COLOR[m.type]}44`,
             }}
           >
-            {ICON[m.type]} {label}
+            <span style={{ fontSize: "1rem", flexShrink: 0 }}>{ICON[m.type]}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "6px", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "0.72rem", fontWeight: 900, letterSpacing: "0.04em", color: COLOR[m.type] }}>{TYPE_LABEL[m.type]}</span>
+                <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#fff" }}>{label}</span>
+                {isSteal && <span style={{ fontSize: "0.55rem", fontWeight: 800, color: "#ffd24a", background: "rgba(255,210,74,0.15)", padding: "1px 5px", borderRadius: "999px" }}>STEAL</span>}
+                {magnitudeLabel && <span style={{ fontSize: "0.68rem", fontWeight: 800, color: COLOR[m.type], marginLeft: "auto" }}>{magnitudeLabel}</span>}
+              </div>
+              <div style={{ fontSize: "0.62rem", color: "rgba(255,255,255,0.5)", lineHeight: 1.3 }}>{affects}</div>
+            </div>
           </div>
         );
       })}
@@ -1265,7 +1315,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         ))}
       </div>
       {isCardClash && <CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} lastActivation={lastActivation} />}
-      {isCardClash && isChaosLabMode && <BoardMarksHUD marks={activeBoardMarks} names={[p1Name, p2Name]} />}
+      {isCardClash && isChaosLabMode && <BoardMarksHUD marks={activeBoardMarks} names={[p1Name, p2Name]} engine="X01" viewerIdx={turn as 0 | 1} />}
       {/* Checkout bar — updates live after every dart in the visit */}
       {([0, ...(soloMode ? [] : [1])] as (0|1)[]).map(i => {
         // For the active player, use the live remaining (score minus darts thrown so far this visit)
@@ -1463,7 +1513,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       </div>
       }
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust || isBotTurnX01} />
+        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust || isBotTurnX01} markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks) : undefined} />
         <AbandonBtn onAbandon={onAbandon} />
       </div>}
     />
@@ -2658,7 +2708,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         ))}
       </div>
       {isCardClash && <CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} lastActivation={lastActivation} />}
-      {isCardClash && isChaosLabMode && <BoardMarksHUD marks={activeBoardMarks} names={[p1Name, p2Name]} />}
+      {isCardClash && isChaosLabMode && <BoardMarksHUD marks={activeBoardMarks} names={[p1Name, p2Name]} engine="CRICKET" viewerIdx={turn as 0 | 1} />}
       {/* Cricket scorecard */}
       <SectionCard>
         <div className="grid" style={{ gridTemplateColumns: "1fr auto 1fr", gap: "0.15rem" }}>
@@ -2706,6 +2756,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         <DartInputBoard
           onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
           activeSegments={CRICKET_NUMS.slice(0, numCount)} highlightSegments={CRICKET_NUMS.slice(0, numCount)}
+          markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks) : undefined}
           disabled={isBotTurnCri}
         />
         <AbandonBtn onAbandon={onAbandon} />
