@@ -136,13 +136,49 @@ export const ALL_CARDS: CardData[] = [
   { id: 609, name: "Win Bonus Removed", category: "WILDCARD BAD", rarity: "COMMON", effect: "If target won last leg, they lose that momentum bonus.", flavourText: "What you earned doesn't last.", energyCost: 1 },
   { id: 610, name: "Shutdown", category: "WILDCARD BAD", rarity: "RARE", effect: "Target's leg capped at 50 points (X01) or 2 numbers max (Cricket).", flavourText: "Hard stop.", energyCost: 2 },
 
-  // ── CHAOS LAB — Board Marks v1 prototype cards (4) ──────────────────────────
-  // Exclusive to the Chaos Lab mode's mystery-card pool. Never appear in packs,
-  // the shop, or the equip screen — see lib/card-clash/boardMarks.
-  { id: 701, name: "Hot Bull", category: "WILDCARD GOOD", rarity: "RARE", effect: "Marks Bull as Hot. The next player to hit Bull triggers a bonus event — Bull still scores normally.", flavourText: "The middle of the board just got interesting.", mode: "chaos_lab" },
+  // ── CHAOS LAB — Board Marks prototype cards (20: 5 hot, 5 cold, 5 trap, 5 shield) ──
+  // Exclusive to the Chaos Lab mode's mystery-card pool (drawn ONLY here, never
+  // mixed with the regular chaos pool). Never appear in packs, the shop, or the
+  // equip screen — see lib/card-clash/boardMarks.
+
+  // HOT — neutral, either player can trigger it, rewards whoever hits it with a real score bonus.
+  { id: 701, name: "Hot Bull", category: "WILDCARD GOOD", rarity: "RARE", effect: "Marks Bull as Hot. The next player to hit Bull scores normally AND gets a bonus — mark is removed once triggered.", flavourText: "The middle of the board just got interesting.", mode: "chaos_lab" },
+  { id: 705, name: "Hot 20", category: "WILDCARD GOOD", rarity: "COMMON", effect: "Marks the 20 bed Hot. The next player to hit S20/D20/T20 scores normally AND gets a bonus — mark is removed once triggered.", flavourText: "Everyone wants a piece of twenty.", mode: "chaos_lab" },
+  { id: 706, name: "Hot Treble 20", category: "WILDCARD GOOD", rarity: "RARE", effect: "Marks T20 Hot. The next player to hit it clean scores 60 AND gets a bonus — mark is removed once triggered.", flavourText: "The wire has never looked so inviting.", mode: "chaos_lab" },
+  { id: 707, name: "Hot Double 16", category: "WILDCARD GOOD", rarity: "RARE", effect: "Marks D16 Hot. The next player to check out (or just hit) D16 scores normally AND gets a bonus — mark is removed once triggered.", flavourText: "A finish worth celebrating twice.", mode: "chaos_lab" },
+  { id: 708, name: "Hot 19", category: "WILDCARD GOOD", rarity: "COMMON", effect: "Marks the 19 bed Hot. The next player to hit S19/D19/T19 scores normally AND gets a bonus — mark is removed once triggered.", flavourText: "The board's second favourite just got hot.", mode: "chaos_lab" },
+
+  // COLD — opponent only, pure denial (no score effect), lasts through their next visit.
   { id: 702, name: "Cold 20s", category: "WILDCARD BAD", rarity: "RARE", effect: "Marks the 20 bed Cold against your opponent — their darts on 20 still score, but can't trigger Card Clash effects until their visit ends.", flavourText: "The board goes quiet where they need it loud.", mode: "chaos_lab" },
-  { id: 703, name: "Trap T20", category: "WILDCARD BAD", rarity: "RARE", effect: "Traps T20 against your opponent — if they hit it, they still score 60, but their Card Clash trigger from that dart is cancelled. Trap is removed once sprung.", flavourText: "The best route is the one they don't see coming.", mode: "chaos_lab" },
+  { id: 709, name: "Cold Bull", category: "WILDCARD BAD", rarity: "RARE", effect: "Marks Bull Cold against your opponent — Bull still scores normally, but can't trigger Card Clash effects until their visit ends.", flavourText: "Even the middle of the board can freeze over.", mode: "chaos_lab" },
+  { id: 710, name: "Cold Treble 19", category: "WILDCARD BAD", rarity: "COMMON", effect: "Marks T19 Cold against your opponent — still scores 57, but can't trigger Card Clash effects until their visit ends.", flavourText: "A cold wire is still a wire.", mode: "chaos_lab" },
+  { id: 711, name: "Cold Double 20", category: "WILDCARD BAD", rarity: "COMMON", effect: "Marks D20 Cold against your opponent — still scores/checks out normally, but can't trigger Card Clash effects until their visit ends.", flavourText: "The finish counts. Nothing else does.", mode: "chaos_lab" },
+  { id: 712, name: "Cold 15s", category: "WILDCARD BAD", rarity: "COMMON", effect: "Marks the 15 bed Cold against your opponent — still scores normally, but can't trigger Card Clash effects until their visit ends.", flavourText: "The warm-up number goes ice cold.", mode: "chaos_lab" },
+
+  // TRAP — opponent only, cancels their trigger AND stings them with a real score penalty, removed once sprung.
+  { id: 703, name: "Trap T20", category: "WILDCARD BAD", rarity: "RARE", effect: "Traps T20 against your opponent — if they hit it, they still score 60, but their Card Clash trigger is cancelled AND they take a penalty. Trap is removed once sprung.", flavourText: "The best route is the one they don't see coming.", mode: "chaos_lab" },
+  { id: 713, name: "Trap Bull", category: "WILDCARD BAD", rarity: "LEGENDARY", effect: "Traps Bull against your opponent — still scores normally, but their Card Clash trigger is cancelled AND they take a penalty. Trap is removed once sprung.", flavourText: "Nowhere on the board is truly safe.", mode: "chaos_lab" },
+  { id: 714, name: "Trap Double 16", category: "WILDCARD BAD", rarity: "LEGENDARY", effect: "Traps D16 against your opponent — a checkout still counts, but their Card Clash trigger is cancelled AND they take a penalty. Trap is removed once sprung.", flavourText: "Even the finish line can bite back.", mode: "chaos_lab" },
+  { id: 715, name: "Trap 19s", category: "WILDCARD BAD", rarity: "COMMON", effect: "Traps the 19 bed against your opponent — still scores normally, but their Card Clash trigger is cancelled AND they take a penalty. Trap is removed once sprung.", flavourText: "Second favourite, first to suffer.", mode: "chaos_lab" },
+  { id: 716, name: "Trap Double 20", category: "WILDCARD BAD", rarity: "RARE", effect: "Traps D20 against your opponent — a checkout still counts, but their Card Clash trigger is cancelled AND they take a penalty. Trap is removed once sprung.", flavourText: "The obvious route is the trapped one.", mode: "chaos_lab" },
+
+  // SHIELD — self only, blocks enemy Cold/Trap placement on the target, never affects scoring, lasts through your next visit.
   { id: 704, name: "Shield D16", category: "WILDCARD GOOD", rarity: "RARE", effect: "Shields D16 for you — enemy Cold and Trap marks can't be placed there until your next visit ends. Checking out on D16 is unaffected.", flavourText: "Some doors don't open for anyone else.", mode: "chaos_lab" },
+  { id: 717, name: "Shield Bull", category: "WILDCARD GOOD", rarity: "RARE", effect: "Shields Bull for you — enemy Cold and Trap marks can't be placed there until your next visit ends. Scoring on Bull is unaffected.", flavourText: "The centre of the board answers to you.", mode: "chaos_lab" },
+  { id: 718, name: "Shield Treble 20", category: "WILDCARD GOOD", rarity: "RARE", effect: "Shields T20 for you — enemy Cold and Trap marks can't be placed there until your next visit ends. Scoring on T20 is unaffected.", flavourText: "The wire stays clean for you.", mode: "chaos_lab" },
+  { id: 719, name: "Shield 20s", category: "WILDCARD GOOD", rarity: "COMMON", effect: "Shields the 20 bed for you — enemy Cold and Trap marks can't be placed there until your next visit ends. Scoring on 20 is unaffected.", flavourText: "Your favourite number, off limits to them.", mode: "chaos_lab" },
+  { id: 720, name: "Shield Double 8", category: "WILDCARD GOOD", rarity: "COMMON", effect: "Shields D8 for you — enemy Cold and Trap marks can't be placed there until your next visit ends. Checking out on D8 is unaffected.", flavourText: "A quiet finish, kept quiet.", mode: "chaos_lab" },
+
+  // STEAL — Hot/Trap triggers directly transfer points between players, zero-sum. Winning it doesn't just help you, it hurts them.
+  { id: 721, name: "Point Thief", category: "WILDCARD GOOD", rarity: "RARE", effect: "Marks the 8 bed Hot. Whoever hits it first scores normally AND steals a bonus straight from the other player's score.", flavourText: "What's yours becomes theirs in an instant.", mode: "chaos_lab" },
+  { id: 722, name: "Robbery", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks T19 Hot. Whoever hits it first scores normally AND steals a big bonus straight from the other player's score.", flavourText: "In broad daylight, no less.", mode: "chaos_lab" },
+  { id: 723, name: "Highway Robbery", category: "WILDCARD BAD", rarity: "LEGENDARY", effect: "Traps Bull against your opponent — they still score normally, but their trigger is cancelled AND you take a big chunk straight from their score.", flavourText: "They never saw it coming.", mode: "chaos_lab" },
+  { id: 724, name: "Grand Larceny", category: "WILDCARD BAD", rarity: "RARE", effect: "Traps D20 against your opponent — a checkout still counts, but their trigger is cancelled AND you take a chunk straight from their score.", flavourText: "The finish line, robbed blind.", mode: "chaos_lab" },
+
+  // RISK/REWARD — a big guaranteed-target reward, plus a curse on a random spot against yourself. Going for the prize means playing with a hidden landmine.
+  { id: 725, name: "Wildfire", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks Bull Hot for a huge bonus to whoever hits it first — but ALSO traps a random number against you. Hit your own curse and you'll pay for it.", flavourText: "Fire spreads. Sometimes back toward you.", mode: "chaos_lab" },
+  { id: 726, name: "Double or Nothing", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks T20 Hot for a big bonus to whoever hits it first — but ALSO marks a random number Cold against yourself, blocking your own triggers there until your visit ends.", flavourText: "Go big. Just watch where you step.", mode: "chaos_lab" },
+  { id: 727, name: "All In", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks D16 Hot for a solid bonus to whoever hits it first — but ALSO traps a random number against you. Hit your own curse and you'll pay for it.", flavourText: "No half measures tonight.", mode: "chaos_lab" },
 ];
 
 /**

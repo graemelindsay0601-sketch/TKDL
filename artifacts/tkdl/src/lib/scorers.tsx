@@ -20,6 +20,7 @@ import {
   createBoardMarkFromPrototypeCard,
   BOARD_MARK_CARD_ID_MAP,
   toBoardMarkDartResult,
+  getBoardMarkMagnitude,
 } from "./card-clash/boardMarks";
 import { cardDebugLog } from "./card-debug";
 import { useSafeTimeout } from "./use-safe-timeout";
@@ -681,10 +682,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       dart = ccPreprocessDart(dart, visitDarts.length, effectsForDart, turn, scores[turn]);
     }
 
-    // Chaos Lab: resolve Board Marks against this dart. Read-only with respect
-    // to scoring — only ever updates activeBoardMarks and surfaces a toast.
-    // Runs on the real, already-preprocessed dart, and never influences cum/
-    // nv/rem below in any way.
+    // Chaos Lab: resolve Board Marks against this dart. Runs on the real,
+    // already-preprocessed dart, and never influences cum/nv/rem for THIS
+    // dart's own scoring below — Hot/Trap rewards apply via a separate
+    // setScores call, so they never interfere with this dart's own bust/
+    // checkout math, only becoming visible from the next dart onward.
     if (isCardClash && isChaosLabMode && activeBoardMarks.length > 0) {
       const dartResult = toBoardMarkDartResult(dart, String(turn));
       const resolved = resolveBoardMarksForDart(activeBoardMarks, { dartResult });
@@ -693,9 +695,36 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         const hot = resolved.events.find(e => e.type === "board_mark_hot_triggered");
         const cold = resolved.events.find(e => e.type === "card_clash_trigger_blocked_by_cold_mark");
         const trap = resolved.events.find(e => e.type === "card_clash_trigger_cancelled_by_trap_mark");
-        if (hot) setLastActivation({ cardName: "🔥 Hot triggered!", player: turn as 0 | 1, key: `boardmark-hot-${Date.now()}` });
-        else if (trap) setLastActivation({ cardName: "⚠️ Trap sprung!", player: turn as 0 | 1, key: `boardmark-trap-${Date.now()}` });
-        else if (cold) setLastActivation({ cardName: "❄️ Blocked by Cold", player: turn as 0 | 1, key: `boardmark-cold-${Date.now()}` });
+        if (hot) {
+          // Look up the full mark (from BEFORE removal) for its target type + steal flag
+          const triggeredMark = activeBoardMarks.find(m => m.id === hot.markId);
+          const magnitude = getBoardMarkMagnitude(triggeredMark?.target.type ?? "number", "X01", "hot");
+          const isSteal = !!triggeredMark?.metadata?.steal;
+          const rewardPlayer = turn as 0 | 1;
+          const otherPlayer: 0 | 1 = rewardPlayer === 0 ? 1 : 0;
+          setScores(prev => {
+            const n = [...prev] as [number, number];
+            n[rewardPlayer] = Math.max(0, n[rewardPlayer] - magnitude);
+            if (isSteal) n[otherPlayer] = n[otherPlayer] + magnitude; // zero-sum: what you win, they lose
+            return n;
+          });
+          setLastActivation({ cardName: isSteal ? `🔥💰 Stolen! -${magnitude}` : `🔥 Hot! -${magnitude}`, player: rewardPlayer, key: `boardmark-hot-${Date.now()}` });
+        } else if (trap) {
+          const triggeredMark = activeBoardMarks.find(m => m.id === trap.markId);
+          const magnitude = getBoardMarkMagnitude(triggeredMark?.target.type ?? "treble", "X01", "trap");
+          const isSteal = !!triggeredMark?.metadata?.steal;
+          const penalizedPlayer = turn as 0 | 1;
+          const trapOwner: 0 | 1 | undefined = triggeredMark ? (Number(triggeredMark.ownerPlayerId) as 0 | 1) : undefined;
+          setScores(prev => {
+            const n = [...prev] as [number, number];
+            n[penalizedPlayer] = n[penalizedPlayer] + magnitude;
+            if (isSteal && trapOwner !== undefined) n[trapOwner] = Math.max(0, n[trapOwner] - magnitude); // trapper gets what the trapped player lost
+            return n;
+          });
+          setLastActivation({ cardName: isSteal ? `⚠️💰 Robbed! +${magnitude}` : `⚠️ Trap! +${magnitude}`, player: penalizedPlayer, key: `boardmark-trap-${Date.now()}` });
+        } else if (cold) {
+          setLastActivation({ cardName: "❄️ Blocked by Cold", player: turn as 0 | 1, key: `boardmark-cold-${Date.now()}` });
+        }
         cardDebugLog("X01Scorer", "[CHAOS_LAB] Board Mark events", resolved.events);
       }
     }
@@ -1110,14 +1139,20 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     const boardMarkConfig = BOARD_MARK_CARD_ID_MAP[card.id];
     if (boardMarkConfig) {
       const opponentPlayerId = String(turn === 0 ? 1 : 0);
-      const newMark = createBoardMarkFromPrototypeCard(boardMarkConfig, {
+      const newMarks = createBoardMarkFromPrototypeCard(boardMarkConfig, {
         ownerPlayerId: String(turn),
         opponentPlayerId,
         createdAtVisitId: `${turn}:${history.length}`,
       });
       setActiveBoardMarks(prev => {
-        const result = placeBoardMark(prev, newMark);
-        return result.ok ? result.marks : prev; // placement conflicts silently no-op in v1 (logic-first per spec)
+        // Compound (risk/reward) cards produce 2 marks — place each independently;
+        // if one is blocked by conflict/shield, the other can still go through.
+        let current = prev;
+        for (const mark of newMarks) {
+          const result = placeBoardMark(current, mark);
+          if (result.ok) current = result.marks;
+        }
+        return current;
       });
       setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
       setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
@@ -1649,14 +1684,18 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     const boardMarkConfig = BOARD_MARK_CARD_ID_MAP[card.id];
     if (boardMarkConfig) {
       const opponentPlayerId = String(turn === 0 ? 1 : 0);
-      const newMark = createBoardMarkFromPrototypeCard(boardMarkConfig, {
+      const newMarks = createBoardMarkFromPrototypeCard(boardMarkConfig, {
         ownerPlayerId: String(turn),
         opponentPlayerId,
         createdAtVisitId: `${turn}:${legHistory.length}:${turnCounter}`,
       });
       setActiveBoardMarks(prev => {
-        const result = placeBoardMark(prev, newMark);
-        return result.ok ? result.marks : prev;
+        let current = prev;
+        for (const mark of newMarks) {
+          const result = placeBoardMark(current, mark);
+          if (result.ok) current = result.marks;
+        }
+        return current;
       });
       setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
       setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
@@ -2025,8 +2064,10 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       ? ccPreprocessCricketDart(dart, activeEffects, turn, marks[turn])
       : dart;
 
-    // Chaos Lab: resolve Board Marks against this dart. Read-only with respect
-    // to scoring/marks — only ever updates activeBoardMarks and surfaces a toast.
+    // Chaos Lab: resolve Board Marks against this dart. Runs on the real,
+    // already-preprocessed dart. Hot/Trap rewards apply via a separate
+    // setScores call, so they never interfere with this dart's own
+    // scoring/marks math, only becoming visible from the next dart onward.
     if (isCardClash && isChaosLabMode && activeBoardMarks.length > 0) {
       const dartResult = toBoardMarkDartResult(effectiveDart, String(turn));
       const resolved = resolveBoardMarksForDart(activeBoardMarks, { dartResult });
@@ -2035,9 +2076,35 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         const hot = resolved.events.find(e => e.type === "board_mark_hot_triggered");
         const cold = resolved.events.find(e => e.type === "card_clash_trigger_blocked_by_cold_mark");
         const trap = resolved.events.find(e => e.type === "card_clash_trigger_cancelled_by_trap_mark");
-        if (hot) setLastActivation({ cardName: "🔥 Hot triggered!", player: turn as 0 | 1, key: `boardmark-hot-${Date.now()}` });
-        else if (trap) setLastActivation({ cardName: "⚠️ Trap sprung!", player: turn as 0 | 1, key: `boardmark-trap-${Date.now()}` });
-        else if (cold) setLastActivation({ cardName: "❄️ Blocked by Cold", player: turn as 0 | 1, key: `boardmark-cold-${Date.now()}` });
+        if (hot) {
+          const triggeredMark = activeBoardMarks.find(m => m.id === hot.markId);
+          const magnitude = getBoardMarkMagnitude(triggeredMark?.target.type ?? "number", "CRICKET", "hot");
+          const isSteal = !!triggeredMark?.metadata?.steal;
+          const rewardPlayer = turn as 0 | 1;
+          const otherPlayer: 0 | 1 = rewardPlayer === 0 ? 1 : 0;
+          setScores(prev => {
+            const n = [...prev] as [number, number];
+            n[rewardPlayer] = n[rewardPlayer] + magnitude;
+            if (isSteal) n[otherPlayer] = Math.max(0, n[otherPlayer] - magnitude);
+            return n;
+          });
+          setLastActivation({ cardName: isSteal ? `🔥💰 Stolen! +${magnitude}` : `🔥 Hot! +${magnitude}`, player: rewardPlayer, key: `boardmark-hot-${Date.now()}` });
+        } else if (trap) {
+          const triggeredMark = activeBoardMarks.find(m => m.id === trap.markId);
+          const magnitude = getBoardMarkMagnitude(triggeredMark?.target.type ?? "treble", "CRICKET", "trap");
+          const isSteal = !!triggeredMark?.metadata?.steal;
+          const penalizedPlayer = turn as 0 | 1;
+          const trapOwner: 0 | 1 | undefined = triggeredMark ? (Number(triggeredMark.ownerPlayerId) as 0 | 1) : undefined;
+          setScores(prev => {
+            const n = [...prev] as [number, number];
+            n[penalizedPlayer] = Math.max(0, n[penalizedPlayer] - magnitude);
+            if (isSteal && trapOwner !== undefined) n[trapOwner] = n[trapOwner] + magnitude;
+            return n;
+          });
+          setLastActivation({ cardName: isSteal ? `⚠️💰 Robbed! -${magnitude}` : `⚠️ Trap! -${magnitude}`, player: penalizedPlayer, key: `boardmark-trap-${Date.now()}` });
+        } else if (cold) {
+          setLastActivation({ cardName: "❄️ Blocked by Cold", player: turn as 0 | 1, key: `boardmark-cold-${Date.now()}` });
+        }
         cardDebugLog("CricketScorer", "[CHAOS_LAB] Board Mark events", resolved.events);
       }
     }

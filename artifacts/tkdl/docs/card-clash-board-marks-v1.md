@@ -1,14 +1,20 @@
-# Card Clash — Chaos Lab / Board Marks v1
+# Card Clash — Chaos Lab / Board Marks
 
 Chaos Lab is a new, separate Card Clash mode (`chaos_lab`) sitting alongside
 `standard` and `chaos`. It does not replace either. Its identity: **normal
 darts scoring stays real — Card Clash makes the board tactically alive.**
 
-Its first mechanic is **Board Marks**: cards that temporarily mark a
-dartboard target (a number bed, a specific treble/double, or bull) as hot,
-cold, trapped, or shielded. Marks change what happens in the Card Clash
-effect layer when a dart lands there — they never change the dart's actual
-score, bust rules, checkout rules, or Cricket mark/point logic.
+Chaos Lab draws exclusively from a 27-card Board Marks pool (never the
+regular chaos pool) — cards that temporarily mark a dartboard target (a
+number bed, a specific treble/double, or bull) as hot, cold, trapped, or
+shielded. Marks change what happens in the Card Clash effect layer when a
+dart lands there — they never change the dart's actual score, bust rules,
+checkout rules, or Cricket mark/point logic.
+
+Hot and Trap carry a real, rarity-scaled score effect (see "Reward
+magnitudes" below) — this was a deliberate v2 change from the original
+design (which kept them purely event/notification-based) to make the mode
+feel like it actually swings a game, not just nudges the trigger layer.
 
 ## Where the code lives
 
@@ -21,9 +27,10 @@ artifacts/tkdl/src/lib/card-clash/boardMarks/
   boardMarkState.ts           small array helpers + id generation
   boardMarkResolver.ts        resolveBoardMarksForDart() — runs after scoring
   boardMarkLifecycle.ts       expireBoardMarksForVisitEnd/DartHit()
-  boardMarkPrototypeCards.ts  the 4 v1 cards + the factory that places them
+  boardMarkRewards.ts         getBoardMarkMagnitude() — rarity-scaled Hot/Trap magnitudes
+  boardMarkPrototypeCards.ts  the 27-card roster + the factory that places them
   index.ts                    public exports — import from here
-  __tests__/                  43 tests (node:test), run with:
+  __tests__/                  58 tests (node:test), run with:
                                npx tsx --test src/lib/card-clash/boardMarks/__tests__/*.test.ts
 ```
 
@@ -36,10 +43,51 @@ and independently testable.
 
 | Type | Effect | Removed |
 |---|---|---|
-| `hot` | Next eligible hit emits a trigger event. Score unaffected. | On trigger |
-| `cold` | Blocks Card Clash triggers from that target for the affected player. Score unaffected. | When affected player's visit ends |
-| `trap` | Cancels a Card Clash trigger from that target for the affected player. Score unaffected. | On trigger |
+| `hot` | Next eligible hit scores normally AND grants a real score bonus to whoever hits it. | On trigger |
+| `cold` | Blocks Card Clash triggers from that target for the affected player. Pure denial — no score effect. | When affected player's visit ends |
+| `trap` | Cancels a Card Clash trigger from that target AND applies a real score penalty to whoever springs it. | On trigger |
 | `shield` | Blocks *enemy* Cold/Trap placement on that target. Never blocks Hot. Doesn't affect scoring. | When owner's next visit ends |
+
+## Reward magnitudes
+
+Hot and Trap's score effect is rarity-scaled by target difficulty —
+`boardMarkRewards.ts`'s `getBoardMarkMagnitude(targetType, engine, kind)`:
+
+| Target | X01 Hot | X01 Trap | Cricket Hot | Cricket Trap |
+|---|---|---|---|---|
+| number bed | 35 | 30 | 18 | 15 |
+| treble / double | 55 | 45 | 28 | 22 |
+| bull | 90 | 75 | 45 | 38 |
+
+X01 values are applied to remaining score (Hot subtracts, Trap adds).
+Cricket values are applied to points (Hot adds, Trap subtracts). Cold has
+no entry here — it never gets a score effect, on purpose.
+
+## Steal marks
+
+Four cards (Point Thief, Robbery, Highway Robbery, Grand Larceny) flag
+their mark with `steal: true` in `metadata`. When a steal Hot/Trap
+triggers, it's not just a grant/penalty — it's a direct transfer:
+
+- **Steal Hot**: the trigger reward is subtracted from the *other* player,
+  not just added to the triggering one. Since Hot is neutral (either
+  player can trigger it), this makes it a genuine race — winning it
+  actively hurts your opponent, not just helps you.
+- **Steal Trap**: the mark's *owner* (whoever placed it) receives the same
+  amount the trapped player loses, rather than the penalty just
+  disappearing.
+
+## Risk/reward compound cards
+
+Three cards (Wildfire, Double or Nothing, All In) place **two** marks at
+once instead of one: a big, guaranteed-target Hot reward, plus a second,
+self-targeted curse (Trap or Cold) on a random 1-20 number bed. Chasing
+the big reward means playing the rest of that leg with a hidden landmine
+of your own making — you don't know which number you've cursed yourself
+on. `createBoardMarkFromPrototypeCard` returns `BoardMark[]` (1 or 2
+elements) to support this; both scorers loop-place whatever comes back,
+and each mark is placed independently (if one hits a conflict, the other
+can still go through).
 
 `shield` is placement-time-only protection — it's never "hit" or resolved
 against a dart the way the other three are.
@@ -76,10 +124,10 @@ the start of each visit" mechanic — it does **not** add a new UI flow. The
 differences:
 
 - **Draw pool**: `drawChaosLabOptions()` (in `cards-data.ts`) draws
-  exclusively from the 4 Board Mark cards — every draw is guaranteed to be
-  a mark, not a normal score-boost card. This is intentional: Chaos Lab is
-  meant to be a genuinely distinct tactical mode (per the design spec),
-  not regular Chaos Mode with a few marks occasionally mixed in.
+  exclusively from the 27-card Board Mark pool — every draw is guaranteed
+  to be a mark, not a normal score-boost card. This is intentional: Chaos
+  Lab is meant to be a genuinely distinct tactical mode (per the design
+  spec), not regular Chaos Mode with a few marks occasionally mixed in.
   `drawChaosOptions()` — what regular Chaos Mode uses — is completely
   untouched. With only 4 v1 prototype cards, a 3-card draw will show most
   of the pool most of the time — expected for a proof-of-concept; a future
@@ -103,34 +151,40 @@ Both scorers gate all of this behind `isChaosLabMode` (read from the
 `CardClashMatchScorer`'s `chaosLabMode` prop) — Standard Card Clash and
 regular Chaos Mode never touch `activeBoardMarks` or the resolver at all.
 
-### Important limitation (intentional, for v1)
+### Remaining limitation (unchanged from v1)
 
-Chaos Lab's only "Card Clash trigger" right now is the automatic per-visit
-mystery-card draw — there's no other per-dart-triggered effect system in
-Card Clash today. So `resolveBoardMarksForDart`'s `blockCardClashTriggers`/
-`cancelCardClashTriggers` flags are correctly computed and logged/toasted,
-but nothing currently *consumes* them to suppress a future draw — there
-isn't yet a clean, safe way to wire "this dart was Cold-blocked" into
-"skip that player's next mystery-card draw" without touching the existing
-chaos-draw logic in a riskier way than this v1 aims for. Future work that
-wants Cold/Trap to have a harder effect on gameplay should explicitly check
-the resolver's result before firing whatever it's gating — the module is
-built so that's a small, additive change, not a rewrite.
+Hot and Trap now have real score effects (see "Reward magnitudes" above) —
+that was the v1 limitation this note used to describe, and it's fixed.
+What's still true: `resolveBoardMarksForDart`'s `blockCardClashTriggers`/
+`cancelCardClashTriggers` flags (from Cold/Trap) are correctly computed
+and logged/toasted, but nothing currently *consumes* them to suppress a
+*future mystery-card draw* — Chaos Lab's only "Card Clash trigger" is the
+automatic per-visit draw, and there isn't yet a clean, safe way to wire
+"this dart was Cold-blocked" into "skip that player's next draw" without
+touching the existing chaos-draw logic in a riskier way than felt
+warranted so far. Future work that wants Cold/Trap to suppress an actual
+future draw (on top of their current score/denial effects) should
+explicitly check the resolver's result before firing whatever it's
+gating — the module is built so that's a small, additive change, not a
+rewrite.
 
-## Prototype cards (v1 — proof of concept, not a balanced set)
+## Card roster (27 cards)
 
-| Card | Mark | Target | Applies to | Duration |
-|---|---|---|---|---|
-| Hot Bull | hot | Bull | neutral | until_hit |
-| Cold 20s | cold | 20 bed | opponent | until_affected_player_visit_end |
-| Trap T20 | trap | T20 | opponent | until_hit |
-| Shield D16 | shield | D16 | self | until_owner_next_visit_end |
+| Family | Count | Ids | Behaviour |
+|---|---|---|---|
+| Simple Hot | 5 | 701, 705-708 | Bull, 20, T20, D16, 19 — neutral, rewards whoever hits it |
+| Simple Cold | 5 | 702, 709-712 | 20, Bull, T19, D20, 15 — opponent only, pure denial |
+| Simple Trap | 5 | 703, 713-716 | T20, Bull, D16, 19, D20 — opponent only, cancels + penalizes |
+| Simple Shield | 5 | 704, 717-720 | D16, Bull, T20, 20, D8 — self only, blocks enemy Cold/Trap |
+| Steal | 4 | 721-724 | Point Thief, Robbery (Hot steal); Highway Robbery, Grand Larceny (Trap steal) |
+| Risk/reward | 3 | 725-727 | Wildfire, Double or Nothing, All In — big reward + self-curse on a random spot |
 
-These live in `cards-data.ts` flagged `mode: "chaos_lab"` (ids 701-704).
+These live in `cards-data.ts` flagged `mode: "chaos_lab"` (ids 701-727).
 That flag is what keeps them out of everywhere else — they're **never**
 added to `card_definitions` in the backend, so they can't be purchased,
 packed, or equipped. The only place they can ever appear is Chaos Lab's
-mixed mystery-card pool.
+own mystery-card pool (`getChaosLabCardPool` in `cards-data.ts`), which
+draws exclusively from this set — never mixed with the regular chaos pool.
 
 ## What not to do (carried over from the design spec — still true)
 
@@ -147,7 +201,10 @@ mixed mystery-card pool.
 ## Manual test checklist
 
 - Standard Card Clash and regular Chaos Mode: unaffected, no Board Marks state involved.
-- Chaos Lab, Hot Bull: mark appears in the Board Marks HUD; hitting Bull fires the toast and removes the mark.
-- Chaos Lab, Cold 20s: opponent's T20/D20/S20 still scores exactly as normal; a "Blocked by Cold" toast appears; mark persists until their visit ends.
-- Chaos Lab, Trap T20: opponent's T20 still scores 60; a "Trap sprung!" toast appears; mark is removed.
+- Chaos Lab, Hot Bull: mark appears in the Board Marks HUD; hitting Bull fires the toast, scores normally, AND applies the Bull-tier bonus; mark is removed.
+- Chaos Lab, Cold 20s: opponent's T20/D20/S20 still scores exactly as normal; a "Blocked by Cold" toast appears with no score effect; mark persists until their visit ends.
+- Chaos Lab, Trap T20: opponent's T20 still scores 60; a "Trap!" toast appears with the treble-tier penalty applied; mark is removed.
 - Chaos Lab, Shield D16: opponent's Cold/Trap D16 placement silently fails (mark never enters `activeBoardMarks`); a normal D16 checkout still works.
+- Chaos Lab, Point Thief (steal Hot): whoever hits the 8 bed first gets the bonus AND the other player's score visibly moves the other way by the same amount.
+- Chaos Lab, Highway Robbery (steal Trap): opponent hits Bull, takes the penalty, and the mark's owner gets an equal bonus.
+- Chaos Lab, Wildfire (risk/reward): drawing it places Hot on Bull AND Trap on a random number against the drawer — confirm both appear in the Board Marks HUD, and that hitting your own cursed number actually penalizes you.
