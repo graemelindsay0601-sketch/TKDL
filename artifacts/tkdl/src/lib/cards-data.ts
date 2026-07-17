@@ -136,49 +136,68 @@ export const ALL_CARDS: CardData[] = [
   { id: 609, name: "Win Bonus Removed", category: "WILDCARD BAD", rarity: "COMMON", effect: "If target won last leg, they lose that momentum bonus.", flavourText: "What you earned doesn't last.", energyCost: 1 },
   { id: 610, name: "Shutdown", category: "WILDCARD BAD", rarity: "RARE", effect: "Target's leg capped at 50 points (X01) or 2 numbers max (Cricket).", flavourText: "Hard stop.", energyCost: 2 },
 
-  // ── CHAOS LAB — Board Marks prototype cards (20: 5 hot, 5 cold, 5 trap, 5 shield) ──
+  // ── CHAOS LAB — Board Marks prototype cards (30 cards, 13 mechanic families) ──
   // Exclusive to the Chaos Lab mode's mystery-card pool (drawn ONLY here, never
   // mixed with the regular chaos pool). Never appear in packs, the shop, or the
-  // equip screen — see lib/card-clash/boardMarks.
+  // equip screen — see lib/card-clash/boardMarks. Rarity is not just cosmetic
+  // here: Chaos Lab draws are rarity-weighted (see drawChaosLabOptions), so
+  // Legendary cards are genuinely uncommon, not just differently coloured.
 
-  // HOT — neutral, either player can trigger it, rewards whoever hits it with a real score bonus.
-  { id: 701, name: "Hot Bull", category: "WILDCARD GOOD", rarity: "RARE", effect: "Marks Bull as Hot. The next player to hit Bull scores normally AND gets a bonus — mark is removed once triggered.", flavourText: "The middle of the board just got interesting.", mode: "chaos_lab" },
-  { id: 705, name: "Hot 20", category: "WILDCARD GOOD", rarity: "COMMON", effect: "Marks the 20 bed Hot. The next player to hit S20/D20/T20 scores normally AND gets a bonus — mark is removed once triggered.", flavourText: "Everyone wants a piece of twenty.", mode: "chaos_lab" },
-  { id: 706, name: "Hot Treble 20", category: "WILDCARD GOOD", rarity: "RARE", effect: "Marks T20 Hot. The next player to hit it clean scores 60 AND gets a bonus — mark is removed once triggered.", flavourText: "The wire has never looked so inviting.", mode: "chaos_lab" },
-  { id: 707, name: "Hot Double 16", category: "WILDCARD GOOD", rarity: "RARE", effect: "Marks D16 Hot. The next player to hit D16 — checkout or not, it makes no difference — scores normally AND gets a bonus. Mark is removed once triggered.", flavourText: "A finish worth celebrating twice.", mode: "chaos_lab" },
-  { id: 708, name: "Hot 19", category: "WILDCARD GOOD", rarity: "COMMON", effect: "Marks the 19 bed Hot. The next player to hit S19/D19/T19 scores normally AND gets a bonus — mark is removed once triggered.", flavourText: "The board's second favourite just got hot.", mode: "chaos_lab" },
+  // BOUNTY — neutral Hot, race to the spot, reward stated upfront.
+  { id: 701, name: "Hot Bull", category: "WILDCARD GOOD", rarity: "RARE", effect: "Marks Bull Hot. Whoever hits it first scores normally AND gets a bonus. Mark is removed once triggered.", flavourText: "The middle of the board just got interesting.", mode: "chaos_lab" },
+  { id: 702, name: "Hot Treble 20", category: "WILDCARD GOOD", rarity: "RARE", effect: "Marks T20 Hot. Whoever hits it clean first scores 60 AND gets a bonus. Mark is removed once triggered.", flavourText: "The wire has never looked so inviting.", mode: "chaos_lab" },
+  { id: 703, name: "Flashpoint", category: "WILDCARD GOOD", rarity: "COMMON", effect: "Marks a RANDOM spot on the board Hot — you won't know where until it's placed. Whoever hits it first scores normally AND gets a bonus.", flavourText: "You never know where the spark lands.", mode: "chaos_lab" },
+  { id: 704, name: "Wildstrike", category: "WILDCARD GOOD", rarity: "RARE", effect: "Marks a RANDOM treble Hot. Whoever hits it first scores normally AND gets a bonus.", flavourText: "Somewhere on that wire, fortune waits.", mode: "chaos_lab" },
 
-  // COLD — opponent only, pure denial (no score effect), lasts through their next visit.
-  { id: 702, name: "Cold 20s", category: "WILDCARD BAD", rarity: "RARE", effect: "Marks the 20 bed Cold against your opponent — their darts on 20 still score, but can't trigger Card Clash effects until their visit ends.", flavourText: "The board goes quiet where they need it loud.", mode: "chaos_lab" },
-  { id: 709, name: "Cold Bull", category: "WILDCARD BAD", rarity: "RARE", effect: "Marks Bull Cold against your opponent — Bull still scores normally, but can't trigger Card Clash effects until their visit ends.", flavourText: "Even the middle of the board can freeze over.", mode: "chaos_lab" },
-  { id: 710, name: "Cold Treble 19", category: "WILDCARD BAD", rarity: "COMMON", effect: "Marks T19 Cold against your opponent — still scores 57, but can't trigger Card Clash effects until their visit ends.", flavourText: "A cold wire is still a wire.", mode: "chaos_lab" },
-  { id: 711, name: "Cold Double 20", category: "WILDCARD BAD", rarity: "COMMON", effect: "Marks D20 Cold against your opponent — still scores/checks out normally, but can't trigger Card Clash effects until their visit ends.", flavourText: "The finish counts. Nothing else does.", mode: "chaos_lab" },
-  { id: 712, name: "Cold 15s", category: "WILDCARD BAD", rarity: "COMMON", effect: "Marks the 15 bed Cold against your opponent — still scores normally, but can't trigger Card Clash effects until their visit ends.", flavourText: "The warm-up number goes ice cold.", mode: "chaos_lab" },
+  // CURSE / COLD — opponent only, pure denial, no score effect.
+  { id: 705, name: "Cold Bull", category: "WILDCARD BAD", rarity: "RARE", effect: "Marks Bull Cold against your opponent — still scores normally, but can't trigger Card Clash effects until their visit ends.", flavourText: "Even the middle of the board can freeze over.", mode: "chaos_lab" },
+  { id: 706, name: "Blackout", category: "WILDCARD BAD", rarity: "COMMON", effect: "Marks a RANDOM spot Cold against your opponent — still scores normally there, but can't trigger Card Clash effects until their visit ends.", flavourText: "The lights go out somewhere on the board.", mode: "chaos_lab" },
+  { id: 707, name: "Deep Freeze", category: "WILDCARD BAD", rarity: "RARE", effect: "Marks a RANDOM double Cold against your opponent — checkouts there still count, but can't trigger Card Clash effects until their visit ends.", flavourText: "Some finishes go quiet.", mode: "chaos_lab" },
 
-  // TRAP — opponent only, cancels their trigger AND stings them with a real score penalty, removed once sprung.
-  { id: 703, name: "Trap T20", category: "WILDCARD BAD", rarity: "RARE", effect: "Traps T20 against your opponent — if they hit it, they still score 60, but their Card Clash trigger is cancelled AND they take a penalty. Trap is removed once sprung.", flavourText: "The best route is the one they don't see coming.", mode: "chaos_lab" },
-  { id: 713, name: "Trap Bull", category: "WILDCARD BAD", rarity: "LEGENDARY", effect: "Traps Bull against your opponent — still scores normally, but their Card Clash trigger is cancelled AND they take a penalty. Trap is removed once sprung.", flavourText: "Nowhere on the board is truly safe.", mode: "chaos_lab" },
-  { id: 714, name: "Trap Double 16", category: "WILDCARD BAD", rarity: "LEGENDARY", effect: "Traps D16 against your opponent — a checkout still counts, but their Card Clash trigger is cancelled AND they take a penalty. Trap is removed once sprung.", flavourText: "Even the finish line can bite back.", mode: "chaos_lab" },
-  { id: 715, name: "Trap 19s", category: "WILDCARD BAD", rarity: "COMMON", effect: "Traps the 19 bed against your opponent — still scores normally, but their Card Clash trigger is cancelled AND they take a penalty. Trap is removed once sprung.", flavourText: "Second favourite, first to suffer.", mode: "chaos_lab" },
-  { id: 716, name: "Trap Double 20", category: "WILDCARD BAD", rarity: "RARE", effect: "Traps D20 against your opponent — a checkout still counts, but their Card Clash trigger is cancelled AND they take a penalty. Trap is removed once sprung.", flavourText: "The obvious route is the trapped one.", mode: "chaos_lab" },
+  // CURSE / TRAP — opponent only, denial + real penalty, removed once sprung.
+  { id: 708, name: "Trap Double 16", category: "WILDCARD BAD", rarity: "RARE", effect: "Traps D16 against your opponent — a checkout still counts, but their trigger is cancelled AND they take a penalty. Trap is removed once sprung.", flavourText: "Even the finish line can bite back.", mode: "chaos_lab" },
+  { id: 709, name: "Ambush", category: "WILDCARD BAD", rarity: "COMMON", effect: "Traps a RANDOM spot against your opponent — still scores normally there, but their trigger is cancelled AND they take a penalty. Trap is removed once sprung.", flavourText: "The best route is the one they don't see coming.", mode: "chaos_lab" },
+  { id: 710, name: "Snare", category: "WILDCARD BAD", rarity: "RARE", effect: "Traps a RANDOM treble against your opponent — still scores normally there, but their trigger is cancelled AND they take a penalty. Trap is removed once sprung.", flavourText: "Every wire looks the same until it isn't.", mode: "chaos_lab" },
 
-  // SHIELD — self only, blocks enemy Cold/Trap placement on the target, never affects scoring, lasts through your next visit.
-  { id: 704, name: "Shield D16", category: "WILDCARD GOOD", rarity: "RARE", effect: "Shields D16 for you — enemy Cold and Trap marks can't be placed there until your next visit ends. Checking out on D16 is unaffected.", flavourText: "Some doors don't open for anyone else.", mode: "chaos_lab" },
-  { id: 717, name: "Shield Bull", category: "WILDCARD GOOD", rarity: "RARE", effect: "Shields Bull for you — enemy Cold and Trap marks can't be placed there until your next visit ends. Scoring on Bull is unaffected.", flavourText: "The centre of the board answers to you.", mode: "chaos_lab" },
-  { id: 718, name: "Shield Treble 20", category: "WILDCARD GOOD", rarity: "RARE", effect: "Shields T20 for you — enemy Cold and Trap marks can't be placed there until your next visit ends. Scoring on T20 is unaffected.", flavourText: "The wire stays clean for you.", mode: "chaos_lab" },
-  { id: 719, name: "Shield 20s", category: "WILDCARD GOOD", rarity: "COMMON", effect: "Shields the 20 bed for you — enemy Cold and Trap marks can't be placed there until your next visit ends. Scoring on 20 is unaffected.", flavourText: "Your favourite number, off limits to them.", mode: "chaos_lab" },
-  { id: 720, name: "Shield Double 8", category: "WILDCARD GOOD", rarity: "COMMON", effect: "Shields D8 for you — enemy Cold and Trap marks can't be placed there until your next visit ends. Checking out on D8 is unaffected.", flavourText: "A quiet finish, kept quiet.", mode: "chaos_lab" },
+  // SHIELD — self only, blocks enemy Cold/Trap on a spot.
+  { id: 711, name: "Shield D16", category: "WILDCARD GOOD", rarity: "RARE", effect: "Shields D16 for you — enemy Cold and Trap marks can't be placed there until your next visit ends. Checking out on D16 is unaffected.", flavourText: "Some doors don't open for anyone else.", mode: "chaos_lab" },
+  { id: 712, name: "Ward", category: "WILDCARD GOOD", rarity: "COMMON", effect: "Shields a RANDOM spot for you — enemy Cold and Trap marks can't be placed there until your next visit ends. Your own scoring there is unaffected.", flavourText: "Protection you didn't know you'd need.", mode: "chaos_lab" },
+  { id: 713, name: "Bunker", category: "WILDCARD GOOD", rarity: "RARE", effect: "Shields a RANDOM double for you — enemy Cold and Trap marks can't be placed there until your next visit ends. Checking out there is unaffected.", flavourText: "A safe route, kept safe.", mode: "chaos_lab" },
 
-  // STEAL — Hot/Trap triggers directly transfer points between players, zero-sum. Winning it doesn't just help you, it hurts them.
-  { id: 721, name: "Point Thief", category: "WILDCARD GOOD", rarity: "RARE", effect: "Marks the 8 bed Hot. Whoever hits it first scores normally AND steals a bonus straight from the other player's score.", flavourText: "What's yours becomes theirs in an instant.", mode: "chaos_lab" },
-  { id: 722, name: "Robbery", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks T19 Hot. Whoever hits it first scores normally AND steals a big bonus straight from the other player's score.", flavourText: "In broad daylight, no less.", mode: "chaos_lab" },
-  { id: 723, name: "Highway Robbery", category: "WILDCARD BAD", rarity: "LEGENDARY", effect: "Traps Bull against your opponent — they still score normally, but their trigger is cancelled AND you take a big chunk straight from their score.", flavourText: "They never saw it coming.", mode: "chaos_lab" },
-  { id: 724, name: "Grand Larceny", category: "WILDCARD BAD", rarity: "RARE", effect: "Traps D20 against your opponent — a checkout still counts, but their trigger is cancelled AND you take a chunk straight from their score.", flavourText: "The finish line, robbed blind.", mode: "chaos_lab" },
+  // REVERSAL — kept to exactly one card, Legendary only, on purpose.
+  { id: 714, name: "Score Swap", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks Bull Hot. Whoever hits it first COMPLETELY SWAPS their remaining score with their opponent's — total reversal of fortune, whoever was ahead is now behind.", flavourText: "Fortune's wheel spins both ways.", mode: "chaos_lab" },
 
-  // RISK/REWARD — a big guaranteed-target reward, plus a curse on a random spot against yourself. Going for the prize means playing with a hidden landmine.
-  { id: 725, name: "Wildfire", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks Bull Hot for a huge bonus to whoever hits it first — but ALSO traps a random number against you. Hit your own curse and you'll pay for it.", flavourText: "Fire spreads. Sometimes back toward you.", mode: "chaos_lab" },
-  { id: 726, name: "Double or Nothing", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks T20 Hot for a big bonus to whoever hits it first — but ALSO traps a random number against you. Hit your own curse and you'll pay for it.", flavourText: "Go big. Just watch where you step.", mode: "chaos_lab" },
-  { id: 727, name: "All In", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks D16 Hot for a solid bonus to whoever hits it first — but ALSO traps a random number against you. Hit your own curse and you'll pay for it.", flavourText: "No half measures tonight.", mode: "chaos_lab" },
+  // MOMENTUM — multiplies a whole upcoming visit, not one dart.
+  { id: 715, name: "Surge", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks T20 Hot. Whoever hits it first has EVERY dart on their NEXT visit count DOUBLE (checkout math included).", flavourText: "Momentum becomes a weapon.", mode: "chaos_lab" },
+  { id: 716, name: "Weakened", category: "WILDCARD BAD", rarity: "LEGENDARY", effect: "Traps D20 against your opponent. If sprung, every dart on their NEXT visit counts at HALF value (checkout math included).", flavourText: "Suddenly, every dart feels heavier.", mode: "chaos_lab" },
+
+  // LEECH — your dart scores completely normally for you, AND hurts your opponent, same dart.
+  { id: 717, name: "Siphon", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks Bull Hot. Whoever hits it first scores normally AND drains 50% of that dart's value straight onto their opponent's remaining — you profit, they suffer, same dart.", flavourText: "What you take, they feel.", mode: "chaos_lab" },
+  { id: 718, name: "Parasite", category: "WILDCARD GOOD", rarity: "RARE", effect: "Marks a RANDOM spot Hot. Whoever hits it first scores normally AND drains 35% of that dart's value onto their opponent's remaining.", flavourText: "A smaller bite, still felt.", mode: "chaos_lab" },
+
+  // SABOTAGE — remove the opponent's active mark(s) instead of placing a new one. Never a dead draw.
+  { id: 719, name: "Erase", category: "WILDCARD BAD", rarity: "RARE", effect: "The instant you draw this, ONE of your opponent's active Board Marks is removed — no dart needed. If they have none active, marks a random spot Cold against them instead.", flavourText: "Some plans just vanish.", mode: "chaos_lab" },
+  { id: 720, name: "Purge", category: "WILDCARD BAD", rarity: "LEGENDARY", effect: "The instant you draw this, ALL of your opponent's active Board Marks are removed at once — no dart needed. If they have none active, traps a random spot against them instead.", flavourText: "A clean slate, forced on them.", mode: "chaos_lab" },
+
+  // ESCALATION — grows stronger the longer it goes unhit.
+  { id: 721, name: "Slow Burn", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks Bull Hot — but the longer it survives unhit, the bigger the eventual bonus grows (capped). The longer it's avoided, the juicier it gets.", flavourText: "Patience has its own reward.", mode: "chaos_lab" },
+  { id: 722, name: "Simmering Trap", category: "WILDCARD BAD", rarity: "LEGENDARY", effect: "Traps T20 against your opponent — but the longer they dodge it, the bigger the eventual penalty grows (capped). Sooner or later, it catches up.", flavourText: "It only gets angrier with time.", mode: "chaos_lab" },
+
+  // MULTI-TARGET — one card, three marks at once.
+  { id: 723, name: "Wildfire Spread", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks THREE random spots Hot at once — a completely different risk map for the rest of this leg. Whoever hits any of them scores normally AND gets a bonus.", flavourText: "Fire doesn't stay in one place.", mode: "chaos_lab" },
+  { id: 724, name: "Minefield", category: "WILDCARD BAD", rarity: "LEGENDARY", effect: "Traps THREE random spots against your opponent at once. Each still scores normally if hit, but cancels their trigger AND penalizes them.", flavourText: "Every step becomes a decision.", mode: "chaos_lab" },
+
+  // LEG-WIDE — reshapes a whole category of the board for the rest of the leg, not just one spot.
+  { id: 725, name: "Treble Curse", category: "WILDCARD BAD", rarity: "LEGENDARY", effect: "EVERY treble on the board is Cold against your opponent for the REST OF THIS LEG — still scores normally, but never triggers anything for them, no matter which one they hit.", flavourText: "The whole wire turns against them.", mode: "chaos_lab" },
+  { id: 726, name: "Double Trouble", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "EVERY double on the board is Hot for the REST OF THIS LEG — whoever hits any double scores normally AND gets a bonus, every time, all leg.", flavourText: "Every finish becomes an opportunity.", mode: "chaos_lab" },
+
+  // TRUE WILDCARD — nobody knows if it's Hot or Trap until someone actually hits it.
+  { id: 727, name: "Unstable", category: "WILDCARD BAD", rarity: "LEGENDARY", effect: "Marks a RANDOM spot — but nobody knows if it's Hot (reward) or Trap (penalty) until someone actually hits it. Pure suspense.", flavourText: "Even the board doesn't know yet.", mode: "chaos_lab" },
+
+  // MATCH SWING — reads the live match state and can directly grant or remove a whole leg. Kept genuinely rare by rarity-weighted drawing — never a dead draw even when the condition isn't met.
+  { id: 728, name: "Overtake", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "The instant you draw this: if your opponent is 2+ legs ahead, take ONE LEG away from them outright. If they're not that far ahead, you get a solid bonus instead.", flavourText: "Nobody's lead is ever truly safe.", mode: "chaos_lab" },
+  { id: 729, name: "Underdog's Grace", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "The instant you draw this: if you're 2+ legs behind, you get an EXTRA LEG WIN outright. If you're not that far behind, you get a solid bonus instead.", flavourText: "The board takes pity on the desperate.", mode: "chaos_lab" },
+  { id: 730, name: "Set Point", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Sets format only. The instant you draw this: if the current set is close (1 leg apart), steal a leg within that set outright. Otherwise, you get a solid bonus instead.", flavourText: "Every set has its moment.", mode: "chaos_lab" },
 ];
 
 /**
@@ -248,16 +267,48 @@ export function drawChaosOptions(gameType: "X01" | "CRICKET", count = 3): CardDa
  * original design spec), not just the same score-boost cards as regular
  * Chaos Mode with a few marks sprinkled in. Board Marks cards work
  * identically on both engines (they mark physical board segments, not
- * X01- or Cricket-specific mechanics), so all 4 are always included
+ * X01- or Cricket-specific mechanics), so all of them are always included
  * regardless of gameType.
+ *
+ * `isSetsFormat` filters out format-specific cards — currently just "Set
+ * Point" (id 730), which only makes sense when the match is actually being
+ * played in Sets format. Everything else is available regardless of format.
  */
-export function getChaosLabCardPool(gameType: "X01" | "CRICKET"): CardData[] {
-  return ALL_CARDS.filter((c) => c.mode === "chaos_lab");
+export function getChaosLabCardPool(gameType: "X01" | "CRICKET", isSetsFormat: boolean = false): CardData[] {
+  return ALL_CARDS.filter((c) => c.mode === "chaos_lab" && (isSetsFormat || c.id !== 730));
 }
 
-/** Same draw mechanics as drawChaosOptions, but from Chaos Lab's Board-Marks-only pool. Regular Chaos Mode is untouched by this. */
-export function drawChaosLabOptions(gameType: "X01" | "CRICKET", count = 3): CardData[] {
-  const pool = getChaosLabCardPool(gameType);
+/**
+ * Rarity-weighted draw magnitudes for Chaos Lab specifically — Legendary
+ * cards are genuinely uncommon here, not just a different border colour.
+ * Regular Chaos Mode (drawChaosOptions) is untouched by this and stays
+ * uniform random, as it always has been.
+ */
+const CHAOS_LAB_RARITY_WEIGHT: Record<Rarity, number> = { COMMON: 15, RARE: 5, LEGENDARY: 1 };
+/** Match Swing cards (Overtake, Underdog's Grace, Set Point) read live match
+ *  state and can directly grant/remove a whole leg — kept rarer even than a
+ *  typical Legendary, since that's a bigger swing than most other cards here. */
+const CHAOS_LAB_EXTRA_RARE_IDS = new Set([728, 729, 730]);
+
+function chaosLabCardWeight(card: CardData): number {
+  const base = CHAOS_LAB_RARITY_WEIGHT[card.rarity] ?? 1;
+  return CHAOS_LAB_EXTRA_RARE_IDS.has(card.id) ? base / 3 : base;
+}
+
+/** Picks one card from a pool, weighted by chaosLabCardWeight. Falls back to the last card on float-rounding edge cases. */
+function weightedPick(pool: CardData[]): CardData {
+  const totalWeight = pool.reduce((sum, c) => sum + chaosLabCardWeight(c), 0);
+  let roll = Math.random() * totalWeight;
+  for (const card of pool) {
+    roll -= chaosLabCardWeight(card);
+    if (roll <= 0) return card;
+  }
+  return pool[pool.length - 1];
+}
+
+/** Same draw mechanics as drawChaosOptions (50/50 good/bad, no duplicates), but from Chaos Lab's Board-Marks-only pool, and rarity-weighted so Legendary cards are genuinely uncommon. Regular Chaos Mode is untouched by this. */
+export function drawChaosLabOptions(gameType: "X01" | "CRICKET", count = 3, isSetsFormat: boolean = false): CardData[] {
+  const pool = getChaosLabCardPool(gameType, isSetsFormat);
   const good = pool.filter(isGoodCard);
   const bad = pool.filter((c) => !isGoodCard(c));
   const used = new Set<number>();
@@ -266,10 +317,9 @@ export function drawChaosLabOptions(gameType: "X01" | "CRICKET", count = 3): Car
   while (options.length < count && attempts < count * 20) {
     attempts++;
     const wantGood = Math.random() < 0.5;
-    const source = wantGood ? good : bad;
+    const source = (wantGood ? good : bad).filter((c) => !used.has(c.id));
     if (source.length === 0) continue;
-    const card = source[Math.floor(Math.random() * source.length)];
-    if (used.has(card.id)) continue;
+    const card = weightedPick(source);
     used.add(card.id);
     options.push(card);
   }

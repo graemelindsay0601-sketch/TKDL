@@ -79,3 +79,13 @@ export function expireBoardMarksForDartHit(activeMarks: BoardMark[], context: { 
     .map((m) => m.id);
   return removeBoardMarks(activeMarks, toRemove);
 }
+
+/**
+ * Remove every "until_leg_end" mark — called specifically at an actual leg
+ * transition (not a regular visit-to-visit transition), clearing leg-wide
+ * rule-benders like "every treble is Cold this leg" once the leg is over.
+ */
+export function expireBoardMarksForLegEnd(activeMarks: BoardMark[]): BoardMark[] {
+  const toRemove = activeMarks.filter((m) => m.duration === "until_leg_end").map((m) => m.id);
+  return removeBoardMarks(activeMarks, toRemove);
+}

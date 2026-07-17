@@ -36,9 +36,14 @@ export function isBullDart(dart: BoardMarkDartResult): boolean {
   return dart.segment === 25;
 }
 
-/** Human-readable label for a target, e.g. "T20", "D16", "20 bed", "Bull". Useful for logs/UI. */
+/** Human-readable label for a target, e.g. "T20", "D16", "20 bed", "Bull", "Every Treble". Useful for logs/UI. */
 export function describeBoardMarkTarget(target: BoardMarkTarget): string {
   if (target.type === "bull") return "Bull";
+  if (target.value === "any") {
+    if (target.type === "number") return "Every Number";
+    if (target.type === "treble") return "Every Treble";
+    if (target.type === "double") return "Every Double";
+  }
   if (target.type === "number") return `${target.value} bed`;
   if (target.type === "treble") return `T${target.value}`;
   if (target.type === "double") return `D${target.value}`;

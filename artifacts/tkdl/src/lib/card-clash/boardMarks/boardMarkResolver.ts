@@ -58,7 +58,7 @@ export function resolveBoardMarksForDart<TScoringPayload = unknown>(
           triggeredByPlayerId: dartResult.throwingPlayerId,
           dartResult,
         });
-        toRemove.push(mark.id); // Hot is removed after triggering
+        if (mark.duration !== "until_leg_end") toRemove.push(mark.id); // Hot is removed after triggering, UNLESS it's a leg-wide rule-bender that should keep re-triggering
         break;
 
       case "cold":
@@ -69,7 +69,7 @@ export function resolveBoardMarksForDart<TScoringPayload = unknown>(
           target: mark.target,
           dartResult,
         });
-        // Cold persists until the affected player's visit ends (lifecycle), not removed on hit
+        // Cold persists until the affected player's visit ends (lifecycle) or leg end, not removed on hit
         break;
 
       case "trap":
@@ -81,7 +81,7 @@ export function resolveBoardMarksForDart<TScoringPayload = unknown>(
           triggeredByPlayerId: dartResult.throwingPlayerId,
           dartResult,
         });
-        toRemove.push(mark.id); // Trap is removed after triggering
+        if (mark.duration !== "until_leg_end") toRemove.push(mark.id); // Trap is removed after triggering, UNLESS it's a leg-wide rule-bender
         break;
     }
   }

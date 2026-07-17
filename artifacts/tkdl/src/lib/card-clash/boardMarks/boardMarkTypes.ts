@@ -16,14 +16,20 @@ export type BoardMarkDuration =
   | "until_hit"
   | "until_visit_end"
   | "until_owner_next_visit_end"
-  | "until_affected_player_visit_end";
+  | "until_affected_player_visit_end"
+  /** Persists for the entire rest of the current leg, regardless of how many
+   *  times it matches a dart — only cleared at an actual leg transition, via
+   *  expireBoardMarksForLegEnd. Used by leg-wide rule-benders (e.g. "every
+   *  treble is Cold this leg") where a single hit shouldn't consume it. */
+  | "until_leg_end";
 
 export type BoardMarkAppliesTo = "self" | "opponent" | "both" | "neutral";
 
 export interface BoardMarkTarget {
   type: BoardMarkTargetType;
   /** Segment number (1-20) for number/double/treble targets. Omit (or "bull") for bull targets. */
-  value?: number | "bull";
+  /** "any" is a category match (e.g. treble+"any" = every treble on the board) — used by leg-wide rule-bending cards. */
+  value?: number | "bull" | "any";
 }
 
 export interface BoardMark {

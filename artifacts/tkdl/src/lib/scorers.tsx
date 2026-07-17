@@ -16,9 +16,14 @@ import {
   type BoardMark,
   resolveBoardMarksForDart,
   expireBoardMarksForVisitEnd,
+  expireBoardMarksForLegEnd,
   placeBoardMark,
   createBoardMarkFromPrototypeCard,
   BOARD_MARK_CARD_ID_MAP,
+  BOARD_MARK_PROTOTYPE_CARDS,
+  BOARD_MARK_SABOTAGE_CARD_IDS,
+  BOARD_MARK_ESCALATION_CARD_IDS,
+  BOARD_MARK_MATCH_SWING_CARD_IDS,
   toBoardMarkDartResult,
   getBoardMarkMagnitude,
 } from "./card-clash/boardMarks";
@@ -32,6 +37,70 @@ import type { MatchLogger } from "./card-clash/matchLogger";
  * disrupt the match flow, so this never throws and the caller doesn't
  * need to await it.
  */
+/**
+ * Computes what a Hot or Trap trigger actually does, given the mark's
+ * payload and (for score_shift) its escalation stage. Shared between X01
+ * and Cricket so the magnitude/escalation math lives in exactly one place.
+ */
+function computeBoardMarkTriggerMagnitude(mark: BoardMark, engine: "X01" | "CRICKET", kind: "hot" | "trap"): number {
+  let magnitude = getBoardMarkMagnitude(mark.target.type, engine, kind);
+  const stage = Number(mark.metadata?.escalationStage ?? 0);
+  if (stage > 0) {
+    // Escalation: grows the longer it survives unhit, capped at +150% (stage 5).
+    magnitude = Math.round(magnitude * (1 + Math.min(stage, 5) * 0.3));
+  }
+  return magnitude;
+}
+
+/** Sabotage: removes the opponent's active mark(s) instead of placing a new one. Returns how many were removed so the caller can fall back to a default mark if none existed — never a dead draw. */
+function applyBoardMarkSabotage(activeMarks: BoardMark[], kind: "erase" | "purge", opponentPlayerId: string): { marks: BoardMark[]; removedCount: number } {
+  const opponentMarks = activeMarks.filter(m => m.ownerPlayerId === opponentPlayerId);
+  if (opponentMarks.length === 0) return { marks: activeMarks, removedCount: 0 };
+  if (kind === "erase") {
+    const target = opponentMarks[Math.floor(Math.random() * opponentMarks.length)];
+    return { marks: activeMarks.filter(m => m.id !== target.id), removedCount: 1 };
+  }
+  const idsToRemove = new Set(opponentMarks.map(m => m.id));
+  return { marks: activeMarks.filter(m => !idsToRemove.has(m.id)), removedCount: opponentMarks.length };
+}
+
+/**
+ * Match Swing: reads live match standing and decides whether to grant/
+ * remove a leg outright. `standing` should be legWins for Legs format, or
+ * overall sets won for Overtake/Underdog's Grace in Sets format, and the
+ * CURRENT set's legWins specifically for Set Point (which operates at set
+ * granularity, not whole-match). The caller passes whichever is correct
+ * for the format — this function is purely the condition/outcome logic,
+ * no state access.
+ */
+function computeMatchSwingOutcome(
+  kind: "overtake" | "underdogs_grace" | "set_point",
+  drawingPlayer: 0 | 1,
+  standing: [number, number]
+): { conditionMet: boolean; delta: [number, number] } {
+  const opp: 0 | 1 = drawingPlayer === 0 ? 1 : 0;
+  if (kind === "overtake") {
+    if (standing[opp] - standing[drawingPlayer] >= 2) {
+      const delta: [number, number] = [0, 0];
+      delta[opp] = -1;
+      return { conditionMet: true, delta };
+    }
+  } else if (kind === "underdogs_grace") {
+    if (standing[drawingPlayer] - standing[opp] <= -2) {
+      const delta: [number, number] = [0, 0];
+      delta[drawingPlayer] = 1;
+      return { conditionMet: true, delta };
+    }
+  } else if (kind === "set_point") {
+    if (Math.abs(standing[0] - standing[1]) === 1) {
+      const delta: [number, number] = [0, 0];
+      delta[opp] = -1; // always benefits the drawer — takes a leg from their opponent when the set is tight
+      return { conditionMet: true, delta };
+    }
+  }
+  return { conditionMet: false, delta: [0, 0] };
+}
+
 function uploadMatchLog(logger: MatchLogger, meta: { gameMode: "X01" | "CRICKET"; isChaosMode: boolean; isChaosLabMode: boolean }) {
   try {
     fetch("/api/card-clash/debug-log", {
@@ -340,35 +409,61 @@ function CCEffectsHUD({ effects, names, lastActivation }: {
 // and the dartboard's marked-segment highlighting, so they always match.
 const BOARD_MARK_ICON: Record<BoardMark["type"], string> = { hot: "\u{1F525}", cold: "\u2744\uFE0F", trap: "\u26A0\uFE0F", shield: "\u{1F6E1}\uFE0F" };
 const BOARD_MARK_COLOR: Record<BoardMark["type"], string> = { hot: "#ff8a3d", cold: "#5ec8ff", trap: "#ff4d4d", shield: "#7cf29c" };
+/** Unstable marks (metadata.isUnstable) show this instead of their real type/color, everywhere they're displayed — until they actually trigger, nobody (including the drawer) is told whether it's Hot or Trap. */
+const UNSTABLE_ICON = "\u{1F3B2}"; // dice
+const UNSTABLE_COLOR = "#c084fc"; // purple, distinct from all 4 real type colors
 
 /** Converts active Board Marks into the DartInputBoard's markedSegments prop shape. Bull → segment 25; numbers/trebles/doubles use their own value. */
 function boardMarksToSegments(marks: BoardMark[]): { segment: number; color: string }[] {
-  return marks
-    .filter(m => m.target.type !== "bull" ? typeof m.target.value === "number" : true)
-    .map(m => ({
-      segment: m.target.type === "bull" ? 25 : (m.target.value as number),
-      color: BOARD_MARK_COLOR[m.type],
-    }));
+  const out: { segment: number; color: string }[] = [];
+  for (const m of marks) {
+    const color = m.metadata?.isUnstable ? UNSTABLE_COLOR : BOARD_MARK_COLOR[m.type];
+    if (m.target.type === "bull") {
+      out.push({ segment: 25, color });
+    } else if (m.target.value === "any") {
+      // Leg-wide category marks (every treble / every double) — highlight all 20 numbers, since there's no single button to point at.
+      for (let n = 1; n <= 20; n++) out.push({ segment: n, color });
+    } else if (typeof m.target.value === "number") {
+      out.push({ segment: m.target.value, color });
+    }
+  }
+  return out;
 }
 
-/** Chaos Lab: shows currently active Board Marks as small badges — target, type, and who placed it. Read-only, purely informational. */
+/** Chaos Lab: shows currently active Board Marks as small badges — target, type, and who placed it. Tap any one for the full card detail. */
 function BoardMarksHUD({ marks, names, engine, viewerIdx }: { marks: BoardMark[]; names: [string, string]; engine: "X01" | "CRICKET"; viewerIdx: 0 | 1 }) {
+  const [viewing, setViewing] = useState<BoardMark | null>(null);
   if (marks.length === 0) return null;
   const ICON = BOARD_MARK_ICON;
   const COLOR = BOARD_MARK_COLOR;
   const TYPE_LABEL: Record<BoardMark["type"], string> = { hot: "HOT", cold: "COLD", trap: "TRAP", shield: "SHIELD" };
+
+  const cardNameFor = (m: BoardMark) => BOARD_MARK_PROTOTYPE_CARDS.find(c => c.id === m.createdByCardId)?.name;
+  const viewingCardName = viewing ? cardNameFor(viewing) : undefined;
+  const viewingCardDef = viewingCardName ? ALL_CARDS.find(c => c.name === viewingCardName) : undefined;
+
   return (
+    <>
     <div className="flex flex-col gap-1.5" style={{ maxWidth: "340px", margin: "0 auto" }}>
       <div style={{ fontSize: "0.6rem", fontWeight: 800, letterSpacing: "0.12em", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", textAlign: "center" }}>
-        ACTIVE BOARD MARKS
+        ACTIVE BOARD MARKS — TAP FOR DETAILS
       </div>
       {marks.map((m) => {
+        const isUnstable = !!m.metadata?.isUnstable;
+        const displayType: BoardMark["type"] | "unstable" = isUnstable ? "unstable" : m.type;
+        const displayColor = isUnstable ? UNSTABLE_COLOR : COLOR[m.type];
+        const displayIcon = isUnstable ? UNSTABLE_ICON : ICON[m.type];
+        const displayLabel = isUnstable ? "???" : TYPE_LABEL[m.type];
+
         const label = m.target.type === "bull" ? "Bull"
+          : m.target.value === "any" ? (m.target.type === "treble" ? "Every Treble" : m.target.type === "double" ? "Every Double" : "Every Number")
           : m.target.type === "number" ? `${m.target.value} bed`
           : m.target.type === "treble" ? `T${m.target.value}`
           : `D${m.target.value}`;
         const ownerIdx = (Number(m.ownerPlayerId) === 0 ? 0 : 1) as 0 | 1;
         const isSteal = !!m.metadata?.steal;
+        const payload = (m.metadata?.payload as string) ?? "score_shift";
+        const escalationStage = Number(m.metadata?.escalationStage ?? 0);
 
         // Plain-language "who does this affect" line, from the current viewer's perspective
         let affects: string;
@@ -379,43 +474,107 @@ function BoardMarksHUD({ marks, names, engine, viewerIdx }: { marks: BoardMark[]
         } else {
           const affectedIdx = (Number(m.affectedPlayerId ?? "0") === 0 ? 0 : 1) as 0 | 1;
           const isYou = affectedIdx === viewerIdx;
-          if (m.type === "cold") affects = isYou ? "Blocks YOUR trigger there" : `Blocks ${names[affectedIdx]}'s trigger there`;
+          if (isUnstable) affects = "Nobody knows if this helps or hurts yet";
+          else if (m.type === "cold") affects = isYou ? "Blocks YOUR trigger there" : `Blocks ${names[affectedIdx]}'s trigger there`;
           else affects = isYou ? "Punishes YOU if you hit it" : `Punishes ${names[affectedIdx]} if hit`;
         }
 
+        // Magnitude/effect label — every payload gets an unambiguous label,
+        // never just a bare "bonus". Escalation shows its current stage so
+        // players can see it growing over time.
         let magnitudeLabel = "";
-        if (m.type === "hot") {
+        if (isUnstable) {
+          magnitudeLabel = "???";
+        } else if (payload === "swap_scores") {
+          magnitudeLabel = "SWAP";
+        } else if (payload === "double_next_visit") {
+          magnitudeLabel = "×2 next visit";
+        } else if (payload === "weaken_next_visit") {
+          magnitudeLabel = "×0.5 next visit";
+        } else if (payload === "leech_score") {
+          const pct = m.createdByCardId === "prototype_parasite" ? "35%" : "50%";
+          magnitudeLabel = `${pct} to them`;
+        } else if (m.type === "hot") {
           const mag = getBoardMarkMagnitude(m.target.type, engine, "hot");
           magnitudeLabel = engine === "X01" ? `−${mag}` : `+${mag}`;
+          if (escalationStage > 0) magnitudeLabel += ` (stage ${escalationStage})`;
         } else if (m.type === "trap") {
           const mag = getBoardMarkMagnitude(m.target.type, engine, "trap");
           magnitudeLabel = engine === "X01" ? `+${mag}` : `−${mag}`;
+          if (escalationStage > 0) magnitudeLabel += ` (stage ${escalationStage})`;
         }
 
         return (
-          <div
+          <button
             key={m.id}
+            onClick={() => setViewing(m)}
             style={{
               display: "flex", alignItems: "center", gap: "8px",
               padding: "5px 10px", borderRadius: "8px", fontFamily: "Oswald, sans-serif",
-              background: `${COLOR[m.type]}14`,
-              border: `1px solid ${COLOR[m.type]}44`,
+              background: `${displayColor}14`,
+              border: `1px solid ${displayColor}44`,
+              cursor: "pointer", textAlign: "left", width: "100%",
             }}
           >
-            <span style={{ fontSize: "1rem", flexShrink: 0 }}>{ICON[m.type]}</span>
+            <span style={{ fontSize: "1rem", flexShrink: 0 }}>{displayIcon}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: "6px", flexWrap: "wrap" }}>
-                <span style={{ fontSize: "0.72rem", fontWeight: 900, letterSpacing: "0.04em", color: COLOR[m.type] }}>{TYPE_LABEL[m.type]}</span>
+                <span style={{ fontSize: "0.72rem", fontWeight: 900, letterSpacing: "0.04em", color: displayColor }}>{displayLabel}</span>
                 <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#fff" }}>{label}</span>
                 {isSteal && <span style={{ fontSize: "0.55rem", fontWeight: 800, color: "#ffd24a", background: "rgba(255,210,74,0.15)", padding: "1px 5px", borderRadius: "999px" }}>STEAL</span>}
-                {magnitudeLabel && <span style={{ fontSize: "0.68rem", fontWeight: 800, color: COLOR[m.type], marginLeft: "auto" }}>{magnitudeLabel}</span>}
+                {magnitudeLabel && <span style={{ fontSize: "0.68rem", fontWeight: 800, color: displayColor, marginLeft: "auto" }}>{magnitudeLabel}</span>}
               </div>
               <div style={{ fontSize: "0.62rem", color: "rgba(255,255,255,0.5)", lineHeight: 1.3 }}>{affects}</div>
             </div>
-          </div>
+          </button>
         );
       })}
     </div>
+    {viewing && (
+      <div
+        onClick={() => setViewing(null)}
+        style={{
+          position: "fixed", inset: 0, zIndex: 2600, background: "rgba(0,0,0,0.6)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: "20px",
+        }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          className="pdc-card"
+          style={{ padding: "20px", maxWidth: "320px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}
+        >
+          {viewingCardDef && !viewing.metadata?.isUnstable ? (
+            <TKDLCard card={viewingCardDef} size="sm" locked={false} />
+          ) : (
+            <div style={{ fontSize: "26px" }}>{viewing.metadata?.isUnstable ? UNSTABLE_ICON : ICON[viewing.type]}</div>
+          )}
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontWeight: 900, fontSize: "15px", color: "#fff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" }}>
+              {viewing.metadata?.isUnstable ? "Unstable (type hidden)" : (viewingCardName ?? TYPE_LABEL[viewing.type])}
+            </div>
+            {viewingCardDef && (
+              <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.75)", marginTop: "10px", lineHeight: 1.4 }}>
+                {viewing.metadata?.isUnstable
+                  ? "This mark is either Hot (reward) or Trap (penalty) — nobody, including whoever drew it, knows which until someone actually hits it."
+                  : viewingCardDef.effect}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setViewing(null)}
+            style={{
+              marginTop: "4px", padding: "8px 20px", borderRadius: "10px", border: "none",
+              background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)",
+              fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "12px",
+              letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer",
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -591,6 +750,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           Math.max(0, startingScore - pending[1]),
         ]);
         pendingBoardMarkAdjustmentRef.current = [0, 0];
+        if (isChaosLabMode) setActiveBoardMarks(prev => expireBoardMarksForLegEnd(prev)); // clears leg-wide rule-benders (Treble Curse, Double Trouble) at the actual leg boundary
         setStarted([!doubleIn, !doubleIn]); setVisitDarts([]);
         setTurn(soloMode ? 0 : ns); setLegWins(newLegState);
         
@@ -823,40 +983,79 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         const cold = resolved.events.find(e => e.type === "card_clash_trigger_blocked_by_cold_mark");
         const trap = resolved.events.find(e => e.type === "card_clash_trigger_cancelled_by_trap_mark");
         if (hot) {
-          // Look up the full mark (from BEFORE removal) for its target type + steal flag
           const triggeredMark = activeBoardMarks.find(m => m.id === hot.markId);
-          const magnitude = getBoardMarkMagnitude(triggeredMark?.target.type ?? "number", "X01", "hot");
-          const isSteal = !!triggeredMark?.metadata?.steal;
+          const payload = (triggeredMark?.metadata?.payload as string) ?? "score_shift";
           const rewardPlayer = turn as 0 | 1;
           const otherPlayer: 0 | 1 = rewardPlayer === 0 ? 1 : 0;
-          pendingBoardMarkAdjustmentRef.current[rewardPlayer] += magnitude; // reduces their starting score if this ends the leg
-          if (isSteal) pendingBoardMarkAdjustmentRef.current[otherPlayer] -= magnitude; // increases theirs
-          setScores(prev => {
-            const n = [...prev] as [number, number];
-            n[rewardPlayer] = Math.max(0, n[rewardPlayer] - magnitude);
-            if (isSteal) n[otherPlayer] = n[otherPlayer] + magnitude; // zero-sum: what you win, they lose
-            cardDebugLog("X01Scorer", "[CHAOS_LAB] Hot triggered", { target: triggeredMark?.target, player: rewardPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
-            matchLoggerRef.current.log("chaos_lab_hot_triggered", { target: triggeredMark?.target, player: rewardPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
-            return n;
-          });
-          setLastActivation({ cardName: isSteal ? `🔥💰 Stolen! -${magnitude}` : `🔥 Hot! -${magnitude}`, player: rewardPlayer, key: `boardmark-hot-${Date.now()}` });
+
+          if (payload === "swap_scores") {
+            setScores(prev => {
+              const n: [number, number] = [prev[1], prev[0]];
+              cardDebugLog("X01Scorer", "[CHAOS_LAB] Score Swap triggered", { triggeredBy: rewardPlayer, scoresBefore: prev, scoresAfter: n });
+              matchLoggerRef.current.log("chaos_lab_score_swap", { triggeredBy: rewardPlayer, scoresBefore: prev, scoresAfter: n });
+              return n;
+            });
+            setLastActivation({ cardName: "🔄 SCORES SWAPPED!", player: rewardPlayer, key: `boardmark-swap-${Date.now()}` });
+          } else if (payload === "double_next_visit") {
+            setActiveEffects(prev => [...prev, { cardName: "Surge (Board Mark)", appliedBy: rewardPlayer, affectsPlayer: rewardPlayer, status: "pending", allDartsMultiplier: 2 }]); // pending: reliably applies to their NEXT full visit, not "whatever's left of this one" (which could be zero darts)
+            cardDebugLog("X01Scorer", "[CHAOS_LAB] Surge triggered", { player: rewardPlayer });
+            matchLoggerRef.current.log("chaos_lab_surge", { player: rewardPlayer });
+            setLastActivation({ cardName: "⚡ SURGE! Your next visit scores ×2", player: rewardPlayer, key: `boardmark-surge-${Date.now()}` });
+          } else if (payload === "leech_score") {
+            // Trigger player's own dart scores completely normally for them
+            // (untouched) — 50%/35% of that same dart's value ALSO hurts
+            // their opponent. One dart, two consequences.
+            const leechPct = triggeredMark?.createdByCardId === "prototype_parasite" ? 0.35 : 0.5;
+            const leechAmount = Math.floor(dart.value * leechPct);
+            setScores(prev => {
+              const n = [...prev] as [number, number];
+              n[otherPlayer] = n[otherPlayer] + leechAmount;
+              cardDebugLog("X01Scorer", "[CHAOS_LAB] Leech triggered", { player: rewardPlayer, dartValue: dart.value, leechAmount, scoresBefore: prev, scoresAfter: n });
+              matchLoggerRef.current.log("chaos_lab_leech", { player: rewardPlayer, dartValue: dart.value, leechAmount, scoresBefore: prev, scoresAfter: n });
+              return n;
+            });
+            setLastActivation({ cardName: `🩸 SIPHONED! +${leechAmount} to them`, player: rewardPlayer, key: `boardmark-leech-${Date.now()}` });
+          } else {
+            const magnitude = computeBoardMarkTriggerMagnitude(triggeredMark!, "X01", "hot");
+            const isSteal = !!triggeredMark?.metadata?.steal;
+            pendingBoardMarkAdjustmentRef.current[rewardPlayer] += magnitude; // reduces their starting score if this ends the leg
+            if (isSteal) pendingBoardMarkAdjustmentRef.current[otherPlayer] -= magnitude; // increases theirs
+            setScores(prev => {
+              const n = [...prev] as [number, number];
+              n[rewardPlayer] = Math.max(0, n[rewardPlayer] - magnitude);
+              if (isSteal) n[otherPlayer] = n[otherPlayer] + magnitude; // zero-sum: what you win, they lose
+              cardDebugLog("X01Scorer", "[CHAOS_LAB] Hot triggered", { target: triggeredMark?.target, player: rewardPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
+              matchLoggerRef.current.log("chaos_lab_hot_triggered", { target: triggeredMark?.target, player: rewardPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
+              return n;
+            });
+            setLastActivation({ cardName: isSteal ? `🔥💰 Stolen! -${magnitude}` : `🔥 Hot! -${magnitude}`, player: rewardPlayer, key: `boardmark-hot-${Date.now()}` });
+          }
         } else if (trap) {
           const triggeredMark = activeBoardMarks.find(m => m.id === trap.markId);
-          const magnitude = getBoardMarkMagnitude(triggeredMark?.target.type ?? "treble", "X01", "trap");
-          const isSteal = !!triggeredMark?.metadata?.steal;
+          const payload = (triggeredMark?.metadata?.payload as string) ?? "score_shift";
           const penalizedPlayer = turn as 0 | 1;
           const trapOwner: 0 | 1 | undefined = triggeredMark ? (Number(triggeredMark.ownerPlayerId) as 0 | 1) : undefined;
-          pendingBoardMarkAdjustmentRef.current[penalizedPlayer] -= magnitude; // increases their starting score if this ends the leg
-          if (isSteal && trapOwner !== undefined) pendingBoardMarkAdjustmentRef.current[trapOwner] += magnitude;
-          setScores(prev => {
-            const n = [...prev] as [number, number];
-            n[penalizedPlayer] = n[penalizedPlayer] + magnitude;
-            if (isSteal && trapOwner !== undefined) n[trapOwner] = Math.max(0, n[trapOwner] - magnitude); // trapper gets what the trapped player lost
-            cardDebugLog("X01Scorer", "[CHAOS_LAB] Trap sprung", { target: triggeredMark?.target, player: penalizedPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
-            matchLoggerRef.current.log("chaos_lab_trap_sprung", { target: triggeredMark?.target, player: penalizedPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
-            return n;
-          });
-          setLastActivation({ cardName: isSteal ? `⚠️💰 Robbed! +${magnitude}` : `⚠️ Trap! +${magnitude}`, player: penalizedPlayer, key: `boardmark-trap-${Date.now()}` });
+
+          if (payload === "weaken_next_visit") {
+            setActiveEffects(prev => [...prev, { cardName: "Weakened (Board Mark)", appliedBy: trapOwner ?? (penalizedPlayer === 0 ? 1 : 0), affectsPlayer: penalizedPlayer, status: "pending", allDartsMultiplier: 0.5 }]); // pending: applies to their NEXT full visit
+            cardDebugLog("X01Scorer", "[CHAOS_LAB] Weakened triggered", { player: penalizedPlayer });
+            matchLoggerRef.current.log("chaos_lab_weakened", { player: penalizedPlayer });
+            setLastActivation({ cardName: "🥶 WEAKENED! Their next visit scores ×0.5", player: penalizedPlayer, key: `boardmark-weaken-${Date.now()}` });
+          } else {
+            const magnitude = computeBoardMarkTriggerMagnitude(triggeredMark!, "X01", "trap");
+            const isSteal = !!triggeredMark?.metadata?.steal;
+            pendingBoardMarkAdjustmentRef.current[penalizedPlayer] -= magnitude; // increases their starting score if this ends the leg
+            if (isSteal && trapOwner !== undefined) pendingBoardMarkAdjustmentRef.current[trapOwner] += magnitude;
+            setScores(prev => {
+              const n = [...prev] as [number, number];
+              n[penalizedPlayer] = n[penalizedPlayer] + magnitude;
+              if (isSteal && trapOwner !== undefined) n[trapOwner] = Math.max(0, n[trapOwner] - magnitude); // trapper gets what the trapped player lost
+              cardDebugLog("X01Scorer", "[CHAOS_LAB] Trap sprung", { target: triggeredMark?.target, player: penalizedPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
+              matchLoggerRef.current.log("chaos_lab_trap_sprung", { target: triggeredMark?.target, player: penalizedPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
+              return n;
+            });
+            setLastActivation({ cardName: isSteal ? `⚠️💰 Robbed! +${magnitude}` : `⚠️ Trap! +${magnitude}`, player: penalizedPlayer, key: `boardmark-trap-${Date.now()}` });
+          }
         } else if (cold) {
           matchLoggerRef.current.log("chaos_lab_cold_blocked", { target: cold.target, player: turn });
           setLastActivation({ cardName: "❄️ Blocked by Cold", player: turn as 0 | 1, key: `boardmark-cold-${Date.now()}` });
@@ -1246,16 +1445,25 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     const key = `${turn}:${history.length}`;
 
     // Chaos Lab: expire visit-end Board Marks for whoever's visit just ended
-    // (the other player, relative to this fresh visit starting now). Safe
-    // no-op when activeBoardMarks is empty (e.g. every non-Chaos-Lab match).
+    // (the other player, relative to this fresh visit starting now). Also
+    // grows Escalation cards' stage by one for every visit they survive
+    // unhit (capped at 5, see computeBoardMarkTriggerMagnitude). Safe no-op
+    // when activeBoardMarks is empty (e.g. every non-Chaos-Lab match).
     if (isChaosLabMode && boardMarkVisitEndKeyRef.current !== key) {
       boardMarkVisitEndKeyRef.current = key;
       const justEndedPlayer = String(turn === 0 ? 1 : 0);
-      setActiveBoardMarks(prev => expireBoardMarksForVisitEnd(prev, { visitId: key, visitPlayerId: justEndedPlayer }));
+      setActiveBoardMarks(prev => {
+        const afterExpiry = expireBoardMarksForVisitEnd(prev, { visitId: key, visitPlayerId: justEndedPlayer });
+        return afterExpiry.map(m => {
+          if (m.createdByCardId !== "prototype_slow_burn" && m.createdByCardId !== "prototype_simmering_trap") return m;
+          const stage = Math.min(5, Number(m.metadata?.escalationStage ?? 0) + 1);
+          return { ...m, metadata: { ...m.metadata, escalationStage: stage } };
+        });
+      });
     }
 
     if (chaosResolvedKeyRef.current === key) return;
-    const drawOptions = () => isChaosLabMode ? drawChaosLabOptions("X01", 3) : drawChaosOptions("X01", 3);
+    const drawOptions = () => isChaosLabMode ? drawChaosLabOptions("X01", 3, setsToWin > 0) : drawChaosOptions("X01", 3);
     if (turn === 1 && botConfig) {
       // Bot picks instantly, no UI
       const opts = drawOptions();
@@ -1271,6 +1479,70 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const handleChaosCardActivation = useCallback((card: CardData) => {
     cardDebugLog("X01Scorer", "Chaos card activated", { card: card.name });
     matchLoggerRef.current.log("card_drawn_chaos", { player: turn, card: card.name, category: card.category });
+
+    // Chaos Lab: Sabotage cards (Erase/Purge) remove the opponent's active
+    // mark(s) instead of placing a new one — resolved immediately on draw,
+    // no dart needed. Falls back to placing the card's normal mark if the
+    // opponent has nothing to remove, so it's never a dead draw.
+    const sabotageKind = BOARD_MARK_SABOTAGE_CARD_IDS[card.id];
+    if (sabotageKind) {
+      const opponentPlayerId = String(turn === 0 ? 1 : 0);
+      let usedFallback = false;
+      setActiveBoardMarks(prev => {
+        const result = applyBoardMarkSabotage(prev, sabotageKind, opponentPlayerId);
+        if (result.removedCount > 0) {
+          matchLoggerRef.current.log("chaos_lab_sabotage", { card: card.name, kind: sabotageKind, removedCount: result.removedCount });
+          return result.marks;
+        }
+        usedFallback = true;
+        const fallbackConfig = BOARD_MARK_CARD_ID_MAP[card.id];
+        if (!fallbackConfig) return prev;
+        const fallbackMark = createBoardMarkFromPrototypeCard(fallbackConfig, { ownerPlayerId: String(turn), opponentPlayerId, createdAtVisitId: `${turn}:${history.length}` })[0];
+        const placement = placeBoardMark(prev, fallbackMark);
+        matchLoggerRef.current.log("chaos_lab_sabotage_fallback", { card: card.name, kind: sabotageKind, placed: placement.ok });
+        return placement.ok ? placement.marks : prev;
+      });
+      setLastActivation({ cardName: usedFallback ? `${card.name} (nothing to ${sabotageKind})` : `💥 ${card.name}!`, player: turn as 0 | 1, key: `boardmark-sabotage-${Date.now()}` });
+      setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
+      setChaosOptions(null);
+      chaosResolvedKeyRef.current = `${turn}:${history.length}`;
+      return;
+    }
+
+    // Chaos Lab: Match Swing cards read live match state and resolve
+    // immediately on draw — no dart needed, never actually placed as a
+    // mark. Falls back to a solid bonus if the condition isn't met, so
+    // it's never a dead draw.
+    const matchSwingKind = BOARD_MARK_MATCH_SWING_CARD_IDS[card.id];
+    if (matchSwingKind) {
+      const standing: [number, number] = matchSwingKind === "set_point" ? legWins : (setsToWin > 0 ? setWins : legWins);
+      const outcome = computeMatchSwingOutcome(matchSwingKind, turn as 0 | 1, standing);
+      matchLoggerRef.current.log("chaos_lab_match_swing", { card: card.name, kind: matchSwingKind, standing, conditionMet: outcome.conditionMet, delta: outcome.delta });
+      if (outcome.conditionMet) {
+        if (matchSwingKind === "set_point") {
+          setLegWins(prev => [prev[0] + outcome.delta[0], prev[1] + outcome.delta[1]]);
+        } else if (setsToWin > 0) {
+          setSetWins(prev => [prev[0] + outcome.delta[0], prev[1] + outcome.delta[1]]);
+        } else {
+          setLegWins(prev => [prev[0] + outcome.delta[0], prev[1] + outcome.delta[1]]);
+        }
+        setLastActivation({ cardName: `🌪️ ${card.name}! Leg swing!`, player: turn as 0 | 1, key: `boardmark-swing-${Date.now()}` });
+      } else {
+        const fallbackMagnitude = getBoardMarkMagnitude("bull", "X01", "hot");
+        const rewardPlayer = turn as 0 | 1;
+        pendingBoardMarkAdjustmentRef.current[rewardPlayer] += fallbackMagnitude;
+        setScores(prev => {
+          const n = [...prev] as [number, number];
+          n[rewardPlayer] = Math.max(0, n[rewardPlayer] - fallbackMagnitude);
+          return n;
+        });
+        setLastActivation({ cardName: `${card.name} — condition not met, +${fallbackMagnitude} instead`, player: rewardPlayer, key: `boardmark-swing-fallback-${Date.now()}` });
+      }
+      setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
+      setChaosOptions(null);
+      chaosResolvedKeyRef.current = `${turn}:${history.length}`;
+      return;
+    }
 
     // Chaos Lab: Board Mark cards don't run through the normal effect engine
     // at all — they place a mark, which only ever affects future Card Clash
@@ -1810,15 +2082,23 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     if (visitDarts.length !== 0) return;
     const key = `${turn}:${legHistory.length}:${turnCounter}`;
 
-    // Chaos Lab: expire visit-end Board Marks for whoever's visit just ended.
+    // Chaos Lab: expire visit-end Board Marks for whoever's visit just ended,
+    // and grow Escalation cards' stage by one for every visit they survive unhit.
     if (isChaosLabMode && boardMarkVisitEndKeyRef.current !== key) {
       boardMarkVisitEndKeyRef.current = key;
       const justEndedPlayer = String(turn === 0 ? 1 : 0);
-      setActiveBoardMarks(prev => expireBoardMarksForVisitEnd(prev, { visitId: key, visitPlayerId: justEndedPlayer }));
+      setActiveBoardMarks(prev => {
+        const afterExpiry = expireBoardMarksForVisitEnd(prev, { visitId: key, visitPlayerId: justEndedPlayer });
+        return afterExpiry.map(m => {
+          if (m.createdByCardId !== "prototype_slow_burn" && m.createdByCardId !== "prototype_simmering_trap") return m;
+          const stage = Math.min(5, Number(m.metadata?.escalationStage ?? 0) + 1);
+          return { ...m, metadata: { ...m.metadata, escalationStage: stage } };
+        });
+      });
     }
 
     if (chaosResolvedKeyRef.current === key) return;
-    const drawOptions = () => isChaosLabMode ? drawChaosLabOptions("CRICKET", 3) : drawChaosOptions("CRICKET", 3);
+    const drawOptions = () => isChaosLabMode ? drawChaosLabOptions("CRICKET", 3, setsToWin > 0) : drawChaosOptions("CRICKET", 3);
     if (turn === 1 && botConfig) {
       const opts = drawOptions();
       chaosResolvedKeyRef.current = key;
@@ -1833,6 +2113,70 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const handleChaosCardActivation = useCallback((card: CardData) => {
     cardDebugLog("CricketScorer", "Chaos card activated", { card: card.name });
     matchLoggerRef.current.log("card_drawn_chaos", { player: turn, card: card.name, category: card.category });
+
+    // Chaos Lab: Sabotage cards (Erase/Purge) remove the opponent's active
+    // mark(s) instead of placing a new one — resolved immediately on draw,
+    // no dart needed. Falls back to placing the card's normal mark if the
+    // opponent has nothing to remove, so it's never a dead draw.
+    const sabotageKind = BOARD_MARK_SABOTAGE_CARD_IDS[card.id];
+    if (sabotageKind) {
+      const opponentPlayerId = String(turn === 0 ? 1 : 0);
+      let usedFallback = false;
+      setActiveBoardMarks(prev => {
+        const result = applyBoardMarkSabotage(prev, sabotageKind, opponentPlayerId);
+        if (result.removedCount > 0) {
+          matchLoggerRef.current.log("chaos_lab_sabotage", { card: card.name, kind: sabotageKind, removedCount: result.removedCount });
+          return result.marks;
+        }
+        usedFallback = true;
+        const fallbackConfig = BOARD_MARK_CARD_ID_MAP[card.id];
+        if (!fallbackConfig) return prev;
+        const fallbackMark = createBoardMarkFromPrototypeCard(fallbackConfig, { ownerPlayerId: String(turn), opponentPlayerId, createdAtVisitId: `${turn}:${legHistory.length}:${turnCounter}` })[0];
+        const placement = placeBoardMark(prev, fallbackMark);
+        matchLoggerRef.current.log("chaos_lab_sabotage_fallback", { card: card.name, kind: sabotageKind, placed: placement.ok });
+        return placement.ok ? placement.marks : prev;
+      });
+      setLastActivation({ cardName: usedFallback ? `${card.name} (nothing to ${sabotageKind})` : `💥 ${card.name}!`, player: turn as 0 | 1, key: `boardmark-sabotage-${Date.now()}` });
+      setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
+      setChaosOptions(null);
+      chaosResolvedKeyRef.current = `${turn}:${legHistory.length}:${turnCounter}`;
+      return;
+    }
+
+    // Chaos Lab: Match Swing cards read live match state and resolve
+    // immediately on draw — no dart needed, never actually placed as a
+    // mark. Falls back to a solid bonus if the condition isn't met, so
+    // it's never a dead draw.
+    const matchSwingKind = BOARD_MARK_MATCH_SWING_CARD_IDS[card.id];
+    if (matchSwingKind) {
+      const standing: [number, number] = matchSwingKind === "set_point" ? legWins : (setsToWin > 0 ? setWins : legWins);
+      const outcome = computeMatchSwingOutcome(matchSwingKind, turn as 0 | 1, standing);
+      matchLoggerRef.current.log("chaos_lab_match_swing", { card: card.name, kind: matchSwingKind, standing, conditionMet: outcome.conditionMet, delta: outcome.delta });
+      if (outcome.conditionMet) {
+        if (matchSwingKind === "set_point") {
+          setLegWins(prev => [prev[0] + outcome.delta[0], prev[1] + outcome.delta[1]]);
+        } else if (setsToWin > 0) {
+          setSetWins(prev => [prev[0] + outcome.delta[0], prev[1] + outcome.delta[1]]);
+        } else {
+          setLegWins(prev => [prev[0] + outcome.delta[0], prev[1] + outcome.delta[1]]);
+        }
+        setLastActivation({ cardName: `🌪️ ${card.name}! Leg swing!`, player: turn as 0 | 1, key: `boardmark-swing-${Date.now()}` });
+      } else {
+        const fallbackMagnitude = getBoardMarkMagnitude("bull", "CRICKET", "hot");
+        const rewardPlayer = turn as 0 | 1;
+        pendingBoardMarkAdjustmentRef.current[rewardPlayer] += fallbackMagnitude;
+        setScores(prev => {
+          const n = [...prev] as [number, number];
+          n[rewardPlayer] = n[rewardPlayer] + fallbackMagnitude;
+          return n;
+        });
+        setLastActivation({ cardName: `${card.name} — condition not met, +${fallbackMagnitude} instead`, player: rewardPlayer, key: `boardmark-swing-fallback-${Date.now()}` });
+      }
+      setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
+      setChaosOptions(null);
+      chaosResolvedKeyRef.current = `${turn}:${legHistory.length}:${turnCounter}`;
+      return;
+    }
 
     // Chaos Lab: Board Mark cards don't run through the normal effect engine
     // at all — they place a mark, which only ever affects future Card Clash
@@ -2129,6 +2473,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       }
       setScores([Math.max(0, pendingCri[0]), Math.max(0, pendingCri[1])]);
       pendingBoardMarkAdjustmentRef.current = [0, 0];
+      if (isChaosLabMode) setActiveBoardMarks(prev => expireBoardMarksForLegEnd(prev));
       setTurn(ns);
       setVisitDarts([]);
       setLastHit("");
@@ -2264,38 +2609,75 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         const trap = resolved.events.find(e => e.type === "card_clash_trigger_cancelled_by_trap_mark");
         if (hot) {
           const triggeredMark = activeBoardMarks.find(m => m.id === hot.markId);
-          const magnitude = getBoardMarkMagnitude(triggeredMark?.target.type ?? "number", "CRICKET", "hot");
-          const isSteal = !!triggeredMark?.metadata?.steal;
+          const payload = (triggeredMark?.metadata?.payload as string) ?? "score_shift";
           const rewardPlayer = turn as 0 | 1;
           const otherPlayer: 0 | 1 = rewardPlayer === 0 ? 1 : 0;
-          pendingBoardMarkAdjustmentRef.current[rewardPlayer] += magnitude; // adds to their next-leg starting points if this ends the leg
-          if (isSteal) pendingBoardMarkAdjustmentRef.current[otherPlayer] -= magnitude;
-          setScores(prev => {
-            const n = [...prev] as [number, number];
-            n[rewardPlayer] = n[rewardPlayer] + magnitude;
-            if (isSteal) n[otherPlayer] = Math.max(0, n[otherPlayer] - magnitude);
-            cardDebugLog("CricketScorer", "[CHAOS_LAB] Hot triggered", { target: triggeredMark?.target, player: rewardPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
-            matchLoggerRef.current.log("chaos_lab_hot_triggered", { target: triggeredMark?.target, player: rewardPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
-            return n;
-          });
-          setLastActivation({ cardName: isSteal ? `🔥💰 Stolen! +${magnitude}` : `🔥 Hot! +${magnitude}`, player: rewardPlayer, key: `boardmark-hot-${Date.now()}` });
+
+          if (payload === "swap_scores") {
+            setScores(prev => {
+              const n: [number, number] = [prev[1], prev[0]];
+              cardDebugLog("CricketScorer", "[CHAOS_LAB] Score Swap triggered", { triggeredBy: rewardPlayer, scoresBefore: prev, scoresAfter: n });
+              matchLoggerRef.current.log("chaos_lab_score_swap", { triggeredBy: rewardPlayer, scoresBefore: prev, scoresAfter: n });
+              return n;
+            });
+            setLastActivation({ cardName: "🔄 SCORES SWAPPED!", player: rewardPlayer, key: `boardmark-swap-${Date.now()}` });
+          } else if (payload === "double_next_visit") {
+            setActiveEffects(prev => [...prev, { cardName: "Surge (Board Mark)", appliedBy: rewardPlayer, affectsPlayer: rewardPlayer, status: "pending", extraScoreMultiplier: 2 }]);
+            cardDebugLog("CricketScorer", "[CHAOS_LAB] Surge triggered", { player: rewardPlayer });
+            matchLoggerRef.current.log("chaos_lab_surge", { player: rewardPlayer });
+            setLastActivation({ cardName: "⚡ SURGE! Your next visit scores ×2", player: rewardPlayer, key: `boardmark-surge-${Date.now()}` });
+          } else if (payload === "leech_score") {
+            const leechPct = triggeredMark?.createdByCardId === "prototype_parasite" ? 0.35 : 0.5;
+            const leechAmount = Math.floor(effectiveDart.value * leechPct);
+            setScores(prev => {
+              const n = [...prev] as [number, number];
+              n[otherPlayer] = Math.max(0, n[otherPlayer] - leechAmount);
+              cardDebugLog("CricketScorer", "[CHAOS_LAB] Leech triggered", { player: rewardPlayer, dartValue: effectiveDart.value, leechAmount, scoresBefore: prev, scoresAfter: n });
+              matchLoggerRef.current.log("chaos_lab_leech", { player: rewardPlayer, dartValue: effectiveDart.value, leechAmount, scoresBefore: prev, scoresAfter: n });
+              return n;
+            });
+            setLastActivation({ cardName: `🩸 SIPHONED! -${leechAmount} from them`, player: rewardPlayer, key: `boardmark-leech-${Date.now()}` });
+          } else {
+            const magnitude = computeBoardMarkTriggerMagnitude(triggeredMark!, "CRICKET", "hot");
+            const isSteal = !!triggeredMark?.metadata?.steal;
+            pendingBoardMarkAdjustmentRef.current[rewardPlayer] += magnitude; // adds to their next-leg starting points if this ends the leg
+            if (isSteal) pendingBoardMarkAdjustmentRef.current[otherPlayer] -= magnitude;
+            setScores(prev => {
+              const n = [...prev] as [number, number];
+              n[rewardPlayer] = n[rewardPlayer] + magnitude;
+              if (isSteal) n[otherPlayer] = Math.max(0, n[otherPlayer] - magnitude);
+              cardDebugLog("CricketScorer", "[CHAOS_LAB] Hot triggered", { target: triggeredMark?.target, player: rewardPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
+              matchLoggerRef.current.log("chaos_lab_hot_triggered", { target: triggeredMark?.target, player: rewardPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
+              return n;
+            });
+            setLastActivation({ cardName: isSteal ? `🔥💰 Stolen! +${magnitude}` : `🔥 Hot! +${magnitude}`, player: rewardPlayer, key: `boardmark-hot-${Date.now()}` });
+          }
         } else if (trap) {
           const triggeredMark = activeBoardMarks.find(m => m.id === trap.markId);
-          const magnitude = getBoardMarkMagnitude(triggeredMark?.target.type ?? "treble", "CRICKET", "trap");
-          const isSteal = !!triggeredMark?.metadata?.steal;
+          const payload = (triggeredMark?.metadata?.payload as string) ?? "score_shift";
           const penalizedPlayer = turn as 0 | 1;
           const trapOwner: 0 | 1 | undefined = triggeredMark ? (Number(triggeredMark.ownerPlayerId) as 0 | 1) : undefined;
-          pendingBoardMarkAdjustmentRef.current[penalizedPlayer] -= magnitude;
-          if (isSteal && trapOwner !== undefined) pendingBoardMarkAdjustmentRef.current[trapOwner] += magnitude;
-          setScores(prev => {
-            const n = [...prev] as [number, number];
-            n[penalizedPlayer] = Math.max(0, n[penalizedPlayer] - magnitude);
-            if (isSteal && trapOwner !== undefined) n[trapOwner] = n[trapOwner] + magnitude;
-            cardDebugLog("CricketScorer", "[CHAOS_LAB] Trap sprung", { target: triggeredMark?.target, player: penalizedPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
-            matchLoggerRef.current.log("chaos_lab_trap_sprung", { target: triggeredMark?.target, player: penalizedPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
-            return n;
-          });
-          setLastActivation({ cardName: isSteal ? `⚠️💰 Robbed! -${magnitude}` : `⚠️ Trap! -${magnitude}`, player: penalizedPlayer, key: `boardmark-trap-${Date.now()}` });
+
+          if (payload === "weaken_next_visit") {
+            setActiveEffects(prev => [...prev, { cardName: "Weakened (Board Mark)", appliedBy: trapOwner ?? (penalizedPlayer === 0 ? 1 : 0), affectsPlayer: penalizedPlayer, status: "pending", extraScoreMultiplier: 0.5 }]);
+            cardDebugLog("CricketScorer", "[CHAOS_LAB] Weakened triggered", { player: penalizedPlayer });
+            matchLoggerRef.current.log("chaos_lab_weakened", { player: penalizedPlayer });
+            setLastActivation({ cardName: "🥶 WEAKENED! Their next visit scores ×0.5", player: penalizedPlayer, key: `boardmark-weaken-${Date.now()}` });
+          } else {
+            const magnitude = computeBoardMarkTriggerMagnitude(triggeredMark!, "CRICKET", "trap");
+            const isSteal = !!triggeredMark?.metadata?.steal;
+            pendingBoardMarkAdjustmentRef.current[penalizedPlayer] -= magnitude;
+            if (isSteal && trapOwner !== undefined) pendingBoardMarkAdjustmentRef.current[trapOwner] += magnitude;
+            setScores(prev => {
+              const n = [...prev] as [number, number];
+              n[penalizedPlayer] = Math.max(0, n[penalizedPlayer] - magnitude);
+              if (isSteal && trapOwner !== undefined) n[trapOwner] = n[trapOwner] + magnitude;
+              cardDebugLog("CricketScorer", "[CHAOS_LAB] Trap sprung", { target: triggeredMark?.target, player: penalizedPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
+              matchLoggerRef.current.log("chaos_lab_trap_sprung", { target: triggeredMark?.target, player: penalizedPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
+              return n;
+            });
+            setLastActivation({ cardName: isSteal ? `⚠️💰 Robbed! -${magnitude}` : `⚠️ Trap! -${magnitude}`, player: penalizedPlayer, key: `boardmark-trap-${Date.now()}` });
+          }
         } else if (cold) {
           matchLoggerRef.current.log("chaos_lab_cold_blocked", { target: cold.target, player: turn });
           setLastActivation({ cardName: "❄️ Blocked by Cold", player: turn as 0 | 1, key: `boardmark-cold-${Date.now()}` });
