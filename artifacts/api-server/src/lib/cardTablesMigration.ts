@@ -171,6 +171,24 @@ export async function initializeCardTables() {
     `);
     logger.info("✓ card_clash_leaderboard table ready");
 
+    // Card Clash debug/match logs — downloadable from the admin panel so
+    // reported issues can be diagnosed from an actual event trace instead
+    // of a secondhand description.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS card_clash_debug_logs (
+        id SERIAL PRIMARY KEY,
+        player_1_id INTEGER REFERENCES players(id) ON DELETE SET NULL,
+        player_2_id INTEGER REFERENCES players(id) ON DELETE SET NULL,
+        game_mode TEXT,
+        is_chaos_mode BOOLEAN NOT NULL DEFAULT false,
+        is_chaos_lab_mode BOOLEAN NOT NULL DEFAULT false,
+        log_text TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_card_clash_debug_logs_created_at ON card_clash_debug_logs(created_at DESC)`);
+    logger.info("✓ card_clash_debug_logs table ready");
+
     // Create notifications table if it doesn't exist
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS notifications (

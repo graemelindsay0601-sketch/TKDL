@@ -23,6 +23,32 @@ import {
   getBoardMarkMagnitude,
 } from "./card-clash/boardMarks";
 import { cardDebugLog } from "./card-debug";
+import { createMatchLogger, downloadMatchLog } from "./card-clash/matchLogger";
+import type { MatchLogger } from "./card-clash/matchLogger";
+
+/**
+ * Sends a match's accumulated log to the backend for later download from
+ * the admin panel. Fire-and-forget — a logging failure should never
+ * disrupt the match flow, so this never throws and the caller doesn't
+ * need to await it.
+ */
+function uploadMatchLog(logger: MatchLogger, meta: { gameMode: "X01" | "CRICKET"; isChaosMode: boolean; isChaosLabMode: boolean }) {
+  try {
+    fetch("/api/card-clash/debug-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        gameMode: meta.gameMode,
+        isChaosMode: meta.isChaosMode,
+        isChaosLabMode: meta.isChaosLabMode,
+        logText: logger.toText(),
+      }),
+    }).catch(() => {}); // non-critical, ignore failures
+  } catch {
+    // ignore — logging must never disrupt the match
+  }
+}
+
 import { useSafeTimeout } from "./use-safe-timeout";
 import {
   type CCEffect,
@@ -174,6 +200,16 @@ function AbandonBtn({ onAbandon }: { onAbandon: () => void }) {
   );
 }
 
+/** Card Clash: lets a tester grab the match's structured log immediately, without needing admin panel access — works for Solo vs CPU too, which has no server-side match record at all. */
+function DownloadMatchLogBtn({ logger }: { logger: MatchLogger }) {
+  return (
+    <button onClick={() => downloadMatchLog(logger)} className="w-full text-xs py-2 rounded-lg uppercase tracking-widest"
+      style={{ color: "rgba(255,255,255,0.25)", background: "transparent", border: "1px solid rgba(255,255,255,0.06)", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
+      Download Match Log
+    </button>
+  );
+}
+
 function SectionCard({ children }: { children: React.ReactNode }) {
   return (
     <div className="pdc-card p-3" style={{ borderColor: "rgba(255,255,255,0.07)" }}>{children}</div>
@@ -303,7 +339,7 @@ function CCEffectsHUD({ effects, names, lastActivation }: {
 // Chaos Lab: shared Board Mark visual identity — used by both the HUD panel
 // and the dartboard's marked-segment highlighting, so they always match.
 const BOARD_MARK_ICON: Record<BoardMark["type"], string> = { hot: "\u{1F525}", cold: "\u2744\uFE0F", trap: "\u26A0\uFE0F", shield: "\u{1F6E1}\uFE0F" };
-const BOARD_MARK_COLOR: Record<BoardMark["type"], string> = { hot: "#ff8a3d", cold: "#5ec8ff", trap: "#ffcc4d", shield: "#7cf29c" };
+const BOARD_MARK_COLOR: Record<BoardMark["type"], string> = { hot: "#ff8a3d", cold: "#5ec8ff", trap: "#ff4d4d", shield: "#7cf29c" };
 
 /** Converts active Board Marks into the DartInputBoard's markedSegments prop shape. Bull → segment 25; numbers/trebles/doubles use their own value. */
 function boardMarksToSegments(marks: BoardMark[]): { segment: number; color: string }[] {
@@ -479,6 +515,19 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [isChaosLabMode, setIsChaosLabMode] = useState(false);
   const [activeBoardMarks, setActiveBoardMarks] = useState<BoardMark[]>([]);
   const boardMarkVisitEndKeyRef = useRef<string>("");
+  // BUGFIX: a Hot/Trap reward applied via setScores on a dart that ALSO wins
+  // the leg was getting silently wiped by resetForLeg's setScores([starting,
+  // starting]) a moment later, before the player ever saw it. D16 in
+  // particular is one of the most common checkout doubles, so this was very
+  // reachable. This ref tracks any reward/penalty that hasn't yet "settled"
+  // (survived to a fresh visit without the leg ending) -- resetForLeg
+  // consumes it into the new leg's starting scores instead of losing it.
+  const pendingBoardMarkAdjustmentRef = useRef<[number, number]>([0, 0]);
+  // Structured match log — accumulates every dart, card, and Board Mark
+  // event so a match can be downloaded and inspected afterward instead of
+  // relying on a secondhand description of what happened. One instance per
+  // match (created fresh on mount).
+  const matchLoggerRef = useRef(createMatchLogger({ engine: "X01", p1Name, p2Name }));
 
   const names = [p1Name, p2Name];
 
@@ -504,6 +553,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   };
 
   const triggerBust = useCallback((darts: Dart[], msg: string) => {
+    matchLoggerRef.current.log("bust", { player: turn, msg, darts: darts.map(d => d.label) });
     setBust(true); setBustMsg(msg); setVisitDarts(darts);
     if (bustResetTo !== undefined) {
       setScores(prev => { const n = [...prev] as [number, number]; n[turn] = bustResetTo; return n; });
@@ -512,6 +562,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   }, [turn, bustResetTo]);
 
   const handleWin = useCallback((winnerIdx: 0|1, darts: Dart[]) => {
+    matchLoggerRef.current.log("leg_won", { winner: winnerIdx, finishingDarts: darts.map(d => d.label) });
     setVisitDarts(darts);
     const getStats = () => ({
       p1Darts: p1StatsRef.current.darts, p1Score: p1StatsRef.current.score,
@@ -526,7 +577,20 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     const resetForLeg = (delay: number, newLegState: [number,number]) => {
       safeTimeout(() => {
         const ns: 0|1 = legStarter === 0 ? 1 : 0;
-        setLegStarter(ns); setScores([startingScore, startingScore]);
+        setLegStarter(ns);
+        // Fold in any Board Mark reward/penalty that hasn't settled yet (see
+        // pendingBoardMarkAdjustmentRef's BUGFIX note) so it isn't silently
+        // lost if this leg ended on the exact same dart that triggered it.
+        const pending = pendingBoardMarkAdjustmentRef.current;
+        if (pending[0] !== 0 || pending[1] !== 0) {
+          cardDebugLog("X01Scorer", "[CHAOS_LAB] Applying pending adjustment to new leg start", { pending, startingScore });
+          matchLoggerRef.current.log("chaos_lab_pending_applied_to_new_leg", { pending, startingScore });
+        }
+        setScores([
+          Math.max(0, startingScore - pending[0]),
+          Math.max(0, startingScore - pending[1]),
+        ]);
+        pendingBoardMarkAdjustmentRef.current = [0, 0];
         setStarted([!doubleIn, !doubleIn]); setVisitDarts([]);
         setTurn(soloMode ? 0 : ns); setLegWins(newLegState);
         
@@ -620,6 +684,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           if (ns[winnerIdx] >= setsNeeded) {
             safeTimeout(() => {
               setSetWins(ns);
+              if (isCardClash) uploadMatchLog(matchLoggerRef.current, { gameMode: "X01", isChaosMode, isChaosLabMode });
               onWin(winnerIdx, `${ns[winnerIdx]}–${ns[winnerIdx===0?1:0]} sets`);
               onPracticeStats?.(getStats());
             }, 800);
@@ -674,6 +739,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         
         if (n[winnerIdx] >= legsNeeded) {
           safeTimeout(() => {
+            if (isCardClash) uploadMatchLog(matchLoggerRef.current, { gameMode: "X01", isChaosMode, isChaosLabMode });
             onWin(winnerIdx, `${n[winnerIdx]}–${n[winnerIdx===0?1:0]} legs`);
             onPracticeStats?.(getStats());
           }, 200);
@@ -684,6 +750,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       });
     } else {
       safeTimeout(() => {
+        if (isCardClash) uploadMatchLog(matchLoggerRef.current, { gameMode: "X01", isChaosMode, isChaosLabMode });
         onWin(winnerIdx);
         onPracticeStats?.(getStats());
       }, 200);
@@ -692,6 +759,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
   const handleDart = useCallback((dart: Dart) => {
     if (bust || visitDarts.length >= 3) return;
+
+    matchLoggerRef.current.log("dart_thrown", { player: turn, segment: dart.segment, multiplier: dart.multiplier, value: dart.value, label: dart.label, remainingBefore: scores[turn] });
+
+    if (isChaosLabMode && visitDarts.length === 0 && pendingBoardMarkAdjustmentRef.current[turn] !== 0) {
+      cardDebugLog("X01Scorer", "[CHAOS_LAB] Clearing settled pending adjustment at fresh visit", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
+      matchLoggerRef.current.log("chaos_lab_pending_settled", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
+      matchLoggerRef.current.log("chaos_lab_pending_adjustment_settled", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
+      pendingBoardMarkAdjustmentRef.current[turn] = 0;
+    }
 
     // No-trebles variant: treble ring counts as a single
     if (noTrebles && dart.multiplier === 3) {
@@ -736,7 +812,8 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     // already-preprocessed dart, and never influences cum/nv/rem for THIS
     // dart's own scoring below — Hot/Trap rewards apply via a separate
     // setScores call, so they never interfere with this dart's own bust/
-    // checkout math, only becoming visible from the next dart onward.
+    // checkout math. Also stashed into pendingBoardMarkAdjustmentRef in case
+    // this exact dart also wins the leg — see BUGFIX note on the ref itself.
     if (isCardClash && isChaosLabMode && activeBoardMarks.length > 0) {
       const dartResult = toBoardMarkDartResult(dart, String(turn));
       const resolved = resolveBoardMarksForDart(activeBoardMarks, { dartResult });
@@ -752,10 +829,14 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           const isSteal = !!triggeredMark?.metadata?.steal;
           const rewardPlayer = turn as 0 | 1;
           const otherPlayer: 0 | 1 = rewardPlayer === 0 ? 1 : 0;
+          pendingBoardMarkAdjustmentRef.current[rewardPlayer] += magnitude; // reduces their starting score if this ends the leg
+          if (isSteal) pendingBoardMarkAdjustmentRef.current[otherPlayer] -= magnitude; // increases theirs
           setScores(prev => {
             const n = [...prev] as [number, number];
             n[rewardPlayer] = Math.max(0, n[rewardPlayer] - magnitude);
             if (isSteal) n[otherPlayer] = n[otherPlayer] + magnitude; // zero-sum: what you win, they lose
+            cardDebugLog("X01Scorer", "[CHAOS_LAB] Hot triggered", { target: triggeredMark?.target, player: rewardPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
+            matchLoggerRef.current.log("chaos_lab_hot_triggered", { target: triggeredMark?.target, player: rewardPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
             return n;
           });
           setLastActivation({ cardName: isSteal ? `🔥💰 Stolen! -${magnitude}` : `🔥 Hot! -${magnitude}`, player: rewardPlayer, key: `boardmark-hot-${Date.now()}` });
@@ -765,17 +846,23 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           const isSteal = !!triggeredMark?.metadata?.steal;
           const penalizedPlayer = turn as 0 | 1;
           const trapOwner: 0 | 1 | undefined = triggeredMark ? (Number(triggeredMark.ownerPlayerId) as 0 | 1) : undefined;
+          pendingBoardMarkAdjustmentRef.current[penalizedPlayer] -= magnitude; // increases their starting score if this ends the leg
+          if (isSteal && trapOwner !== undefined) pendingBoardMarkAdjustmentRef.current[trapOwner] += magnitude;
           setScores(prev => {
             const n = [...prev] as [number, number];
             n[penalizedPlayer] = n[penalizedPlayer] + magnitude;
             if (isSteal && trapOwner !== undefined) n[trapOwner] = Math.max(0, n[trapOwner] - magnitude); // trapper gets what the trapped player lost
+            cardDebugLog("X01Scorer", "[CHAOS_LAB] Trap sprung", { target: triggeredMark?.target, player: penalizedPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
+            matchLoggerRef.current.log("chaos_lab_trap_sprung", { target: triggeredMark?.target, player: penalizedPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
             return n;
           });
           setLastActivation({ cardName: isSteal ? `⚠️💰 Robbed! +${magnitude}` : `⚠️ Trap! +${magnitude}`, player: penalizedPlayer, key: `boardmark-trap-${Date.now()}` });
         } else if (cold) {
+          matchLoggerRef.current.log("chaos_lab_cold_blocked", { target: cold.target, player: turn });
           setLastActivation({ cardName: "❄️ Blocked by Cold", player: turn as 0 | 1, key: `boardmark-cold-${Date.now()}` });
         }
         cardDebugLog("X01Scorer", "[CHAOS_LAB] Board Mark events", resolved.events);
+        matchLoggerRef.current.log("chaos_lab_resolver_events", { events: resolved.events, activeMarksAfter: resolved.marks.map(m => ({ id: m.id, type: m.type, target: m.target })) });
       }
     }
 
@@ -980,6 +1067,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       return; 
     }
     cardDebugLog("X01Scorer", "Card activated", { card: card.name, cardId });
+    matchLoggerRef.current.log("card_activated_equip", { player: turn, card: card.name });
 
     const effects = ccActivateCard(card, turn, { scores, legWins }, undefined, { legHistory, legsNeeded });
 
@@ -1182,6 +1270,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   // ── Chaos Mode: apply a revealed mystery card directly (no equip lookup) ──
   const handleChaosCardActivation = useCallback((card: CardData) => {
     cardDebugLog("X01Scorer", "Chaos card activated", { card: card.name });
+    matchLoggerRef.current.log("card_drawn_chaos", { player: turn, card: card.name, category: card.category });
 
     // Chaos Lab: Board Mark cards don't run through the normal effect engine
     // at all — they place a mark, which only ever affects future Card Clash
@@ -1200,7 +1289,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         let current = prev;
         for (const mark of newMarks) {
           const result = placeBoardMark(current, mark);
-          if (result.ok) current = result.marks;
+          if (result.ok) {
+            current = result.marks;
+            matchLoggerRef.current.log("chaos_lab_mark_placed", { card: card.name, type: mark.type, target: mark.target, appliesTo: mark.appliesTo, owner: mark.ownerPlayerId });
+          } else {
+            matchLoggerRef.current.log("chaos_lab_mark_placement_blocked", { card: card.name, type: mark.type, target: mark.target, reason: result.reason });
+          }
         }
         return current;
       });
@@ -1514,7 +1608,8 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       }
       bot={<div className="flex flex-col gap-2">
         <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust || isBotTurnX01} markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks) : undefined} />
-        <AbandonBtn onAbandon={onAbandon} />
+        <AbandonBtn onAbandon={() => { if (isCardClash) uploadMatchLog(matchLoggerRef.current, { gameMode: "X01", isChaosMode, isChaosLabMode }); onAbandon(); }} />
+        {isCardClash && <DownloadMatchLogBtn logger={matchLoggerRef.current} />}
       </div>}
     />
     <CardActivationOverlay 
@@ -1606,6 +1701,16 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [isChaosLabMode, setIsChaosLabMode] = useState(false);
   const [activeBoardMarks, setActiveBoardMarks] = useState<BoardMark[]>([]);
   const boardMarkVisitEndKeyRef = useRef<string>("");
+  // BUGFIX: a Hot/Trap reward applied via setScores on a dart that ALSO wins
+  // the leg was getting silently wiped by resetForLeg's setScores([starting,
+  // starting]) a moment later, before the player ever saw it. D16 in
+  // particular is one of the most common checkout doubles, so this was very
+  // reachable. This ref tracks any reward/penalty that hasn't yet "settled"
+  // (survived to a fresh visit without the leg ending) -- resetForLeg
+  // consumes it into the new leg's starting scores instead of losing it.
+  const pendingBoardMarkAdjustmentRef = useRef<[number, number]>([0, 0]);
+  // Structured match log — see X01Scorer's matchLoggerRef for the full comment.
+  const matchLoggerRef = useRef(createMatchLogger({ engine: "CRICKET", p1Name, p2Name }));
 
   const names = [p1Name, p2Name];
 
@@ -1727,6 +1832,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   // ── Chaos Mode: apply a revealed mystery card directly (no equip lookup) ──
   const handleChaosCardActivation = useCallback((card: CardData) => {
     cardDebugLog("CricketScorer", "Chaos card activated", { card: card.name });
+    matchLoggerRef.current.log("card_drawn_chaos", { player: turn, card: card.name, category: card.category });
 
     // Chaos Lab: Board Mark cards don't run through the normal effect engine
     // at all — they place a mark, which only ever affects future Card Clash
@@ -1743,7 +1849,12 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         let current = prev;
         for (const mark of newMarks) {
           const result = placeBoardMark(current, mark);
-          if (result.ok) current = result.marks;
+          if (result.ok) {
+            current = result.marks;
+            matchLoggerRef.current.log("chaos_lab_mark_placed", { card: card.name, type: mark.type, target: mark.target, appliesTo: mark.appliesTo, owner: mark.ownerPlayerId });
+          } else {
+            matchLoggerRef.current.log("chaos_lab_mark_placement_blocked", { card: card.name, type: mark.type, target: mark.target, reason: result.reason });
+          }
         }
         return current;
       });
@@ -1858,6 +1969,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       return; 
     }
     cardDebugLog("CricketScorer", "Card activated", { card: card.name });
+    matchLoggerRef.current.log("card_activated_equip", { player: turn, card: card.name });
 
     // THEME 4: Calculate called number (first unclosed number for this player)
     let calledNumber: number | undefined;
@@ -2007,7 +2119,16 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       const ns: 0|1 = legStarter === 0 ? 1 : 0;
       setLegStarter(ns);
       setMarks([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
-      setScores([0,0]);
+      // Fold in any Board Mark reward/penalty that hasn't settled yet (see
+      // pendingBoardMarkAdjustmentRef's BUGFIX note) so it isn't silently
+      // lost if this leg ended on the exact same dart that triggered it.
+      const pendingCri = pendingBoardMarkAdjustmentRef.current;
+      if (pendingCri[0] !== 0 || pendingCri[1] !== 0) {
+        cardDebugLog("CricketScorer", "[CHAOS_LAB] Applying pending adjustment to new leg start", { pending: pendingCri });
+        matchLoggerRef.current.log("chaos_lab_pending_applied_to_new_leg", { pending: pendingCri });
+      }
+      setScores([Math.max(0, pendingCri[0]), Math.max(0, pendingCri[1])]);
+      pendingBoardMarkAdjustmentRef.current = [0, 0];
       setTurn(ns);
       setVisitDarts([]);
       setLastHit("");
@@ -2024,6 +2145,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
 
       const legWinner = newLegState[0] > legWins[0] ? 0 : newLegState[1] > legWins[1] ? 1 : null;
       if (legWinner !== null) {
+        matchLoggerRef.current.log("leg_won", { winner: legWinner });
         setLegHistory(prev => [...prev, legWinner]);
 
         // Card Clash: Perfect Game — shutout bonus (opponent scored 0 this leg).
@@ -2055,6 +2177,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const handleLegWin = useCallback((winnerIdx: 0|1) => {
     // Single-leg match (default / Bo1) — no format selected, behave exactly as before
     if (setsToWin <= 0 && (!legs || legs <= 1)) {
+      if (isCardClash) uploadMatchLog(matchLoggerRef.current, { gameMode: "CRICKET", isChaosMode, isChaosLabMode });
       onWin(winnerIdx, cutThroat ? `Cut-Throat — lowest score wins` : undefined);
       return;
     }
@@ -2069,6 +2192,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           if (ns[winnerIdx] >= setsNeeded) {
             safeTimeout(() => {
               setSetWins(ns);
+              if (isCardClash) uploadMatchLog(matchLoggerRef.current, { gameMode: "CRICKET", isChaosMode, isChaosLabMode });
               onWin(winnerIdx, `${ns[winnerIdx]}–${ns[winnerIdx===0?1:0]} sets`);
             }, 800);
           } else {
@@ -2089,6 +2213,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         n[winnerIdx]++;
         if (n[winnerIdx] >= legsNeeded) {
           safeTimeout(() => {
+            if (isCardClash) uploadMatchLog(matchLoggerRef.current, { gameMode: "CRICKET", isChaosMode, isChaosLabMode });
             onWin(winnerIdx, `${n[winnerIdx]}–${n[winnerIdx===0?1:0]} legs`);
           }, 200);
         } else {
@@ -2101,6 +2226,16 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
 
   const handleDart = useCallback((dart: Dart) => {
     if (visitDarts.length >= 3) return;
+
+    matchLoggerRef.current.log("dart_thrown", { player: turn, segment: dart.segment, multiplier: dart.multiplier, value: dart.value, label: dart.label });
+
+    if (isChaosLabMode && visitDarts.length === 0 && pendingBoardMarkAdjustmentRef.current[turn] !== 0) {
+      cardDebugLog("CricketScorer", "[CHAOS_LAB] Clearing settled pending adjustment at fresh visit", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
+      matchLoggerRef.current.log("chaos_lab_pending_settled", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
+      matchLoggerRef.current.log("chaos_lab_pending_adjustment_settled", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
+      pendingBoardMarkAdjustmentRef.current[turn] = 0;
+    }
+
     // Snapshot full state before this dart — enables per-dart AND cross-visit undo
     setSnapHistory(prev => [...prev, {
       marks: [marks[0].slice() as [number,number,number,number,number,number,number], marks[1].slice() as [number,number,number,number,number,number,number]],
@@ -2117,7 +2252,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     // Chaos Lab: resolve Board Marks against this dart. Runs on the real,
     // already-preprocessed dart. Hot/Trap rewards apply via a separate
     // setScores call, so they never interfere with this dart's own
-    // scoring/marks math, only becoming visible from the next dart onward.
+    // scoring/marks math. Also stashed into pendingBoardMarkAdjustmentRef in
+    // case this exact dart also wins the leg — see BUGFIX note on the ref.
     if (isCardClash && isChaosLabMode && activeBoardMarks.length > 0) {
       const dartResult = toBoardMarkDartResult(effectiveDart, String(turn));
       const resolved = resolveBoardMarksForDart(activeBoardMarks, { dartResult });
@@ -2132,10 +2268,14 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           const isSteal = !!triggeredMark?.metadata?.steal;
           const rewardPlayer = turn as 0 | 1;
           const otherPlayer: 0 | 1 = rewardPlayer === 0 ? 1 : 0;
+          pendingBoardMarkAdjustmentRef.current[rewardPlayer] += magnitude; // adds to their next-leg starting points if this ends the leg
+          if (isSteal) pendingBoardMarkAdjustmentRef.current[otherPlayer] -= magnitude;
           setScores(prev => {
             const n = [...prev] as [number, number];
             n[rewardPlayer] = n[rewardPlayer] + magnitude;
             if (isSteal) n[otherPlayer] = Math.max(0, n[otherPlayer] - magnitude);
+            cardDebugLog("CricketScorer", "[CHAOS_LAB] Hot triggered", { target: triggeredMark?.target, player: rewardPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
+            matchLoggerRef.current.log("chaos_lab_hot_triggered", { target: triggeredMark?.target, player: rewardPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
             return n;
           });
           setLastActivation({ cardName: isSteal ? `🔥💰 Stolen! +${magnitude}` : `🔥 Hot! +${magnitude}`, player: rewardPlayer, key: `boardmark-hot-${Date.now()}` });
@@ -2145,17 +2285,23 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           const isSteal = !!triggeredMark?.metadata?.steal;
           const penalizedPlayer = turn as 0 | 1;
           const trapOwner: 0 | 1 | undefined = triggeredMark ? (Number(triggeredMark.ownerPlayerId) as 0 | 1) : undefined;
+          pendingBoardMarkAdjustmentRef.current[penalizedPlayer] -= magnitude;
+          if (isSteal && trapOwner !== undefined) pendingBoardMarkAdjustmentRef.current[trapOwner] += magnitude;
           setScores(prev => {
             const n = [...prev] as [number, number];
             n[penalizedPlayer] = Math.max(0, n[penalizedPlayer] - magnitude);
             if (isSteal && trapOwner !== undefined) n[trapOwner] = n[trapOwner] + magnitude;
+            cardDebugLog("CricketScorer", "[CHAOS_LAB] Trap sprung", { target: triggeredMark?.target, player: penalizedPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
+            matchLoggerRef.current.log("chaos_lab_trap_sprung", { target: triggeredMark?.target, player: penalizedPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
             return n;
           });
           setLastActivation({ cardName: isSteal ? `⚠️💰 Robbed! -${magnitude}` : `⚠️ Trap! -${magnitude}`, player: penalizedPlayer, key: `boardmark-trap-${Date.now()}` });
         } else if (cold) {
+          matchLoggerRef.current.log("chaos_lab_cold_blocked", { target: cold.target, player: turn });
           setLastActivation({ cardName: "❄️ Blocked by Cold", player: turn as 0 | 1, key: `boardmark-cold-${Date.now()}` });
         }
         cardDebugLog("CricketScorer", "[CHAOS_LAB] Board Mark events", resolved.events);
+        matchLoggerRef.current.log("chaos_lab_resolver_events", { events: resolved.events, activeMarksAfter: resolved.marks.map(m => ({ id: m.id, type: m.type, target: m.target })) });
       }
     }
     
@@ -2759,7 +2905,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks) : undefined}
           disabled={isBotTurnCri}
         />
-        <AbandonBtn onAbandon={onAbandon} />
+        <AbandonBtn onAbandon={() => { if (isCardClash) uploadMatchLog(matchLoggerRef.current, { gameMode: "CRICKET", isChaosMode, isChaosLabMode }); onAbandon(); }} />
+        {isCardClash && <DownloadMatchLogBtn logger={matchLoggerRef.current} />}
       </div>}
     />
     <CardActivationOverlay 

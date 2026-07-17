@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-type RuleCategory = 'basics' | 'good-cards' | 'bad-cards' | 'scoring' | 'coinEconomy' | 'seasons';
+type RuleCategory = 'basics' | 'good-cards' | 'bad-cards' | 'scoring' | 'coinEconomy' | 'seasons' | 'chaos-lab';
 
 interface RuleSection {
   id: RuleCategory;
@@ -174,6 +174,52 @@ const RULES_DATA: RuleSection[] = [
       {
         title: 'Practice Impact',
         description: 'Practice matches do NOT affect your ranked tier. Perfect for testing strategies.',
+      },
+    ],
+  },
+  {
+    id: 'chaos-lab',
+    title: 'Chaos Lab (Experimental)',
+    icon: '⚡',
+    color: '#a78bfa',
+    rules: [
+      {
+        title: 'What Chaos Lab Is',
+        description: 'A separate mode from Standard and Chaos Card Clash — normal darts scoring always stays exactly the same. Instead of equipping cards ahead of time, you get 3 face-down mystery cards at the start of every visit, and every one of them marks a target on the board rather than giving a flat score boost.',
+        important: true,
+      },
+      {
+        title: 'Hot',
+        description: 'Marks a target as a race — whoever hits it first (either player) scores completely normally AND gets a real bonus on top. The harder the target, the bigger the reward: a number bed pays modestly, a treble or double pays more, and Bull pays the most. Removed the moment it triggers.',
+      },
+      {
+        title: 'Cold',
+        description: 'Marks a target against your opponent specifically. If they hit it, they still score exactly the same as normal — but nothing else happens; it\u2019s pure denial, no bonus or penalty attached. Lasts until their visit ends.',
+      },
+      {
+        title: 'Trap',
+        description: 'Marks a target against your opponent. If they hit it, they still score normally, but they also take a real penalty — same rarity-scaled sizing as Hot. Removed the moment it\u2019s sprung.',
+      },
+      {
+        title: 'Shield',
+        description: 'Protects one of your own targets — while it\u2019s up, your opponent can\u2019t place a Cold or Trap mark there. Never blocks Hot, and never affects your own scoring in any way. Lasts through your next visit.',
+      },
+      {
+        title: 'Steal Cards',
+        description: 'A few cards (marked with a STEAL badge) turn a Hot or Trap trigger into a direct transfer between players instead of a one-sided grant or penalty. Winning a steal Hot doesn\u2019t just help you — it takes the same amount away from your opponent.',
+      },
+      {
+        title: 'Risk/Reward Cards',
+        description: 'A handful of cards place two marks at once: a big, guaranteed-target Hot reward, plus a second curse on a random 1\u201320 number bed against yourself. Going for the big prize means playing the rest of that leg with a hidden landmine of your own making.',
+      },
+      {
+        title: 'Seeing What\u2019s Marked',
+        description: 'Marked numbers glow on the dart input board itself in the mark\u2019s own color (orange=Hot, blue=Cold, red=Trap, green=Shield), and the Active Board Marks panel spells out the exact target, who it affects, and the live bonus/penalty number for each one.',
+        important: true,
+      },
+      {
+        title: 'Chaos Lab Cards Are Exclusive',
+        description: 'These cards only ever appear as mystery draws inside a Chaos Lab match. They\u2019re never available in packs, the shop, the equip screen, or regular Chaos Mode.',
       },
     ],
   },

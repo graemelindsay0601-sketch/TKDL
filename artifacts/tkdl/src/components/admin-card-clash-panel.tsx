@@ -85,6 +85,9 @@ export default function AdminCardClashPanel() {
   const [coinAmount, setCoinAmount]     = useState("50");
   const [cardQuantity, setCardQuantity] = useState("1");
   const [matchId, setMatchId]   = useState("");
+  const [debugLogs, setDebugLogs] = useState<any[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsLoaded, setLogsLoaded] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [message, setMessage]   = useState("");
   const [msgType, setMsgType]   = useState<"success" | "error" | "info">("info");
@@ -134,6 +137,31 @@ export default function AdminCardClashPanel() {
   const toggleCard = async (cardId: string, enabled: boolean) => {
     await api("/api/card-clash/admin/card/toggle", { cardId, enabled: !enabled }, `Card ${!enabled ? "enabled" : "disabled"}`);
     loadCards();
+  };
+
+  const loadDebugLogs = async () => {
+    try {
+      setLogsLoading(true);
+      const r = await fetch("/api/card-clash/admin/debug-logs?limit=50", { headers: getAdminHeaders() });
+      const d = await r.json();
+      setDebugLogs(r.ok && Array.isArray(d.logs) ? d.logs : []);
+      setLogsLoaded(true);
+      if (!r.ok) toast(`Logs: ${d.error ?? "load failed"}`, "error");
+    } catch { toast("Failed to load match logs", "error"); } finally { setLogsLoading(false); }
+  };
+
+  const downloadDebugLog = async (id: number) => {
+    try {
+      const r = await fetch(`/api/card-clash/admin/debug-logs/${id}/download`, { headers: getAdminHeaders() });
+      if (!r.ok) { toast("Download failed", "error"); return; }
+      const text = await r.text();
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `card-clash-log-${id}.txt`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch { toast("Download failed", "error"); }
   };
 
   return (
@@ -269,6 +297,48 @@ export default function AdminCardClashPanel() {
                 <Trash2 size={14} /> Delete Match
               </Btn>
             </div>
+          </Section>
+
+          {/* Match logs */}
+          <Section title="📋 MATCH LOGS" defaultOpen={false}>
+            <p style={{ fontSize: "12px", color: D.sub, margin: "0 0 12px" }}>
+              Every Card Clash match (2-player, Standard/Chaos/Chaos Lab) uploads a structured event log here when it
+              finishes or is abandoned. Solo vs CPU matches also produce a log — download it directly from the "Download
+              Match Log" button on the match screen instead, since those matches have no server-side record to list here.
+            </p>
+            {!logsLoaded ? (
+              <Btn color={D.info} onClick={loadDebugLogs} disabled={logsLoading}>{logsLoading ? "Loading…" : "Load Recent Logs"}</Btn>
+            ) : (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "12px", color: D.sub }}>{debugLogs.length} log{debugLogs.length === 1 ? "" : "s"}</span>
+                  <Btn color={D.info} onClick={loadDebugLogs} disabled={logsLoading}>{logsLoading ? "Refreshing…" : "↻ Refresh"}</Btn>
+                </div>
+                {debugLogs.length === 0 ? (
+                  <p style={{ color: D.sub, fontSize: "13px" }}>No match logs yet — play a Card Clash match and it'll show up here.</p>
+                ) : (
+                  <div style={{ maxHeight: "360px", overflowY: "auto", display: "grid", gap: "4px" }}>
+                    {debugLogs.map(log => {
+                      const mode = log.is_chaos_lab_mode ? "Chaos Lab" : log.is_chaos_mode ? "Chaos" : "Standard";
+                      const players = [log.player_1_name, log.player_2_name].filter(Boolean).join(" vs ") || "Unknown players";
+                      const when = log.created_at ? new Date(log.created_at).toLocaleString() : "";
+                      const kb = log.log_length ? Math.max(1, Math.round(log.log_length / 1024)) : 0;
+                      return (
+                        <div key={log.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", padding: "8px 10px", borderRadius: "6px", background: "rgba(255,255,255,0.02)", border: `1px solid ${D.border}` }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: "12px", color: D.text, fontWeight: 700 }}>
+                              #{log.id} · {log.game_mode ?? "?"} · {mode}
+                            </div>
+                            <div style={{ fontSize: "11px", color: D.sub }}>{players} · {when} · ~{kb}KB</div>
+                          </div>
+                          <Btn color={D.success} onClick={() => downloadDebugLog(log.id)} style={{ flexShrink: 0 }}>⬇ Download</Btn>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
           </Section>
 
           {/* Danger zone */}

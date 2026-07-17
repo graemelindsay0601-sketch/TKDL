@@ -12,6 +12,10 @@ interface CardDebugLog {
   data: unknown;
 }
 
+// Kept generous (a full match easily produces a few hundred entries between
+// scoring, card activation, and Chaos Lab Board Mark events) so a match log
+// downloaded at the end genuinely covers the whole match, not just the tail.
+const MAX_LOGS = 2000;
 const debugLogs: CardDebugLog[] = [];
 
 /**
@@ -20,11 +24,11 @@ const debugLogs: CardDebugLog[] = [];
 export function cardDebugLog(component: string, action: string, data?: unknown) {
   if (!CARD_CLASH_DEV_MODE) return;
 
-  const timestamp = new Date().toLocaleTimeString();
+  const timestamp = new Date().toISOString();
   const log: CardDebugLog = { timestamp, component, action, data };
   
   debugLogs.push(log);
-  if (debugLogs.length > 100) debugLogs.shift(); // Keep last 100 logs
+  if (debugLogs.length > MAX_LOGS) debugLogs.shift();
 
   console.log(
     `%c[CARD_CLASH:${component}] ${action}`,
@@ -41,7 +45,8 @@ export function getCardDebugLogs(): CardDebugLog[] {
 }
 
 /**
- * Clear debug logs
+ * Clear debug logs — call at the start of a new match so each match's
+ * downloadable log doesn't carry over noise from a previous one.
  */
 export function clearCardDebugLogs() {
   debugLogs.length = 0;
@@ -52,6 +57,29 @@ export function clearCardDebugLogs() {
  */
 export function printCardDebugLogs() {
   console.table(debugLogs);
+}
+
+/**
+ * Render the current log buffer as readable, plain-text lines — one per
+ * event, in order, with a readable local timestamp. This is what gets
+ * downloaded/sent to the backend as a match log: something a person can
+ * read directly and paste into a bug report, not just raw JSON.
+ */
+export function formatCardDebugLogsAsText(): string {
+  return debugLogs
+    .map((l) => {
+      const dataStr = l.data === undefined ? "" : ` ${safeStringify(l.data)}`;
+      return `[${l.timestamp}] [${l.component}] ${l.action}${dataStr}`;
+    })
+    .join("\n");
+}
+
+function safeStringify(data: unknown): string {
+  try {
+    return JSON.stringify(data);
+  } catch {
+    return String(data);
+  }
 }
 
 /**

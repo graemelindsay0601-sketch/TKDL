@@ -1703,3 +1703,77 @@ router.post("/shop/featured/purchase-status/batch", async (req: Request, res: Re
     res.status(500).json({ error: "Failed to check purchase status" });
   }
 });
+
+/**
+ * POST /api/card-clash/debug-log
+ * Saves a match's accumulated debug log (from card-debug.ts's in-memory
+ * buffer, sent by the client at match end) for later download from the
+ * admin panel. No admin auth here — any client finishing a match can post
+ * its own log; only reading them back is admin-gated below.
+ */
+router.post("/debug-log", async (req: Request, res: Response) => {
+  try {
+    const { player1Id, player2Id, gameMode, isChaosMode, isChaosLabMode, logText } = req.body;
+    if (!logText || typeof logText !== "string") {
+      return res.status(400).json({ error: "logText required" });
+    }
+    // Cap stored size defensively — a match log should never realistically
+    // approach this, but avoid ever storing something unbounded.
+    const trimmed = logText.length > 2_000_000 ? logText.slice(0, 2_000_000) + "\n...[truncated]" : logText;
+    const result = await db.execute(sql`
+      INSERT INTO card_clash_debug_logs (player_1_id, player_2_id, game_mode, is_chaos_mode, is_chaos_lab_mode, log_text)
+      VALUES (${player1Id ?? null}, ${player2Id ?? null}, ${gameMode ?? null}, ${!!isChaosMode}, ${!!isChaosLabMode}, ${trimmed})
+      RETURNING id
+    `);
+    return res.json({ success: true, id: (result as any).rows?.[0]?.id ?? null });
+  } catch (error) {
+    logger.error({ error }, "Failed to save Card Clash debug log");
+    // Non-critical — never let a logging failure disrupt the match flow for the client.
+    return res.status(200).json({ success: false });
+  }
+});
+
+/**
+ * GET /api/card-clash/admin/debug-logs
+ * Lists recent match logs (metadata only, not the full text) for the admin panel.
+ */
+router.get("/admin/debug-logs", verifyAdminPin, async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+    const result = await db.execute(sql`
+      SELECT
+        l.id, l.player_1_id, l.player_2_id, l.game_mode, l.is_chaos_mode, l.is_chaos_lab_mode, l.created_at,
+        length(l.log_text) AS log_length,
+        p1.name AS player_1_name, p2.name AS player_2_name
+      FROM card_clash_debug_logs l
+      LEFT JOIN players p1 ON p1.id = l.player_1_id
+      LEFT JOIN players p2 ON p2.id = l.player_2_id
+      ORDER BY l.created_at DESC
+      LIMIT ${limit}
+    `);
+    return res.json({ logs: (result as any).rows ?? [] });
+  } catch (error) {
+    logger.error({ error }, "Failed to list Card Clash debug logs");
+    return res.status(500).json({ error: "Failed to list debug logs" });
+  }
+});
+
+/**
+ * GET /api/card-clash/admin/debug-logs/:id/download
+ * Downloads a single match log as a plain-text file.
+ */
+router.get("/admin/debug-logs/:id/download", verifyAdminPin, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    const result = await db.execute(sql`SELECT * FROM card_clash_debug_logs WHERE id = ${id}`);
+    const row = (result as any).rows?.[0];
+    if (!row) return res.status(404).json({ error: "Log not found" });
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="card-clash-log-${id}.txt"`);
+    return res.send(row.log_text);
+  } catch (error) {
+    logger.error({ error }, "Failed to download Card Clash debug log");
+    return res.status(500).json({ error: "Failed to download debug log" });
+  }
+});
