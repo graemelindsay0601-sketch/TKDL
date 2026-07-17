@@ -45,6 +45,27 @@ interface BoardMarkVisitNote {
   text: string;
 }
 
+/** A single entry in the match-wide Chaos Lab Activity Log — persists for the whole match (capped), shown on both X01 and Cricket regardless of whether the engine has a per-visit history panel. */
+interface ChaosLabActivityEntry extends BoardMarkVisitNote {
+  player: 0 | 1;
+  id: string;
+}
+
+const CHAOS_LAB_ACTIVITY_LOG_CAP = 20;
+
+/** Pushes an event into both the per-visit notes (used by X01's Recent Visits) and the match-wide activity log (used by both engines) in one call, so every Chaos Lab trigger point only needs one line instead of two. */
+function logChaosLabActivity(
+  notesRef: React.MutableRefObject<[BoardMarkVisitNote[], BoardMarkVisitNote[]]>,
+  activityLogRef: React.MutableRefObject<ChaosLabActivityEntry[]>,
+  setActivityTick: (fn: (n: number) => number) => void,
+  player: 0 | 1,
+  note: BoardMarkVisitNote
+) {
+  notesRef.current[player].push(note);
+  activityLogRef.current = [...activityLogRef.current, { ...note, player, id: `${Date.now()}-${Math.random()}` }].slice(-CHAOS_LAB_ACTIVITY_LOG_CAP);
+  setActivityTick(n => n + 1); // activityLogRef is a ref (doesn't trigger re-render on its own) — this forces the Activity Log component to re-render
+}
+
 /**
  * Computes what a Hot or Trap trigger actually does, given the mark's
  * payload and (for score_shift) its escalation stage. Shared between X01
@@ -439,6 +460,36 @@ function boardMarksToSegments(marks: BoardMark[]): { segment: number; color: str
 }
 
 /** Chaos Lab: shows currently active Board Marks as small badges — target, type, and who placed it. Tap any one for the full card detail. */
+/**
+ * Chaos Lab: a persistent, match-wide record of what happened — works on
+ * both X01 and Cricket, regardless of whether the engine has a per-visit
+ * "Recent Visits" history panel (Cricket doesn't). Shows the most recent
+ * events first, capped at CHAOS_LAB_ACTIVITY_LOG_CAP. This is the primary
+ * "what happened so far" surface for Cricket; on X01 it complements
+ * Recent Visits rather than replacing it.
+ */
+function ChaosLabActivityLog({ entries, names }: { entries: ChaosLabActivityEntry[]; names: [string, string] }) {
+  if (entries.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1" style={{ maxWidth: "340px", margin: "0 auto" }}>
+      <div style={{ fontSize: "0.6rem", fontWeight: 800, letterSpacing: "0.12em", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", textAlign: "center" }}>
+        CHAOS LAB ACTIVITY
+      </div>
+      <div style={{ maxHeight: "160px", overflowY: "auto", display: "flex", flexDirection: "column-reverse", gap: "2px" }}>
+        {[...entries].reverse().map((e) => (
+          <div key={e.id} style={{ display: "flex", alignItems: "baseline", gap: "6px", fontSize: "0.65rem", fontFamily: "Oswald, sans-serif", padding: "1px 4px" }}>
+            <span>{e.icon}</span>
+            <span style={{ color: P_COLOR(e.player), fontWeight: 700, flexShrink: 0 }}>{names[e.player]}</span>
+            <span style={{ color: e.color }}>{e.text}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+/** Chaos Lab: shows currently active Board Marks as small badges — target, type, and who placed it. Tap any one for the full card detail. */
 function BoardMarksHUD({ marks, names, engine, viewerIdx }: { marks: BoardMark[]; names: [string, string]; engine: "X01" | "CRICKET"; viewerIdx: 0 | 1 }) {
   const [viewing, setViewing] = useState<BoardMark | null>(null);
   if (marks.length === 0) return null;
@@ -695,6 +746,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   // clearly label them as a named bonus/penalty instead of an unexplained
   // number. Cleared at the start of each fresh visit for that player.
   const boardMarkVisitNotesRef = useRef<[BoardMarkVisitNote[], BoardMarkVisitNote[]]>([[], []]);
+  // Match-wide Chaos Lab Activity Log -- a persistent, engine-agnostic record
+  // of every Chaos Lab event (Hot/Trap/Cold/Swap/Surge/Weaken/Leech/
+  // Sabotage/Match Swing), shown on both X01 and Cricket regardless of
+  // whether the engine has a per-visit "Recent Visits" panel. Capped at
+  // CHAOS_LAB_ACTIVITY_LOG_CAP most recent entries.
+  const chaosLabActivityLogRef = useRef<ChaosLabActivityEntry[]>([]);
+  const [, setChaosLabActivityTick] = useState(0); // forces a re-render when the ref-based activity log changes
   // Structured match log — accumulates every dart, card, and Board Mark
   // event so a match can be downloaded and inspected afterward instead of
   // relying on a secondhand description of what happened. One instance per
@@ -1011,13 +1069,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
               return n;
             });
             setLastActivation({ cardName: "🔄 SCORES SWAPPED!", player: rewardPlayer, key: `boardmark-swap-${Date.now()}` });
-            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "🔄", color: "#c084fc", text: "Score Swap!" });
+            logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, rewardPlayer, { icon: "🔄", color: "#c084fc", text: "Score Swap!" });
           } else if (payload === "double_next_visit") {
             setActiveEffects(prev => [...prev, { cardName: "Surge (Board Mark)", appliedBy: rewardPlayer, affectsPlayer: rewardPlayer, status: "pending", allDartsMultiplier: 2 }]); // pending: reliably applies to their NEXT full visit, not "whatever's left of this one" (which could be zero darts)
             cardDebugLog("X01Scorer", "[CHAOS_LAB] Surge triggered", { player: rewardPlayer });
             matchLoggerRef.current.log("chaos_lab_surge", { player: rewardPlayer });
             setLastActivation({ cardName: "⚡ SURGE! Your next visit scores ×2", player: rewardPlayer, key: `boardmark-surge-${Date.now()}` });
-            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "⚡", color: "#ff8a3d", text: "Surge: next visit ×2" });
+            logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, rewardPlayer, { icon: "⚡", color: "#ff8a3d", text: "Surge: next visit ×2" });
           } else if (payload === "leech_score") {
             // Trigger player's own dart scores completely normally for them
             // (untouched) — 50%/35% of that same dart's value ALSO hurts
@@ -1032,7 +1090,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
               return n;
             });
             setLastActivation({ cardName: `🩸 SIPHONED! +${leechAmount} to them`, player: rewardPlayer, key: `boardmark-leech-${Date.now()}` });
-            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "🩸", color: "#ff8a3d", text: `Siphon: +${leechAmount} to opponent` });
+            logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, rewardPlayer, { icon: "🩸", color: "#ff8a3d", text: `Siphon: +${leechAmount} to opponent` });
           } else {
             const magnitude = computeBoardMarkTriggerMagnitude(triggeredMark!, "X01", "hot");
             const isSteal = !!triggeredMark?.metadata?.steal;
@@ -1047,7 +1105,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
               return n;
             });
             setLastActivation({ cardName: isSteal ? `🔥💰 Stolen! -${magnitude}` : `🔥 Hot! -${magnitude}`, player: rewardPlayer, key: `boardmark-hot-${Date.now()}` });
-            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "🔥", color: "#ff8a3d", text: isSteal ? `Hot (steal): -${magnitude} bonus, opponent +${magnitude}` : `Hot bonus: -${magnitude}` });
+            logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, rewardPlayer, { icon: "🔥", color: "#ff8a3d", text: isSteal ? `Hot (steal): -${magnitude} bonus, opponent +${magnitude}` : `Hot bonus: -${magnitude}` });
           }
         } else if (trap) {
           const triggeredMark = activeBoardMarks.find(m => m.id === trap.markId);
@@ -1060,7 +1118,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
             cardDebugLog("X01Scorer", "[CHAOS_LAB] Weakened triggered", { player: penalizedPlayer });
             matchLoggerRef.current.log("chaos_lab_weakened", { player: penalizedPlayer });
             setLastActivation({ cardName: "🥶 WEAKENED! Their next visit scores ×0.5", player: penalizedPlayer, key: `boardmark-weaken-${Date.now()}` });
-            boardMarkVisitNotesRef.current[penalizedPlayer].push({ icon: "🥶", color: "#ff4d4d", text: "Weakened: next visit ×0.5" });
+            logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, penalizedPlayer, { icon: "🥶", color: "#ff4d4d", text: "Weakened: next visit ×0.5" });
           } else {
             const magnitude = computeBoardMarkTriggerMagnitude(triggeredMark!, "X01", "trap");
             const isSteal = !!triggeredMark?.metadata?.steal;
@@ -1075,12 +1133,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
               return n;
             });
             setLastActivation({ cardName: isSteal ? `⚠️💰 Robbed! +${magnitude}` : `⚠️ Trap! +${magnitude}`, player: penalizedPlayer, key: `boardmark-trap-${Date.now()}` });
-            boardMarkVisitNotesRef.current[penalizedPlayer].push({ icon: "⚠️", color: "#ff4d4d", text: isSteal ? `Trap (steal): +${magnitude} penalty, opponent -${magnitude}` : `Trap penalty: +${magnitude}` });
+            logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, penalizedPlayer, { icon: "⚠️", color: "#ff4d4d", text: isSteal ? `Trap (steal): +${magnitude} penalty, opponent -${magnitude}` : `Trap penalty: +${magnitude}` });
           }
         } else if (cold) {
           matchLoggerRef.current.log("chaos_lab_cold_blocked", { target: cold.target, player: turn });
           setLastActivation({ cardName: "❄️ Blocked by Cold", player: turn as 0 | 1, key: `boardmark-cold-${Date.now()}` });
-          boardMarkVisitNotesRef.current[turn as 0 | 1].push({ icon: "❄️", color: "#5ec8ff", text: "Blocked by Cold — no trigger" });
+          logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, turn as 0 | 1, { icon: "❄️", color: "#5ec8ff", text: "Blocked by Cold — no trigger" });
         }
         cardDebugLog("X01Scorer", "[CHAOS_LAB] Board Mark events", resolved.events);
         matchLoggerRef.current.log("chaos_lab_resolver_events", { events: resolved.events, activeMarksAfter: resolved.marks.map(m => ({ id: m.id, type: m.type, target: m.target })) });
@@ -1509,21 +1567,22 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     const sabotageKind = BOARD_MARK_SABOTAGE_CARD_IDS[card.id];
     if (sabotageKind) {
       const opponentPlayerId = String(turn === 0 ? 1 : 0);
-      let usedFallback = false;
-      setActiveBoardMarks(prev => {
-        const result = applyBoardMarkSabotage(prev, sabotageKind, opponentPlayerId);
-        if (result.removedCount > 0) {
-          matchLoggerRef.current.log("chaos_lab_sabotage", { card: card.name, kind: sabotageKind, removedCount: result.removedCount });
-          return result.marks;
-        }
-        usedFallback = true;
+      const sabotageResult = applyBoardMarkSabotage(activeBoardMarks, sabotageKind, opponentPlayerId);
+      let usedFallback = sabotageResult.removedCount === 0;
+      if (!usedFallback) {
+        setActiveBoardMarks(sabotageResult.marks);
+        matchLoggerRef.current.log("chaos_lab_sabotage", { card: card.name, kind: sabotageKind, removedCount: sabotageResult.removedCount });
+        logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, turn as 0 | 1, { icon: "💥", color: "#ff4d4d", text: `${card.name}: removed ${sabotageResult.removedCount} opponent mark${sabotageResult.removedCount > 1 ? "s" : ""}` });
+      } else {
         const fallbackConfig = BOARD_MARK_CARD_ID_MAP[card.id];
-        if (!fallbackConfig) return prev;
-        const fallbackMark = createBoardMarkFromPrototypeCard(fallbackConfig, { ownerPlayerId: String(turn), opponentPlayerId, createdAtVisitId: `${turn}:${history.length}` })[0];
-        const placement = placeBoardMark(prev, fallbackMark);
-        matchLoggerRef.current.log("chaos_lab_sabotage_fallback", { card: card.name, kind: sabotageKind, placed: placement.ok });
-        return placement.ok ? placement.marks : prev;
-      });
+        if (fallbackConfig) {
+          const fallbackMark = createBoardMarkFromPrototypeCard(fallbackConfig, { ownerPlayerId: String(turn), opponentPlayerId, createdAtVisitId: `${turn}:${history.length}` })[0];
+          const placement = placeBoardMark(activeBoardMarks, fallbackMark);
+          if (placement.ok) setActiveBoardMarks(placement.marks);
+          matchLoggerRef.current.log("chaos_lab_sabotage_fallback", { card: card.name, kind: sabotageKind, placed: placement.ok });
+          logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, turn as 0 | 1, { icon: "💥", color: "#ff4d4d", text: `${card.name}: nothing to ${sabotageKind}, placed a mark instead` });
+        }
+      }
       setLastActivation({ cardName: usedFallback ? `${card.name} (nothing to ${sabotageKind})` : `💥 ${card.name}!`, player: turn as 0 | 1, key: `boardmark-sabotage-${Date.now()}` });
       setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
       setChaosOptions(null);
@@ -1549,6 +1608,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           setLegWins(prev => [prev[0] + outcome.delta[0], prev[1] + outcome.delta[1]]);
         }
         setLastActivation({ cardName: `🌪️ ${card.name}! Leg swing!`, player: turn as 0 | 1, key: `boardmark-swing-${Date.now()}` });
+        logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, turn as 0 | 1, { icon: "🌪️", color: "#c084fc", text: `${card.name}: leg swing triggered!` });
       } else {
         const fallbackMagnitude = getBoardMarkMagnitude("bull", "X01", "hot");
         const rewardPlayer = turn as 0 | 1;
@@ -1559,6 +1619,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           return n;
         });
         setLastActivation({ cardName: `${card.name} — condition not met, +${fallbackMagnitude} instead`, player: rewardPlayer, key: `boardmark-swing-fallback-${Date.now()}` });
+        logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, rewardPlayer, { icon: "🌪️", color: "#ff8a3d", text: `${card.name}: condition not met, +${fallbackMagnitude} bonus instead` });
       }
       setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
       setChaosOptions(null);
@@ -1704,6 +1765,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       </div>
       {isCardClash && <CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} lastActivation={lastActivation} />}
       {isCardClash && isChaosLabMode && <BoardMarksHUD marks={activeBoardMarks} names={[p1Name, p2Name]} engine="X01" viewerIdx={turn as 0 | 1} />}
+      {isCardClash && isChaosLabMode && <ChaosLabActivityLog entries={chaosLabActivityLogRef.current} names={[p1Name, p2Name]} />}
       {/* Checkout bar — updates live after every dart in the visit */}
       {([0, ...(soloMode ? [] : [1])] as (0|1)[]).map(i => {
         // For the active player, use the live remaining (score minus darts thrown so far this visit)
@@ -2016,6 +2078,13 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const pendingBoardMarkAdjustmentRef = useRef<[number, number]>([0, 0]);
   // Collects Board Mark events for the current visit, per player — see X01Scorer's ref for the full comment.
   const boardMarkVisitNotesRef = useRef<[BoardMarkVisitNote[], BoardMarkVisitNote[]]>([[], []]);
+  // Match-wide Chaos Lab Activity Log -- a persistent, engine-agnostic record
+  // of every Chaos Lab event (Hot/Trap/Cold/Swap/Surge/Weaken/Leech/
+  // Sabotage/Match Swing), shown on both X01 and Cricket regardless of
+  // whether the engine has a per-visit "Recent Visits" panel. Capped at
+  // CHAOS_LAB_ACTIVITY_LOG_CAP most recent entries.
+  const chaosLabActivityLogRef = useRef<ChaosLabActivityEntry[]>([]);
+  const [, setChaosLabActivityTick] = useState(0); // forces a re-render when the ref-based activity log changes
   // Structured match log — see X01Scorer's matchLoggerRef for the full comment.
   const matchLoggerRef = useRef(createMatchLogger({ engine: "CRICKET", p1Name, p2Name }));
 
@@ -2156,21 +2225,22 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     const sabotageKind = BOARD_MARK_SABOTAGE_CARD_IDS[card.id];
     if (sabotageKind) {
       const opponentPlayerId = String(turn === 0 ? 1 : 0);
-      let usedFallback = false;
-      setActiveBoardMarks(prev => {
-        const result = applyBoardMarkSabotage(prev, sabotageKind, opponentPlayerId);
-        if (result.removedCount > 0) {
-          matchLoggerRef.current.log("chaos_lab_sabotage", { card: card.name, kind: sabotageKind, removedCount: result.removedCount });
-          return result.marks;
-        }
-        usedFallback = true;
+      const sabotageResult = applyBoardMarkSabotage(activeBoardMarks, sabotageKind, opponentPlayerId);
+      let usedFallback = sabotageResult.removedCount === 0;
+      if (!usedFallback) {
+        setActiveBoardMarks(sabotageResult.marks);
+        matchLoggerRef.current.log("chaos_lab_sabotage", { card: card.name, kind: sabotageKind, removedCount: sabotageResult.removedCount });
+        logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, turn as 0 | 1, { icon: "💥", color: "#ff4d4d", text: `${card.name}: removed ${sabotageResult.removedCount} opponent mark${sabotageResult.removedCount > 1 ? "s" : ""}` });
+      } else {
         const fallbackConfig = BOARD_MARK_CARD_ID_MAP[card.id];
-        if (!fallbackConfig) return prev;
-        const fallbackMark = createBoardMarkFromPrototypeCard(fallbackConfig, { ownerPlayerId: String(turn), opponentPlayerId, createdAtVisitId: `${turn}:${legHistory.length}:${turnCounter}` })[0];
-        const placement = placeBoardMark(prev, fallbackMark);
-        matchLoggerRef.current.log("chaos_lab_sabotage_fallback", { card: card.name, kind: sabotageKind, placed: placement.ok });
-        return placement.ok ? placement.marks : prev;
-      });
+        if (fallbackConfig) {
+          const fallbackMark = createBoardMarkFromPrototypeCard(fallbackConfig, { ownerPlayerId: String(turn), opponentPlayerId, createdAtVisitId: `${turn}:${legHistory.length}:${turnCounter}` })[0];
+          const placement = placeBoardMark(activeBoardMarks, fallbackMark);
+          if (placement.ok) setActiveBoardMarks(placement.marks);
+          matchLoggerRef.current.log("chaos_lab_sabotage_fallback", { card: card.name, kind: sabotageKind, placed: placement.ok });
+          logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, turn as 0 | 1, { icon: "💥", color: "#ff4d4d", text: `${card.name}: nothing to ${sabotageKind}, placed a mark instead` });
+        }
+      }
       setLastActivation({ cardName: usedFallback ? `${card.name} (nothing to ${sabotageKind})` : `💥 ${card.name}!`, player: turn as 0 | 1, key: `boardmark-sabotage-${Date.now()}` });
       setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
       setChaosOptions(null);
@@ -2196,6 +2266,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           setLegWins(prev => [prev[0] + outcome.delta[0], prev[1] + outcome.delta[1]]);
         }
         setLastActivation({ cardName: `🌪️ ${card.name}! Leg swing!`, player: turn as 0 | 1, key: `boardmark-swing-${Date.now()}` });
+        logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, turn as 0 | 1, { icon: "🌪️", color: "#c084fc", text: `${card.name}: leg swing triggered!` });
       } else {
         const fallbackMagnitude = getBoardMarkMagnitude("bull", "CRICKET", "hot");
         const rewardPlayer = turn as 0 | 1;
@@ -2206,6 +2277,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           return n;
         });
         setLastActivation({ cardName: `${card.name} — condition not met, +${fallbackMagnitude} instead`, player: rewardPlayer, key: `boardmark-swing-fallback-${Date.now()}` });
+        logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, rewardPlayer, { icon: "🌪️", color: "#ff8a3d", text: `${card.name}: condition not met, +${fallbackMagnitude} bonus instead` });
       }
       setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
       setChaosOptions(null);
@@ -2658,13 +2730,13 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               return n;
             });
             setLastActivation({ cardName: "🔄 SCORES SWAPPED!", player: rewardPlayer, key: `boardmark-swap-${Date.now()}` });
-            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "🔄", color: "#c084fc", text: "Score Swap!" });
+            logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, rewardPlayer, { icon: "🔄", color: "#c084fc", text: "Score Swap!" });
           } else if (payload === "double_next_visit") {
             setActiveEffects(prev => [...prev, { cardName: "Surge (Board Mark)", appliedBy: rewardPlayer, affectsPlayer: rewardPlayer, status: "pending", extraScoreMultiplier: 2 }]);
             cardDebugLog("CricketScorer", "[CHAOS_LAB] Surge triggered", { player: rewardPlayer });
             matchLoggerRef.current.log("chaos_lab_surge", { player: rewardPlayer });
             setLastActivation({ cardName: "⚡ SURGE! Your next visit scores ×2", player: rewardPlayer, key: `boardmark-surge-${Date.now()}` });
-            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "⚡", color: "#ff8a3d", text: "Surge: next visit ×2" });
+            logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, rewardPlayer, { icon: "⚡", color: "#ff8a3d", text: "Surge: next visit ×2" });
           } else if (payload === "leech_score") {
             const leechPct = triggeredMark?.createdByCardId === "prototype_parasite" ? 0.35 : 0.5;
             const leechAmount = Math.floor(effectiveDart.value * leechPct);
@@ -2676,7 +2748,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               return n;
             });
             setLastActivation({ cardName: `🩸 SIPHONED! -${leechAmount} from them`, player: rewardPlayer, key: `boardmark-leech-${Date.now()}` });
-            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "🩸", color: "#ff8a3d", text: `Siphon: -${leechAmount} to opponent` });
+            logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, rewardPlayer, { icon: "🩸", color: "#ff8a3d", text: `Siphon: -${leechAmount} to opponent` });
           } else {
             const magnitude = computeBoardMarkTriggerMagnitude(triggeredMark!, "CRICKET", "hot");
             const isSteal = !!triggeredMark?.metadata?.steal;
@@ -2691,7 +2763,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               return n;
             });
             setLastActivation({ cardName: isSteal ? `🔥💰 Stolen! +${magnitude}` : `🔥 Hot! +${magnitude}`, player: rewardPlayer, key: `boardmark-hot-${Date.now()}` });
-            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "🔥", color: "#ff8a3d", text: isSteal ? `Hot (steal): +${magnitude} bonus, opponent -${magnitude}` : `Hot bonus: +${magnitude}` });
+            logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, rewardPlayer, { icon: "🔥", color: "#ff8a3d", text: isSteal ? `Hot (steal): +${magnitude} bonus, opponent -${magnitude}` : `Hot bonus: +${magnitude}` });
           }
         } else if (trap) {
           const triggeredMark = activeBoardMarks.find(m => m.id === trap.markId);
@@ -2704,7 +2776,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             cardDebugLog("CricketScorer", "[CHAOS_LAB] Weakened triggered", { player: penalizedPlayer });
             matchLoggerRef.current.log("chaos_lab_weakened", { player: penalizedPlayer });
             setLastActivation({ cardName: "🥶 WEAKENED! Their next visit scores ×0.5", player: penalizedPlayer, key: `boardmark-weaken-${Date.now()}` });
-            boardMarkVisitNotesRef.current[penalizedPlayer].push({ icon: "🥶", color: "#ff4d4d", text: "Weakened: next visit ×0.5" });
+            logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, penalizedPlayer, { icon: "🥶", color: "#ff4d4d", text: "Weakened: next visit ×0.5" });
           } else {
             const magnitude = computeBoardMarkTriggerMagnitude(triggeredMark!, "CRICKET", "trap");
             const isSteal = !!triggeredMark?.metadata?.steal;
@@ -2719,12 +2791,12 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               return n;
             });
             setLastActivation({ cardName: isSteal ? `⚠️💰 Robbed! -${magnitude}` : `⚠️ Trap! -${magnitude}`, player: penalizedPlayer, key: `boardmark-trap-${Date.now()}` });
-            boardMarkVisitNotesRef.current[penalizedPlayer].push({ icon: "⚠️", color: "#ff4d4d", text: isSteal ? `Trap (steal): -${magnitude} penalty, opponent +${magnitude}` : `Trap penalty: -${magnitude}` });
+            logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, penalizedPlayer, { icon: "⚠️", color: "#ff4d4d", text: isSteal ? `Trap (steal): -${magnitude} penalty, opponent +${magnitude}` : `Trap penalty: -${magnitude}` });
           }
         } else if (cold) {
           matchLoggerRef.current.log("chaos_lab_cold_blocked", { target: cold.target, player: turn });
           setLastActivation({ cardName: "❄️ Blocked by Cold", player: turn as 0 | 1, key: `boardmark-cold-${Date.now()}` });
-          boardMarkVisitNotesRef.current[turn as 0 | 1].push({ icon: "❄️", color: "#5ec8ff", text: "Blocked by Cold — no trigger" });
+          logChaosLabActivity(boardMarkVisitNotesRef, chaosLabActivityLogRef, setChaosLabActivityTick, turn as 0 | 1, { icon: "❄️", color: "#5ec8ff", text: "Blocked by Cold — no trigger" });
         }
         cardDebugLog("CricketScorer", "[CHAOS_LAB] Board Mark events", resolved.events);
         matchLoggerRef.current.log("chaos_lab_resolver_events", { events: resolved.events, activeMarksAfter: resolved.marks.map(m => ({ id: m.id, type: m.type, target: m.target })) });
@@ -3281,6 +3353,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       </div>
       {isCardClash && <CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} lastActivation={lastActivation} />}
       {isCardClash && isChaosLabMode && <BoardMarksHUD marks={activeBoardMarks} names={[p1Name, p2Name]} engine="CRICKET" viewerIdx={turn as 0 | 1} />}
+      {isCardClash && isChaosLabMode && <ChaosLabActivityLog entries={chaosLabActivityLogRef.current} names={[p1Name, p2Name]} />}
       {/* Cricket scorecard */}
       <SectionCard>
         <div className="grid" style={{ gridTemplateColumns: "1fr auto 1fr", gap: "0.15rem" }}>
