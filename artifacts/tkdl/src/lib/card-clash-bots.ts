@@ -21,7 +21,7 @@ export function generateBotCards(botAvg: number, gameMode: "X01" | "CRICKET"): C
   const skillLevel = avgToSkillLevel(botAvg);
 
   const pool = (cardType: "GOOD" | "BAD") =>
-    ALL_CARDS.filter(c => c.category === `${gameMode} ${cardType}` || c.category === `WILDCARD ${cardType}`);
+    ALL_CARDS.filter(c => c.mode !== "chaos_lab" && (c.category === `${gameMode} ${cardType}` || c.category === `WILDCARD ${cardType}`));
 
   const goodPool = pool("GOOD");
   const badPool = pool("BAD");

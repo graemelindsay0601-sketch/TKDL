@@ -21,7 +21,7 @@
  * in the backend, so never purchasable, packable, or equippable elsewhere.
  */
 
-import type { BoardMark, BoardMarkAppliesTo, BoardMarkDuration, BoardMarkTarget, BoardMarkTargetType, BoardMarkType } from "./boardMarkTypes";
+import type { BoardMark, BoardMarkAppliesTo, BoardMarkDuration, BoardMarkTarget, BoardMarkType } from "./boardMarkTypes";
 import { generateBoardMarkId } from "./boardMarkState";
 
 /** A single mark placement spec. `target: "random"` picks a random 1-20 number bed at creation time — used for the curse half of compound cards. */
@@ -100,7 +100,7 @@ const RAW_CARDS: RawCard[] = [
   {
     cardId: 726, id: "prototype_double_or_nothing", name: "Double or Nothing",
     boardMark: { type: "hot", target: { type: "treble", value: 20 }, appliesTo: "neutral", duration: UNTIL_HIT },
-    secondaryMark: { type: "cold", target: "random", appliesTo: "self", duration: UNTIL_AFFECTED_VISIT_END },
+    secondaryMark: { type: "trap", target: "random", appliesTo: "self", duration: UNTIL_HIT },
   },
   {
     cardId: 727, id: "prototype_all_in", name: "All In",
@@ -140,9 +140,8 @@ export interface CreateBoardMarkParams {
   id?: string;
 }
 
-const RANDOM_TARGET_POOL: BoardMarkTargetType[] = ["number"]; // v1 keeps curse targets simple — always a random 1-20 number bed
-
 function resolveTarget(target: BoardMarkTarget | "random"): BoardMarkTarget {
+  // v1 keeps curse targets simple — always a random 1-20 number bed
   if (target !== "random") return target;
   const value = Math.floor(Math.random() * 20) + 1;
   return { type: "number", value };

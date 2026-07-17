@@ -177,9 +177,24 @@ export const ALL_CARDS: CardData[] = [
 
   // RISK/REWARD — a big guaranteed-target reward, plus a curse on a random spot against yourself. Going for the prize means playing with a hidden landmine.
   { id: 725, name: "Wildfire", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks Bull Hot for a huge bonus to whoever hits it first — but ALSO traps a random number against you. Hit your own curse and you'll pay for it.", flavourText: "Fire spreads. Sometimes back toward you.", mode: "chaos_lab" },
-  { id: 726, name: "Double or Nothing", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks T20 Hot for a big bonus to whoever hits it first — but ALSO marks a random number Cold against yourself, blocking your own triggers there until your visit ends.", flavourText: "Go big. Just watch where you step.", mode: "chaos_lab" },
+  { id: 726, name: "Double or Nothing", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks T20 Hot for a big bonus to whoever hits it first — but ALSO traps a random number against you. Hit your own curse and you'll pay for it.", flavourText: "Go big. Just watch where you step.", mode: "chaos_lab" },
   { id: 727, name: "All In", category: "WILDCARD GOOD", rarity: "LEGENDARY", effect: "Marks D16 Hot for a solid bonus to whoever hits it first — but ALSO traps a random number against you. Hit your own curse and you'll pay for it.", flavourText: "No half measures tonight.", mode: "chaos_lab" },
 ];
+
+/**
+ * Every card that can actually be owned -- purchased, packed, or equipped.
+ * Excludes Chaos Lab's Board Mark cards (mode: "chaos_lab"), which are
+ * mystery-draw-only and never added to card_definitions in the backend, so
+ * a player can never own one. Collection completion %, "collect all cards"
+ * achievement checks, the admin "give all cards" tool, and the Solo vs CPU
+ * equip-mode test inventory should all use this, not ALL_CARDS directly --
+ * using ALL_CARDS there would count 27 permanently-uncollectable cards
+ * against a player's total, making 100% completion mathematically
+ * impossible. (ALL_CARDS itself stays as the full set -- the chaos card
+ * pools and chaos_lab card lookups elsewhere genuinely need every card,
+ * including these.)
+ */
+export const COLLECTIBLE_CARDS: CardData[] = ALL_CARDS.filter((c) => c.mode !== "chaos_lab");
 
 /**
  * Chaos Mode card pool: mode-specific GOOD/BAD cards plus WILDCARD GOOD/BAD,
@@ -190,10 +205,15 @@ export function getChaosCardPool(gameType: "X01" | "CRICKET"): CardData[] {
   const badCategory: Category = gameType === "X01" ? "X01 BAD" : "CRICKET BAD";
   return ALL_CARDS.filter(
     (c) =>
+      c.mode !== "chaos_lab" && ( // BUGFIX: chaos_lab cards share the WILDCARD category with
+      // regular wildcards and were leaking into Chaos Mode's draw pool with
+      // no exclusion here — exactly what Chaos Lab was meant to be kept
+      // separate from.
       c.category === goodCategory ||
       c.category === badCategory ||
       c.category === "WILDCARD GOOD" ||
       c.category === "WILDCARD BAD"
+      )
   );
 }
 

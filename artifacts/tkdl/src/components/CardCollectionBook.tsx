@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ALL_CARDS } from "../lib/cards-data";
+import { COLLECTIBLE_CARDS } from "../lib/cards-data";
 import { TKDLCard } from "./TKDLCard";
 
 type TypeGroup = {
@@ -64,15 +64,15 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
   if (loading) return <div style={{ color: "rgba(255,255,255,0.5)", padding: "24px" }}>Loading collection...</div>;
   if (error)   return <div style={{ color: "#ff6b6b",            padding: "24px" }}>Error: {error}</div>;
 
-  const totalOwned      = ALL_CARDS.filter(c => ownedNames.has(c.name)).length;
-  const completionPct   = Math.round((totalOwned / ALL_CARDS.length) * 100);
+  const totalOwned      = COLLECTIBLE_CARDS.filter(c => ownedNames.has(c.name)).length;
+  const completionPct   = Math.round((totalOwned / COLLECTIBLE_CARDS.length) * 100);
 
   return (
     <div style={{ width: "100%" }}>
       {/* Progress bar */}
       <div style={{ padding: "16px", background: "linear-gradient(135deg,rgba(255,212,74,0.1),rgba(0,229,255,0.1))", border: "2px solid rgba(255,212,74,0.3)", borderRadius: "12px", marginBottom: "20px" }}>
         <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.7)", textTransform: "uppercase", marginBottom: "8px" }}>Collection Progress</div>
-        <div style={{ fontSize: "28px", fontWeight: 700, color: "#ffd24a", marginBottom: "12px" }}>{totalOwned} / {ALL_CARDS.length} Cards</div>
+        <div style={{ fontSize: "28px", fontWeight: 700, color: "#ffd24a", marginBottom: "12px" }}>{totalOwned} / {COLLECTIBLE_CARDS.length} Cards</div>
         <div style={{ width: "100%", height: "12px", background: "rgba(0,0,0,0.3)", borderRadius: "6px", overflow: "hidden" }}>
           <div style={{ height: "100%", width: `${completionPct}%`, background: "linear-gradient(90deg,#00e5ff,#ffd24a)", transition: "width 0.3s" }} />
         </div>
@@ -82,7 +82,7 @@ export function CardCollectionBook({ playerId }: { playerId: number }) {
       {/* Sections */}
       <div style={{ display: "grid", gap: "16px" }}>
         {TYPE_GROUPS.map(group => {
-          const groupCards  = ALL_CARDS.filter(c => c.category === group.category);
+          const groupCards  = COLLECTIBLE_CARDS.filter(c => c.category === group.category);
           const ownedCount  = groupCards.filter(c => ownedNames.has(c.name)).length;
           const isExpanded  = expandedType === group.id;
 

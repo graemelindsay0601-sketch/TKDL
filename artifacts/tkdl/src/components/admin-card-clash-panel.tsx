@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Trash2, Plus, Minus, ChevronDown, ChevronRight } from "lucide-react";
-import { ALL_CARDS } from "@/lib/cards-data";
+import { COLLECTIBLE_CARDS } from "@/lib/cards-data";
 
 // ── Shared dark theme ──────────────────────────────────────────────────────────
 const D = {
@@ -225,11 +225,11 @@ export default function AdminCardClashPanel() {
               <div style={{ paddingTop: "8px", borderTop: `1px solid ${D.border}` }}>
                 <Btn color="#c084fc" fullWidth onClick={async () => {
                   if (!selectedPlayerId) return toast("Select a player first", "error");
-                  if (!window.confirm(`Give ALL ${ALL_CARDS.length} cards to ${playerName()}? This may take a moment.`)) return;
+                  if (!window.confirm(`Give ALL ${COLLECTIBLE_CARDS.length} cards to ${playerName()}? This may take a moment.`)) return;
                   const d = await api("/api/card-clash/admin/give-all-cards", { playerId: parseInt(selectedPlayerId) }, `✅ Gave all cards to ${playerName()}`);
-                  if (d) toast(`✅ Gave ${d.given ?? ALL_CARDS.length} cards to ${playerName()}`, "success");
+                  if (d) toast(`✅ Gave ${d.given ?? COLLECTIBLE_CARDS.length} cards to ${playerName()}`, "success");
                 }}>
-                  <Plus size={14} /> Give ALL {ALL_CARDS.length} Cards (Preview Mode)
+                  <Plus size={14} /> Give ALL {COLLECTIBLE_CARDS.length} Cards (Preview Mode)
                 </Btn>
               </div>
             </div>

@@ -13,7 +13,7 @@ import { CardClashMatchLauncher } from "@/components/CardClashMatchLauncher";
 import { AdminCardClashSettingsPanel } from "@/components/AdminCardClashSettingsPanel";
 import { RulesUI } from "@/components/RulesUI";
 import { TKDLCard } from "@/components/TKDLCard";
-import { ALL_CARDS } from "@/lib/cards-data";
+import { COLLECTIBLE_CARDS } from "@/lib/cards-data";
 import type { CardData, Category, Rarity } from "@/lib/cards-data";
 import { CollectionIcon, ShopIcon, PlayIcon, StandingsIcon, AchievementsIcon, RulesIcon, AdminIcon, LeaderboardIcon, ChampionIcon, TrophyIcon } from "@/components/CardClashIcons";
 
@@ -251,7 +251,7 @@ const PACKS = [
     </div>
   );
 
-  const filteredCards = ALL_CARDS.filter(c=>{
+  const filteredCards = COLLECTIBLE_CARDS.filter(c=>{
     if(catFilter!=="ALL"&&c.category!==catFilter) return false;
     if(rarFilter!=="ALL"&&c.rarity!==rarFilter) return false;
     if(showOwned==="owned"&&!ownedNames.has(c.name)) return false;
@@ -261,8 +261,8 @@ const PACKS = [
   });
 
   const winRate  = stats&&stats.matchesPlayed>0 ? Math.round((stats.wins/stats.matchesPlayed)*100) : 0;
-  const totalOwned = ALL_CARDS.filter(c=>ownedNames.has(c.name)).length;
-  const completionPct = Math.round((totalOwned/ALL_CARDS.length)*100);
+  const totalOwned = COLLECTIBLE_CARDS.filter(c=>ownedNames.has(c.name)).length;
+  const completionPct = Math.round((totalOwned/COLLECTIBLE_CARDS.length)*100);
   const playerName = (currentPlayer as any)?.name||(currentPlayer as any)?.playerName||"Player";
 
   const goTo = (tab: Tab) => setActiveTab(tab);
@@ -377,7 +377,7 @@ const PACKS = [
 
                 {/* Stats row */}
                 <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"10px",marginBottom:"0.5rem"}}>
-                  <StatCard icon="🃏" value={`${completionPct}%`} label={`${totalOwned}/${ALL_CARDS.length}`} color="#00ccff"/>
+                  <StatCard icon="🃏" value={`${completionPct}%`} label={`${totalOwned}/${COLLECTIBLE_CARDS.length}`} color="#00ccff"/>
                   <StatCard icon="⚡" value={stats?.wins??"—"} label="WINS" color="#00ff88"/>
                   <StatCard icon="🎯" value={stats?`${winRate}%`:"—"} label="WIN RATE" color="#c084fc"/>
                 </div>
@@ -450,7 +450,7 @@ const PACKS = [
             {/* ── COLLECTION ── */}
             {activeTab==="collection" && (
               <div>
-                <SectionHeader title="🃏 Your Collection" subtitle={`${totalOwned} of ${ALL_CARDS.length} cards unlocked · ${completionPct}% complete`}/>
+                <SectionHeader title="🃏 Your Collection" subtitle={`${totalOwned} of ${COLLECTIBLE_CARDS.length} cards unlocked · ${completionPct}% complete`}/>
 
                 {/* Progress bar */}
                 <div style={{height:"4px",background:"rgba(255,255,255,0.06)",borderRadius:"2px",overflow:"hidden",marginBottom:"1.5rem"}}>
@@ -587,22 +587,22 @@ const PACKS = [
                   <AchievementsDisplay 
                     playerStats={{
                       cardsOwned: ownedNames.size,
-                      totalCardsInGame: ALL_CARDS.length,
+                      totalCardsInGame: COLLECTIBLE_CARDS.length,
                       matchesWon: stats.wins || 0,
                       matchesLost: (stats.losses || 0),
                       totalMatches: (stats.wins || 0) + (stats.losses || 0),
                       totalCoinsEarned: stats.totalCoinsEarned || 0,
                       currentCoinBalance: stats.coins || 0,
                       dayLoginStreak: stats.streak || 0,
-                      cardsLegendary: Array.from(ownedNames).filter(name => ALL_CARDS.find(c => c.name === name)?.rarity === 'LEGENDARY').length,
-                      cardsRare: Array.from(ownedNames).filter(name => ALL_CARDS.find(c => c.name === name)?.rarity === 'RARE').length,
-                      cardsCommon: Array.from(ownedNames).filter(name => ALL_CARDS.find(c => c.name === name)?.rarity === 'COMMON').length,
+                      cardsLegendary: Array.from(ownedNames).filter(name => COLLECTIBLE_CARDS.find(c => c.name === name)?.rarity === 'LEGENDARY').length,
+                      cardsRare: Array.from(ownedNames).filter(name => COLLECTIBLE_CARDS.find(c => c.name === name)?.rarity === 'RARE').length,
+                      cardsCommon: Array.from(ownedNames).filter(name => COLLECTIBLE_CARDS.find(c => c.name === name)?.rarity === 'COMMON').length,
                       perfectMatches: stats.perfectMatches || 0,
                       practiceMatches: stats.practiceMatches || 0,
                       highestWinStreak: stats.winStreak || 0,
-                      allCardsCollected: ownedNames.size === ALL_CARDS.length,
-                      allLegendariesCollected: Array.from(ownedNames).filter(name => ALL_CARDS.find(c => c.name === name)?.rarity === 'LEGENDARY').length === ALL_CARDS.filter(c => c.rarity === 'LEGENDARY').length,
-                      allRaresCollected: Array.from(ownedNames).filter(name => ALL_CARDS.find(c => c.name === name)?.rarity === 'RARE').length === ALL_CARDS.filter(c => c.rarity === 'RARE').length,
+                      allCardsCollected: ownedNames.size === COLLECTIBLE_CARDS.length,
+                      allLegendariesCollected: Array.from(ownedNames).filter(name => COLLECTIBLE_CARDS.find(c => c.name === name)?.rarity === 'LEGENDARY').length === COLLECTIBLE_CARDS.filter(c => c.rarity === 'LEGENDARY').length,
+                      allRaresCollected: Array.from(ownedNames).filter(name => COLLECTIBLE_CARDS.find(c => c.name === name)?.rarity === 'RARE').length === COLLECTIBLE_CARDS.filter(c => c.rarity === 'RARE').length,
                     }}
                   />
                 )}

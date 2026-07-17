@@ -8,7 +8,7 @@
 import React, { useState, useMemo } from 'react';
 import { TKDLCard } from './TKDLCard';
 import { SectionHeader } from './SectionHeader';
-import { ALL_CARDS } from '@/lib/cards-data';
+import { COLLECTIBLE_CARDS } from '@/lib/cards-data';
 import { useFavorites } from '@/hooks/useFavorites';
 import type { CardData } from '@/lib/cards-data';
 
@@ -59,11 +59,11 @@ export const CardClashCollection = React.memo(
     const { isFavorited, toggleFavorite } = useFavorites({ gameMode: 'X01', playerId });
 
     const totalOwned = ownedNames.size;
-    const completionPct = Math.round((totalOwned / ALL_CARDS.length) * 100);
+    const completionPct = Math.round((totalOwned / COLLECTIBLE_CARDS.length) * 100);
 
     // Filter cards based on all criteria
     const filteredCards = useMemo(() => {
-      return ALL_CARDS.filter((card) => {
+      return COLLECTIBLE_CARDS.filter((card) => {
         const owned = ownedNames.has(card.name);
 
         // Search filter
@@ -93,7 +93,7 @@ export const CardClashCollection = React.memo(
       <div>
         <SectionHeader
           title="🃏 Your Collection"
-          subtitle={`${totalOwned} of ${ALL_CARDS.length} cards unlocked · ${completionPct}% complete`}
+          subtitle={`${totalOwned} of ${COLLECTIBLE_CARDS.length} cards unlocked · ${completionPct}% complete`}
         />
 
         {/* Progress bar */}

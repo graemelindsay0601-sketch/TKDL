@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ALL_CARDS } from "@/lib/cards-data";
+import { ALL_CARDS, COLLECTIBLE_CARDS } from "@/lib/cards-data";
 import type { CardData } from "@/lib/cards-data";
 import { TKDLCard } from "./TKDLCard";
 import { useCardClashSettings } from "@/hooks/useCardClashSettings";
@@ -224,9 +224,9 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
     try {
       setLoading(true); setError(null);
       
-      // In test mode, use all available cards from the full pool
+      // In test mode, use all available (collectible) cards from the full pool
       if (testMode) {
-        setInventory(ALL_CARDS.map((c: any) => ({
+        setInventory(COLLECTIBLE_CARDS.map((c: any) => ({
           id: String(c.id || ""),
           name: c.name ?? "",
           cardType: c.cardType ?? "GOOD",
