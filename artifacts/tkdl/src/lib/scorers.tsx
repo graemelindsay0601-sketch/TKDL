@@ -37,6 +37,14 @@ import type { MatchLogger } from "./card-clash/matchLogger";
  * disrupt the match flow, so this never throws and the caller doesn't
  * need to await it.
  */
+/** A single Board Mark event that happened during a visit, attached to that visit's history entry so "recent visits" clearly shows it was a bonus/penalty from a named card, not just an unexplained number. */
+interface BoardMarkVisitNote {
+  icon: string;
+  color: string;
+  /** e.g. "Hot Bull: +90 bonus", "Score Swap!", "Weakened: your next visit ×0.5" */
+  text: string;
+}
+
 /**
  * Computes what a Hot or Trap trigger actually does, given the mark's
  * payload and (for score_shift) its escalation stage. Shared between X01
@@ -646,7 +654,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [bust, setBust]             = useState(false);
   const [bustMsg, setBustMsg]       = useState("");
   const [freeRetriesUsed, setFreeRetriesUsed] = useState<[number, number]>([0, 0]); // Track free retries per player this turn
-  const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number; darts: Dart[] }[]>([]);
+  const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number; darts: Dart[]; boardMarkNotes?: BoardMarkVisitNote[] }[]>([]);
   
   // Card Clash state (populated from sessionStorage by CardClashMatchScorer)
   const [p1Cards, setP1Cards]         = useState<any[]>([]);
@@ -682,6 +690,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   // (survived to a fresh visit without the leg ending) -- resetForLeg
   // consumes it into the new leg's starting scores instead of losing it.
   const pendingBoardMarkAdjustmentRef = useRef<[number, number]>([0, 0]);
+  // Collects Board Mark events (Hot/Trap/Swap/etc.) that happen during the
+  // current visit, per player, so the "Recent Visits" history entry can
+  // clearly label them as a named bonus/penalty instead of an unexplained
+  // number. Cleared at the start of each fresh visit for that player.
+  const boardMarkVisitNotesRef = useRef<[BoardMarkVisitNote[], BoardMarkVisitNote[]]>([[], []]);
   // Structured match log — accumulates every dart, card, and Board Mark
   // event so a match can be downloaded and inspected afterward instead of
   // relying on a secondhand description of what happened. One instance per
@@ -922,11 +935,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
     matchLoggerRef.current.log("dart_thrown", { player: turn, segment: dart.segment, multiplier: dart.multiplier, value: dart.value, label: dart.label, remainingBefore: scores[turn] });
 
-    if (isChaosLabMode && visitDarts.length === 0 && pendingBoardMarkAdjustmentRef.current[turn] !== 0) {
-      cardDebugLog("X01Scorer", "[CHAOS_LAB] Clearing settled pending adjustment at fresh visit", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
-      matchLoggerRef.current.log("chaos_lab_pending_settled", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
-      matchLoggerRef.current.log("chaos_lab_pending_adjustment_settled", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
-      pendingBoardMarkAdjustmentRef.current[turn] = 0;
+    if (isChaosLabMode && visitDarts.length === 0) {
+      boardMarkVisitNotesRef.current[turn] = [];
+      if (pendingBoardMarkAdjustmentRef.current[turn] !== 0) {
+        cardDebugLog("X01Scorer", "[CHAOS_LAB] Clearing settled pending adjustment at fresh visit", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
+        matchLoggerRef.current.log("chaos_lab_pending_adjustment_settled", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
+        pendingBoardMarkAdjustmentRef.current[turn] = 0;
+      }
     }
 
     // No-trebles variant: treble ring counts as a single
@@ -996,11 +1011,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
               return n;
             });
             setLastActivation({ cardName: "🔄 SCORES SWAPPED!", player: rewardPlayer, key: `boardmark-swap-${Date.now()}` });
+            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "🔄", color: "#c084fc", text: "Score Swap!" });
           } else if (payload === "double_next_visit") {
             setActiveEffects(prev => [...prev, { cardName: "Surge (Board Mark)", appliedBy: rewardPlayer, affectsPlayer: rewardPlayer, status: "pending", allDartsMultiplier: 2 }]); // pending: reliably applies to their NEXT full visit, not "whatever's left of this one" (which could be zero darts)
             cardDebugLog("X01Scorer", "[CHAOS_LAB] Surge triggered", { player: rewardPlayer });
             matchLoggerRef.current.log("chaos_lab_surge", { player: rewardPlayer });
             setLastActivation({ cardName: "⚡ SURGE! Your next visit scores ×2", player: rewardPlayer, key: `boardmark-surge-${Date.now()}` });
+            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "⚡", color: "#ff8a3d", text: "Surge: next visit ×2" });
           } else if (payload === "leech_score") {
             // Trigger player's own dart scores completely normally for them
             // (untouched) — 50%/35% of that same dart's value ALSO hurts
@@ -1015,6 +1032,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
               return n;
             });
             setLastActivation({ cardName: `🩸 SIPHONED! +${leechAmount} to them`, player: rewardPlayer, key: `boardmark-leech-${Date.now()}` });
+            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "🩸", color: "#ff8a3d", text: `Siphon: +${leechAmount} to opponent` });
           } else {
             const magnitude = computeBoardMarkTriggerMagnitude(triggeredMark!, "X01", "hot");
             const isSteal = !!triggeredMark?.metadata?.steal;
@@ -1029,6 +1047,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
               return n;
             });
             setLastActivation({ cardName: isSteal ? `🔥💰 Stolen! -${magnitude}` : `🔥 Hot! -${magnitude}`, player: rewardPlayer, key: `boardmark-hot-${Date.now()}` });
+            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "🔥", color: "#ff8a3d", text: isSteal ? `Hot (steal): -${magnitude} bonus, opponent +${magnitude}` : `Hot bonus: -${magnitude}` });
           }
         } else if (trap) {
           const triggeredMark = activeBoardMarks.find(m => m.id === trap.markId);
@@ -1041,6 +1060,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
             cardDebugLog("X01Scorer", "[CHAOS_LAB] Weakened triggered", { player: penalizedPlayer });
             matchLoggerRef.current.log("chaos_lab_weakened", { player: penalizedPlayer });
             setLastActivation({ cardName: "🥶 WEAKENED! Their next visit scores ×0.5", player: penalizedPlayer, key: `boardmark-weaken-${Date.now()}` });
+            boardMarkVisitNotesRef.current[penalizedPlayer].push({ icon: "🥶", color: "#ff4d4d", text: "Weakened: next visit ×0.5" });
           } else {
             const magnitude = computeBoardMarkTriggerMagnitude(triggeredMark!, "X01", "trap");
             const isSteal = !!triggeredMark?.metadata?.steal;
@@ -1055,10 +1075,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
               return n;
             });
             setLastActivation({ cardName: isSteal ? `⚠️💰 Robbed! +${magnitude}` : `⚠️ Trap! +${magnitude}`, player: penalizedPlayer, key: `boardmark-trap-${Date.now()}` });
+            boardMarkVisitNotesRef.current[penalizedPlayer].push({ icon: "⚠️", color: "#ff4d4d", text: isSteal ? `Trap (steal): +${magnitude} penalty, opponent -${magnitude}` : `Trap penalty: +${magnitude}` });
           }
         } else if (cold) {
           matchLoggerRef.current.log("chaos_lab_cold_blocked", { target: cold.target, player: turn });
           setLastActivation({ cardName: "❄️ Blocked by Cold", player: turn as 0 | 1, key: `boardmark-cold-${Date.now()}` });
+          boardMarkVisitNotesRef.current[turn as 0 | 1].push({ icon: "❄️", color: "#5ec8ff", text: "Blocked by Cold — no trigger" });
         }
         cardDebugLog("X01Scorer", "[CHAOS_LAB] Board Mark events", resolved.events);
         matchLoggerRef.current.log("chaos_lab_resolver_events", { events: resolved.events, activeMarksAfter: resolved.marks.map(m => ({ id: m.id, type: m.type, target: m.target })) });
@@ -1080,7 +1102,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           if (turn === 0) { p1StatsRef.current.darts += nv.length; p1StatsRef.current.score += reduction; }
           if (turn === 1 && isHumanVsHuman) { p2StatsRef.current.darts += nv.length; p2StatsRef.current.score += reduction; }
           setScores(prev => { const n=[...prev] as [number,number]; n[turn] = Math.max(1, n[turn] - reduction); return n; });
-          setHistory(h => [...h, { turn, score: reduction, left: scores[turn] - reduction, darts: nv }]);
+          setHistory(h => [...h, { turn, score: reduction, left: scores[turn] - reduction, darts: nv, boardMarkNotes: isChaosLabMode ? [...boardMarkVisitNotesRef.current[turn]] : undefined }]);
           setVisitDarts([]);
           setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
           setTurn(t => soloMode ? 0 : (t===0?1:0));
@@ -1211,7 +1233,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         }
       }
       setScores(prev => { const n=[...prev] as [number,number]; n[turn] = Math.max(1, n[turn] - effectiveCum); return n; });
-      setHistory(h => [...h, { turn, score: effectiveCum, left: scores[turn] - effectiveCum, darts: nv }]);
+      setHistory(h => [...h, { turn, score: effectiveCum, left: scores[turn] - effectiveCum, darts: nv, boardMarkNotes: isChaosLabMode ? [...boardMarkVisitNotesRef.current[turn]] : undefined }]);
       setVisitDarts([]);
       // Card Clash: expire this-turn effects; promote opponent's pending → active
       if (isCardClash) setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
@@ -1867,10 +1889,21 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           
           {!showCards && (
             [...(showCards ? [] : history)].reverse().slice(0, 5).map((h, i) => (
-              <div key={i} className="flex justify-between text-xs py-0.5">
-                <span style={{ color: P_COLOR(h.turn), fontFamily: "Oswald, sans-serif" }}>{names[h.turn]}</span>
-                <span style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>+{h.score}</span>
-                <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "mono" }}>{h.left} left</span>
+              <div key={i} style={{ padding: "1px 0" }}>
+                <div className="flex justify-between text-xs py-0.5">
+                  <span style={{ color: P_COLOR(h.turn), fontFamily: "Oswald, sans-serif" }}>{names[h.turn]}</span>
+                  <span style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>+{h.score}</span>
+                  <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "mono" }}>{h.left} left</span>
+                </div>
+                {h.boardMarkNotes && h.boardMarkNotes.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1px", marginTop: "1px", marginBottom: "2px" }}>
+                    {h.boardMarkNotes.map((note, ni) => (
+                      <div key={ni} style={{ fontSize: "0.62rem", color: note.color, fontFamily: "Oswald, sans-serif", paddingLeft: "8px" }}>
+                        {note.icon} {note.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))
           )}
@@ -1981,6 +2014,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   // (survived to a fresh visit without the leg ending) -- resetForLeg
   // consumes it into the new leg's starting scores instead of losing it.
   const pendingBoardMarkAdjustmentRef = useRef<[number, number]>([0, 0]);
+  // Collects Board Mark events for the current visit, per player — see X01Scorer's ref for the full comment.
+  const boardMarkVisitNotesRef = useRef<[BoardMarkVisitNote[], BoardMarkVisitNote[]]>([[], []]);
   // Structured match log — see X01Scorer's matchLoggerRef for the full comment.
   const matchLoggerRef = useRef(createMatchLogger({ engine: "CRICKET", p1Name, p2Name }));
 
@@ -2574,11 +2609,13 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
 
     matchLoggerRef.current.log("dart_thrown", { player: turn, segment: dart.segment, multiplier: dart.multiplier, value: dart.value, label: dart.label });
 
-    if (isChaosLabMode && visitDarts.length === 0 && pendingBoardMarkAdjustmentRef.current[turn] !== 0) {
-      cardDebugLog("CricketScorer", "[CHAOS_LAB] Clearing settled pending adjustment at fresh visit", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
-      matchLoggerRef.current.log("chaos_lab_pending_settled", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
-      matchLoggerRef.current.log("chaos_lab_pending_adjustment_settled", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
-      pendingBoardMarkAdjustmentRef.current[turn] = 0;
+    if (isChaosLabMode && visitDarts.length === 0) {
+      boardMarkVisitNotesRef.current[turn] = [];
+      if (pendingBoardMarkAdjustmentRef.current[turn] !== 0) {
+        cardDebugLog("CricketScorer", "[CHAOS_LAB] Clearing settled pending adjustment at fresh visit", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
+        matchLoggerRef.current.log("chaos_lab_pending_adjustment_settled", { player: turn, cleared: pendingBoardMarkAdjustmentRef.current[turn] });
+        pendingBoardMarkAdjustmentRef.current[turn] = 0;
+      }
     }
 
     // Snapshot full state before this dart — enables per-dart AND cross-visit undo
@@ -2621,11 +2658,13 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               return n;
             });
             setLastActivation({ cardName: "🔄 SCORES SWAPPED!", player: rewardPlayer, key: `boardmark-swap-${Date.now()}` });
+            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "🔄", color: "#c084fc", text: "Score Swap!" });
           } else if (payload === "double_next_visit") {
             setActiveEffects(prev => [...prev, { cardName: "Surge (Board Mark)", appliedBy: rewardPlayer, affectsPlayer: rewardPlayer, status: "pending", extraScoreMultiplier: 2 }]);
             cardDebugLog("CricketScorer", "[CHAOS_LAB] Surge triggered", { player: rewardPlayer });
             matchLoggerRef.current.log("chaos_lab_surge", { player: rewardPlayer });
             setLastActivation({ cardName: "⚡ SURGE! Your next visit scores ×2", player: rewardPlayer, key: `boardmark-surge-${Date.now()}` });
+            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "⚡", color: "#ff8a3d", text: "Surge: next visit ×2" });
           } else if (payload === "leech_score") {
             const leechPct = triggeredMark?.createdByCardId === "prototype_parasite" ? 0.35 : 0.5;
             const leechAmount = Math.floor(effectiveDart.value * leechPct);
@@ -2637,6 +2676,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               return n;
             });
             setLastActivation({ cardName: `🩸 SIPHONED! -${leechAmount} from them`, player: rewardPlayer, key: `boardmark-leech-${Date.now()}` });
+            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "🩸", color: "#ff8a3d", text: `Siphon: -${leechAmount} to opponent` });
           } else {
             const magnitude = computeBoardMarkTriggerMagnitude(triggeredMark!, "CRICKET", "hot");
             const isSteal = !!triggeredMark?.metadata?.steal;
@@ -2651,6 +2691,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               return n;
             });
             setLastActivation({ cardName: isSteal ? `🔥💰 Stolen! +${magnitude}` : `🔥 Hot! +${magnitude}`, player: rewardPlayer, key: `boardmark-hot-${Date.now()}` });
+            boardMarkVisitNotesRef.current[rewardPlayer].push({ icon: "🔥", color: "#ff8a3d", text: isSteal ? `Hot (steal): +${magnitude} bonus, opponent -${magnitude}` : `Hot bonus: +${magnitude}` });
           }
         } else if (trap) {
           const triggeredMark = activeBoardMarks.find(m => m.id === trap.markId);
@@ -2663,6 +2704,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             cardDebugLog("CricketScorer", "[CHAOS_LAB] Weakened triggered", { player: penalizedPlayer });
             matchLoggerRef.current.log("chaos_lab_weakened", { player: penalizedPlayer });
             setLastActivation({ cardName: "🥶 WEAKENED! Their next visit scores ×0.5", player: penalizedPlayer, key: `boardmark-weaken-${Date.now()}` });
+            boardMarkVisitNotesRef.current[penalizedPlayer].push({ icon: "🥶", color: "#ff4d4d", text: "Weakened: next visit ×0.5" });
           } else {
             const magnitude = computeBoardMarkTriggerMagnitude(triggeredMark!, "CRICKET", "trap");
             const isSteal = !!triggeredMark?.metadata?.steal;
@@ -2677,10 +2719,12 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               return n;
             });
             setLastActivation({ cardName: isSteal ? `⚠️💰 Robbed! -${magnitude}` : `⚠️ Trap! -${magnitude}`, player: penalizedPlayer, key: `boardmark-trap-${Date.now()}` });
+            boardMarkVisitNotesRef.current[penalizedPlayer].push({ icon: "⚠️", color: "#ff4d4d", text: isSteal ? `Trap (steal): -${magnitude} penalty, opponent +${magnitude}` : `Trap penalty: -${magnitude}` });
           }
         } else if (cold) {
           matchLoggerRef.current.log("chaos_lab_cold_blocked", { target: cold.target, player: turn });
           setLastActivation({ cardName: "❄️ Blocked by Cold", player: turn as 0 | 1, key: `boardmark-cold-${Date.now()}` });
+          boardMarkVisitNotesRef.current[turn as 0 | 1].push({ icon: "❄️", color: "#5ec8ff", text: "Blocked by Cold — no trigger" });
         }
         cardDebugLog("CricketScorer", "[CHAOS_LAB] Board Mark events", resolved.events);
         matchLoggerRef.current.log("chaos_lab_resolver_events", { events: resolved.events, activeMarksAfter: resolved.marks.map(m => ({ id: m.id, type: m.type, target: m.target })) });
