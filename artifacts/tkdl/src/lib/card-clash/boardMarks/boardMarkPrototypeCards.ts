@@ -43,6 +43,7 @@
 
 import type { BoardMark, BoardMarkAppliesTo, BoardMarkDuration, BoardMarkTarget, BoardMarkType } from "./boardMarkTypes";
 import { generateBoardMarkId } from "./boardMarkState";
+import type { MatchSwingKind } from "./boardMarkSpecialCases";
 
 export type BoardMarkPayload = "score_shift" | "swap_scores" | "double_next_visit" | "weaken_next_visit" | "leech_score";
 
@@ -180,7 +181,7 @@ export const BOARD_MARK_SABOTAGE_CARD_IDS: Record<number, "erase" | "purge"> = {
 export const BOARD_MARK_ESCALATION_CARD_IDS = new Set([721, 722]);
 
 /** Match Swing cards read live match state and resolve immediately on draw — special-cased in scorers.tsx, never actually placed as a mark. */
-export const BOARD_MARK_MATCH_SWING_CARD_IDS: Record<number, "overtake" | "underdogs_grace" | "set_point"> = {
+export const BOARD_MARK_MATCH_SWING_CARD_IDS: Record<number, MatchSwingKind> = {
   728: "overtake",
   729: "underdogs_grace",
   730: "set_point",

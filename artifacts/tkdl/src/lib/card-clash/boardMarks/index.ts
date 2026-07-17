@@ -14,3 +14,4 @@ export * from "./boardMarkResolver";
 export * from "./boardMarkLifecycle";
 export * from "./boardMarkPrototypeCards";
 export * from "./boardMarkRewards";
+export * from "./boardMarkSpecialCases";

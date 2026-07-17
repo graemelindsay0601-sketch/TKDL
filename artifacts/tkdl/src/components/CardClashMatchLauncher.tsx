@@ -578,7 +578,7 @@ export function CardClashMatchLauncher({
                 ⚡ Chaos Lab <span style={{ fontSize: "9px", fontWeight: 900, color: D.chaosLab, background: "rgba(124,58,237,0.15)", padding: "1px 6px", borderRadius: "999px", letterSpacing: "0.08em" }}>EXPERIMENTAL</span>
               </div>
               <div className="text-xs mt-0.5 leading-tight" style={{ color: "rgba(255,255,255,0.35)" }}>
-                Every mystery card marks the board — hot targets pay out, traps punish, cold shuts you down, shields protect. Some steal straight from your opponent. A few are pure risk: huge reward, but you might curse yourself too.
+                Every mystery card marks the board differently — bonuses, punishing traps, denial, protection, stolen legs, swapped scores, even marks that don't reveal if they're good or bad until you hit them. Nothing plays the same way twice.
               </div>
             </div>
           </div>

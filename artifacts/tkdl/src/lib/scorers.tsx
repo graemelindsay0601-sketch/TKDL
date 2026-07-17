@@ -22,8 +22,9 @@ import {
   BOARD_MARK_CARD_ID_MAP,
   BOARD_MARK_PROTOTYPE_CARDS,
   BOARD_MARK_SABOTAGE_CARD_IDS,
-  BOARD_MARK_ESCALATION_CARD_IDS,
   BOARD_MARK_MATCH_SWING_CARD_IDS,
+  applyBoardMarkSabotage,
+  computeMatchSwingOutcome,
   toBoardMarkDartResult,
   getBoardMarkMagnitude,
 } from "./card-clash/boardMarks";
@@ -79,55 +80,6 @@ function computeBoardMarkTriggerMagnitude(mark: BoardMark, engine: "X01" | "CRIC
     magnitude = Math.round(magnitude * (1 + Math.min(stage, 5) * 0.3));
   }
   return magnitude;
-}
-
-/** Sabotage: removes the opponent's active mark(s) instead of placing a new one. Returns how many were removed so the caller can fall back to a default mark if none existed — never a dead draw. */
-function applyBoardMarkSabotage(activeMarks: BoardMark[], kind: "erase" | "purge", opponentPlayerId: string): { marks: BoardMark[]; removedCount: number } {
-  const opponentMarks = activeMarks.filter(m => m.ownerPlayerId === opponentPlayerId);
-  if (opponentMarks.length === 0) return { marks: activeMarks, removedCount: 0 };
-  if (kind === "erase") {
-    const target = opponentMarks[Math.floor(Math.random() * opponentMarks.length)];
-    return { marks: activeMarks.filter(m => m.id !== target.id), removedCount: 1 };
-  }
-  const idsToRemove = new Set(opponentMarks.map(m => m.id));
-  return { marks: activeMarks.filter(m => !idsToRemove.has(m.id)), removedCount: opponentMarks.length };
-}
-
-/**
- * Match Swing: reads live match standing and decides whether to grant/
- * remove a leg outright. `standing` should be legWins for Legs format, or
- * overall sets won for Overtake/Underdog's Grace in Sets format, and the
- * CURRENT set's legWins specifically for Set Point (which operates at set
- * granularity, not whole-match). The caller passes whichever is correct
- * for the format — this function is purely the condition/outcome logic,
- * no state access.
- */
-function computeMatchSwingOutcome(
-  kind: "overtake" | "underdogs_grace" | "set_point",
-  drawingPlayer: 0 | 1,
-  standing: [number, number]
-): { conditionMet: boolean; delta: [number, number] } {
-  const opp: 0 | 1 = drawingPlayer === 0 ? 1 : 0;
-  if (kind === "overtake") {
-    if (standing[opp] - standing[drawingPlayer] >= 2) {
-      const delta: [number, number] = [0, 0];
-      delta[opp] = -1;
-      return { conditionMet: true, delta };
-    }
-  } else if (kind === "underdogs_grace") {
-    if (standing[drawingPlayer] - standing[opp] <= -2) {
-      const delta: [number, number] = [0, 0];
-      delta[drawingPlayer] = 1;
-      return { conditionMet: true, delta };
-    }
-  } else if (kind === "set_point") {
-    if (Math.abs(standing[0] - standing[1]) === 1) {
-      const delta: [number, number] = [0, 0];
-      delta[opp] = -1; // always benefits the drawer — takes a leg from their opponent when the set is tight
-      return { conditionMet: true, delta };
-    }
-  }
-  return { conditionMet: false, delta: [0, 0] };
 }
 
 function uploadMatchLog(logger: MatchLogger, meta: { gameMode: "X01" | "CRICKET"; isChaosMode: boolean; isChaosLabMode: boolean }) {
