@@ -1022,21 +1022,13 @@ export function ccOpponentPenaltiesBlocked(effects: CCEffect[], player: 0 | 1): 
 }
 
 /**
- * BUGFIX: ccOpponentPenaltiesBlocked existed and was correctly maintained
- * (activated/deactivated via ccValidateCheckoutOnlyCards/
- * ccValidateExactFinishCards), but nothing anywhere ever actually called it
- * to block anything — so Unstoppable Checkout, Exact Finish, and Invincible
- * tracked their own on/off state perfectly while doing nothing at all in
- * practice. Filters out any newly-activated cross-player debuff whose
- * target currently has an active blockOpponentPenalties shield.
+ * NOTE: ccOpponentPenaltiesBlocked/ccApplyPenaltyBlockingIfNeeded (below)
+ * were already correctly implemented and wired into both scorers' turn-
+ * transition logic. The actual bug (see BUGFIX 104/107/510 above) was that
+ * Unstoppable Checkout, Exact Finish, and Invincible had no legDuration,
+ * so ccExpireOnTurnEnd stripped them before this blocking check ever had
+ * anything left to enforce.
  */
-export function ccFilterBlockedEffects(newEffects: CCEffect[], existingActiveEffects: CCEffect[]): CCEffect[] {
-  return newEffects.filter(e => {
-    if (e.affectsPlayer === e.appliedBy) return true; // self-targeting, not a "penalty" on an opponent
-    return !ccOpponentPenaltiesBlocked(existingActiveEffects, e.affectsPlayer);
-  });
-}
-
 /** FIX 104: Validate checkoutOnly cards - deactivate if not on valid double-out */
 export function ccValidateCheckoutOnlyCards(effects: CCEffect[], scores: [number, number], player: 0 | 1): CCEffect[] {
   return effects.map(e => {
