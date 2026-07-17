@@ -1620,7 +1620,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   useEffect(() => {
     if (!isCardClash || !(isChaosMode || isChaosLabMode)) return;
     if (visitDarts.length !== 0) return;
-    const key = `${turn}:${turnCounter}`;
+    const key = `${turn}:${legHistory.length}:${turnCounter}`;
 
     // Chaos Lab: expire visit-end Board Marks for whoever's visit just ended.
     if (isChaosLabMode && boardMarkVisitEndKeyRef.current !== key) {
@@ -1639,7 +1639,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       return;
     }
     setChaosOptions(drawOptions());
-  }, [turn, visitDarts.length, isCardClash, isChaosMode, isChaosLabMode, turnCounter, botConfig]);
+  }, [turn, visitDarts.length, isCardClash, isChaosMode, isChaosLabMode, turnCounter, legHistory, botConfig]);
 
   // ── Chaos Mode: apply a revealed mystery card directly (no equip lookup) ──
   const handleChaosCardActivation = useCallback((card: CardData) => {
@@ -1654,7 +1654,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       const newMark = createBoardMarkFromPrototypeCard(boardMarkConfig, {
         ownerPlayerId: String(turn),
         opponentPlayerId,
-        createdAtVisitId: `${turn}:${turnCounter}`,
+        createdAtVisitId: `${turn}:${legHistory.length}:${turnCounter}`,
       });
       setActiveBoardMarks(prev => {
         const result = placeBoardMark(prev, newMark);
@@ -1663,7 +1663,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
       setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
       setChaosOptions(null);
-      chaosResolvedKeyRef.current = `${turn}:${turnCounter}`;
+      chaosResolvedKeyRef.current = `${turn}:${legHistory.length}:${turnCounter}`;
       return;
     }
 
@@ -1756,7 +1756,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     setLastActivation({ cardName: card.name, player: turn as 0 | 1, key: `${card.name}-${turn}-${Date.now()}` });
     setCardActivationLog(prev => [...prev, { cardId: String(card.id ?? card.name), usedBy: turn as 0 | 1 }]);
     setChaosOptions(null);
-    chaosResolvedKeyRef.current = `${turn}:${turnCounter}`;
+    chaosResolvedKeyRef.current = `${turn}:${legHistory.length}:${turnCounter}`;
   }, [turn, marks, scores, legHistory, legsNeeded, turnCounter, numCount, applyMarkGainRemoval]);
 
   const handleChaosCardActivationRef = useRef(handleChaosCardActivation);
