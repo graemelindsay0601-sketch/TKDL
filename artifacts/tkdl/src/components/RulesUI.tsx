@@ -185,19 +185,19 @@ const RULES_DATA: RuleSection[] = [
     rules: [
       {
         title: 'What Chaos Lab Is',
-        description: 'A separate mode from Standard and Chaos Card Clash — normal darts scoring always stays exactly the same. Instead of equipping cards ahead of time, you get 3 face-down mystery cards at the start of every visit, and every one of them marks a target on the board rather than giving a flat score boost.',
+        description: 'A separate mode from Standard and Chaos Card Clash — normal darts scoring always stays exactly the same. Instead of equipping cards ahead of time, you get 3 face-down mystery cards at the start of every visit, and every one of them marks a target on the board rather than giving a flat score boost. Most targets are random, so the board looks different leg to leg.',
         important: true,
       },
       {
-        title: 'Hot',
+        title: 'Hot (Bounty)',
         description: 'Marks a target as a race — whoever hits it first (either player) scores completely normally AND gets a real bonus on top. The harder the target, the bigger the reward: a number bed pays modestly, a treble or double pays more, and Bull pays the most. Removed the moment it triggers.',
       },
       {
-        title: 'Cold',
+        title: 'Cold (Curse)',
         description: 'Marks a target against your opponent specifically. If they hit it, they still score exactly the same as normal — but nothing else happens; it\u2019s pure denial, no bonus or penalty attached. Lasts until their visit ends.',
       },
       {
-        title: 'Trap',
+        title: 'Trap (Curse)',
         description: 'Marks a target against your opponent. If they hit it, they still score normally, but they also take a real penalty — same rarity-scaled sizing as Hot. Removed the moment it\u2019s sprung.',
       },
       {
@@ -205,17 +205,51 @@ const RULES_DATA: RuleSection[] = [
         description: 'Protects one of your own targets — while it\u2019s up, your opponent can\u2019t place a Cold or Trap mark there. Never blocks Hot, and never affects your own scoring in any way. Lasts through your next visit.',
       },
       {
-        title: 'Steal Cards',
-        description: 'A few cards (marked with a STEAL badge) turn a Hot or Trap trigger into a direct transfer between players instead of a one-sided grant or penalty. Winning a steal Hot doesn\u2019t just help you — it takes the same amount away from your opponent.',
+        title: 'Reversal — Score Swap',
+        description: 'One card, kept deliberately rare: whoever hits it first COMPLETELY SWAPS their remaining score with their opponent\u2019s. Total reversal of fortune. Because it\u2019s this dramatic, it only ever shows up occasionally.',
+        important: true,
       },
       {
-        title: 'Risk/Reward Cards',
-        description: 'A handful of cards place two marks at once: a big, guaranteed-target Hot reward, plus a second curse on a random 1\u201320 number bed against yourself. Going for the big prize means playing the rest of that leg with a hidden landmine of your own making.',
+        title: 'Momentum — Surge & Weakened',
+        description: 'Instead of a one-off bonus, these multiply an ENTIRE upcoming visit. Surge doubles every dart on the winner\u2019s next visit (checkout math included); Weakened halves every dart on the loser\u2019s next visit. Always applies to a full, fresh visit — never wasted on darts you\u2019ve already thrown.',
+      },
+      {
+        title: 'Leech — Siphon & Parasite',
+        description: 'Your dart scores completely normally for you — AND a cut of that same dart\u2019s value (50% for Siphon, 35% for Parasite) also gets added to your opponent\u2019s remaining. One throw, two consequences.',
+      },
+      {
+        title: 'Sabotage — Erase & Purge',
+        description: 'Instead of placing a new mark, these remove your opponent\u2019s active mark(s) outright — Erase takes one, Purge wipes all of them — the instant you draw the card, no dart needed. If they have nothing active, it falls back to a normal mark against them instead, so it\u2019s never a wasted draw.',
+      },
+      {
+        title: 'Escalation — Slow Burn & Simmering Trap',
+        description: 'These grow stronger the longer they go unhit — the bonus (Slow Burn) or penalty (Simmering Trap) increases each visit it survives, up to a cap. Patience and avoidance both have real consequences here.',
+      },
+      {
+        title: 'Multi-Target — Wildfire Spread & Minefield',
+        description: 'One card, three marks at once, scattered randomly across the board — a completely different risk map for the rest of that leg, not just one extra highlighted spot.',
+      },
+      {
+        title: 'Leg-Wide — Treble Curse & Double Trouble',
+        description: 'These don\u2019t mark one spot — they reshape an entire CATEGORY of the board for the rest of the leg. Treble Curse makes every treble Cold against your opponent, all leg. Double Trouble makes every double Hot for whoever hits it, all leg.',
+      },
+      {
+        title: 'Unstable',
+        description: 'A true wildcard — marks a random spot, but nobody (including whoever drew it) knows if it\u2019s Hot or Trap until someone actually hits it. Pure suspense.',
+      },
+      {
+        title: 'Match Swing — Overtake, Underdog\u2019s Grace & Set Point',
+        description: 'These read the live match score and can grant or remove a whole leg outright the instant they\u2019re drawn. Overtake steals a leg back if your opponent is 2+ ahead; Underdog\u2019s Grace hands you a leg if you\u2019re 2+ behind; Set Point (Sets format only) steals a leg when the current set is close. If the condition isn\u2019t met, you get a solid bonus instead — never a wasted draw. Kept genuinely rare on purpose.',
+        important: true,
       },
       {
         title: 'Seeing What\u2019s Marked',
-        description: 'Marked numbers glow on the dart input board itself in the mark\u2019s own color (orange=Hot, blue=Cold, red=Trap, green=Shield), and the Active Board Marks panel spells out the exact target, who it affects, and the live bonus/penalty number for each one.',
+        description: 'Marked numbers glow on the dart input board itself in the mark\u2019s own color (orange=Hot, blue=Cold, red=Trap, green=Shield, purple=Unstable/Swap), and the Active Board Marks panel spells out the exact target, who it affects, and the live bonus/penalty number for each one. Tap any mark for the full card art and text.',
         important: true,
+      },
+      {
+        title: 'Tracking What Happened',
+        description: 'Every Chaos Lab event shows up in the Chaos Lab Activity Log during the match, and X01 additionally labels bonuses/penalties directly under the relevant visit in Recent Visits. A full downloadable match log is also available from the match screen for a complete record.',
       },
       {
         title: 'Chaos Lab Cards Are Exclusive',
