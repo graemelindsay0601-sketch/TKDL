@@ -27,6 +27,7 @@ import {
   computeMatchSwingOutcome,
   toBoardMarkDartResult,
   getBoardMarkMagnitude,
+  clampX01RemainingAfterReduction,
 } from "./card-clash/boardMarks";
 import { cardDebugLog } from "./card-debug";
 import { createMatchLogger, downloadMatchLog } from "./card-clash/matchLogger";
@@ -769,8 +770,8 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           matchLoggerRef.current.log("chaos_lab_pending_applied_to_new_leg", { pending, startingScore });
         }
         setScores([
-          Math.max(0, startingScore - pending[0]),
-          Math.max(0, startingScore - pending[1]),
+          clampX01RemainingAfterReduction(Math.max(0, startingScore - pending[0])),
+          clampX01RemainingAfterReduction(Math.max(0, startingScore - pending[1])),
         ]);
         pendingBoardMarkAdjustmentRef.current = [0, 0];
         if (isChaosLabMode) setActiveBoardMarks(prev => expireBoardMarksForLegEnd(prev)); // clears leg-wide rule-benders (Treble Curse, Double Trouble) at the actual leg boundary
@@ -1050,7 +1051,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
             if (isSteal) pendingBoardMarkAdjustmentRef.current[otherPlayer] -= magnitude; // increases theirs
             setScores(prev => {
               const n = [...prev] as [number, number];
-              n[rewardPlayer] = Math.max(0, n[rewardPlayer] - magnitude);
+              n[rewardPlayer] = clampX01RemainingAfterReduction(Math.max(0, n[rewardPlayer] - magnitude));
               if (isSteal) n[otherPlayer] = n[otherPlayer] + magnitude; // zero-sum: what you win, they lose
               cardDebugLog("X01Scorer", "[CHAOS_LAB] Hot triggered", { target: triggeredMark?.target, player: rewardPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
               matchLoggerRef.current.log("chaos_lab_hot_triggered", { target: triggeredMark?.target, player: rewardPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
@@ -1079,7 +1080,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
             setScores(prev => {
               const n = [...prev] as [number, number];
               n[penalizedPlayer] = n[penalizedPlayer] + magnitude;
-              if (isSteal && trapOwner !== undefined) n[trapOwner] = Math.max(0, n[trapOwner] - magnitude); // trapper gets what the trapped player lost
+              if (isSteal && trapOwner !== undefined) n[trapOwner] = clampX01RemainingAfterReduction(Math.max(0, n[trapOwner] - magnitude)); // trapper gets what the trapped player lost
               cardDebugLog("X01Scorer", "[CHAOS_LAB] Trap sprung", { target: triggeredMark?.target, player: penalizedPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
               matchLoggerRef.current.log("chaos_lab_trap_sprung", { target: triggeredMark?.target, player: penalizedPlayer, magnitude, isSteal, scoresBefore: prev, scoresAfter: n });
               return n;
@@ -1567,7 +1568,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         pendingBoardMarkAdjustmentRef.current[rewardPlayer] += fallbackMagnitude;
         setScores(prev => {
           const n = [...prev] as [number, number];
-          n[rewardPlayer] = Math.max(0, n[rewardPlayer] - fallbackMagnitude);
+          n[rewardPlayer] = clampX01RemainingAfterReduction(Math.max(0, n[rewardPlayer] - fallbackMagnitude));
           return n;
         });
         setLastActivation({ cardName: `${card.name} — condition not met, +${fallbackMagnitude} instead`, player: rewardPlayer, key: `boardmark-swing-fallback-${Date.now()}` });

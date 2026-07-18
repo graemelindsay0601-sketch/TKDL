@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getBoardMarkMagnitude } from "../boardMarkRewards";
+import { getBoardMarkMagnitude, clampX01RemainingAfterReduction } from "../boardMarkRewards";
 
 test("bull pays more than treble/double, which pays more than a number bed (X01 hot)", () => {
   const numberMag = getBoardMarkMagnitude("number", "X01", "hot");
@@ -35,4 +35,15 @@ test("all magnitudes are positive — sign is applied by the caller, not this ta
 
 test("X01 magnitudes are larger than Cricket magnitudes for the same target/kind (different scoring scales)", () => {
   assert.ok(getBoardMarkMagnitude("bull", "X01", "hot") > getBoardMarkMagnitude("bull", "CRICKET", "hot"));
+});
+
+test("clampX01RemainingAfterReduction bumps 0 and 1 to 2 (both are unreachable finish states)", () => {
+  assert.equal(clampX01RemainingAfterReduction(0), 2);
+  assert.equal(clampX01RemainingAfterReduction(1), 2);
+});
+
+test("clampX01RemainingAfterReduction leaves every other value untouched", () => {
+  for (const v of [2, 3, 4, 5, 10, 40, 100, 170, 501]) {
+    assert.equal(clampX01RemainingAfterReduction(v), v);
+  }
 });

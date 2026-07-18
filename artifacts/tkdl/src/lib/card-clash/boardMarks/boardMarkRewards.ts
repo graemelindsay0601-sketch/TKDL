@@ -50,3 +50,21 @@ export function getBoardMarkMagnitude(
   if (targetType === "double") return table.double;
   return table.number;
 }
+
+/**
+ * X01 remaining can never land on 0 or 1 via a Board Mark reduction —
+ * both are broken/unreachable states. No double equals 1, so landing
+ * there means the leg can never legally be finished at all. Landing
+ * exactly on 0 outside of an actual finishing dart never registers a
+ * win either (win detection only fires reactively within handleDart's
+ * own scoring, not from an out-of-band score change), and any dart
+ * thrown afterward would immediately bust (rem going negative). Bumps
+ * to 2 instead — the simplest possible single-dart double finish.
+ * Cricket has no equivalent "must finish on an exact double" constraint,
+ * so this is X01-only. Applied at every point a Board Mark reduces a
+ * player's remaining score.
+ */
+export function clampX01RemainingAfterReduction(value: number): number {
+  if (value === 0 || value === 1) return 2;
+  return value;
+}
