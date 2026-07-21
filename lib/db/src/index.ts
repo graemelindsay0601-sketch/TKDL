@@ -29,14 +29,23 @@ if (!process.env.DATABASE_URL) {
  *   after a genuinely idle period, which is a much better trade for a
  *   small app on a free tier than the database never sleeping at all.
  * - idleTimeoutMillis: Close unused connections after 30 seconds
- * - connectionTimeoutMillis: Fail fast if no connection available after 2 seconds
+ * - connectionTimeoutMillis: 10 seconds. BUGFIX: this was 2 seconds,
+ *   which is fine for an always-on database but nowhere near enough for
+ *   a serverless database waking from suspension (min:0 above means
+ *   every request after real idle time needs a fresh connection, and a
+ *   genuine cold start can take several seconds). With only 2s, the
+ *   connection attempt failed on timeout before the database finished
+ *   waking up, the client retried, hit the same still-waking database,
+ *   and failed again — an endless retry loop that looked exactly like
+ *   the app being permanently stuck loading. 10s gives a real cold start
+ *   room to actually complete.
  */
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 20,                      // Max concurrent connections
   min: 0,                       // Let idle connections fully close — see comment above
   idleTimeoutMillis: 30000,     // Close idle connections after 30s
-  connectionTimeoutMillis: 2000, // Timeout after 2s if no connection
+  connectionTimeoutMillis: 10000, // Timeout after 10s if no connection — was 2s, too short for a serverless database cold start
 });
 
 // Log pool events for monitoring
