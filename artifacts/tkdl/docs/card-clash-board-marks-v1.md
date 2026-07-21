@@ -152,6 +152,23 @@ Match Swing cards (Overtake/Underdog's Grace/Set Point) get an additional
 /3 on top of their Legendary weight, since granting or removing a whole
 leg is a bigger swing than most other Legendary cards here.
 
+## Target range: 15-20 and Bull only
+
+Every Board Mark target — fixed or randomly generated — is restricted to
+numbers 15-20 plus Bull. `BOARD_MARK_NUMBER_POOL` in
+`boardMarkPrototypeCards.ts` is the single source of truth for the random
+generators (`random`/`random_treble`/`random_double`/`random_any`), and
+`BOARD_MARK_IN_RANGE` in `boardMarkMatcher.ts` is the equivalent for "any"
+category matching. This was a deliberate design change: 15-20+Bull are
+exactly the numbers Cricket scores, so every single Board Mark card is
+relevant in a Cricket match too, rather than a "Hot 7" or similar being
+dead weight nobody would ever deliberately throw at (Cricket doesn't
+track anything outside 15-20+Bull, so hitting an out-of-range number is
+a wasted dart with zero Cricket-scoring benefit even if the mark's reward
+were enticing). Every fixed-target card already happened to live within
+this range from the original v3 design, so this only changed the four
+random-generation functions and the "any" category matcher.
+
 ## Multi-target and additional marks
 
 `BoardMarkPrototypeCardConfig.additionalMarks?: BoardMarkSpec[]` lets one

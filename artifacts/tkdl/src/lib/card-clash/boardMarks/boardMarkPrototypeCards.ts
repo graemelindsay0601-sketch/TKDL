@@ -197,16 +197,23 @@ export interface CreateBoardMarkParams {
   id?: string;
 }
 
+/** The only numbers Board Marks ever target — 15-20, plus Bull handled separately. Chosen deliberately: these are exactly the numbers Cricket scores, so every mark is relevant in both engines instead of being pointless dead weight in a Cricket match. */
+const BOARD_MARK_NUMBER_POOL = [15, 16, 17, 18, 19, 20];
+
+function randomBoardMarkNumber(): number {
+  return BOARD_MARK_NUMBER_POOL[Math.floor(Math.random() * BOARD_MARK_NUMBER_POOL.length)];
+}
+
 function resolveTarget(target: BoardMarkTarget | "random" | "random_treble" | "random_double" | "random_any"): BoardMarkTarget {
-  if (target === "random") return { type: "number", value: Math.floor(Math.random() * 20) + 1 };
-  if (target === "random_treble") return { type: "treble", value: Math.floor(Math.random() * 20) + 1 };
-  if (target === "random_double") return { type: "double", value: Math.floor(Math.random() * 20) + 1 };
+  if (target === "random") return { type: "number", value: randomBoardMarkNumber() };
+  if (target === "random_treble") return { type: "treble", value: randomBoardMarkNumber() };
+  if (target === "random_double") return { type: "double", value: randomBoardMarkNumber() };
   if (target === "random_any") {
     const roll = Math.random();
     if (roll < 0.1) return { type: "bull", value: "bull" };
-    if (roll < 0.4) return { type: "treble", value: Math.floor(Math.random() * 20) + 1 };
-    if (roll < 0.7) return { type: "double", value: Math.floor(Math.random() * 20) + 1 };
-    return { type: "number", value: Math.floor(Math.random() * 20) + 1 };
+    if (roll < 0.4) return { type: "treble", value: randomBoardMarkNumber() };
+    if (roll < 0.7) return { type: "double", value: randomBoardMarkNumber() };
+    return { type: "number", value: randomBoardMarkNumber() };
   }
   return target;
 }

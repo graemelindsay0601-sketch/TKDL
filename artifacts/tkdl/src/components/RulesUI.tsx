@@ -189,6 +189,10 @@ const RULES_DATA: RuleSection[] = [
         important: true,
       },
       {
+        title: 'Targets Are Always 15-20 or Bull',
+        description: 'Every mark, fixed or random, lands on 15-20 or Bull — never anywhere else on the board. That\u2019s deliberate: those are exactly the numbers Cricket scores, so every single card is genuinely relevant whichever engine you\u2019re playing, instead of some marks being pointless dead weight in Cricket matches.',
+      },
+      {
         title: 'Hot (Bounty)',
         description: 'Marks a target as a race — whoever hits it first (either player) scores completely normally AND gets a real bonus on top. The harder the target, the bigger the reward: a number bed pays modestly, a treble or double pays more, and Bull pays the most. Removed the moment it triggers.',
       },

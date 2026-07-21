@@ -71,12 +71,29 @@ test("wildcard-target cards resolve to a real, varied target — not the same on
   assert.ok(targets.size > 1, "expected genuine variety across draws");
 });
 
-test("wildstrike (random_treble) always resolves to a treble target", () => {
+test("wildstrike (random_treble) always resolves to a treble target within 15-20", () => {
   const wildstrike = BOARD_MARK_CARD_ID_MAP[704];
   for (let i = 0; i < 20; i++) {
     const marks = createBoardMarkFromPrototypeCard(wildstrike, { ownerPlayerId: "0", opponentPlayerId: "1" });
     assert.equal(marks[0].target.type, "treble");
-    assert.ok(typeof marks[0].target.value === "number" && marks[0].target.value >= 1 && marks[0].target.value <= 20);
+    assert.ok(typeof marks[0].target.value === "number" && marks[0].target.value >= 15 && marks[0].target.value <= 20);
+  }
+});
+
+test("every random-target card resolves numbers only within 15-20 — never outside that range, so every mark is relevant in both X01 and Cricket", () => {
+  const randomTargetCardIds = [703, 704, 706, 707, 709, 710, 712, 713, 718, 719, 720, 723, 724, 727]; // Flashpoint, Wildstrike, Blackout, Deep Freeze, Ambush, Snare, Ward, Bunker, Parasite, Erase, Purge, Wildfire Spread, Minefield, Unstable
+  for (const id of randomTargetCardIds) {
+    const config = BOARD_MARK_CARD_ID_MAP[id];
+    for (let i = 0; i < 15; i++) {
+      const marks = createBoardMarkFromPrototypeCard(config, { ownerPlayerId: "0", opponentPlayerId: "1" });
+      for (const mark of marks) {
+        if (mark.target.type === "bull") continue;
+        assert.ok(
+          typeof mark.target.value === "number" && mark.target.value >= 15 && mark.target.value <= 20,
+          `card ${id} produced an out-of-range target: ${mark.target.type} ${mark.target.value}`
+        );
+      }
+    }
   }
 });
 

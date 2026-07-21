@@ -58,3 +58,34 @@ test("bull target does not match a normal segment", () => {
 test("number bed 20 does not match bull even though bull is segment 25", () => {
   assert.equal(doesDartMatchBoardMarkTarget(dart(25, 1), { type: "number", value: 20 }), false);
 });
+
+// ── "any" category targets (leg-wide cards) — restricted to 15-20 ──
+
+test("treble value 'any' matches every treble 15-20", () => {
+  for (const n of [15, 16, 17, 18, 19, 20]) {
+    assert.equal(doesDartMatchBoardMarkTarget(dart(n, 3), { type: "treble", value: "any" }), true, `expected T${n} to match`);
+  }
+});
+
+test("treble value 'any' does NOT match trebles outside 15-20", () => {
+  for (const n of [1, 5, 10, 14]) {
+    assert.equal(doesDartMatchBoardMarkTarget(dart(n, 3), { type: "treble", value: "any" }), false, `expected T${n} NOT to match`);
+  }
+});
+
+test("double value 'any' matches every double 15-20 but not outside it", () => {
+  for (const n of [15, 16, 17, 18, 19, 20]) {
+    assert.equal(doesDartMatchBoardMarkTarget(dart(n, 2), { type: "double", value: "any" }), true, `expected D${n} to match`);
+  }
+  for (const n of [1, 7, 13, 14]) {
+    assert.equal(doesDartMatchBoardMarkTarget(dart(n, 2), { type: "double", value: "any" }), false, `expected D${n} NOT to match`);
+  }
+});
+
+test("number value 'any' matches beds 15-20 but not outside it, and never bull", () => {
+  for (const n of [15, 16, 17, 18, 19, 20]) {
+    assert.equal(doesDartMatchBoardMarkTarget(dart(n, 1), { type: "number", value: "any" }), true, `expected ${n} to match`);
+  }
+  assert.equal(doesDartMatchBoardMarkTarget(dart(10, 1), { type: "number", value: "any" }), false);
+  assert.equal(doesDartMatchBoardMarkTarget(dart(25, 1), { type: "number", value: "any" }), false);
+});
