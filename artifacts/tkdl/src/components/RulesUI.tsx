@@ -210,7 +210,7 @@ const RULES_DATA: RuleSection[] = [
       },
       {
         title: 'Reversal — Score Swap',
-        description: 'One card, kept deliberately rare: whoever hits it first COMPLETELY SWAPS their remaining score with their opponent\u2019s. Total reversal of fortune. Because it\u2019s this dramatic, it only ever shows up occasionally.',
+        description: 'One card in the whole pool: whoever hits it first COMPLETELY SWAPS their remaining score with their opponent\u2019s. Total reversal of fortune \u2014 there\u2019s only one card that does this, but it\u2019s drawn at the same odds as everything else.',
         important: true,
       },
       {
@@ -243,7 +243,7 @@ const RULES_DATA: RuleSection[] = [
       },
       {
         title: 'Match Swing — Overtake, Underdog\u2019s Grace & Set Point',
-        description: 'These read the live match score and can grant or remove a whole leg outright the instant they\u2019re drawn. Overtake steals a leg back if your opponent is 2+ ahead; Underdog\u2019s Grace hands you a leg if you\u2019re 2+ behind; Set Point (Sets format only) steals a leg when the current set is close. If the condition isn\u2019t met, you get a solid bonus instead — never a wasted draw. Kept genuinely rare on purpose.',
+        description: 'These read the live match score and can grant or remove a whole leg outright the instant they\u2019re drawn. Overtake steals a leg back if your opponent is 2+ ahead; Underdog\u2019s Grace hands you a leg if you\u2019re 2+ behind; Set Point (Sets format only) steals a leg when the current set is close. If the condition isn\u2019t met, you get a solid bonus instead \u2014 never a wasted draw. Drawn at the same odds as every other card, so a leg-swinging moment can show up any visit.',
         important: true,
       },
       {

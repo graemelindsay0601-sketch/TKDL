@@ -278,36 +278,18 @@ export function getChaosLabCardPool(gameType: "X01" | "CRICKET", isSetsFormat: b
   return ALL_CARDS.filter((c) => c.mode === "chaos_lab" && (isSetsFormat || c.id !== 730));
 }
 
-/**
- * Rarity-weighted draw magnitudes for Chaos Lab specifically — Legendary
- * cards are genuinely uncommon here, not just a different border colour.
- * Regular Chaos Mode (drawChaosOptions) is untouched by this and stays
- * uniform random, as it always has been.
- */
-const CHAOS_LAB_RARITY_WEIGHT: Record<Rarity, number> = { COMMON: 15, RARE: 5, LEGENDARY: 1 };
-/** Match Swing cards (Overtake, Underdog's Grace, Set Point) read live match
- *  state and can directly grant/remove a whole leg — kept rarer even than a
- *  typical Legendary, since that's a bigger swing than most other cards here. */
-const CHAOS_LAB_EXTRA_RARE_IDS = new Set([728, 729, 730]);
-
-function chaosLabCardWeight(card: CardData): number {
-  const base = CHAOS_LAB_RARITY_WEIGHT[card.rarity] ?? 1;
-  return CHAOS_LAB_EXTRA_RARE_IDS.has(card.id) ? base / 3 : base;
-}
-
-/** Picks one card from a pool, weighted by chaosLabCardWeight. Falls back to the last card on float-rounding edge cases. */
-function weightedPick(pool: CardData[]): CardData {
-  const totalWeight = pool.reduce((sum, c) => sum + chaosLabCardWeight(c), 0);
-  let roll = Math.random() * totalWeight;
-  for (const card of pool) {
-    roll -= chaosLabCardWeight(card);
-    if (roll <= 0) return card;
-  }
-  return pool[pool.length - 1];
-}
-
-/** Same draw mechanics as drawChaosOptions (50/50 good/bad, no duplicates), but from Chaos Lab's Board-Marks-only pool, and rarity-weighted so Legendary cards are genuinely uncommon. Regular Chaos Mode is untouched by this. */
+/** Same draw mechanics as drawChaosOptions (50/50 good/bad, no duplicates, uniform random within each half), but from Chaos Lab's Board-Marks-only pool. Regular Chaos Mode is untouched by this. Every card has an equal chance — rarity-weighted drawing was tried and reverted (see BUGFIX note below). */
 export function drawChaosLabOptions(gameType: "X01" | "CRICKET", count = 3, isSetsFormat: boolean = false): CardData[] {
+  // BUGFIX: this used to be rarity-weighted (Common 15x, Rare 5x, Legendary
+  // 1x, Match Swing an extra /3 on top) specifically to keep the biggest
+  // effects rare. In practice this backfired badly: with only 4 Common
+  // cards splitting roughly half the total draw weight, real playtesting
+  // showed the same handful of Common cards dominating almost every draw,
+  // while most of the 30-card roster (especially Match Swing, at roughly
+  // 1/1000th a Common card's chance) was essentially never seen. That
+  // directly worked against the actual goal of this mode -- maximum
+  // variety, not the same few effects on repeat. Reverted to uniform
+  // random, identical mechanics to regular Chaos Mode's drawChaosOptions.
   const pool = getChaosLabCardPool(gameType, isSetsFormat);
   const good = pool.filter(isGoodCard);
   const bad = pool.filter((c) => !isGoodCard(c));
@@ -319,7 +301,7 @@ export function drawChaosLabOptions(gameType: "X01" | "CRICKET", count = 3, isSe
     const wantGood = Math.random() < 0.5;
     const source = (wantGood ? good : bad).filter((c) => !used.has(c.id));
     if (source.length === 0) continue;
-    const card = weightedPick(source);
+    const card = source[Math.floor(Math.random() * source.length)];
     used.add(card.id);
     options.push(card);
   }

@@ -143,14 +143,21 @@ packed, or equipped. The only place they can ever appear is Chaos Lab's
 own mystery-card pool (`getChaosLabCardPool` in `cards-data.ts`), which
 draws exclusively from this set -- never mixed with the regular chaos pool.
 
-## Rarity-weighted drawing
+## Drawing is uniform random (rarity-weighted drawing was tried and reverted)
 
-Chaos Lab draws are rarity-weighted specifically (`cards-data.ts`'s
-`drawChaosLabOptions`) -- regular Chaos Mode is untouched and stays uniform
-random, as it always has been. Weights: Common 15, Rare 5, Legendary 1.
-Match Swing cards (Overtake/Underdog's Grace/Set Point) get an additional
-/3 on top of their Legendary weight, since granting or removing a whole
-leg is a bigger swing than most other Legendary cards here.
+Every card in the 30-card pool has an equal chance per draw, same
+mechanics as regular Chaos Mode's `drawChaosOptions`. This was originally
+rarity-weighted (Common 15x, Rare 5x, Legendary 1x, with Match Swing
+cards getting an additional /3 on top of Legendary) specifically to keep
+the biggest effects rare. Real playtesting showed this backfired: with
+only 4 Common cards splitting roughly half the total draw weight, the
+same handful of cards dominated nearly every draw, and most of the
+roster — especially Match Swing, at roughly 1/1000th a Common card's
+odds — was essentially never seen in practice. That directly worked
+against the actual design goal (maximum variety, not repetition), so it
+was reverted. `rarity` on each card is still meaningful as a difficulty/
+flavour signal and still drives the visual border color, it just no
+longer affects draw probability.
 
 ## Target range: 15-20 and Bull only
 
