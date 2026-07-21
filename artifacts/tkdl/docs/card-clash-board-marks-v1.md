@@ -232,12 +232,24 @@ If the condition isn't met, falls back to a solid Legendary-tier bonus
 Board Marks used to only surface as tiny hover-tooltip pills -- useless on
 a mobile-first, touch-only scoring app. Fixed several ways:
 
-- **The dart input board itself highlights marked buttons.** `DartInputBoard`
-  (`dartboard.tsx`) has an additive `markedSegments` prop --
-  `{ segment, color }[]` -- layered on top of the existing `highlightSegments`
-  prop every other game mode uses (untouched, zero risk to them). The
-  relevant number button, and both Bull buttons, glow in the mark's own
-  color. Category ("any") targets highlight all 20 numbers.
+- **The dart input board itself shows exactly what happens, not just a
+  color.** `DartInputBoard` (`dartboard.tsx`) has an additive
+  `markedSegments` prop -- `{ segment, color, icon, requiredMult?,
+  magnitudeLabel }[]` -- layered on top of the existing `highlightSegments`
+  prop every other game mode uses (untouched, zero risk to them). A color
+  glow alone wasn't enough: a player throwing several darts in quick
+  succession is looking at the board, not a side panel, so anything not
+  shown right on the button they're about to tap effectively doesn't
+  exist to them at the moment it matters -- and could bust them on a
+  score change they never saw coming. Every marked button now shows a
+  small type icon in the corner and the real magnitude/effect directly on
+  the button (e.g. "T −55", "D +45", "SWAP"), computed by the same shared
+  `boardMarkShortLabel` function the HUD panel uses, so the two can never
+  say different things about the same mark. `requiredMult` distinguishes
+  a treble/double-only mark from a "any multiplier" number-bed mark, so
+  hitting the bed at the wrong multiplier doesn't look like it should
+  have worked. Category ("any") targets highlight all matching numbers
+  15-20.
 - **`BoardMarksHUD` is a real, tappable panel**, not a tooltip. Every
   active mark shows its type spelled out, the exact target, a
   plain-language "who this affects" line from the *current viewer's*

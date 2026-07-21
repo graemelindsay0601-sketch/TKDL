@@ -396,17 +396,42 @@ const UNSTABLE_ICON = "\u{1F3B2}"; // dice
 const UNSTABLE_COLOR = "#c084fc"; // purple, distinct from all 4 real type colors
 
 /** Converts active Board Marks into the DartInputBoard's markedSegments prop shape. Bull → segment 25; numbers/trebles/doubles use their own value. */
-function boardMarksToSegments(marks: BoardMark[]): { segment: number; color: string }[] {
-  const out: { segment: number; color: string }[] = [];
+/** Compact magnitude/effect label for a mark — shared between the dartboard button badge and BoardMarksHUD so they can never say different things about the same mark. verbose=true (HUD, more room) adds context like "next visit"/"to them"; the compact dartboard badge omits it. */
+function boardMarkShortLabel(mark: BoardMark, engine: "X01" | "CRICKET", verbose = false): string {
+  if (mark.metadata?.isUnstable) return "???";
+  const payload = (mark.metadata?.payload as string) ?? "score_shift";
+  if (payload === "swap_scores") return "SWAP";
+  if (payload === "double_next_visit") return verbose ? "×2 next visit" : "×2";
+  if (payload === "weaken_next_visit") return verbose ? "×0.5 next visit" : "×0.5";
+  if (payload === "leech_score") {
+    const pct = mark.createdByCardId === "prototype_parasite" ? "35%" : "50%";
+    return verbose ? `${pct} to them` : pct;
+  }
+  if (mark.type === "hot") {
+    const mag = computeBoardMarkTriggerMagnitude(mark, engine, "hot");
+    return engine === "X01" ? `−${mag}` : `+${mag}`;
+  }
+  if (mark.type === "trap") {
+    const mag = computeBoardMarkTriggerMagnitude(mark, engine, "trap");
+    return engine === "X01" ? `+${mag}` : `−${mag}`;
+  }
+  return ""; // Cold/Shield never carry a score effect — no label needed
+}
+
+function boardMarksToSegments(marks: BoardMark[], engine: "X01" | "CRICKET"): { segment: number; color: string; icon: string; requiredMult?: 2 | 3; magnitudeLabel: string }[] {
+  const out: { segment: number; color: string; icon: string; requiredMult?: 2 | 3; magnitudeLabel: string }[] = [];
   for (const m of marks) {
     const color = m.metadata?.isUnstable ? UNSTABLE_COLOR : BOARD_MARK_COLOR[m.type];
+    const icon = m.metadata?.isUnstable ? UNSTABLE_ICON : BOARD_MARK_ICON[m.type];
+    const magnitudeLabel = boardMarkShortLabel(m, engine);
+    const requiredMult: 2 | 3 | undefined = m.target.type === "treble" ? 3 : m.target.type === "double" ? 2 : undefined;
     if (m.target.type === "bull") {
-      out.push({ segment: 25, color });
+      out.push({ segment: 25, color, icon, magnitudeLabel });
     } else if (m.target.value === "any") {
-      // Leg-wide category marks (every treble / every double) — highlight all 20 numbers, since there's no single button to point at.
-      for (let n = 1; n <= 20; n++) out.push({ segment: n, color });
+      // Leg-wide category marks (every treble/double 15-20) — highlight all matching numbers, since there's no single button to point at.
+      for (let n = 15; n <= 20; n++) out.push({ segment: n, color, icon, requiredMult, magnitudeLabel });
     } else if (typeof m.target.value === "number") {
-      out.push({ segment: m.target.value, color });
+      out.push({ segment: m.target.value, color, icon, requiredMult, magnitudeLabel });
     }
   }
   return out;
@@ -492,28 +517,14 @@ function BoardMarksHUD({ marks, names, engine, viewerIdx }: { marks: BoardMark[]
         }
 
         // Magnitude/effect label — every payload gets an unambiguous label,
-        // never just a bare "bonus". Escalation shows its current stage so
-        // players can see it growing over time.
-        let magnitudeLabel = "";
-        if (isUnstable) {
-          magnitudeLabel = "???";
-        } else if (payload === "swap_scores") {
-          magnitudeLabel = "SWAP";
-        } else if (payload === "double_next_visit") {
-          magnitudeLabel = "×2 next visit";
-        } else if (payload === "weaken_next_visit") {
-          magnitudeLabel = "×0.5 next visit";
-        } else if (payload === "leech_score") {
-          const pct = m.createdByCardId === "prototype_parasite" ? "35%" : "50%";
-          magnitudeLabel = `${pct} to them`;
-        } else if (m.type === "hot") {
-          const mag = getBoardMarkMagnitude(m.target.type, engine, "hot");
-          magnitudeLabel = engine === "X01" ? `−${mag}` : `+${mag}`;
-          if (escalationStage > 0) magnitudeLabel += ` (stage ${escalationStage})`;
-        } else if (m.type === "trap") {
-          const mag = getBoardMarkMagnitude(m.target.type, engine, "trap");
-          magnitudeLabel = engine === "X01" ? `+${mag}` : `−${mag}`;
-          if (escalationStage > 0) magnitudeLabel += ` (stage ${escalationStage})`;
+        // never just a bare "bonus". Uses the same shared computation as
+        // the dartboard button badge (boardMarkShortLabel) so the two can
+        // never say different things about the same mark. Escalation adds
+        // a "(stage N)" note here since the HUD has room for it, unlike
+        // the compact dartboard badge.
+        let magnitudeLabel = boardMarkShortLabel(m, engine, true);
+        if ((m.type === "hot" || m.type === "trap") && !isUnstable && payload === "score_shift" && escalationStage > 0) {
+          magnitudeLabel += ` (stage ${escalationStage})`;
         }
 
         return (
@@ -1927,7 +1938,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       </div>
       }
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust || isBotTurnX01} markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks) : undefined} />
+        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust || isBotTurnX01} markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks, "X01") : undefined} />
         <AbandonBtn onAbandon={() => { if (isCardClash) uploadMatchLog(matchLoggerRef.current, { gameMode: "X01", isChaosMode, isChaosLabMode }); onAbandon(); }} />
         {isCardClash && <DownloadMatchLogBtn logger={matchLoggerRef.current} />}
       </div>}
@@ -3354,7 +3365,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         <DartInputBoard
           onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
           activeSegments={CRICKET_NUMS.slice(0, numCount)} highlightSegments={CRICKET_NUMS.slice(0, numCount)}
-          markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks) : undefined}
+          markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks, "CRICKET") : undefined}
           disabled={isBotTurnCri}
         />
         <AbandonBtn onAbandon={() => { if (isCardClash) uploadMatchLog(matchLoggerRef.current, { gameMode: "CRICKET", isChaosMode, isChaosLabMode }); onAbandon(); }} />

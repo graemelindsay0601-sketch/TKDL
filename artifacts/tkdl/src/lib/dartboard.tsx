@@ -95,8 +95,23 @@ export function DartInputBoard({
   onUndo: () => void;
   activeSegments?: number[];
   highlightSegments?: number[];
-  /** Chaos Lab Board Marks — additive to highlightSegments, doesn't affect any other game mode. One color-coded ring per marked segment/bull. */
-  markedSegments?: { segment: number; color: string }[];
+  /**
+   * Chaos Lab Board Marks — additive to highlightSegments, doesn't affect
+   * any other game mode. Carries enough info to be unambiguous directly on
+   * the button itself (icon, required multiplier, magnitude) — a player
+   * throwing in quick succession is looking at the board, not a side
+   * panel, so anything not shown right here effectively doesn't exist to
+   * them at the moment it matters.
+   */
+  markedSegments?: {
+    segment: number;
+    color: string;
+    icon: string;
+    /** If set, only this multiplier actually triggers the mark (2=double, 3=treble) — shown as a "T"/"D" prefix so hitting the bed at the wrong multiplier doesn't look like it should have worked. Omit for "any multiplier" (number bed) marks. */
+    requiredMult?: 2 | 3;
+    /** Pre-formatted, e.g. "-55", "+45", "SWAP", "x2" — shown small, directly on the button. */
+    magnitudeLabel: string;
+  }[];
   disabled?: boolean;
 }) {
   const [mult, setMult] = useState<1 | 2 | 3>(1);
@@ -169,6 +184,7 @@ export function DartInputBoard({
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
+      position: "relative",
       transition: "background 0.08s, border-color 0.08s",
       WebkitTapHighlightColor: "transparent",
       touchAction: "manipulation",
@@ -212,11 +228,33 @@ export function DartInputBoard({
 
       {/* ── Number grid 5×4 ─────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "0.3rem", marginBottom: "0.3rem" }}>
-        {GRID_NUMS.map(n => (
-          <button key={n} onClick={() => isActive(n) && fire(n)} style={numBtnStyle(n)}>
-            {n}
-          </button>
-        ))}
+        {GRID_NUMS.map(n => {
+          const mark = markFor(n);
+          return (
+            <button key={n} onClick={() => isActive(n) && fire(n)} style={numBtnStyle(n)}>
+              {n}
+              {mark && (
+                <>
+                  <span style={{
+                    position: "absolute", top: "1px", left: "3px",
+                    fontSize: "0.7rem", lineHeight: 1, filter: "drop-shadow(0 0 2px rgba(0,0,0,0.9))",
+                  }}>
+                    {mark.icon}
+                  </span>
+                  <span style={{
+                    position: "absolute", bottom: "1px", right: "2px",
+                    fontSize: "0.5rem", fontWeight: 800, lineHeight: 1,
+                    fontFamily: "Oswald, sans-serif", color: mark.color,
+                    background: "rgba(0,0,0,0.55)", padding: "1px 3px", borderRadius: "3px",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {mark.requiredMult === 3 ? "T" : mark.requiredMult === 2 ? "D" : ""}{mark.magnitudeLabel}
+                  </span>
+                </>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Bull row ────────────────────────────────────────────── */}
@@ -245,6 +283,11 @@ export function DartInputBoard({
           }}>
           <span style={{ fontSize: "0.55rem", opacity: 0.6, letterSpacing: "0.1em", fontWeight: 700 }}>SINGLE</span>
           <span>BULL · 25</span>
+          {markFor(25) && (
+            <span style={{ fontSize: "0.6rem", fontWeight: 800 }}>
+              {markFor(25)!.icon} {markFor(25)!.magnitudeLabel}
+            </span>
+          )}
         </button>
         <button
           onClick={() => fire(25, 2)}
@@ -270,6 +313,11 @@ export function DartInputBoard({
           }}>
           <span style={{ fontSize: "0.55rem", opacity: 0.6, letterSpacing: "0.1em", fontWeight: 700 }}>DOUBLE</span>
           <span>BULL'S-EYE · 50</span>
+          {markFor(25) && (
+            <span style={{ fontSize: "0.6rem", fontWeight: 800 }}>
+              {markFor(25)!.icon} {markFor(25)!.magnitudeLabel}
+            </span>
+          )}
         </button>
       </div>
 
