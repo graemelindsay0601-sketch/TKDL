@@ -99,6 +99,16 @@ app.use(session({
     conString: process.env.DATABASE_URL,
     tableName: "sessions",
     createTableIfMissing: false,
+    // connect-pg-simple's default is a DELETE query every 15 minutes,
+    // forever, regardless of real traffic — on a usage/compute-time-billed
+    // database (e.g. Neon's free tier) that's a meaningful, entirely
+    // avoidable source of the database being woken up when it would
+    // otherwise be idle. Expired sessions are already functionally
+    // harmless (the cookie's own maxAge + the store's own expiry check
+    // reject them on lookup) — pruning them from the table just reclaims
+    // storage, so there's no correctness reason to do it often. Once
+    // every 6 hours is still 4x/day, plenty to keep the table tidy.
+    pruneSessionInterval: 6 * 60 * 60,
   }),
   secret:            process.env.SESSION_SECRET!,
   resave:            false,
