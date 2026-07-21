@@ -25,8 +25,13 @@ export function CoinBalance({ playerId }: CoinBalanceProps) {
 
   useEffect(() => {
     loadCoins();
-    // Refresh every 2 seconds to catch updates
-    const interval = setInterval(loadCoins, 2000);
+    // Refresh periodically to catch updates from purchases/rewards made
+    // elsewhere. Was every 2 seconds (30x/minute per viewer) -- a coin
+    // balance doesn't need sub-5-second precision, and that was a real,
+    // avoidable, continuous source of database load for anyone sitting on
+    // this page. 15 seconds still feels responsive while cutting the
+    // request volume by ~87%.
+    const interval = setInterval(loadCoins, 15000);
     return () => clearInterval(interval);
   }, [playerId]);
 
