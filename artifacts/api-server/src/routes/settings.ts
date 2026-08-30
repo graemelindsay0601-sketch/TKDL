@@ -2,6 +2,10 @@ import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, settingsTable, featureFlagsTable } from "@workspace/db";
 import { requireAdminSession } from "../middleware/requireAdminSession";
+import {
+  getAllFeatureFlags, initializeFeatureFlags,
+  enableFeatureForAll, disableFeature, setAdminTestMode,
+} from "../services/feature-flags-service";
 
 const router = Router();
 
@@ -37,6 +41,39 @@ router.patch("/admin/settings/:key", requireAdminSession, async (req, res): Prom
     await db.update(settingsTable).set({ value: String(value), updatedAt: new Date() }).where(eq(settingsTable.key, key));
   }
   res.json({ ok: true, key, value });
+});
+
+// ── Feature flags admin panel — the featureFlagsTable/service already existed,
+// these were just never registered as routes ─────────────────────────────────
+
+router.get("/admin/feature-flags", requireAdminSession, async (_req, res): Promise<void> => {
+  const flags = await getAllFeatureFlags();
+  res.json(flags);
+});
+
+router.post("/admin/feature-flags/initialize", requireAdminSession, async (_req, res): Promise<void> => {
+  await initializeFeatureFlags();
+  const flags = await getAllFeatureFlags();
+  res.json(flags);
+});
+
+router.post("/admin/feature-flags/:name/admin-test", requireAdminSession, async (req, res): Promise<void> => {
+  const { enabled } = req.body as { enabled?: boolean };
+  const ok = await setAdminTestMode(req.params.name, !!enabled);
+  if (!ok) { res.status(500).json({ error: "Failed to update admin test mode" }); return; }
+  res.json({ ok: true });
+});
+
+router.post("/admin/feature-flags/:name/enable-all", requireAdminSession, async (req, res): Promise<void> => {
+  const ok = await enableFeatureForAll(req.params.name);
+  if (!ok) { res.status(500).json({ error: "Failed to enable feature" }); return; }
+  res.json({ ok: true });
+});
+
+router.post("/admin/feature-flags/:name/disable", requireAdminSession, async (req, res): Promise<void> => {
+  const ok = await disableFeature(req.params.name);
+  if (!ok) { res.status(500).json({ error: "Failed to disable feature" }); return; }
+  res.json({ ok: true });
 });
 
 export default router;

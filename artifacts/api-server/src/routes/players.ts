@@ -725,4 +725,116 @@ router.patch("/players/:id/active-title", async (req, res): Promise<void> => {
   }
 });
 
+// ── Card collection favorites (account page "collection book") ─────────────────
+// Deliberately separate from the Card Clash equip-loadout favorites system
+// (card-clash-favorites.ts) — this is a simple per-player boolean against the
+// static COLLECTIBLE_CARDS numeric ids, with no game-mode concept.
+
+router.get("/player/:id/cards/favorites", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const rows = await db.execute(sql`
+      SELECT card_id FROM card_favorites WHERE player_id = ${params.data.id}
+    `);
+    res.json({ favorites: (rows.rows as any[]).map(r => ({ id: r.card_id })) });
+  } catch (err) {
+    req.log.error({ err }, "GET /player/:id/cards/favorites failed");
+    res.status(500).json({ error: "Failed to load favorites" });
+  }
+});
+
+const ToggleCardFavoriteBody = z.object({ playerId: z.number().int().positive() });
+
+router.post("/cards/:cardId/favorite", async (req, res): Promise<void> => {
+  const cardId = Number(req.params.cardId);
+  if (isNaN(cardId)) { res.status(400).json({ error: "Invalid card id" }); return; }
+  const parsed = ToggleCardFavoriteBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "playerId required" }); return; }
+  const { playerId } = parsed.data;
+
+  try {
+    const existing = await db.execute(sql`
+      SELECT 1 FROM card_favorites WHERE player_id = ${playerId} AND card_id = ${cardId}
+    `);
+    let isFavorite: boolean;
+    if ((existing.rows as any[]).length > 0) {
+      await db.execute(sql`DELETE FROM card_favorites WHERE player_id = ${playerId} AND card_id = ${cardId}`);
+      isFavorite = false;
+    } else {
+      await db.execute(sql`INSERT INTO card_favorites (player_id, card_id) VALUES (${playerId}, ${cardId})`);
+      isFavorite = true;
+    }
+    res.json({ isFavorite });
+  } catch (err) {
+    req.log.error({ err }, "POST /cards/:cardId/favorite failed");
+    res.status(500).json({ error: "Failed to toggle favorite" });
+  }
+});
+
+// ── Notification preferences ────────────────────────────────────────────────
+// notification_preferences already exists and is pre-seeded for every player
+// at startup (see lib/notificationsMigration.ts) — this was just missing its
+// routes.
+
+router.get("/players/:id/notification-prefs", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const rows = await db.execute(sql`
+      SELECT push_enabled, match_results, rank_changes, coach_tips, announcements, private_mode
+      FROM notification_preferences WHERE player_id = ${params.data.id}
+    `);
+    const row = (rows.rows as any[])[0];
+    res.json(row ?? {
+      push_enabled: true, match_results: true, rank_changes: true,
+      coach_tips: true, announcements: true, private_mode: false,
+    });
+  } catch (err) {
+    req.log.error({ err }, "GET /players/:id/notification-prefs failed");
+    res.status(500).json({ error: "Failed to load preferences" });
+  }
+});
+
+const NotificationPrefsBody = z.object({
+  push_enabled:  z.boolean().optional(),
+  match_results: z.boolean().optional(),
+  rank_changes:  z.boolean().optional(),
+  coach_tips:    z.boolean().optional(),
+  announcements: z.boolean().optional(),
+  private_mode:  z.boolean().optional(),
+});
+
+router.patch("/players/:id/notification-prefs", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const parsed = NotificationPrefsBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const p = parsed.data;
+  const id = params.data.id;
+
+  try {
+    await db.execute(sql`
+      INSERT INTO notification_preferences (player_id, push_enabled, match_results, rank_changes, coach_tips, announcements, private_mode)
+      VALUES (
+        ${id},
+        ${p.push_enabled ?? true}, ${p.match_results ?? true}, ${p.rank_changes ?? true},
+        ${p.coach_tips ?? true}, ${p.announcements ?? true}, ${p.private_mode ?? false}
+      )
+      ON CONFLICT (player_id) DO UPDATE SET
+        push_enabled  = COALESCE(${p.push_enabled ?? null}, notification_preferences.push_enabled),
+        match_results = COALESCE(${p.match_results ?? null}, notification_preferences.match_results),
+        rank_changes  = COALESCE(${p.rank_changes ?? null}, notification_preferences.rank_changes),
+        coach_tips    = COALESCE(${p.coach_tips ?? null}, notification_preferences.coach_tips),
+        announcements = COALESCE(${p.announcements ?? null}, notification_preferences.announcements),
+        private_mode  = COALESCE(${p.private_mode ?? null}, notification_preferences.private_mode),
+        updated_at    = NOW()
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "PATCH /players/:id/notification-prefs failed");
+    res.status(500).json({ error: "Failed to save preferences" });
+  }
+});
+
 export default router;

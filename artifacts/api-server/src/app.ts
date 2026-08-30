@@ -483,6 +483,22 @@ async function seedCommunityTables() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  // The `notifications` table above (message/actor_id/entity_id/entity_type/
+  // read_at) is the one actually live in production and used by the DM/
+  // community/mark-as-read routes. A later, separate effort
+  // (lib/notificationsMigration.ts, services/notificationService.ts) built a
+  // whole second notification pipeline — match-result/rank-change/threat-alert
+  // pushes, admin announcements, open/click analytics — against a DIFFERENT
+  // assumed shape (title/body/data/"read"/clicked) that was never actually
+  // applied to this table, so every one of those inserts has been silently
+  // failing (caught by try/catch, logged, never surfaced). Adding the missing
+  // columns here — additive only, nothing existing is touched — makes that
+  // whole already-written pipeline actually work for the first time.
+  await db.execute(sql`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS title TEXT`);
+  await db.execute(sql`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS body TEXT`);
+  await db.execute(sql`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS data JSONB`);
+  await db.execute(sql`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS "read" BOOLEAN NOT NULL DEFAULT false`);
+  await db.execute(sql`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS clicked BOOLEAN NOT NULL DEFAULT false`);
   logger.info("Community tables ready");
 }
 
@@ -624,6 +640,45 @@ async function seedMatchesMilestoneColumns() {
   await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS loser_140s  INTEGER`);
   await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS loser_170s  INTEGER`);
   logger.info("Matches milestone columns ready");
+}
+
+// Standalone table for the "favourite a card in my collection" feature on the
+// account page — deliberately NOT the same thing as card_clash_favorites
+// (which is per-game-mode equip-loadout favourites, keyed by the uuid
+// card_definitions.card_id). This one just needs a simple per-player boolean
+// against the small numeric ids used by the static COLLECTIBLE_CARDS list.
+async function seedCardFavorites() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS card_favorites (
+      player_id  INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      card_id    INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (player_id, card_id)
+    )
+  `);
+  logger.info("Card favorites table ready");
+}
+
+// Backs drill-progress-service.ts, which was fully written (real mastery/
+// trend queries) but never had its table created — nothing currently writes
+// to it (no drill-runner UI calls POST .../drills/complete yet), so the
+// drill progress / adaptive difficulty widgets will honestly show "no drills
+// yet" until such a flow exists, rather than erroring.
+async function seedDrillCompletions() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS drill_completions (
+      id               SERIAL PRIMARY KEY,
+      player_id        INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      drill_id         TEXT NOT NULL,
+      drill_title      TEXT NOT NULL,
+      completed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      duration_minutes INTEGER,
+      score            NUMERIC,
+      notes            TEXT,
+      difficulty       TEXT
+    )
+  `);
+  logger.info("Drill completions table ready");
 }
 
 async function seedPractice() {
@@ -816,6 +871,8 @@ async function init() {
     
     await seedCommunityTables();
     await seedMatchesMilestoneColumns();
+    await seedCardFavorites();
+    await seedDrillCompletions();
     await seedPractice();
     await seedMaster501();
     await seedMatchParticipants();

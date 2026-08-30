@@ -212,7 +212,7 @@ export const drillProgressService = {
     return null;
   },
 
-  private getNextGoal(mastery: string): string {
+  getNextGoal(mastery: string): string {
     switch (mastery) {
       case "novice":
         return "Reach 60% score (Intermediate)";

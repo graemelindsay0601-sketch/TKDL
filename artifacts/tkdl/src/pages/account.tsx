@@ -14,6 +14,10 @@ import { CoinBalance } from "@/components/CoinBalance";
 import { CardCollectionBook } from "@/components/CardCollectionBook";
 import { PlayerChallenges } from "@/components/PlayerChallenges";
 import { OverallStats, ByGameType, Trends, DartAnalysis, SessionHistory, CategoryStats, CategoryStatsEnhanced, AdvancedAnalyticsDashboard } from "@/components/stats";
+import { StreakWidget } from "@/components/stats/streak-widget";
+import { TimeOfDayPerformance } from "@/components/stats/time-of-day-performance";
+import { DrillProgressTracker } from "@/components/stats/drill-progress-tracker";
+import { AdaptiveDifficulty } from "@/components/stats/adaptive-difficulty";
 import { DebugStatsViewer } from "@/components/stats/debug-stats-viewer";
 
 const TIER_COLORS: Record<string, string> = {
@@ -1551,6 +1555,13 @@ export default function AccountPage() {
             )}
           </div>
 
+          {user?.playerId && (
+            <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <DrillProgressTracker playerId={parseInt(user.playerId)} />
+              <AdaptiveDifficulty playerId={parseInt(user.playerId)} />
+            </div>
+          )}
+
           {/* ── Change Password ──────────────────────────────────── */}
           <SectionCard title="Change Password" icon={Lock} accent="rgba(255,255,255,0.2)" collapsible>
             <form onSubmit={handleChangePassword} className="space-y-3">
@@ -1982,6 +1993,10 @@ export default function AccountPage() {
       {/* ── Stats Tab ─────────────────────────────────────────────── */}
       {activeTab === "stats" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            <StreakWidget playerId={parseInt(user.playerId)} />
+            <TimeOfDayPerformance playerId={parseInt(user.playerId)} />
+          </div>
           <DebugStatsViewer playerId={parseInt(user.playerId)} />
           <CategoryStatsEnhanced playerId={parseInt(user.playerId)} />
         </div>

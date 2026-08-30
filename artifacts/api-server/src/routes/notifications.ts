@@ -25,7 +25,10 @@ router.get("/notifications", async (req, res): Promise<void> => {
     const rows = await db.execute(sql`
       SELECT
         n.id, n.type, n.actor_id, n.entity_id, n.entity_type,
-        n.message, n.read_at, n.created_at,
+        n.message, n.read_at, n.created_at, n.data,
+        COALESCE(n.title, n.message) AS title,
+        COALESCE(n.body, n.message)  AS body,
+        (n.read_at IS NOT NULL OR n."read") AS read,
         pl.name AS actor_name
       FROM notifications n
       LEFT JOIN players pl ON pl.id = n.actor_id
@@ -144,6 +147,21 @@ router.delete("/notifications/subscribe", async (req, res): Promise<void> => {
   if (!playerId) return;
 
   await db.execute(sql`DELETE FROM push_subscriptions WHERE player_id = ${playerId}`);
+  res.json({ ok: true });
+});
+
+// ── DELETE /notifications/:id (used by notification-center.tsx) — registered
+// after /notifications/subscribe so that literal path isn't shadowed by :id ──
+router.delete("/notifications/:id", async (req, res): Promise<void> => {
+  const playerId = requireAuth(req, res);
+  if (!playerId) return;
+
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  await db.execute(sql`
+    DELETE FROM notifications WHERE id = ${id} AND player_id = ${playerId}
+  `);
   res.json({ ok: true });
 });
 

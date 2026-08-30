@@ -113,7 +113,7 @@ export default function AdminCardClashPanel() {
 
   const loadPlayers = async () => {
     try {
-      const r = await fetch("/api/admin/players-list", { headers: getAdminHeaders() });
+      const r = await fetch("/api/players", { headers: getAdminHeaders() });
       const d = await r.json();
       setPlayers(r.ok && Array.isArray(d) ? d : []);
     } catch {}

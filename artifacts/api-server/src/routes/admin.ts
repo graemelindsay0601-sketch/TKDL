@@ -6,6 +6,7 @@ import rateLimit from "express-rate-limit";
 import { checkStatAchievements, checkMatchAchievements, retroactiveSweep } from "../lib/achievements";
 import { applyEloChange, calcTier } from "../lib/elo";
 import { requireAdminSession } from "../middleware/requireAdminSession";
+import { createAnnouncement, getNotificationAnalytics } from "../services/notificationService";
 
 const router = Router();
 
@@ -299,6 +300,52 @@ router.get("/admin/seasons", async (_req, res): Promise<void> => {
   }));
 
   res.json(result);
+});
+
+// ── Admin announcements — push a message to all (or specific) players ───────
+// The delivery pipeline (createAnnouncement -> createNotification -> real
+// push + in-app notification row) already existed in notificationService.ts;
+// it just never had a route in front of it, and was silently failing until
+// the notifications table above got its missing columns (see seedCommunityTables).
+const CREATE_ANNOUNCEMENT_ADMIN_ID = 1; // Graeme — the one real admin, matches the convention already used by /admin/test-comms below
+
+const AnnouncementBody = z.object({
+  title: z.string().min(1),
+  body: z.string().min(1),
+  target_players: z.array(z.number().int().positive()).nullable().optional(),
+  critical: z.boolean().optional(),
+});
+
+router.post("/admin/announcements", requireAdminSession, async (req, res): Promise<void> => {
+  const parsed = AnnouncementBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const { title, body, target_players, critical } = parsed.data;
+  try {
+    const announcementId = await createAnnouncement(
+      CREATE_ANNOUNCEMENT_ADMIN_ID, title, body, target_players ?? null, critical ?? false
+    );
+    res.json({ ok: true, id: announcementId });
+  } catch (err) {
+    req.log.error({ err }, "POST /admin/announcements failed");
+    res.status(500).json({ error: "Failed to send announcement" });
+  }
+});
+
+// ── Notification analytics — open/click rates over the last 30 days ─────────
+router.get("/admin/notifications/analytics", requireAdminSession, async (req, res): Promise<void> => {
+  try {
+    const stats = await getNotificationAnalytics();
+    res.json({
+      total_sent:    Number(stats?.total_sent ?? 0),
+      total_opened:  Number(stats?.total_opened ?? 0),
+      open_rate:     Number(stats?.open_rate ?? 0),
+      total_clicked: Number(stats?.total_clicked ?? 0),
+      click_rate:    Number(stats?.click_rate ?? 0),
+    });
+  } catch (err) {
+    req.log.error({ err }, "GET /admin/notifications/analytics failed");
+    res.status(500).json({ error: "Failed to load analytics" });
+  }
 });
 
 // ── Test comms: fire fake DM + notifications to Graeme (player 1) ────────────

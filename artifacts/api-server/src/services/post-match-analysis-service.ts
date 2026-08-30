@@ -155,7 +155,7 @@ export const postMatchAnalysisService = {
     };
   },
 
-  private generateInsights(
+  generateInsights(
     playerDarts: number,
     playerCheckout: number,
     player180s: number,
@@ -218,7 +218,7 @@ export const postMatchAnalysisService = {
     };
   },
 
-  private estimateTier(checkoutRate: number): string {
+  estimateTier(checkoutRate: number): string {
     if (checkoutRate >= 0.65) return "Legend";
     if (checkoutRate >= 0.55) return "Elite";
     if (checkoutRate >= 0.45) return "Pro";
