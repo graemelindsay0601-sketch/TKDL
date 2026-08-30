@@ -102,7 +102,7 @@ function uploadMatchLog(logger: MatchLogger, meta: { gameMode: "X01" | "CRICKET"
 
 import { useSafeTimeout } from "./use-safe-timeout";
 import { useSettings } from "@/hooks/use-settings";
-import { announceScore, announceBust, announceGameShot, isVoiceMuted, setVoiceMuted } from "./voice-announcer";
+import { announceScore, announceBust, announceGameShot, isVoiceMuted, setVoiceMuted, getAvailableVoices, getSelectedVoiceURI, setSelectedVoiceURI, onVoicesChanged, speak } from "./voice-announcer";
 import {
   type CCEffect,
   ccActivateCard, ccPreprocessDart, ccApplyVisitCap, ccInterceptBust,
@@ -682,12 +682,25 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const voiceEnabled = appSettings?.voice_callouts_enabled === true;
   const [voiceMuted, setVoiceMutedState] = useState(() => isVoiceMuted());
   const toggleVoiceMuted = () => setVoiceMutedState(prev => { setVoiceMuted(!prev); return !prev; });
+  const [callerVoices, setCallerVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [callerVoiceURI, setCallerVoiceURI] = useState<string | null>(() => getSelectedVoiceURI());
+  useEffect(() => {
+    if (!voiceEnabled) return;
+    return onVoicesChanged(() => setCallerVoices(getAvailableVoices()));
+  }, [voiceEnabled]);
+  const changeCallerVoice = (uri: string) => {
+    const next = uri || null;
+    setSelectedVoiceURI(next);
+    setCallerVoiceURI(next);
+    speak("G'day, this is your caller", { muted: false });
+  };
   const prevHistoryLen = useRef(0);
   const prevLegWins = useRef<[number, number]>([0, 0]);
   useEffect(() => {
     if (!voiceEnabled) return;
     if (history.length > prevHistoryLen.current) {
-      announceScore(history[history.length - 1].score, { muted: voiceMuted });
+      const last = history[history.length - 1];
+      announceScore(last.score, last.left, { muted: voiceMuted });
     }
     prevHistoryLen.current = history.length;
   }, [voiceEnabled, voiceMuted, history]);
@@ -1751,7 +1764,18 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         </div>
       )}
       {voiceEnabled && (
-        <div className="flex justify-end">
+        <div className="flex justify-end items-center gap-2">
+          {callerVoices.length > 0 && (
+            <select value={callerVoiceURI ?? ""} onChange={e => changeCallerVoice(e.target.value)}
+              title="Caller voice"
+              className="px-2 py-1 rounded-lg text-xs max-w-[9rem]"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif" }}>
+              <option value="">Default voice</option>
+              {callerVoices.map(v => (
+                <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>
+              ))}
+            </select>
+          )}
           <button onClick={toggleVoiceMuted} title={voiceMuted ? "Unmute voice call-outs" : "Mute voice call-outs"}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs"
             style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>

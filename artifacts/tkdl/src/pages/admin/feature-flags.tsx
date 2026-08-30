@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Swords, Dumbbell, Crosshair, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
@@ -15,6 +16,7 @@ export function FeatureFlags() {
   const [heatmapOn,         setHeatmapOn]          = useState<boolean | null>(null);
   const [voiceCalloutsOn,   setVoiceCalloutsOn]    = useState<boolean | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     fetch("/api/settings")
@@ -44,6 +46,11 @@ export function FeatureFlags() {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ value: String(val) }),
       });
+      // Every page reading useSettings() has its own cached copy of
+      // /api/settings — without this, a toggle here doesn't reach an
+      // already-open tab (e.g. Practice) until its 5-minute staleTime
+      // expires or the user hard-refreshes.
+      queryClient.invalidateQueries({ queryKey: ["app-settings"] });
       toast({ title: label });
     } catch {
       toast({ title: "Error", description: "Failed to update setting", variant: "destructive" });
