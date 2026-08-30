@@ -592,21 +592,27 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         const loser  = loserTeam[0];
         const wIdx = result.winnerIdx;
         const wStats = wIdx === 0
-          ? { darts: stats?.p1Darts, s180s: stats?.p1_180s, ca: stats?.p1CheckoutAttempts, ch: stats?.p1CheckoutHits }
-          : { darts: stats?.p2Darts, s180s: stats?.p2_180s, ca: stats?.p2CheckoutAttempts, ch: stats?.p2CheckoutHits };
+          ? { darts: stats?.p1Darts, s100s: stats?.p1_100s, s140s: stats?.p1_140s, s170s: stats?.p1_170s, s180s: stats?.p1_180s, ca: stats?.p1CheckoutAttempts, ch: stats?.p1CheckoutHits }
+          : { darts: stats?.p2Darts, s100s: stats?.p2_100s, s140s: stats?.p2_140s, s170s: stats?.p2_170s, s180s: stats?.p2_180s, ca: stats?.p2CheckoutAttempts, ch: stats?.p2CheckoutHits };
         const lStats = wIdx === 0
-          ? { darts: stats?.p2Darts, s180s: stats?.p2_180s, ca: stats?.p2CheckoutAttempts, ch: stats?.p2CheckoutHits }
-          : { darts: stats?.p1Darts, s180s: stats?.p1_180s, ca: stats?.p1CheckoutAttempts, ch: stats?.p1CheckoutHits };
+          ? { darts: stats?.p2Darts, s100s: stats?.p2_100s, s140s: stats?.p2_140s, s170s: stats?.p2_170s, s180s: stats?.p2_180s, ca: stats?.p2CheckoutAttempts, ch: stats?.p2CheckoutHits }
+          : { darts: stats?.p1Darts, s100s: stats?.p1_100s, s140s: stats?.p1_140s, s170s: stats?.p1_170s, s180s: stats?.p1_180s, ca: stats?.p1CheckoutAttempts, ch: stats?.p1CheckoutHits };
         await submitMatch({ data: {
           winnerId:               winner.id,
           loserId:                loser.id,
           stake:                  data.stake,
           gameType:               data.gameType.key,
           ...(wStats.darts !== undefined ? { winnerDarts:            wStats.darts  } : {}),
+          ...(wStats.s100s !== undefined ? { winner100s:             wStats.s100s  } : {}),
+          ...(wStats.s140s !== undefined ? { winner140s:             wStats.s140s  } : {}),
+          ...(wStats.s170s !== undefined ? { winner170s:             wStats.s170s  } : {}),
           ...(wStats.s180s !== undefined ? { winner180s:             wStats.s180s  } : {}),
           ...(wStats.ca    !== undefined ? { winnerCheckoutAttempts: wStats.ca     } : {}),
           ...(wStats.ch    !== undefined ? { winnerCheckoutHits:     wStats.ch     } : {}),
           ...(lStats.darts !== undefined ? { loserDarts:             lStats.darts  } : {}),
+          ...(lStats.s100s !== undefined ? { loser100s:              lStats.s100s  } : {}),
+          ...(lStats.s140s !== undefined ? { loser140s:              lStats.s140s  } : {}),
+          ...(lStats.s170s !== undefined ? { loser170s:              lStats.s170s  } : {}),
           ...(lStats.s180s !== undefined ? { loser180s:              lStats.s180s  } : {}),
           ...(lStats.ca    !== undefined ? { loserCheckoutAttempts:  lStats.ca     } : {}),
           ...(lStats.ch    !== undefined ? { loserCheckoutHits:      lStats.ch     } : {}),

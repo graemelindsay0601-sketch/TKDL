@@ -345,7 +345,8 @@ router.get("/stats/h2h", async (req, res): Promise<void> => {
     db.execute(drizzleSql`
       SELECT m.id, m.played_at, m.winner_id, m.winner_name, m.loser_id, m.loser_name,
              m.elo_change, m.stake, m.game_type,
-             m.winner_darts, m.winner_180s, m.loser_darts, m.loser_180s,
+             m.winner_darts, m.winner_100s, m.winner_140s, m.winner_170s, m.winner_180s,
+             m.loser_darts, m.loser_100s, m.loser_140s, m.loser_170s, m.loser_180s,
              s.name AS season_name
       FROM matches m
       LEFT JOIN seasons s ON s.id = m.season_id
@@ -392,8 +393,14 @@ router.get("/stats/h2h", async (req, res): Promise<void> => {
       gameType:    m.game_type,
       seasonName:  m.season_name,
       winnerDarts: m.winner_darts,
+      winner100s:  m.winner_100s,
+      winner140s:  m.winner_140s,
+      winner170s:  m.winner_170s,
       winner180s:  m.winner_180s,
       loserDarts:  m.loser_darts,
+      loser100s:   m.loser_100s,
+      loser140s:   m.loser_140s,
+      loser170s:   m.loser_170s,
       loser180s:   m.loser_180s,
     })),
   });

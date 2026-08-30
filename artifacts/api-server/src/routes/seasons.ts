@@ -120,7 +120,8 @@ router.get("/seasons/:id/matches", async (req, res): Promise<void> => {
   const rows = await db.execute(sql`
     SELECT m.id, m.played_at, m.stake, m.elo_change, m.game_type,
            m.winner_id, m.winner_name, m.loser_id, m.loser_name,
-           m.winner_darts, m.winner_180s, m.loser_darts, m.loser_180s
+           m.winner_darts, m.winner_100s, m.winner_140s, m.winner_170s, m.winner_180s,
+           m.loser_darts, m.loser_100s, m.loser_140s, m.loser_170s, m.loser_180s
     FROM matches m
     WHERE m.season_id = ${params.data.id}
     ORDER BY m.played_at DESC
@@ -138,8 +139,14 @@ router.get("/seasons/:id/matches", async (req, res): Promise<void> => {
     loserId:     r.loser_id,
     loserName:   r.loser_name,
     winnerDarts: r.winner_darts,
+    winner100s:  r.winner_100s,
+    winner140s:  r.winner_140s,
+    winner170s:  r.winner_170s,
     winner180s:  r.winner_180s,
     loserDarts:  r.loser_darts,
+    loser100s:   r.loser_100s,
+    loser140s:   r.loser_140s,
+    loser170s:   r.loser_170s,
     loser180s:   r.loser_180s,
   })));
 });

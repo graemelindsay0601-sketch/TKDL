@@ -610,6 +610,22 @@ async function seedGameTypes() {
   logger.info(`Game types seeded (${defaults.length + extra.length + teamGames.length} declared, skipping existing)`);
 }
 
+// The `matches` table's DDL otherwise lives entirely in the Drizzle schema
+// (applied via `drizzle-kit push`, a manual step) — but that step is easy to
+// forget before a deploy, and Render's build/start commands never run it.
+// These milestone-count columns follow the same self-healing ADD COLUMN IF
+// NOT EXISTS pattern already used for practice_sessions/game_types/players
+// above, so a normal git push + redeploy is enough on its own.
+async function seedMatchesMilestoneColumns() {
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS winner_100s INTEGER`);
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS winner_140s INTEGER`);
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS winner_170s INTEGER`);
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS loser_100s  INTEGER`);
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS loser_140s  INTEGER`);
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS loser_170s  INTEGER`);
+  logger.info("Matches milestone columns ready");
+}
+
 async function seedPractice() {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS practice_sessions (
@@ -799,6 +815,7 @@ async function init() {
     await addPerformanceIndexes();
     
     await seedCommunityTables();
+    await seedMatchesMilestoneColumns();
     await seedPractice();
     await seedMaster501();
     await seedMatchParticipants();

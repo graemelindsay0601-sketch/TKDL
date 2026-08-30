@@ -17,10 +17,16 @@ export interface MatchInput {
   gameType?: string;
   notes?: string;
   winnerDarts?: number;
+  winner100s?: number;
+  winner140s?: number;
+  winner170s?: number;
   winner180s?: number;
   winnerCheckoutAttempts?: number;
   winnerCheckoutHits?: number;
   loserDarts?: number;
+  loser100s?: number;
+  loser140s?: number;
+  loser170s?: number;
   loser180s?: number;
   loserCheckoutAttempts?: number;
   loserCheckoutHits?: number;

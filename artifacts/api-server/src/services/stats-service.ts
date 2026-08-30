@@ -47,11 +47,14 @@ export const statsService = {
         COUNT(*)::int as total_matches,
         SUM(CASE WHEN winner_id = ${playerId} THEN 1 ELSE 0 END)::int as wins,
         COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_darts ELSE loser_darts END), 0)::int as total_darts,
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_100s ELSE loser_100s END), 0)::int as total_100s,
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_140s ELSE loser_140s END), 0)::int as total_140s,
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_170s ELSE loser_170s END), 0)::int as total_170s,
         COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_180s ELSE loser_180s END), 0)::int as total_180s,
         COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_checkout_hits ELSE loser_checkout_hits END), 0)::int as checkout_hits,
         COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_checkout_attempts ELSE loser_checkout_attempts END), 0)::int as checkout_attempts
-      FROM matches 
-      WHERE (winner_id = ${playerId} OR loser_id = ${playerId}) 
+      FROM matches
+      WHERE (winner_id = ${playerId} OR loser_id = ${playerId})
         AND played_at >= ${cutoff}
       GROUP BY game_type
       ORDER BY total_matches DESC
@@ -66,6 +69,9 @@ export const statsService = {
       losses: row.total_matches - row.wins,
       winRate: row.total_matches ? row.wins / row.total_matches : 0,
       totalDarts: row.total_darts,
+      total100s: row.total_100s,
+      total140s: row.total_140s,
+      total170s: row.total_170s,
       total180s: row.total_180s,
       checkoutHits: row.checkout_hits,
       checkoutAttempts: row.checkout_attempts,
@@ -100,16 +106,19 @@ export const statsService = {
             SUM(CASE WHEN winner_id = ${playerId} THEN 1 ELSE 0 END)::int as wins,
             COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_darts ELSE loser_darts END), 0)::int as total_darts,
             COALESCE(AVG(CASE WHEN winner_id = ${playerId} OR loser_id = ${playerId} THEN CASE WHEN winner_id = ${playerId} THEN winner_darts ELSE loser_darts END ELSE NULL END), 0)::numeric as avg_darts,
+            COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_100s ELSE loser_100s END), 0)::int as total_100s,
+            COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_140s ELSE loser_140s END), 0)::int as total_140s,
+            COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_170s ELSE loser_170s END), 0)::int as total_170s,
             COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_180s ELSE loser_180s END), 0)::int as total_180s,
             COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_checkout_hits ELSE loser_checkout_hits END), 0)::int as checkout_hits,
             COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_checkout_attempts ELSE loser_checkout_attempts END), 0)::int as checkout_attempts
-          FROM matches 
-          WHERE (winner_id = ${playerId} OR loser_id = ${playerId}) 
+          FROM matches
+          WHERE (winner_id = ${playerId} OR loser_id = ${playerId})
             AND played_at >= ${cutoff}
             ${whereClause}
         `).catch((err: any) => {
           console.error("Match stats query error:", err);
-          return { rows: [{ total_matches: 0, wins: 0, total_darts: 0, avg_darts: 0, total_180s: 0, checkout_hits: 0, checkout_attempts: 0 }] };
+          return { rows: [{ total_matches: 0, wins: 0, total_darts: 0, avg_darts: 0, total_100s: 0, total_140s: 0, total_170s: 0, total_180s: 0, checkout_hits: 0, checkout_attempts: 0 }] };
         }),
         // Practice sessions (only for Practice category or general)
         category === "Practice" ? db.execute(drizzleSql`
@@ -152,6 +161,9 @@ export const statsService = {
         winRate: matches.total_matches ? (matches.wins || 0) / matches.total_matches : 0,
         totalDarts: matches.total_darts || 0,
         avgDartsPerMatch: matches.avg_darts ? parseFloat(matches.avg_darts) : 0,
+        total100s: matches.total_100s || 0,
+        total140s: matches.total_140s || 0,
+        total170s: matches.total_170s || 0,
         total180s: matches.total_180s || 0,
         checkoutHits: matches.checkout_hits || 0,
         checkoutAttempts: matches.checkout_attempts || 0,

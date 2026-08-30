@@ -64,8 +64,8 @@ export function MatchStatsCard({
   winnerIdx: 0 | 1;
   accentColor?: string;
 }) {
-  const { p1Darts, p1Score, p1_180s, p1CheckoutAttempts, p1CheckoutHits,
-          p2Darts, p2Score, p2_180s, p2CheckoutAttempts, p2CheckoutHits } = stats;
+  const { p1Darts, p1Score, p1_100s, p1_140s, p1_180s, p1CheckoutAttempts, p1CheckoutHits,
+          p2Darts, p2Score, p2_100s, p2_140s, p2_180s, p2CheckoutAttempts, p2CheckoutHits } = stats;
 
   const hasX01Stats = typeof p1Darts === "number" && typeof p1Score === "number" && p1Darts > 0;
   if (!hasX01Stats) return null;
@@ -134,6 +134,24 @@ export function MatchStatsCard({
         v2={typeof p2Darts === "number" ? String(p2Darts) : "—"}
         raw1={1 / p1Darts!}
         raw2={typeof p2Darts === "number" ? 1 / p2Darts : 0}
+        accentColor={accentColor}
+        winnerIdx={winnerIdx}
+      />
+      <StatRow
+        label="100+"
+        v1={String(p1_100s ?? 0)}
+        v2={String(p2_100s ?? 0)}
+        raw1={p1_100s ?? 0}
+        raw2={p2_100s ?? 0}
+        accentColor={accentColor}
+        winnerIdx={winnerIdx}
+      />
+      <StatRow
+        label="140+"
+        v1={String(p1_140s ?? 0)}
+        v2={String(p2_140s ?? 0)}
+        raw1={p1_140s ?? 0}
+        raw2={p2_140s ?? 0}
         accentColor={accentColor}
         winnerIdx={winnerIdx}
       />

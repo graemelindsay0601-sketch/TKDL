@@ -824,6 +824,12 @@ components:
           format: date-time
         winnerDarts:
           type: integer
+        winner100s:
+          type: integer
+        winner140s:
+          type: integer
+        winner170s:
+          type: integer
         winner180s:
           type: integer
         winnerCheckoutAttempts:
@@ -831,6 +837,12 @@ components:
         winnerCheckoutHits:
           type: integer
         loserDarts:
+          type: integer
+        loser100s:
+          type: integer
+        loser140s:
+          type: integer
+        loser170s:
           type: integer
         loser180s:
           type: integer
@@ -857,6 +869,12 @@ components:
           type: string
         winnerDarts:
           type: integer
+        winner100s:
+          type: integer
+        winner140s:
+          type: integer
+        winner170s:
+          type: integer
         winner180s:
           type: integer
         winnerCheckoutAttempts:
@@ -864,6 +882,12 @@ components:
         winnerCheckoutHits:
           type: integer
         loserDarts:
+          type: integer
+        loser100s:
+          type: integer
+        loser140s:
+          type: integer
+        loser170s:
           type: integer
         loser180s:
           type: integer

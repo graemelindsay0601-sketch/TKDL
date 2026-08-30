@@ -777,10 +777,19 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   }, [cardEffects]);
 
   // Practice stat accumulators (refs = no re-render, always fresh in callbacks)
-  const p1StatsRef = useRef({ darts: 0, score: 0, s180s: 0, coAttempts: 0, coHits: 0, dartLog: [] as DartThrow[] });
+  const p1StatsRef = useRef({ darts: 0, score: 0, s100s: 0, s140s: 0, s170s: 0, s180s: 0, coAttempts: 0, coHits: 0, dartLog: [] as DartThrow[] });
   // P2 stats — only meaningful in human-vs-human (no bot) sessions
-  const p2StatsRef = useRef({ darts: 0, score: 0, s180s: 0, coAttempts: 0, coHits: 0, dartLog: [] as DartThrow[] });
+  const p2StatsRef = useRef({ darts: 0, score: 0, s100s: 0, s140s: 0, s170s: 0, s180s: 0, coAttempts: 0, coHits: 0, dartLog: [] as DartThrow[] });
   const isHumanVsHuman = !botConfig;
+
+  // Visit-score milestone buckets are cumulative, not exclusive — a 180 visit
+  // is also a 170+, 140+, and 100+ visit, same convention real darts stats use.
+  const bumpVisitMilestones = (stats: { s100s: number; s140s: number; s170s: number; s180s: number }, cum: number) => {
+    if (cum >= 100) stats.s100s++;
+    if (cum >= 140) stats.s140s++;
+    if (cum >= 170) stats.s170s++;
+    if (cum === 180) stats.s180s++;
+  };
 
   const isValidOut = (dart: Dart): boolean => {
     if (bullFinish) return dart.segment === 25 && dart.value === 50;
@@ -804,10 +813,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     setVisitDarts(darts);
     const getStats = () => ({
       p1Darts: p1StatsRef.current.darts, p1Score: p1StatsRef.current.score,
+      p1_100s: p1StatsRef.current.s100s, p1_140s: p1StatsRef.current.s140s, p1_170s: p1StatsRef.current.s170s,
       p1_180s: p1StatsRef.current.s180s, p1CheckoutAttempts: p1StatsRef.current.coAttempts,
       p1CheckoutHits: p1StatsRef.current.coHits, dartLog: [...p1StatsRef.current.dartLog],
       ...(isHumanVsHuman ? {
         p2Darts: p2StatsRef.current.darts, p2Score: p2StatsRef.current.score,
+        p2_100s: p2StatsRef.current.s100s, p2_140s: p2StatsRef.current.s140s, p2_170s: p2StatsRef.current.s170s,
         p2_180s: p2StatsRef.current.s180s, p2CheckoutAttempts: p2StatsRef.current.coAttempts,
         p2CheckoutHits: p2StatsRef.current.coHits, p2DartLog: [...p2StatsRef.current.dartLog],
       } : {}),
@@ -1215,13 +1226,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         if (turn === 0) {
           p1StatsRef.current.darts += nv.length;
           p1StatsRef.current.score += cum;
-          if (cum === 180) p1StatsRef.current.s180s++;
+          bumpVisitMilestones(p1StatsRef.current, cum);
           p1StatsRef.current.coHits++;
         }
         if (turn === 1 && isHumanVsHuman) {
           p2StatsRef.current.darts += nv.length;
           p2StatsRef.current.score += cum;
-          if (cum === 180) p2StatsRef.current.s180s++;
+          bumpVisitMilestones(p2StatsRef.current, cum);
           p2StatsRef.current.coHits++;
         }
         
@@ -1278,12 +1289,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       if (turn === 0) {
         p1StatsRef.current.darts += 3;
         p1StatsRef.current.score += cum;
-        if (cum === 180) p1StatsRef.current.s180s++;
+        bumpVisitMilestones(p1StatsRef.current, cum);
       }
       if (turn === 1 && isHumanVsHuman) {
         p2StatsRef.current.darts += 3;
         p2StatsRef.current.score += cum;
-        if (cum === 180) p2StatsRef.current.s180s++;
+        bumpVisitMilestones(p2StatsRef.current, cum);
       }
       // Card Clash: visit-end bonuses (Power Surge, Rust Hands, Mental Block, High Roller, etc.)
       let effectiveCum = cum;

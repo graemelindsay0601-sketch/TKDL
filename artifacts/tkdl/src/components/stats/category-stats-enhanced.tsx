@@ -30,6 +30,9 @@ interface CategoryStats {
   winRate?: number;
   totalDarts?: number;
   avgDartsPerMatch?: number;
+  total100s?: number;
+  total140s?: number;
+  total170s?: number;
   total180s?: number;
   checkoutHits?: number;
   checkoutAttempts?: number;
@@ -200,6 +203,9 @@ export function CategoryStatsEnhanced({ playerId }: CategoryStatsEnhancedProps) 
                   <StatCard label="Matches" value={categoryStats.matches} secondary={`${categoryStats.wins}W-${categoryStats.losses}L`} color="#ff005c" />
                   <StatCard label="Win Rate" value={`${((categoryStats.winRate || 0) * 100).toFixed(1)}%`} color={categoryStats.winRate! > 0.5 ? "#00e5a0" : "#ff005c"} />
                   <StatCard label="Avg Darts" value={categoryStats.avgDartsPerMatch?.toFixed(1)} color="#ffd24a" />
+                  <StatCard label="100+" value={categoryStats.total100s} color="#fb923c" />
+                  <StatCard label="140+" value={categoryStats.total140s} color="#f97316" />
+                  <StatCard label="170+" value={categoryStats.total170s} color="#facc15" />
                   <StatCard label="180s" value={categoryStats.total180s} color="#a855f7" />
                   <StatCard label="Checkout %" value={`${((categoryStats.checkoutRate || 0) * 100).toFixed(1)}%`} secondary={`${categoryStats.checkoutHits}/${categoryStats.checkoutAttempts}`} color={categoryStats.checkoutRate! > 0.3 ? "#00e5a0" : "#ff005c"} />
                 </>

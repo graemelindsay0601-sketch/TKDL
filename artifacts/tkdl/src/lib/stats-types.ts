@@ -11,6 +11,9 @@ export type PracticeStats = {
   // X01-specific (all optional — not all modes have these concepts)
   p1Darts?: number;
   p1Score?: number;
+  p1_100s?: number;
+  p1_140s?: number;
+  p1_170s?: number;
   p1_180s?: number;
   p1CheckoutAttempts?: number;
   p1CheckoutHits?: number;
@@ -18,6 +21,9 @@ export type PracticeStats = {
   // P2 stats — only populated in human-vs-human sessions (no bot)
   p2Darts?: number;
   p2Score?: number;
+  p2_100s?: number;
+  p2_140s?: number;
+  p2_170s?: number;
   p2_180s?: number;
   p2CheckoutAttempts?: number;
   p2CheckoutHits?: number;
