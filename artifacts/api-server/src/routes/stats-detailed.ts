@@ -8,6 +8,17 @@ import { postMatchAnalysisService } from "../services/post-match-analysis-servic
 
 const router = Router();
 
+type TimeWindow = "7days" | "30days" | "90days" | "all";
+function getDateFilter(window: string | undefined): Date {
+  const now = new Date();
+  switch (window as TimeWindow) {
+    case "7days":  return new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000);
+    case "30days": return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    case "90days": return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    default:       return new Date(0); // "all"
+  }
+}
+
 // GET /api/players/:id/stats/categories - Game type breakdown
 router.get("/players/:id/stats/categories", async (req, res) => {
   try {
@@ -391,6 +402,232 @@ router.get("/players/:id/matches/recent", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to get recent matches");
     res.status(500).json({ error: "Failed to get recent matches" });
+  }
+});
+
+// ── Overall / by-game-type / dart-profile / trends ──────────────────────────────
+// These back four components (overall-stats.tsx, by-game-type.tsx,
+// dart-analysis.tsx, trends.tsx) that were imported in account.tsx but never
+// rendered — unlike the rest of this file, there was no pre-written service
+// logic to wire up here; this is new logic built from the matches/
+// practice_sessions tables to match what those components already expect.
+
+// GET /api/players/:id/stats/overview?window=7days|30days|90days|all
+router.get("/players/:id/stats/overview", async (req, res) => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (isNaN(playerId)) { res.status(400).json({ error: "Invalid player ID" }); return; }
+    const cutoff = getDateFilter(req.query.window as string);
+
+    const compResult = await db.execute(sql`
+      SELECT
+        COUNT(*)::int AS matches,
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN 1 ELSE 0 END), 0)::int AS wins,
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_darts ELSE loser_darts END), 0)::int AS total_darts,
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_180s ELSE loser_180s END), 0)::int AS total_180s,
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_checkout_hits ELSE loser_checkout_hits END), 0)::int AS checkout_hits,
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_checkout_attempts ELSE loser_checkout_attempts END), 0)::int AS checkout_attempts
+      FROM matches
+      WHERE (winner_id = ${playerId} OR loser_id = ${playerId}) AND played_at >= ${cutoff}
+    `);
+    const comp: any = compResult.rows[0] ?? {};
+
+    const pracResult = await db.execute(sql`
+      SELECT
+        COUNT(*)::int AS sessions,
+        COALESCE(SUM(p1_darts), 0)::int AS total_darts,
+        COALESCE(SUM(p1_180s), 0)::int AS total_180s,
+        COALESCE(SUM(p1_checkout_hits), 0)::int AS checkout_hits
+      FROM practice_sessions
+      WHERE player1_id = ${playerId} AND created_at >= ${cutoff}
+    `);
+    const prac: any = pracResult.rows[0] ?? {};
+
+    const matches = Number(comp.matches ?? 0);
+    const wins = Number(comp.wins ?? 0);
+    const totalDarts = Number(comp.total_darts ?? 0);
+    const checkoutHits = Number(comp.checkout_hits ?? 0);
+    const checkoutAttempts = Number(comp.checkout_attempts ?? 0);
+
+    res.json({
+      competitive: {
+        matches,
+        wins,
+        losses: matches - wins,
+        winRate: matches > 0 ? wins / matches : 0,
+        totalDarts,
+        total180s: Number(comp.total_180s ?? 0),
+        checkoutHits,
+        checkoutAttempts,
+        checkoutRate: checkoutAttempts > 0 ? checkoutHits / checkoutAttempts : 0,
+        avgDartsPerMatch: matches > 0 ? totalDarts / matches : 0,
+      },
+      practice: {
+        sessions: Number(prac.sessions ?? 0),
+        totalDarts: Number(prac.total_darts ?? 0),
+        total180s: Number(prac.total_180s ?? 0),
+        checkoutHits: Number(prac.checkout_hits ?? 0),
+      },
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get stats overview");
+    res.status(500).json({ error: "Failed to get stats overview" });
+  }
+});
+
+// GET /api/players/:id/stats/by-game-type?window=7days|30days|90days|all
+router.get("/players/:id/stats/by-game-type", async (req, res) => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (isNaN(playerId)) { res.status(400).json({ error: "Invalid player ID" }); return; }
+    const cutoff = getDateFilter(req.query.window as string);
+
+    const result = await db.execute(sql`
+      SELECT
+        game_type AS "gameType",
+        COUNT(*)::int AS matches,
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN 1 ELSE 0 END), 0)::int AS wins,
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_darts ELSE loser_darts END), 0)::int AS "totalDarts",
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN winner_180s ELSE loser_180s END), 0)::int AS "total180s"
+      FROM matches
+      WHERE (winner_id = ${playerId} OR loser_id = ${playerId}) AND played_at >= ${cutoff}
+      GROUP BY game_type
+      ORDER BY matches DESC
+    `);
+
+    res.json(result.rows.map((r: any) => {
+      const matches = Number(r.matches);
+      const wins = Number(r.wins);
+      return {
+        gameType: r.gameType,
+        matches,
+        wins,
+        losses: matches - wins,
+        winRate: matches > 0 ? wins / matches : 0,
+        totalDarts: Number(r.totalDarts ?? 0),
+        total180s: Number(r.total180s ?? 0),
+      };
+    }));
+  } catch (err) {
+    req.log.error({ err }, "Failed to get by-game-type stats");
+    res.status(500).json({ error: "Failed to get by-game-type stats" });
+  }
+});
+
+// GET /api/players/:id/stats/game-type/:type/detail?window=7days|30days|90days|all
+// :type is the raw game_type key (e.g. "x01", "cricket") as returned by
+// by-game-type above — kept URL-safe rather than a display name with spaces.
+router.get("/players/:id/stats/game-type/:type/detail", async (req, res) => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (isNaN(playerId)) { res.status(400).json({ error: "Invalid player ID" }); return; }
+    const gameType = req.params.type;
+    const cutoff = getDateFilter(req.query.window as string);
+
+    const result = await db.execute(sql`
+      SELECT
+        id,
+        (winner_id = ${playerId}) AS won,
+        CASE WHEN winner_id = ${playerId} THEN loser_name ELSE winner_name END AS opponent,
+        CASE WHEN winner_id = ${playerId} THEN winner_darts ELSE loser_darts END AS "dartsUsed",
+        played_at AS "playedAt"
+      FROM matches
+      WHERE (winner_id = ${playerId} OR loser_id = ${playerId})
+        AND game_type = ${gameType}
+        AND played_at >= ${cutoff}
+      ORDER BY played_at DESC
+      LIMIT 50
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get game-type detail");
+    res.status(500).json({ error: "Failed to get game-type detail" });
+  }
+});
+
+// GET /api/players/:id/stats/dart-profile
+// Which board segments this player throws at most, from logged practice
+// session dart-by-dart data (session_data.dartLog) — the same source the
+// practice-routine coach recommendations already read from.
+router.get("/players/:id/stats/dart-profile", async (req, res) => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (isNaN(playerId)) { res.status(400).json({ error: "Invalid player ID" }); return; }
+
+    const result = await db.execute(sql`
+      WITH darts AS (
+        SELECT (dart->>'seg')::int AS seg
+        FROM practice_sessions ps,
+             jsonb_array_elements(ps.session_data->'dartLog') AS t(dart)
+        WHERE ps.player1_id = ${playerId} AND ps.session_data ? 'dartLog'
+      ),
+      counted AS (
+        SELECT seg, COUNT(*)::int AS hits
+        FROM darts
+        WHERE seg IS NOT NULL
+        GROUP BY seg
+      ),
+      total AS (SELECT COALESCE(SUM(hits), 0)::int AS total FROM counted)
+      SELECT
+        seg AS target,
+        hits,
+        CASE WHEN (SELECT total FROM total) > 0
+          THEN ROUND(hits::numeric / (SELECT total FROM total) * 100, 1)
+          ELSE 0
+        END AS frequency
+      FROM counted
+      ORDER BY hits DESC
+    `);
+
+    const all = result.rows.map((r: any) => ({
+      target: Number(r.target),
+      hits: Number(r.hits),
+      frequency: Number(r.frequency),
+    }));
+
+    res.json({
+      mostFrequentTargets: all.slice(0, 5),
+      allTargetFrequencies: all,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get dart profile");
+    res.status(500).json({ error: "Failed to get dart profile" });
+  }
+});
+
+// GET /api/players/:id/stats/trends — win rate by month, last 6 months
+router.get("/players/:id/stats/trends", async (req, res) => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (isNaN(playerId)) { res.status(400).json({ error: "Invalid player ID" }); return; }
+
+    const result = await db.execute(sql`
+      SELECT
+        to_char(date_trunc('month', played_at), 'Mon YYYY') AS month,
+        date_trunc('month', played_at) AS month_start,
+        COUNT(*)::int AS matches,
+        COALESCE(SUM(CASE WHEN winner_id = ${playerId} THEN 1 ELSE 0 END), 0)::int AS wins
+      FROM matches
+      WHERE (winner_id = ${playerId} OR loser_id = ${playerId})
+        AND played_at >= NOW() - INTERVAL '6 months'
+      GROUP BY date_trunc('month', played_at)
+      ORDER BY month_start ASC
+    `);
+
+    res.json(result.rows.map((r: any) => {
+      const matches = Number(r.matches);
+      const wins = Number(r.wins);
+      return {
+        month: r.month,
+        matches,
+        wins,
+        winRate: matches > 0 ? wins / matches : 0,
+      };
+    }));
+  } catch (err) {
+    req.log.error({ err }, "Failed to get trends");
+    res.status(500).json({ error: "Failed to get trends" });
   }
 });
 

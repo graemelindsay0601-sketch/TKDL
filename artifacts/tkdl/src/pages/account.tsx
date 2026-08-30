@@ -2031,6 +2031,22 @@ export default function AccountPage() {
       {activeTab === "analytics" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <AdvancedAnalyticsDashboard playerId={parseInt(user.playerId)} />
+
+          <SectionCard title="Overall Stats" icon={BarChart3} accent="#00e5a0" collapsible>
+            <OverallStats playerId={parseInt(user.playerId)} />
+          </SectionCard>
+
+          <SectionCard title="By Game Type" icon={Target} accent="#ff005c" collapsible>
+            <ByGameType playerId={parseInt(user.playerId)} />
+          </SectionCard>
+
+          <SectionCard title="Monthly Trends" icon={TrendingUp} accent="#0066ff" collapsible>
+            <Trends playerId={parseInt(user.playerId)} />
+          </SectionCard>
+
+          <SectionCard title="Dart Profile" icon={Zap} accent="#ffd24a" collapsible>
+            <DartAnalysis playerId={parseInt(user.playerId)} />
+          </SectionCard>
         </div>
       )}
 
