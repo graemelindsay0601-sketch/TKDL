@@ -9,6 +9,7 @@ import { RulesModal } from "@/components/rules-modal";
 import { MatchStatsCard } from "@/components/match-stats-card";
 import { CardEquipmentSelector } from "@/components/CardEquipmentSelector";
 import { useCurrentPlayer } from "@/context/auth";
+import { PostMatchAnalysisModal } from "@/components/stats/post-match-analysis";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Player = { id: number; name: string; points: number; elo: number; status: string };
@@ -568,6 +569,8 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
   const [error, setError]         = useState("");
   const [autoFired, setAutoFired] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedMatchId, setSubmittedMatchId] = useState<number | null>(null);
+  const [analysisPlayerId, setAnalysisPlayerId] = useState<number | null>(null);
 
   // Resolve winner/loser for display and submission
   const isTeam = data.format === "2v2" || data.format === "3v3" || data.format === "doubles-event";
@@ -597,7 +600,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         const lStats = wIdx === 0
           ? { darts: stats?.p2Darts, s100s: stats?.p2_100s, s140s: stats?.p2_140s, s170s: stats?.p2_170s, s180s: stats?.p2_180s, ca: stats?.p2CheckoutAttempts, ch: stats?.p2CheckoutHits }
           : { darts: stats?.p1Darts, s100s: stats?.p1_100s, s140s: stats?.p1_140s, s170s: stats?.p1_170s, s180s: stats?.p1_180s, ca: stats?.p1CheckoutAttempts, ch: stats?.p1CheckoutHits };
-        await submitMatch({ data: {
+        const createdMatch = await submitMatch({ data: {
           winnerId:               winner.id,
           loserId:                loser.id,
           stake:                  data.stake,
@@ -620,6 +623,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           ...(player1Equipment ? { player1Equipment } : {}),
           ...(player2Equipment ? { player2Equipment } : {}),
         } });
+        setSubmittedMatchId(createdMatch.id);
       } else if (data.format === "doubles-event" && data.doublesTeamIds) {
         const [team1Id, team2Id] = data.doublesTeamIds;
         const winnerTeamId = result.winnerIdx === 0 ? team1Id : team2Id;
@@ -729,7 +733,32 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           <div className="text-sm font-bold" style={{ color: "#22c55e", fontFamily: "Oswald, sans-serif" }}>✓ Match submitted to leaderboard</div>
         </div>
       )}
+      {submitted && data.format === "1v1" && submittedMatchId !== null && (
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setAnalysisPlayerId(winnerTeam[0].id)}
+            className="py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs"
+            style={{ background: "rgba(0,229,160,0.1)", color: "#00e5a0", border: "1px solid rgba(0,229,160,0.25)", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}
+          >
+            {winnerName}'s Analysis
+          </button>
+          <button
+            onClick={() => setAnalysisPlayerId(loserTeam[0].id)}
+            className="py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs"
+            style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}
+          >
+            {loserName}'s Analysis
+          </button>
+        </div>
+      )}
       {error && <div className="text-sm" style={{ color: "#ff005c" }}>{error}<br /><button onClick={submit} style={{ textDecoration: "underline", cursor: "pointer" }}>Retry</button></div>}
+      {analysisPlayerId !== null && submittedMatchId !== null && (
+        <PostMatchAnalysisModal
+          matchId={submittedMatchId}
+          playerId={analysisPlayerId}
+          onClose={() => setAnalysisPlayerId(null)}
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <button onClick={onBack} className="py-3 rounded-xl font-bold uppercase tracking-widest text-sm"
