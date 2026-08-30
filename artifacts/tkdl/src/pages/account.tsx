@@ -13,7 +13,7 @@ import { NotificationCenter } from "@/components/notification-center";
 import { CoinBalance } from "@/components/CoinBalance";
 import { CardCollectionBook } from "@/components/CardCollectionBook";
 import { PlayerChallenges } from "@/components/PlayerChallenges";
-import { OverallStats, ByGameType, Trends, DartAnalysis, SessionHistory, CategoryStats, CategoryStatsEnhanced, AdvancedAnalyticsDashboard } from "@/components/stats";
+import { OverallStats, ByGameType, Trends, DartAnalysis, CategoryStatsEnhanced, AdvancedAnalyticsDashboard } from "@/components/stats";
 import { StreakWidget } from "@/components/stats/streak-widget";
 import { TimeOfDayPerformance } from "@/components/stats/time-of-day-performance";
 import { DrillProgressTracker } from "@/components/stats/drill-progress-tracker";

@@ -1,6 +1,12 @@
-import React, { useState, useEffect } from "react";
-import { Zap, Info } from "lucide-react";
+import { useState } from "react";
+import { Zap } from "lucide-react";
 
+// Note: this file used to also export CardEquipmentIntegration, an earlier
+// equip-cards picker superseded by the live CardEquipmentSelector.tsx (used
+// in play.tsx before every 1v1/Card Clash match) — removed as a dead
+// duplicate. CardEquipmentGuide below is unrelated (a standalone help card,
+// not a picker) and is kept since it's harmless and still unplaced rather
+// than confirmed dead.
 export function CardEquipmentGuide() {
   const [showDetail, setShowDetail] = useState(false);
 
@@ -72,165 +78,6 @@ export function CardEquipmentGuide() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-interface CardEquipmentIntegrationProps {
-  playerId: number;
-  onEquipmentReady?: (equipped: any[]) => void;
-}
-
-export function CardEquipmentIntegration({ playerId, onEquipmentReady }: CardEquipmentIntegrationProps) {
-  const [inventory, setInventory] = useState<any[]>([]);
-  const [equipped, setEquipped] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Load player inventory
-    fetch(`/api/card-clash/inventory/${playerId}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setInventory(Array.isArray(data) ? data : []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [playerId]);
-
-  const toggleCard = (card: any) => {
-    const isEquipped = equipped.some((c) => c.cardId === card.cardId);
-    let newEquipped = isEquipped ? equipped.filter((c) => c.cardId !== card.cardId) : [...equipped, card];
-
-    // Enforce 4 card limit
-    if (newEquipped.length > 4) {
-      newEquipped = newEquipped.slice(0, 4);
-    }
-
-    setEquipped(newEquipped);
-    onEquipmentReady?.(newEquipped);
-  };
-
-  const goodCards = equipped.filter((c) => !c.type?.includes("BAD"));
-  const badCards = equipped.filter((c) => c.type?.includes("BAD"));
-
-  const isValid = goodCards.length <= 2 && badCards.length <= 2 && equipped.length <= 4;
-
-  if (loading) return <div style={{ color: "rgba(255,255,255,0.5)" }}>Loading cards...</div>;
-
-  return (
-    <div>
-      <CardEquipmentGuide />
-
-      {/* Status */}
-      <div style={{
-        padding: "12px",
-        background: isValid ? "rgba(34,197,94,0.1)" : "rgba(255,107,107,0.1)",
-        border: `1px solid ${isValid ? "#22c55e" : "#ff6b6b"}`,
-        borderRadius: "6px",
-        marginBottom: "16px",
-        fontSize: "12px",
-        color: isValid ? "#22c55e" : "#ff6b6b",
-      }}>
-        <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-          {equipped.length === 0 ? "No cards equipped" : `${equipped.length}/4 cards equipped`}
-        </div>
-        <div style={{ fontSize: "11px", opacity: 0.8 }}>
-          {goodCards.length}/2 good cards · {badCards.length}/2 bad cards
-        </div>
-      </div>
-
-      {/* Equipped Cards */}
-      {equipped.length > 0 && (
-        <div style={{
-          padding: "12px",
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: "6px",
-          marginBottom: "16px",
-        }}>
-          <div style={{
-            fontSize: "12px",
-            fontWeight: "600",
-            color: "rgba(255,255,255,0.6)",
-            marginBottom: "8px",
-          }}>
-            EQUIPPED CARDS
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px" }}>
-            {equipped.map((card) => (
-              <div
-                key={card.cardId}
-                style={{
-                  padding: "8px",
-                  background: "rgba(255,212,74,0.1)",
-                  border: "1px solid rgba(255,212,74,0.3)",
-                  borderRadius: "4px",
-                  fontSize: "11px",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-                onClick={() => toggleCard(card)}
-                onMouseEnter={(e) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.background = "rgba(255,212,74,0.15)";
-                }}
-                onMouseLeave={(e) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.background = "rgba(255,212,74,0.1)";
-                }}
-              >
-                <div style={{ color: "#ffd24a", fontWeight: "600" }}>{card.cardName}</div>
-                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "10px" }}>×{card.quantity}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Available Cards */}
-      <div>
-        <div style={{
-          fontSize: "12px",
-          fontWeight: "600",
-          color: "rgba(255,255,255,0.6)",
-          marginBottom: "8px",
-        }}>
-          AVAILABLE CARDS ({inventory.filter((c) => (c.quantity || 0) > 0).length})
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px" }}>
-          {inventory
-            .filter((c) => (c.quantity || 0) > 0 && !equipped.some((e) => e.cardId === c.cardId))
-            .slice(0, 8)
-            .map((card) => (
-              <div
-                key={card.cardId}
-                onClick={() => toggleCard(card)}
-                style={{
-                  padding: "8px",
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: "4px",
-                  fontSize: "11px",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.background = "rgba(255,255,255,0.1)";
-                  el.style.borderColor = "rgba(255,255,255,0.2)";
-                }}
-                onMouseLeave={(e) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.background = "rgba(255,255,255,0.05)";
-                  el.style.borderColor = "rgba(255,255,255,0.1)";
-                }}
-              >
-                <div style={{ fontWeight: "600", color: "#fff" }}>{card.cardName}</div>
-                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "10px" }}>×{card.quantity}</div>
-              </div>
-            ))}
-        </div>
-      </div>
     </div>
   );
 }

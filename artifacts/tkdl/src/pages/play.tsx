@@ -619,9 +619,16 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           ...(lStats.s180s !== undefined ? { loser180s:              lStats.s180s  } : {}),
           ...(lStats.ca    !== undefined ? { loserCheckoutAttempts:  lStats.ca     } : {}),
           ...(lStats.ch    !== undefined ? { loserCheckoutHits:      lStats.ch     } : {}),
-          // Include equipped cards if Card Clash match
-          ...(player1Equipment ? { player1Equipment } : {}),
-          ...(player2Equipment ? { player2Equipment } : {}),
+          // Include equipped cards if Card Clash match — sent keyed by
+          // winner/loser (not player1/player2) since that's what the backend
+          // needs to attribute coin rewards and consume cards from the right
+          // player's inventory.
+          ...(player1Equipment || player2Equipment ? {
+            cardsUsedInMatch: {
+              winner: (wIdx === 0 ? player1Equipment : player2Equipment) ?? { goodCards: [], badCards: [] },
+              loser:  (wIdx === 0 ? player2Equipment : player1Equipment) ?? { goodCards: [], badCards: [] },
+            },
+          } : {}),
         } });
         setSubmittedMatchId(createdMatch.id);
       } else if (data.format === "doubles-event" && data.doublesTeamIds) {

@@ -2,8 +2,6 @@ export { OverallStats } from "./overall-stats";
 export { ByGameType } from "./by-game-type";
 export { Trends } from "./trends";
 export { DartAnalysis } from "./dart-analysis";
-export { SessionHistory } from "./session-history";
-export { CategoryStats } from "./category-stats";
 export { CategoryStatsEnhanced } from "./category-stats-enhanced";
 export { AdvancedAnalyticsDashboard } from "./advanced-analytics";
 export { StreakWidget } from "./streak-widget";
