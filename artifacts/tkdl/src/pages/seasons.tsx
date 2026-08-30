@@ -61,16 +61,17 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
   const [form, setForm] = useState({ player1Id: "", player2Id: "", round: "final", gameType: "Best of 3" });
   const [submitting, setSubmitting] = useState(false);
   const [settingWinner, setSettingWinner] = useState<number | null>(null);
+  // "tkdl_admin_unlocked" only controls which UI to show — the actual
+  // authorization comes from the admin session cookie set by the real PIN
+  // screen (POST /api/admin/verify-pin). No PIN is sent with these requests.
   const isAdmin = sessionStorage.getItem("tkdl_admin_unlocked") === "1";
-
-  const adminPin = () => sessionStorage.getItem("tkdl_admin_pin") ?? "";
 
   const addMatch = async () => {
     if (!form.player1Id || !form.player2Id || form.player1Id === form.player2Id) return;
     setSubmitting(true);
     await fetch(`/api/seasons/${seasonId}/playoff`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Admin-Pin": adminPin() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ player1Id: parseInt(form.player1Id), player2Id: parseInt(form.player2Id), round: form.round, gameType: form.gameType }),
     });
     setSubmitting(false);
@@ -83,7 +84,7 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
     setSettingWinner(matchId);
     await fetch(`/api/seasons/${seasonId}/playoff/${matchId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", "X-Admin-Pin": adminPin() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ winnerId }),
     });
     setSettingWinner(null);
@@ -94,7 +95,6 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
   const deleteMatch = async (matchId: number) => {
     await fetch(`/api/seasons/${seasonId}/playoff/${matchId}`, {
       method: "DELETE",
-      headers: { "X-Admin-Pin": adminPin() },
     });
     refresh();
   };

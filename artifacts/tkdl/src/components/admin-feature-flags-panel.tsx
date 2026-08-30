@@ -11,10 +11,9 @@ const D = {
   info:    "#00b4ff",
 };
 
-const getAdminHeaders = () => {
-  const pin = sessionStorage.getItem("tkdl_admin_pin");
-  return { "Content-Type": "application/json", ...(pin ? { "x-admin-pin": pin } : {}) };
-};
+// This panel only ever renders inside the already PIN-gated /admin page, so
+// the browser's admin session cookie is all that's needed here.
+const getAdminHeaders = () => ({ "Content-Type": "application/json" });
 
 interface FeatureFlag {
   id: number;

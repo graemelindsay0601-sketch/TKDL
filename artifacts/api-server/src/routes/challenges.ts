@@ -3,18 +3,14 @@ import { challengeService } from "../services/challenge-service";
 import { db } from "@workspace/db";
 import { playerDailyChallenges, playerWeeklyChallenges, dailyChallenges, weeklyChallenges } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
+import { requireAdminSession } from "../middleware/requireAdminSession";
 
 const router = Router();
 
-// Admin PIN
-const ADMIN_PIN = process.env.ADMIN_PIN ?? "0601";
-const verifyAdminPin = (req: Request, res: Response, next: Function) => {
-  const pin = req.headers["x-admin-pin"] as string;
-  if (pin !== ADMIN_PIN) {
-    return res.status(403).json({ error: "Unauthorized: Invalid admin PIN" });
-  }
-  next();
-};
+// Admin gate — see middleware/requireAdminSession.ts. Previously this checked
+// a raw PIN sent with every request; now it trusts the same rate-limited
+// admin session every other admin route uses.
+const verifyAdminPin = requireAdminSession;
 
 // ===== PLAYER ROUTES =====
 

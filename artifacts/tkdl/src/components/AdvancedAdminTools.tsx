@@ -2,19 +2,20 @@ import React, { useState } from 'react';
 
 interface AdminToolsProps {
   playerId: number;
-  adminPin: string;
 }
 
 /**
  * AdvancedAdminTools Component
- * 
+ *
  * Extended admin controls for Card Clash management:
  * - Player card management (grant/remove cards)
  * - Coin adjustments
  * - Seasonal management
  * - Debug utilities
+ *
+ * Requires an admin session — no PIN is sent with these requests.
  */
-export function AdvancedAdminTools({ playerId, adminPin }: AdminToolsProps) {
+export function AdvancedAdminTools({ playerId }: AdminToolsProps) {
   const [activeSection, setActiveSection] = useState<'cards' | 'coins' | 'seasons' | 'debug'>('cards');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -28,10 +29,7 @@ export function AdvancedAdminTools({ playerId, adminPin }: AdminToolsProps) {
       setLoading(true);
       const response = await fetch('/api/card-clash/admin/grant-card', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-pin': adminPin,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           playerId,
           cardId,
@@ -58,10 +56,7 @@ export function AdvancedAdminTools({ playerId, adminPin }: AdminToolsProps) {
       setLoading(true);
       const response = await fetch('/api/card-clash/admin/adjust-coins', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-pin': adminPin,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           playerId,
           amount: coinAmount,
@@ -85,9 +80,7 @@ export function AdvancedAdminTools({ playerId, adminPin }: AdminToolsProps) {
   const runDebugTool = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/card-clash/admin/debug/${debugType}/${playerId}`, {
-        headers: { 'x-admin-pin': adminPin },
-      });
+      const response = await fetch(`/api/card-clash/admin/debug/${debugType}/${playerId}`);
 
       const data = await response.json();
       setMessage({

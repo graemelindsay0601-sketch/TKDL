@@ -16,6 +16,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '@workspace/db';
 import { sql, eq } from 'drizzle-orm';
 import { cardClashPlayerSettingsTable } from '@workspace/db/schema';
+import { requireAdminSession } from '../middleware/requireAdminSession';
 
 // Default settings
 const DEFAULT_SETTINGS = {
@@ -100,16 +101,8 @@ router.get('/card-clash/settings', async (req: Request, res: Response) => {
  * PUT /api/card-clash/settings
  * Update game settings (admin only)
  */
-router.put('/card-clash/settings', async (req: Request, res: Response) => {
+router.put('/card-clash/settings', requireAdminSession, async (req: Request, res: Response) => {
   try {
-    // Check admin permission
-    const adminPin = req.body.adminPin || req.headers['x-admin-pin'];
-
-    if (!adminPin || adminPin !== process.env.ADMIN_PIN) {
-      res.status(403).json({ error: 'Unauthorized - invalid admin PIN' });
-      return;
-    }
-
     const {
       equipable_good_cards,
       equipable_bad_cards,
@@ -223,16 +216,8 @@ router.put('/card-clash/settings', async (req: Request, res: Response) => {
  * GET /api/card-clash/settings/history
  * Get audit log of setting changes (admin only)
  */
-router.get('/card-clash/settings/history', async (req: Request, res: Response) => {
+router.get('/card-clash/settings/history', requireAdminSession, async (req: Request, res: Response) => {
   try {
-    // Check admin permission
-    const adminPin = req.headers['x-admin-pin'];
-
-    if (!adminPin || adminPin !== process.env.ADMIN_PIN) {
-      res.status(403).json({ error: 'Unauthorized' });
-      return;
-    }
-
     const history = await db.execute(sql`
       SELECT 
         id, changed_by, changed_at, old_good_cards, new_good_cards,

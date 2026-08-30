@@ -1,21 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useCardClashSettings, updateCardClashSettings } from '@/hooks/useCardClashSettings';
 
-interface AdminSettingsPanelProps {
-  adminPin: string;
-}
-
 /**
  * AdminCardClashSettingsPanel Component
- * 
+ *
  * Allows admins to manage Card Clash game settings:
  * - Equipable card counts (1-5 GOOD/BAD)
  * - Feature toggles
  * - View audit log
- * 
- * Requires admin PIN for access
+ *
+ * Requires an admin session — only rendered once the caller has confirmed
+ * the viewer unlocked admin via the real PIN screen (see pages/card-clash.tsx).
  */
-export function AdminCardClashSettingsPanel({ adminPin }: AdminSettingsPanelProps) {
+export function AdminCardClashSettingsPanel() {
   const { settings, loading, refetch } = useCardClashSettings();
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +50,6 @@ export function AdminCardClashSettingsPanel({ adminPin }: AdminSettingsPanelProp
         {
           equipable_good_cards: goodCards,
           equipable_bad_cards: badCards,
-          adminPin,
         },
         notes || undefined
       );
@@ -72,9 +68,7 @@ export function AdminCardClashSettingsPanel({ adminPin }: AdminSettingsPanelProp
 
   const loadHistory = async () => {
     try {
-      const response = await fetch('/api/card-clash/settings/history', {
-        headers: { 'x-admin-pin': adminPin },
-      });
+      const response = await fetch('/api/card-clash/settings/history');
 
       if (!response.ok) throw new Error('Failed to load history');
 

@@ -181,13 +181,42 @@ const PACKS = [
   const [rarFilter, setRarFilter] = useState<Rarity|"ALL">("ALL");
   const [showOwned, setShowOwned] = useState<"all"|"owned"|"unowned">("all");
   const [enlargedCard, setEnlargedCard] = useState<CardData|null>(null);
-  // Admin
+  // Admin — verified against the real rate-limited /api/admin/verify-pin
+  // endpoint (same one the main /admin page uses), never a hardcoded PIN.
+  // Seeded from sessionStorage so unlocking admin once in a tab (here or on
+  // /admin) carries over to the other.
   const [adminPin, setAdminPin]     = useState("");
-  const [adminAuthed, setAdminAuthed] = useState(false);
+  const [adminAuthed, setAdminAuthed] = useState(() => sessionStorage.getItem("tkdl_admin_unlocked") === "1");
   const [adminPinError, setAdminPinError] = useState(false);
+  const [adminVerifying, setAdminVerifying] = useState(false);
   const [adminAction, setAdminAction] = useState<string|null>(null);
   const [adminResult, setAdminResult] = useState<{ok:boolean;message:string;details?:string[]}|null>(null);
   const [confirmText, setConfirmText] = useState("");
+
+  const verifyAdminPin = async () => {
+    setAdminVerifying(true);
+    try {
+      const res = await fetch("/api/admin/verify-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: adminPin }),
+      });
+      const data = await res.json().catch(() => ({ ok: false }));
+      if (data.ok) {
+        setAdminAuthed(true);
+        setAdminPinError(false);
+        sessionStorage.setItem("tkdl_admin_unlocked", "1");
+      } else {
+        setAdminPinError(true);
+        setAdminPin("");
+      }
+    } catch {
+      setAdminPinError(true);
+      setAdminPin("");
+    } finally {
+      setAdminVerifying(false);
+    }
+  };
 
   useEffect(() => {
     if (!playerId) return;
@@ -624,15 +653,15 @@ const PACKS = [
                   <div style={{padding:"32px",background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:"16px",textAlign:"center"}}>
                     <div style={{fontSize:"40px",marginBottom:"18px"}}>🔐</div>
                     <div style={{fontSize:"13px",color:"rgba(255,255,255,0.35)",marginBottom:"18px"}}>Enter admin PIN to continue</div>
-                    <input type="password" inputMode="numeric" placeholder="••••" value={adminPin}
+                    <input type="password" inputMode="numeric" placeholder="••••" value={adminPin} disabled={adminVerifying}
                       onChange={e=>{setAdminPin(e.target.value);setAdminPinError(false);}}
-                      onKeyDown={e=>{if(e.key==="Enter"){if(adminPin==="0601"){setAdminAuthed(true);setAdminPinError(false);}else{setAdminPinError(true);setAdminPin("");}}}}
+                      onKeyDown={e=>{if(e.key==="Enter"&&!adminVerifying)void verifyAdminPin();}}
                       style={{padding:"12px 20px",background:adminPinError?"rgba(255,60,60,0.08)":"rgba(255,255,255,0.06)",border:`1px solid ${adminPinError?"rgba(255,60,60,0.4)":"rgba(255,255,255,0.14)"}`,borderRadius:"8px",color:"#fff",fontSize:"22px",textAlign:"center",outline:"none",width:"140px",letterSpacing:"0.3em",marginBottom:"12px"}}/>
                     {adminPinError&&<div style={{fontSize:"12px",color:"#ff5566",marginBottom:"12px"}}>Incorrect PIN</div>}
                     <br/>
-                    <button onClick={()=>{if(adminPin==="0601"){setAdminAuthed(true);setAdminPinError(false);}else{setAdminPinError(true);setAdminPin("");}}}
-                      style={{padding:"10px 28px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.18)",borderRadius:"8px",color:"#fff",fontSize:"13px",fontWeight:700,cursor:"pointer"}}>
-                      Unlock
+                    <button disabled={adminVerifying} onClick={()=>void verifyAdminPin()}
+                      style={{padding:"10px 28px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.18)",borderRadius:"8px",color:"#fff",fontSize:"13px",fontWeight:700,cursor:adminVerifying?"not-allowed":"pointer",opacity:adminVerifying?0.6:1}}>
+                      {adminVerifying?"Checking…":"Unlock"}
                     </button>
                   </div>
                 ):(
@@ -643,15 +672,15 @@ const PACKS = [
                         {adminResult.details?.map((d,i)=><div key={i} style={{fontSize:"12px",color:"rgba(255,255,255,0.36)",lineHeight:1.6}}>{d}</div>)}
                       </div>
                     )}
-                    <AdminCardClashSettingsPanel adminPin="0601" />
-                    <AdvancedAdminTools playerId={playerId} adminPin="0601" />
+                    <AdminCardClashSettingsPanel />
+                    <AdvancedAdminTools playerId={playerId} />
                     <div style={{padding:"20px 22px",background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:"14px"}}>
                       <div style={{fontSize:"11px",fontWeight:900,color:"#00b4ff",letterSpacing:"0.13em",marginBottom:"8px"}}>🗑️ CLEAR CHALLENGES</div>
                       <p style={{margin:"0 0 14px",fontSize:"12px",color:"rgba(255,255,255,0.35)",lineHeight:1.6}}>Removes daily &amp; weekly challenge progress. Templates are preserved — players get fresh challenges on next visit.</p>
                       <div style={{display:"flex",gap:"10px",flexWrap:"wrap"}}>
                         <button disabled={!!adminAction} onClick={async()=>{
                           setAdminAction("clearMine");setAdminResult(null);
-                          try{const r=await fetch("/api/card-clash/admin/challenges/clear",{method:"POST",headers:{"Content-Type":"application/json","x-admin-pin":"0601"},body:JSON.stringify({playerId})});
+                          try{const r=await fetch("/api/card-clash/admin/challenges/clear",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({playerId})});
                           const d=await r.json();setAdminResult({ok:r.ok,message:d.message??(r.ok?"Done":d.error),details:[]});if(r.ok)loadData();}
                           catch(e:any){setAdminResult({ok:false,message:e.message});}finally{setAdminAction(null);}
                         }} style={{padding:"10px 18px",background:"rgba(0,180,255,0.08)",border:"1px solid rgba(0,180,255,0.3)",borderRadius:"8px",color:"#00b4ff",fontWeight:700,fontSize:"12px",cursor:adminAction?"not-allowed":"pointer"}}>
@@ -660,7 +689,7 @@ const PACKS = [
                         <button disabled={!!adminAction} onClick={async()=>{
                           if(!window.confirm("Clear challenges for ALL players?"))return;
                           setAdminAction("clearAll");setAdminResult(null);
-                          try{const r=await fetch("/api/card-clash/admin/challenges/clear",{method:"POST",headers:{"Content-Type":"application/json","x-admin-pin":"0601"},body:JSON.stringify({})});
+                          try{const r=await fetch("/api/card-clash/admin/challenges/clear",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
                           const d=await r.json();setAdminResult({ok:r.ok,message:d.message??(r.ok?"Done":d.error),details:[]});}
                           catch(e:any){setAdminResult({ok:false,message:e.message});}finally{setAdminAction(null);}
                         }} style={{padding:"10px 18px",background:"rgba(255,165,0,0.08)",border:"1px solid rgba(255,165,0,0.3)",borderRadius:"8px",color:"#ffaa00",fontWeight:700,fontSize:"12px",cursor:adminAction?"not-allowed":"pointer"}}>
@@ -679,14 +708,14 @@ const PACKS = [
                       </div>
                       <button disabled={confirmText!=="LAUNCH"||!!adminAction} onClick={async()=>{
                         setAdminAction("nuke");setAdminResult(null);setConfirmText("");
-                        try{const r=await fetch("/api/card-clash/admin/full-reset",{method:"POST",headers:{"Content-Type":"application/json","x-admin-pin":"0601"},body:JSON.stringify({})});
+                        try{const r=await fetch("/api/card-clash/admin/full-reset",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
                         const d=await r.json();setAdminResult({ok:r.ok,message:d.message??(r.ok?"Reset complete":d.error),details:d.results});if(r.ok)loadData();}
                         catch(e:any){setAdminResult({ok:false,message:e.message});}finally{setAdminAction(null);}
                       }} style={{padding:"12px 28px",background:confirmText==="LAUNCH"?"linear-gradient(135deg,#c0392b,#e74c3c)":"rgba(255,255,255,0.04)",border:`1px solid ${confirmText==="LAUNCH"?"rgba(255,60,60,0.6)":"rgba(255,255,255,0.08)"}`,borderRadius:"9px",color:confirmText==="LAUNCH"?"#fff":"rgba(255,255,255,0.2)",fontWeight:900,fontSize:"13px",cursor:confirmText==="LAUNCH"&&!adminAction?"pointer":"not-allowed",letterSpacing:"0.08em",boxShadow:confirmText==="LAUNCH"?"0 4px 22px rgba(231,76,60,0.35)":"none",transition:"all 0.2s"}}>
                         {adminAction==="nuke"?"⏳ Resetting…":"☢️ NUCLEAR RESET — LAUNCH READY"}
                       </button>
                     </div>
-                    <button onClick={()=>{setAdminAuthed(false);setAdminPin("");setAdminResult(null);setConfirmText("");}} style={{padding:"8px 18px",background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:"7px",color:"rgba(255,255,255,0.28)",fontSize:"12px",cursor:"pointer",alignSelf:"flex-start"}}>
+                    <button onClick={()=>{fetch("/api/admin/lock",{method:"POST"}).catch(()=>{});sessionStorage.removeItem("tkdl_admin_unlocked");setAdminAuthed(false);setAdminPin("");setAdminResult(null);setConfirmText("");}} style={{padding:"8px 18px",background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:"7px",color:"rgba(255,255,255,0.28)",fontSize:"12px",cursor:"pointer",alignSelf:"flex-start"}}>
                       🔒 Lock Admin Panel
                     </button>
                   </div>

@@ -26,10 +26,10 @@ const inputStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-const getAdminHeaders = () => {
-  const pin = sessionStorage.getItem("tkdl_admin_pin");
-  return { "Content-Type": "application/json", ...(pin ? { "x-admin-pin": pin } : {}) };
-};
+// This panel only ever renders inside the already PIN-gated /admin page, so
+// the browser's admin session cookie (set by the real PIN screen) is all
+// that's needed here — no PIN is sent with these requests anymore.
+const getAdminHeaders = () => ({ "Content-Type": "application/json" });
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
@@ -77,7 +77,6 @@ function Toast({ message, type }: { message: string; type: "success" | "error" |
 
 // ── Main Panel ─────────────────────────────────────────────────────────────────
 export default function AdminCardClashPanel() {
-  const [adminPin, setAdminPin] = useState(sessionStorage.getItem("tkdl_admin_pin") || "");
   const [cards, setCards]       = useState<any[]>([]);
   const [players, setPlayers]   = useState<any[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState("");
@@ -98,11 +97,6 @@ export default function AdminCardClashPanel() {
   const toast = (msg: string, type: "success" | "error" | "info" = "info") => {
     setMessage(msg); setMsgType(type);
     setTimeout(() => setMessage(""), 5000);
-  };
-
-  const handlePin = (pin: string) => {
-    setAdminPin(pin);
-    pin ? sessionStorage.setItem("tkdl_admin_pin", pin) : sessionStorage.removeItem("tkdl_admin_pin");
   };
 
   const playerName = () => players.find(p => p.id.toString() === selectedPlayerId)?.name ?? "Unknown";
@@ -177,13 +171,6 @@ export default function AdminCardClashPanel() {
       {!expanded && null}
       {expanded && (
         <>
-          {/* PIN */}
-          <div style={{ marginBottom: "1.5rem", padding: "14px 16px", background: D.card, border: `1px solid ${D.border}`, borderRadius: "10px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "13px", color: D.sub, whiteSpace: "nowrap" }}>🔐 Admin PIN</span>
-            <input type="password" value={adminPin} onChange={e => handlePin(e.target.value)} placeholder="Enter PIN" style={{ ...inputStyle, maxWidth: "180px" }} />
-            {adminPin && <span style={{ fontSize: "12px", color: D.success, whiteSpace: "nowrap" }}>✅ Saved in session</span>}
-          </div>
-
           {message && <Toast message={message} type={msgType} />}
 
           {/* Player selector — persisted at top, used by all player-specific sections */}

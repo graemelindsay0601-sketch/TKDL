@@ -64,17 +64,17 @@ export function useCardClashSettings() {
 }
 
 /**
- * Updates Card Clash settings (admin only)
- * 
+ * Updates Card Clash settings (admin only — requires an admin session,
+ * established via the real PIN screen; no PIN is sent with this request).
+ *
  * Usage:
  * const result = await updateCardClashSettings({
  *   equipable_good_cards: 3,
  *   equipable_bad_cards: 3,
- *   adminPin: '0601'
  * });
  */
 export async function updateCardClashSettings(
-  updates: Partial<CardClashSettings> & { adminPin: string },
+  updates: Partial<CardClashSettings>,
   notes?: string
 ) {
   try {

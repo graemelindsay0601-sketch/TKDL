@@ -42,6 +42,18 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   logger.warn("VAPID keys not configured - push notifications will not work");
 }
 
+// Every admin-only action in the app (from the /admin page and every Card
+// Clash/challenges/playoff admin panel) is now gated by ONE check: the
+// session flag set by POST /admin/verify-pin in routes/admin.ts, which
+// compares against ADMIN_PIN. If that env var isn't set on the server, it
+// silently falls back to a default PIN ("0601") that's easy to guess and
+// was previously hardcoded in the shipped frontend bundle — so this is
+// loud on purpose. Doesn't block startup (an admin lockout on a busy
+// league night is worse than a weak default for now), but should be fixed.
+if (!process.env.ADMIN_PIN) {
+  logger.warn("ADMIN_PIN env var is not set — admin access is falling back to the default PIN. Set a real ADMIN_PIN in Render's environment settings.");
+}
+
 const app: Express = express();
 
 app.use(

@@ -4,13 +4,11 @@ import { sql } from "drizzle-orm";
 import { createNotification } from "../lib/communityNotify";
 
 const router = Router();
-const ADMIN_PIN = process.env.ADMIN_PIN ?? "0601";
 
 function sessionPlayerId(req: any): number | null {
   return (req.session as any)?.playerId ?? null;
 }
 function sessionIsAdmin(req: any): boolean {
-  if (req.headers["x-admin-pin"] === ADMIN_PIN) return true;
   return (req.session as any)?.isAdmin === true;
 }
 function requireAuth(req: any, res: any): number | false {

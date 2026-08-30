@@ -4,6 +4,7 @@ import { db, usersTable, playersTable } from "@workspace/db";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { logger } from "../lib/logger";
+import { requireAdminSession } from "../middleware/requireAdminSession";
 
 const router = Router();
 
@@ -96,26 +97,8 @@ router.patch("/auth/password", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
-// ── Admin auth guard ──────────────────────────────────────────────────────────
-// Accepts EITHER a valid admin session OR the X-Admin-Pin header (same PIN
-// used by the admin UI and by the seasons routes).
-const ADMIN_PIN = process.env.ADMIN_PIN ?? "0601";
-function requireAdmin(req: any, res: any): boolean {
-  const pinHeader = req.headers["x-admin-pin"];
-  if (pinHeader && pinHeader === ADMIN_PIN) return true;
-
-  const userId = (req.session as any).userId;
-  const isAdmin = (req.session as any).isAdmin;
-  if (!userId || !isAdmin) {
-    res.status(403).json({ error: "Admin access required" });
-    return false;
-  }
-  return true;
-}
-
 // ── GET /api/admin/users ──────────────────────────────────────────────────────
-router.get("/admin/users", async (req, res): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
+router.get("/admin/users", requireAdminSession, async (req, res): Promise<void> => {
   const users = await db.select({
     id:          usersTable.id,
     username:    usersTable.username,
@@ -138,8 +121,7 @@ const CreateUserBody = z.object({
   isAdmin:  z.boolean().optional().default(false),
 });
 
-router.post("/admin/users", async (req, res): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
+router.post("/admin/users", requireAdminSession, async (req, res): Promise<void> => {
   const parsed = CreateUserBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
@@ -168,8 +150,7 @@ router.post("/admin/users", async (req, res): Promise<void> => {
 // ── POST /api/admin/users/:id/reset-password ──────────────────────────────────
 const ResetPasswordBody = z.object({ password: z.string().min(4) });
 
-router.post("/admin/users/:id/reset-password", async (req, res): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
+router.post("/admin/users/:id/reset-password", requireAdminSession, async (req, res): Promise<void> => {
   const userId = Number(req.params.id);
   if (isNaN(userId)) { res.status(400).json({ error: "Invalid id" }); return; }
 

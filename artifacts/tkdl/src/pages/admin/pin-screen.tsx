@@ -24,8 +24,11 @@ export function PinScreen({ onUnlock }: { onUnlock: () => void }) {
         });
         const data = await res.json();
         if (data.ok) {
+          // The server has now set an admin session cookie — every admin
+          // request from here on is authorized by that cookie automatically.
+          // We only need a client-side flag to know which UI to show;
+          // the raw PIN itself is never stored or resent.
           sessionStorage.setItem(ADMIN_PIN_KEY, "1");
-          sessionStorage.setItem("tkdl_admin_pin", pin);
           onUnlock();
         } else {
           setShake(true);

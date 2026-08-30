@@ -5,6 +5,7 @@ import { z } from "zod";
 import { performSeasonReset } from "../lib/seasonReset";
 import { calcTier } from "../lib/elo";
 import { computeIdentity } from "../lib/identity";
+import { requireAdminSession } from "../middleware/requireAdminSession";
 
 const GetSeasonParams  = z.object({ id: z.coerce.number().int().positive() });
 const ResetSeasonBody  = z.object({ name: z.string().optional() });
@@ -145,17 +146,6 @@ router.get("/seasons/:id/matches", async (req, res): Promise<void> => {
 
 // ── Playoff endpoints ──────────────────────────────────────────────────────────
 
-const ADMIN_PIN = process.env.ADMIN_PIN ?? "0601";
-
-function requireAdmin(req: any, res: any): boolean {
-  const pin = req.headers["x-admin-pin"] ?? req.body?.adminPin;
-  if (pin !== ADMIN_PIN) {
-    res.status(401).json({ error: "Admin PIN required" });
-    return false;
-  }
-  return true;
-}
-
 const PlayoffMatchBody = z.object({
   player1Id: z.number().int().positive(),
   player2Id: z.number().int().positive(),
@@ -183,8 +173,7 @@ router.get("/seasons/:id/playoff", async (req, res): Promise<void> => {
   res.json(rows.rows);
 });
 
-router.post("/seasons/:id/playoff", async (req, res): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
+router.post("/seasons/:id/playoff", requireAdminSession, async (req, res): Promise<void> => {
   const params = GetSeasonParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = PlayoffMatchBody.safeParse(req.body);
@@ -210,8 +199,7 @@ router.post("/seasons/:id/playoff", async (req, res): Promise<void> => {
   res.status(201).json(row);
 });
 
-router.patch("/seasons/:id/playoff/:matchId", async (req, res): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
+router.patch("/seasons/:id/playoff/:matchId", requireAdminSession, async (req, res): Promise<void> => {
   const params = GetSeasonParams.safeParse(req.params);
   const matchId = parseInt((req.params as any).matchId, 10);
   if (!params.success || isNaN(matchId)) { res.status(400).json({ error: "Invalid params" }); return; }
@@ -240,8 +228,7 @@ router.patch("/seasons/:id/playoff/:matchId", async (req, res): Promise<void> =>
   res.json({ ok: true });
 });
 
-router.delete("/seasons/:id/playoff/:matchId", async (req, res): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
+router.delete("/seasons/:id/playoff/:matchId", requireAdminSession, async (req, res): Promise<void> => {
   const params = GetSeasonParams.safeParse(req.params);
   const matchId = parseInt((req.params as any).matchId, 10);
   if (!params.success || isNaN(matchId)) { res.status(400).json({ error: "Invalid params" }); return; }

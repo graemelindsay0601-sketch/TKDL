@@ -225,7 +225,13 @@ export default function Admin() {
           </div>
         </div>
         <button
-          onClick={() => { sessionStorage.removeItem(ADMIN_PIN_KEY); setUnlocked(false); }}
+          onClick={() => {
+            // Clear the server-side admin session too — otherwise the API
+            // stays authorized even after the UI locks itself.
+            fetch("/api/admin/lock", { method: "POST" }).catch(() => {});
+            sessionStorage.removeItem(ADMIN_PIN_KEY);
+            setUnlocked(false);
+          }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold hover:bg-white/5 transition-colors"
           style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", border: "1px solid rgba(255,255,255,0.08)" }}>
           <Lock className="w-3 h-3" /> Lock

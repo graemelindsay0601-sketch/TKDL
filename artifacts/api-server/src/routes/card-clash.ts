@@ -33,11 +33,9 @@ import {
 import { ensurePlayerCurrency } from "../lib/cardTablesMigration";
 import { db, cardClashMatchesTable, cardClashSeasonsTable, cardInventoryTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
+import { requireAdminSession } from "../middleware/requireAdminSession";
 
 const router = Router();
-
-// Admin PIN for protecting card-clash admin routes
-const ADMIN_PIN = process.env.ADMIN_PIN ?? "0601";
 
 // === AUTO-FIX CARD CLASH ON STARTUP ===
 async function autoFixCardClash() {
@@ -129,14 +127,10 @@ async function autoFixCardClash() {
 // Run auto-fix on module load
 autoFixCardClash().catch(err => logger.error({ err }, "Auto-fix error during startup"));
 
-// Middleware to verify admin PIN
-const verifyAdminPin = (req: Request, res: Response, next: Function) => {
-  const pin = req.headers["x-admin-pin"] as string;
-  if (pin !== ADMIN_PIN) {
-    return res.status(403).json({ error: "Unauthorized: Invalid admin PIN" });
-  }
-  next();
-};
+// Admin gate — see middleware/requireAdminSession.ts. Previously this checked
+// a raw PIN sent with every request; now it trusts the same rate-limited
+// admin session every other admin route uses.
+const verifyAdminPin = requireAdminSession;
 
 // === CARD SHOP ROUTES ===
 
@@ -191,13 +185,8 @@ router.get("/player/:playerId/stats", async (req: Request, res: Response) => {
 });
 
 // Debug endpoint to check seasons table
-router.get("/admin/debug/seasons", async (req: Request, res: Response) => {
+router.get("/admin/debug/seasons", requireAdminSession, async (req: Request, res: Response) => {
   try {
-    const adminPin = req.headers["x-admin-pin"] as string;
-    if (adminPin !== ADMIN_PIN) {
-      return res.status(403).json({ error: "Unauthorized" });
-    }
-
     // Try to get all seasons
     const seasons = await db.select().from(cardClashSeasonsTable);
     
@@ -217,13 +206,8 @@ router.get("/admin/debug/seasons", async (req: Request, res: Response) => {
 });
 
 // Get active season endpoint
-router.get("/admin/season/active", async (req: Request, res: Response) => {
+router.get("/admin/season/active", requireAdminSession, async (req: Request, res: Response) => {
   try {
-    const adminPin = req.headers["x-admin-pin"] as string;
-    if (adminPin !== ADMIN_PIN) {
-      return res.status(403).json({ error: "Unauthorized" });
-    }
-
     const season = await getActiveCardClashSeason();
     res.json({ success: true, season });
   } catch (error) {
@@ -311,14 +295,8 @@ router.get("/season/active", async (req: Request, res: Response) => {
 });
 
 // Admin: Create active season
-router.post("/admin/season/create", async (req: Request, res: Response) => {
+router.post("/admin/season/create", requireAdminSession, async (req: Request, res: Response) => {
   try {
-    // Check admin PIN
-    const adminPin = req.headers["x-admin-pin"] as string;
-    if (adminPin !== ADMIN_PIN) {
-      return res.status(403).json({ error: "Unauthorized: Invalid admin PIN" });
-    }
-
     try {
       // Check if season already exists
       const existing = await getActiveCardClashSeason();
@@ -1330,16 +1308,10 @@ router.post("/sell-card", async (req: Request, res: Response) => {
 
   /**
    * POST /api/card-clash/shop/admin/rotate
-   * Force rotation of featured cards (admin only)
-   * Header: x-admin-pin
+   * Force rotation of featured cards (admin only — requires admin session)
    */
-  router.post("/shop/admin/rotate", async (req: Request, res: Response) => {
+  router.post("/shop/admin/rotate", requireAdminSession, async (req: Request, res: Response) => {
     try {
-      const adminPin = req.headers["x-admin-pin"];
-      if (adminPin !== process.env.ADMIN_PIN) {
-        return res.status(403).json({ success: false, message: "Unauthorized" });
-      }
-
       const { rotateFeatureCards } = await import("../services/featured-card-shop-service");
       const result = await rotateFeatureCards();
       res.json({ success: true, message: "Featured cards rotated", result });
@@ -1353,13 +1325,8 @@ router.post("/sell-card", async (req: Request, res: Response) => {
    * GET /api/card-clash/shop/admin/purchase-history
    * Get purchase history for auditing (admin only)
    */
-  router.get("/shop/admin/purchase-history", async (req: Request, res: Response) => {
+  router.get("/shop/admin/purchase-history", requireAdminSession, async (req: Request, res: Response) => {
     try {
-      const adminPin = req.headers["x-admin-pin"];
-      if (adminPin !== process.env.ADMIN_PIN) {
-        return res.status(403).json({ success: false, message: "Unauthorized" });
-      }
-
       const limit = Math.min(Number(req.query.limit) || 100, 1000);
       const { getShopPurchaseHistory } = await import("../services/featured-card-shop-service");
       const history = await getShopPurchaseHistory(limit);
@@ -1379,13 +1346,8 @@ router.post("/sell-card", async (req: Request, res: Response) => {
    * GET /api/card-clash/shop/admin/statistics
    * Get shop statistics for auditing (admin only)
    */
-  router.get("/shop/admin/statistics", async (req: Request, res: Response) => {
+  router.get("/shop/admin/statistics", requireAdminSession, async (req: Request, res: Response) => {
     try {
-      const adminPin = req.headers["x-admin-pin"];
-      if (adminPin !== process.env.ADMIN_PIN) {
-        return res.status(403).json({ success: false, message: "Unauthorized" });
-      }
-
       const { getShopStatistics } = await import("../services/featured-card-shop-service");
       const stats = await getShopStatistics();
       res.json({ success: true, statistics: stats });

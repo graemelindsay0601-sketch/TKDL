@@ -5,6 +5,7 @@ import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { checkStatAchievements, checkMatchAchievements, retroactiveSweep } from "../lib/achievements";
 import { applyEloChange, calcTier } from "../lib/elo";
+import { requireAdminSession } from "../middleware/requireAdminSession";
 
 const router = Router();
 
@@ -33,15 +34,16 @@ router.post("/admin/verify-pin", pinRateLimit, (req, res): void => {
 });
 
 // ── All routes below require admin session ─────────────────────────────────────
-function requireAdmin(req: any, res: any, next: any): void {
-  if (!(req.session as any)?.isAdmin) {
-    res.status(403).json({ error: "Admin access required" });
-    return;
-  }
-  next();
-}
+router.use(/^\/admin\/(?!verify-pin)/, requireAdminSession);
 
-router.use(/^\/admin\/(?!verify-pin)/, requireAdmin);
+// Clears the admin session flag. Used by the "Lock" button in the admin UI —
+// without this, clicking Lock only hid the client-side UI while the server
+// session (and therefore every admin API call) stayed authorized until it
+// naturally expired.
+router.post("/admin/lock", (req, res): void => {
+  (req.session as any).isAdmin = false;
+  req.session.save(() => res.json({ ok: true }));
+});
 
 // ── Fix / update standings for a specific season ──────────────────────────────
 const UpdateStandingBody = z.object({

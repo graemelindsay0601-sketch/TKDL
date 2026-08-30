@@ -25,12 +25,13 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
   const [loaded, setLoaded]               = useState(false);
   const queryClient = useQueryClient();
 
-  const adminPin = () => sessionStorage.getItem("tkdl_admin_pin") ?? "";
-  const adminHeaders = () => ({ "Content-Type": "application/json", "x-admin-pin": adminPin() });
+  // This panel only ever renders inside the already PIN-gated /admin page, so
+  // the browser's admin session cookie is all that's needed here.
+  const adminHeaders = () => ({ "Content-Type": "application/json" });
 
   const load = async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/users", { credentials: "include", headers: { "x-admin-pin": adminPin() } });
+    const res = await fetch("/api/admin/users", { credentials: "include" });
     if (res.ok) setAccounts(await res.json());
     setLoading(false);
     setLoaded(true);
