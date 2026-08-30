@@ -291,6 +291,113 @@ router.get("/players/:id/achievements", async (req, res): Promise<void> => {
   res.json(playerAchievements);
 });
 
+// ── Career Journey: chronological timeline of milestones ───────────────────────
+router.get("/players/:id/career-journey", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const id = params.data.id;
+
+  const [player] = await db.select().from(playersTable).where(eq(playersTable.id, id));
+  if (!player) { res.status(404).json({ error: "Player not found" }); return; }
+
+  type JourneyEvent = {
+    date: any;
+    type: "joined" | "achievement" | "tier" | "champion" | "peak_elo";
+    title: string;
+    description?: string;
+    icon?: string;
+    rarity?: string;
+  };
+  const events: JourneyEvent[] = [];
+
+  events.push({
+    date: player.createdAt,
+    type: "joined",
+    title: "Joined TKDL",
+    icon: "🎯",
+  });
+
+  const achievementRows = await db.select({
+    name:        achievementsTable.name,
+    description: achievementsTable.description,
+    icon:        achievementsTable.icon,
+    rarity:      achievementsTable.rarity,
+    unlockedAt:  playerAchievementsTable.unlockedAt,
+  })
+    .from(playerAchievementsTable)
+    .innerJoin(achievementsTable, eq(achievementsTable.id, playerAchievementsTable.achievementId))
+    .where(eq(playerAchievementsTable.playerId, id));
+  for (const a of achievementRows) {
+    events.push({
+      date: a.unlockedAt,
+      type: "achievement",
+      title: a.name,
+      description: a.description ?? undefined,
+      icon: a.icon ?? "🏆",
+      rarity: a.rarity ?? undefined,
+    });
+  }
+
+  const championRows = await db.select({
+    seasonName: seasonsTable.name,
+    endDate:    seasonsTable.endDate,
+    startDate:  seasonsTable.startDate,
+  })
+    .from(seasonStandingsTable)
+    .innerJoin(seasonsTable, eq(seasonsTable.id, seasonStandingsTable.seasonId))
+    .where(and(eq(seasonStandingsTable.playerId, id), eq(seasonStandingsTable.isChampion, true)));
+  for (const c of championRows) {
+    events.push({
+      date: c.endDate ?? c.startDate,
+      type: "champion",
+      title: `Champion — ${c.seasonName}`,
+      icon: "👑",
+    });
+  }
+
+  // Elo tier crossings + peak Elo — reconstructed the same way as /elo-history
+  const allMatches = await db.select().from(matchesTable)
+    .where(or(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, id)))
+    .orderBy(matchesTable.playedAt);
+
+  if (allMatches.length > 0) {
+    const currentElo = player.elo;
+    const reversed = [...allMatches].reverse();
+    const eloPoints: number[] = [currentElo];
+    let elo = currentElo;
+    for (const m of reversed) {
+      const isWin = m.winnerId === id;
+      elo = isWin ? elo - m.eloChange : elo + m.eloChange;
+      elo = Math.max(800, Math.min(1600, elo));
+      eloPoints.unshift(elo);
+    }
+
+    let reachedSilver = false;
+    let reachedGold = false;
+    let peakElo = eloPoints[0];
+    let peakDate: any = allMatches[0]?.playedAt;
+    for (let i = 0; i < allMatches.length; i++) {
+      const eloAfter = eloPoints[i + 1];
+      const playedAt = allMatches[i].playedAt;
+      if (eloAfter > peakElo) { peakElo = eloAfter; peakDate = playedAt; }
+      if (!reachedSilver && eloAfter >= 980) {
+        reachedSilver = true;
+        events.push({ date: playedAt, type: "tier", title: "Reached Silver Tier", icon: "🥈" });
+      }
+      if (!reachedGold && eloAfter >= 1100) {
+        reachedGold = true;
+        events.push({ date: playedAt, type: "tier", title: "Reached Gold Tier", icon: "🥇" });
+      }
+    }
+
+    events.push({ date: peakDate, type: "peak_elo", title: `Peak ELO: ${peakElo}`, icon: "📈" });
+  }
+
+  events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  res.json({ player: { id: player.id, name: player.name }, events });
+});
+
 router.get("/players/:id/achievement-progress", async (req, res): Promise<void> => {
   const params = IdParam.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }

@@ -3,11 +3,11 @@ import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
-import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare } from "lucide-react";
+import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare, Sparkles } from "lucide-react";
 import { useAuth } from "@/context/auth";
 import {
   FormStrip, EloSparkline, AchievementCard,
-  BigStat, SmallStat, TIER_GLOW, CollapsibleSection, ScorecardView,
+  BigStat, SmallStat, TIER_GLOW, CollapsibleSection, ScorecardView, RARITY_COLORS,
 } from "./helpers";
 import { CategoryStatsEnhanced } from "@/components/stats";
 
@@ -32,7 +32,9 @@ export default function PlayerDetail() {
   const [openPractice, setOpenPractice] = useState(true);
   const [openShadowBot, setOpenShadowBot] = useState(true);
   const [openTrophy, setOpenTrophy] = useState(true);
+  const [openCareerJourney, setOpenCareerJourney] = useState(true);
 
+  const [careerJourney, setCareerJourney] = useState<any[]>([]);
   const [practiceAgg, setPracticeAgg] = useState<any>(null);
   const [practiceSessions, setPracticeSessions] = useState<any[]>([]);
   const [gamerscore, setGamerscore] = useState<any>(null);
@@ -98,7 +100,8 @@ export default function PlayerDetail() {
       fetch(`/api/players/${playerId}/shadow-achievements`).then(r => r.json()),
       fetch(`/api/tour/achievements/${playerId}`).then(r => r.json()),
       fetch(`/api/card-clash/shop/currency/${playerId}`).then(r => r.json()).catch(() => null),
-    ]).then(([practiceStats, sessions, dartProf, gScore, trophies, shadowA, tourA, currency]) => {
+      fetch(`/api/players/${playerId}/career-journey`).then(r => r.json()).catch(() => null),
+    ]).then(([practiceStats, sessions, dartProf, gScore, trophies, shadowA, tourA, currency, journey]) => {
       setPracticeAgg(practiceStats);
       setPracticeSessions(Array.isArray(sessions) ? sessions : []);
       setDartProfile(dartProf);
@@ -107,6 +110,7 @@ export default function PlayerDetail() {
       setShadowAchs(Array.isArray(shadowA) ? shadowA : []);
       setTourAchs(Array.isArray(tourA) ? tourA : []);
       setPlayerCurrency(currency);
+      setCareerJourney(Array.isArray(journey?.events) ? journey.events : []);
     }).catch(() => {});
   }, [playerId]);
 
@@ -425,6 +429,60 @@ export default function PlayerDetail() {
           <SmallStat label="Best CO" value={(practiceAgg as any)?.highest_checkout > 0 ? (practiceAgg as any).highest_checkout : null} accent="#ff005c" placeholder="—" />
         </div>
       </div>
+
+      {/* ══ CAREER JOURNEY ══ */}
+      {careerJourney.length > 0 && (
+        <CollapsibleSection
+          title="Career Journey"
+          icon={<Sparkles className="w-4 h-4" />}
+          open={openCareerJourney}
+          onToggle={() => setOpenCareerJourney(v => !v)}
+          badge={String(careerJourney.length)}
+          accentColor="#a78bfa"
+        >
+          <div className="px-4 py-3">
+            {careerJourney.map((ev, idx) => {
+              const rc = ev.type === "achievement"
+                ? (RARITY_COLORS[ev.rarity] ?? RARITY_COLORS.Common)
+                : ev.type === "champion" ? { color: "#ffd24a", glow: "rgba(255,210,74,0.4)", bg: "rgba(255,210,74,0.08)" }
+                : ev.type === "tier" ? { color: "#0066ff", glow: "rgba(0,102,255,0.3)", bg: "rgba(0,102,255,0.07)" }
+                : ev.type === "peak_elo" ? { color: "#22c55e", glow: "rgba(34,197,94,0.3)", bg: "rgba(34,197,94,0.07)" }
+                : { color: "#a78bfa", glow: "rgba(167,139,250,0.3)", bg: "rgba(167,139,250,0.07)" };
+              const isLast = idx === careerJourney.length - 1;
+              let dateLabel = "—";
+              try { dateLabel = format(new Date(ev.date), "d MMM yyyy"); } catch { /* keep fallback */ }
+              return (
+                <div key={idx} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm"
+                      style={{ background: rc.bg, border: `1px solid ${rc.color}55`, boxShadow: `0 0 10px ${rc.glow}` }}>
+                      {ev.icon ?? "•"}
+                    </div>
+                    {!isLast && <div className="w-px flex-1" style={{ background: "rgba(255,255,255,0.08)", minHeight: "1rem" }} />}
+                  </div>
+                  <div className="pb-4 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: rc.color }}>
+                        {ev.title}
+                      </span>
+                      {ev.rarity && (
+                        <span className="text-[0.6rem] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider"
+                          style={{ background: rc.bg, color: rc.color, border: `1px solid ${rc.color}44` }}>
+                          {ev.rarity}
+                        </span>
+                      )}
+                    </div>
+                    {ev.description && (
+                      <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{ev.description}</div>
+                    )}
+                    <div className="text-xs mt-0.5 tabular-nums" style={{ color: "rgba(255,255,255,0.2)" }}>{dateLabel}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CollapsibleSection>
+      )}
 
       {/* ══ HIGH CHECKOUTS ══ */}
       {((practiceAgg as any)?.highest_checkout > 0) && (
