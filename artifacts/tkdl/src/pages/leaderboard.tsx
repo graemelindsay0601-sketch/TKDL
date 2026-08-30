@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
 import { Link } from "wouter";
-import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal, Zap } from "lucide-react";
+import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal, Zap, Users } from "lucide-react";
 import { useState } from "react";
 
-type Mode = "season" | "career" | "achievements" | "bot" | "tour" | "master501" | "records";
+type Mode = "season" | "career" | "achievements" | "bot" | "tour" | "master501" | "records" | "doubles";
 
 const CAREER_SORTS = [
   { key: "wins",    label: "Career Wins" },
@@ -106,6 +106,41 @@ function Pos({ idx }: { idx: number }) {
         style={{ fontFamily: "Oswald, sans-serif", fontSize: idx === 0 ? "2rem" : idx < 3 ? "1.6rem" : "1.2rem", color: col, textShadow: idx < 3 ? `0 0 16px ${col}60` : undefined }}>
         {idx + 1}
       </span>
+    </div>
+  );
+}
+
+function DoublesRow({ team, idx }: { team: any; idx: number }) {
+  const isTop3 = idx < 3;
+  const pColor = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
+  const tierColor = TIER_BORDER[team.tier] ?? "rgba(255,255,255,0.12)";
+  return (
+    <div className="group flex items-center gap-3 rounded-xl transition-all duration-150 fade-in-up"
+      style={{ padding: "0.8rem 1.1rem", background: isTop3 && !team.isEliminated ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 && !team.isEliminated ? pColor + "55" : tierColor + "55"}`, animationDelay: `${idx * 35}ms`, opacity: team.isEliminated ? 0.5 : 1 }}>
+      <Pos idx={idx} />
+      <div className="flex-1 min-w-0 pr-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-black uppercase leading-tight" style={{ fontFamily: "Oswald, sans-serif", fontSize: idx === 0 ? "1.2rem" : "1rem", letterSpacing: "0.04em", color: idx === 0 ? "#fff" : "rgba(255,255,255,0.85)" }}>
+            {team.players.map((p: any, i: number) => (
+              <span key={p.id}>
+                {i > 0 && <span style={{ color: "rgba(255,255,255,0.25)" }}> & </span>}
+                <Link href={`/players/${p.id}`} className="hover:underline">{p.name}</Link>
+              </span>
+            ))}
+          </span>
+          {isTop3 && !team.isEliminated && <span className="text-base leading-none">{POS_MEDALS[idx]}</span>}
+          {team.isEliminated && <Skull className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.3)" }} />}
+        </div>
+      </div>
+      <div className="hidden sm:flex shrink-0"><TierBadge tier={team.tier} /></div>
+      <div className="hidden sm:block font-mono text-sm text-center shrink-0" style={{ minWidth: "4rem" }}>
+        <span style={{ color: "#22c55e" }}>{team.wins}</span><span style={{ color: "rgba(255,255,255,0.18)" }}>-</span><span style={{ color: "#ff005c" }}>{team.losses}</span>
+      </div>
+      <div className="hidden sm:block font-mono text-sm text-right shrink-0" style={{ minWidth: "4rem", color: "#0066ff" }}>{team.elo}</div>
+      <div className="text-right shrink-0" style={{ minWidth: "3.5rem" }}>
+        <span className="font-black tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontSize: idx === 0 ? "2rem" : isTop3 ? "1.7rem" : "1.5rem", color: idx === 0 ? "#ffd24a" : "#0066ff", textShadow: idx === 0 ? "0 0 16px rgba(255,210,74,0.4)" : undefined }}>{team.points}</span>
+        <span className="text-xs ml-0.5" style={{ color: "rgba(255,255,255,0.18)" }}>pts</span>
+      </div>
     </div>
   );
 }
@@ -383,8 +418,17 @@ export default function Standings() {
     queryFn:  () => fetch("/api/stats/checkout-records").then(r => r.json()),
     enabled:  mode === "records",
   });
+  const { data: doublesData,   isLoading: doublesLoading }  = useQuery({
+    queryKey: ["leaderboard-doubles"],
+    queryFn:  async () => {
+      const season = await fetch("/api/seasons/current").then(r => r.json());
+      if (!season?.id) return [];
+      return fetch(`/api/seasons/${season.id}/doubles/teams`).then(r => r.json());
+    },
+    enabled:  mode === "doubles",
+  });
 
-  const isLoading = { season: seasonLoading, career: careerLoading, achievements: achLoading, bot: botLoading, tour: tourLoading, master501: m501Loading, records: recordsLoading }[mode];
+  const isLoading = { season: seasonLoading, career: careerLoading, achievements: achLoading, bot: botLoading, tour: tourLoading, master501: m501Loading, records: recordsLoading, doubles: doublesLoading }[mode];
 
   const active     = leaderboard?.filter(e => e.status !== "ELIMINATED") ?? [];
   const eliminated = leaderboard?.filter(e => e.status === "ELIMINATED") ?? [];
@@ -396,13 +440,14 @@ export default function Standings() {
   const tourRows   = (tourData ?? []) as any[];
   const m501Rows      = (m501Data    ?? []) as any[];
   const recordsRows   = (recordsData ?? []) as any[];
+  const doublesRows   = (doublesData ?? []) as any[];
   const maxDarts   = Math.max(...botRows.map(r => r.totalDarts), 1);
 
   const headings: Record<Mode, string> = {
     season: "Season Standings", career: "All-Time Records",
     achievements: "Achievement Standings", bot: "Shadow Bot Rankings",
     tour: "Tour Rankings", master501: "Master-501 Rankings",
-    records: "Checkout Hall of Fame",
+    records: "Checkout Hall of Fame", doubles: "Doubles Event Standings",
   };
   const subheads: Record<Mode, React.ReactNode> = {
     season:      <><span className="live-dot" /> Ranked by points · ELO tiebreak</>,
@@ -412,6 +457,7 @@ export default function Standings() {
     tour:        <>Tour trophy cabinet rankings across all 61 tours</>,
     master501:   <>Tier progression · win/loss · best avg · 180s · checkout %</>,
     records:     <>Highest single-leg checkouts ever recorded in practice</>,
+    doubles:     <>Randomly drawn 2-player teams · runs alongside the main season</>,
   };
 
   return (
@@ -446,6 +492,7 @@ export default function Standings() {
         <Tab active={mode === "tour"}         onClick={() => setMode("tour")}         color="#ffd24a"  icon={<Star className="w-3.5 h-3.5" />}>Tour</Tab>
         <Tab active={mode === "master501"}   onClick={() => setMode("master501")}   color="#00c8a0"  icon={<Zap className="w-3.5 h-3.5" />}>Master-501</Tab>
         <Tab active={mode === "records"}     onClick={() => setMode("records")}     color="#ff005c"  icon={<Flame className="w-3.5 h-3.5" />}>Records</Tab>
+        <Tab active={mode === "doubles"}     onClick={() => setMode("doubles")}     color="#0066ff"  icon={<Users className="w-3.5 h-3.5" />}>Doubles</Tab>
       </div>
 
       {/* Career sort pills */}
@@ -481,6 +528,17 @@ export default function Standings() {
           <div className="text-right" style={{ minWidth: "4rem" }}>
             {careerSort === "points" ? "Net Pts" : "Titles"}
           </div>
+        </div>
+      )}
+      {!isLoading && mode === "doubles" && (
+        <div className="flex items-center gap-3 px-3 py-1.5 text-xs font-bold uppercase tracking-widest"
+          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.18)", letterSpacing: "0.12em" }}>
+          <div className="w-8 text-center">#</div>
+          <div className="flex-1">Team</div>
+          <div className="hidden sm:block" style={{ minWidth: "3.5rem" }}>Tier</div>
+          <div className="hidden sm:block text-center" style={{ minWidth: "4rem" }}>W-L</div>
+          <div className="hidden sm:block text-right" style={{ minWidth: "4rem" }}>ELO</div>
+          <div className="text-right" style={{ minWidth: "3.5rem" }}>Pts</div>
         </div>
       )}
 
@@ -526,6 +584,18 @@ export default function Standings() {
               <div className="pt-2 text-xs" style={{ color: "rgba(255,255,255,0.15)" }}>
                 🏆 Season champion · Net Pts = points gained minus points lost across all wager seasons
               </div>
+            </div>
+          )}
+
+          {/* ── Doubles ── */}
+          {mode === "doubles" && (
+            <div className="space-y-1.5">
+              {doublesRows.map((team, idx) => <DoublesRow key={team.id} team={team} idx={idx} />)}
+              {doublesRows.length === 0 && (
+                <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  No doubles teams yet this season — an admin needs to run the random draw.
+                </div>
+              )}
             </div>
           )}
 

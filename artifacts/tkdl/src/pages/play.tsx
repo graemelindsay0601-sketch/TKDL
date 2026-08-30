@@ -12,15 +12,16 @@ import { useCurrentPlayer } from "@/context/auth";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Player = { id: number; name: string; points: number; elo: number; status: string };
-type Format = "1v1" | "2v2" | "3v3" | "killer-ffa";
+type Format = "1v1" | "2v2" | "3v3" | "killer-ffa" | "doubles-event";
 
 type SetupData = {
   format: Format;
-  team1: Player[];   // 1v1: [p1]; 2v2: [a,b]; 3v3: [a,b,c]; killer-ffa: all players
-  team2: Player[];   // killer-ffa: empty
+  team1: Player[];   // 1v1: [p1]; 2v2: [a,b]; 3v3: [a,b,c]; killer-ffa: all players; doubles-event: fixed draw team A's members
+  team2: Player[];   // killer-ffa: empty; doubles-event: fixed draw team B's members
   gameType: GameTypeOption;
   stake: number;
   bullUp?: boolean;
+  doublesTeamIds?: [number, number]; // doubles-event only: [team1Id, team2Id] for the season's fixed random-draw teams
 };
 
 type EquippedCards = {
@@ -33,14 +34,16 @@ const FORMAT_OPTIONS: { key: Format; label: string; icon: string; desc: string }
   { key: "1v1",        label: "1v1",             icon: "👤",  desc: "Head to head" },
   { key: "2v2",        label: "2v2 Doubles",      icon: "👥",  desc: "Teams of 2" },
   { key: "3v3",        label: "3v3 Triples",      icon: "👥",  desc: "Teams of 3" },
+  { key: "doubles-event", label: "Doubles Event", icon: "🎯",  desc: "Season's random-draw teams" },
   { key: "killer-ffa", label: "Killer Free-for-All", icon: "💀", desc: "3–6 individual players" },
 ];
 
 const TEAM_CATEGORIES: Record<Format, string[]> = {
-  "1v1":        ["competitive", "practice", "party", "mini-games"],
-  "2v2":        ["team"],
-  "3v3":        ["team"],
-  "killer-ffa": ["team"],
+  "1v1":            ["competitive", "practice", "party", "mini-games"],
+  "2v2":            ["team"],
+  "3v3":            ["team"],
+  "killer-ffa":     ["team"],
+  "doubles-event":  ["team"],
 };
 
 const TABS_BY_FORMAT: Record<Format, { key: string; label: string }[]> = {
@@ -50,13 +53,70 @@ const TABS_BY_FORMAT: Record<Format, { key: string; label: string }[]> = {
     { key: "party",       label: "Party"       },
     { key: "mini-games",  label: "Mini-Games"  },
   ],
-  "2v2":        [{ key: "team", label: "Team Games" }],
-  "3v3":        [{ key: "team", label: "Team Games" }],
-  "killer-ffa": [{ key: "team", label: "Killer" }],
+  "2v2":            [{ key: "team", label: "Team Games" }],
+  "3v3":            [{ key: "team", label: "Team Games" }],
+  "killer-ffa":     [{ key: "team", label: "Killer" }],
+  "doubles-event":  [{ key: "team", label: "Team Games" }],
 };
 
 // ── Doubles Event: log a result for the season's fixed random-draw teams ───────
-type DoublesTeam = { id: number; teamName: string; points: number; isEliminated: boolean };
+type DoublesTeam = {
+  id: number; teamName: string; points: number; elo: number; isEliminated: boolean;
+  players: { id: number; name: string }[];
+};
+
+function useDoublesTeamsForPlay() {
+  const [teams, setTeams]   = useState<DoublesTeam[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const seasonRes = await fetch("/api/seasons/current");
+        const season = await seasonRes.json();
+        if (!season?.id) { setTeams([]); setLoaded(true); return; }
+        const teamsRes = await fetch(`/api/seasons/${season.id}/doubles/teams`);
+        const data = await teamsRes.json();
+        setTeams(Array.isArray(data) ? data : []);
+      } catch {
+        setTeams([]);
+      }
+      setLoaded(true);
+    })();
+  }, []);
+
+  return { teams, loaded };
+}
+
+// ── Doubles team slot selector (Team 1 / Team 2 pick from the fixed draw) ──────
+function DoublesTeamSlot({ label, color, value, onChange, exclude, teams }: {
+  label: string; color: string; value: string;
+  onChange: (v: string) => void; exclude: string[]; teams: DoublesTeam[];
+}) {
+  const selected = teams.find(t => t.id === Number(value));
+  return (
+    <div className="pdc-card p-3" style={{ borderColor: value ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.05)" }}>
+      <div className="text-xs font-bold uppercase mb-2" style={{ fontFamily: "Oswald, sans-serif", color, letterSpacing: "0.1em" }}>
+        {label}
+      </div>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full rounded-lg px-3 py-2 text-sm"
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: value ? "#fff" : "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+        <option value="" style={{ color: "#111" }}>Select team…</option>
+        {teams.filter(t => !exclude.includes(String(t.id))).map(t => (
+          <option key={t.id} value={t.id} style={{ color: "#111" }}>{t.teamName} ({t.points}pts)</option>
+        ))}
+      </select>
+      {selected && (
+        <div className="mt-1.5 text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+          {selected.teamName} · {selected.points}pts · ELO {selected.elo}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function DoublesEventPanel() {
   const { toast } = useToast();
@@ -242,6 +302,13 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [tab, setTab]             = useState("competitive");
   const [rulesGame, setRulesGame] = useState<GameTypeOption | null>(null);
   const [bullUp, setBullUp]       = useState(false);
+  const [doublesTeam1Id, setDoublesTeam1Id] = useState("");
+  const [doublesTeam2Id, setDoublesTeam2Id] = useState("");
+
+  const { teams: allDoublesTeams, loaded: doublesTeamsLoaded } = useDoublesTeamsForPlay();
+  const activeDoublesTeams = allDoublesTeams.filter(t => !t.isEliminated);
+  const doublesTeam1 = activeDoublesTeams.find(t => String(t.id) === doublesTeam1Id) ?? null;
+  const doublesTeam2 = activeDoublesTeams.find(t => String(t.id) === doublesTeam2Id) ?? null;
 
   useEffect(() => {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
@@ -282,6 +349,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   // Stake validation
   const activePlayers: Player[] = format === "killer-ffa"
     ? ffaPlayers.filter((p): p is Player => !!p)
+    : format === "doubles-event"
+    ? [doublesTeam1, doublesTeam2].filter((t): t is DoublesTeam => !!t)
+        .map(t => ({ id: t.id, name: t.teamName, points: t.points, elo: t.elo, status: "ACTIVE" }))
     : [...team1Players, ...team2Players].filter((p): p is Player => !!p);
   const maxStake = activePlayers.length > 0 ? Math.min(...activePlayers.map(p => p.points)) : 0;
   const stakeN   = parseInt(stake) || 0;
@@ -295,8 +365,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     : team1Players.every(Boolean);
   const team2Ready = format === "1v1" ? true : team2Players.every(Boolean);
   const ffaReady   = format === "killer-ffa" && ffaPlayers.every(Boolean) && new Set(ffaIds.slice(0, ffaCount).filter(Boolean)).size === ffaCount;
+  const doublesReady = format === "doubles-event" && !!doublesTeam1 && !!doublesTeam2 && doublesTeam1.id !== doublesTeam2.id;
 
-  const playersReady = format === "killer-ffa" ? ffaReady : (team1Ready && team2Ready);
+  const playersReady = format === "killer-ffa" ? ffaReady : format === "doubles-event" ? doublesReady : (team1Ready && team2Ready);
   const canStart = playersReady && !!selectedGame && !stakeErr;
 
   // Game type filtering
@@ -325,6 +396,19 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     if (!canStart || !selectedGame) return;
     if (format === "killer-ffa") {
       onStart({ format, team1: ffaPlayers.filter((p): p is Player => !!p), team2: [], gameType: selectedGame, stake: stakeN });
+    } else if (format === "doubles-event") {
+      if (!doublesTeam1 || !doublesTeam2) return;
+      const shim = (t: DoublesTeam): Player[] =>
+        t.players.map(p => ({ id: p.id, name: p.name, points: t.points, elo: t.elo, status: "ACTIVE" }));
+      onStart({
+        format,
+        team1: shim(doublesTeam1),
+        team2: shim(doublesTeam2),
+        gameType: selectedGame,
+        stake: stakeN,
+        bullUp,
+        doublesTeamIds: [doublesTeam1.id, doublesTeam2.id],
+      });
     } else if (format === "1v1") {
       const p1 = players.find(p => String(p.id) === team1Ids[0])!;
       const p2 = players.find(p => String(p.id) === team2Ids[0])!;
@@ -419,6 +503,24 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
               ))}
             </div>
           </div>
+        )}
+
+        {/* Doubles Event — pick from the season's fixed random-draw teams */}
+        {format === "doubles-event" && (
+          !doublesTeamsLoaded ? (
+            <div className="text-sm py-6 text-center" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Loading teams…</div>
+          ) : activeDoublesTeams.length === 0 ? (
+            <div className="text-sm py-6 text-center" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+              No doubles teams yet this season — ask an admin to run the random draw first.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <DoublesTeamSlot label="Team 1" color="#22c55e" value={doublesTeam1Id} onChange={setDoublesTeam1Id}
+                exclude={[doublesTeam2Id].filter(Boolean)} teams={activeDoublesTeams} />
+              <DoublesTeamSlot label="Team 2" color="#ee0a78" value={doublesTeam2Id} onChange={setDoublesTeam2Id}
+                exclude={[doublesTeam1Id].filter(Boolean)} teams={activeDoublesTeams} />
+            </div>
+          )
         )}
 
         {/* Killer FFA */}
@@ -559,7 +661,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           ? format === "killer-ffa"
             ? `Start Killer — ${ffaCount} Players`
             : `Start — ${selectedGame?.name}`
-          : format === "killer-ffa" ? "Select players & game" : "Select players, game & stake"}
+          : format === "killer-ffa" ? "Select players & game" : format === "doubles-event" ? "Select teams, game & stake" : "Select players, game & stake"}
         {canStart && <ChevronRight className="inline ml-2 w-5 h-5" />}
       </button>
 
@@ -581,7 +683,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Resolve winner/loser for display and submission
-  const isTeam = data.format === "2v2" || data.format === "3v3";
+  const isTeam = data.format === "2v2" || data.format === "3v3" || data.format === "doubles-event";
   const isKillerFfa = data.format === "killer-ffa";
 
   const winnerTeam: Player[] = isKillerFfa
@@ -625,6 +727,27 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           ...(player1Equipment ? { player1Equipment } : {}),
           ...(player2Equipment ? { player2Equipment } : {}),
         } });
+      } else if (data.format === "doubles-event" && data.doublesTeamIds) {
+        const [team1Id, team2Id] = data.doublesTeamIds;
+        const winnerTeamId = result.winnerIdx === 0 ? team1Id : team2Id;
+        const loserTeamId  = result.winnerIdx === 0 ? team2Id : team1Id;
+        await fetch("/api/doubles/matches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            winnerTeamId,
+            loserTeamId,
+            stake:    data.stake,
+            gameType: data.gameType.key,
+          }),
+        }).then(async r => {
+          if (!r.ok) {
+            const body = await r.json().catch(() => ({}));
+            throw new Error((body as { error?: string }).error ?? `HTTP ${r.status}`);
+          }
+          return r.json();
+        });
+        await qc.invalidateQueries({ queryKey: ["leaderboard-doubles"] });
       } else {
         await fetch("/api/team-matches", {
           method: "POST",
@@ -643,10 +766,12 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           return r.json();
         });
       }
-      await qc.invalidateQueries({ queryKey: getGetLeaderboardQueryKey() });
-      await qc.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
-      await qc.invalidateQueries({ queryKey: getGetRecentActivityQueryKey() });
-      await qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+      if (data.format !== "doubles-event") {
+        await qc.invalidateQueries({ queryKey: getGetLeaderboardQueryKey() });
+        await qc.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
+        await qc.invalidateQueries({ queryKey: getGetRecentActivityQueryKey() });
+        await qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+      }
       setSubmitted(true);
       toast({ title: "Match recorded!", description: `${winnerName} +${data.stake}pts` });
     } catch (e: any) {
@@ -661,7 +786,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
     if (!autoFired) { setAutoFired(true); void submit(); }
   }, []);
 
-  const formatLabel = data.format === "1v1" ? "1v1" : data.format === "2v2" ? "2v2 Doubles" : data.format === "3v3" ? "3v3 Triples" : `Killer ${data.team1.length}-player`;
+  const formatLabel = data.format === "1v1" ? "1v1" : data.format === "2v2" ? "2v2 Doubles" : data.format === "3v3" ? "3v3 Triples" : data.format === "doubles-event" ? "Doubles Event" : `Killer ${data.team1.length}-player`;
 
   return (
     <div className="max-w-lg mx-auto space-y-6 text-center">
@@ -807,7 +932,7 @@ export default function Play() {
   }
 
   if (phase === "playing" && setupData) {
-    const isTeam      = setupData.format === "2v2" || setupData.format === "3v3";
+    const isTeam      = setupData.format === "2v2" || setupData.format === "3v3" || setupData.format === "doubles-event";
     const isKillerFfa = setupData.format === "killer-ffa";
 
     const teamNames: [string[], string[]] | undefined = isTeam

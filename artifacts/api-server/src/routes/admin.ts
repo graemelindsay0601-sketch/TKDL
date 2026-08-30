@@ -380,6 +380,9 @@ router.get("/admin/export", async (_req, res): Promise<void> => {
 });
 
 // ── Doubles event: random team draw for a season ───────────────────────────────
+// Doubles teams start with a bigger shared pool than singles (25pts) since it's split between 2-3 players.
+const DOUBLES_STARTING_POINTS = 50;
+
 const DoublesDrawBody = z.object({ force: z.boolean().optional().default(false) });
 
 router.post("/admin/seasons/:id/doubles/draw", async (req, res): Promise<void> => {
@@ -429,7 +432,7 @@ router.post("/admin/seasons/:id/doubles/draw", async (req, res): Promise<void> =
     const teamName = team.map(p => p.name).join(" & ");
     const [row] = await db.execute(sql`
       INSERT INTO doubles_teams (season_id, player1_id, player2_id, player3_id, team_name, points, peak_points, elo, wins, losses, is_eliminated)
-      VALUES (${seasonId}, ${team[0].id}, ${team[1].id}, ${team[2]?.id ?? null}, ${teamName}, 25, 25, 1000, 0, 0, false)
+      VALUES (${seasonId}, ${team[0].id}, ${team[1].id}, ${team[2]?.id ?? null}, ${teamName}, ${DOUBLES_STARTING_POINTS}, ${DOUBLES_STARTING_POINTS}, 1000, 0, 0, false)
       RETURNING *
     `).then(r => r.rows as any[]);
     created.push(row);
