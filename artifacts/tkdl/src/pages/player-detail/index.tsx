@@ -126,6 +126,23 @@ export default function PlayerDetail() {
       .catch(() => {});
   }, [playerId]);
 
+  const [doublesTeam, setDoublesTeam] = useState<any | null>(null);
+  useEffect(() => {
+    if (!playerId) return;
+    fetch("/api/seasons/current")
+      .then(r => r.json())
+      .then(season => {
+        if (!season?.id) return null;
+        return fetch(`/api/seasons/${season.id}/doubles/teams`).then(r => r.json());
+      })
+      .then(teams => {
+        if (!Array.isArray(teams)) { setDoublesTeam(null); return; }
+        const mine = teams.find((t: any) => t.players?.some((p: any) => p.id === Number(playerId)));
+        setDoublesTeam(mine ?? null);
+      })
+      .catch(() => setDoublesTeam(null));
+  }, [playerId]);
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -337,6 +354,35 @@ export default function PlayerDetail() {
         <div className="absolute bottom-0 left-0 right-0 h-px"
           style={{ background: `linear-gradient(90deg, transparent, ${tierColor}40, transparent)` }} />
       </div>
+
+      {/* ══ DOUBLES EVENT ══ */}
+      {doublesTeam && (
+        <Link href={`/seasons/${doublesTeam.seasonId}`} className="pdc-card p-4 flex items-center justify-between gap-4 hover:bg-white/[0.02] transition-colors"
+          style={{ opacity: doublesTeam.isEliminated ? 0.6 : 1 }}>
+          <div className="min-w-0">
+            <div className="text-xs uppercase font-bold mb-1 flex items-center gap-1.5" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(0,102,255,0.7)", letterSpacing: "0.12em" }}>
+              Doubles Event{doublesTeam.isEliminated && " — Eliminated"}
+            </div>
+            <div className="font-bold text-lg truncate" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)" }}>
+              {doublesTeam.teamName}
+            </div>
+          </div>
+          <div className="flex items-center gap-4 shrink-0 text-sm font-mono">
+            <div className="text-center">
+              <div style={{ color: "#22c55e" }}>{doublesTeam.wins}<span style={{ color: "rgba(255,255,255,0.25)" }}>-</span><span style={{ color: "#ff005c" }}>{doublesTeam.losses}</span></div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>Record</div>
+            </div>
+            <div className="text-center">
+              <div style={{ color: "#0066ff" }}>{doublesTeam.elo}</div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>Elo</div>
+            </div>
+            <div className="text-center">
+              <div style={{ color: "#ffd24a" }}>{doublesTeam.points}</div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>Points</div>
+            </div>
+          </div>
+        </Link>
+      )}
 
       {/* ══ ELO JOURNEY ══ */}
       {recentMatches && recentMatches.length >= 2 && (

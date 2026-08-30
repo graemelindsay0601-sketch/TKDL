@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
-import { Trophy, Calendar, Hash, ArrowLeft, Medal, Flame, Zap, Crown, BarChart3, Swords } from "lucide-react";
+import { Trophy, Calendar, Hash, ArrowLeft, Medal, Flame, Zap, Crown, BarChart3, Swords, Users, Skull } from "lucide-react";
 
 function useSeasonMatches(seasonId: number) {
   const [data, setData] = useState<any[]>([]);
@@ -19,15 +19,46 @@ function useSeasonMatches(seasonId: number) {
   return { data, loading };
 }
 
+function useDoublesTeams(seasonId: number) {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!seasonId) return;
+    setLoading(true);
+    fetch(`/api/seasons/${seasonId}/doubles/teams`)
+      .then(r => r.json())
+      .then(d => { setData(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [seasonId]);
+  return { data, loading };
+}
+
+function useDoublesMatches(seasonId: number) {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!seasonId) return;
+    setLoading(true);
+    fetch(`/api/seasons/${seasonId}/doubles/matches`)
+      .then(r => r.json())
+      .then(d => { setData(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [seasonId]);
+  return { data, loading };
+}
+
 export default function SeasonDetail() {
   const params = useParams();
   const seasonId = parseInt(params.id || "0", 10);
-  const [activeTab, setActiveTab] = useState<"standings" | "matches">("standings");
+  const [activeTab, setActiveTab] = useState<"standings" | "matches" | "doubles">("standings");
+  const [doublesView, setDoublesView] = useState<"standings" | "matches">("standings");
 
   const { data: seasonDetail, isLoading } = useGetSeason(seasonId, {
     query: { enabled: !!seasonId, queryKey: getGetSeasonQueryKey(seasonId) },
   });
   const { data: matches, loading: matchesLoading } = useSeasonMatches(seasonId);
+  const { data: doublesTeams, loading: doublesTeamsLoading } = useDoublesTeams(seasonId);
+  const { data: doublesMatches, loading: doublesMatchesLoading } = useDoublesMatches(seasonId);
 
   if (isLoading) {
     return (
@@ -152,7 +183,7 @@ export default function SeasonDetail() {
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-        {(["standings", "matches"] as const).map(tab => (
+        {(["standings", "matches", "doubles"] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -164,7 +195,7 @@ export default function SeasonDetail() {
               letterSpacing: "0.08em",
             }}
           >
-            {tab === "standings" ? "Standings" : `Matches${matches.length > 0 ? ` (${matches.length})` : ""}`}
+            {tab === "standings" ? "Standings" : tab === "matches" ? `Matches${matches.length > 0 ? ` (${matches.length})` : ""}` : "Doubles"}
           </button>
         ))}
       </div>
@@ -299,6 +330,153 @@ export default function SeasonDetail() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Doubles tab */}
+      {activeTab === "doubles" && (
+        <div className="space-y-3">
+          <div className="flex gap-1 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            {(["standings", "matches"] as const).map(v => (
+              <button
+                key={v}
+                onClick={() => setDoublesView(v)}
+                className="flex-1 py-1.5 px-4 rounded-lg text-xs font-bold uppercase tracking-wider transition-all"
+                style={{
+                  fontFamily: "Oswald, sans-serif",
+                  background: doublesView === v ? "#0066ff" : "transparent",
+                  color: doublesView === v ? "#fff" : "rgba(255,255,255,0.4)",
+                  letterSpacing: "0.08em",
+                }}
+              >
+                {v === "standings" ? "Team Standings" : `Match Log${doublesMatches.length > 0 ? ` (${doublesMatches.length})` : ""}`}
+              </button>
+            ))}
+          </div>
+
+          {doublesView === "standings" && (
+            <div className="pdc-card overflow-hidden">
+              <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                <Users className="w-4 h-4" style={{ color: "#0066ff" }} />
+                <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+                  Doubles Standings
+                </h2>
+              </div>
+
+              {doublesTeamsLoading ? (
+                <div className="py-10 flex justify-center">
+                  <div className="w-6 h-6 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#0066ff" }} />
+                </div>
+              ) : doublesTeams.length === 0 ? (
+                <div className="px-4 py-10 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  No doubles teams yet — an admin needs to run the random draw for this season.
+                </div>
+              ) : (
+                <>
+                  <div
+                    className="grid text-xs uppercase font-bold px-4 py-2 border-b"
+                    style={{ gridTemplateColumns: "3rem 1fr 7rem 5rem 5rem 5rem", borderColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}
+                  >
+                    <div className="text-center">#</div>
+                    <div>Team</div>
+                    <div className="text-center">Tier</div>
+                    <div className="text-center">Record</div>
+                    <div className="text-right">Elo</div>
+                    <div className="text-right">Points</div>
+                  </div>
+                  {doublesTeams.map((team: any, idx: number) => (
+                    <div
+                      key={team.id}
+                      className="grid items-center px-4 py-3 border-b transition-colors hover:bg-white/[0.025]"
+                      style={{
+                        gridTemplateColumns: "3rem 1fr 7rem 5rem 5rem 5rem",
+                        borderColor: "rgba(255,255,255,0.05)",
+                        background: idx === 0 && !team.isEliminated ? "rgba(0,102,255,0.05)" : undefined,
+                        opacity: team.isEliminated ? 0.5 : 1,
+                      }}
+                    >
+                      <div className="text-center">
+                        <span className="font-bold text-xl leading-none" style={{ fontFamily: "Oswald, sans-serif", color: posColors[idx] ?? "rgba(255,255,255,0.4)" }}>
+                          {team.position}
+                        </span>
+                        {team.isEliminated && <div className="flex justify-center mt-0.5"><Skull className="w-3 h-3" style={{ color: "rgba(255,255,255,0.3)" }} /></div>}
+                      </div>
+                      <div className="min-w-0 pr-2">
+                        <div className="font-bold text-base truncate" style={{ fontFamily: "Oswald, sans-serif", color: idx === 0 ? "#0066ff" : "rgba(255,255,255,0.85)" }}>
+                          {team.players.map((p: any, i: number) => (
+                            <span key={p.id}>
+                              {i > 0 && <span style={{ color: "rgba(255,255,255,0.25)" }}> & </span>}
+                              <Link href={`/players/${p.id}`} className="hover:underline">{p.name}</Link>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex justify-center">
+                        <TierBadge tier={team.tier} />
+                      </div>
+                      <div className="text-center text-sm font-mono" style={{ color: "rgba(255,255,255,0.5)" }}>
+                        <span style={{ color: "#22c55e" }}>{team.wins}</span>
+                        <span style={{ color: "rgba(255,255,255,0.25)" }}>-</span>
+                        <span style={{ color: "#ff005c" }}>{team.losses}</span>
+                      </div>
+                      <div className="text-right font-mono text-sm tabular-nums" style={{ color: "#0066ff" }}>
+                        {team.elo}
+                      </div>
+                      <div className="text-right">
+                        <span className="font-bold text-lg" style={{ fontFamily: "Oswald, sans-serif", color: idx === 0 ? "#0066ff" : "#ff005c" }}>
+                          {team.points}
+                        </span>
+                        <span className="text-xs ml-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>pts</span>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+
+          {doublesView === "matches" && (
+            <div className="pdc-card overflow-hidden">
+              <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                <Swords className="w-4 h-4" style={{ color: "#0066ff" }} />
+                <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+                  Doubles Matches
+                </h2>
+              </div>
+
+              {doublesMatchesLoading ? (
+                <div className="py-10 flex justify-center">
+                  <div className="w-6 h-6 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#0066ff" }} />
+                </div>
+              ) : doublesMatches.length === 0 ? (
+                <div className="py-10 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No doubles matches recorded yet.</div>
+              ) : (
+                <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                  {doublesMatches.map((m: any) => (
+                    <div key={m.id} className="px-4 py-3 flex items-center gap-3 hover:bg-white/[0.02] transition-colors">
+                      <div className="shrink-0 w-14 text-xs font-mono" style={{ color: "rgba(255,255,255,0.3)" }}>
+                        {format(new Date(m.playedAt), "dd MMM")}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 text-sm flex-wrap">
+                          <span className="font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#22c55e" }}>{m.winnerTeamName}</span>
+                          <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>beat</span>
+                          <span className="font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.5)" }}>{m.loserTeamName}</span>
+                        </div>
+                        <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>{m.gameType}</div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="text-xs font-bold font-mono" style={{ color: "#ffd24a" }}>±{m.eloChange}</div>
+                        {m.stake > 0 && (
+                          <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>{m.stake}pts</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

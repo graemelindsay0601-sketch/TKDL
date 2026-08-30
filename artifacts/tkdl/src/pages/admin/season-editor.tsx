@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trophy, ChevronDown, ChevronUp } from "lucide-react";
+import { Trophy, ChevronDown, ChevronUp, Shuffle, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,39 @@ export function SeasonEditor() {
   const [loading, setLoading]   = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [editing, setEditing]   = useState<Record<string, any>>({});
+  const [doublesTeams, setDoublesTeams] = useState<Record<number, any[]>>({});
+  const [drawing, setDrawing]   = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const loadDoublesTeams = async (seasonId: number) => {
+    try {
+      const res = await fetch(`/api/seasons/${seasonId}/doubles/teams`);
+      const data = await res.json();
+      setDoublesTeams(prev => ({ ...prev, [seasonId]: Array.isArray(data) ? data : [] }));
+    } catch { /* ignore — shown as empty */ }
+  };
+
+  const drawDoublesTeams = async (seasonId: number, force: boolean) => {
+    setDrawing(seasonId);
+    try {
+      const res = await fetch(`/api/admin/seasons/${seasonId}/doubles/draw`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast({ title: body.error ?? "Could not draw doubles teams", variant: "destructive" });
+      } else {
+        toast({ title: force ? "Doubles teams redrawn" : "Doubles teams drawn" });
+        await loadDoublesTeams(seasonId);
+      }
+    } catch {
+      toast({ title: "Error drawing doubles teams", variant: "destructive" });
+    }
+    setDrawing(null);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -65,7 +96,11 @@ export function SeasonEditor() {
       {seasons.map(season => (
         <div key={season.id} className="pdc-card overflow-hidden">
           <button
-            onClick={() => setExpanded(expanded === season.id ? null : season.id)}
+            onClick={() => {
+              const next = expanded === season.id ? null : season.id;
+              setExpanded(next);
+              if (next !== null && !doublesTeams[next]) loadDoublesTeams(next);
+            }}
             className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.03] transition-colors"
           >
             <div className="flex items-center gap-3">
@@ -162,6 +197,44 @@ export function SeasonEditor() {
                   </div>
                 </div>
               )}
+
+              <div className="pt-2 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs uppercase tracking-wider font-bold flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
+                    <Users className="w-3.5 h-3.5" /> Doubles Event
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={drawing === season.id}
+                    onClick={() => {
+                      const hasTeams = (doublesTeams[season.id]?.length ?? 0) > 0;
+                      if (hasTeams && !confirm("This will wipe the current doubles teams and match history for this season and draw fresh random pairs. Continue?")) return;
+                      drawDoublesTeams(season.id, hasTeams);
+                    }}
+                    style={{ background: "#0066ff", border: "none", fontFamily: "Oswald, sans-serif" }}
+                  >
+                    <Shuffle className="w-3.5 h-3.5 mr-1.5" />
+                    {drawing === season.id ? "Drawing…" : (doublesTeams[season.id]?.length ?? 0) > 0 ? "Redraw Teams" : "Start Doubles Draw"}
+                  </Button>
+                </div>
+
+                {(doublesTeams[season.id]?.length ?? 0) === 0 ? (
+                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>No doubles teams yet for this season.</div>
+                ) : (
+                  <div className="space-y-1">
+                    {doublesTeams[season.id].map((t: any) => (
+                      <div key={t.id} className="grid items-center gap-2 px-3 py-2 rounded"
+                        style={{ gridTemplateColumns: "1.5rem 1fr 3.5rem 3.5rem 3.5rem", background: t.isEliminated ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", opacity: t.isEliminated ? 0.5 : 1 }}>
+                        <span className="text-xs font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)" }}>{t.position}</span>
+                        <span className="text-xs font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.8)" }}>{t.teamName}</span>
+                        <span className="text-xs text-center font-mono" style={{ color: "rgba(255,255,255,0.5)" }}>{t.wins}-{t.losses}</span>
+                        <span className="text-xs text-center font-mono" style={{ color: "#0066ff" }}>{t.elo}</span>
+                        <span className="text-xs text-center font-mono" style={{ color: "#ffd24a" }}>{t.points}pts</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
