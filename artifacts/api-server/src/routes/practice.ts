@@ -1153,13 +1153,10 @@ router.get("/players/:id/bot-improvement-timeline", async (req, res): Promise<vo
   }
 });
 
-// ─── GET /api/players/:id/practice-routine ────────────────────────────────────
-// Rule-based personalised practice routine from player DNA
-router.get("/players/:id/practice-routine", async (req, res): Promise<void> => {
-  try {
-    const playerId = parseInt(req.params.id, 10);
-    if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
-
+// Rule-based personalised practice routine from player DNA — exported so it
+// can be reused by other endpoints (the drill recommendation route in
+// stats-detailed.ts) without a duplicate implementation or an internal HTTP call.
+export async function generatePracticeRoutine(playerId: number) {
     const [[agg], [vs], dartRows, gameRows] = await Promise.all([
       db.execute(sql`
         SELECT
@@ -1335,7 +1332,7 @@ router.get("/players/:id/practice-routine", async (req, res): Promise<void> => {
       });
     }
 
-    res.json({
+    return {
       drills,
       stats: {
         avg: avg > 0 ? avg : null,
@@ -1346,7 +1343,15 @@ router.get("/players/:id/practice-routine", async (req, res): Promise<void> => {
         totalSessions,
         totalDarts,
       },
-    });
+    };
+}
+
+// ─── GET /api/players/:id/practice-routine ────────────────────────────────────
+router.get("/players/:id/practice-routine", async (req, res): Promise<void> => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+    res.json(await generatePracticeRoutine(playerId));
   } catch (err) {
     req.log.error({ err }, "Failed to generate practice routine");
     res.status(500).json({ error: "Failed to generate routine" });

@@ -5,6 +5,7 @@ import { statsService } from "../services/stats-service";
 import { streakService } from "../services/streak-service";
 import { drillProgressService } from "../services/drill-progress-service";
 import { postMatchAnalysisService } from "../services/post-match-analysis-service";
+import { generatePracticeRoutine } from "./practice";
 
 const router = Router();
 
@@ -221,10 +222,6 @@ router.get("/players/:id/stats/debug", async (req, res) => {
 // The service logic below (streak-service.ts, drill-progress-service.ts,
 // post-match-analysis-service.ts) already existed, fully written against real
 // match/practice data — it just never had routes registered in front of it.
-// (getNextDrillRecommendation was left out: it depends on a "coach drills"
-// list shape that doesn't actually match what any existing endpoint returns —
-// wiring it up would mean guessing at a data contract, not just registering
-// a route, so it needs a real design pass rather than a blind hookup.)
 
 // GET /api/players/:id/streaks
 router.get("/players/:id/streaks", async (req, res) => {
@@ -304,6 +301,24 @@ router.get("/players/:id/drills/adaptive", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to get adaptive difficulty");
     res.status(500).json({ error: "Failed to get adaptive difficulty" });
+  }
+});
+
+// GET /api/players/:id/drills/next-recommendation
+// getNextDrillRecommendation needs the same "coach drills" catalog the Coach
+// tab and drill-completion logging already use (id/title/duration, from
+// practice-routine's rule-based drill generator) — reused here directly
+// rather than guessed at, now that the drill catalog is shared.
+router.get("/players/:id/drills/next-recommendation", async (req, res) => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (isNaN(playerId)) { res.status(400).json({ error: "Invalid player ID" }); return; }
+    const { drills } = await generatePracticeRoutine(playerId);
+    const recommendation = await drillProgressService.getNextDrillRecommendation(playerId, drills);
+    res.json(recommendation);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get next drill recommendation");
+    res.status(500).json({ error: "Failed to get next drill recommendation" });
   }
 });
 

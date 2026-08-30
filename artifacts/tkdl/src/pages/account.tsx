@@ -306,6 +306,7 @@ export default function AccountPage() {
   const [openDrills,       setOpenDrills]      = useState<Record<string, boolean>>({});
   const [loggingDrill,     setLoggingDrill]    = useState<LoggableDrill | null>(null);
   const [drillsVersion,    setDrillsVersion]   = useState(0);
+  const [nextDrillRec,     setNextDrillRec]    = useState<{ type: "new" | "improve"; reason: string; drill: any } | null>(null);
   const [conversations,    setConversations]   = useState<any[]>([]);
   const [activeConvId,     setActiveConvId]    = useState<number | null>(null);
   const [threadMessages,   setThreadMessages]  = useState<any[]>([]);
@@ -428,6 +429,14 @@ export default function AccountPage() {
       .finally(() => setCoachLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, user?.playerId]);
+
+  useEffect(() => {
+    if (!user?.playerId || activeTab !== "coach") return;
+    fetch(`/api/players/${user.playerId}/drills/next-recommendation`)
+      .then(r => r.ok ? r.json() : null)
+      .then((rec: any) => setNextDrillRec(rec && rec.drill ? rec : null))
+      .catch(() => setNextDrillRec(null));
+  }, [activeTab, user?.playerId, drillsVersion]);
 
   useEffect(() => {
     if (activeConvId === null) return;
@@ -1420,6 +1429,31 @@ export default function AccountPage() {
       {/* ── Coach Tab ─────────────────────────────────────────────── */}
       {activeTab === "coach" && (
         <div className="space-y-3">
+          {nextDrillRec && (
+            <div className="rounded-2xl px-4 py-3 flex items-center justify-between gap-3 flex-wrap"
+              style={{ background: "rgba(0,200,160,0.06)", border: "1px solid rgba(0,200,160,0.25)" }}>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Zap className="w-4 h-4 shrink-0" style={{ color: "#00c8a0" }} />
+                <div className="min-w-0">
+                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.1em", color: "#00c8a0", textTransform: "uppercase", fontWeight: 700 }}>
+                    {nextDrillRec.type === "new" ? "Try Next" : "Keep Improving"} · {nextDrillRec.drill.title || nextDrillRec.drill.name}
+                  </div>
+                  <div style={{ fontSize: "0.62rem", color: "rgba(255,255,255,0.5)", marginTop: "3px" }}>
+                    {nextDrillRec.reason}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setLoggingDrill({ id: nextDrillRec.drill.id, title: nextDrillRec.drill.title || nextDrillRec.drill.name, duration: nextDrillRec.drill.duration })}
+                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg transition-opacity hover:opacity-75"
+                style={{ background: "rgba(0,200,160,0.12)", border: "1px solid rgba(0,200,160,0.3)",
+                  color: "#00c8a0", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.06em", fontWeight: 700, cursor: "pointer" }}>
+                <CheckCircle className="w-3 h-3" />
+                Log Completion
+              </button>
+            </div>
+          )}
+
           <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(8,6,18,0.9)", border: "1px solid rgba(0,200,160,0.2)" }}>
             <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(0,200,160,0.1)" }}>
               <div className="flex items-center gap-2">
