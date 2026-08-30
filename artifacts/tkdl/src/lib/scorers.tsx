@@ -641,7 +641,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 }
 
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
-export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange }: {
+export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart }: {
   p1Name: string; p2Name: string;
   config: { startingScore: number; doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; noTrebles?: boolean; legs?: number; bustResetTo?: number };
   botConfig?: BotConfig;
@@ -653,6 +653,14 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   cardEffects?: any[];
   /** Card Clash: fires with every card activation (equip mode AND chaos mode, both players) for reward reporting. */
   onCardsUsedChange?: (log: { cardId: string; usedBy: 0 | 1 }[]) => void;
+  /** Boss Battle: fires once when leg N begins (1-indexed, including leg 1 on mount) so a
+   *  wrapper outside the scorer can rotate in a different fixed set of cardEffects per leg
+   *  without the scorer needing to know anything about bosses itself. */
+  onLegStart?: (legNumber: number) => void;
+  /** Board Curse: fires every time a fresh visit begins, for whoever's turn it now is,
+   *  so a wrapper outside the scorer can roll a new random curse before darts land —
+   *  independent of Chaos Mode, which has its own separate visit-start effect below. */
+  onVisitStart?: (turn: 0 | 1) => void;
 }) {
   const safeTimeout = useSafeTimeout();
   const { startingScore = 501, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo } = config;
@@ -842,6 +850,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         pendingBoardMarkAdjustmentRef.current = [0, 0];
         if (isChaosLabMode) setActiveBoardMarks(prev => expireBoardMarksForLegEnd(prev)); // clears leg-wide rule-benders (Treble Curse, Double Trouble) at the actual leg boundary
         setStarted([!doubleIn, !doubleIn]); setVisitDarts([]);
+        onLegStart?.(newLegState[0] + newLegState[1] + 1);
         setTurn(soloMode ? 0 : ns); setLegWins(newLegState);
         
         // Track which player won this leg (for conditional Wildcard cards)
@@ -1510,8 +1519,19 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Boss Battle: leg 1 never goes through resetForLeg (that only runs between
+  // legs), so it needs its own one-time call on mount to keep leg numbering
+  // 1-indexed and consistent with every later leg.
+  useEffect(() => { onLegStart?.(1); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const cum = visitDarts.reduce((s,d) => s+d.value, 0);
   const projected = scores[turn] - cum;
+  // Display-only: what a visit-total cap (Mercy Killer, Shutdown) actually
+  // leaves this visit worth, so the on-screen total/"leaves" line never
+  // shows a number the game itself isn't using. Kept separate from `cum`/
+  // `projected` above — those still drive the live checkout suggestion,
+  // which reacts per-dart and isn't part of this fix.
+  const cappedCum = isCardClash ? ccApplyVisitCap(cum, activeEffects, turn) : cum;
   const { fs, toggle: toggleFs } = useFullscreen();
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
@@ -1573,6 +1593,18 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     }
     setChaosOptions(drawOptions());
   }, [turn, visitDarts.length, started, isCardClash, isChaosMode, isChaosLabMode, history.length, botConfig]);
+
+  // ── Board Curse: notify an outside wrapper every time a fresh visit begins ──
+  const visitStartKeyRef = useRef<string>("");
+  useEffect(() => {
+    if (!onVisitStart) return;
+    if (!started[turn]) return;
+    if (visitDarts.length !== 0) return;
+    const key = `${turn}:${history.length}`;
+    if (visitStartKeyRef.current === key) return;
+    visitStartKeyRef.current = key;
+    onVisitStart(turn);
+  }, [turn, visitDarts.length, started, history.length, onVisitStart]);
 
   // ── Chaos Mode: apply a revealed mystery card directly (no equip lookup) ──
   const handleChaosCardActivation = useCallback((card: CardData) => {
@@ -1816,10 +1848,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       })}
       {bust ? <BustBanner msg={bustMsg} /> : isBotTurnX01 ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={doubleIn && !started[turn] ? "— hit a double to start" : undefined} />}
       <SectionCard>
-        <VisitDarts darts={visitDarts} />
+        <VisitDarts darts={visitDarts} cappedTotal={isCardClash ? cappedCum : undefined} />
         {visitDarts.length > 0 && (
           <div className="text-center text-xs mt-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-            {cum} scored → leaves {projected >= 0 ? projected : "BUST"}
+            {cappedCum} scored{cappedCum !== cum ? ` (${cum} capped)` : ""} → leaves {(scores[turn] - cappedCum) >= 0 ? scores[turn] - cappedCum : "BUST"}
           </div>
         )}
       </SectionCard>
@@ -2045,7 +2077,7 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
 const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
 
-export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, onCardsUsedChange }: {
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart }: {
   p1Name: string; p2Name: string; cutThroat?: boolean; includesBull?: boolean; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
@@ -2053,12 +2085,21 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   legs?: number;
   setsToWin?: number;
   legsToWinSet?: number;
+  /** Board Curse: solo play against no opponent — turn stays pinned on player 0, and closing every
+   *  number wins outright (player 1's score never moves off 0, so the normal win check passes as
+   *  soon as everything's closed). Mirrors X01Scorer's soloMode. */
+  soloMode?: boolean;
   /** Card Clash: fires with every card activation (equip mode AND chaos mode, both players) for reward reporting. */
   onCardsUsedChange?: (log: { cardId: string; usedBy: 0 | 1 }[]) => void;
+  /** Boss Battle: fires once when leg N begins (1-indexed, including leg 1 on mount) — see X01Scorer's onLegStart for the full explanation. */
+  onLegStart?: (legNumber: number) => void;
+  /** Board Curse: fires every time a fresh visit begins — see X01Scorer's onVisitStart for the full explanation. */
+  onVisitStart?: (turn: 0 | 1) => void;
 }) {
   const safeTimeout = useSafeTimeout();
   const numCount = includesBull ? 7 : 6;
   const legs = legsProp;
+  useEffect(() => { onLegStart?.(1); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const setsNeeded = setsToWin > 0 ? Math.ceil(setsToWin / 2) : 0;
   const legsNeeded = setsToWin > 0 ? Math.ceil(legsToWinSet / 2) : (legs ? Math.ceil(legs / 2) : 0);
   const [marks, setMarks]       = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
@@ -2187,9 +2228,9 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
 
     // Expire turn-based effects and switch turn
     if (isCardClash) setActiveEffects(prev => ccExpireOnTurnEnd(prev, completedPlayer));
-    setTurn(t => t===0?1:0);
+    setTurn(t => soloMode ? 0 : (t===0?1:0));
     setLastHit("");
-  }, [activeEffects, cricketClosedThisVisit, isCardClash, marks, visitMarkGains]);
+  }, [activeEffects, cricketClosedThisVisit, isCardClash, marks, visitMarkGains, soloMode]);
 
   // Sync with cardEffects from parent (CardClashMatchScorer)
   useEffect(() => {
@@ -2251,6 +2292,17 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     }
     setChaosOptions(drawOptions());
   }, [turn, visitDarts.length, isCardClash, isChaosMode, isChaosLabMode, turnCounter, legHistory, botConfig]);
+
+  // ── Board Curse: notify an outside wrapper every time a fresh visit begins ──
+  const visitStartKeyRefCri = useRef<string>("");
+  useEffect(() => {
+    if (!onVisitStart) return;
+    if (visitDarts.length !== 0) return;
+    const key = `${turn}:${legHistory.length}:${turnCounter}`;
+    if (visitStartKeyRefCri.current === key) return;
+    visitStartKeyRefCri.current = key;
+    onVisitStart(turn);
+  }, [turn, visitDarts.length, turnCounter, legHistory, onVisitStart]);
 
   // ── Chaos Mode: apply a revealed mystery card directly (no equip lookup) ──
   const handleChaosCardActivation = useCallback((card: CardData) => {
@@ -2620,7 +2672,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       setScores([Math.max(0, pendingCri[0]), Math.max(0, pendingCri[1])]);
       pendingBoardMarkAdjustmentRef.current = [0, 0];
       if (isChaosLabMode) setActiveBoardMarks(prev => expireBoardMarksForLegEnd(prev));
-      setTurn(ns);
+      setTurn(soloMode ? 0 : ns);
       setVisitDarts([]);
       setLastHit("");
       setLockedNumbers([new Set(), new Set()]);
@@ -2632,6 +2684,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       setCricketVisitScore(0);
       setCricketVisitMarks(0);
       setCricketClosedThisVisit(false);
+      onLegStart?.(newLegState[0] + newLegState[1] + 1);
       setLegWins(newLegState);
 
       const legWinner = newLegState[0] > legWins[0] ? 0 : newLegState[1] > legWins[1] ? 1 : null;
@@ -2663,7 +2716,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         }
       }
     }, delay);
-  }, [legStarter, legWins, isCardClash, scores, p1Cards, p2Cards]);
+  }, [legStarter, legWins, isCardClash, scores, p1Cards, p2Cards, onLegStart, soloMode]);
 
   const handleLegWin = useCallback((winnerIdx: 0|1) => {
     // Single-leg match (default / Bo1) — no format selected, behave exactly as before
@@ -2847,7 +2900,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       const nv = [...visitDarts, dart];
       setVisitDarts(nv);
       setLastHit("Miss (no bull)");
-      if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); setLastHit(""); }
+      if (nv.length === 3) { setVisitDarts([]); setTurn(t => soloMode ? 0 : (t===0?1:0)); setLastHit(""); }
       return;
     }
     const numIdx = CRICKET_NUMS.indexOf(effectiveDart.segment);
@@ -3253,7 +3306,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       
       // Increment turn counter for Early Closer tracking
       setTurnCounter(tc => tc + 1);
-      setTurn(t => t===0?1:0);
+      setTurn(t => soloMode ? 0 : (t===0?1:0));
       setLastHit("");
     }
 
@@ -3271,7 +3324,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         return m;
       });
     }, 50);
-  }, [visitDarts, turn, marks, scores, cutThroat, includesBull, numCount, onWin, isCardClash, activeEffects, handleLegWin, isChaosLabMode, activeBoardMarks]);
+  }, [visitDarts, turn, marks, scores, cutThroat, includesBull, numCount, onWin, isCardClash, activeEffects, handleLegWin, isChaosLabMode, activeBoardMarks, soloMode]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => {

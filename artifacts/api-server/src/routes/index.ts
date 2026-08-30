@@ -24,6 +24,8 @@ import cardClashRouter     from "./card-clash";
 import challengesRouter    from "./challenges";
 import cardClashSettingsRouter from "./card-clash-settings";
 import cardClashFavoritesRouter from "./card-clash-favorites";
+import bossBattlesRouter from "./boss-battles";
+import boardCurseRouter from "./board-curse";
 
 const router: IRouter = Router();
 
@@ -52,5 +54,7 @@ router.use("/card-clash", cardClashRouter);
 router.use("/challenges", challengesRouter);
 router.use(cardClashSettingsRouter);
 router.use(cardClashFavoritesRouter);
+router.use(bossBattlesRouter);
+router.use(boardCurseRouter);
 
 export default router;

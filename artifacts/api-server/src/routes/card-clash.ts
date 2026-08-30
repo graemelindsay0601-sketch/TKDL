@@ -1083,17 +1083,6 @@ router.post("/quests/update-seasonal", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/admin/quests/seed", verifyAdminPin, async (req: Request, res: Response) => {
-  try {
-    const { seasonalQuestService } = await import("../services/seasonal-quest-service");
-    await seasonalQuestService.seedDefaultSeasonalQuests();
-
-    res.json({ success: true, message: "Default seasonal quests seeded" });
-  } catch (error) {
-    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
-  }
-});
-
 // === CARD CLASH ACHIEVEMENTS ===
 
 router.get("/achievements/:playerId", async (req: Request, res: Response) => {

@@ -261,7 +261,7 @@ export function TKDLCard({
         }}>
           <div style={{
             width: "100%", height: "100%",
-            backgroundImage: "url('/cards/card-backs.png')",
+            backgroundImage: "url('/cards/card-backs.webp')",
             backgroundSize: "300% 200%",
             backgroundPosition: cfg.cardBackPosition,
             backgroundRepeat: "no-repeat",

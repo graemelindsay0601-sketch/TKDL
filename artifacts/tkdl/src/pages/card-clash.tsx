@@ -78,9 +78,9 @@ const PACKS = [
     function PackSVG({ packId, scale = 1 }: { packId: string; scale?: number }) {
       const W = Math.round(148 * scale), H = Math.round(236 * scale);
       const PACK_IMGS: Record<string,string> = {
-        single: "/assets/pack-league-front.png",
-        five:   "/assets/pack-gold-front.png",
-        ten:    "/assets/pack-purple-front.png",
+        single: "/assets/pack-league-front.webp",
+        five:   "/assets/pack-gold-front.webp",
+        ten:    "/assets/pack-purple-front.webp",
       };
       const src = PACK_IMGS[packId] ?? PACK_IMGS.single;
       return (
@@ -113,14 +113,14 @@ const PACKS = [
   }
   // ── Hub card ─────────────────────────────────────────────────────────────────
     const HUB_IMGS: Record<string,string> = {
-      collection:   "/assets/hub-collection.png",
-      shop:         "/assets/hub-shop.png",
-      play:         "/assets/hub-play.png",
-      practice:     "/assets/hub-practice.png",
-      standings:    "/assets/hub-standings.png",
-      achievements: "/assets/hub-achievements.png",
-      rules:        "/assets/hub-rules.png",
-      admin:        "/assets/hub-admin.png",
+      collection:   "/assets/hub-collection.webp",
+      shop:         "/assets/hub-shop.webp",
+      play:         "/assets/hub-play.webp",
+      practice:     "/assets/hub-practice.webp",
+      standings:    "/assets/hub-standings.webp",
+      achievements: "/assets/hub-achievements.webp",
+      rules:        "/assets/hub-rules.webp",
+      admin:        "/assets/hub-admin.webp",
     };
 
     function HubCard({label,sublabel,color,glow,onClick,badge,disabled=false,delay=0}:{label:string;sublabel:string;color:string;glow:string;onClick:()=>void;badge?:number|string;disabled?:boolean;delay?:number;icon?:React.ReactNode}){
@@ -313,7 +313,7 @@ const PACKS = [
 
         {/* ── BACKGROUND IMAGE ── */}
         <div style={{position:"fixed",inset:0,zIndex:0,pointerEvents:"none",overflow:"hidden"}}>
-          <div style={{position:"absolute",inset:0,backgroundImage:"url(/assets/card-clash-bg.png)",backgroundSize:"cover",backgroundPosition:"center top"}}/>
+          <div style={{position:"absolute",inset:0,backgroundImage:"url(/assets/card-clash-bg.webp)",backgroundSize:"cover",backgroundPosition:"center top"}}/>
           <div style={{position:"absolute",inset:0,background:"rgba(2,0,8,0.70)"}}/>
           <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.012) 1px,transparent 1px)",backgroundSize:"30px 30px"}}/>
         </div>

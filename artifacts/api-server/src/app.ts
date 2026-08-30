@@ -659,6 +659,59 @@ async function seedCardFavorites() {
   logger.info("Card favorites table ready");
 }
 
+// Boss Battle Mode: which bosses each player has beaten, so the ladder page
+// knows what's unlocked. Pure arcade — never touches matches/Elo, so a
+// simple per-player/boss row is all that's needed.
+async function seedBossBattleProgress() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS boss_battle_progress (
+      player_id   INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      boss_id     TEXT NOT NULL,
+      defeated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (player_id, boss_id)
+    )
+  `);
+  logger.info("Boss battle progress table ready");
+}
+
+// Board Curse Mode: Solo mode's persistent state is two personal bests per
+// player per game type — fewest visits to close out a single leg, and the
+// longest Endless streak (legs survived back-to-back before stopping).
+// Either can be null (a player may have one best but not the other yet).
+async function seedBoardCurseBest() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS board_curse_best (
+      player_id   INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      game_type   TEXT NOT NULL,
+      best_visits INTEGER,
+      best_streak INTEGER,
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (player_id, game_type)
+    )
+  `);
+  // Safe no-op if the table already has these — covers anyone who already
+  // ran the earlier NOT NULL / no-streak version of this table locally.
+  await db.execute(sql`ALTER TABLE board_curse_best ALTER COLUMN best_visits DROP NOT NULL`);
+  await db.execute(sql`ALTER TABLE board_curse_best ADD COLUMN IF NOT EXISTS best_streak INTEGER`);
+  logger.info("Board curse best table ready");
+}
+
+// Board Curse Mode: simple bragging-rights win/loss record vs Bot and vs
+// Local Player, kept from the perspective of whoever's logged in on this
+// device (Local's second "player" is just a typed name, not an account).
+async function seedBoardCurseRecords() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS board_curse_records (
+      player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      format    TEXT NOT NULL,
+      wins      INTEGER NOT NULL DEFAULT 0,
+      losses    INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (player_id, format)
+    )
+  `);
+  logger.info("Board curse records table ready");
+}
+
 // Backs drill-progress-service.ts, which was fully written (real mastery/
 // trend queries) but never had its table created — nothing currently writes
 // to it (no drill-runner UI calls POST .../drills/complete yet), so the
@@ -873,6 +926,9 @@ async function init() {
     await seedMatchesMilestoneColumns();
     await seedCardFavorites();
     await seedDrillCompletions();
+    await seedBossBattleProgress();
+    await seedBoardCurseBest();
+    await seedBoardCurseRecords();
     await seedPractice();
     await seedMaster501();
     await seedMatchParticipants();

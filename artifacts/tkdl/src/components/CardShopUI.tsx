@@ -88,9 +88,9 @@ function PackArt({ packId, isPreview }: { packId: string; isPreview: boolean }) 
   const W = isPreview ? 174 : 108;
   const H = isPreview ? 280 : 174;
   const PACK_IMGS: Record<string,string> = {
-    single: "/assets/pack-league-front.png",
-    five:   "/assets/pack-gold-front.png",
-    ten:    "/assets/pack-purple-front.png",
+    single: "/assets/pack-league-front.webp",
+    five:   "/assets/pack-gold-front.webp",
+    ten:    "/assets/pack-purple-front.webp",
   };
   const src = PACK_IMGS[packId] ?? PACK_IMGS.single;
   return (

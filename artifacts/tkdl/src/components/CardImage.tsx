@@ -63,9 +63,9 @@ export function CardImage({ card, size = "medium", showBack = false }: CardImage
     
     // For X01 and Cricket, use grid images
     if (gameMode === "X01") {
-      return cardType === "GOOD" ? "/cards/x01-good-grid.png" : "/cards/x01-bad-grid.png";
+      return cardType === "GOOD" ? "/cards/x01-good-grid.webp" : "/cards/x01-bad-grid.webp";
     } else if (gameMode === "CRICKET") {
-      return cardType === "GOOD" ? "/cards/cricket-good-grid.png" : "/cards/cricket-bad-grid.png";
+      return cardType === "GOOD" ? "/cards/cricket-good-grid.webp" : "/cards/cricket-bad-grid.webp";
     }
     return "/cards/card-back.png";
   };
@@ -115,7 +115,7 @@ export function CardImage({ card, size = "medium", showBack = false }: CardImage
     }
 
     return {
-      image: "/cards/card-backs.png",
+      image: "/cards/card-backs.webp",
       x: backCol * 33.33, // 3 columns = 33.33% each
       y: backRow * 50, // 2 rows = 50% each
     };

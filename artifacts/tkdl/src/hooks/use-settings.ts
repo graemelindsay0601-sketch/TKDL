@@ -11,6 +11,8 @@ export type AppSettings = {
   doubles_event_enabled: boolean;
   dartboard_heatmap_enabled: boolean;
   voice_callouts_enabled: boolean;
+  boss_battle_enabled: boolean;
+  board_curse_enabled: boolean;
 };
 
 async function fetchSettings(): Promise<AppSettings> {
@@ -26,6 +28,8 @@ async function fetchSettings(): Promise<AppSettings> {
     doubles_event_enabled: true,
     dartboard_heatmap_enabled: false,
     voice_callouts_enabled: false,
+    boss_battle_enabled: false,
+    board_curse_enabled: false,
   };
   return res.json() as Promise<AppSettings>;
 }

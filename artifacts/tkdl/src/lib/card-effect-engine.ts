@@ -477,6 +477,13 @@ export function ccPreprocessDart(
   if (active.length === 0) return dart;
 
   let { segment, multiplier, value, label } = dart;
+  // What the dart actually was before any effect touched it (e.g. "T20") —
+  // kept around so value-changing effects below can say what they changed
+  // it FROM, not just show the new number with no context. Effects that
+  // zero a dart out already explain themselves ("0 (blocked)" etc.); the
+  // ones that scale/cap/floor a value didn't, which is exactly the "wait,
+  // why did that only score 50?" confusion this fixes.
+  const rawLabel = dart.label;
 
   for (const e of active) {
     // Lockdown — only chosen segment scores
@@ -504,11 +511,11 @@ export function ccPreprocessDart(
     }
     // Trebles as singles (Treble Curse)
     if (e.treblesAsSingles && multiplier === 3) {
-      multiplier = 1; value = segment; label = `${segment}`;
+      multiplier = 1; value = segment; label = `${segment} (${rawLabel} downgraded)`;
     }
     // Doubles as singles (Doubles Don't Count)
     if (e.doublesAsSingles && multiplier === 2 && segment !== 25) {
-      multiplier = 1; value = segment; label = `${segment}`;
+      multiplier = 1; value = segment; label = `${segment} (${rawLabel} downgraded)`;
     }
     // Finish Delay — first N darts: doubles become singles (so can't use double to finish early)
     // This is the correct implementation: D20 on dart 1 counts as S20, not as 40 pts
@@ -529,13 +536,15 @@ export function ccPreprocessDart(
     // Fatigue multipliers
     if (e.fatigueMults) {
       const mult = e.fatigueMults[Math.min(dartIdx, 2)];
-      value = Math.floor(value * mult);
-      label = `${value}`;
+      const scaled = Math.floor(value * mult);
+      if (scaled !== value) label = `${scaled} (${rawLabel} × ${mult})`;
+      value = scaled;
     }
     // All darts multiplier (Jinx, Iron Will, Unlucky Night, etc.)
     if (e.allDartsMultiplier !== undefined) {
-      value = Math.floor(value * e.allDartsMultiplier);
-      label = `${value}`;
+      const scaled = Math.floor(value * e.allDartsMultiplier);
+      if (scaled !== value) label = `${scaled} (${rawLabel} × ${e.allDartsMultiplier})`;
+      value = scaled;
     }
     // Treble multiplier (Treble Hunter, Treble Boost)
     // BUGFIX 103: Treble Hunter (oneShotTrebleMultiplier) must only apply to the FIRST treble
@@ -555,24 +564,26 @@ export function ccPreprocessDart(
     // Bonus per dart (Perfect Rhythm)
     if (e.bonusPerDart !== undefined && value > 0) {
       value = value + e.bonusPerDart;
-      label = `${value}`;
+      label = `${value} (${rawLabel} +${e.bonusPerDart})`;
     }
     // Clutch penalty (Clutch Breaker)
     if (e.clutchPenaltyPerDart !== undefined && playerRemaining <= 100 && value > 0) {
-      value = Math.max(0, value - e.clutchPenaltyPerDart);
-      label = `${value}`;
+      const reduced = Math.max(0, value - e.clutchPenaltyPerDart);
+      if (reduced !== value) label = `${reduced} (${rawLabel} −${e.clutchPenaltyPerDart})`;
+      value = reduced;
     }
     // Min segment redirect (Precision Strike)
     if (e.minSegment !== undefined && segment > 0 && segment < e.minSegment && segment !== 25) {
-      segment = e.minSegment; multiplier = 1; value = e.minSegment; label = `${e.minSegment}`;
+      segment = e.minSegment; multiplier = 1; value = e.minSegment;
+      label = `${e.minSegment} (${rawLabel} raised)`;
     }
     // Max dart value (Shackled)
     if (e.maxDartValue !== undefined && value > e.maxDartValue) {
-      value = e.maxDartValue; label = `${value}`;
+      value = e.maxDartValue; label = `${value} (${rawLabel} capped)`;
     }
     // Min dart value (Safety Boost)
     if (e.minDartValue !== undefined && value > 0 && value < e.minDartValue) {
-      value = e.minDartValue; label = `${value}`;
+      value = e.minDartValue; label = `${value} (${rawLabel} raised)`;
     }
   }
   

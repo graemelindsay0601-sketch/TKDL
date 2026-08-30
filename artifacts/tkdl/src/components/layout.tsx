@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 import { useGetStatsSummary, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
@@ -29,6 +29,12 @@ const botNav = [
 ];
 const cardClashNav = [
   { href: "/card-clash",   label: "Card Clash",   icon: Medal           },
+];
+const bossBattleNav = [
+  { href: "/boss-battle",  label: "Boss Battle",  icon: Skull           },
+];
+const boardCurseNav = [
+  { href: "/board-curse",  label: "Board Curse",  icon: Flame           },
 ];
 const leagueNav = [
   { href: "/leaderboard",  label: "Standings",    icon: Trophy          },
@@ -186,6 +192,8 @@ export function Layout({ children }: { children: ReactNode }) {
   const liveScorer       = appSettings?.live_scorer_enabled ?? false;
   const communityEnabled = appSettings?.community_enabled   ?? false;
   const cardClashEnabled = appSettings?.card_clash_enabled  ?? false;
+  const bossBattleEnabled = appSettings?.boss_battle_enabled ?? false;
+  const boardCurseEnabled = appSettings?.board_curse_enabled ?? false;
   const [unreadCount, setUnreadCount]   = useState(0);
   useEffect(() => {
     if (!authUser) return;
@@ -206,6 +214,8 @@ export function Layout({ children }: { children: ReactNode }) {
     : playNav;
   const dynamicBotNav: NavItem[] = botNav;
   const dynamicCardClashNav: NavItem[] = cardClashEnabled ? cardClashNav : [];
+  const dynamicBossBattleNav: NavItem[] = bossBattleEnabled ? bossBattleNav : [];
+  const dynamicBoardCurseNav: NavItem[] = boardCurseEnabled ? boardCurseNav : [];
 
   function NavLink({ item }: { item: NavItem }) {
     const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
@@ -336,6 +346,18 @@ export function Layout({ children }: { children: ReactNode }) {
         {dynamicCardClashNav.length > 0 && (
           <>
             <NavSection label="Card Clash"   items={dynamicCardClashNav} />
+            <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
+          </>
+        )}
+        {dynamicBossBattleNav.length > 0 && (
+          <>
+            <NavSection label="Boss Battle"  items={dynamicBossBattleNav} />
+            <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
+          </>
+        )}
+        {dynamicBoardCurseNav.length > 0 && (
+          <>
+            <NavSection label="Board Curse"  items={dynamicBoardCurseNav} />
             <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
           </>
         )}

@@ -15,6 +15,8 @@ export function FeatureFlags() {
   const [doublesEventOn,    setDoublesEventOn]     = useState<boolean | null>(null);
   const [heatmapOn,         setHeatmapOn]          = useState<boolean | null>(null);
   const [voiceCalloutsOn,   setVoiceCalloutsOn]    = useState<boolean | null>(null);
+  const [bossBattleOn,      setBossBattleOn]       = useState<boolean | null>(null);
+  const [boardCurseOn,      setBoardCurseOn]       = useState<boolean | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -31,12 +33,14 @@ export function FeatureFlags() {
         setDoublesEventOn(s.doubles_event_enabled !== false);
         setHeatmapOn(s.dartboard_heatmap_enabled === true);
         setVoiceCalloutsOn(s.voice_callouts_enabled === true);
+        setBossBattleOn(s.boss_battle_enabled === true);
+        setBoardCurseOn(s.board_curse_enabled === true);
       })
       .catch(() => {
         setLiveScorer(false);
         setCommunityOn(false); setMessagingOn(false); setNotificationsOn(false); setShadowLeagueOn(false); setCardClashOn(false);
         setDoublesEventOn(true);
-        setHeatmapOn(false); setVoiceCalloutsOn(false);
+        setHeatmapOn(false); setVoiceCalloutsOn(false); setBossBattleOn(false); setBoardCurseOn(false);
       });
   }, []);
 
@@ -97,6 +101,8 @@ export function FeatureFlags() {
           <div className="space-y-5">
             {row("Dartboard Heatmap", "Visual board showing where a player's darts actually land, on their stats page — needs 60+ logged darts to show anything", heatmapOn, setHeatmapOn, "dartboard_heatmap_enabled", "Dartboard Heatmap live", "Dartboard Heatmap hidden")}
             {row("Voice Call-Outs", "Live scorer announces scores, checkouts, and 180s out loud using the browser's built-in voice — players can still mute it themselves at the table", voiceCalloutsOn, setVoiceCalloutsOn, "voice_callouts_enabled", "Voice Call-Outs live", "Voice Call-Outs hidden")}
+            {row("Boss Battle", "A ladder of CPU bosses with fixed debuffs built from Card Clash's effects system — arcade only, no Elo impact. Test the ladder yourself before turning it on for everyone", bossBattleOn, setBossBattleOn, "boss_battle_enabled", "Boss Battle live", "Boss Battle hidden")}
+            {row("Board Curse", "A standalone mode where random curses strike as a leg goes on, getting worse the longer it runs — solo, vs a bot, or vs a friend. Arcade only, no Elo impact. Test it yourself before turning it on for everyone", boardCurseOn, setBoardCurseOn, "board_curse_enabled", "Board Curse live", "Board Curse hidden")}
           </div>
         </div>
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />

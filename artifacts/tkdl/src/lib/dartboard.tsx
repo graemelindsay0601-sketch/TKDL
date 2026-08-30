@@ -367,9 +367,11 @@ export function DartInputBoard({
 }
 
 // ── VisitDarts display ─────────────────────────────────────────────────────────
-export function VisitDarts({ darts, max = 3 }: { darts: Dart[]; max?: number }) {
+export function VisitDarts({ darts, max = 3, cappedTotal }: { darts: Dart[]; max?: number; /** Card Clash: the actual total after a visit-level cap (Mercy Killer, Shutdown) is applied — when this differs from the raw per-dart sum, show both so the on-screen total never silently disagrees with what the game actually counts. */ cappedTotal?: number }) {
   const slots = Array.from({ length: max }, (_, i) => darts[i]);
-  const total = darts.reduce((s, d) => s + d.value, 0);
+  const rawTotal = darts.reduce((s, d) => s + d.value, 0);
+  const total = cappedTotal ?? rawTotal;
+  const isCapped = cappedTotal !== undefined && cappedTotal !== rawTotal;
   const dartColor = (d: Dart) => {
     if (d.value === 0) return "#ff005c";
     if (d.multiplier === 3) return "#ff6b9d";
@@ -405,8 +407,15 @@ export function VisitDarts({ darts, max = 3 }: { darts: Dart[]; max?: number }) 
       ))}
       {darts.length > 0 && (
         <div style={{ textAlign: "right", paddingLeft: "0.3rem", minWidth: "2.5rem" }}>
-          <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>TOTAL</div>
-          <div style={{ fontSize: "1.6rem", fontWeight: 900, fontFamily: "Oswald, sans-serif", color: "#ffd24a", lineHeight: 1 }}>{total}</div>
+          <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+            {isCapped ? "TOTAL (CAPPED)" : "TOTAL"}
+          </div>
+          <div style={{ fontSize: "1.6rem", fontWeight: 900, fontFamily: "Oswald, sans-serif", color: isCapped ? "#ff6b6b" : "#ffd24a", lineHeight: 1 }}>{total}</div>
+          {isCapped && (
+            <div style={{ fontSize: "0.55rem", color: "rgba(255,107,107,0.6)", fontFamily: "Oswald, sans-serif" }}>
+              was {rawTotal}
+            </div>
+          )}
         </div>
       )}
     </div>
