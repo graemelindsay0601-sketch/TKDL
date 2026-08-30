@@ -3,6 +3,7 @@ import { eq, sql, desc, inArray } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable, matchParticipantsTable } from "@workspace/db";
 import { z } from "zod";
 import { calcEloChange } from "../lib/elo";
+import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 
 const TeamMatchBody = z.object({
   winnerIds: z.array(z.number().int().positive()).min(1).max(6),
@@ -41,7 +42,7 @@ router.get("/team-matches", async (req, res): Promise<void> => {
   res.json(matches.map(m => ({ ...m, participants: byMatch.get(m.id) ?? [] })));
 });
 
-router.post("/team-matches", async (req, res): Promise<void> => {
+router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
   const parsed = TeamMatchBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input", details: parsed.error.message });

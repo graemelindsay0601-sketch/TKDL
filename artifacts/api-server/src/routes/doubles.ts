@@ -4,6 +4,7 @@ import { db, seasonsTable } from "@workspace/db";
 import { z } from "zod";
 import { applyEloChange, calcTier } from "../lib/elo";
 import { validateStake, applyWager } from "../lib/wager";
+import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 
 const GetSeasonParams = z.object({ id: z.coerce.number().int().positive() });
 
@@ -95,7 +96,7 @@ router.get("/seasons/:id/doubles/matches", async (req, res): Promise<void> => {
 
 // ── Record a doubles match (against the currently active season) ───────────────
 
-router.post("/doubles/matches", async (req, res): Promise<void> => {
+router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
   const parsed = RecordDoublesMatchBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
   const { winnerTeamId, loserTeamId, stake, gameType, notes } = parsed.data;

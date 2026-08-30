@@ -5,6 +5,7 @@ import { invalidateProgressCache } from "./players";
 import { z } from "zod";
 import { applyEloChange, calcTier } from "../lib/elo";
 import { validateStake, applyWager } from "../lib/wager";
+import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { checkMatchAchievements, checkStatAchievements } from "../lib/achievements";
 import { checkAndGrantTitles } from "../lib/titles";
 import { createAutoPost } from "../lib/communityNotify";
@@ -67,7 +68,7 @@ router.get("/matches", async (req, res): Promise<void> => {
   res.json(matches);
 });
 
-router.post("/matches", async (req, res): Promise<void> => {
+router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
   const parsed = SubmitMatchBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input", details: parsed.error.message });

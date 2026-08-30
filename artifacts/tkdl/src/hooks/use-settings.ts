@@ -2,8 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 
 export type AppSettings = {
   live_scorer_enabled: boolean;
-  auto_scorer_enabled: boolean;
-  auto_scorer_test_only: boolean;
   community_enabled: boolean;
   messaging_enabled: boolean;
   notifications_enabled: boolean;
@@ -16,8 +14,6 @@ async function fetchSettings(): Promise<AppSettings> {
   const res = await fetch("/api/settings");
   if (!res.ok) return {
     live_scorer_enabled: false,
-    auto_scorer_enabled: false,
-    auto_scorer_test_only: true,
     community_enabled: false,
     messaging_enabled: false,
     notifications_enabled: false,

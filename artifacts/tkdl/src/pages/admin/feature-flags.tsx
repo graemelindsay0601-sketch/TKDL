@@ -6,8 +6,6 @@ import { CollapsibleAdminSection } from "./collapsible-section";
 
 export function FeatureFlags() {
   const [liveScorer,        setLiveScorer]        = useState<boolean | null>(null);
-  const [autoScorerOn,      setAutoScorerOn]       = useState<boolean | null>(null);
-  const [autoScorerTest,    setAutoScorerTest]     = useState<boolean | null>(null);
   const [communityOn,       setCommunityOn]        = useState<boolean | null>(null);
   const [messagingOn,       setMessagingOn]        = useState<boolean | null>(null);
   const [notificationsOn,   setNotificationsOn]    = useState<boolean | null>(null);
@@ -20,8 +18,6 @@ export function FeatureFlags() {
       .then(r => r.ok ? r.json() : {})
       .then((s: Record<string, unknown>) => {
         setLiveScorer(s.live_scorer_enabled === true);
-        setAutoScorerOn(s.auto_scorer_enabled === true);
-        setAutoScorerTest(s.auto_scorer_test_only !== false);
         setCommunityOn(s.community_enabled === true);
         setMessagingOn(s.messaging_enabled === true);
         setNotificationsOn(s.notifications_enabled === true);
@@ -29,7 +25,7 @@ export function FeatureFlags() {
         setCardClashOn(s.card_clash_enabled === true);
       })
       .catch(() => {
-        setLiveScorer(false); setAutoScorerOn(false); setAutoScorerTest(true);
+        setLiveScorer(false);
         setCommunityOn(false); setMessagingOn(false); setNotificationsOn(false); setShadowLeagueOn(false); setCardClashOn(false);
       });
   }, []);
@@ -65,9 +61,6 @@ export function FeatureFlags() {
       badge={<span className="text-xs font-bold uppercase px-2 py-0.5 rounded-full ml-1" style={{ background: "rgba(167,139,250,0.12)", border: "1px solid rgba(167,139,250,0.3)", color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>Dev</span>}>
       <div className="px-5 py-4 space-y-5">
         {row("Live Scorer", "Show the in-game scorer in the nav for all players", liveScorer, setLiveScorer, "live_scorer_enabled", "Live Scorer enabled", "Live Scorer hidden")}
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
-        {row("AI Camera Scorer", "Show camera 🎥 button in all game scorers (requires Auto-Scorer Test Only = off)", autoScorerOn, setAutoScorerOn, "auto_scorer_enabled", "AI Camera Scorer enabled", "AI Camera Scorer disabled")}
-        {row("Auto-Scorer Test Only", "When on, camera button only shows if AI Camera Scorer is also on — hidden from nav until you're ready", autoScorerTest, setAutoScorerTest, "auto_scorer_test_only", "Test-only mode on", "Test-only mode off")}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
         {row("Community Feed", "Show the Community section in the nav and allow players to post", communityOn, setCommunityOn, "community_enabled", "Community enabled", "Community hidden")}
         {row("Direct Messaging", "Allow players to send each other private messages via the Account page", messagingOn, setMessagingOn, "messaging_enabled", "Messaging enabled", "Messaging disabled")}

@@ -232,7 +232,6 @@ export function GameScorer({
 }) {
   const isBullUpApplicable = bullUp && !soloMode;
   const [starterIdx, setStarterIdx] = useState<0 | 1 | null>(isBullUpApplicable ? null : 0);
-  const [cameraOpen, setCameraOpen]         = useState(false);
 
   function renderInner() {
     if (starterIdx === null) {

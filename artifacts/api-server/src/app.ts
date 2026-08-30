@@ -386,8 +386,6 @@ async function seedSettings() {
   await db.execute(sql`
     INSERT INTO settings (key, value) VALUES
       ('live_scorer_enabled',    'false'),
-      ('auto_scorer_enabled',    'false'),
-      ('auto_scorer_test_only',  'true'),
       ('community_enabled',      'false'),
       ('messaging_enabled',      'false'),
       ('notifications_enabled',  'false')
