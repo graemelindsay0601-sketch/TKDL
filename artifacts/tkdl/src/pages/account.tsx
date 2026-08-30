@@ -18,6 +18,7 @@ import { StreakWidget } from "@/components/stats/streak-widget";
 import { TimeOfDayPerformance } from "@/components/stats/time-of-day-performance";
 import { DrillProgressTracker } from "@/components/stats/drill-progress-tracker";
 import { AdaptiveDifficulty } from "@/components/stats/adaptive-difficulty";
+import { LogDrillModal, type LoggableDrill } from "@/components/stats/log-drill-modal";
 import { DebugStatsViewer } from "@/components/stats/debug-stats-viewer";
 
 const TIER_COLORS: Record<string, string> = {
@@ -303,6 +304,8 @@ export default function AccountPage() {
   const [coachStats,       setCoachStats]      = useState<any>(null);
   const [coachLoading,     setCoachLoading]    = useState(false);
   const [openDrills,       setOpenDrills]      = useState<Record<string, boolean>>({});
+  const [loggingDrill,     setLoggingDrill]    = useState<LoggableDrill | null>(null);
+  const [drillsVersion,    setDrillsVersion]   = useState(0);
   const [conversations,    setConversations]   = useState<any[]>([]);
   const [activeConvId,     setActiveConvId]    = useState<number | null>(null);
   const [threadMessages,   setThreadMessages]  = useState<any[]>([]);
@@ -1539,13 +1542,23 @@ export default function AccountPage() {
                               {drill.duration}
                             </div>
                           )}
-                          <Link href={`/practice?drill=${encodeURIComponent(drill.title || drill.name)}`}
-                            className="inline-flex items-center gap-2 mt-3 px-3 py-2 rounded-lg transition-opacity hover:opacity-75"
-                            style={{ background: "rgba(0,200,160,0.1)", border: "1px solid rgba(0,200,160,0.25)",
-                              color: "#00c8a0", fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", letterSpacing: "0.08em", fontWeight: 700 }}>
-                            <Dumbbell className="w-3 h-3" />
-                            Start This Drill
-                          </Link>
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            <Link href={`/practice?drill=${encodeURIComponent(drill.title || drill.name)}`}
+                              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition-opacity hover:opacity-75"
+                              style={{ background: "rgba(0,200,160,0.1)", border: "1px solid rgba(0,200,160,0.25)",
+                                color: "#00c8a0", fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", letterSpacing: "0.08em", fontWeight: 700 }}>
+                              <Dumbbell className="w-3 h-3" />
+                              Start This Drill
+                            </Link>
+                            <button
+                              onClick={() => setLoggingDrill({ id: drill.id, title: drill.title || drill.name, duration: drill.duration })}
+                              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition-opacity hover:opacity-75"
+                              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)",
+                                color: "rgba(255,255,255,0.6)", fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", letterSpacing: "0.08em", fontWeight: 700, cursor: "pointer" }}>
+                              <CheckCircle className="w-3 h-3" />
+                              Log Completion
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1557,9 +1570,22 @@ export default function AccountPage() {
 
           {user?.playerId && (
             <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              <DrillProgressTracker playerId={parseInt(user.playerId)} />
-              <AdaptiveDifficulty playerId={parseInt(user.playerId)} />
+              <DrillProgressTracker key={`dpt-${drillsVersion}`} playerId={parseInt(user.playerId)} />
+              <AdaptiveDifficulty key={`ad-${drillsVersion}`} playerId={parseInt(user.playerId)} />
             </div>
+          )}
+
+          {loggingDrill && user?.playerId && (
+            <LogDrillModal
+              playerId={parseInt(user.playerId)}
+              drill={loggingDrill}
+              onClose={() => setLoggingDrill(null)}
+              onLogged={() => {
+                setLoggingDrill(null);
+                setDrillsVersion(v => v + 1);
+                toast({ title: "Drill logged!", description: `${loggingDrill.title} recorded — check your progress below.` });
+              }}
+            />
           )}
 
           {/* ── Change Password ──────────────────────────────────── */}
