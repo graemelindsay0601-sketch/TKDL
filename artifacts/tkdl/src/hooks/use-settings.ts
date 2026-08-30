@@ -8,6 +8,9 @@ export type AppSettings = {
   card_clash_enabled: boolean;
   card_shop_enabled: boolean;
   coins_enabled: boolean;
+  doubles_event_enabled: boolean;
+  dartboard_heatmap_enabled: boolean;
+  voice_callouts_enabled: boolean;
 };
 
 async function fetchSettings(): Promise<AppSettings> {
@@ -20,6 +23,9 @@ async function fetchSettings(): Promise<AppSettings> {
     card_clash_enabled: true,
     card_shop_enabled: true,
     coins_enabled: true,
+    doubles_event_enabled: true,
+    dartboard_heatmap_enabled: false,
+    voice_callouts_enabled: false,
   };
   return res.json() as Promise<AppSettings>;
 }

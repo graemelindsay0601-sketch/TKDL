@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { eq, asc } from "drizzle-orm";
 import { db, gameTypesTable } from "@workspace/db";
+import { requireAdminSession } from "../middleware/requireAdminSession";
 
 const router = Router();
 
@@ -10,6 +11,9 @@ router.get("/game-types", async (_req, res): Promise<void> => {
     .orderBy(asc(gameTypesTable.sortOrder));
   res.json(rows);
 });
+
+// Everything below manages game types for the whole app — admin only.
+router.use("/admin/game-types", requireAdminSession);
 
 router.get("/admin/game-types", async (_req, res): Promise<void> => {
   const rows = await db.select().from(gameTypesTable).orderBy(asc(gameTypesTable.sortOrder));

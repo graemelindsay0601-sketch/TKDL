@@ -400,7 +400,10 @@ async function seedSettings() {
       ('live_scorer_enabled',    'false'),
       ('community_enabled',      'false'),
       ('messaging_enabled',      'false'),
-      ('notifications_enabled',  'false')
+      ('notifications_enabled',  'false'),
+      ('doubles_event_enabled',  'true'),
+      ('dartboard_heatmap_enabled', 'false'),
+      ('voice_callouts_enabled', 'false')
     ON CONFLICT (key) DO NOTHING
   `);
   logger.info("Settings defaults ensured");

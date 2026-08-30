@@ -11,6 +11,9 @@ export function FeatureFlags() {
   const [notificationsOn,   setNotificationsOn]    = useState<boolean | null>(null);
   const [shadowLeagueOn,    setShadowLeagueOn]     = useState<boolean | null>(null);
   const [cardClashOn,       setCardClashOn]        = useState<boolean | null>(null);
+  const [doublesEventOn,    setDoublesEventOn]     = useState<boolean | null>(null);
+  const [heatmapOn,         setHeatmapOn]          = useState<boolean | null>(null);
+  const [voiceCalloutsOn,   setVoiceCalloutsOn]    = useState<boolean | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -23,10 +26,15 @@ export function FeatureFlags() {
         setNotificationsOn(s.notifications_enabled === true);
         setShadowLeagueOn(s.shadow_league_enabled === true);
         setCardClashOn(s.card_clash_enabled === true);
+        setDoublesEventOn(s.doubles_event_enabled !== false);
+        setHeatmapOn(s.dartboard_heatmap_enabled === true);
+        setVoiceCalloutsOn(s.voice_callouts_enabled === true);
       })
       .catch(() => {
         setLiveScorer(false);
         setCommunityOn(false); setMessagingOn(false); setNotificationsOn(false); setShadowLeagueOn(false); setCardClashOn(false);
+        setDoublesEventOn(true);
+        setHeatmapOn(false); setVoiceCalloutsOn(false);
       });
   }, []);
 
@@ -69,6 +77,21 @@ export function FeatureFlags() {
         {row("Shadow League", "Enable the /shadow-league page — shows all bots ranked by average. Enable once 4+ bots are active", shadowLeagueOn, setShadowLeagueOn, "shadow_league_enabled", "Shadow League live", "Shadow League hidden")}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
         {row("Card Clash", "Enable the Card Clash game mode with card collecting, packs, and seasons", cardClashOn, setCardClashOn, "card_clash_enabled", "Card Clash live", "Card Clash hidden")}
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+        <div>
+          <div className="text-xs font-bold uppercase mb-1" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>Season Events</div>
+          <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.2)" }}>Turn a season event on or off — handy for events you only run some seasons.</div>
+          {row("Doubles Event", "Random-draw team event alongside the main season — Play, Submit Match, and Live Scorer all hide it when off", doublesEventOn, setDoublesEventOn, "doubles_event_enabled", "Doubles Event live", "Doubles Event hidden")}
+        </div>
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+        <div>
+          <div className="text-xs font-bold uppercase mb-1" style={{ color: "rgba(255,210,74,0.5)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>⚠ Beta Features</div>
+          <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.2)" }}>New and untested — try them out yourself first before turning them on for everyone.</div>
+          <div className="space-y-5">
+            {row("Dartboard Heatmap", "Visual board showing where a player's darts actually land, on their stats page — needs 60+ logged darts to show anything", heatmapOn, setHeatmapOn, "dartboard_heatmap_enabled", "Dartboard Heatmap live", "Dartboard Heatmap hidden")}
+            {row("Voice Call-Outs", "Live scorer announces scores, checkouts, and 180s out loud using the browser's built-in voice — players can still mute it themselves at the table", voiceCalloutsOn, setVoiceCalloutsOn, "voice_callouts_enabled", "Voice Call-Outs live", "Voice Call-Outs hidden")}
+          </div>
+        </div>
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
         <div className="flex gap-2">
           <a href="/community" className="flex-1 py-2.5 text-center text-xs font-bold uppercase rounded-lg tracking-wider"

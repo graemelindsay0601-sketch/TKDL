@@ -204,40 +204,58 @@ export const statsService = {
 
   // Get dart profile for a category (from practice sessions)
   async getCategoryDartProfile(playerId: number, category: GameTypeCategory) {
+    // Same substring rules as categorizeGameType()/getGameTypeCategory() above,
+    // reimplemented in SQL so this query actually respects the requested category
+    // (the old version accepted the parameter and silently ignored it).
+    const categoryFilter =
+      category === "M501"     ? drizzleSql`(game_type_key ILIKE '%M501%' OR game_type_key ILIKE '%MASTER%')` :
+      category === "Tour"     ? drizzleSql`(game_type_key ILIKE '%TOUR%' OR game_type_key ILIKE '%CAREER%')` :
+      category === "Practice" ? drizzleSql`(game_type_key ILIKE '%PRACTICE%' OR game_type_key ILIKE '%SOLO%')` :
+      /* League */               drizzleSql`(game_type_key NOT ILIKE '%M501%' AND game_type_key NOT ILIKE '%MASTER%'
+                                          AND game_type_key NOT ILIKE '%TOUR%' AND game_type_key NOT ILIKE '%CAREER%'
+                                          AND game_type_key NOT ILIKE '%PRACTICE%' AND game_type_key NOT ILIKE '%SOLO%')`;
+
+    // Each dartLog entry is { seg, mult, val } — seg is the actual board segment
+    // (1-20, or 25 for bull) the dart landed on; val is seg*mult (its point value).
+    // Group by seg here, NOT val — grouping by val previously conflated a dart's
+    // score with the segment it hit (e.g. a double-10 and a single-20 both score
+    // 20, but they're different segments), and excluded every bullseye entirely
+    // (a bull's val is always 25 or 50, so it never matched the old `val <= 20`
+    // filter).
     const result = await db.execute(drizzleSql`
       WITH dart_analysis AS (
-        SELECT 
-          (dart->>'val')::int AS val,
+        SELECT
+          (dart->>'seg')::int AS seg,
           COUNT(*)::int AS frequency
         FROM (
           SELECT jsonb_array_elements(session_data->'dartLog') as dart
-          FROM practice_sessions 
-          WHERE player1_id = ${playerId} 
+          FROM practice_sessions
+          WHERE player1_id = ${playerId}
             AND session_data ? 'dartLog'
+            AND ${categoryFilter}
         ) t
-        GROUP BY val
-        ORDER BY val DESC
+        GROUP BY seg
       )
-      SELECT * FROM dart_analysis WHERE val > 0 AND val <= 20
+      SELECT * FROM dart_analysis WHERE seg IS NOT NULL AND seg > 0 AND seg <= 25
     `);
 
     const dartFrequency = new Map<number, number>();
     for (const row of result.rows as any[]) {
-      dartFrequency.set(row.val, row.frequency);
+      dartFrequency.set(row.seg, row.frequency);
     }
 
-    const targets = [20, 19, 18, 17, 16, 15, 25];
+    const totalDarts = Array.from(dartFrequency.values()).reduce((a, b) => a + b, 0);
+    const targets = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 25];
     const hitRates = targets.map(target => ({
       target,
       hits: dartFrequency.get(target) || 0,
-      frequency: dartFrequency.size > 0 
-        ? ((dartFrequency.get(target) || 0) / Array.from(dartFrequency.values()).reduce((a, b) => a + b, 1)) * 100
-        : 0,
+      frequency: totalDarts > 0 ? ((dartFrequency.get(target) || 0) / totalDarts) * 100 : 0,
     }));
 
     return {
-      mostFrequentTargets: hitRates.sort((a, b) => b.hits - a.hits).slice(0, 5),
+      mostFrequentTargets: hitRates.filter(h => h.hits > 0).sort((a, b) => b.hits - a.hits).slice(0, 5),
       allTargetFrequencies: hitRates,
+      totalDarts,
     };
   },
 

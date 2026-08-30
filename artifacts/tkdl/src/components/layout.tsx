@@ -342,8 +342,12 @@ export function Layout({ children }: { children: ReactNode }) {
         <NavSection label="League"       items={leagueNav}       />
         <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
         <NavSection label="Achievements" items={achievementsNav} />
-        <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-        <NavSection label="Admin"        items={configNav}       />
+        {authUser?.isAdmin && (
+          <>
+            <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
+            <NavSection label="Admin"        items={configNav}       />
+          </>
+        )}
       </nav>
 
       {/* Account widget */}

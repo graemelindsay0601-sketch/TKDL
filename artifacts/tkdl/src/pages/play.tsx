@@ -3,7 +3,7 @@ import { useListPlayers, useSubmitMatch, getGetLeaderboardQueryKey, getGetStatsS
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/hooks/use-settings";
-import { Swords, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, AlertCircle, Users, User } from "lucide-react";
+import { Swords, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, AlertCircle, User } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
 import { RulesModal } from "@/components/rules-modal";
 import { MatchStatsCard } from "@/components/match-stats-card";
@@ -30,11 +30,16 @@ type EquippedCards = {
 };
 
 // ── Format config ───────────────────────────────────────────────────────────────
+// Note: "2v2 Team Game" and "Doubles Event" are deliberately labeled and
+// described differently — they're easy to conflate otherwise. 2v2 is any
+// casual pairing of two players for a one-off game; Doubles Event is the
+// season's official fixed random-draw teams competition (see the admin
+// toggle in Feature Flags to turn the whole event on/off for a season).
 const FORMAT_OPTIONS: { key: Format; label: string; icon: string; desc: string }[] = [
   { key: "1v1",        label: "1v1",             icon: "👤",  desc: "Head to head" },
-  { key: "2v2",        label: "2v2 Doubles",      icon: "👥",  desc: "Teams of 2" },
-  { key: "3v3",        label: "3v3 Triples",      icon: "👥",  desc: "Teams of 3" },
-  { key: "doubles-event", label: "Doubles Event", icon: "🎯",  desc: "Season's random-draw teams" },
+  { key: "2v2",        label: "2v2 Team Game",   icon: "👥",  desc: "Any 2 players vs any 2 — casual, one-off" },
+  { key: "3v3",        label: "3v3 Triples",     icon: "👥",  desc: "Teams of 3 — casual, one-off" },
+  { key: "doubles-event", label: "Doubles Event", icon: "🎯",  desc: "Official season event — fixed random-draw teams" },
   { key: "killer-ffa", label: "Killer Free-for-All", icon: "💀", desc: "3–6 individual players" },
 ];
 
@@ -118,125 +123,6 @@ function DoublesTeamSlot({ label, color, value, onChange, exclude, teams }: {
   );
 }
 
-function DoublesEventPanel() {
-  const { toast } = useToast();
-  const [expanded, setExpanded]   = useState(false);
-  const [teams, setTeams]         = useState<DoublesTeam[]>([]);
-  const [loaded, setLoaded]       = useState(false);
-  const [winnerId, setWinnerId]   = useState("");
-  const [loserId, setLoserId]     = useState("");
-  const [stake, setStake]         = useState("5");
-  const [submitting, setSubmitting] = useState(false);
-
-  const loadTeams = async () => {
-    try {
-      const seasonRes = await fetch("/api/seasons/current");
-      const season = await seasonRes.json();
-      if (!season?.id) { setTeams([]); setLoaded(true); return; }
-      const teamsRes = await fetch(`/api/seasons/${season.id}/doubles/teams`);
-      const data = await teamsRes.json();
-      setTeams(Array.isArray(data) ? data : []);
-    } catch {
-      setTeams([]);
-    }
-    setLoaded(true);
-  };
-
-  const toggle = () => {
-    const next = !expanded;
-    setExpanded(next);
-    if (next && !loaded) loadTeams();
-  };
-
-  const activeTeams = teams.filter(t => !t.isEliminated);
-  const canSubmit = winnerId !== "" && loserId !== "" && winnerId !== loserId && (parseInt(stake) || 0) >= 1 && !submitting;
-
-  const submit = async () => {
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/doubles/matches", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ winnerTeamId: Number(winnerId), loserTeamId: Number(loserId), stake: parseInt(stake) || 0 }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        toast({ title: body.error ?? "Could not record doubles result", variant: "destructive" });
-      } else {
-        toast({ title: "Doubles result recorded!" });
-        setWinnerId(""); setLoserId("");
-        loadTeams();
-      }
-    } catch {
-      toast({ title: "Error recording doubles result", variant: "destructive" });
-    }
-    setSubmitting(false);
-  };
-
-  return (
-    <div className="pdc-card overflow-hidden">
-      <button onClick={toggle} className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.03] transition-colors">
-        <div className="flex items-center gap-2">
-          <Users className="w-4 h-4" style={{ color: "#0066ff" }} />
-          <span className="text-sm font-bold uppercase tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.8)" }}>
-            Doubles Event — Log Result
-          </span>
-        </div>
-        <ChevronRight className="w-4 h-4 transition-transform" style={{ color: "rgba(255,255,255,0.3)", transform: expanded ? "rotate(90deg)" : undefined }} />
-      </button>
-
-      {expanded && (
-        <div className="px-4 pb-4 space-y-3 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-          {!loaded ? (
-            <div className="text-xs pt-3" style={{ color: "rgba(255,255,255,0.3)" }}>Loading teams…</div>
-          ) : activeTeams.length === 0 ? (
-            <div className="text-xs pt-3" style={{ color: "rgba(255,255,255,0.3)" }}>
-              No doubles teams yet — ask an admin to run the random draw for this season.
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-3 pt-3">
-                <div>
-                  <label className="text-xs uppercase tracking-wider mb-1 block" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>Winning Team</label>
-                  <select value={winnerId} onChange={e => setWinnerId(e.target.value)}
-                    className="w-full px-3 py-2 rounded text-sm" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}>
-                    <option value="">Select team…</option>
-                    {activeTeams.filter(t => String(t.id) !== loserId).map(t => (
-                      <option key={t.id} value={t.id}>{t.teamName} ({t.points}pts)</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs uppercase tracking-wider mb-1 block" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>Losing Team</label>
-                  <select value={loserId} onChange={e => setLoserId(e.target.value)}
-                    className="w-full px-3 py-2 rounded text-sm" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}>
-                    <option value="">Select team…</option>
-                    {activeTeams.filter(t => String(t.id) !== winnerId).map(t => (
-                      <option key={t.id} value={t.id}>{t.teamName} ({t.points}pts)</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs uppercase tracking-wider mb-1 block" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>Stake (pts)</label>
-                <input type="number" min={1} value={stake} onChange={e => setStake(e.target.value)}
-                  className="w-full px-3 py-2 rounded text-sm" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }} />
-              </div>
-              <button
-                onClick={submit}
-                disabled={!canSubmit}
-                className="w-full py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all disabled:opacity-40"
-                style={{ background: "#0066ff", color: "#fff", fontFamily: "Oswald, sans-serif" }}
-              >
-                {submitting ? "Recording…" : "Record Result"}
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Game type card ─────────────────────────────────────────────────────────────
 function GameCard({ gt, selected, onSelect, onRules }: { gt: GameTypeOption; selected: boolean; onSelect: () => void; onRules: () => void }) {
@@ -291,6 +177,9 @@ function PlayerSlot({ label, color, value, onChange, exclude, players }: {
 function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const { data: playersData } = useListPlayers();
   const currentPlayer         = useCurrentPlayer();
+  const { data: appSettings }  = useSettings();
+  const doublesEventEnabled    = appSettings?.doubles_event_enabled ?? true;
+  const formatOptions          = FORMAT_OPTIONS.filter(f => f.key !== "doubles-event" || doublesEventEnabled);
   const [gameTypes, setGameTypes] = useState<GameTypeOption[]>([]);
   const [format, setFormat]       = useState<Format>("1v1");
   const [team1Ids, setTeam1Ids]   = useState<string[]>(["", "", ""]);
@@ -441,13 +330,11 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       </div>
       <div className="pdc-divider" />
 
-      <DoublesEventPanel />
-
       {/* Format selector */}
       <div>
         <h2 className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>Format</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {FORMAT_OPTIONS.map(f => (
+          {formatOptions.map(f => (
             <button key={f.key} onClick={() => setFormat(f.key)}
               className="p-3 rounded-xl text-left transition-all"
               style={{

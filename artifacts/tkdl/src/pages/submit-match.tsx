@@ -18,6 +18,7 @@ import { useState, useEffect } from "react";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { TierBadge } from "@/components/tier-badge";
+import { useSettings } from "@/hooks/use-settings";
 
 const TIER_COLOR: Record<string, string> = {
   Diamond:  "#38bdf8",
@@ -296,11 +297,18 @@ function DoublesSubmitSection() {
 }
 
 export default function SubmitMatch() {
-  const [mode, setMode] = useState<"singles" | "doubles">("singles");
+  const { data: appSettings } = useSettings();
+  const doublesEventEnabled = appSettings?.doubles_event_enabled ?? true;
+  const [mode, setModeState] = useState<"singles" | "doubles">("singles");
+  const setMode = (m: "singles" | "doubles") => setModeState(m === "doubles" && !doublesEventEnabled ? "singles" : m);
   const { data: players, isLoading: isLoadingPlayers } = useListPlayers();
   const submitMutation = useSubmitMatch();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (mode === "doubles" && !doublesEventEnabled) setModeState("singles");
+  }, [doublesEventEnabled, mode]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -400,32 +408,34 @@ export default function SubmitMatch() {
       </div>
 
       {/* ── MODE TOGGLE ── */}
-      <div className="grid grid-cols-2 gap-2 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-        <button
-          type="button"
-          onClick={() => setMode("singles")}
-          className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-black uppercase tracking-wide transition-all"
-          style={{
-            fontFamily: "Oswald, sans-serif",
-            background: mode === "singles" ? "rgba(255,0,92,0.15)" : "transparent",
-            color: mode === "singles" ? "#ff005c" : "rgba(255,255,255,0.35)",
-            boxShadow: mode === "singles" ? "0 0 16px rgba(255,0,92,0.12)" : undefined,
-          }}>
-          <Swords className="w-4 h-4" /> Singles
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("doubles")}
-          className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-black uppercase tracking-wide transition-all"
-          style={{
-            fontFamily: "Oswald, sans-serif",
-            background: mode === "doubles" ? "rgba(0,102,255,0.15)" : "transparent",
-            color: mode === "doubles" ? "#0066ff" : "rgba(255,255,255,0.35)",
-            boxShadow: mode === "doubles" ? "0 0 16px rgba(0,102,255,0.12)" : undefined,
-          }}>
-          <Users className="w-4 h-4" /> Doubles Event
-        </button>
-      </div>
+      {doublesEventEnabled && (
+        <div className="grid grid-cols-2 gap-2 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <button
+            type="button"
+            onClick={() => setMode("singles")}
+            className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-black uppercase tracking-wide transition-all"
+            style={{
+              fontFamily: "Oswald, sans-serif",
+              background: mode === "singles" ? "rgba(255,0,92,0.15)" : "transparent",
+              color: mode === "singles" ? "#ff005c" : "rgba(255,255,255,0.35)",
+              boxShadow: mode === "singles" ? "0 0 16px rgba(255,0,92,0.12)" : undefined,
+            }}>
+            <Swords className="w-4 h-4" /> Singles
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("doubles")}
+            className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-black uppercase tracking-wide transition-all"
+            style={{
+              fontFamily: "Oswald, sans-serif",
+              background: mode === "doubles" ? "rgba(0,102,255,0.15)" : "transparent",
+              color: mode === "doubles" ? "#0066ff" : "rgba(255,255,255,0.35)",
+              boxShadow: mode === "doubles" ? "0 0 16px rgba(0,102,255,0.12)" : undefined,
+            }}>
+            <Users className="w-4 h-4" /> Doubles Event
+          </button>
+        </div>
+      )}
 
       {mode === "doubles" && <DoublesSubmitSection />}
 

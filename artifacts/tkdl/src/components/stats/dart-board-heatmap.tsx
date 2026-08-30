@@ -9,9 +9,14 @@ interface DartBoardHeatmapProps {
 interface HeatmapData {
   segments: Record<number, number>; // segment -> hit count
   maxHits: number;
+  totalDarts: number;
   weakSpots: { segment: number; hits: number; potential: string }[];
   strongSpots: { segment: number; hits: number }[];
 }
+
+// Below this many logged darts, per-segment percentages are mostly noise —
+// show an honest "not enough data yet" message instead of a misleading picture.
+const MIN_DARTS_FOR_HEATMAP = 60;
 
 export function DartBoardHeatmap({ playerId, category = "Practice" }: DartBoardHeatmapProps) {
   const [heatmap, setHeatmap] = useState<HeatmapData | null>(null);
@@ -50,6 +55,7 @@ export function DartBoardHeatmap({ playerId, category = "Practice" }: DartBoardH
         setHeatmap({
           segments,
           maxHits,
+          totalDarts: dartData.totalDarts ?? 0,
           weakSpots,
           strongSpots,
         });
@@ -69,6 +75,14 @@ export function DartBoardHeatmap({ playerId, category = "Practice" }: DartBoardH
 
   if (!heatmap) {
     return <div style={{ padding: "16px", color: "rgba(255,255,255,0.5)" }}>No dart data available</div>;
+  }
+
+  if (heatmap.totalDarts < MIN_DARTS_FOR_HEATMAP) {
+    return (
+      <div style={{ padding: "16px", color: "rgba(255,255,255,0.4)", fontSize: "12px", textAlign: "center" }}>
+        🎯 Not enough {category.toLowerCase()} darts logged yet ({heatmap.totalDarts}/{MIN_DARTS_FOR_HEATMAP}) — keep playing to unlock your targeting pattern.
+      </div>
+    );
   }
 
   const getHeatColor = (hits: number) => {

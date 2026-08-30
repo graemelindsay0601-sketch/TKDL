@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { checkAndAwardShadowBotAchievements, getShadowAchievementProgress } from "../lib/shadow-bot-achievements";
+import { requireAdminSession } from "../middleware/requireAdminSession";
 
 const router = Router();
 
@@ -633,7 +634,7 @@ router.get("/players/:id/dart-profile", async (req, res): Promise<void> => {
 });
 
 // GET /api/admin/practice/stats — analytics for admin
-router.get("/admin/practice/stats", async (req, res): Promise<void> => {
+router.get("/admin/practice/stats", requireAdminSession, async (req, res): Promise<void> => {
   try {
     const byGame = await db.execute(sql`
       SELECT

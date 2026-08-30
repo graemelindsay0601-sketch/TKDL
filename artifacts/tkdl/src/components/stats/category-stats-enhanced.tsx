@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Activity, Target, Dumbbell, Trophy, X, ChevronRight, Brain, AlertCircle, Zap } from "lucide-react";
 import { NoStatsEmptyState } from "@/components/empty-states";
+import { DartBoardHeatmap } from "./dart-board-heatmap";
+import { useSettings } from "@/hooks/use-settings";
 
 type GameTypeCategory = "M501" | "Tour" | "Practice" | "League";
 type StatTab = "overall" | "trends" | "darts" | "sessions";
@@ -52,6 +54,8 @@ const PRIORITY_COLORS = {
 };
 
 export function CategoryStatsEnhanced({ playerId }: CategoryStatsEnhancedProps) {
+  const { data: appSettings } = useSettings();
+  const heatmapEnabled = (appSettings as any)?.dartboard_heatmap_enabled === true;
   const [selectedCategory, setSelectedCategory] = useState<GameTypeCategory>("League");
   const [selectedTab, setSelectedTab] = useState<StatTab>("overall");
   const [breakdown, setBreakdown] = useState<any[]>([]);
@@ -259,6 +263,9 @@ export function CategoryStatsEnhanced({ playerId }: CategoryStatsEnhancedProps) 
             <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", padding: "12px", background: "rgba(255,255,255,0.02)", borderRadius: "6px" }}>
               💡 Focus on your weak areas: Practice the segments you miss most
             </div>
+            {heatmapEnabled && (
+              <DartBoardHeatmap playerId={playerId} category={selectedCategory} />
+            )}
           </div>
         ) : (
           <div style={{ padding: "16px", color: "rgba(255,255,255,0.5)", textAlign: "center" }}>No dart data available</div>

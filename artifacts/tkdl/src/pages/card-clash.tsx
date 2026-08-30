@@ -596,7 +596,9 @@ const PACKS = [
                   <SectionHeader title="🏆 Leaderboard" subtitle="All-time Card Clash rankings" noMargin/>
                   <button onClick={loadData} style={{padding:"8px 16px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:"7px",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:"12px"}}>↻ Refresh</button>
                 </div>
-                {standings.length>0?(
+                {collLoading?(
+                  <div style={{textAlign:"center",padding:"4rem",color:"rgba(255,255,255,0.25)"}}>Loading…</div>
+                ):standings.length>0?(
                   <VirtualizedLeaderboard standings={standings} playerId={playerId} containerHeight="600px" />
                 ):(
                   <div style={{textAlign:"center",padding:"4rem 1rem",color:"rgba(255,255,255,0.25)"}}>
@@ -612,8 +614,10 @@ const PACKS = [
             {activeTab==="achievements" && (
               <div>
                 <SectionHeader title="🎖️ Achievements" subtitle="Complete challenges to earn coins and free packs"/>
-                {stats && (
-                  <AchievementsDisplay 
+                {collLoading?(
+                  <div style={{textAlign:"center",padding:"4rem",color:"rgba(255,255,255,0.25)"}}>Loading…</div>
+                ):stats?(
+                  <AchievementsDisplay
                     playerStats={{
                       cardsOwned: ownedNames.size,
                       totalCardsInGame: COLLECTIBLE_CARDS.length,
@@ -634,6 +638,8 @@ const PACKS = [
                       allRaresCollected: Array.from(ownedNames).filter(name => COLLECTIBLE_CARDS.find(c => c.name === name)?.rarity === 'RARE').length === COLLECTIBLE_CARDS.filter(c => c.rarity === 'RARE').length,
                     }}
                   />
+                ):(
+                  <div style={{textAlign:"center",padding:"4rem 1rem",color:"rgba(255,255,255,0.25)"}}>Couldn't load your stats — try refreshing the page.</div>
                 )}
               </div>
             )}

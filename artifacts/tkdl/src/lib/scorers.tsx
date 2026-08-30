@@ -101,6 +101,8 @@ function uploadMatchLog(logger: MatchLogger, meta: { gameMode: "X01" | "CRICKET"
 }
 
 import { useSafeTimeout } from "./use-safe-timeout";
+import { useSettings } from "@/hooks/use-settings";
+import { announceScore, announceBust, announceGameShot, isVoiceMuted, setVoiceMuted } from "./voice-announcer";
 import {
   type CCEffect,
   ccActivateCard, ccPreprocessDart, ccApplyVisitCap, ccInterceptBust,
@@ -670,7 +672,36 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [bustMsg, setBustMsg]       = useState("");
   const [freeRetriesUsed, setFreeRetriesUsed] = useState<[number, number]>([0, 0]); // Track free retries per player this turn
   const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number; darts: Dart[]; boardMarkNotes?: BoardMarkVisitNote[] }[]>([]);
-  
+
+  // ── Voice call-outs (beta, admin-gated) ──────────────────────────────────
+  // Announces each visit's score, busts, and game shots via the browser's
+  // built-in text-to-speech. Purely observational — reacts to state that's
+  // already changing for other reasons, so it never touches the dart-by-dart
+  // scoring logic above (including all the Card Clash chaos-mode branches).
+  const { data: appSettings } = useSettings();
+  const voiceEnabled = appSettings?.voice_callouts_enabled === true;
+  const [voiceMuted, setVoiceMutedState] = useState(() => isVoiceMuted());
+  const toggleVoiceMuted = () => setVoiceMutedState(prev => { setVoiceMuted(!prev); return !prev; });
+  const prevHistoryLen = useRef(0);
+  const prevLegWins = useRef<[number, number]>([0, 0]);
+  useEffect(() => {
+    if (!voiceEnabled) return;
+    if (history.length > prevHistoryLen.current) {
+      announceScore(history[history.length - 1].score, { muted: voiceMuted });
+    }
+    prevHistoryLen.current = history.length;
+  }, [voiceEnabled, voiceMuted, history]);
+  useEffect(() => {
+    if (!voiceEnabled || !bust) return;
+    announceBust({ muted: voiceMuted });
+  }, [voiceEnabled, voiceMuted, bust]);
+  useEffect(() => {
+    if (!voiceEnabled) return;
+    const winnerIdx = legWins[0] > prevLegWins.current[0] ? 0 : legWins[1] > prevLegWins.current[1] ? 1 : null;
+    if (winnerIdx !== null) announceGameShot(winnerIdx === 0 ? p1Name : p2Name, { muted: voiceMuted });
+    prevLegWins.current = legWins;
+  }, [voiceEnabled, voiceMuted, legWins, p1Name, p2Name]);
+
   // Card Clash state (populated from sessionStorage by CardClashMatchScorer)
   const [p1Cards, setP1Cards]         = useState<any[]>([]);
   const [p2Cards, setP2Cards]         = useState<any[]>([]);
@@ -1717,6 +1748,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
               </div>
             ))
           )}
+        </div>
+      )}
+      {voiceEnabled && (
+        <div className="flex justify-end">
+          <button onClick={toggleVoiceMuted} title={voiceMuted ? "Unmute voice call-outs" : "Mute voice call-outs"}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
+            {voiceMuted ? "🔇" : "🔊"} {voiceMuted ? "Voice off" : "Voice on"}
+          </button>
         </div>
       )}
       {/* Scoreboard */}

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, settingsTable, featureFlagsTable } from "@workspace/db";
+import { requireAdminSession } from "../middleware/requireAdminSession";
 
 const router = Router();
 
@@ -25,7 +26,7 @@ router.get("/settings", async (_req, res): Promise<void> => {
   res.json(out);
 });
 
-router.patch("/admin/settings/:key", async (req, res): Promise<void> => {
+router.patch("/admin/settings/:key", requireAdminSession, async (req, res): Promise<void> => {
   const { key } = req.params;
   const { value } = req.body as { value?: unknown };
   if (value === undefined) { res.status(400).json({ error: "value required" }); return; }
