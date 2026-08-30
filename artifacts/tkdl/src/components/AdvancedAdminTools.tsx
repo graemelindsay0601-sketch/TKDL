@@ -27,7 +27,7 @@ export function AdvancedAdminTools({ playerId }: AdminToolsProps) {
   const grantCard = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/card-clash/admin/grant-card', {
+      const response = await fetch('/api/card-clash/admin/card/give', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -38,7 +38,10 @@ export function AdvancedAdminTools({ playerId }: AdminToolsProps) {
       });
 
       const data = await response.json();
-      setMessage({ ok: response.ok, text: data.message || 'Updated' });
+      setMessage({
+        ok: response.ok,
+        text: response.ok ? `Granted ${cardQty}x card #${cardId} to player ${playerId}` : (data.error || 'Failed to grant card'),
+      });
       if (response.ok) setCardId('');
     } catch (err) {
       setMessage({ ok: false, text: err instanceof Error ? err.message : 'Error' });
@@ -49,23 +52,27 @@ export function AdvancedAdminTools({ playerId }: AdminToolsProps) {
 
   // Coin Management
   const [coinAmount, setCoinAmount] = useState(0);
-  const [coinOperation, setCoinOperation] = useState<'add' | 'set'>('add');
+  const [coinOperation, setCoinOperation] = useState<'give' | 'remove'>('give');
 
   const adjustCoins = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/card-clash/admin/adjust-coins', {
+      const response = await fetch(`/api/card-clash/admin/coins/${coinOperation}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           playerId,
           amount: coinAmount,
-          operation: coinOperation,
         }),
       });
 
       const data = await response.json();
-      setMessage({ ok: response.ok, text: data.message || 'Updated' });
+      setMessage({
+        ok: response.ok,
+        text: response.ok
+          ? `${coinOperation === 'give' ? 'Gave' : 'Removed'} ${coinAmount} coins. New balance: ${data.cardPoints ?? '?'}`
+          : (data.error || 'Failed to adjust coins'),
+      });
       if (response.ok) setCoinAmount(0);
     } catch (err) {
       setMessage({ ok: false, text: err instanceof Error ? err.message : 'Error' });
@@ -74,19 +81,42 @@ export function AdvancedAdminTools({ playerId }: AdminToolsProps) {
     }
   };
 
-  // Debug Tools
+  // Debug Tools — reads straight from the real, already-working card-clash endpoints
   const [debugType, setDebugType] = useState<'stats' | 'inventory' | 'matches'>('stats');
+
+  const DEBUG_ENDPOINTS: Record<'stats' | 'inventory' | 'matches', (id: number) => string> = {
+    stats:     (id) => `/api/card-clash/player/${id}/stats`,
+    inventory: (id) => `/api/card-clash/inventory/${id}`,
+    matches:   (id) => `/api/card-clash/matches/${id}`,
+  };
 
   const runDebugTool = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/card-clash/admin/debug/${debugType}/${playerId}`);
+      const response = await fetch(DEBUG_ENDPOINTS[debugType](playerId));
 
       const data = await response.json();
       setMessage({
         ok: response.ok,
-        text: response.ok ? JSON.stringify(data, null, 2) : data.error,
+        text: response.ok ? JSON.stringify(data, null, 2) : (data.error || 'Debug fetch failed'),
       });
+    } catch (err) {
+      setMessage({ ok: false, text: err instanceof Error ? err.message : 'Error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Season Info — read-only view of the active Card Clash season
+  const [seasonInfo, setSeasonInfo] = useState<any>(null);
+
+  const fetchSeasonInfo = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/card-clash/admin/season/active');
+      const data = await response.json();
+      setSeasonInfo(data);
+      setMessage({ ok: response.ok, text: response.ok ? 'Season info refreshed below' : (data.error || 'Failed to fetch season info') });
     } catch (err) {
       setMessage({ ok: false, text: err instanceof Error ? err.message : 'Error' });
     } finally {
@@ -215,7 +245,7 @@ export function AdvancedAdminTools({ playerId }: AdminToolsProps) {
                 Operation
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                {(['add', 'set'] as const).map((op) => (
+                {(['give', 'remove'] as const).map((op) => (
                   <button
                     key={op}
                     onClick={() => setCoinOperation(op)}
@@ -231,7 +261,7 @@ export function AdvancedAdminTools({ playerId }: AdminToolsProps) {
                       textTransform: 'uppercase',
                     }}
                   >
-                    {op === 'add' ? '➕ Add' : '🔧 Set'}
+                    {op === 'give' ? '➕ Give' : '➖ Remove'}
                   </button>
                 ))}
               </div>
@@ -273,6 +303,54 @@ export function AdvancedAdminTools({ playerId }: AdminToolsProps) {
               {loading ? '⏳ Adjusting...' : '✓ Adjust Coins'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Seasonal Management */}
+      {activeSection === 'seasons' && (
+        <div style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: 900, color: '#00e5a0' }}>
+            Active Season
+          </h3>
+          <p style={{ margin: '0 0 14px', fontSize: '12px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.6 }}>
+            Read-only lookup of the current Card Clash season. Ending a season or forcing reward
+            payouts is handled from the main season tools — this is just for checking state.
+          </p>
+          <button
+            onClick={fetchSeasonInfo}
+            disabled={loading}
+            style={{
+              padding: '10px',
+              background: 'rgba(0,229,160,0.15)',
+              border: '1px solid rgba(0,229,160,0.4)',
+              borderRadius: '6px',
+              color: '#00e5a0',
+              fontWeight: 700,
+              fontSize: '12px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              width: '100%',
+            }}
+          >
+            {loading ? '⏳ Fetching...' : '🔄 Fetch Active Season'}
+          </button>
+          {seasonInfo && (
+            <pre
+              style={{
+                marginTop: '14px',
+                padding: '12px',
+                background: 'rgba(0,0,0,0.3)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '6px',
+                fontSize: '11px',
+                color: 'rgba(255,255,255,0.65)',
+                overflow: 'auto',
+                maxHeight: '220px',
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              {JSON.stringify(seasonInfo, null, 2)}
+            </pre>
+          )}
         </div>
       )}
 
