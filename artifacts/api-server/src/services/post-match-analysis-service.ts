@@ -56,10 +56,11 @@ export const postMatchAnalysisService = {
     const playerAvgResult = await db.execute(drizzleSql`
       SELECT 
         AVG(CASE WHEN winner_id = ${playerId} THEN winner_darts ELSE loser_darts END)::numeric as avg_darts,
-        AVG(CASE WHEN winner_id = ${playerId} 
+        AVG(CASE WHEN winner_id = ${playerId}
           THEN (winner_checkout_hits::float / NULLIF(winner_checkout_attempts, 0))
-          ELSE (loser_checkout_hits::float / NULLIF(loser_checkout_attempts, 0)) 
-        END)::numeric as avg_checkout_rate
+          ELSE (loser_checkout_hits::float / NULLIF(loser_checkout_attempts, 0))
+        END)::numeric as avg_checkout_rate,
+        AVG(CASE WHEN winner_id = ${playerId} THEN winner_180s ELSE loser_180s END)::numeric as avg_180s
       FROM matches
       WHERE winner_id = ${playerId} OR loser_id = ${playerId}
     `);
@@ -107,6 +108,9 @@ export const postMatchAnalysisService = {
       ? ((playerCheckoutRate - parseFloat(playerAvg.avg_checkout_rate)) / parseFloat(playerAvg.avg_checkout_rate)) * 100
       : 0;
 
+    const avg180s = parseFloat(playerAvg.avg_180s || "0");
+    const _180sComparison = avg180s > 0 ? ((player180s - avg180s) / avg180s) * 100 : 0;
+
     return {
       matchId,
       playerId,
@@ -148,8 +152,8 @@ export const postMatchAnalysisService = {
         {
           metric: "180s Scored",
           yours: player180s,
-          average: 1, // placeholder
-          difference: 0,
+          average: Math.round(avg180s * 10) / 10,
+          difference: _180sComparison,
         },
       ],
     };

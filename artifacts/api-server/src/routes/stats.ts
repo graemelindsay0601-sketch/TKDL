@@ -305,7 +305,11 @@ router.get("/stats/checkout-records", async (req, res): Promise<void> => {
         FROM players p
         JOIN practice_sessions ps ON ps.player1_id = p.id,
              jsonb_array_elements(ps.session_data->'dartLog') WITH ORDINALITY AS t(dart, ordinality)
-        WHERE p.status = 'ACTIVE'
+        -- This is a practice-session record, not the ranked singles ladder —
+        -- only players who've left the league (INACTIVE) should drop off
+        -- it, same rule as Shadow Bot/Master-501. A player eliminated from
+        -- the singles ladder this season can still set a practice record.
+        WHERE p.status != 'INACTIVE'
           AND ps.session_data ? 'dartLog'
           AND ps.p1_checkout_hits > 0
           AND ps.game_type_key IN (SELECT key FROM game_types WHERE engine = 'X01')

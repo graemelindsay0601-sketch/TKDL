@@ -290,19 +290,27 @@ router.get("/players/:id/drills/adaptive", async (req, res) => {
     const playerId = parseInt(req.params.id, 10);
     if (isNaN(playerId)) { res.status(400).json({ error: "Invalid player ID" }); return; }
     const drills = await drillProgressService.getPlayerDrillStats(playerId);
-    const adaptive = drills.map(drill => ({
-      drillId: drill.drillId,
-      drillTitle: drill.drillTitle,
-      currentDifficulty: (drill.averageScore ?? 0) >= 90 ? "master" :
-                         (drill.averageScore ?? 0) >= 75 ? "hard" :
-                         (drill.averageScore ?? 0) >= 60 ? "medium" : "easy",
-      mastery: drill.averageScore || 0,
-      completedDifficulties: ["easy"],
-      nextChallenge: drill.nextGoal || "Complete this level",
-      // Not derived from real history yet (would need a proper mastery-over-time
-      // model) — null rather than a fabricated number.
-      daysToNextLevel: null,
-    }));
+    const DIFFICULTY_ORDER = ["easy", "medium", "hard", "master"] as const;
+    const adaptive = drills.map(drill => {
+      const score = drill.averageScore ?? 0;
+      const currentDifficulty = score >= 90 ? "master" : score >= 75 ? "hard" : score >= 60 ? "medium" : "easy";
+      // Every tier up to and including the current one has been reached —
+      // this used to hardcode ["easy"] regardless of actual progress, so the
+      // Adaptive Difficulty progress bar could never show medium/hard/master
+      // as completed even once a player had clearly cleared them.
+      const currentIdx = DIFFICULTY_ORDER.indexOf(currentDifficulty);
+      return {
+        drillId: drill.drillId,
+        drillTitle: drill.drillTitle,
+        currentDifficulty,
+        mastery: drill.averageScore || 0,
+        completedDifficulties: DIFFICULTY_ORDER.slice(0, currentIdx + 1),
+        nextChallenge: drill.nextGoal || "Complete this level",
+        // Not derived from real history yet (would need a proper mastery-over-time
+        // model) — null rather than a fabricated number.
+        daysToNextLevel: null,
+      };
+    });
     res.json(adaptive);
   } catch (err) {
     req.log.error({ err }, "Failed to get adaptive difficulty");

@@ -53,6 +53,15 @@ function def(
 // A mix of flat value nerfs, dead-number tricks, lost darts, and — the more
 // interesting category — checkout-interference curses that change how a
 // finish plays out rather than just docking points.
+//
+// Design rule (rebalanced after live feedback that "severe" curses were
+// making legs literally unwinnable, not just hard): no curse — at any tier —
+// should ever require hitting one specific segment with all 3 darts just to
+// score above 0. A curse can dock heavily, block a chunk of the board,
+// front-load the pain onto one dart, or deny a finish for a visit — but it
+// should never reduce a visit's realistic ceiling to "basically zero unless
+// you get lucky." This is still meant to be a fun, genuine handicap — a
+// challenge you can fight through — not a random chance the leg just ends.
 const X01_CURSES: CurseDef[] = [
   // Tier 1 — mild
   def("off-night", "Off Night", 1, "X01", () => {
@@ -132,14 +141,24 @@ const X01_CURSES: CurseDef[] = [
     const n = randInt(10, 18);
     return { effect: { penaltyPerDart: n }, description: `Every dart costs you ${n} points, just for throwing it.` };
   }),
-  def("tunnel-vision", "Tunnel Vision", 3, "X01", () => {
-    const [num] = pickN(X01_NUMBERS, 1);
-    return { effect: { lockdownSegment: num }, description: `Only ${num} scores anything this visit — everything else is worth 0.` };
-  }),
-  def("blackout", "Blackout", 3, "X01", () => {
-    const n = randInt(2, 3);
+  // Redesigned (see note above X01_CURSES): the old "Tunnel Vision"/"Blackout"
+  // demanded pinpoint accuracy on one exact number (or 2-3) for all 3 darts
+  // just to score anything — realistically un-hittable, so "severe" meant
+  // "the leg is over," not "a real challenge." Minefield and Heavy Fog keep
+  // the bite (most of the board is genuinely worse to throw at) while always
+  // leaving the majority of the board scoring normally.
+  def("minefield", "Minefield", 3, "X01", () => {
+    const n = randInt(5, 7);
     const nums = pickN(X01_NUMBERS, n);
-    return { effect: { segmentOnly: nums }, description: `Only ${nums.join(", ")} score anything this visit — everything else is worth 0.` };
+    return { effect: { segmentBlock: nums }, description: `${nums.join(", ")} are dead this visit — everything else still scores normally.` };
+  }),
+  def("heavy-fog", "Heavy Fog", 3, "X01", () => {
+    const pct = randInt(40, 55);
+    const nums = pickN(X01_NUMBERS, 2);
+    return {
+      effect: { allDartsMultiplier: pct / 100, segmentBlock: nums },
+      description: `Every dart is only worth ${pct}% of its value, and ${nums.join(", ")} are dead on top of that.`,
+    };
   }),
   def("two-lost-darts", "Two Lost Darts", 3, "X01", () => ({
     effect: { wildDartIndices: pickN([0, 1, 2], 2) },
@@ -149,9 +168,12 @@ const X01_CURSES: CurseDef[] = [
     const cap = randInt(35, 45);
     return { effect: { maxVisitTotal: cap }, description: `However much you score this visit, it's capped at ${cap}.` };
   }),
-  def("trapped", "Trapped", 3, "X01", () => ({
-    effect: { mustFinishAfterOneDart: true },
-    description: "If your first dart this visit isn't a finish, your visit ends right there — no second or third dart.",
+  // Replaced "Trapped" (visit ended dead if dart 1 wasn't a finish — brutal
+  // whenever you weren't already in checkout range, which is most visits).
+  // Cold Open keeps a real handicap without ever fully shutting a visit down.
+  def("cold-open", "Cold Open", 3, "X01", () => ({
+    effect: { fatigueMults: [0.3, 0.6, 1] },
+    description: "Your first dart this visit is worth 30%, your second 60% — only your third counts in full.",
   })),
   def("sudden-death", "Sudden Death", 3, "X01", () => {
     const n = randInt(15, 25);
@@ -230,9 +252,16 @@ const CRICKET_CURSES: CurseDef[] = [
     effect: { blockClosing: true },
     description: "You can't close any number this visit — your marks cap at 2.",
   })),
-  def("one-only", "One Number Only", 3, "CRICKET", () => {
-    const [num] = pickN(CRICKET_NUMBERS, 1);
-    return { effect: { allowedMarkSegments: [num] }, description: `Only ${num} can mark for you this visit — everything else is dead.` };
+  // Redesigned: locking marking down to exactly one number for a whole visit
+  // meant realistically scoring nothing unless every dart landed on that one
+  // segment. Narrow Path keeps two live numbers instead of one, and rewards
+  // hitting them so it still feels like an edge, not a wall.
+  def("narrow-path", "Narrow Path", 3, "CRICKET", () => {
+    const nums = pickN(CRICKET_NUMBERS, 2);
+    return {
+      effect: { allowedMarkSegments: nums, marksMultiplier: 1.5 },
+      description: `Only ${nums.join(", ")} can mark for you this visit — but they mark at 1.5x when you hit them.`,
+    };
   }),
   def("mark-erasure", "Mark Erasure", 3, "CRICKET", () => {
     const n = randInt(7, 13);
@@ -257,8 +286,11 @@ const CRICKET_CURSES: CurseDef[] = [
     return { effect: { scoreHalveExtraMultiplier: pct / 100 }, description: `Points you score on numbers you've already closed are only worth ${pct}% this visit.` };
   }),
   def("shutdown", "Shutdown", 3, "CRICKET", () => {
-    const n = randInt(1, 2);
-    return { effect: { maxMarksPerTurn: n }, description: `You can only gain ${n} mark${n === 1 ? "" : "s"} this whole visit, no matter what you hit.` };
+    // Floor raised from 1 to 2 — a 1-mark cap combined with a bad lie could
+    // functionally end a visit before it started; 2 still bites hard but
+    // always leaves room to make real progress.
+    const n = 2;
+    return { effect: { maxMarksPerTurn: n }, description: `You can only gain ${n} marks this whole visit, no matter what you hit.` };
   }),
 ];
 
