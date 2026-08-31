@@ -112,7 +112,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
   const winnerName = winnerPlayers.map(p => p.name).join(" & ");
   const loserName  = loserPlayers.map(p  => p.name).join(" & ");
 
-  const { match, loserResults } = await db.transaction(async (tx) => {
+  const { match, loserResults, winnerResults } = await db.transaction(async (tx) => {
     // Insert match record (first player in each team is the "captain")
     const [newMatch] = await tx.insert(matchesTable).values({
       seasonId:   activeSeason.id,
@@ -133,10 +133,30 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
     ];
     await tx.insert(matchParticipantsTable).values(participantRows);
 
+    // Wager split for uneven teams (e.g. 2v1, 3v2): each LOSING player still
+    // risks and pays exactly `stake`, same as a 1v1 — that's unchanged. But
+    // the old code also credited every WINNING player the full `stake`
+    // regardless of team size, which is only zero-sum when both teams are
+    // the same size. In a 2v1, that paid out 2×stake to the winners while
+    // only 1×stake was taken from the loser — points were being manufactured
+    // out of nowhere every uneven match. Fixed by pooling what the losing
+    // side actually paid in and splitting it evenly across the winning
+    // side; any remainder from an uneven split (pot not divisible by winner
+    // count) goes to the first players in the winning list so the total
+    // credited always exactly equals the total debited. For equal team
+    // sizes (including a plain 1v1) this produces the exact same per-player
+    // amount as before — no behavior change there.
+    const pot = stake * loserPlayers.length;
+    const baseShare = Math.floor(pot / winnerPlayers.length);
+    const remainder = pot - baseShare * winnerPlayers.length;
+    const winnerShares = winnerPlayers.map((_, i) => baseShare + (i < remainder ? 1 : 0));
+
     // Update winner players
-    for (const p of winnerPlayers) {
+    for (let i = 0; i < winnerPlayers.length; i++) {
+      const p = winnerPlayers[i];
+      const share = winnerShares[i];
       const newElo = p.elo + eloChange;
-      const newPoints = p.points + stake;
+      const newPoints = p.points + share;
       const newWinStreak = p.currentWinStreak + 1;
       await tx.update(playersTable).set({
         elo:               newElo,
@@ -147,14 +167,14 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
         seasonGamesPlayed: p.seasonGamesPlayed + 1,
         careerWins:        p.careerWins + 1,
         careerGamesPlayed: p.careerGamesPlayed + 1,
-        careerPoints:      p.careerPoints + stake,
+        careerPoints:      p.careerPoints + share,
         currentWinStreak:  newWinStreak,
         longestWinStreak:  Math.max(p.longestWinStreak, newWinStreak),
         currentLossStreak: 0,
       }).where(eq(playersTable.id, p.id));
     }
 
-    // Update loser players
+    // Update loser players — each pays the full stake, same as a 1v1
     const txLoserResults: { id: number; newPoints: number; eliminated: boolean }[] = [];
     for (const p of loserPlayers) {
       const newPoints = Math.max(0, p.points - stake);
@@ -189,13 +209,18 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
       totalMatches: activeSeason.totalMatches + 1,
     }).where(eq(seasonsTable.id, activeSeason.id));
 
-    return { match: newMatch, loserResults: txLoserResults };
+    const txWinnerResults = winnerPlayers.map((p, i) => ({ id: p.id, share: winnerShares[i] }));
+    return { match: newMatch, loserResults: txLoserResults, winnerResults: txWinnerResults };
   });
 
   res.status(201).json({
     match,
     eloChange,
     eliminations: loserResults.filter(r => r.eliminated).map(r => r.id),
+    // Per-player payout — only meaningful when team sizes differ (equal
+    // teams all get the same `stake` share); lets the UI show an accurate
+    // "who got what" instead of assuming a flat stake per winner.
+    winnerShares: winnerResults,
   });
 });
 

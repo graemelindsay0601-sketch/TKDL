@@ -547,6 +547,284 @@ function DoublesSubmitSection() {
   );
 }
 
+/** Ad-hoc Team Match — reached via the "Turn this into a Team Match" toggle
+ *  inside Singles. Any grouping of 1-6 players per side (2v2, 3v3, or uneven
+ *  like 2v1), using each player's own existing points/Elo — not a shared
+ *  team pot like the Doubles Event or Shift Wars. Posts to /api/team-matches,
+ *  whose wager math pools what the losing side pays in (stake × loser count)
+ *  and splits it evenly across the winning side, so uneven teams stay
+ *  zero-sum instead of manufacturing points (see that route for the full
+ *  explanation). The preview below mirrors that exact split so what's shown
+ *  before submitting always matches what actually happens. */
+function TeamModeSubmitSection({ onExit }: { onExit: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: players, isLoading: isLoadingPlayers } = useListPlayers();
+  const activePlayers = players?.filter(p => p.isActive && p.status !== "ELIMINATED") ?? [];
+
+  const [side, setSide]           = useState<"winner" | "loser">("winner");
+  const [winnerIds, setWinnerIds] = useState<number[]>([]);
+  const [loserIds, setLoserIds]   = useState<number[]>([]);
+  const [stake, setStake]         = useState("5");
+  const [gameType, setGameType]   = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const involved = [...winnerIds, ...loserIds];
+  const involvedPlayers = activePlayers.filter(p => involved.includes(p.id));
+  const maxStake = involvedPlayers.length > 0 ? Math.min(...involvedPlayers.map(p => p.points)) : 25;
+  const stakeN = parseInt(stake) || 0;
+  const bothSelected = winnerIds.length > 0 && loserIds.length > 0;
+
+  // Mirrors the backend's pot-and-split exactly: each losing player pays the
+  // full stake (same risk as a 1v1) into a pot; that pot is split evenly
+  // across the winners, with any remainder (pot not divisible by winner
+  // count) going to the first players in the winning list. Equal team sizes
+  // — including a plain 1v1 — reduce to a flat ±stake per player.
+  const pot = stakeN * loserIds.length;
+  const baseShare = winnerIds.length > 0 ? Math.floor(pot / winnerIds.length) : 0;
+  const remainder = pot - baseShare * winnerIds.length;
+  const winnerShares = winnerIds.map((_, i) => baseShare + (i < remainder ? 1 : 0));
+  const unevenTeams = winnerIds.length !== loserIds.length && bothSelected;
+
+  function nameOf(id: number) { return activePlayers.find(p => p.id === id)?.name ?? "?"; }
+
+  function togglePlayer(id: number) {
+    if (winnerIds.includes(id)) { setWinnerIds(w => w.filter(x => x !== id)); return; }
+    if (loserIds.includes(id))  { setLoserIds(l => l.filter(x => x !== id)); return; }
+    if (side === "winner") setWinnerIds(w => [...w, id]);
+    else setLoserIds(l => [...l, id]);
+  }
+
+  async function onSubmit() {
+    if (!bothSelected) return;
+    if (stakeN < 1) {
+      toast({ title: "Invalid Stake", description: "Stake must be at least 1 point", variant: "destructive" });
+      return;
+    }
+    if (stakeN > maxStake) {
+      toast({ title: "Stake Too High", description: `Maximum stake is ${maxStake} points — one player's balance is the limit`, variant: "destructive" });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/team-matches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ winnerIds, loserIds, stake: stakeN, gameType: gameType || undefined }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
+      const payoutDesc = unevenTeams
+        ? `${winnerIds.map((id, i) => `${nameOf(id)} +${winnerShares[i]}`).join(", ")} · ${loserIds.map(id => `${nameOf(id)} -${stakeN}`).join(", ")}`
+        : `${winnerIds.map(nameOf).join(" & ")} def. ${loserIds.map(nameOf).join(" & ")} — ±${stakeN} pts`;
+      toast({ title: "Team Match Recorded ✓", description: payoutDesc });
+      const involvedIds = [...winnerIds, ...loserIds];
+      setWinnerIds([]); setLoserIds([]); setStake("5"); setGameType(""); setSide("winner");
+      queryClient.invalidateQueries({ queryKey: getGetLeaderboardQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetRecentActivityQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+      for (const id of involvedIds) {
+        queryClient.invalidateQueries({ queryKey: getGetPlayerStatsQueryKey(id) });
+        queryClient.invalidateQueries({ queryKey: getGetPlayerQueryKey(id) });
+      }
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message ?? "Unexpected error", variant: "destructive" });
+    }
+    setSubmitting(false);
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Exit back to 1v1 */}
+      <button type="button" onClick={onExit}
+        className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wide hover:opacity-80"
+        style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)" }}>
+        <X className="w-3.5 h-3.5" /> Back to 1v1
+      </button>
+
+      {/* Roster strip */}
+      <div className="pdc-card overflow-hidden">
+        <div className="grid grid-cols-[1fr_auto_1fr]">
+          <div className="px-4 py-3 flex flex-col gap-1.5 min-w-0" style={{ borderRight: "1px solid rgba(255,255,255,0.06)", background: winnerIds.length ? "rgba(34,197,94,0.05)" : undefined }}>
+            <div className="flex items-center gap-1.5">
+              <Crown className="w-3 h-3 shrink-0" style={{ color: "#22c55e" }} />
+              <span className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "#22c55e", fontSize: "0.55rem" }}>Winning Team</span>
+            </div>
+            {winnerIds.length > 0 ? winnerIds.map(id => (
+              <div key={id} className="flex items-center gap-1 text-sm font-bold" style={{ color: "#22c55e" }}>
+                {nameOf(id)}
+                <button type="button" onClick={() => setWinnerIds(w => w.filter(x => x !== id))} style={{ color: "rgba(34,197,94,0.5)" }}><X className="w-3 h-3" /></button>
+              </div>
+            )) : <div className="text-sm" style={{ color: "rgba(255,255,255,0.2)", fontStyle: "italic" }}>tap players ↓</div>}
+          </div>
+          <div className="flex items-center justify-center px-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+            <div className="text-center">
+              <Swords className="w-4 h-4 mx-auto mb-0.5" style={{ color: "rgba(255,255,255,0.2)" }} />
+              <span className="font-black text-xs italic" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)" }}>VS</span>
+            </div>
+          </div>
+          <div className="px-4 py-3 flex flex-col gap-1.5 min-w-0" style={{ borderLeft: "1px solid rgba(255,255,255,0.06)", background: loserIds.length ? "rgba(255,0,92,0.05)" : undefined }}>
+            <div className="flex items-center gap-1.5 justify-end">
+              <span className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c", fontSize: "0.55rem" }}>Losing Team</span>
+              <Skull className="w-3 h-3 shrink-0" style={{ color: "#ff005c" }} />
+            </div>
+            {loserIds.length > 0 ? loserIds.map(id => (
+              <div key={id} className="flex items-center justify-end gap-1 text-sm font-bold" style={{ color: "#ff005c" }}>
+                <button type="button" onClick={() => setLoserIds(l => l.filter(x => x !== id))} style={{ color: "rgba(255,0,92,0.5)" }}><X className="w-3 h-3" /></button>
+                {nameOf(id)}
+              </div>
+            )) : <div className="text-sm text-right" style={{ color: "rgba(255,255,255,0.2)", fontStyle: "italic" }}>tap players ↓</div>}
+          </div>
+        </div>
+      </div>
+
+      {/* Side selector — which roster tapping a player adds to */}
+      <div className="grid grid-cols-2 gap-2 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <button type="button" onClick={() => setSide("winner")}
+          className="flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-black uppercase tracking-wide transition-all"
+          style={{ fontFamily: "Oswald, sans-serif", background: side === "winner" ? "rgba(34,197,94,0.15)" : "transparent", color: side === "winner" ? "#22c55e" : "rgba(255,255,255,0.35)" }}>
+          <Crown className="w-3.5 h-3.5" /> Adding to Winners
+        </button>
+        <button type="button" onClick={() => setSide("loser")}
+          className="flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-black uppercase tracking-wide transition-all"
+          style={{ fontFamily: "Oswald, sans-serif", background: side === "loser" ? "rgba(255,0,92,0.15)" : "transparent", color: side === "loser" ? "#ff005c" : "rgba(255,255,255,0.35)" }}>
+          <Skull className="w-3.5 h-3.5" /> Adding to Losers
+        </button>
+      </div>
+
+      {/* Player grid */}
+      {isLoadingPlayers ? (
+        <div className="flex justify-center py-10">
+          <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#0066ff" }} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {activePlayers.map(p => {
+            const isWinner = winnerIds.includes(p.id);
+            const isLoser  = loserIds.includes(p.id);
+            return (
+              <button key={p.id} type="button" onClick={() => togglePlayer(p.id)} disabled={submitting}
+                className="relative rounded-xl overflow-hidden text-left transition-all duration-150 focus:outline-none px-3 py-2.5"
+                style={{
+                  background: isWinner ? "rgba(34,197,94,0.1)" : isLoser ? "rgba(255,0,92,0.1)" : "rgba(255,255,255,0.03)",
+                  border: isWinner ? "1px solid rgba(34,197,94,0.5)" : isLoser ? "1px solid rgba(255,0,92,0.5)" : "1px solid rgba(255,255,255,0.07)",
+                }}>
+                <div className="font-black uppercase truncate" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.85rem", color: isWinner ? "#22c55e" : isLoser ? "#ff005c" : "rgba(255,255,255,0.85)" }}>
+                  {p.name}
+                </div>
+                <div className="text-xs font-mono" style={{ color: "rgba(255,255,255,0.3)" }}>{p.points}pts</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Payout preview — mirrors the backend's pot-split exactly, so uneven
+          teams (2v1, 3v2…) show the real per-player share before submitting
+          instead of assuming a flat ±stake that would now be wrong. */}
+      {bothSelected && stakeN > 0 && (
+        <div className="pdc-card p-4">
+          <span className="text-xs font-black uppercase tracking-widest block mb-2" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)" }}>
+            Payout Preview
+          </span>
+          {unevenTeams ? (
+            <div className="space-y-1.5">
+              <div className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Uneven teams ({winnerIds.length}v{loserIds.length}) — losers each pay the full stake into a pot of <strong style={{ color: "#ffd24a" }}>{pot}</strong>, split across the winners:
+              </div>
+              {winnerIds.map((id, i) => (
+                <div key={id} className="flex justify-between text-sm font-mono" style={{ color: "#22c55e" }}>
+                  <span>{nameOf(id)}</span><span>+{winnerShares[i]}</span>
+                </div>
+              ))}
+              {loserIds.map(id => (
+                <div key={id} className="flex justify-between text-sm font-mono" style={{ color: "#ff005c" }}>
+                  <span>{nameOf(id)}</span><span>-{stakeN}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm font-mono" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Even teams — every winner gets <span style={{ color: "#22c55e" }}>+{stakeN}</span>, every loser pays <span style={{ color: "#ff005c" }}>-{stakeN}</span>.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Stake */}
+      <div className="pdc-card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a" }}>Stake</span>
+          {involvedPlayers.length > 0 && <span className="text-xs font-mono" style={{ color: "rgba(255,210,74,0.5)" }}>max {maxStake} pts</span>}
+        </div>
+        <div className="flex gap-2 mb-3">
+          {[1, 2, 5, 10, 20].map(v => (
+            <button key={v} type="button" onClick={() => setStake(String(v))} disabled={involvedPlayers.length > 0 && v > maxStake}
+              className="flex-1 py-2 rounded-lg text-sm font-black uppercase transition-all"
+              style={{
+                fontFamily: "Oswald, sans-serif",
+                background: stakeN === v ? "rgba(255,210,74,0.18)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${stakeN === v ? "rgba(255,210,74,0.5)" : "rgba(255,255,255,0.08)"}`,
+                color: stakeN === v ? "#ffd24a" : "rgba(255,255,255,0.35)",
+                opacity: involvedPlayers.length > 0 && v > maxStake ? 0.3 : 1,
+              }}>{v}</button>
+          ))}
+        </div>
+        <Input type="number" min={1} max={involvedPlayers.length > 0 ? maxStake : 50} value={stake} onChange={e => setStake(e.target.value)}
+          className="text-center text-2xl font-bold h-14"
+          style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", background: "rgba(255,210,74,0.05)", borderColor: "rgba(255,210,74,0.2)" }} />
+      </div>
+
+      {/* Game type */}
+      <div className="pdc-card p-4">
+        <span className="text-xs font-black uppercase tracking-widest block mb-2" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)" }}>Game Type</span>
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {["Team 501", "Team Cricket", "2v2", "3v3"].map(gt => (
+            <button key={gt} type="button" onClick={() => setGameType(gameType === gt ? "" : gt)}
+              className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase transition-all"
+              style={{
+                fontFamily: "Oswald, sans-serif",
+                background: gameType === gt ? "rgba(0,102,255,0.15)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${gameType === gt ? "rgba(0,102,255,0.4)" : "rgba(255,255,255,0.08)"}`,
+                color: gameType === gt ? "#0066ff" : "rgba(255,255,255,0.35)",
+              }}>{gt}</button>
+          ))}
+        </div>
+        <Input placeholder="Or type a custom game…" value={gameType} onChange={e => setGameType(e.target.value)}
+          style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.1)" }} />
+      </div>
+
+      <button
+        type="button"
+        onClick={onSubmit}
+        disabled={submitting || !bothSelected || maxStake === 0}
+        className="w-full h-14 rounded-xl text-lg font-black uppercase tracking-widest transition-all hover:opacity-90 disabled:opacity-40"
+        style={{
+          fontFamily: "Oswald, sans-serif",
+          background: bothSelected ? "linear-gradient(135deg, #0066ff, #0047b3)" : "rgba(255,255,255,0.06)",
+          color: bothSelected ? "#fff" : "rgba(255,255,255,0.3)",
+          border: "none", letterSpacing: "0.12em",
+          boxShadow: bothSelected ? "0 0 24px rgba(0,102,255,0.25)" : undefined,
+        }}>
+        {submitting ? (
+          <span className="flex items-center justify-center gap-2">
+            <div className="w-4 h-4 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#fff" }} />
+            Submitting…
+          </span>
+        ) : bothSelected ? (
+          <span className="flex items-center justify-center gap-2">
+            <Trophy className="w-5 h-5" />
+            Confirm: {winnerIds.map(nameOf).join(" & ")} def. {loserIds.map(nameOf).join(" & ")}
+          </span>
+        ) : "Add at least one player to each team"}
+      </button>
+    </div>
+  );
+}
+
 export default function SubmitMatch() {
   const { data: appSettings } = useSettings();
   const doublesEventEnabled = appSettings?.doubles_event_enabled ?? true;
@@ -556,6 +834,11 @@ export default function SubmitMatch() {
     m === "doubles" && !doublesEventEnabled ? "singles" :
     m === "shiftwars" && !shiftWarsEnabled ? "singles" : m
   );
+  // Ad-hoc team matches (2v2, 3v3, or uneven like 2v1) live inside the Singles
+  // tab as a toggle rather than a separate top-level mode — it's the same
+  // "any grouping of players, own points/Elo" match as a 1v1, just with more
+  // than one player per side.
+  const [teamMode, setTeamMode] = useState(false);
   const { data: players, isLoading: isLoadingPlayers } = useListPlayers();
   const submitMutation = useSubmitMatch();
   const { toast } = useToast();
@@ -657,7 +940,9 @@ export default function SubmitMatch() {
           Submit Match
         </h1>
         <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
-          {mode === "singles"
+          {mode === "singles" && teamMode
+            ? "Tap players to build each team — any size, even uneven (2v1, 3v2…). Tap again to remove."
+            : mode === "singles"
             ? "Tap a player to pick winner, tap another to pick loser. Tap again to deselect."
             : "Tap a team to pick winner, tap another to pick loser. Tap again to deselect."}
         </p>
@@ -710,7 +995,24 @@ export default function SubmitMatch() {
       {mode === "doubles" && <DoublesSubmitSection />}
       {mode === "shiftwars" && <ShiftWarsSubmitSection />}
 
-      {mode === "singles" && (
+      {mode === "singles" && (teamMode ? (
+        <TeamModeSubmitSection onExit={() => setTeamMode(false)} />
+      ) : (
+      <>
+      {/* ── TEAM MODE TOGGLE ── */}
+      <button
+        type="button"
+        onClick={() => setTeamMode(true)}
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all hover:opacity-90"
+        style={{
+          fontFamily: "Oswald, sans-serif",
+          background: "rgba(34,197,94,0.08)",
+          border: "1px dashed rgba(34,197,94,0.3)",
+          color: "#22c55e",
+        }}>
+        <Users className="w-4 h-4" /> Turn this into a Team Match (2v2, 3v3, or uneven…)
+      </button>
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
 
@@ -1087,7 +1389,8 @@ export default function SubmitMatch() {
 
         </form>
       </Form>
-      )}
+      </>
+      ))}
     </div>
   );
 }
