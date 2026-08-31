@@ -226,10 +226,6 @@ export function CardImageWithSpinner({
           width: "100%",
           height: "100%",
           animation: isActivating ? "spin3d 0.6s ease-out" : "none",
-          "@keyframes spin3d": {
-            "0%": { transform: "rotateY(0deg)" },
-            "100%": { transform: "rotateY(360deg)" },
-          },
         }}
       >
         <CardImage card={card} size={size} />

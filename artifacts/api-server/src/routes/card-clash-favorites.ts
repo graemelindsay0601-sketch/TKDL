@@ -16,6 +16,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '@workspace/db';
 import { and, eq } from 'drizzle-orm';
 import { cardClashFavoritesTable, type CardClashFavorite } from '@workspace/db/schema';
+import { paramStr } from '../lib/http';
 
 const router = Router();
 const MAX_FAVORITES_PER_MODE = 20;
@@ -30,7 +31,7 @@ function normalizeGameMode(value: unknown): 'X01' | 'CRICKET' {
  */
 router.get('/card-clash/favorites/:playerId', async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId, 10);
+    const playerId = parseInt(paramStr(req.params.playerId), 10);
     if (!Number.isFinite(playerId)) {
       res.status(400).json({ error: 'Invalid playerId' });
       return;
@@ -68,7 +69,7 @@ router.get('/card-clash/favorites/:playerId', async (req: Request, res: Response
  */
 router.post('/card-clash/favorites/:playerId', async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId, 10);
+    const playerId = parseInt(paramStr(req.params.playerId), 10);
     if (!Number.isFinite(playerId)) {
       res.status(400).json({ error: 'Invalid playerId' });
       return;
@@ -120,12 +121,12 @@ router.post('/card-clash/favorites/:playerId', async (req: Request, res: Respons
  */
 router.delete('/card-clash/favorites/:playerId/:cardId', async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId, 10);
+    const playerId = parseInt(paramStr(req.params.playerId), 10);
     if (!Number.isFinite(playerId)) {
       res.status(400).json({ error: 'Invalid playerId' });
       return;
     }
-    const { cardId } = req.params;
+    const cardId = paramStr(req.params.cardId);
     const gameMode = normalizeGameMode(req.query.gameMode);
 
     await db

@@ -13,7 +13,7 @@ import {
   applyWildcardBadCard,
   type X01ScoringContext,
   type CricketScoringContext,
-} from "./card-effects";
+} from "../lib/card-effects";
 
 import { db, cardDefinitionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -142,18 +142,18 @@ export async function applyCricketCardModifiers(
 
     try {
       if (card.cardType === "GOOD") {
-        const modifier = applyCricketGoodCard(card.effect, context);
+        const { pointsBonus } = applyCricketGoodCard(card.effect, context);
         if (targetPlayer === 1) {
-          player1Modifier += modifier;
+          player1Modifier += pointsBonus;
         } else {
-          player2Modifier += modifier;
+          player2Modifier += pointsBonus;
         }
       } else if (card.cardType === "BAD") {
-        const modifier = applyCricketBadCard(card.effect, context);
+        const { pointsReduction } = applyCricketBadCard(card.effect, context);
         if (targetPlayer === 1) {
-          player2Modifier += modifier;
+          player2Modifier -= pointsReduction;
         } else {
-          player1Modifier += modifier;
+          player1Modifier -= pointsReduction;
         }
       }
     } catch (e) {

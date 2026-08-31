@@ -65,7 +65,7 @@ export const drillProgressService = {
       LIMIT ${limit}
     `);
 
-    return result.rows as DrillCompletion[];
+    return result.rows as unknown as DrillCompletion[];
   },
 
   // Get stats for all drills a player has done

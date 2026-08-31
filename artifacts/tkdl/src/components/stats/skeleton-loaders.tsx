@@ -5,7 +5,17 @@ import React from "react";
  * Usage: Replace content during loading for better perceived performance
  */
 
-export function SkeletonPulse({ width = "100%", height = "20px", className = "" }) {
+export function SkeletonPulse({
+  width = "100%",
+  height = "20px",
+  className = "",
+  style,
+}: {
+  width?: string;
+  height?: string;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
   return (
     <div
       className={className}
@@ -16,6 +26,7 @@ export function SkeletonPulse({ width = "100%", height = "20px", className = "" 
         backgroundSize: "200% 100%",
         animation: "shimmer 2s infinite",
         borderRadius: "6px",
+        ...style,
       }}
     />
   );

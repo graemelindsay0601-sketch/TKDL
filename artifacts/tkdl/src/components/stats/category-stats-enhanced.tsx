@@ -42,7 +42,7 @@ interface CategoryStats {
 }
 
 // Game type category metadata
-const CATEGORY_META = {
+const CATEGORY_META: Record<GameTypeCategory, { icon: string; label: string; color: string; description: string }> = {
   M501: { icon: "🎯", label: "Master 501", color: "#ffd24a", description: "High-level competitive format" },
   Tour: { icon: "🏆", label: "Tour Mode", color: "#00e5a0", description: "Tournament & challenge games" },
   Practice: { icon: "💪", label: "Practice", color: "#a855f7", description: "Solo & practice sessions" },
@@ -349,7 +349,7 @@ export function CategoryStatsEnhanced({ playerId }: CategoryStatsEnhancedProps) 
 
       {/* Category Selector with Icons */}
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-        {(Object.entries(CATEGORY_META) as any).map(([key, meta]) => (
+        {(Object.entries(CATEGORY_META) as [GameTypeCategory, typeof CATEGORY_META[GameTypeCategory]][]).map(([key, meta]) => (
           <button
             key={key}
             onClick={() => {
@@ -499,7 +499,7 @@ export function CategoryStatsEnhanced({ playerId }: CategoryStatsEnhancedProps) 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(20, 1fr)", gap: "4px" }}>
                   {selectedSession.dartLog.slice(0, 100).map((dart: number, idx: number) => (
                     <div key={idx} style={{
-                      aspect: "1",
+                      aspectRatio: "1",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",

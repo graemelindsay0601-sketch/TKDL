@@ -279,7 +279,7 @@ export function applyCricketGoodCard(
     case "Marks 2x":
       // All marks this turn count as 2x
       Object.keys(marksModified).forEach((num) => {
-        marksModified[num] *= 2;
+        marksModified[parseInt(num)] *= 2;
       });
       break;
 
@@ -369,7 +369,7 @@ export function applyCricketGoodCard(
       // Marks count double when ahead
       // Requires match state
       Object.keys(marksModified).forEach((num) => {
-        marksModified[num] *= 2;
+        marksModified[parseInt(num)] *= 2;
       });
       break;
 
@@ -392,7 +392,8 @@ export function applyCricketBadCard(
   switch (effect) {
     case "Marks 50%":
       Object.keys(marksReduced).forEach((num) => {
-        marksReduced[num] = Math.floor(marksReduced[num] * 0.5);
+        const n = parseInt(num);
+        marksReduced[n] = Math.floor(marksReduced[n] * 0.5);
       });
       break;
 
@@ -418,7 +419,8 @@ export function applyCricketBadCard(
 
     case "Marks 75%":
       Object.keys(marksReduced).forEach((num) => {
-        marksReduced[num] = Math.floor(marksReduced[num] * 0.75);
+        const n = parseInt(num);
+        marksReduced[n] = Math.floor(marksReduced[n] * 0.75);
       });
       break;
 
@@ -430,7 +432,7 @@ export function applyCricketBadCard(
       // -1 random mark
       const keys = Object.keys(marksReduced);
       if (keys.length > 0) {
-        const random = keys[Math.floor(Math.random() * keys.length)];
+        const random = parseInt(keys[Math.floor(Math.random() * keys.length)]);
         marksReduced[random] = Math.max(0, marksReduced[random] - 1);
       }
       break;
@@ -442,7 +444,7 @@ export function applyCricketBadCard(
     case "Bull only":
       Object.keys(marksReduced).forEach((num) => {
         if (num !== "50") {
-          marksReduced[num] = 0;
+          marksReduced[parseInt(num)] = 0;
         }
       });
       break;
@@ -468,7 +470,8 @@ export function applyCricketBadCard(
 
     case "Marks 50%":
       Object.keys(marksReduced).forEach((num) => {
-        marksReduced[num] = Math.floor(marksReduced[num] * 0.5);
+        const n = parseInt(num);
+        marksReduced[n] = Math.floor(marksReduced[n] * 0.5);
       });
       break;
 

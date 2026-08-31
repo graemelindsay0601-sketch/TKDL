@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
-import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare, Sparkles } from "lucide-react";
+import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare, Sparkles, Building2 } from "lucide-react";
 import { useAuth } from "@/context/auth";
 import {
   FormStrip, EloSparkline, AchievementCard,
@@ -145,6 +145,21 @@ export default function PlayerDetail() {
         setDoublesTeam(mine ?? null);
       })
       .catch(() => setDoublesTeam(null));
+  }, [playerId]);
+
+  // Shift Wars — a player's department team, if assigned (not season-scoped, so this
+  // is a flat fetch of every team rather than the current-season lookup doubles uses).
+  const [shiftWarsTeam, setShiftWarsTeam] = useState<any | null>(null);
+  useEffect(() => {
+    if (!playerId) return;
+    fetch("/api/shift-wars/teams")
+      .then(r => r.ok ? r.json() : [])
+      .then(teams => {
+        if (!Array.isArray(teams)) { setShiftWarsTeam(null); return; }
+        const mine = teams.find((t: any) => t.players?.some((p: any) => p.id === Number(playerId)));
+        setShiftWarsTeam(mine ?? null);
+      })
+      .catch(() => setShiftWarsTeam(null));
   }, [playerId]);
 
   if (isLoading) {
@@ -382,6 +397,30 @@ export default function PlayerDetail() {
             </div>
             <div className="text-center">
               <div style={{ color: "#ffd24a" }}>{doublesTeam.points}</div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>Points</div>
+            </div>
+          </div>
+        </Link>
+      )}
+
+      {/* ══ SHIFT WARS ══ */}
+      {shiftWarsTeam && (
+        <Link href="/leaderboard?mode=shiftwars" className="pdc-card p-4 flex items-center justify-between gap-4 hover:bg-white/[0.02] transition-colors">
+          <div className="min-w-0">
+            <div className="text-xs uppercase font-bold mb-1 flex items-center gap-1.5" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(34,197,94,0.7)", letterSpacing: "0.12em" }}>
+              <Building2 className="w-3 h-3" /> Shift Wars
+            </div>
+            <div className="font-bold text-lg truncate" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)" }}>
+              {shiftWarsTeam.name}
+            </div>
+          </div>
+          <div className="flex items-center gap-4 shrink-0 text-sm font-mono">
+            <div className="text-center">
+              <div style={{ color: "#22c55e" }}>{shiftWarsTeam.wins}<span style={{ color: "rgba(255,255,255,0.25)" }}>-</span><span style={{ color: "#ff005c" }}>{shiftWarsTeam.losses}</span></div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>Record</div>
+            </div>
+            <div className="text-center">
+              <div style={{ color: "#ffd24a" }}>{shiftWarsTeam.points}</div>
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>Points</div>
             </div>
           </div>

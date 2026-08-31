@@ -114,6 +114,14 @@ const X01_CURSES: CurseDef[] = [
     effect: { singlesScore0: true },
     description: "Only doubles and trebles score this visit — singles are worth 0.",
   })),
+  def("choke", "Choke", 2, "X01", () => {
+    const pct = randInt(60, 80);
+    return { effect: { trebleMultiplier: pct / 100 }, description: `Every treble you hit this visit is worth only ${pct}% of its value.` };
+  }),
+  def("sunk-cost", "Sunk Cost", 2, "X01", () => {
+    const n = randInt(15, 25);
+    return { effect: { visitPenalty: n }, description: `Flat ${n} points come off whatever you score this visit, once it's totalled.` };
+  }),
 
   // Tier 3 — severe
   def("shackled", "Shackled", 3, "X01", () => {
@@ -153,6 +161,14 @@ const X01_CURSES: CurseDef[] = [
     effect: { noDoubleFinishFirstN: 3 },
     description: "You can't finish on a double at all this visit.",
   })),
+  def("splintered", "Splintered", 3, "X01", () => {
+    const pct = randInt(30, 50);
+    return { effect: { trebleMultiplier: pct / 100 }, description: `Every treble you hit this visit is worth only ${pct}% of its value.` };
+  }),
+  def("dead-weight", "Dead Weight", 3, "X01", () => {
+    const n = randInt(30, 45);
+    return { effect: { visitPenalty: n }, description: `Flat ${n} points come off whatever you score this visit, once it's totalled.` };
+  }),
 ];
 
 // ── Cricket curses ───────────────────────────────────────────────────────────
@@ -200,6 +216,14 @@ const CRICKET_CURSES: CurseDef[] = [
       description: `For the rest of this visit, only ${num} marks — anything else whiffs.`,
     };
   }),
+  def("scoring-choke", "Scoring Choke", 2, "CRICKET", () => {
+    const pct = randInt(40, 60);
+    return { effect: { scoreHalveExtraMultiplier: pct / 100 }, description: `Points you score on numbers you've already closed are only worth ${pct}% this visit.` };
+  }),
+  def("rationed", "Rationed", 2, "CRICKET", () => {
+    const n = randInt(4, 5);
+    return { effect: { maxMarksPerTurn: n }, description: `You can't gain more than ${n} total marks this visit, however many darts land.` };
+  }),
 
   // Tier 3 — severe
   def("locked-out", "Locked Out", 3, "CRICKET", () => ({
@@ -227,6 +251,14 @@ const CRICKET_CURSES: CurseDef[] = [
   def("pressure", "Pressure", 3, "CRICKET", () => {
     const n = randInt(20, 35);
     return { effect: { pressureLoseIfNoClose: n }, description: `If you don't close a number this visit, you lose ${n} points.` };
+  }),
+  def("point-blank", "Point Blank", 3, "CRICKET", () => {
+    const pct = randInt(15, 30);
+    return { effect: { scoreHalveExtraMultiplier: pct / 100 }, description: `Points you score on numbers you've already closed are only worth ${pct}% this visit.` };
+  }),
+  def("shutdown", "Shutdown", 3, "CRICKET", () => {
+    const n = randInt(1, 2);
+    return { effect: { maxMarksPerTurn: n }, description: `You can only gain ${n} mark${n === 1 ? "" : "s"} this whole visit, no matter what you hit.` };
   }),
 ];
 

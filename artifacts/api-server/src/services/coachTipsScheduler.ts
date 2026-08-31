@@ -118,7 +118,7 @@ async function generateCoachTips(playerId: number): Promise<CoachTip | null> {
       type: "coach_tip"
     };
   } catch (error) {
-    logger.error("Error generating coach tips", { playerId, error });
+    logger.error({ playerId, error }, "Error generating coach tips");
     return null;
   }
 }
@@ -179,13 +179,13 @@ async function sendWeeklyCoachTips(): Promise<void> {
         });
         sent++;
       } catch (error) {
-        logger.error("Failed to send coach tip", { playerId, error });
+        logger.error({ playerId, error }, "Failed to send coach tip");
       }
     }
 
     logger.info(`Weekly coach tips sent: ${sent} sent, ${skipped} skipped`);
   } catch (error) {
-    logger.error("Error in sendWeeklyCoachTips", { error });
+    logger.error({ error }, "Error in sendWeeklyCoachTips");
   }
 }
 
@@ -205,6 +205,6 @@ export function initializeCoachTipsScheduler(): void {
     // Expose for testing
     (global as any).TKDL_testCoachTips = sendWeeklyCoachTips;
   } catch (error) {
-    logger.error("Failed to initialize coach tips scheduler", { error });
+    logger.error({ error }, "Failed to initialize coach tips scheduler");
   }
 }

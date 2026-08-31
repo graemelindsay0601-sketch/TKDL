@@ -202,6 +202,10 @@
   0%, 100% { filter: drop-shadow(0 0 4px rgba(255,0,92,0.8)); }
   50%       { filter: drop-shadow(0 0 10px rgba(255,100,0,1)) drop-shadow(0 0 20px rgba(255,0,92,0.6)); }
 }
+@keyframes spin3d {
+  0%   { transform: rotateY(0deg); }
+  100% { transform: rotateY(360deg); }
+}
 @keyframes ticker-scroll {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }

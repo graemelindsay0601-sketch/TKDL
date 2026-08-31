@@ -20,7 +20,7 @@ interface VirtualizationResult<T> {
   visibleItems: T[];
   topPaddingPx: number;
   bottomPaddingPx: number;
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
   scrollTop: number;
 }
 

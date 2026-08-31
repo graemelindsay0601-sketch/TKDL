@@ -29,7 +29,7 @@ export interface PushSubscription {
  */
 export async function createNotification(payload: NotificationPayload): Promise<number> {
   try {
-    const [notification] = await db.execute(sql`
+    const { rows: [notification] } = await db.execute(sql`
       INSERT INTO notifications (player_id, type, title, body, data)
       VALUES (${payload.playerId}, ${payload.type}, ${payload.title}, ${payload.body}, ${JSON.stringify(payload.data || {})})
       RETURNING id
@@ -85,11 +85,11 @@ async function shouldSendNotification(payload: NotificationPayload, prefs: any):
   });
 
   if (!batchingResult.shouldSend) {
-    logger.info("Notification batched/queued", {
+    logger.info({
       playerId: payload.playerId,
       type: payload.type,
       reason: batchingResult.reason
-    });
+    }, "Notification batched/queued");
     return false;
   }
 
@@ -277,7 +277,7 @@ export async function subscribeToPush(
  * Get notification analytics
  */
 export async function getNotificationAnalytics(): Promise<any> {
-  const [stats] = await db.execute(sql`
+  const { rows: [stats] } = await db.execute(sql`
     SELECT
       COUNT(*) as total_sent,
       COUNT(opened_at) as total_opened,
@@ -402,7 +402,7 @@ export async function createAnnouncement(
   targetPlayers?: number[] | null,
   critical: boolean = false
 ): Promise<number> {
-  const [announcement] = await db.execute(sql`
+  const { rows: [announcement] } = await db.execute(sql`
     INSERT INTO admin_announcements (admin_id, title, body, target_players, critical)
     VALUES (${adminId}, ${title}, ${body}, ${targetPlayers ? JSON.stringify({ player_ids: targetPlayers }) : null}, ${critical})
     RETURNING id

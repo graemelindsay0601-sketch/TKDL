@@ -2,6 +2,7 @@ import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, settingsTable, featureFlagsTable } from "@workspace/db";
 import { requireAdminSession } from "../middleware/requireAdminSession";
+import { paramStr } from "../lib/http";
 import {
   getAllFeatureFlags, initializeFeatureFlags,
   enableFeatureForAll, disableFeature, setAdminTestMode,
@@ -31,7 +32,7 @@ router.get("/settings", async (_req, res): Promise<void> => {
 });
 
 router.patch("/admin/settings/:key", requireAdminSession, async (req, res): Promise<void> => {
-  const { key } = req.params;
+  const key = paramStr(req.params.key);
   const { value } = req.body as { value?: unknown };
   if (value === undefined) { res.status(400).json({ error: "value required" }); return; }
   const existing = await db.select().from(settingsTable).where(eq(settingsTable.key, key));
@@ -59,19 +60,19 @@ router.post("/admin/feature-flags/initialize", requireAdminSession, async (_req,
 
 router.post("/admin/feature-flags/:name/admin-test", requireAdminSession, async (req, res): Promise<void> => {
   const { enabled } = req.body as { enabled?: boolean };
-  const ok = await setAdminTestMode(req.params.name, !!enabled);
+  const ok = await setAdminTestMode(paramStr(req.params.name), !!enabled);
   if (!ok) { res.status(500).json({ error: "Failed to update admin test mode" }); return; }
   res.json({ ok: true });
 });
 
 router.post("/admin/feature-flags/:name/enable-all", requireAdminSession, async (req, res): Promise<void> => {
-  const ok = await enableFeatureForAll(req.params.name);
+  const ok = await enableFeatureForAll(paramStr(req.params.name));
   if (!ok) { res.status(500).json({ error: "Failed to enable feature" }); return; }
   res.json({ ok: true });
 });
 
 router.post("/admin/feature-flags/:name/disable", requireAdminSession, async (req, res): Promise<void> => {
-  const ok = await disableFeature(req.params.name);
+  const ok = await disableFeature(paramStr(req.params.name));
   if (!ok) { res.status(500).json({ error: "Failed to disable feature" }); return; }
   res.json({ ok: true });
 });

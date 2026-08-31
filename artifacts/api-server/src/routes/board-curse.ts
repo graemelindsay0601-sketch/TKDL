@@ -13,6 +13,7 @@
 import { Router, Request, Response } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { paramStr } from "../lib/http";
 
 const router = Router();
 
@@ -26,7 +27,7 @@ function isValidFormat(v: unknown): v is "bot" | "local" {
 
 router.get("/board-curse/best/:playerId/:gameType", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId, 10);
+    const playerId = parseInt(paramStr(req.params.playerId), 10);
     const gameType = req.params.gameType;
     if (!Number.isFinite(playerId) || !isValidGameType(gameType)) {
       res.status(400).json({ error: "Invalid playerId or gameType" });
@@ -89,7 +90,7 @@ router.post("/board-curse/best", async (req: Request, res: Response) => {
 
 router.get("/board-curse/record/:playerId/:format", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId, 10);
+    const playerId = parseInt(paramStr(req.params.playerId), 10);
     const format = req.params.format;
     if (!Number.isFinite(playerId) || !isValidFormat(format)) {
       res.status(400).json({ error: "Invalid playerId or format" });

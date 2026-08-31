@@ -44,6 +44,14 @@ export const CardClashShop = React.memo(
       onCardsReceived?.();
     };
 
+    if (playerId === undefined) {
+      return (
+        <div style={{ maxWidth: '680px', margin: '0 auto', textAlign: 'center', padding: '40px 0', color: 'rgba(255,255,255,0.5)' }}>
+          Loading shop…
+        </div>
+      );
+    }
+
     return (
       <div style={{ maxWidth: '680px', margin: '0 auto' }}>
         <SectionHeader
@@ -105,7 +113,6 @@ export const CardClashShop = React.memo(
         {shopTab === 'packs' && (
           <CardShopUI
             playerId={playerId}
-            playerName={playerName}
             onCardsReceived={handlePackOpened}
           />
         )}
@@ -113,15 +120,15 @@ export const CardClashShop = React.memo(
         {shopTab === 'featured' && (
           <FeaturedCardShop
             playerId={playerId}
-            onPurchase={handlePackOpened}
+            playerCoins={coins}
+            onPurchaseSuccess={handlePackOpened}
           />
         )}
 
         {shopTab === 'free' && (
           <FreePackDisplay
             playerId={playerId}
-            playerName={playerName}
-            onFreePackOpened={handlePackOpened}
+            onClaimPack={handlePackOpened}
           />
         )}
 

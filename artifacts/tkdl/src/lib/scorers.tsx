@@ -127,6 +127,17 @@ const firstOpenCricketSegment = (marks?: number[]): number => {
 
 function useFullscreen() {
   const [fs, setFs] = useState(false);
+  // iOS Safari (including "Add to Home Screen" PWAs) never implements the
+  // Fullscreen API for arbitrary elements — requestFullscreen/webkitRequestFullscreen
+  // are both simply undefined on document.documentElement there (it's only ever
+  // supported on <video> via webkitEnterFullscreen). Calling toggle() in that case
+  // silently does nothing, which reads to players as "the button doesn't work" —
+  // so callers should use `supported` to hide the control entirely rather than
+  // show a button that can never do anything on iPhone/iPad.
+  const supported = typeof document !== "undefined" && !!(
+    document.documentElement.requestFullscreen ||
+    (document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen
+  );
   useEffect(() => {
     const onChange = () => setFs(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onChange);
@@ -142,7 +153,7 @@ function useFullscreen() {
     (document.exitFullscreen?.() ?? doc.webkitExitFullscreen?.() as unknown as Promise<void>)?.catch?.(() => {});
   };
   const toggle = () => (fs ? exit() : enter());
-  return { fs, toggle, enter };
+  return { fs, toggle, enter, supported };
 }
 
 function useOrientation() {
@@ -641,7 +652,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 }
 
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
-export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart }: {
+export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner }: {
   p1Name: string; p2Name: string;
   config: { startingScore: number; doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; noTrebles?: boolean; legs?: number; bustResetTo?: number };
   botConfig?: BotConfig;
@@ -661,6 +672,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
    *  so a wrapper outside the scorer can roll a new random curse before darts land —
    *  independent of Chaos Mode, which has its own separate visit-start effect below. */
   onVisitStart?: (turn: 0 | 1) => void;
+  /** Board Curse (and anything else that needs it): extra content rendered as the very
+   *  first item inside the scorer's own scrollable top region — NOT as a sibling above
+   *  the scorer. ScorerLayout below claims the full 100dvh for itself, so any content
+   *  placed outside/above it in the page adds real document height on top of that and
+   *  pushes the whole scorer (including the pinned keypad) off the bottom of the screen
+   *  on mobile, forcing a scroll just to see it. Rendering it in here instead keeps it
+   *  inside the same already-scrollable, already-correctly-sized region so it's visible
+   *  immediately without adding any extra page height. */
+  topBanner?: React.ReactNode;
 }) {
   const safeTimeout = useSafeTimeout();
   const { startingScore = 501, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo } = config;
@@ -1532,7 +1552,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   // `projected` above — those still drive the live checkout suggestion,
   // which reacts per-dart and isn't part of this fix.
   const cappedCum = isCardClash ? ccApplyVisitCap(cum, activeEffects, turn) : cum;
-  const { fs, toggle: toggleFs } = useFullscreen();
+  const { fs, toggle: toggleFs, supported: fsSupported } = useFullscreen();
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
   // ── Card Clash: Load per-player cards written by CardClashMatchScorer ──
@@ -1738,7 +1758,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     <>
     <ScorerLayout
       top={<div className="space-y-3">
-        {/* Fullscreen toggle — always shown on mobile, hover-visible on desktop */}
+        {topBanner}
+        {/* Fullscreen toggle — always shown on mobile, hover-visible on desktop.
+            Hidden entirely when the browser has no Fullscreen API for arbitrary
+            elements (iOS Safari, standalone PWAs on iOS) — there's nothing the
+            button could do there, so a dead control is worse than no control. */}
+        {fsSupported && (
         <div className="flex justify-end">
         <button
           onClick={toggleFs}
@@ -1763,6 +1788,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           {fs ? "EXIT FULL" : "FULLSCREEN"}
         </button>
       </div>
+      )}
       <div className="pdc-divider" />
       {/* Leg / Set score indicators */}
       {(setsToWin > 0 || (legs && legs > 1)) && (
@@ -2077,7 +2103,7 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
 const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
 
-export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart }: {
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart, topBanner }: {
   p1Name: string; p2Name: string; cutThroat?: boolean; includesBull?: boolean; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
@@ -2095,6 +2121,9 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   onLegStart?: (legNumber: number) => void;
   /** Board Curse: fires every time a fresh visit begins — see X01Scorer's onVisitStart for the full explanation. */
   onVisitStart?: (turn: 0 | 1) => void;
+  /** Board Curse: extra content rendered inside the scorer's own scrollable top
+   *  region instead of as a page-level sibling — see X01Scorer's topBanner for why. */
+  topBanner?: React.ReactNode;
 }) {
   const safeTimeout = useSafeTimeout();
   const numCount = includesBull ? 7 : 6;
@@ -3389,6 +3418,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     <>
     <ScorerLayout
       top={<div className="space-y-3">
+        {topBanner}
         <div className="pdc-divider" />
         <div className="text-center">
           <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
@@ -6441,7 +6471,7 @@ export function Master501Scorer({
   const [flash,      setFlash]      = useState("");
   const [legDone,    setLegDone]    = useState<"win" | "loss" | null>(null);
   const [matchDone,  setMatchDone]  = useState<"win" | "loss" | null>(null);
-  const { fs, toggle: toggleFs }    = useFullscreen();
+  const { fs, toggle: toggleFs, supported: fsSupported } = useFullscreen();
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
   const legWinsRef   = useRef(0);
@@ -6582,11 +6612,13 @@ export function Master501Scorer({
             </div>
             <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald,sans-serif", letterSpacing: "0.08em" }}>MASTER-501</span>
           </div>
+          {fsSupported && (
           <button onClick={toggleFs} className={isMobile ? "" : "opacity-30 hover:opacity-100 transition-opacity"}
             style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "0.5rem", padding: "0.4rem 0.75rem", color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.7rem", fontFamily: "Oswald,sans-serif", fontWeight: 700, letterSpacing: "0.08em", cursor: "pointer" }}>
             {fs ? <Minimize size={13} /> : <Maximize size={13} />}
             {fs ? "EXIT FULL" : "FULLSCREEN"}
           </button>
+          )}
         </div>
         <div className="pdc-divider" />
 

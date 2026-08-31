@@ -10,7 +10,11 @@ import { playersTable } from "./players";
 export const cardClashMatchesTable = pgTable("card_clash_matches", {
   id: serial("id").primaryKey(),
   matchId: uuid("match_id").notNull().unique().defaultRandom(),
-  seasonId: integer("season_id").references(() => cardClashSeasonsTable.id), // Nullable - Card Clash is standalone
+  // Nullable, no FK — Card Clash is standalone. This column predates that redesign;
+  // card-clash-service.ts actively drops the season_id FK constraint (and its NOT
+  // NULL) on every startup, so modeling a references() here would just describe a
+  // constraint the running database deliberately doesn't have.
+  seasonId: integer("season_id"),
   gameMode: text("game_mode").notNull(), // X01, CRICKET
   player1Id: integer("player_1_id").notNull().references(() => playersTable.id),
   player2Id: integer("player_2_id").notNull().references(() => playersTable.id),

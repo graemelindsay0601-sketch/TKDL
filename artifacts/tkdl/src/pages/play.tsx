@@ -3,7 +3,7 @@ import { useListPlayers, useSubmitMatch, getGetLeaderboardQueryKey, getGetStatsS
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/hooks/use-settings";
-import { Swords, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, AlertCircle, User } from "lucide-react";
+import { Swords, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, AlertCircle, User, Building2 } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
 import { RulesModal } from "@/components/rules-modal";
 import { MatchStatsCard } from "@/components/match-stats-card";
@@ -13,16 +13,17 @@ import { PostMatchAnalysisModal } from "@/components/stats/post-match-analysis";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Player = { id: number; name: string; points: number; elo: number; status: string };
-type Format = "1v1" | "2v2" | "3v3" | "killer-ffa" | "doubles-event";
+type Format = "1v1" | "2v2" | "3v3" | "killer-ffa" | "doubles-event" | "shift-wars";
 
 type SetupData = {
   format: Format;
-  team1: Player[];   // 1v1: [p1]; 2v2: [a,b]; 3v3: [a,b,c]; killer-ffa: all players; doubles-event: fixed draw team A's members
-  team2: Player[];   // killer-ffa: empty; doubles-event: fixed draw team B's members
+  team1: Player[];   // 1v1: [p1]; 2v2: [a,b]; 3v3: [a,b,c]; killer-ffa: all players; doubles-event: fixed draw team A's members; shift-wars: single synthetic entry standing in for the department team
+  team2: Player[];   // killer-ffa: empty; doubles-event: fixed draw team B's members; shift-wars: same as team1 but for the other department
   gameType: GameTypeOption;
   stake: number;
   bullUp?: boolean;
   doublesTeamIds?: [number, number]; // doubles-event only: [team1Id, team2Id] for the season's fixed random-draw teams
+  shiftWarsTeamIds?: [number, number]; // shift-wars only: [team1Id, team2Id] for the 3 fixed department teams
 };
 
 type EquippedCards = {
@@ -41,6 +42,7 @@ const FORMAT_OPTIONS: { key: Format; label: string; icon: string; desc: string }
   { key: "2v2",        label: "2v2 Team Game",   icon: "👥",  desc: "Any 2 players vs any 2 — casual, one-off" },
   { key: "3v3",        label: "3v3 Triples",     icon: "👥",  desc: "Teams of 3 — casual, one-off" },
   { key: "doubles-event", label: "Doubles Event", icon: "🎯",  desc: "Official season event — fixed random-draw teams" },
+  { key: "shift-wars", label: "Shift Wars", icon: "🏬",  desc: "Fixed department teams — Fresh, Twilight, Shift Leader" },
   { key: "killer-ffa", label: "Killer Free-for-All", icon: "💀", desc: "3–6 individual players" },
 ];
 
@@ -50,6 +52,7 @@ const TEAM_CATEGORIES: Record<Format, string[]> = {
   "3v3":            ["team"],
   "killer-ffa":     ["team"],
   "doubles-event":  ["team"],
+  "shift-wars":     ["team"],
 };
 
 const TABS_BY_FORMAT: Record<Format, { key: string; label: string }[]> = {
@@ -63,6 +66,7 @@ const TABS_BY_FORMAT: Record<Format, { key: string; label: string }[]> = {
   "3v3":            [{ key: "team", label: "Team Games" }],
   "killer-ffa":     [{ key: "team", label: "Killer" }],
   "doubles-event":  [{ key: "team", label: "Team Games" }],
+  "shift-wars":     [{ key: "team", label: "Team Games" }],
 };
 
 // ── Doubles Event: log a result for the season's fixed random-draw teams ───────
@@ -125,6 +129,54 @@ function DoublesTeamSlot({ label, color, value, onChange, exclude, teams }: {
 }
 
 
+// ── Shift Wars: log a result for one of the 3 fixed department teams ───────────
+type ShiftWarsTeam = { id: number; name: string; points: number; wins: number; losses: number };
+
+function useShiftWarsTeamsForPlay() {
+  const [teams, setTeams]   = useState<ShiftWarsTeam[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/shift-wars/teams")
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setTeams(Array.isArray(data) ? data : []))
+      .catch(() => setTeams([]))
+      .finally(() => setLoaded(true));
+  }, []);
+
+  return { teams, loaded };
+}
+
+// ── Shift Wars team slot selector (Team 1 / Team 2 pick from the fixed 3) ──────
+function ShiftWarsTeamSlot({ label, color, value, onChange, exclude, teams }: {
+  label: string; color: string; value: string;
+  onChange: (v: string) => void; exclude: string[]; teams: ShiftWarsTeam[];
+}) {
+  const selected = teams.find(t => t.id === Number(value));
+  return (
+    <div className="pdc-card p-3" style={{ borderColor: value ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.05)" }}>
+      <div className="text-xs font-bold uppercase mb-2" style={{ fontFamily: "Oswald, sans-serif", color, letterSpacing: "0.1em" }}>
+        {label}
+      </div>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full rounded-lg px-3 py-2 text-sm"
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: value ? "#fff" : "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+        <option value="" style={{ color: "#111" }}>Select team…</option>
+        {teams.filter(t => !exclude.includes(String(t.id))).map(t => (
+          <option key={t.id} value={t.id} style={{ color: "#111" }}>{t.name} ({t.points}pts)</option>
+        ))}
+      </select>
+      {selected && (
+        <div className="mt-1.5 text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+          {selected.name} · {selected.points}pts
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Game type card ─────────────────────────────────────────────────────────────
 function GameCard({ gt, selected, onSelect, onRules }: { gt: GameTypeOption; selected: boolean; onSelect: () => void; onRules: () => void }) {
   return (
@@ -180,7 +232,10 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const currentPlayer         = useCurrentPlayer();
   const { data: appSettings }  = useSettings();
   const doublesEventEnabled    = appSettings?.doubles_event_enabled ?? true;
-  const formatOptions          = FORMAT_OPTIONS.filter(f => f.key !== "doubles-event" || doublesEventEnabled);
+  const shiftWarsEnabled       = appSettings?.shift_wars_enabled ?? false;
+  const formatOptions          = FORMAT_OPTIONS
+    .filter(f => f.key !== "doubles-event" || doublesEventEnabled)
+    .filter(f => f.key !== "shift-wars" || shiftWarsEnabled);
   const [gameTypes, setGameTypes] = useState<GameTypeOption[]>([]);
   const [format, setFormat]       = useState<Format>("1v1");
   const [team1Ids, setTeam1Ids]   = useState<string[]>(["", "", ""]);
@@ -194,11 +249,17 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [bullUp, setBullUp]       = useState(false);
   const [doublesTeam1Id, setDoublesTeam1Id] = useState("");
   const [doublesTeam2Id, setDoublesTeam2Id] = useState("");
+  const [shiftWarsTeam1Id, setShiftWarsTeam1Id] = useState("");
+  const [shiftWarsTeam2Id, setShiftWarsTeam2Id] = useState("");
 
   const { teams: allDoublesTeams, loaded: doublesTeamsLoaded } = useDoublesTeamsForPlay();
   const activeDoublesTeams = allDoublesTeams.filter(t => !t.isEliminated);
   const doublesTeam1 = activeDoublesTeams.find(t => String(t.id) === doublesTeam1Id) ?? null;
   const doublesTeam2 = activeDoublesTeams.find(t => String(t.id) === doublesTeam2Id) ?? null;
+
+  const { teams: shiftWarsTeams, loaded: shiftWarsTeamsLoaded } = useShiftWarsTeamsForPlay();
+  const shiftWarsTeam1 = shiftWarsTeams.find(t => String(t.id) === shiftWarsTeam1Id) ?? null;
+  const shiftWarsTeam2 = shiftWarsTeams.find(t => String(t.id) === shiftWarsTeam2Id) ?? null;
 
   useEffect(() => {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
@@ -242,6 +303,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     : format === "doubles-event"
     ? [doublesTeam1, doublesTeam2].filter((t): t is DoublesTeam => !!t)
         .map(t => ({ id: t.id, name: t.teamName, points: t.points, elo: t.elo, status: "ACTIVE" }))
+    : format === "shift-wars"
+    ? [shiftWarsTeam1, shiftWarsTeam2].filter((t): t is ShiftWarsTeam => !!t)
+        .map(t => ({ id: t.id, name: t.name, points: t.points, elo: 0, status: "ACTIVE" }))
     : [...team1Players, ...team2Players].filter((p): p is Player => !!p);
   const maxStake = activePlayers.length > 0 ? Math.min(...activePlayers.map(p => p.points)) : 0;
   const stakeN   = parseInt(stake) || 0;
@@ -256,8 +320,12 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const team2Ready = format === "1v1" ? true : team2Players.every(Boolean);
   const ffaReady   = format === "killer-ffa" && ffaPlayers.every(Boolean) && new Set(ffaIds.slice(0, ffaCount).filter(Boolean)).size === ffaCount;
   const doublesReady = format === "doubles-event" && !!doublesTeam1 && !!doublesTeam2 && doublesTeam1.id !== doublesTeam2.id;
+  const shiftWarsReady = format === "shift-wars" && !!shiftWarsTeam1 && !!shiftWarsTeam2 && shiftWarsTeam1.id !== shiftWarsTeam2.id;
 
-  const playersReady = format === "killer-ffa" ? ffaReady : format === "doubles-event" ? doublesReady : (team1Ready && team2Ready);
+  const playersReady = format === "killer-ffa" ? ffaReady
+    : format === "doubles-event" ? doublesReady
+    : format === "shift-wars" ? shiftWarsReady
+    : (team1Ready && team2Ready);
   const canStart = playersReady && !!selectedGame && !stakeErr;
 
   // Game type filtering
@@ -298,6 +366,18 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         stake: stakeN,
         bullUp,
         doublesTeamIds: [doublesTeam1.id, doublesTeam2.id],
+      });
+    } else if (format === "shift-wars") {
+      if (!shiftWarsTeam1 || !shiftWarsTeam2) return;
+      const shim = (t: ShiftWarsTeam): Player[] => [{ id: t.id, name: t.name, points: t.points, elo: 0, status: "ACTIVE" }];
+      onStart({
+        format,
+        team1: shim(shiftWarsTeam1),
+        team2: shim(shiftWarsTeam2),
+        gameType: selectedGame,
+        stake: stakeN,
+        bullUp,
+        shiftWarsTeamIds: [shiftWarsTeam1.id, shiftWarsTeam2.id],
       });
     } else if (format === "1v1") {
       const p1 = players.find(p => String(p.id) === team1Ids[0])!;
@@ -407,6 +487,24 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                 exclude={[doublesTeam2Id].filter(Boolean)} teams={activeDoublesTeams} />
               <DoublesTeamSlot label="Team 2" color="#ee0a78" value={doublesTeam2Id} onChange={setDoublesTeam2Id}
                 exclude={[doublesTeam1Id].filter(Boolean)} teams={activeDoublesTeams} />
+            </div>
+          )
+        )}
+
+        {/* Shift Wars — pick 2 of the 3 fixed department teams */}
+        {format === "shift-wars" && (
+          !shiftWarsTeamsLoaded ? (
+            <div className="text-sm py-6 text-center" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Loading teams…</div>
+          ) : shiftWarsTeams.length === 0 ? (
+            <div className="text-sm py-6 text-center" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+              No Shift Wars teams yet — ask an admin to set them up first.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <ShiftWarsTeamSlot label="Team 1" color="#22c55e" value={shiftWarsTeam1Id} onChange={setShiftWarsTeam1Id}
+                exclude={[shiftWarsTeam2Id].filter(Boolean)} teams={shiftWarsTeams} />
+              <ShiftWarsTeamSlot label="Team 2" color="#ee0a78" value={shiftWarsTeam2Id} onChange={setShiftWarsTeam2Id}
+                exclude={[shiftWarsTeam1Id].filter(Boolean)} teams={shiftWarsTeams} />
             </div>
           )
         )}
@@ -549,7 +647,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           ? format === "killer-ffa"
             ? `Start Killer — ${ffaCount} Players`
             : `Start — ${selectedGame?.name}`
-          : format === "killer-ffa" ? "Select players & game" : format === "doubles-event" ? "Select teams, game & stake" : "Select players, game & stake"}
+          : format === "killer-ffa" ? "Select players & game" : (format === "doubles-event" || format === "shift-wars") ? "Select teams, game & stake" : "Select players, game & stake"}
         {canStart && <ChevronRight className="inline ml-2 w-5 h-5" />}
       </button>
 
@@ -573,7 +671,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
   const [analysisPlayerId, setAnalysisPlayerId] = useState<number | null>(null);
 
   // Resolve winner/loser for display and submission
-  const isTeam = data.format === "2v2" || data.format === "3v3" || data.format === "doubles-event";
+  const isTeam = data.format === "2v2" || data.format === "3v3" || data.format === "doubles-event" || data.format === "shift-wars";
   const isKillerFfa = data.format === "killer-ffa";
 
   const winnerTeam: Player[] = isKillerFfa
@@ -652,6 +750,27 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           return r.json();
         });
         await qc.invalidateQueries({ queryKey: ["leaderboard-doubles"] });
+      } else if (data.format === "shift-wars" && data.shiftWarsTeamIds) {
+        const [team1Id, team2Id] = data.shiftWarsTeamIds;
+        const winnerTeamId = result.winnerIdx === 0 ? team1Id : team2Id;
+        const loserTeamId  = result.winnerIdx === 0 ? team2Id : team1Id;
+        await fetch("/api/shift-wars/matches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            winnerTeamId,
+            loserTeamId,
+            stake:    data.stake,
+            gameType: data.gameType.key,
+          }),
+        }).then(async r => {
+          if (!r.ok) {
+            const body = await r.json().catch(() => ({}));
+            throw new Error((body as { error?: string }).error ?? `HTTP ${r.status}`);
+          }
+          return r.json();
+        });
+        await qc.invalidateQueries({ queryKey: ["leaderboard-shiftwars"] });
       } else {
         await fetch("/api/team-matches", {
           method: "POST",
@@ -670,7 +789,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           return r.json();
         });
       }
-      if (data.format !== "doubles-event") {
+      if (data.format !== "doubles-event" && data.format !== "shift-wars") {
         await qc.invalidateQueries({ queryKey: getGetLeaderboardQueryKey() });
         await qc.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
         await qc.invalidateQueries({ queryKey: getGetRecentActivityQueryKey() });
@@ -690,7 +809,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
     if (!autoFired) { setAutoFired(true); void submit(); }
   }, []);
 
-  const formatLabel = data.format === "1v1" ? "1v1" : data.format === "2v2" ? "2v2 Doubles" : data.format === "3v3" ? "3v3 Triples" : data.format === "doubles-event" ? "Doubles Event" : `Killer ${data.team1.length}-player`;
+  const formatLabel = data.format === "1v1" ? "1v1" : data.format === "2v2" ? "2v2 Doubles" : data.format === "3v3" ? "3v3 Triples" : data.format === "doubles-event" ? "Doubles Event" : data.format === "shift-wars" ? "Shift Wars" : `Killer ${data.team1.length}-player`;
 
   return (
     <div className="max-w-lg mx-auto space-y-6 text-center">
@@ -784,7 +903,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function Play() {
   const { data: appSettings }       = useSettings();
-  const { user: currentUser }       = useCurrentPlayer();
+  const currentUser                 = useCurrentPlayer();
   const cardClashEnabled            = appSettings?.card_clash_enabled ?? false;
 
   const [phase, setPhase]           = useState<"setup" | "equipment" | "playing" | "gameover">("setup");
@@ -809,7 +928,7 @@ export default function Play() {
     return <SetupScreen onStart={d => { 
       setSetupData(d);
       // Route to equipment selection if Card Clash is enabled and game type is X01 or CRICKET
-      if (cardClashEnabled && (d.gameType.key === "x01" || d.gameType.key === "cricket")) {
+      if (cardClashEnabled && d.format !== "shift-wars" && (d.gameType.key === "x01" || d.gameType.key === "cricket")) {
         setPhase("equipment");
       } else {
         setPhase("playing");
@@ -819,14 +938,14 @@ export default function Play() {
 
   // ── Equipment Selection Phase ──
   if (phase === "equipment" && setupData && currentUser) {
-    const isPlayer1 = String(currentUser.id) === String(setupData.team1[0]?.id);
-    const isPlayer2 = String(currentUser.id) === String(setupData.team2[0]?.id);
+    const isPlayer1 = String(currentUser.playerId) === String(setupData.team1[0]?.id);
+    const isPlayer2 = String(currentUser.playerId) === String(setupData.team2[0]?.id);
     
     // Player 1 equipment selection
     if (equipmentPhase === "player1") {
       return (
         <CardEquipmentSelector
-          playerId={setupData.team1[0]?.id || currentUser.id}
+          playerId={setupData.team1[0]?.id || currentUser.playerId}
           currentPlayerName={setupData.team1[0]?.name}
           gameMode={setupData.gameType.key === "x01" ? "X01" : "CRICKET"}
           onSelect={(equipment) => {
@@ -842,7 +961,7 @@ export default function Play() {
     if (equipmentPhase === "player2") {
       return (
         <CardEquipmentSelector
-          playerId={setupData.team2[0]?.id || currentUser.id}
+          playerId={setupData.team2[0]?.id || currentUser.playerId}
           currentPlayerName={setupData.team2[0]?.name}
           gameMode={setupData.gameType.key === "x01" ? "X01" : "CRICKET"}
           onSelect={(equipment) => {
@@ -861,7 +980,7 @@ export default function Play() {
   }
 
   if (phase === "playing" && setupData) {
-    const isTeam      = setupData.format === "2v2" || setupData.format === "3v3" || setupData.format === "doubles-event";
+    const isTeam      = setupData.format === "2v2" || setupData.format === "3v3" || setupData.format === "doubles-event" || setupData.format === "shift-wars";
     const isKillerFfa = setupData.format === "killer-ffa";
 
     const teamNames: [string[], string[]] | undefined = isTeam

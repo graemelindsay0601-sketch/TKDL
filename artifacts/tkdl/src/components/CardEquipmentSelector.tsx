@@ -17,13 +17,17 @@ interface Card {
 }
 
 interface CardEquipmentSelectorProps {
-  currentPlayerId: number;
+  // `currentPlayerId`/`onConfirm`/`onBack` and the legacy `playerId`/`onSelect`/
+  // `onCancel` aliases below are both optional: the component supports either
+  // calling convention at runtime (see the `propPlayerId ?? currentPlayerId`
+  // and `onSelect ? ... : onConfirm?.(...)` fallbacks in the implementation).
+  currentPlayerId?: number;
   currentPlayerName?: string;
   opponentId?: number;
   opponentName?: string;
   gameMode: "X01" | "CRICKET";
-  onConfirm: (p1Cards: CardData[], p2Cards: CardData[]) => void;
-  onBack: () => void;
+  onConfirm?: (p1Cards: CardData[], p2Cards: CardData[]) => void;
+  onBack?: () => void;
   submitError?: string | null;
   playerId?: number;
   onSelect?: (equipment: any) => void;
@@ -730,7 +734,7 @@ export function CardEquipmentSelector({ currentPlayerId, currentPlayerName, oppo
               <div style={{ marginBottom: "20px", display: "flex", justifyContent: "center" }}>
                 <div style={{ width: "220px", height: "308px" }}>
                   <TKDLCard
-                    card={ALL_CARDS.find(c => c.name === previewCard.name) || { id: "", name: "", category: "WILDCARD", rarity: "COMMON", effect: "", gameMode: "" }}
+                    card={ALL_CARDS.find(c => c.name === previewCard.name) || { id: -1, name: previewCard.name, category: "WILDCARD GOOD", rarity: "COMMON", effect: "", flavourText: "" }}
                     size="md"
                     locked={false}
                   />

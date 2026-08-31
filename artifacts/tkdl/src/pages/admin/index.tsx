@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Pencil, Check } from "lucide-react";
+import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Pencil, Check, Building2 } from "lucide-react";
 import { format } from "date-fns";
 
 import { ADMIN_PIN_KEY, PinScreen } from "./pin-screen";
@@ -20,6 +20,7 @@ import { FeatureFlags } from "./feature-flags";
 import { GameTypesManager } from "./game-types-manager";
 import { UserAccountsManager } from "./user-accounts-manager";
 import { SeasonEditor } from "./season-editor";
+import { ShiftWarsAdmin } from "./shift-wars-admin";
 import { TourDataManager } from "./tour-data-manager";
 import { PracticeAnalytics } from "./practice-analytics";
 import { SweepTool } from "./sweep-tool";
@@ -245,6 +246,11 @@ export default function Admin() {
       {/* Season Manager */}
       <CollapsibleAdminSection title="Season Manager" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.15)" background="rgba(255,210,74,0.02)">
         <div className="p-5"><SeasonEditor /></div>
+      </CollapsibleAdminSection>
+
+      {/* Shift Wars */}
+      <CollapsibleAdminSection title="Shift Wars" icon={Building2} accent="#22c55e" borderColor="rgba(34,197,94,0.15)" background="rgba(34,197,94,0.02)">
+        <div className="p-5"><ShiftWarsAdmin /></div>
       </CollapsibleAdminSection>
 
       {/* Start New Season */}

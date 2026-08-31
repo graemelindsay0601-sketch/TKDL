@@ -9,7 +9,7 @@ import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { checkMatchAchievements, checkStatAchievements } from "../lib/achievements";
 import { checkAndGrantTitles } from "../lib/titles";
 import { createAutoPost } from "../lib/communityNotify";
-import { sendMatchResultNotification, sendRankChangeNotifications, sendThreatAlertNotifications } from "../services/notificationService";
+import { sendMatchResultNotification, sendThreatAlertNotifications } from "../services/notificationService";
 import { addCoinsToPlayer, removeCardFromPlayer } from "../services/card-shop-service";
 
 const SubmitMatchBody = z.object({
@@ -295,20 +295,26 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
   void (async () => {
     try {
       // Match result notification
-      await sendMatchResultNotification(winnerId, loserId, match.id, stake, eloChange);
-      
-      // Rank change notifications (batched daily)
-      const winnerRankBefore = winner.elo;
-      const loserRankBefore = loser.elo;
-      if (newWinnerElo !== winnerRankBefore || newLoserElo !== loserRankBefore) {
-        await sendRankChangeNotifications([
-          { playerId: winnerId, eloChange: newWinnerElo - winnerRankBefore },
-          { playerId: loserId, eloChange: newLoserElo - loserRankBefore },
-        ]);
-      }
-      
-      // Threat alert notifications (if gap < 15 points)
-      await sendThreatAlertNotifications(winnerId, loserId, newWinnerElo, newLoserElo);
+      await sendMatchResultNotification(winnerId, loserId, winner.name, loser.name, stake, eloChange);
+
+      // Note: leaderboard-position rank-change notifications aren't wired up here —
+      // sendRankChangeNotifications() expects each player's actual leaderboard
+      // position (see routes/leaderboard.ts), not a raw ELO delta, and computing
+      // that live for every match is a separate piece of work from this cleanup.
+
+      // Threat alert notifications (if gap < 15 points) — sent to whichever
+      // player is now ahead, warning them the other is closing in.
+      const eloGap = Math.abs(newWinnerElo - newLoserElo);
+      const winnerIsAhead = newWinnerElo >= newLoserElo;
+      await sendThreatAlertNotifications([
+        {
+          playerId: winnerIsAhead ? winnerId : loserId,
+          playerName: winnerIsAhead ? winner.name : loser.name,
+          threatenerId: winnerIsAhead ? loserId : winnerId,
+          threateningPlayerName: winnerIsAhead ? loser.name : winner.name,
+          pointGap: eloGap,
+        },
+      ]);
 
       // Award Card Clash coins (fire and forget)
       try {

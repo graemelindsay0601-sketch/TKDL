@@ -31,7 +31,7 @@ export const seasonalQuestService = {
     const [activeSeason] = await db
       .select()
       .from(cardClashSeasonsTable)
-      .where(eq(cardClashSeasonsTable.is_active, true));
+      .where(eq(cardClashSeasonsTable.isActive, true));
 
     if (!activeSeason) {
       return [];
@@ -103,7 +103,7 @@ export const seasonalQuestService = {
       const [activeSeason] = await db
         .select()
         .from(cardClashSeasonsTable)
-        .where(eq(cardClashSeasonsTable.is_active, true));
+        .where(eq(cardClashSeasonsTable.isActive, true));
 
       if (!activeSeason) {
         return { completed: false, coinsAwarded: 0 };

@@ -138,32 +138,35 @@ export default function BoardCursePage() {
   };
 
   if (screen.kind === "fight") {
-    return (
-      <div style={{ position: "relative" }}>
-        {screen.endless && (
-          <div className="flex items-center justify-between mb-3 px-1" style={{ fontFamily: "Oswald, sans-serif" }}>
-            <div style={{ fontSize: "0.8rem", fontWeight: 800, color: "#ff8a00" }}>
-              <InfinityIcon className="inline w-4 h-4 mr-1" />Endless — Leg {endlessStreak + 1}
-            </div>
-            <button onClick={handleStopEndless}
-              className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase"
-              style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)" }}>
-              <Square className="inline w-3 h-3 mr-1" />Stop
-            </button>
-          </div>
-        )}
-        <BoardCurseScorer
-          key={endlessKey}
-          gameMode={screen.gameMode}
-          format={screen.format}
-          p1Name={screen.p1Name}
-          p2Name={screen.p2Name}
-          botConfig={screen.botLevel ? BOT_LEVELS[screen.botLevel] : undefined}
-          legs={screen.legs}
-          onMatchComplete={(r) => handleMatchComplete(screen, r)}
-          onAbandon={() => screen.endless ? handleStopEndless() : setScreen({ kind: "setup" })}
-        />
+    // Passed in as topBanner rather than rendered as a sibling above BoardCurseScorer —
+    // the scorer's own layout claims the full screen height for itself on mobile, so
+    // anything rendered outside/above it here would push it (and the curse readout)
+    // off the bottom of the screen, forcing a scroll to reach either one.
+    const endlessBanner = screen.endless ? (
+      <div className="flex items-center justify-between mb-2 px-1" style={{ fontFamily: "Oswald, sans-serif" }}>
+        <div style={{ fontSize: "0.8rem", fontWeight: 800, color: "#ff8a00" }}>
+          <InfinityIcon className="inline w-4 h-4 mr-1" />Endless — Leg {endlessStreak + 1}
+        </div>
+        <button onClick={handleStopEndless}
+          className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase"
+          style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)" }}>
+          <Square className="inline w-3 h-3 mr-1" />Stop
+        </button>
       </div>
+    ) : null;
+    return (
+      <BoardCurseScorer
+        key={endlessKey}
+        gameMode={screen.gameMode}
+        format={screen.format}
+        p1Name={screen.p1Name}
+        p2Name={screen.p2Name}
+        botConfig={screen.botLevel ? BOT_LEVELS[screen.botLevel] : undefined}
+        legs={screen.legs}
+        topBanner={endlessBanner}
+        onMatchComplete={(r) => handleMatchComplete(screen, r)}
+        onAbandon={() => screen.endless ? handleStopEndless() : setScreen({ kind: "setup" })}
+      />
     );
   }
 

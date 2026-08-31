@@ -17,6 +17,7 @@ export function FeatureFlags() {
   const [voiceCalloutsOn,   setVoiceCalloutsOn]    = useState<boolean | null>(null);
   const [bossBattleOn,      setBossBattleOn]       = useState<boolean | null>(null);
   const [boardCurseOn,      setBoardCurseOn]       = useState<boolean | null>(null);
+  const [shiftWarsOn,       setShiftWarsOn]        = useState<boolean | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -35,12 +36,13 @@ export function FeatureFlags() {
         setVoiceCalloutsOn(s.voice_callouts_enabled === true);
         setBossBattleOn(s.boss_battle_enabled === true);
         setBoardCurseOn(s.board_curse_enabled === true);
+        setShiftWarsOn(s.shift_wars_enabled === true);
       })
       .catch(() => {
         setLiveScorer(false);
         setCommunityOn(false); setMessagingOn(false); setNotificationsOn(false); setShadowLeagueOn(false); setCardClashOn(false);
         setDoublesEventOn(true);
-        setHeatmapOn(false); setVoiceCalloutsOn(false); setBossBattleOn(false); setBoardCurseOn(false);
+        setHeatmapOn(false); setVoiceCalloutsOn(false); setBossBattleOn(false); setBoardCurseOn(false); setShiftWarsOn(false);
       });
   }, []);
 
@@ -103,6 +105,7 @@ export function FeatureFlags() {
             {row("Voice Call-Outs", "Live scorer announces scores, checkouts, and 180s out loud using the browser's built-in voice — players can still mute it themselves at the table", voiceCalloutsOn, setVoiceCalloutsOn, "voice_callouts_enabled", "Voice Call-Outs live", "Voice Call-Outs hidden")}
             {row("Boss Battle", "A ladder of CPU bosses with fixed debuffs built from Card Clash's effects system — arcade only, no Elo impact. Test the ladder yourself before turning it on for everyone", bossBattleOn, setBossBattleOn, "boss_battle_enabled", "Boss Battle live", "Boss Battle hidden")}
             {row("Board Curse", "A standalone mode where random curses strike as a leg goes on, getting worse the longer it runs — solo, vs a bot, or vs a friend. Arcade only, no Elo impact. Test it yourself before turning it on for everyone", boardCurseOn, setBoardCurseOn, "board_curse_enabled", "Board Curse live", "Board Curse hidden")}
+            {row("Shift Wars", "A standing 3-team department competition (Fresh, Twilight, Shift Leader) using the same points/wager rules as the Doubles Event — fixed rosters, no random draw. Manage teams and rosters below once live", shiftWarsOn, setShiftWarsOn, "shift_wars_enabled", "Shift Wars live", "Shift Wars hidden")}
           </div>
         </div>
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />

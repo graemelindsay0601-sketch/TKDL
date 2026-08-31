@@ -5,7 +5,16 @@
     "tsBuildInfoFile": ".tsbuildinfo",
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"]
+    "types": ["node"],
+    // The actual production build goes through build.mjs (esbuild), not tsc
+    // emit — this project is typechecked with `tsc --noEmit` only. A few
+    // files (db.ts, and the node --test-run test files under lib/__tests__)
+    // import with an explicit .ts extension, which Node's native TypeScript
+    // support requires at runtime; allowImportingTsExtensions lets tsc accept
+    // that instead of flagging it as an error, and TS requires noEmit
+    // alongside it since emitted JS couldn't resolve a literal .ts import.
+    "noEmit": true,
+    "allowImportingTsExtensions": true
   },
   "include": ["src"],
   "references": [

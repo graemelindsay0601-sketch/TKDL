@@ -19,6 +19,7 @@ import { addFavoritesColumn } from "./db/migrations/add_favorites";
 import { addAchievementRewards } from "./db/migrations/add_achievement_rewards";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
 import { up as createCardClashFavoritesTable } from "./db/migrations/add_card_clash_favorites";
+import { addDailyChallengeKeyColumn } from "./db/migrations/add_daily_challenge_key";
 import { seedCardDefinitions } from "./services/card-definitions-service";
 import { challengeService } from "./services/challenge-service";
 import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
@@ -717,6 +718,81 @@ async function seedBoardCurseRecords() {
 // to it (no drill-runner UI calls POST .../drills/complete yet), so the
 // drill progress / adaptive difficulty widgets will honestly show "no drills
 // yet" until such a flow exists, rather than erroring.
+// Shift Wars: 3 fixed department teams (Fresh, Twilight, Shift Leader) competing
+// on the same points/wager mechanic as the Doubles Event, but with no random
+// draw/reroll — the roster is a manual, admin-managed, permanent assignment
+// (a player's own department), and admin can edit each team's starting points
+// at any time. Points-only, no ELO — this is a simpler, standings-free ladder.
+// Also runs as its own monthly league alongside singles: performSeasonReset()
+// resets each team's points/peak/record back to starting_points every reset,
+// same cadence as singles, but never touches the roster or team rows themselves.
+async function seedShiftWars() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS shift_wars_teams (
+      id         SERIAL PRIMARY KEY,
+      name       TEXT NOT NULL UNIQUE,
+      points     INTEGER NOT NULL DEFAULT 0,
+      peak_points INTEGER NOT NULL DEFAULT 0,
+      wins       INTEGER NOT NULL DEFAULT 0,
+      losses     INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS shift_wars_matches (
+      id              SERIAL PRIMARY KEY,
+      winner_team_id  INTEGER NOT NULL REFERENCES shift_wars_teams(id) ON DELETE CASCADE,
+      loser_team_id   INTEGER NOT NULL REFERENCES shift_wars_teams(id) ON DELETE CASCADE,
+      stake           INTEGER NOT NULL,
+      game_type       TEXT,
+      notes           TEXT,
+      played_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  // Snapshot of each team's standing at the end of every monthly reset, taken
+  // right before points/record are cleared for the new month — otherwise a
+  // department's whole month would vanish with no record of who won it, unlike
+  // Doubles Event (new rows per season) or singles (season_standings).
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS shift_wars_season_history (
+      id          SERIAL PRIMARY KEY,
+      season_id   INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+      team_id     INTEGER NOT NULL REFERENCES shift_wars_teams(id) ON DELETE CASCADE,
+      team_name   TEXT NOT NULL,
+      points      INTEGER NOT NULL,
+      wins        INTEGER NOT NULL,
+      losses      INTEGER NOT NULL,
+      is_champion BOOLEAN NOT NULL DEFAULT false,
+      recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  // Which department team each player belongs to — nullable, admin-assigned,
+  // and never auto-reshuffled (unlike Doubles Event's random draw).
+  await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS shift_wars_team_id INTEGER REFERENCES shift_wars_teams(id)`);
+
+  // The baseline each team's points reset to at the start of every new season —
+  // distinct from `points` (the live, currently-in-play value) so an admin can
+  // still correct a team's live points mid-month without moving what next
+  // month resets to. Backfilled from the live points the first time this column
+  // appears, so an install that predates monthly resets gets a sane starting
+  // value instead of 0; from then on it's only ever changed by an explicit
+  // "starting points" edit in the admin panel.
+  await db.execute(sql`ALTER TABLE shift_wars_teams ADD COLUMN IF NOT EXISTS starting_points INTEGER NOT NULL DEFAULT 0`);
+  await db.execute(sql`UPDATE shift_wars_teams SET starting_points = points WHERE starting_points = 0`);
+
+  // Seed the 3 teams once with their agreed starting points. ON CONFLICT DO
+  // NOTHING so this never overwrites admin edits to points on a later restart —
+  // it only ever creates a team the first time its name doesn't exist yet.
+  await db.execute(sql`
+    INSERT INTO shift_wars_teams (name, points, peak_points, starting_points) VALUES
+      ('Team Fresh', 125, 125, 125),
+      ('Team Twilight', 75, 75, 75),
+      ('Team Shift Leader', 50, 50, 50)
+    ON CONFLICT (name) DO NOTHING
+  `);
+  logger.info("Shift Wars tables ready");
+}
+
 async function seedDrillCompletions() {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS drill_completions (
@@ -910,6 +986,7 @@ async function init() {
       logger.warn({ err }, "Failed to initialize featured card shop (non-critical)");
     }
     
+    await addDailyChallengeKeyColumn();
     await challengeService.seedDefaultChallenges();
     await challengeService.seedComprehensivePool();
     await seedNotificationTables();
@@ -929,6 +1006,7 @@ async function init() {
     await seedBossBattleProgress();
     await seedBoardCurseBest();
     await seedBoardCurseRecords();
+    await seedShiftWars();
     await seedPractice();
     await seedMaster501();
     await seedMatchParticipants();

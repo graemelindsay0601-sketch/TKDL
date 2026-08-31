@@ -6,8 +6,9 @@ import {
   playerWeeklyChallenges,
 } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
-import { addCoinsToPlayer } from "./card-shop-service";
-import { giveCardToPlayer } from "./card-shop-service";
+import { addCoinsToPlayer } from "./card-shop-service.ts";
+import { giveCardToPlayer } from "./card-shop-service.ts";
+import { getIsoWeekNumber } from "../lib/iso-week.ts";
 
 export const challengeManager = {
   /**
@@ -95,9 +96,10 @@ export const challengeManager = {
           .values({
             player_id: playerId,
             challenge_id: challenge.id,
+            challenge_key: challenge.challenge_key,
             progress: 0,
             is_completed: false,
-            week_starting: getWeekStart(new Date()),
+            week_number: getIsoWeekNumber(new Date()),
           })
           .returning();
         playerChallenge = created;
@@ -299,9 +301,3 @@ export const challengeManager = {
   },
 };
 
-function getWeekStart(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is Sunday
-  return new Date(d.setDate(diff));
-}

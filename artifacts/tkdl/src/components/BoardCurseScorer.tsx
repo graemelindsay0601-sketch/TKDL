@@ -17,11 +17,16 @@ interface BoardCurseScorerProps {
   botConfig?: BotConfig;
   /** Best-of-N legs for vs Bot / vs Local. Solo (and each Endless run) always plays exactly one leg at a time. */
   legs?: number;
+  /** Extra content (e.g. the Endless-mode leg counter/Stop button) to show above the
+   *  match — rendered inside the scorer's own scrollable region alongside the curse
+   *  banner, never as a page-level sibling. See X01Scorer's topBanner for why that
+   *  distinction matters on mobile. */
+  topBanner?: React.ReactNode;
   onMatchComplete: (result: BoardCurseResult) => void;
   onAbandon: () => void;
 }
 
-export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, legs = 1, onMatchComplete, onAbandon }: BoardCurseScorerProps) {
+export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, legs = 1, topBanner, onMatchComplete, onAbandon }: BoardCurseScorerProps) {
   if (typeof window !== "undefined") {
     sessionStorage.setItem("card_clash_mode", "true");
     sessionStorage.removeItem("card_clash_chaos_mode");
@@ -77,6 +82,15 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
       appliedBy: target === 0 ? 1 : 0,
       affectsPlayer: target,
       status: "active",
+      // Without this, the shared effects engine expires any active effect
+      // the instant the affected player finishes a visit (ccExpireOnTurnEnd)
+      // — that's correct for a normal one-visit Card Clash card, but it was
+      // silently killing every curse after exactly one visit regardless of
+      // whether a new one was due to replace it. legDuration keeps it alive
+      // until either a new curse overwrites it (setCardEffects above) or the
+      // leg ends (handleLegStart clears it) — matching what the persistent
+      // "Active Curse" readout has claimed all along.
+      legDuration: true,
       ...effect,
     };
     setCardEffects([fullEffect]);
@@ -96,8 +110,37 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
 
   const targetLabel = (target: 0 | 1) => format === "solo" ? "you" : names[target];
 
+  // Everything here is rendered INSIDE the scorer's own scrollable top region (via
+  // topBanner below), never as a page-level sibling above it — ScorerLayout claims the
+  // full 100dvh for the scorer itself, so extra content placed outside/above it adds
+  // real page height on top of that and pushes the whole scorer (including the pinned
+  // keypad) off the bottom of the screen on mobile, forcing a scroll just to see it.
+  // That's exactly what was happening to the "Active Curse" readout before this fix.
+  const combinedTopBanner = (
+    <>
+      {topBanner}
+      {activeCurse && (
+        <div
+          style={{
+            padding: "8px 14px", borderRadius: "8px", marginBottom: "8px",
+            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
+            fontFamily: "Oswald, sans-serif", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <span style={{ fontSize: "0.6rem", letterSpacing: "0.1em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase" }}>Active Curse ({targetLabel(activeCurse.target)})</span>
+            <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#fff" }}>{activeCurse.def.name}</div>
+          </div>
+          <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.45)", textAlign: "right", maxWidth: "60%" }}>{activeCurse.description}</div>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div style={{ position: "relative" }}>
+      {/* Transient "new curse" flash — position:fixed, so (unlike the persistent
+          banner above) it never adds page height and is safe to keep as a sibling. */}
       {strikeBanner && (
         <div
           style={{
@@ -114,21 +157,6 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
           <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.55)", marginTop: "2px" }}>{strikeBanner.description}</div>
         </div>
       )}
-      {activeCurse && (
-        <div
-          style={{
-            padding: "8px 14px", borderRadius: "8px", marginBottom: "8px",
-            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
-            fontFamily: "Oswald, sans-serif", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px",
-          }}
-        >
-          <div>
-            <span style={{ fontSize: "0.6rem", letterSpacing: "0.1em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase" }}>Active Curse ({targetLabel(activeCurse.target)})</span>
-            <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#fff" }}>{activeCurse.def.name}</div>
-          </div>
-          <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.45)", textAlign: "right", maxWidth: "60%" }}>{activeCurse.description}</div>
-        </div>
-      )}
       {gameMode === "X01" ? (
         <X01Scorer
           p1Name={p1Name} p2Name={p2Name}
@@ -138,6 +166,7 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
           onWin={handleMatchComplete} onAbandon={onAbandon}
           cardEffects={cardEffects} legs={legs}
           onLegStart={handleLegStart} onVisitStart={handleVisitStart}
+          topBanner={combinedTopBanner}
         />
       ) : (
         <CricketScorer
@@ -147,6 +176,7 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
           onWin={handleMatchComplete} onAbandon={onAbandon}
           cardEffects={cardEffects} legs={legs}
           onLegStart={handleLegStart} onVisitStart={handleVisitStart}
+          topBanner={combinedTopBanner}
         />
       )}
     </div>

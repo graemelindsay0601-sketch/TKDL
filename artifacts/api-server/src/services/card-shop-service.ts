@@ -7,6 +7,13 @@ import {
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 
+// The callback passed to db.transaction() receives a PgTransaction, not the
+// top-level `db` — it can run every query db can, but lacks db's `$client`
+// (the raw pool), so `typeof db` alone is too narrow for a helper that gets
+// called with either. Derive the transaction's own param type instead of
+// hand-rolling one that could drift from whatever Drizzle actually passes in.
+type DbOrTransaction = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 const PACK_TYPES = {
   SINGLE: { coins: 50, cards: 1 },
   FIVE: { coins: 200, cards: 5 },
@@ -87,7 +94,7 @@ export async function purchasePack(
   });
 }
 
-async function generateCards(tx: typeof db, playerId: number, count: number) {
+async function generateCards(tx: DbOrTransaction, playerId: number, count: number) {
   const cards = [];
   let pityData = await tx
     .select()
@@ -367,7 +374,6 @@ export async function giveCardToPlayer(playerId: number, cardId: string, quantit
       playerId,
       cardId,
       quantity,
-      purchase_date: new Date(),
     });
   }
 }
@@ -426,7 +432,7 @@ export async function resetPlayerCardData(playerId: number) {
   // Reset currency
   await db
     .update(playerCurrencyTable)
-    .set({ coinBalance: 0 })
+    .set({ cardPoints: 0 })
     .where(eq(playerCurrencyTable.playerId, playerId));
 
   // Reset pity

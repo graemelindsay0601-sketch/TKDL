@@ -1,8 +1,9 @@
 import { db } from "@workspace/db";
 import { playersTable, seasonsTable, seasonStandingsTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { checkSeasonAchievements } from "./achievements";
+import { drawDoublesTeams } from "./doublesDraw";
 
 export async function performSeasonReset(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
   const [currentSeason] = await db
@@ -34,6 +35,25 @@ export async function performSeasonReset(overrideName?: string): Promise<typeof 
 
     // Grant season achievements
     await checkSeasonAchievements(currentSeason.id, sorted, champion?.id ?? null);
+
+    // Snapshot Shift Wars standings for the closing season before points reset
+    // below wipes them — otherwise a department's whole month's record would be
+    // lost with no way to look back at who won it.
+    try {
+      const swRows = (await db.execute(sql`SELECT * FROM shift_wars_teams ORDER BY points DESC, name ASC`)).rows as any[];
+      if (swRows.length > 0) {
+        const topPoints = swRows[0].points;
+        for (const t of swRows) {
+          await db.execute(sql`
+            INSERT INTO shift_wars_season_history (season_id, team_id, team_name, points, wins, losses, is_champion)
+            VALUES (${currentSeason.id}, ${t.id}, ${t.name}, ${t.points}, ${t.wins}, ${t.losses}, ${t.points === topPoints})
+          `);
+        }
+        logger.info({ seasonId: currentSeason.id }, "Shift Wars season history snapshot saved");
+      }
+    } catch (err) {
+      logger.error({ err, seasonId: currentSeason.id }, "Shift Wars season history snapshot failed");
+    }
 
     // Close season
     await db.update(seasonsTable).set({
@@ -70,6 +90,38 @@ export async function performSeasonReset(overrideName?: string): Promise<typeof 
   }).returning();
 
   logger.info({ newSeasonId: newSeason.id, name: newSeason.name }, "New season started");
+
+  // Doubles Event and Shift Wars both run as their own monthly leagues alongside
+  // singles now, resetting on the exact same trigger (this function, whether fired
+  // by the admin "Reset Season" button or the automatic monthly check). Doubles
+  // gets a fresh random draw for the new season, same as singles resetting to
+  // 25pts; Shift Wars keeps its fixed departments (never rerolled) but its points/
+  // peak/record reset back to each team's configured starting points. Both are
+  // best-effort and must never block the singles reset that just succeeded above.
+  try {
+    const draw = await drawDoublesTeams(newSeason.id);
+    if (draw.ok) {
+      logger.info({ seasonId: newSeason.id, teams: draw.teams.length }, "Doubles Event auto-drawn for new season");
+    } else {
+      logger.warn({ seasonId: newSeason.id, error: draw.error }, "Doubles Event auto-draw skipped");
+    }
+  } catch (err) {
+    logger.error({ err, seasonId: newSeason.id }, "Doubles Event auto-draw failed");
+  }
+
+  try {
+    await db.execute(sql`
+      UPDATE shift_wars_teams SET
+        points      = starting_points,
+        peak_points = starting_points,
+        wins        = 0,
+        losses      = 0
+    `);
+    logger.info("Shift Wars points reset for new season");
+  } catch (err) {
+    logger.error({ err }, "Shift Wars points reset failed");
+  }
+
   return newSeason;
 }
 

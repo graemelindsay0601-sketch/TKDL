@@ -6,7 +6,7 @@ import {
   cardInventoryTable,
   cardDefinitionsTable,
 } from "@workspace/db";
-import { eq, and, or, leftJoin, desc, sql } from "drizzle-orm";
+import { eq, and, or, desc, sql } from "drizzle-orm";
 import { addCoinsToPlayer, removeCardFromPlayer } from "./card-shop-service";
 import { applyX01CardModifiers, applyCricketCardModifiers, calculateCardClashPoints } from "./card-score-integration";
 import { logger } from "../lib/logger";
@@ -317,7 +317,7 @@ export async function finishCardClashMatch(
     await seasonalQuestService.updateSeasonalProgress(winnerId, "card_clash_wins_20", 1);
     // Loser doesn't progress card clash quest (only winners count)
   } catch (err) {
-    logger.error("Card Clash challenge/quest update error:", err);
+    logger.error({ err }, "Card Clash challenge/quest update error:");
     // Don't fail the match if challenges fail
   }
 
@@ -336,7 +336,7 @@ export async function finishCardClashMatch(
         }
         await removeCardFromPlayer(card.usedBy, realCardId, 1);
       } catch (e) {
-        logger.error(`Failed to consume card ${card.cardId} for player ${card.usedBy}:`, e);
+        logger.error({ e }, `Failed to consume card ${card.cardId} for player ${card.usedBy}:`);
       }
     }
   }
@@ -370,66 +370,12 @@ export async function deleteCardClashMatch(matchId: number) {
 
   if (!match[0]) throw new Error("Match not found");
 
-  const season = await db
-    .select()
-    .from(cardClashSeasonsTable)
-    .where(eq(cardClashSeasonsTable.id, match[0].seasonId))
-    .limit(1);
-
-  // Revert points from standings
-  const winnerStanding = await db
-    .select()
-    .from(cardClashStandingsTable)
-    .where(
-      and(
-        eq(cardClashStandingsTable.seasonId, match[0].seasonId),
-        eq(cardClashStandingsTable.playerId, match[0].winnerId)
-      )
-    )
-    .limit(1);
-
+  // Standings are computed live from card_clash_matches (see finishCardClashMatch),
+  // not tracked in card_clash_standings any more, so there's nothing season/standings
+  // -related to revert here — deleting the match row is enough to remove it from the
+  // live-computed standings too.
   const loser =
     match[0].player1Id === match[0].winnerId ? match[0].player2Id : match[0].player1Id;
-  const loserStanding = await db
-    .select()
-    .from(cardClashStandingsTable)
-    .where(
-      and(
-        eq(cardClashStandingsTable.seasonId, match[0].seasonId),
-        eq(cardClashStandingsTable.playerId, loser)
-      )
-    )
-    .limit(1);
-
-  if (winnerStanding[0]) {
-    await db
-      .update(cardClashStandingsTable)
-      .set({
-        cardPoints: Math.max(0, winnerStanding[0].cardPoints - CARD_CLASH_WAGER_POINTS.WIN),
-        wins: Math.max(0, winnerStanding[0].wins - 1),
-      })
-      .where(
-        and(
-          eq(cardClashStandingsTable.seasonId, match[0].seasonId),
-          eq(cardClashStandingsTable.playerId, match[0].winnerId)
-        )
-      );
-  }
-
-  if (loserStanding[0]) {
-    await db
-      .update(cardClashStandingsTable)
-      .set({
-        cardPoints: Math.max(0, loserStanding[0].cardPoints - CARD_CLASH_WAGER_POINTS.LOSS),
-        losses: Math.max(0, loserStanding[0].losses - 1),
-      })
-      .where(
-        and(
-          eq(cardClashStandingsTable.seasonId, match[0].seasonId),
-          eq(cardClashStandingsTable.playerId, loser)
-        )
-      );
-  }
 
   // Return cards to inventory — skipped for chaos-mode matches, since those
   // cards were never actually removed from inventory in the first place

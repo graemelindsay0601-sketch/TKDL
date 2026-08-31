@@ -6,9 +6,9 @@ interface EquipmentPreference {
   badCardsPerMatch: number;
 }
 
-export function useEquipmentPreference(playerId: number) {
+export function useEquipmentPreference(playerId: number | undefined) {
   const [preference, setPreference] = useState<EquipmentPreference>({
-    playerId,
+    playerId: playerId ?? 0,
     goodCardsPerMatch: 2,
     badCardsPerMatch: 2,
   });
@@ -17,10 +17,15 @@ export function useEquipmentPreference(playerId: number) {
 
   // Load preference on mount
   useEffect(() => {
+    if (!playerId) {
+      setLoading(false);
+      return;
+    }
     loadPreference();
   }, [playerId]);
 
   const loadPreference = useCallback(async () => {
+    if (!playerId) return;
     try {
       setLoading(true);
       const response = await fetch(`/api/card-clash/player/${playerId}/equipment-preference`);
@@ -44,6 +49,7 @@ export function useEquipmentPreference(playerId: number) {
 
   const savePreference = useCallback(
     async (goodCards: number, badCards: number) => {
+      if (!playerId) return false;
       try {
         setError(null);
         const response = await fetch(`/api/card-clash/player/${playerId}/equipment-preference`, {

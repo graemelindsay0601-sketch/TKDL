@@ -11,7 +11,7 @@ import type { AchievementDef } from "./achievements";
 // 50 sessions → Legendary (Master)
 // 100 sessions → Mythic   (Legend)
 
-function sessionTier(n: number): { rarity: string; priority: number } {
+function sessionTier(n: number): { rarity: string; priority: number; coinReward: number; packReward?: 'SINGLE' | 'FIVE' | 'TEN' } {
   if (n >= 100) return { rarity: "Mythic",    priority: 90 , coinReward: 300, packReward: "TEN"};
   if (n >= 50)  return { rarity: "Legendary", priority: 80 , coinReward: 150, packReward: "FIVE"};
   if (n >= 25)  return { rarity: "Epic",      priority: 60 , coinReward: 75, packReward: "SINGLE"};

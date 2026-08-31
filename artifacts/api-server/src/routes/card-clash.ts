@@ -34,6 +34,7 @@ import { ensurePlayerCurrency } from "../lib/cardTablesMigration";
 import { db, cardClashMatchesTable, cardClashSeasonsTable, cardInventoryTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { requireAdminSession } from "../middleware/requireAdminSession";
+import { paramStr } from "../lib/http";
 
 const router = Router();
 
@@ -137,7 +138,7 @@ const verifyAdminPin = requireAdminSession;
 // Get player currency balance
 router.get("/shop/currency/:playerId", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     // Ensure player has a currency record (creates if doesn't exist)
     await ensurePlayerCurrency(playerId);
     const currency = await getPlayerCurrency(playerId);
@@ -150,7 +151,7 @@ router.get("/shop/currency/:playerId", async (req: Request, res: Response) => {
 // Get player Card Clash stats — computed directly from match history, no season needed
 router.get("/player/:playerId/stats", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     
     await ensurePlayerCurrency(playerId);
     const [currency, inventory] = await Promise.all([
@@ -221,7 +222,8 @@ router.post("/shop/purchase", async (req: Request, res: Response) => {
     const { playerId, packType } = req.body;
 
     if (!["SINGLE", "FIVE", "TEN"].includes(packType)) {
-      return res.status(400).json({ error: "Invalid pack type" });
+      res.status(400).json({ error: "Invalid pack type" });
+      return;
     }
 
     // Ensure player has a currency record
@@ -240,7 +242,7 @@ router.post("/shop/purchase", async (req: Request, res: Response) => {
 // Get player card inventory
 router.get("/inventory/:playerId", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     const inventory = await getPlayerInventory(playerId);
     res.json(inventory);
   } catch (error) {
@@ -261,10 +263,10 @@ router.get("/cards/all", async (req: Request, res: Response) => {
 // Debug endpoint to check coin data in database
 router.get("/debug/coins/:playerId", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     const currency = await getPlayerCurrency(playerId);
     const allCurrency = await db.query.playerCurrencyTable.findMany({
-      where: (t) => ({ playerId: playerId }),
+      where: (t) => eq(t.playerId, playerId),
     });
     res.json({ 
       from_service: currency,
@@ -279,7 +281,7 @@ router.get("/debug/coins/:playerId", async (req: Request, res: Response) => {
 // Get player pity status
 router.get("/pity/:playerId", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     const pityStatus = await getPlayerPityStatus(playerId);
     res.json(pityStatus);
   } catch (error) {
@@ -301,7 +303,8 @@ router.post("/admin/season/create", requireAdminSession, async (req: Request, re
       // Check if season already exists
       const existing = await getActiveCardClashSeason();
       if (existing) {
-        return res.status(400).json({ error: "Active season already exists", existing });
+        res.status(400).json({ error: "Active season already exists", existing });
+        return;
       }
     } catch (e) {
       // No active season found, continue
@@ -331,7 +334,8 @@ router.post("/admin/season/create", requireAdminSession, async (req: Request, re
         .returning();
 
       logger.info({ season: season[0] }, "Season created successfully (Drizzle)");
-      return res.json({ success: true, season: season[0], message: `Created active season: ${monthName}` });
+      res.json({ success: true, season: season[0], message: `Created active season: ${monthName}` });
+      return;
     } catch (drizzleError) {
       logger.warn({ err: drizzleError }, "Drizzle insert failed, trying raw SQL");
 
@@ -356,7 +360,8 @@ router.post("/admin/season/create", requireAdminSession, async (req: Request, re
           updatedAt: row.updated_at,
         };
         logger.info({ season }, "Season created successfully (Raw SQL)");
-        return res.json({ success: true, season, message: `Created active season: ${monthName}` });
+        res.json({ success: true, season, message: `Created active season: ${monthName}` });
+        return;
       }
 
       throw new Error("Raw SQL insert failed - no result returned");
@@ -377,16 +382,19 @@ router.post("/match/start", async (req: Request, res: Response) => {
     
     // Validate gameMode
     if (!gameMode || !["X01", "CRICKET"].includes(gameMode)) {
-      return res.status(400).json({ error: "Invalid gameMode - must be X01 or CRICKET" });
+      res.status(400).json({ error: "Invalid gameMode - must be X01 or CRICKET" });
+      return;
     }
-    
+
     // Validate player IDs
     if (!player1Id || !player2Id || typeof player1Id !== "number" || typeof player2Id !== "number") {
-      return res.status(400).json({ error: "Invalid player IDs" });
+      res.status(400).json({ error: "Invalid player IDs" });
+      return;
     }
-    
+
     if (player1Id === player2Id) {
-      return res.status(400).json({ error: "Cannot play against yourself" });
+      res.status(400).json({ error: "Cannot play against yourself" });
+      return;
     }
     
     const match = await startCardClashMatch(gameMode, player1Id, player2Id, equippedCards, !!isChaosMatch);
@@ -401,7 +409,8 @@ router.post("/match/finish", async (req: Request, res: Response) => {
   try {
     const { matchId, winnerId, cardsUsedInMatch, isChaosMatch } = req.body;
     if (!matchId || !winnerId) {
-      return res.status(400).json({ error: "matchId and winnerId required" });
+      res.status(400).json({ error: "matchId and winnerId required" });
+      return;
     }
     const result = await finishCardClashMatch(matchId, winnerId, cardsUsedInMatch, 0, 0, !!isChaosMatch);
     
@@ -410,7 +419,7 @@ router.post("/match/finish", async (req: Request, res: Response) => {
     
     // Get the loser (if available)
     const match = result;
-    const loserId = match.player1_id === winnerId ? match.player2_id : match.player1_id;
+    const loserId = match.player1Id === winnerId ? match.player2Id : match.player1Id;
     
     // Update winner's challenges
     await challengeManager.updateProgressFromGameResult(winnerId, {
@@ -488,7 +497,7 @@ router.get("/standings", async (req: Request, res: Response) => {
 // Legacy: standings by season ID (kept for compatibility)
 router.get("/standings/:seasonId", async (req: Request, res: Response) => {
   try {
-    const seasonId = parseInt(req.params.seasonId);
+    const seasonId = parseInt(paramStr(req.params.seasonId));
     const standings = await getCardClashStandings(seasonId);
     res.json(standings);
   } catch (error) {
@@ -567,7 +576,10 @@ router.get("/mock-game/players", async (req: Request, res: Response) => {
 router.post("/mock-game/start", async (req: Request, res: Response) => {
   try {
     const { player1Id, player2Id, player1Cards, isBotOpponent } = req.body;
-    if (!player1Id) return res.status(400).json({ error: "player1Id required" });
+    if (!player1Id) {
+      res.status(400).json({ error: "player1Id required" });
+      return;
+    }
 
     // For bots, pick random cards from catalog
     let botCards: any[] = [];
@@ -628,7 +640,7 @@ router.post("/mock-game/start", async (req: Request, res: Response) => {
 // Get match history
 router.get("/matches/:playerId", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     const seasonId = req.query.seasonId ? parseInt(req.query.seasonId as string) : undefined;
     const matches = await getCardClashMatchHistory(playerId, seasonId);
     res.json(matches);
@@ -789,7 +801,10 @@ router.post("/admin/card/give", verifyAdminPin, async (req: Request, res: Respon
 router.post("/admin/give-all-cards", verifyAdminPin, async (req: Request, res: Response) => {
   try {
     const { playerId } = req.body;
-    if (!playerId) return res.status(400).json({ error: "playerId required" });
+    if (!playerId) {
+      res.status(400).json({ error: "playerId required" });
+      return;
+    }
     await ensurePlayerCurrency(playerId);
     const allCards = await getAllCardDefinitions();
     for (const card of allCards) {
@@ -872,7 +887,8 @@ router.post("/login/daily", async (req: Request, res: Response) => {
   try {
     const { playerId } = req.body;
     if (!playerId) {
-      return res.status(400).json({ error: "playerId required" });
+      res.status(400).json({ error: "playerId required" });
+      return;
     }
 
     const { cardClashLoginService } = await import("../services/card-clash-login-service");
@@ -882,14 +898,14 @@ router.post("/login/daily", async (req: Request, res: Response) => {
     checkAndAwardCCAchievements(playerId).catch(() => {});
     res.json({ success: true, reward });
   } catch (error) {
-    logger.error("Daily login error:", error);
+    logger.error({ error }, "Daily login error:");
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
 
 router.get("/login/streak/:playerId", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     const { cardClashLoginService } = await import("../services/card-clash-login-service");
     const streak = await cardClashLoginService.getStreakInfo(playerId);
 
@@ -901,7 +917,7 @@ router.get("/login/streak/:playerId", async (req: Request, res: Response) => {
 
 router.post("/admin/login/reset/:playerId", verifyAdminPin, async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     const { cardClashLoginService } = await import("../services/card-clash-login-service");
     await cardClashLoginService.resetStreak(playerId);
 
@@ -918,27 +934,41 @@ router.post("/admin/login/reset/:playerId", verifyAdminPin, async (req: Request,
  */
 router.post("/admin/reseed-inventory/:playerId", verifyAdminPin, async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     const { ALL_CARDS } = await import("../seeds/all-cards");
+    const { cardDefinitionsTable } = await import("@workspace/db");
 
     // Delete existing inventory
     await db.delete(cardInventoryTable).where(eq(cardInventoryTable.playerId, playerId));
     console.log(`[RESEED] Deleted inventory for player ${playerId}`);
 
-    // Reseed with correct card IDs from ALL_CARDS
+    // Reseed with correct card IDs from ALL_CARDS — cards are seeded by name
+    // (CardSeed has no id of its own), so look up each one's real UUID from
+    // card_definitions the same way resolveCardUuid() does elsewhere.
+    let seeded = 0;
     for (const card of ALL_CARDS) {
+      const [def] = await db
+        .select({ cardId: cardDefinitionsTable.cardId })
+        .from(cardDefinitionsTable)
+        .where(eq(cardDefinitionsTable.name, card.name))
+        .limit(1);
+      if (!def) {
+        console.log(`[RESEED] Could not resolve card "${card.name}" to a card_definitions row — skipping`);
+        continue;
+      }
       await db.insert(cardInventoryTable).values({
         playerId,
-        cardId: card.id.toString(),
+        cardId: def.cardId,
         quantity: 1,
       });
+      seeded++;
     }
 
-    console.log(`[RESEED] Reseeded ${ALL_CARDS.length} cards for player ${playerId} with correct IDs from ALL_CARDS`);
+    console.log(`[RESEED] Reseeded ${seeded}/${ALL_CARDS.length} cards for player ${playerId} with correct IDs from ALL_CARDS`);
     res.json({
       success: true,
-      message: `✅ Reseeded ${ALL_CARDS.length} cards with correct IDs for player ${playerId}`,
-      cardsAdded: ALL_CARDS.length,
+      message: `✅ Reseeded ${seeded}/${ALL_CARDS.length} cards with correct IDs for player ${playerId}`,
+      cardsAdded: seeded,
     });
   } catch (error) {
     console.error("[RESEED] Error:", error);
@@ -950,26 +980,26 @@ router.post("/admin/reseed-inventory/:playerId", verifyAdminPin, async (req: Req
 
 router.get("/challenges/daily/:playerId", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     const { challengeService } = await import("../services/challenge-service");
     const challenges = await challengeService.getDailyChallengesForPlayer(playerId);
 
     res.json({ challenges, period: "daily" });
   } catch (error) {
-    logger.error("Get daily challenges error:", error);
+    logger.error({ error }, "Get daily challenges error:");
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
 
 router.get("/challenges/weekly/:playerId", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     const { challengeService } = await import("../services/challenge-service");
     const challenges = await challengeService.getWeeklyChallengesForPlayer(playerId);
 
     res.json({ challenges, period: "weekly" });
   } catch (error) {
-    logger.error("Get weekly challenges error:", error);
+    logger.error({ error }, "Get weekly challenges error:");
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
@@ -979,14 +1009,15 @@ router.post("/challenges/reroll-daily", async (req: Request, res: Response) => {
   try {
     const { playerId, challengeId } = req.body;
     if (!playerId || !challengeId) {
-      return res.status(400).json({ error: "playerId and challengeId required" });
+      res.status(400).json({ error: "playerId and challengeId required" });
+      return;
     }
 
     const { challengeManager } = await import("../services/challenge-manager");
     const result = await challengeManager.rerollDaily(playerId, challengeId);
     res.json(result);
   } catch (error) {
-    logger.error("Reroll daily error:", error);
+    logger.error({ error }, "Reroll daily error:");
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
@@ -996,14 +1027,15 @@ router.post("/challenges/reroll-weekly", async (req: Request, res: Response) => 
   try {
     const { playerId, challengeId } = req.body;
     if (!playerId || !challengeId) {
-      return res.status(400).json({ error: "playerId and challengeId required" });
+      res.status(400).json({ error: "playerId and challengeId required" });
+      return;
     }
 
     const { challengeManager } = await import("../services/challenge-manager");
     const result = await challengeManager.rerollWeekly(playerId, challengeId);
     res.json(result);
   } catch (error) {
-    logger.error("Reroll weekly error:", error);
+    logger.error({ error }, "Reroll weekly error:");
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
@@ -1012,7 +1044,8 @@ router.post("/challenges/update-daily", async (req: Request, res: Response) => {
   try {
     const { playerId, challengeKey, incrementBy = 1 } = req.body;
     if (!playerId || !challengeKey) {
-      return res.status(400).json({ error: "playerId and challengeKey required" });
+      res.status(400).json({ error: "playerId and challengeKey required" });
+      return;
     }
 
     const { challengeService } = await import("../services/challenge-service");
@@ -1023,7 +1056,7 @@ router.post("/challenges/update-daily", async (req: Request, res: Response) => {
       ...result,
     });
   } catch (error) {
-    logger.error("Update daily challenge error:", error);
+    logger.error({ error }, "Update daily challenge error:");
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
@@ -1032,7 +1065,8 @@ router.post("/challenges/update-weekly", async (req: Request, res: Response) => 
   try {
     const { playerId, challengeKey, incrementBy = 1 } = req.body;
     if (!playerId || !challengeKey) {
-      return res.status(400).json({ error: "playerId and challengeKey required" });
+      res.status(400).json({ error: "playerId and challengeKey required" });
+      return;
     }
 
     const { challengeService } = await import("../services/challenge-service");
@@ -1043,7 +1077,7 @@ router.post("/challenges/update-weekly", async (req: Request, res: Response) => 
       ...result,
     });
   } catch (error) {
-    logger.error("Update weekly challenge error:", error);
+    logger.error({ error }, "Update weekly challenge error:");
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
@@ -1052,13 +1086,13 @@ router.post("/challenges/update-weekly", async (req: Request, res: Response) => 
 
 router.get("/quests/seasonal/:playerId", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     const { seasonalQuestService } = await import("../services/seasonal-quest-service");
     const quests = await seasonalQuestService.getSeasonalQuestsForPlayer(playerId);
 
     res.json({ quests, period: "seasonal" });
   } catch (error) {
-    logger.error("Get seasonal quests error:", error);
+    logger.error({ error }, "Get seasonal quests error:");
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
@@ -1067,7 +1101,8 @@ router.post("/quests/update-seasonal", async (req: Request, res: Response) => {
   try {
     const { playerId, questKey, incrementBy = 1 } = req.body;
     if (!playerId || !questKey) {
-      return res.status(400).json({ error: "playerId and questKey required" });
+      res.status(400).json({ error: "playerId and questKey required" });
+      return;
     }
 
     const { seasonalQuestService } = await import("../services/seasonal-quest-service");
@@ -1078,7 +1113,7 @@ router.post("/quests/update-seasonal", async (req: Request, res: Response) => {
       ...result,
     });
   } catch (error) {
-    logger.error("Update seasonal quest error:", error);
+    logger.error({ error }, "Update seasonal quest error:");
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
@@ -1087,7 +1122,7 @@ router.post("/quests/update-seasonal", async (req: Request, res: Response) => {
 
 router.get("/achievements/:playerId", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     const data = await getCCAchievementsForPlayer(playerId);
     res.json(data);
   } catch (error) {
@@ -1097,7 +1132,7 @@ router.get("/achievements/:playerId", async (req: Request, res: Response) => {
 
 router.post("/achievements/check/:playerId", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     const newly = await checkAndAwardCCAchievements(playerId);
     res.json({ newlyAwarded: newly, count: newly.length });
   } catch (error) {
@@ -1109,7 +1144,7 @@ router.post("/achievements/check/:playerId", async (req: Request, res: Response)
 
 router.get("/pack-inventory/:playerId", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     const packs = await getPlayerPackInventory(playerId);
     res.json(packs);
   } catch (error) {
@@ -1119,9 +1154,12 @@ router.get("/pack-inventory/:playerId", async (req: Request, res: Response) => {
 
 router.post("/pack-inventory/:inventoryId/open", async (req: Request, res: Response) => {
   try {
-    const inventoryId = parseInt(req.params.inventoryId);
+    const inventoryId = parseInt(paramStr(req.params.inventoryId));
     const { playerId } = req.body;
-    if (!playerId) return res.status(400).json({ error: "playerId required" });
+    if (!playerId) {
+      res.status(400).json({ error: "playerId required" });
+      return;
+    }
 
     // Get the pack type before marking as opened
     const { db: dbConn } = await import("@workspace/db");
@@ -1131,13 +1169,19 @@ router.post("/pack-inventory/:inventoryId/open", async (req: Request, res: Respo
       WHERE id = ${inventoryId} AND player_id = ${playerId} AND is_opened = FALSE
     `);
     const row = packRow.rows[0] as any;
-    if (!row) return res.status(404).json({ error: "Pack not found or already opened" });
+    if (!row) {
+      res.status(404).json({ error: "Pack not found or already opened" });
+      return;
+    }
 
     const packType = row.pack_type as "SINGLE" | "FIVE" | "TEN";
 
     // Mark opened first
     const ok = await markPackOpened(inventoryId, parseInt(playerId));
-    if (!ok) return res.status(400).json({ error: "Could not open pack" });
+    if (!ok) {
+      res.status(400).json({ error: "Could not open pack" });
+      return;
+    }
 
     // Award coins to cover the pack cost, then purchase (so no coin balance needed)
     const PACK_COSTS: Record<string, number> = { SINGLE: 50, FIVE: 200, TEN: 350 };
@@ -1159,7 +1203,10 @@ router.post("/pack-inventory/:inventoryId/open", async (req: Request, res: Respo
 router.post("/sell-card", async (req: Request, res: Response) => {
   try {
     const { playerId, cardId } = req.body;
-    if (!playerId || !cardId) return res.status(400).json({ error: "playerId and cardId required" });
+    if (!playerId || !cardId) {
+      res.status(400).json({ error: "playerId and cardId required" });
+      return;
+    }
 
     // Check the card rarity for dynamic pricing
     const cardDef = await db.execute(sql`
@@ -1278,14 +1325,15 @@ router.post("/sell-card", async (req: Request, res: Response) => {
       const { playerId } = req.body;
 
       if (!cardId || !playerId) {
-        return res.status(400).json({ success: false, message: "Missing cardId or playerId" });
+        res.status(400).json({ success: false, message: "Missing cardId or playerId" });
+        return;
       }
 
       const { purchaseFeaturedCard } = await import("../services/featured-card-shop-service");
       const result = await purchaseFeaturedCard(Number(playerId), Number(cardId));
 
       if (result.success) {
-        res.json({ success: true, ...result });
+        res.json({ ...result });
       } else {
         res.status(400).json({ success: false, message: result.message });
       }
@@ -1399,7 +1447,8 @@ router.get("/season/current", async (req: Request, res: Response) => {
       .limit(1);
 
     if (!season) {
-      return res.status(404).json({ error: "No active season" });
+      res.status(404).json({ error: "No active season" });
+      return;
     }
 
     const endDate = new Date(season.endDate);
@@ -1425,7 +1474,7 @@ router.get("/season/rewards-preview/:seasonId", async (req: Request, res: Respon
       "../services/card-clash-season-rewards"
     );
 
-    const seasonId = parseInt(req.params.seasonId);
+    const seasonId = parseInt(paramStr(req.params.seasonId));
     const leaderboard = await getSeasonRewardLeaderboard(seasonId);
 
     res.json({ leaderboard });
@@ -1451,7 +1500,6 @@ router.post("/admin/season/end", verifyAdminPin, async (req: Request, res: Respo
       // Create new season
       await getOrCreateActiveCardClashSeason();
       res.json({
-        success: true,
         ...result,
         message: `${result.message} | New season created`,
       });
@@ -1496,7 +1544,8 @@ router.get("/free-pack/status", async (req: Request, res: Response) => {
   try {
     const playerId = (req.session as any)?.playerId;
     if (!playerId) {
-      return res.status(401).json({ error: "Not authenticated" });
+      res.status(401).json({ error: "Not authenticated" });
+      return;
     }
 
     const { checkFreePackStatus } = await import("../services/free-pack-service");
@@ -1515,7 +1564,8 @@ router.post("/free-pack/claim", async (req: Request, res: Response) => {
   try {
     const playerId = (req.session as any)?.playerId;
     if (!playerId) {
-      return res.status(401).json({ error: "Not authenticated" });
+      res.status(401).json({ error: "Not authenticated" });
+      return;
     }
 
     const { claimFreePackForPlayer } = await import("../services/free-pack-service");
@@ -1536,7 +1586,7 @@ router.post("/free-pack/claim", async (req: Request, res: Response) => {
 // ADMIN: Reset free pack cooldown for testing
 router.post("/admin/free-pack/reset/:playerId", verifyAdminPin, async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId);
+    const playerId = parseInt(paramStr(req.params.playerId));
     const { resetFreePackCooldown } = await import("../services/free-pack-service");
 
     const success = await resetFreePackCooldown(playerId);
@@ -1562,12 +1612,14 @@ router.get("/shop/featured/:cardId/purchase-status", async (req: Request, res: R
   try {
     const playerId = (req.session as any)?.playerId;
     if (!playerId) {
-      return res.status(401).json({ error: "Not authenticated" });
+      res.status(401).json({ error: "Not authenticated" });
+      return;
     }
 
-    const cardId = parseInt(req.params.cardId);
+    const cardId = parseInt(paramStr(req.params.cardId));
     if (isNaN(cardId)) {
-      return res.status(400).json({ error: "Invalid card ID" });
+      res.status(400).json({ error: "Invalid card ID" });
+      return;
     }
 
     const { checkCardPurchaseCooldown } = await import(
@@ -1589,11 +1641,12 @@ router.post(
   verifyAdminPin,
   async (req: Request, res: Response) => {
     try {
-      const playerId = parseInt(req.params.playerId);
-      const cardId = parseInt(req.params.cardId);
+      const playerId = parseInt(paramStr(req.params.playerId));
+      const cardId = parseInt(paramStr(req.params.cardId));
 
       if (isNaN(playerId) || isNaN(cardId)) {
-        return res.status(400).json({ error: "Invalid IDs" });
+        res.status(400).json({ error: "Invalid IDs" });
+        return;
       }
 
       const { clearPurchaseHistoryForCard } = await import(
@@ -1619,12 +1672,14 @@ router.post("/shop/featured/purchase-status/batch", async (req: Request, res: Re
   try {
     const playerId = (req.session as any)?.playerId;
     if (!playerId) {
-      return res.status(401).json({ error: "Not authenticated" });
+      res.status(401).json({ error: "Not authenticated" });
+      return;
     }
 
     const { cardIds } = req.body;
     if (!Array.isArray(cardIds) || cardIds.length === 0) {
-      return res.status(400).json({ error: "Invalid cardIds" });
+      res.status(400).json({ error: "Invalid cardIds" });
+      return;
     }
 
     const { checkCardPurchaseCooldown } = await import(

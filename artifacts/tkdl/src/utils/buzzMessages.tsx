@@ -1,10 +1,12 @@
 /**
  * Buzz Text & Engagement Messages
- * 
+ *
  * Dynamic, rotating messages to engage players
  * Shows on Card Clash hub to encourage exploration
  * Updates based on game state, time, events
  */
+
+import * as React from "react";
 
 export interface BuzzMessage {
   text: string;

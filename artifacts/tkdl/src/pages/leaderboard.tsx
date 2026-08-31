@@ -2,11 +2,12 @@ import { useGetLeaderboard } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
-import { Link } from "wouter";
-import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal, Zap, Users } from "lucide-react";
+import { Link, useSearch } from "wouter";
+import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal, Zap, Users, Building2 } from "lucide-react";
 import { useState } from "react";
+import { useSettings } from "@/hooks/use-settings";
 
-type Mode = "season" | "career" | "achievements" | "bot" | "tour" | "master501" | "records" | "doubles";
+type Mode = "season" | "career" | "achievements" | "bot" | "tour" | "master501" | "records" | "doubles" | "shiftwars";
 
 const CAREER_SORTS = [
   { key: "wins",    label: "Career Wins" },
@@ -139,6 +140,37 @@ function DoublesRow({ team, idx }: { team: any; idx: number }) {
       <div className="hidden sm:block font-mono text-sm text-right shrink-0" style={{ minWidth: "4rem", color: "#0066ff" }}>{team.elo}</div>
       <div className="text-right shrink-0" style={{ minWidth: "3.5rem" }}>
         <span className="font-black tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontSize: idx === 0 ? "2rem" : isTop3 ? "1.7rem" : "1.5rem", color: idx === 0 ? "#ffd24a" : "#0066ff", textShadow: idx === 0 ? "0 0 16px rgba(255,210,74,0.4)" : undefined }}>{team.points}</span>
+        <span className="text-xs ml-0.5" style={{ color: "rgba(255,255,255,0.18)" }}>pts</span>
+      </div>
+    </div>
+  );
+}
+
+function ShiftWarsRow({ team, idx }: { team: any; idx: number }) {
+  const isTop3 = idx < 3;
+  const pColor = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
+  return (
+    <div className="group flex items-center gap-3 rounded-xl transition-all duration-150 fade-in-up"
+      style={{ padding: "0.8rem 1.1rem", background: isTop3 ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 ? pColor + "55" : "rgba(255,255,255,0.12)"}`, animationDelay: `${idx * 35}ms` }}>
+      <Pos idx={idx} />
+      <div className="flex-1 min-w-0 pr-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-black uppercase leading-tight" style={{ fontFamily: "Oswald, sans-serif", fontSize: idx === 0 ? "1.2rem" : "1rem", letterSpacing: "0.04em", color: idx === 0 ? "#fff" : "rgba(255,255,255,0.85)" }}>
+            {team.name}
+          </span>
+          {isTop3 && <span className="text-base leading-none">{POS_MEDALS[idx]}</span>}
+        </div>
+        {team.players?.length > 0 && (
+          <div className="text-xs mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.25)" }}>
+            {team.players.map((p: any) => p.name).join(", ")}
+          </div>
+        )}
+      </div>
+      <div className="hidden sm:block font-mono text-sm text-center shrink-0" style={{ minWidth: "4rem" }}>
+        <span style={{ color: "#22c55e" }}>{team.wins}</span><span style={{ color: "rgba(255,255,255,0.18)" }}>-</span><span style={{ color: "#ff005c" }}>{team.losses}</span>
+      </div>
+      <div className="text-right shrink-0" style={{ minWidth: "3.5rem" }}>
+        <span className="font-black tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontSize: idx === 0 ? "2rem" : isTop3 ? "1.7rem" : "1.5rem", color: idx === 0 ? "#ffd24a" : "#22c55e", textShadow: idx === 0 ? "0 0 16px rgba(255,210,74,0.4)" : undefined }}>{team.points}</span>
         <span className="text-xs ml-0.5" style={{ color: "rgba(255,255,255,0.18)" }}>pts</span>
       </div>
     </div>
@@ -383,9 +415,19 @@ function Spinner() {
   );
 }
 
+const VALID_MODES: Mode[] = ["season", "career", "achievements", "bot", "tour", "master501", "records", "doubles", "shiftwars"];
+
 export default function Standings() {
-  const [mode, setMode]       = useState<Mode>("season");
+  const search = useSearch();
+  // Deep-link support (e.g. a player's profile linking straight to their Shift Wars
+  // or Doubles standing via /leaderboard?mode=shiftwars) — falls back to "season".
+  const [mode, setMode]       = useState<Mode>(() => {
+    const requested = new URLSearchParams(search).get("mode");
+    return VALID_MODES.includes(requested as Mode) ? (requested as Mode) : "season";
+  });
   const [careerSort, setSort] = useState<string>("wins");
+  const { data: appSettings } = useSettings();
+  const shiftWarsEnabled = appSettings?.shift_wars_enabled ?? false;
 
   const { data: leaderboard,   isLoading: seasonLoading }  = useGetLeaderboard();
   const { data: careerData,    isLoading: careerLoading }   = useQuery({
@@ -427,8 +469,18 @@ export default function Standings() {
     },
     enabled:  mode === "doubles",
   });
+  const { data: shiftWarsData, isLoading: shiftWarsLoading } = useQuery({
+    queryKey: ["leaderboard-shiftwars"],
+    queryFn:  () => fetch("/api/shift-wars/teams").then(r => r.json()),
+    enabled:  mode === "shiftwars",
+  });
+  const { data: shiftWarsHistoryData } = useQuery({
+    queryKey: ["leaderboard-shiftwars-history"],
+    queryFn:  () => fetch("/api/shift-wars/history").then(r => r.json()),
+    enabled:  mode === "shiftwars",
+  });
 
-  const isLoading = { season: seasonLoading, career: careerLoading, achievements: achLoading, bot: botLoading, tour: tourLoading, master501: m501Loading, records: recordsLoading, doubles: doublesLoading }[mode];
+  const isLoading = { season: seasonLoading, career: careerLoading, achievements: achLoading, bot: botLoading, tour: tourLoading, master501: m501Loading, records: recordsLoading, doubles: doublesLoading, shiftwars: shiftWarsLoading }[mode];
 
   const active     = leaderboard?.filter(e => e.status !== "ELIMINATED") ?? [];
   const eliminated = leaderboard?.filter(e => e.status === "ELIMINATED") ?? [];
@@ -441,6 +493,8 @@ export default function Standings() {
   const m501Rows      = (m501Data    ?? []) as any[];
   const recordsRows   = (recordsData ?? []) as any[];
   const doublesRows   = (doublesData ?? []) as any[];
+  const shiftWarsRows = (shiftWarsData ?? []) as any[];
+  const shiftWarsHistoryRows = (shiftWarsHistoryData ?? []) as any[];
   const maxDarts   = Math.max(...botRows.map(r => r.totalDarts), 1);
 
   const headings: Record<Mode, string> = {
@@ -448,6 +502,7 @@ export default function Standings() {
     achievements: "Achievement Standings", bot: "Shadow Bot Rankings",
     tour: "Tour Rankings", master501: "Master-501 Rankings",
     records: "Checkout Hall of Fame", doubles: "Doubles Event Standings",
+    shiftwars: "Shift Wars Standings",
   };
   const subheads: Record<Mode, React.ReactNode> = {
     season:      <><span className="live-dot" /> Ranked by points · ELO tiebreak</>,
@@ -458,6 +513,7 @@ export default function Standings() {
     master501:   <>Tier progression · win/loss · best avg · 180s · checkout %</>,
     records:     <>Highest single-leg checkouts ever recorded in practice</>,
     doubles:     <>Randomly drawn 2-player teams · runs alongside the main season</>,
+    shiftwars:   <>Fixed department teams · points only, no reroll</>,
   };
 
   return (
@@ -493,6 +549,9 @@ export default function Standings() {
         <Tab active={mode === "master501"}   onClick={() => setMode("master501")}   color="#00c8a0"  icon={<Zap className="w-3.5 h-3.5" />}>Master-501</Tab>
         <Tab active={mode === "records"}     onClick={() => setMode("records")}     color="#ff005c"  icon={<Flame className="w-3.5 h-3.5" />}>Records</Tab>
         <Tab active={mode === "doubles"}     onClick={() => setMode("doubles")}     color="#0066ff"  icon={<Users className="w-3.5 h-3.5" />}>Doubles</Tab>
+        {shiftWarsEnabled && (
+          <Tab active={mode === "shiftwars"} onClick={() => setMode("shiftwars")} color="#22c55e"  icon={<Building2 className="w-3.5 h-3.5" />}>Shift Wars</Tab>
+        )}
       </div>
 
       {/* Career sort pills */}
@@ -538,6 +597,15 @@ export default function Standings() {
           <div className="hidden sm:block" style={{ minWidth: "3.5rem" }}>Tier</div>
           <div className="hidden sm:block text-center" style={{ minWidth: "4rem" }}>W-L</div>
           <div className="hidden sm:block text-right" style={{ minWidth: "4rem" }}>ELO</div>
+          <div className="text-right" style={{ minWidth: "3.5rem" }}>Pts</div>
+        </div>
+      )}
+      {!isLoading && mode === "shiftwars" && (
+        <div className="flex items-center gap-3 px-3 py-1.5 text-xs font-bold uppercase tracking-widest"
+          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.18)", letterSpacing: "0.12em" }}>
+          <div className="w-8 text-center">#</div>
+          <div className="flex-1">Team</div>
+          <div className="hidden sm:block text-center" style={{ minWidth: "4rem" }}>W-L</div>
           <div className="text-right" style={{ minWidth: "3.5rem" }}>Pts</div>
         </div>
       )}
@@ -594,6 +662,35 @@ export default function Standings() {
               {doublesRows.length === 0 && (
                 <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
                   No doubles teams yet this season — an admin needs to run the random draw.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Shift Wars ── */}
+          {mode === "shiftwars" && (
+            <div className="space-y-1.5">
+              {shiftWarsRows.map((team, idx) => <ShiftWarsRow key={team.id} team={team} idx={idx} />)}
+              {shiftWarsRows.length === 0 && (
+                <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  No Shift Wars teams yet — an admin needs to set them up.
+                </div>
+              )}
+              {shiftWarsHistoryRows.length > 0 && (
+                <div className="pdc-card p-4 mt-3">
+                  <div className="text-xs uppercase tracking-widest font-bold mb-2.5" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(34,197,94,0.6)" }}>
+                    🏆 Monthly Champions
+                  </div>
+                  <div className="space-y-1.5">
+                    {shiftWarsHistoryRows.map(h => (
+                      <div key={h.seasonId} className="flex items-center justify-between text-sm">
+                        <span style={{ color: "rgba(255,255,255,0.4)" }}>{h.seasonName}</span>
+                        <span className="font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.8)" }}>
+                          {h.championName} <span className="font-mono font-normal" style={{ color: "#ffd24a" }}>{h.points}pts</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

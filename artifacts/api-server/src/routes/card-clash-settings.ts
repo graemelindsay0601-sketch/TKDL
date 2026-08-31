@@ -17,6 +17,7 @@ import { db } from '@workspace/db';
 import { sql, eq } from 'drizzle-orm';
 import { cardClashPlayerSettingsTable } from '@workspace/db/schema';
 import { requireAdminSession } from '../middleware/requireAdminSession';
+import { paramStr } from '../lib/http';
 
 // Default settings
 const DEFAULT_SETTINGS = {
@@ -41,8 +42,8 @@ const router = Router();
  */
 async function getGlobalCardClashSettings(): Promise<typeof DEFAULT_SETTINGS> {
   try {
-    const [settings] = await db.execute(sql`
-      SELECT 
+    const { rows: [settings] } = await db.execute(sql`
+      SELECT
         equipable_good_cards,
         equipable_bad_cards,
         card_clash_enabled,
@@ -129,7 +130,7 @@ router.put('/card-clash/settings', requireAdminSession, async (req: Request, res
     }
 
     // Get existing settings for audit log
-    const [existingSettings] = await db.execute(sql`
+    const { rows: [existingSettings] } = await db.execute(sql`
       SELECT equipable_good_cards, equipable_bad_cards FROM card_clash_settings WHERE id = 1
     `);
 
@@ -228,7 +229,7 @@ router.get('/card-clash/settings/history', requireAdminSession, async (req: Requ
     `);
 
     res.json({
-      history: (history as any[]).map((entry: any) => ({
+      history: history.rows.map((entry: any) => ({
         id: entry.id,
         changed_by: entry.changed_by,
         timestamp: entry.changed_at,
@@ -251,7 +252,7 @@ router.get('/card-clash/settings/history', requireAdminSession, async (req: Requ
  */
 router.get('/card-clash/player/:playerId/equipment-preference', async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId, 10);
+    const playerId = parseInt(paramStr(req.params.playerId), 10);
 
     const result = await db
       .select()
@@ -270,11 +271,12 @@ router.get('/card-clash/player/:playerId/equipment-preference', async (req: Requ
         goodCardsPerMatch: globalSettings.equipable_good_cards,
         badCardsPerMatch: globalSettings.equipable_bad_cards,
       });
-      return res.json({
+      res.json({
         playerId,
         goodCardsPerMatch: globalSettings.equipable_good_cards,
         badCardsPerMatch: globalSettings.equipable_bad_cards,
       });
+      return;
     }
 
     const settings = result[0];
@@ -297,7 +299,7 @@ router.get('/card-clash/player/:playerId/equipment-preference', async (req: Requ
  */
 router.post('/card-clash/player/:playerId/equipment-preference', async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId, 10);
+    const playerId = parseInt(paramStr(req.params.playerId), 10);
     const { goodCardsPerMatch, badCardsPerMatch } = req.body;
 
     // Validation

@@ -7,6 +7,7 @@ import { checkStatAchievements, checkMatchAchievements, retroactiveSweep } from 
 import { applyEloChange, calcTier } from "../lib/elo";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { createAnnouncement, getNotificationAnalytics } from "../services/notificationService";
+import { drawDoublesTeams } from "../lib/doublesDraw";
 
 const router = Router();
 
@@ -429,9 +430,9 @@ router.get("/admin/export", async (_req, res): Promise<void> => {
 });
 
 // ── Doubles event: random team draw for a season ───────────────────────────────
-// Doubles teams start with a bigger shared pool than singles (25pts) since it's split between 2-3 players.
-const DOUBLES_STARTING_POINTS = 50;
-
+// Draw logic itself lives in lib/doublesDraw.ts, shared with the automatic
+// reroll that happens at the start of every new season (see seasonReset.ts) —
+// this route is now just the manual "reroll" trigger from the admin panel.
 const DoublesDrawBody = z.object({ force: z.boolean().optional().default(false) });
 
 router.post("/admin/seasons/:id/doubles/draw", async (req, res): Promise<void> => {
@@ -443,51 +444,13 @@ router.post("/admin/seasons/:id/doubles/draw", async (req, res): Promise<void> =
   const [season] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, seasonId));
   if (!season) { res.status(404).json({ error: "Season not found" }); return; }
 
-  const existing = await db.execute(sql`SELECT id FROM doubles_teams WHERE season_id = ${seasonId} LIMIT 1`);
-  if (existing.rows.length > 0 && !force) {
-    res.status(409).json({ error: "Doubles teams already exist for this season. Pass force:true to redraw." });
+  const result = await drawDoublesTeams(seasonId, { force });
+  if (!result.ok) {
+    const status = result.error.startsWith("Doubles teams already exist") ? 409 : 400;
+    res.status(status).json({ error: result.error });
     return;
   }
-  if (existing.rows.length > 0 && force) {
-    // Cascades to doubles_matches via FK.
-    await db.execute(sql`DELETE FROM doubles_teams WHERE season_id = ${seasonId}`);
-  }
-
-  const eligible = await db.select().from(playersTable).where(eq(playersTable.isActive, true));
-  if (eligible.length < 2) {
-    res.status(400).json({ error: "Need at least 2 active players to draw doubles teams" });
-    return;
-  }
-
-  // Fisher-Yates shuffle
-  const shuffled = [...eligible];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-
-  const pairs: (typeof shuffled)[] = [];
-  for (let i = 0; i + 1 < shuffled.length; i += 2) {
-    pairs.push([shuffled[i], shuffled[i + 1]]);
-  }
-  if (shuffled.length % 2 === 1) {
-    const leftover = shuffled[shuffled.length - 1];
-    const luckyTeam = pairs[Math.floor(Math.random() * pairs.length)];
-    luckyTeam.push(leftover);
-  }
-
-  const created: any[] = [];
-  for (const team of pairs) {
-    const teamName = team.map(p => p.name).join(" & ");
-    const [row] = await db.execute(sql`
-      INSERT INTO doubles_teams (season_id, player1_id, player2_id, player3_id, team_name, points, peak_points, elo, wins, losses, is_eliminated)
-      VALUES (${seasonId}, ${team[0].id}, ${team[1].id}, ${team[2]?.id ?? null}, ${teamName}, ${DOUBLES_STARTING_POINTS}, ${DOUBLES_STARTING_POINTS}, 1000, 0, 0, false)
-      RETURNING *
-    `).then(r => r.rows as any[]);
-    created.push(row);
-  }
-
-  res.status(201).json({ teams: created });
+  res.status(201).json({ teams: result.teams });
 });
 
 export default router;

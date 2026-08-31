@@ -13,6 +13,7 @@ export type AppSettings = {
   voice_callouts_enabled: boolean;
   boss_battle_enabled: boolean;
   board_curse_enabled: boolean;
+  shift_wars_enabled: boolean;
 };
 
 async function fetchSettings(): Promise<AppSettings> {
@@ -30,6 +31,7 @@ async function fetchSettings(): Promise<AppSettings> {
     voice_callouts_enabled: false,
     boss_battle_enabled: false,
     board_curse_enabled: false,
+    shift_wars_enabled: false,
   };
   return res.json() as Promise<AppSettings>;
 }

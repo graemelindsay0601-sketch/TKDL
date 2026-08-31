@@ -50,7 +50,7 @@ const SEASON_REWARDS = {
 /**
  * Get active season or create new one
  */
-async function getOrCreateActiveCardClashSeason() {
+export async function getOrCreateActiveCardClashSeason() {
   const [active] = await db
     .select()
     .from(cardClashSeasonsTable)

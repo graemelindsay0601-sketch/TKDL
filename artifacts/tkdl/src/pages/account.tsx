@@ -1604,14 +1604,14 @@ export default function AccountPage() {
 
           {user?.playerId && (
             <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              <DrillProgressTracker key={`dpt-${drillsVersion}`} playerId={parseInt(user.playerId)} />
-              <AdaptiveDifficulty key={`ad-${drillsVersion}`} playerId={parseInt(user.playerId)} />
+              <DrillProgressTracker key={`dpt-${drillsVersion}`} playerId={user.playerId} />
+              <AdaptiveDifficulty key={`ad-${drillsVersion}`} playerId={user.playerId} />
             </div>
           )}
 
           {loggingDrill && user?.playerId && (
             <LogDrillModal
-              playerId={parseInt(user.playerId)}
+              playerId={user.playerId}
               drill={loggingDrill}
               onClose={() => setLoggingDrill(null)}
               onLogged={() => {
@@ -1942,7 +1942,7 @@ export default function AccountPage() {
           )}
 
           <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <NotificationCenter playerId={parseInt(user.playerId)} />
+            <NotificationCenter playerId={user.playerId} />
           </div>
         </div>
       )}
@@ -2054,32 +2054,32 @@ export default function AccountPage() {
       {activeTab === "stats" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-            <StreakWidget playerId={parseInt(user.playerId)} />
-            <TimeOfDayPerformance playerId={parseInt(user.playerId)} />
+            <StreakWidget playerId={user.playerId} />
+            <TimeOfDayPerformance playerId={user.playerId} />
           </div>
-          <DebugStatsViewer playerId={parseInt(user.playerId)} />
-          <CategoryStatsEnhanced playerId={parseInt(user.playerId)} />
+          <DebugStatsViewer playerId={user.playerId} />
+          <CategoryStatsEnhanced playerId={user.playerId} />
         </div>
       )}
 
       {activeTab === "analytics" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <AdvancedAnalyticsDashboard playerId={parseInt(user.playerId)} />
+          <AdvancedAnalyticsDashboard playerId={user.playerId} />
 
           <SectionCard title="Overall Stats" icon={BarChart3} accent="#00e5a0" collapsible>
-            <OverallStats playerId={parseInt(user.playerId)} />
+            <OverallStats playerId={user.playerId} />
           </SectionCard>
 
           <SectionCard title="By Game Type" icon={Target} accent="#ff005c" collapsible>
-            <ByGameType playerId={parseInt(user.playerId)} />
+            <ByGameType playerId={user.playerId} />
           </SectionCard>
 
           <SectionCard title="Monthly Trends" icon={TrendingUp} accent="#0066ff" collapsible>
-            <Trends playerId={parseInt(user.playerId)} />
+            <Trends playerId={user.playerId} />
           </SectionCard>
 
           <SectionCard title="Dart Profile" icon={Zap} accent="#ffd24a" collapsible>
-            <DartAnalysis playerId={parseInt(user.playerId)} />
+            <DartAnalysis playerId={user.playerId} />
           </SectionCard>
         </div>
       )}

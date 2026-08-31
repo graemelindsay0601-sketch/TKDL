@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { playerDailyChallenges, playerWeeklyChallenges, dailyChallenges, weeklyChallenges } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requireAdminSession } from "../middleware/requireAdminSession";
+import { paramStr } from "../lib/http";
 
 const router = Router();
 
@@ -17,7 +18,7 @@ const verifyAdminPin = requireAdminSession;
 // Get player's daily challenges
 router.get("/daily/:playerId", async (req: Request, res: Response) => {
   try {
-    const { playerId } = req.params;
+    const playerId = paramStr(req.params.playerId);
     const challenges = await challengeService.getDailyChallengesForPlayer(parseInt(playerId));
     
     // Calculate time until reset (midnight)
@@ -40,7 +41,7 @@ router.get("/daily/:playerId", async (req: Request, res: Response) => {
 // Get player's weekly challenges
 router.get("/weekly/:playerId", async (req: Request, res: Response) => {
   try {
-    const { playerId } = req.params;
+    const playerId = paramStr(req.params.playerId);
     const challenges = await challengeService.getWeeklyChallengesForPlayer(parseInt(playerId));
     
     // Calculate time until reset (next Monday)
@@ -69,7 +70,7 @@ router.get("/weekly/:playerId", async (req: Request, res: Response) => {
 // Reset daily challenges for a player (reroll)
 router.post("/admin/daily/reset/:playerId", verifyAdminPin, async (req: Request, res: Response) => {
   try {
-    const { playerId } = req.params;
+    const playerId = paramStr(req.params.playerId);
     const id = parseInt(playerId);
     
     // Delete today's daily challenges for this player
@@ -100,7 +101,7 @@ router.post("/admin/daily/reset/:playerId", verifyAdminPin, async (req: Request,
 // Reset weekly challenges for a player (reroll)
 router.post("/admin/weekly/reset/:playerId", verifyAdminPin, async (req: Request, res: Response) => {
   try {
-    const { playerId } = req.params;
+    const playerId = paramStr(req.params.playerId);
     const id = parseInt(playerId);
     
     // Delete this week's weekly challenges for this player
@@ -144,7 +145,7 @@ router.get("/admin/weekly-definitions", verifyAdminPin, async (req: Request, res
 // Create bonus daily challenge for a player
 router.post("/admin/daily/bonus/:playerId", verifyAdminPin, async (req: Request, res: Response) => {
   try {
-    const { playerId } = req.params;
+    const playerId = paramStr(req.params.playerId);
     const { challengeId, customTitle, customReward } = req.body;
     
     const id = parseInt(playerId);
@@ -155,9 +156,10 @@ router.post("/admin/daily/bonus/:playerId", verifyAdminPin, async (req: Request,
     });
     
     if (!challenge) {
-      return res.status(404).json({ error: "Challenge not found" });
+      res.status(404).json({ error: "Challenge not found" });
+      return;
     }
-    
+
     // Create player challenge entry with bonus settings
     const [created] = await db
       .insert(playerDailyChallenges)
@@ -191,7 +193,7 @@ router.post("/admin/daily/bonus/:playerId", verifyAdminPin, async (req: Request,
 // Create bonus weekly challenge for a player
 router.post("/admin/weekly/bonus/:playerId", verifyAdminPin, async (req: Request, res: Response) => {
   try {
-    const { playerId } = req.params;
+    const playerId = paramStr(req.params.playerId);
     const { challengeId, customTitle, customReward } = req.body;
     
     const id = parseInt(playerId);
@@ -202,9 +204,10 @@ router.post("/admin/weekly/bonus/:playerId", verifyAdminPin, async (req: Request
     });
     
     if (!challenge) {
-      return res.status(404).json({ error: "Challenge not found" });
+      res.status(404).json({ error: "Challenge not found" });
+      return;
     }
-    
+
     // Calculate ISO week number
     const today = new Date();
     const date = new Date(today.getTime());
@@ -246,7 +249,8 @@ router.post("/admin/weekly/bonus/:playerId", verifyAdminPin, async (req: Request
 // Manually complete a challenge for a player (for testing)
 router.post("/admin/daily/complete/:playerId/:challengeId", verifyAdminPin, async (req: Request, res: Response) => {
   try {
-    const { playerId, challengeId } = req.params;
+    const playerId = paramStr(req.params.playerId);
+    const challengeId = paramStr(req.params.challengeId);
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -278,7 +282,8 @@ router.post("/admin/daily/complete/:playerId/:challengeId", verifyAdminPin, asyn
 // Manually complete a weekly challenge for a player
 router.post("/admin/weekly/complete/:playerId/:challengeId", verifyAdminPin, async (req: Request, res: Response) => {
   try {
-    const { playerId, challengeId } = req.params;
+    const playerId = paramStr(req.params.playerId);
+    const challengeId = paramStr(req.params.challengeId);
     
     const [updated] = await db
       .update(playerWeeklyChallenges)

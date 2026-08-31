@@ -12,12 +12,13 @@
 import { Router, Request, Response } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { paramStr } from "../lib/http";
 
 const router = Router();
 
 router.get("/boss-battles/progress/:playerId", async (req: Request, res: Response) => {
   try {
-    const playerId = parseInt(req.params.playerId, 10);
+    const playerId = parseInt(paramStr(req.params.playerId), 10);
     if (!Number.isFinite(playerId)) {
       res.status(400).json({ error: "Invalid playerId" });
       return;

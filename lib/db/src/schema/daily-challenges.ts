@@ -18,6 +18,9 @@ export const playerDailyChallenges = pgTable("player_daily_challenges", {
   id: serial("id").primaryKey(),
   player_id: integer("player_id").notNull(),
   challenge_id: integer("challenge_id").notNull(),
+  challenge_key: text("challenge_key"), // denormalized for easier querying, like player_weekly_challenges.
+  // Nullable (not notNull like the weekly table) because rows created before
+  // this column existed won't have a value backfilled.
   progress: integer("progress").notNull().default(0), // how many completed
   is_completed: boolean("is_completed").notNull().default(false),
   completed_at: timestamp("completed_at"),

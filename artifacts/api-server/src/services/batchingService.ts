@@ -57,7 +57,7 @@ export async function countTodayNotifications(
 
     return parseInt((result.rows[0] as any).count || 0);
   } catch (error) {
-    logger.error("Error counting daily notifications", { playerId, error });
+    logger.error({ playerId, error }, "Error counting daily notifications");
     return 0;
   }
 }
@@ -147,16 +147,16 @@ export async function queueNotificationForBatching(
   try {
     // Store batching info (we could use a separate queue table if needed)
     // For now, we'll log it and the notification will be picked up when player checks
-    logger.info("Notification queued for batching", {
+    logger.info({
       playerId,
       notificationId,
       delayMinutes: Math.round(delayMs / 60000)
-    });
+    }, "Notification queued for batching");
 
     // In a production system, you might store this in a queue table
     // and have a separate job process the queue
   } catch (error) {
-    logger.error("Error queueing notification for batching", { error });
+    logger.error({ error }, "Error queueing notification for batching");
   }
 }
 
@@ -216,7 +216,7 @@ export async function getBatchingStats(): Promise<{
       exceededDailyLimit: 0 // Would need separate tracking table
     };
   } catch (error) {
-    logger.error("Error getting batching stats", { error });
+    logger.error({ error }, "Error getting batching stats");
     return {
       totalQueued: 0,
       inQuietHours: 0,
