@@ -63,6 +63,7 @@ router.get("/players", async (_req, res): Promise<void> => {
       const def = ex?.active_title ? titleMap.get(ex.active_title as string) : undefined;
       return {
         ...p,
+        tier:              calcTier(p.elo),
         recentForm:        ex?.recent_form ?? [],
         activeTitleLabel:  def?.title  ?? null,
         activeTitleRarity: def?.rarity ?? null,
@@ -232,7 +233,7 @@ router.get("/players/:id/stats", async (req, res): Promise<void> => {
   const identity = computeIdentity(player, rank, isChampion);
 
   res.json({
-    player,
+    player: { ...player, tier: calcTier(player.elo) },
     seasonHistory: standings,
     recentMatches,
     achievements: playerAchievements,

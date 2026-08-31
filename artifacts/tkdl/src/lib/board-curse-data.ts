@@ -273,16 +273,6 @@ export function getTierForVisit(visitCount: number): CurseTier {
   return 3;
 }
 
-/**
- * Chance a NEW curse strikes (and replaces whatever's active) on a given
- * visit. Climbs with the tier so the board gets both meaner and more
- * trigger-happy the longer a leg drags on. A visit-4 floor (checked by the
- * caller) guarantees the board doesn't stay quiet all leg on bad luck.
- */
-export function getTriggerChance(visitCount: number): number {
-  const tier = getTierForVisit(visitCount);
-  return tier === 1 ? 0.15 : tier === 2 ? 0.35 : 0.55;
-}
 
 /**
  * Rolls a fresh curse for the given tier/game mode, avoiding whatever's

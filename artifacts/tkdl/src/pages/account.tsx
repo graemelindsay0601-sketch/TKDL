@@ -1577,7 +1577,7 @@ export default function AccountPage() {
                             </div>
                           )}
                           <div className="flex flex-wrap gap-2 mt-3">
-                            <Link href={`/practice?drill=${encodeURIComponent(drill.title || drill.name)}`}
+                            <Link href={`/practice?drillTitle=${encodeURIComponent(drill.title || drill.name || "")}&drillInstructions=${encodeURIComponent(drill.drill || "")}&drillTarget=${encodeURIComponent(drill.target || "")}&drillDuration=${encodeURIComponent(drill.duration || "")}`}
                               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition-opacity hover:opacity-75"
                               style={{ background: "rgba(0,200,160,0.1)", border: "1px solid rgba(0,200,160,0.25)",
                                 color: "#00c8a0", fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", letterSpacing: "0.08em", fontWeight: 700 }}>

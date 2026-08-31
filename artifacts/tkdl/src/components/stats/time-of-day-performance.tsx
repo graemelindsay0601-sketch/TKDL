@@ -26,11 +26,15 @@ export function TimeOfDayPerformance({ playerId }: TimeOfDayPerformanceProps) {
         const data = await response.json();
         setStats(data);
 
-        // Find best time
-        const best = data.reduce((acc: any, current: any) => 
-          current.winRate > acc.winRate ? current : acc
-        );
-        setBestTime(best.hour);
+        // Find best time (guard against an empty result — .reduce with no
+        // initial value throws on an empty array instead of just finding
+        // nothing, which used to abort this whole load silently).
+        if (Array.isArray(data) && data.length > 0) {
+          const best = data.reduce((acc: any, current: any) =>
+            current.winRate > acc.winRate ? current : acc
+          );
+          setBestTime(best.hour);
+        }
       } catch (err) {
         console.error("Failed to load time of day stats:", err);
       } finally {
@@ -114,8 +118,8 @@ export function TimeOfDayPerformance({ playerId }: TimeOfDayPerformanceProps) {
               color: "rgba(255,255,255,0.4)",
               marginTop: "4px",
             }}>
-              <span>Avg: {stat.avgDarts.toFixed(0)} darts</span>
-              <span>CO: {(stat.avgCheckout * 100).toFixed(0)}%</span>
+              <span>Avg: {(stat.avgDarts ?? 0).toFixed(0)} darts</span>
+              <span>CO: {((stat.avgCheckout ?? 0) * 100).toFixed(0)}%</span>
             </div>
           </div>
         ))}

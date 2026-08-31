@@ -66,8 +66,34 @@ router.get("/shift-wars/teams", async (_req, res): Promise<void> => {
 // ── Monthly champion history ────────────────────────────────────────────────
 // Snapshotted at every reset (lib/seasonReset.ts) right before points/record
 // are cleared for the new month, so a department's whole month isn't lost.
+//
+// With ?seasonId=NNN this instead returns every team's snapshot row for that
+// one season (used by the season archive's Shift Wars tab) rather than just
+// the champion across all seasons.
 
-router.get("/shift-wars/history", async (_req, res): Promise<void> => {
+router.get("/shift-wars/history", async (req, res): Promise<void> => {
+  const seasonId = req.query.seasonId ? Number(req.query.seasonId) : undefined;
+
+  if (seasonId !== undefined) {
+    if (!Number.isInteger(seasonId) || seasonId <= 0) { res.status(400).json({ error: "Invalid seasonId" }); return; }
+    const rows = await db.execute(sql`
+      SELECT h.team_id, h.team_name, h.points, h.wins, h.losses, h.is_champion
+      FROM shift_wars_season_history h
+      WHERE h.season_id = ${seasonId}
+      ORDER BY h.points DESC, h.team_name ASC
+    `);
+    res.json((rows.rows as any[]).map((r, i) => ({
+      position:     i + 1,
+      teamId:       r.team_id,
+      teamName:     r.team_name,
+      points:       r.points,
+      wins:         r.wins,
+      losses:       r.losses,
+      isChampion:   r.is_champion,
+    })));
+    return;
+  }
+
   const rows = await db.execute(sql`
     SELECT h.season_id, s.name AS season_name, h.team_name, h.points, h.wins, h.losses
     FROM shift_wars_season_history h

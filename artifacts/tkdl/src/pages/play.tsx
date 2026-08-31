@@ -272,7 +272,17 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     setTab(tabs[0]?.key ?? "competitive");
   }, [format]);
 
-  const players = (playersData as Player[] | undefined)?.filter(p => p.status === "ACTIVE") ?? [];
+  // Only the ranked 1v1 Competitive ladder should hide ELIMINATED players
+  // (0 points this season) — everywhere else (1v1 Practice/Party/Mini-Games,
+  // 2v2/3v3 Team Games, Killer FFA) is casual and unaffected by singles-ladder
+  // elimination, so eliminated players should still be selectable there.
+  // INACTIVE (retired/left-the-league) players are excluded everywhere.
+  // Doubles Event and Shift Wars already get this right since they pull their
+  // rosters from their own team endpoints instead of this players list.
+  const isCompetitiveLadder = format === "1v1" && tab === "competitive";
+  const players = (playersData as Player[] | undefined)?.filter(p =>
+    isCompetitiveLadder ? p.status === "ACTIVE" : p.status !== "INACTIVE"
+  ) ?? [];
 
   // Auto-default Player 1 slot to logged-in player
   useEffect(() => {

@@ -109,7 +109,11 @@ router.get("/master501/leaderboard", async (_req, res): Promise<void> => {
       LEFT JOIN master501_progress m ON m.player_id = p.id
       LEFT JOIN run_stats     rs     ON rs.player_id   = p.id
       LEFT JOIN session_stats ss     ON ss.player1_id  = p.id
-      WHERE p.status = 'ACTIVE'
+      -- Master-501 is casual practice, not the ranked singles ladder — only
+      -- players who've left the league (INACTIVE) should drop off it. A
+      -- player eliminated from the singles ladder this season should still
+      -- be able to play and appear here.
+      WHERE p.status != 'INACTIVE'
       ORDER BY
         COALESCE(m.current_tier,  1) DESC,
         COALESCE(m.current_round, 1) DESC,

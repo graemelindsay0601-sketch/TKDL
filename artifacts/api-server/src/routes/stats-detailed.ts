@@ -6,6 +6,7 @@ import { streakService } from "../services/streak-service";
 import { drillProgressService } from "../services/drill-progress-service";
 import { postMatchAnalysisService } from "../services/post-match-analysis-service";
 import { generatePracticeRoutine } from "./practice";
+import { invalidateCache } from "../middleware/cache";
 
 const router = Router();
 
@@ -247,6 +248,11 @@ router.post("/players/:id/drills/complete", async (req, res) => {
     const completion = await drillProgressService.completeDrill(
       playerId, drillId, drillTitle, durationMinutes ?? 0, score, difficulty ?? "medium", notes
     );
+    // Logging a drill changes /drills/stats, /drills/milestones and
+    // /practice-routine for this player, all cached for up to 10 minutes
+    // (see middleware/cache.ts) — without this, the Coach tab's "Your Drill
+    // Progress" area could show stale data for that long after logging one.
+    invalidateCache();
     res.json(completion);
   } catch (err) {
     req.log.error({ err }, "Failed to complete drill");
@@ -352,8 +358,8 @@ router.get("/players/:id/stats/time-of-day", async (req, res) => {
           END as time_window,
           COUNT(*)::int as total_matches,
           COUNT(CASE WHEN won THEN 1 END)::int as wins,
-          AVG(darts)::numeric as avg_darts,
-          AVG(checkout_rate)::numeric as avg_checkout
+          COALESCE(AVG(darts), 0)::numeric as avg_darts,
+          COALESCE(AVG(checkout_rate), 0)::numeric as avg_checkout
         FROM matches_with_hour
         GROUP BY time_window
       )
@@ -372,6 +378,75 @@ router.get("/players/:id/stats/time-of-day", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to get time-of-day stats");
     res.status(500).json({ error: "Failed to get time-of-day stats" });
+  }
+});
+
+// GET /api/stats/format-breakdown
+// League-wide game-type popularity, used by the Analytics tab's "Game Format
+// Breakdown" (advanced-analytics.tsx) — that view previously had no backend
+// data behind it at all (its state setter was never called). This mirrors
+// the query already used by the admin-only /admin/practice/stats endpoint,
+// just without the admin gate, since it's read-only aggregate data safe for
+// any logged-in player to see.
+router.get("/stats/format-breakdown", async (req, res) => {
+  try {
+    const result = await db.execute(sql`
+      SELECT
+        game_type_name AS "gameType",
+        COUNT(*)::int  AS "totalMatches"
+      FROM practice_sessions
+      GROUP BY game_type_name
+      ORDER BY "totalMatches" DESC
+      LIMIT 10
+    `);
+    const rows = result.rows as any[];
+    const total = rows.reduce((s, r) => s + Number(r.totalMatches), 0);
+    res.json(rows.map(r => ({
+      gameType:     r.gameType,
+      totalMatches: Number(r.totalMatches),
+      popularity:   total > 0 ? (Number(r.totalMatches) / total) * 100 : 0,
+    })));
+  } catch (err) {
+    req.log.error({ err }, "Failed to get format breakdown");
+    res.status(500).json({ error: "Failed to get format breakdown" });
+  }
+});
+
+// GET /api/stats/monthly-trends
+// League-wide matches + checkout rate per month, used by the Analytics
+// tab's "Trends" view — same "state setter never called" situation as
+// format-breakdown above.
+router.get("/stats/monthly-trends", async (req, res) => {
+  try {
+    const result = await db.execute(sql`
+      WITH sides AS (
+        SELECT played_at,
+          winner_checkout_hits::float / NULLIF(winner_checkout_attempts, 0) AS checkout_rate
+        FROM matches
+        WHERE played_at >= NOW() - INTERVAL '6 months'
+        UNION ALL
+        SELECT played_at,
+          loser_checkout_hits::float / NULLIF(loser_checkout_attempts, 0) AS checkout_rate
+        FROM matches
+        WHERE played_at >= NOW() - INTERVAL '6 months'
+      )
+      SELECT
+        to_char(date_trunc('month', played_at), 'Mon YYYY') AS month,
+        date_trunc('month', played_at)                      AS month_start,
+        COUNT(*)::int / 2                                   AS matches,
+        COALESCE(AVG(checkout_rate), 0)::numeric            AS "avgCheckout"
+      FROM sides
+      GROUP BY date_trunc('month', played_at)
+      ORDER BY month_start ASC
+    `);
+    res.json((result.rows as any[]).map(r => ({
+      month:      r.month,
+      matches:    Number(r.matches),
+      avgCheckout: Number(r.avgCheckout),
+    })));
+  } catch (err) {
+    req.log.error({ err }, "Failed to get monthly trends");
+    res.status(500).json({ error: "Failed to get monthly trends" });
   }
 });
 

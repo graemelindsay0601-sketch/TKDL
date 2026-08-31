@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { Flame, Swords, User, Users, Bot, Trophy, Skull, Crown, Square, Infinity as InfinityIcon, BookOpen } from "lucide-react";
 import { useCurrentPlayer } from "@/context/auth";
+import { useListPlayers } from "@workspace/api-client-react";
 import { BoardCurseScorer, type BoardCurseResult } from "@/components/BoardCurseScorer";
 import { BOT_LEVELS, type BotLevel } from "@/lib/bot-engine";
 import { getCurseCompendium, type CurseGameMode, type CurseTier } from "@/lib/board-curse-data";
+
+type RosterPlayer = { id: number; name: string; status: string; isActive: boolean };
+const GUEST_OPTION = "__guest__";
 
 type Format = "solo" | "bot" | "local";
 type MatchLegs = 1 | 3 | 5;
@@ -27,7 +31,23 @@ export default function BoardCursePage() {
   const [gameMode, setGameMode] = useState<CurseGameMode>("X01");
   const [format, setFormat] = useState<Format>("solo");
   const [botLevel, setBotLevel] = useState<BotLevel>("club");
-  const [opponentName, setOpponentName] = useState("");
+  // "vs Local Player" used to be a free-text name field, disconnected from
+  // the app's real player list — this pulls the actual roster instead
+  // (same "casual mode only excludes INACTIVE players" rule used elsewhere,
+  // e.g. play.tsx's Team Game fix), with a Guest fallback for someone not
+  // in the app at all.
+  const { data: playersData } = useListPlayers();
+  const opponents = ((playersData as RosterPlayer[] | undefined) ?? [])
+    .filter(p => p.isActive !== false && p.id !== currentPlayer?.playerId)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const [opponentSelection, setOpponentSelection] = useState<string>("");
+  const [guestName, setGuestName] = useState("");
+  const opponentName = opponentSelection === GUEST_OPTION
+    ? (guestName.trim() || "Guest")
+    : (opponents.find(p => String(p.id) === opponentSelection)?.name ?? "Player 2");
+  const canStart = format !== "local" || (
+    opponentSelection !== "" && (opponentSelection !== GUEST_OPTION || guestName.trim() !== "")
+  );
   const [matchLegs, setMatchLegs] = useState<MatchLegs>(3);
   const [endlessMode, setEndlessMode] = useState(false);
   const [bestVisits, setBestVisits] = useState<number | null>(null);
@@ -73,7 +93,7 @@ export default function BoardCursePage() {
 
   const handleStart = () => {
     const p1Name = currentPlayer.playerName;
-    const p2Name = format === "bot" ? `CPU (${BOT_LEVELS[botLevel].label})` : format === "local" ? (opponentName.trim() || "Player 2") : "The Board";
+    const p2Name = format === "bot" ? `CPU (${BOT_LEVELS[botLevel].label})` : format === "local" ? opponentName : "The Board";
     setEndlessStreak(0);
     setEndlessKey(k => k + 1);
     setScreen({
@@ -459,10 +479,21 @@ export default function BoardCursePage() {
 
       {format === "local" && (
         <div className="mb-5">
-          <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>Opponent's Name</div>
-          <input value={opponentName} onChange={e => setOpponentName(e.target.value)} placeholder="Player 2"
+          <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>Opponent</div>
+          <select value={opponentSelection} onChange={e => setOpponentSelection(e.target.value)}
             className="w-full px-4 py-2.5 rounded-lg text-sm"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }} />
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: opponentSelection ? "#fff" : "rgba(255,255,255,0.35)" }}>
+            <option value="" style={{ color: "#111" }}>Select a player…</option>
+            {opponents.map(p => (
+              <option key={p.id} value={String(p.id)} style={{ color: "#111" }}>{p.name}</option>
+            ))}
+            <option value={GUEST_OPTION} style={{ color: "#111" }}>Guest (not in the app)</option>
+          </select>
+          {opponentSelection === GUEST_OPTION && (
+            <input value={guestName} onChange={e => setGuestName(e.target.value)} placeholder="Guest's name" autoFocus
+              className="w-full px-4 py-2.5 rounded-lg text-sm mt-2"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }} />
+          )}
         </div>
       )}
 
@@ -482,9 +513,13 @@ export default function BoardCursePage() {
         </div>
       )}
 
-      <button onClick={handleStart}
+      <button onClick={handleStart} disabled={!canStart}
         className="w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider"
-        style={{ background: "linear-gradient(135deg,#ff8a00,#8b0000)", color: "#fff" }}>
+        style={{
+          background: canStart ? "linear-gradient(135deg,#ff8a00,#8b0000)" : "rgba(255,255,255,0.06)",
+          color: canStart ? "#fff" : "rgba(255,255,255,0.3)",
+          cursor: canStart ? "pointer" : "not-allowed",
+        }}>
         <Swords className="inline w-3.5 h-3.5 mr-1.5" />Start
       </button>
     </div>

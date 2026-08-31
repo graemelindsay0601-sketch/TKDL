@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState } from "react";
+import { Flame } from "lucide-react";
 import { X01Scorer, CricketScorer } from "@/lib/scorers";
 import type { GameResult } from "./game-scorer";
 import type { BotConfig } from "@/lib/bot-engine";
-import { getTierForVisit, getTriggerChance, rollCurse, type CurseDef, type CurseGameMode } from "@/lib/board-curse-data";
+import { getTierForVisit, rollCurse, type CurseDef, type CurseGameMode, type CurseTier } from "@/lib/board-curse-data";
 import type { CCEffect } from "@/lib/card-effect-engine";
+
+// Vivid, tier-scaled colors so the curse readout reads clearly from across
+// the room, not just up close — mild (amber) through severe (hot red).
+const TIER_COLOR: Record<CurseTier, string> = { 1: "#ffb400", 2: "#ff6a00", 3: "#ff1744" };
 
 export interface BoardCurseResult extends GameResult {
   visitsTaken: number;
@@ -69,10 +74,10 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
     totalVisitsRef.current += 1;
     const count = visitCountRef.current;
     const tier = getTierForVisit(count);
-    const forced = recentCurseIdsRef.current.length === 0 && count >= 4;
-    const chance = getTriggerChance(count);
-    if (!forced && Math.random() >= chance) return;
 
+    // A fresh curse strikes on every visit now (previously this was a
+    // 15/35/55% roll by tier) — the tier still escalates how nasty the
+    // curse can be as the leg drags on, just no longer whether one lands.
     const target: 0 | 1 = format === "solo" ? 0 : Math.random() < 0.5 ? 0 : 1;
     const { def, effect, description } = rollCurse(gameMode, tier, recentCurseIdsRef.current);
     recentCurseIdsRef.current = [def.id, ...recentCurseIdsRef.current].slice(0, 3);
@@ -119,21 +124,28 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
   const combinedTopBanner = (
     <>
       {topBanner}
-      {activeCurse && (
-        <div
-          style={{
-            padding: "8px 14px", borderRadius: "8px", marginBottom: "8px",
-            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
-            fontFamily: "Oswald, sans-serif", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <span style={{ fontSize: "0.6rem", letterSpacing: "0.1em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase" }}>Active Curse ({targetLabel(activeCurse.target)})</span>
-            <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#fff" }}>{activeCurse.def.name}</div>
+      {activeCurse && (() => {
+        const color = TIER_COLOR[activeCurse.def.tier];
+        return (
+          <div
+            style={{
+              padding: "10px 16px", borderRadius: "10px", marginBottom: "8px",
+              background: `linear-gradient(135deg, ${color}26, ${color}12)`,
+              border: `2px solid ${color}`, boxShadow: `0 0 14px ${color}80, 0 0 30px ${color}40`,
+              fontFamily: "Oswald, sans-serif", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <Flame className="w-5 h-5 shrink-0" style={{ color }} />
+              <div>
+                <span style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", color, textTransform: "uppercase" }}>Active Curse ({targetLabel(activeCurse.target)})</span>
+                <div style={{ fontSize: "1.15rem", fontWeight: 900, color: "#fff", textShadow: `0 0 10px ${color}a0`, lineHeight: 1.15 }}>{activeCurse.def.name}</div>
+              </div>
+            </div>
+            <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "rgba(255,255,255,0.85)", textAlign: "right", maxWidth: "60%" }}>{activeCurse.description}</div>
           </div>
-          <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.45)", textAlign: "right", maxWidth: "60%" }}>{activeCurse.description}</div>
-        </div>
-      )}
+        );
+      })()}
     </>
   );
 
@@ -141,22 +153,29 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
     <div style={{ position: "relative" }}>
       {/* Transient "new curse" flash — position:fixed, so (unlike the persistent
           banner above) it never adds page height and is safe to keep as a sibling. */}
-      {strikeBanner && (
-        <div
-          style={{
-            position: "fixed", top: "12px", left: "50%", transform: "translateX(-50%)", zIndex: 60,
-            maxWidth: "92vw", padding: "10px 18px", borderRadius: "10px",
-            background: "rgba(30,32,40,0.96)", border: "1px solid rgba(255,255,255,0.15)",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.4)", textAlign: "center", fontFamily: "Oswald, sans-serif",
-          }}
-        >
-          <div style={{ fontSize: "0.65rem", letterSpacing: "0.15em", color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>
-            New Curse — hits {targetLabel(strikeBanner.target)}
+      {strikeBanner && (() => {
+        const color = TIER_COLOR[strikeBanner.def.tier];
+        return (
+          <div
+            style={{
+              position: "fixed", top: "12px", left: "50%", transform: "translateX(-50%)", zIndex: 60,
+              maxWidth: "92vw", padding: "14px 24px", borderRadius: "14px",
+              background: `linear-gradient(135deg, ${color}30, rgba(20,10,10,0.96))`,
+              border: `2px solid ${color}`, color,
+              animation: "curse-pulse 0.9s ease-in-out infinite",
+              textAlign: "center", fontFamily: "Oswald, sans-serif",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.15em", color, textTransform: "uppercase" }}>
+              <Flame className="w-4 h-4" />
+              New Curse — hits {targetLabel(strikeBanner.target)}
+              <Flame className="w-4 h-4" />
+            </div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "#fff", marginTop: "4px", textShadow: `0 0 16px ${color}` }}>{strikeBanner.def.name}</div>
+            <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "rgba(255,255,255,0.85)", marginTop: "4px" }}>{strikeBanner.description}</div>
           </div>
-          <div style={{ fontSize: "1rem", fontWeight: 800, color: "#fff", marginTop: "2px" }}>{strikeBanner.def.name}</div>
-          <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.55)", marginTop: "2px" }}>{strikeBanner.description}</div>
-        </div>
-      )}
+        );
+      })()}
       {gameMode === "X01" ? (
         <X01Scorer
           p1Name={p1Name} p2Name={p2Name}

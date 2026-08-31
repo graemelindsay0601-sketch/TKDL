@@ -7,7 +7,7 @@ import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal, Zap, Users, Bu
 import { useState } from "react";
 import { useSettings } from "@/hooks/use-settings";
 
-type Mode = "season" | "career" | "achievements" | "bot" | "tour" | "master501" | "records" | "doubles" | "shiftwars";
+type Mode = "season" | "doubles" | "shiftwars" | "career" | "achievements" | "bot" | "tour" | "master501" | "records";
 
 const CAREER_SORTS = [
   { key: "wins",    label: "Career Wins" },
@@ -415,7 +415,7 @@ function Spinner() {
   );
 }
 
-const VALID_MODES: Mode[] = ["season", "career", "achievements", "bot", "tour", "master501", "records", "doubles", "shiftwars"];
+const VALID_MODES: Mode[] = ["season", "doubles", "shiftwars", "career", "achievements", "bot", "tour", "master501", "records"];
 
 export default function Standings() {
   const search = useSearch();
@@ -539,19 +539,29 @@ export default function Standings() {
         )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Tab active={mode === "season"}       onClick={() => setMode("season")}       color="#ff005c"  icon={<Trophy className="w-3.5 h-3.5" />}>Season</Tab>
-        <Tab active={mode === "career"}       onClick={() => setMode("career")}       color="#0066ff"  icon={<Target className="w-3.5 h-3.5" />}>All Time</Tab>
-        <Tab active={mode === "achievements"} onClick={() => setMode("achievements")} color="#a855f7"  icon={<Medal className="w-3.5 h-3.5" />}>Achievements</Tab>
-        <Tab active={mode === "bot"}          onClick={() => setMode("bot")}          color="#00e5a0"  icon={<CircuitBoard className="w-3.5 h-3.5" />}>Shadow Bot</Tab>
-        <Tab active={mode === "tour"}         onClick={() => setMode("tour")}         color="#ffd24a"  icon={<Star className="w-3.5 h-3.5" />}>Tour</Tab>
-        <Tab active={mode === "master501"}   onClick={() => setMode("master501")}   color="#00c8a0"  icon={<Zap className="w-3.5 h-3.5" />}>Master-501</Tab>
-        <Tab active={mode === "records"}     onClick={() => setMode("records")}     color="#ff005c"  icon={<Flame className="w-3.5 h-3.5" />}>Records</Tab>
-        <Tab active={mode === "doubles"}     onClick={() => setMode("doubles")}     color="#0066ff"  icon={<Users className="w-3.5 h-3.5" />}>Doubles</Tab>
-        {shiftWarsEnabled && (
-          <Tab active={mode === "shiftwars"} onClick={() => setMode("shiftwars")} color="#22c55e"  icon={<Building2 className="w-3.5 h-3.5" />}>Shift Wars</Tab>
-        )}
+      {/* Tabs — main league standings (Season/Doubles/Shift Wars) grouped first
+          and visually separated from the more niche/nuanced modes below, rather
+          than one long undifferentiated row of nine tabs. */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Tab active={mode === "season"}   onClick={() => setMode("season")}   color="#ff005c"  icon={<Trophy className="w-3.5 h-3.5" />}>Season</Tab>
+          <Tab active={mode === "doubles"}  onClick={() => setMode("doubles")}  color="#0066ff"  icon={<Users className="w-3.5 h-3.5" />}>Doubles</Tab>
+          {shiftWarsEnabled && (
+            <Tab active={mode === "shiftwars"} onClick={() => setMode("shiftwars")} color="#22c55e"  icon={<Building2 className="w-3.5 h-3.5" />}>Shift Wars</Tab>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <span className="text-[0.65rem] font-bold uppercase w-full sm:w-auto sm:mr-1"
+            style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", color: "rgba(255,255,255,0.25)" }}>
+            More
+          </span>
+          <Tab active={mode === "career"}       onClick={() => setMode("career")}       color="#0066ff"  icon={<Target className="w-3.5 h-3.5" />}>All Time</Tab>
+          <Tab active={mode === "achievements"} onClick={() => setMode("achievements")} color="#a855f7"  icon={<Medal className="w-3.5 h-3.5" />}>Achievements</Tab>
+          <Tab active={mode === "bot"}          onClick={() => setMode("bot")}          color="#00e5a0"  icon={<CircuitBoard className="w-3.5 h-3.5" />}>Shadow Bot</Tab>
+          <Tab active={mode === "tour"}         onClick={() => setMode("tour")}         color="#ffd24a"  icon={<Star className="w-3.5 h-3.5" />}>Tour</Tab>
+          <Tab active={mode === "master501"}   onClick={() => setMode("master501")}   color="#00c8a0"  icon={<Zap className="w-3.5 h-3.5" />}>Master-501</Tab>
+          <Tab active={mode === "records"}     onClick={() => setMode("records")}     color="#ff005c"  icon={<Flame className="w-3.5 h-3.5" />}>Records</Tab>
+        </div>
       </div>
 
       {/* Career sort pills */}

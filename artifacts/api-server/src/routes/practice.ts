@@ -957,7 +957,11 @@ router.get("/bots/leaderboard", async (req, res): Promise<void> => {
         0) AS weighted_spd
       FROM players p
       LEFT JOIN session_weights sw ON sw.player1_id = p.id
-      WHERE p.is_active = true AND p.status != 'ELIMINATED'
+      -- Shadow Bot is casual practice, not the ranked singles ladder — a
+      -- player eliminated from the singles ladder this season should still
+      -- show up and be usable here. Only INACTIVE (left-the-league) players
+      -- are excluded.
+      WHERE p.status != 'INACTIVE'
       GROUP BY p.id, p.name, p.status
       ORDER BY total_darts DESC NULLS LAST
     `);

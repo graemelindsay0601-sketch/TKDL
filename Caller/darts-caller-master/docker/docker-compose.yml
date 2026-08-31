@@ -1,0 +1,47 @@
+version: '3.3'
+
+services:
+  darts-caller:
+    image: lbormann/darts-caller
+    container_name: darts-caller
+    restart: unless-stopped
+    ports:
+    - 8079:8079 #Host Port
+    devices:
+    - /dev/snd:/dev/snd
+    environment:
+      #required settings
+      AUTODARTS_EMAIL:    '' #Your autodarts mail adress
+      AUTODARTS_PASSWORD: '' #Your autodarts password
+      AUTODARTS_BOARD_ID: '' #Your autodarts board id
+
+      #optional settings, leave them empty if you don't want to use them. For explanations see https://github.com/lbormann/darts-caller
+      CALLER_VOLUME:
+      CALLER:
+      RANDOM_CALLER:
+      RANDOM_CALLER_LANGUAGE:
+      RANDOM_CALLER_GENDER:
+      CALL_CURRENT_PLAYER:
+      CALL_BOT_ACTIONS:
+      CALL_EVERY_DART:
+      CALL_EVERY_DART_TOTAL_SCORE:
+      POSSIBLE_CHECKOUT_CALL:
+      POSSIBLE_CHECKOUT_CALL_YOURSELF_ONLY:
+      AMBIENT_SOUNDS:
+      AMBIENT_SOUNDS_AFTER_CALLS:
+      DOWNLOADS:
+      DOWNLOADS_LANGUAGE:
+      DOWNLOADS_NAME:
+      REMOVE_OLD_VOICE_PACKS:
+      BACKGROUND_AUDIO_VOLUME:
+      LOCAL_PLAYBACK:
+      WEB_CALLER_DISABLE_HTTPS:
+      DEBUG:
+      CERT_CHECK:
+      MIXER_FREQUENCY:
+      MIXER_SIZE:
+      MIXER_CHANNELS:
+      MIXER_BUFFERSIZE:
+
+    volumes:
+    - ./darts-caller:/usr/share/darts-caller

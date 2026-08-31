@@ -3,7 +3,8 @@ import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
-import { Trophy, Calendar, Hash, ArrowLeft, Medal, Flame, Zap, Crown, BarChart3, Swords, Users, Skull } from "lucide-react";
+import { Trophy, Calendar, Hash, ArrowLeft, Medal, Flame, Zap, Crown, BarChart3, Swords, Users, Skull, Building2 } from "lucide-react";
+import { useSettings } from "@/hooks/use-settings";
 
 function useSeasonMatches(seasonId: number) {
   const [data, setData] = useState<any[]>([]);
@@ -47,10 +48,48 @@ function useDoublesMatches(seasonId: number) {
   return { data, loading };
 }
 
+// Shift Wars isn't season-scoped the way Doubles is — it's a standing 3-team
+// competition, snapshotted into shift_wars_season_history only once a season
+// closes (see lib/seasonReset.ts). So for a season that's already ended we
+// show that snapshot; for the still-active current season no snapshot exists
+// yet, so we fall back to the live /shift-wars/teams standings instead.
+function useSeasonShiftWars(seasonId: number, isActiveSeason: boolean) {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isLive, setIsLive] = useState(false);
+  useEffect(() => {
+    if (!seasonId) return;
+    setLoading(true);
+    fetch(`/api/shift-wars/history?seasonId=${seasonId}`)
+      .then(r => r.json())
+      .then(async (d) => {
+        if (Array.isArray(d) && d.length > 0) {
+          setIsLive(false);
+          setData(d);
+          setLoading(false);
+          return;
+        }
+        // No snapshot for this season yet — only worth falling back to the
+        // live board if this is the current season; a past season with no
+        // snapshot genuinely has no Shift Wars data.
+        if (isActiveSeason) {
+          const live = await fetch("/api/shift-wars/teams").then(r => r.json()).catch(() => []);
+          setIsLive(true);
+          setData(Array.isArray(live) ? live : []);
+        } else {
+          setData([]);
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [seasonId, isActiveSeason]);
+  return { data, loading, isLive };
+}
+
 export default function SeasonDetail() {
   const params = useParams();
   const seasonId = parseInt(params.id || "0", 10);
-  const [activeTab, setActiveTab] = useState<"standings" | "matches" | "doubles">("standings");
+  const [activeTab, setActiveTab] = useState<"standings" | "matches" | "doubles" | "shiftwars">("standings");
   const [doublesView, setDoublesView] = useState<"standings" | "matches">("standings");
 
   const { data: seasonDetail, isLoading } = useGetSeason(seasonId, {
@@ -59,6 +98,10 @@ export default function SeasonDetail() {
   const { data: matches, loading: matchesLoading } = useSeasonMatches(seasonId);
   const { data: doublesTeams, loading: doublesTeamsLoading } = useDoublesTeams(seasonId);
   const { data: doublesMatches, loading: doublesMatchesLoading } = useDoublesMatches(seasonId);
+  const { data: shiftWarsRows, loading: shiftWarsLoading, isLive: shiftWarsIsLive } =
+    useSeasonShiftWars(seasonId, seasonDetail?.season?.isActive ?? false);
+  const { data: appSettings } = useSettings();
+  const shiftWarsEnabled = appSettings?.shift_wars_enabled ?? false;
 
   if (isLoading) {
     return (
@@ -183,7 +226,7 @@ export default function SeasonDetail() {
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-        {(["standings", "matches", "doubles"] as const).map(tab => (
+        {(["standings", "matches", "doubles", ...(shiftWarsEnabled ? ["shiftwars" as const] : [])] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -195,7 +238,7 @@ export default function SeasonDetail() {
               letterSpacing: "0.08em",
             }}
           >
-            {tab === "standings" ? "Standings" : tab === "matches" ? `Matches${matches.length > 0 ? ` (${matches.length})` : ""}` : "Doubles"}
+            {tab === "standings" ? "Standings" : tab === "matches" ? `Matches${matches.length > 0 ? ` (${matches.length})` : ""}` : tab === "doubles" ? "Doubles" : "Shift Wars"}
           </button>
         ))}
       </div>
@@ -478,6 +521,87 @@ export default function SeasonDetail() {
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Shift Wars tab */}
+      {activeTab === "shiftwars" && (
+        <div className="pdc-card overflow-hidden">
+          <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+            <Building2 className="w-4 h-4" style={{ color: "#22c55e" }} />
+            <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
+              Shift Wars Standings
+            </h2>
+            {shiftWarsIsLive && (
+              <span className="text-xs font-bold uppercase tracking-widest px-2 py-0.5 rounded ml-auto"
+                style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e", fontFamily: "Oswald, sans-serif", border: "1px solid rgba(34,197,94,0.3)" }}>
+                Live
+              </span>
+            )}
+          </div>
+
+          {shiftWarsLoading ? (
+            <div className="py-10 flex justify-center">
+              <div className="w-6 h-6 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#22c55e" }} />
+            </div>
+          ) : shiftWarsRows.length === 0 ? (
+            <div className="px-4 py-10 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+              {season.isActive
+                ? "No Shift Wars data yet this season."
+                : "Shift Wars wasn't tracked yet when this season closed."}
+            </div>
+          ) : (
+            <>
+              <div
+                className="grid text-xs uppercase font-bold px-4 py-2 border-b"
+                style={{ gridTemplateColumns: "3rem 1fr 5rem 5rem", borderColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}
+              >
+                <div className="text-center">#</div>
+                <div>Team</div>
+                <div className="text-center">Record</div>
+                <div className="text-right">Points</div>
+              </div>
+              {shiftWarsRows.map((team: any, idx: number) => (
+                <div
+                  key={team.teamId ?? team.id}
+                  className="grid items-center px-4 py-3 border-b transition-colors hover:bg-white/[0.025]"
+                  style={{
+                    gridTemplateColumns: "3rem 1fr 5rem 5rem",
+                    borderColor: "rgba(255,255,255,0.05)",
+                    background: idx === 0 ? "rgba(34,197,94,0.05)" : undefined,
+                  }}
+                >
+                  <div className="text-center">
+                    <span className="font-bold text-xl leading-none" style={{ fontFamily: "Oswald, sans-serif", color: posColors[idx] ?? "rgba(255,255,255,0.4)" }}>
+                      {team.position}
+                    </span>
+                    {team.isChampion && <div className="text-xs" style={{ color: "#ffd24a" }}>🏆</div>}
+                  </div>
+                  <div className="min-w-0 pr-2">
+                    <div className="font-bold text-base truncate" style={{ fontFamily: "Oswald, sans-serif", color: idx === 0 ? "#22c55e" : "rgba(255,255,255,0.85)" }}>
+                      {team.teamName ?? team.name}
+                    </div>
+                    {Array.isArray(team.players) && team.players.length > 0 && (
+                      <div className="text-xs truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
+                        {team.players.map((p: any) => p.name).join(", ")}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-center text-sm font-mono" style={{ color: "rgba(255,255,255,0.5)" }}>
+                    <span style={{ color: "#22c55e" }}>{team.wins}</span>
+                    <span style={{ color: "rgba(255,255,255,0.25)" }}>-</span>
+                    <span style={{ color: "#ff005c" }}>{team.losses}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-lg" style={{ fontFamily: "Oswald, sans-serif", color: idx === 0 ? "#22c55e" : "#ff005c" }}>
+                      {team.points}
+                    </span>
+                    <span className="text-xs ml-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>pts</span>
+                  </div>
+                </div>
+              ))}
+            </>
           )}
         </div>
       )}

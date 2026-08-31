@@ -9,9 +9,6 @@ interface PlayerStats {
   losses: number;
   winRate: number;
   eloRating: number;
-  eloChange: number;
-  checkoutRate: number;
-  avg180s: number;
   tier: string;
 }
 
@@ -20,7 +17,6 @@ interface LeagueMetrics {
   totalPlayers: number;
   averageWinRate: number;
   topPlayer: PlayerStats;
-  mostImproved: PlayerStats;
   activePlayers: number;
 }
 
@@ -28,8 +24,12 @@ interface GameTypeStats {
   gameType: string;
   totalMatches: number;
   popularity: number;
-  avgCheckoutRate: number;
-  winRateStd: number;
+}
+
+interface MonthlyTrend {
+  month: string;
+  matches: number;
+  avgCheckout: number;
 }
 
 export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) {
@@ -37,32 +37,38 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
   const [metrics, setMetrics] = useState<LeagueMetrics | null>(null);
   const [playerRanking, setPlayerRanking] = useState<PlayerStats[]>([]);
   const [formatStats, setFormatStats] = useState<GameTypeStats[]>([]);
-  const [monthlyTrends, setMonthlyTrends] = useState<any[]>([]);
+  const [monthlyTrends, setMonthlyTrends] = useState<MonthlyTrend[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchAnalytics = async () => {
       setLoading(true);
       try {
-        // Fetch real league data from the leaderboard API (correct endpoint path)
-        const leaderRes = await fetch("/leaderboard");
-        const leaderboard = await leaderRes.json();
-        
+        // NOTE: this used to fetch "/leaderboard" (missing the /api prefix),
+        // which isn't a real route — it silently failed every load, which is
+        // why this whole tab looked like it wasn't reading real data at all.
+        const [leaderboard, formats, trends] = await Promise.all([
+          fetch("/api/leaderboard").then(r => r.json()),
+          fetch("/api/stats/format-breakdown").then(r => r.json()).catch(() => []),
+          fetch("/api/stats/monthly-trends").then(r => r.json()).catch(() => []),
+        ]);
+
+        setFormatStats(Array.isArray(formats) ? formats : []);
+        setMonthlyTrends(Array.isArray(trends) ? trends : []);
+
         if (leaderboard && Array.isArray(leaderboard) && leaderboard.length > 0) {
-          const players = leaderboard.slice(0, 10); // Top 10 players
-          
           // Calculate total matches across league (gamesPlayed, not matchCount)
           const totalMatches = leaderboard.reduce((sum: number, p: any) => sum + (p.gamesPlayed || 0), 0);
           const topPlayer = leaderboard[0];
           // Count players who have played at least 1 game
           const activePlayers = leaderboard.filter((p: any) => (p.gamesPlayed || 0) > 0).length;
           // Calculate average win rate from active players
-          const avgWinRate = activePlayers > 0 
+          const avgWinRate = activePlayers > 0
             ? leaderboard
                 .filter((p: any) => (p.gamesPlayed || 0) > 0)
                 .reduce((sum: number, p: any) => sum + (p.winRate || 0), 0) / activePlayers
             : 0;
-          
+
           // Create metrics from real data
           const realMetrics: LeagueMetrics = {
             totalMatches,
@@ -76,15 +82,11 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
               losses: topPlayer.losses || 0,
               winRate: topPlayer.winRate || 0,
               eloRating: topPlayer.elo || 0,
-              eloChange: 0,
-              checkoutRate: 0,
-              avg180s: 0,
               tier: topPlayer.tier || "Unranked",
             },
-            mostImproved: players[1] || topPlayer,
             activePlayers,
           };
-          
+
           // Map leaderboard data to PlayerStats format
           const realPlayers: PlayerStats[] = leaderboard.slice(0, 15).map((p: any) => ({
             playerId: p.playerId,
@@ -94,12 +96,9 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
             losses: p.losses || 0,
             winRate: p.winRate || 0,
             eloRating: p.elo || 0,
-            eloChange: 0,
-            checkoutRate: 0,
-            avg180s: 0,
             tier: p.tier || "Unranked",
           }));
-          
+
           setMetrics(realMetrics);
           setPlayerRanking(realPlayers);
         }
@@ -109,7 +108,7 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
         setLoading(false);
       }
     };
-    
+
     fetchAnalytics();
   }, []);
 
@@ -152,7 +151,6 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
           value={metrics?.totalMatches}
           unit=""
           color="#ff005c"
-          trend={10.2}
         />
         <StatBox
           icon={Users}
@@ -213,13 +211,6 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
                   {player.wins}W • {(player.winRate * 100).toFixed(0)}% • {player.eloRating} ELO
                 </div>
               </div>
-              <div style={{
-                fontSize: "12px",
-                fontWeight: "600",
-                color: player.eloChange >= 0 ? "#00e5a0" : "#ff005c",
-              }}>
-                {player.eloChange >= 0 ? "+" : ""}{player.eloChange}
-              </div>
             </div>
           ))}
         </div>
@@ -232,6 +223,9 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
           <h3 style={{ fontSize: "14px", fontWeight: "600" }}>Game Format Breakdown</h3>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {formatStats.length === 0 && (
+            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.35)" }}>No practice session data recorded yet.</div>
+          )}
           {formatStats.map((format) => (
             <div key={format.gameType} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <div style={{ flex: "0 0 200px", fontSize: "12px", fontWeight: "500" }}>{format.gameType}</div>
@@ -272,7 +266,7 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-            {["Rank", "Player", "Matches", "W-L", "Win %", "ELO", "Change"].map(header => (
+            {["Rank", "Player", "Matches", "W-L", "Win %", "ELO"].map(header => (
               <th key={header} style={{
                 padding: "12px 8px",
                 textAlign: "left",
@@ -308,9 +302,6 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
                 {(player.winRate * 100).toFixed(1)}%
               </td>
               <td style={{ padding: "10px 8px", fontSize: "13px", fontWeight: "600" }}>{player.eloRating}</td>
-              <td style={{ padding: "10px 8px", fontSize: "12px", fontWeight: "600", color: player.eloChange >= 0 ? "#00e5a0" : "#ff005c" }}>
-                {player.eloChange >= 0 ? "+" : ""}{player.eloChange}
-              </td>
             </tr>
           ))}
         </tbody>
@@ -326,6 +317,9 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
           <h3 style={{ fontSize: "14px", fontWeight: "600" }}>Monthly Trends</h3>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {monthlyTrends.length === 0 && (
+            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.35)" }}>No matches recorded in the last 6 months.</div>
+          )}
           {monthlyTrends.map((trend, idx) => (
             <div key={idx} style={{
               display: "flex",
@@ -339,11 +333,8 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
                 <div style={{ fontSize: "13px", fontWeight: "600" }}>{trend.month}</div>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)", marginBottom: "4px" }}>
-                  Matches: {trend.matches}
-                </div>
                 <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>
-                  Avg Checkout: {(trend.avgCheckout * 100).toFixed(1)}%
+                  Matches: {trend.matches}
                 </div>
               </div>
               <div style={{
@@ -351,9 +342,9 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
                 textAlign: "right",
                 fontSize: "13px",
                 fontWeight: "600",
-                color: "#00e5a0",
+                color: "#a855f7",
               }}>
-                {(trend.topWinRate * 100).toFixed(1)}%
+                {(trend.avgCheckout * 100).toFixed(1)}% CO
               </div>
             </div>
           ))}

@@ -214,6 +214,12 @@
   0%, 100% { box-shadow: 0 0 8px rgba(255,210,74,0.4), 0 0 20px rgba(255,210,74,0.15); }
   50%       { box-shadow: 0 0 18px rgba(255,210,74,0.75), 0 0 45px rgba(255,210,74,0.3), 0 0 70px rgba(255,210,74,0.1); }
 }
+@keyframes curse-pulse {
+  /* Uses currentColor so this adapts to whichever tier color the curse
+     banner sets via its `color` style — mild amber through severe red. */
+  0%, 100% { box-shadow: 0 0 10px currentColor, 0 0 24px currentColor; }
+  50%       { box-shadow: 0 0 22px currentColor, 0 0 50px currentColor; }
+}
 @keyframes spin-slow {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }

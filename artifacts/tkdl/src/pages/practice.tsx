@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useSearch } from "wouter";
 import { useListPlayers } from "@workspace/api-client-react";
 import { useCurrentPlayer } from "@/context/auth";
 import { useToast } from "@/hooks/use-toast";
-import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users, Ghost, User } from "lucide-react";
+import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users, Ghost, User, Target, Clock, X } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
 import { RulesModal } from "@/components/rules-modal";
 import { MatchStatsCard } from "@/components/match-stats-card";
@@ -93,6 +94,26 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [selectedSets, setSelectedSets] = useState({ sets: 3, legsPerSet: 3 });
   const [bullUp, setBullUp]             = useState(false);
   const [gameLb, setGameLb]             = useState<any[]>([]);
+
+  // Deep-link from the Coach tab's "Start This Drill" button (account.tsx) —
+  // previously that link passed the drill's display title as an unused
+  // `?drill=` param that this page never read, so clicking it just opened a
+  // blank practice setup with no indication of what to actually do. Now the
+  // drill's real instructions/target/duration ride along and are surfaced
+  // here so the player can see and follow them while they pick their game.
+  const search = useSearch();
+  const [dismissedDrill, setDismissedDrill] = useState(false);
+  const coachDrill = (() => {
+    const params = new URLSearchParams(search);
+    const title = params.get("drillTitle");
+    if (!title) return null;
+    return {
+      title,
+      instructions: params.get("drillInstructions") ?? "",
+      target:       params.get("drillTarget") ?? "",
+      duration:     params.get("drillDuration") ?? "",
+    };
+  })();
 
   useEffect(() => {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
@@ -228,6 +249,35 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         </div>
       </div>
       <div className="pdc-divider" />
+
+      {/* Coach drill deep-link banner */}
+      {coachDrill && !dismissedDrill && (
+        <div className="pdc-card p-4 relative" style={{ borderColor: "rgba(0,200,160,0.3)", background: "rgba(0,200,160,0.05)" }}>
+          <button onClick={() => setDismissedDrill(true)} className="absolute top-3 right-3 opacity-50 hover:opacity-100" style={{ color: "#00c8a0" }}>
+            <X className="w-4 h-4" />
+          </button>
+          <div className="flex items-center gap-2 mb-1.5 pr-6">
+            <Dumbbell className="w-4 h-4" style={{ color: "#00c8a0" }} />
+            <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "#00c8a0" }}>
+              Coach Drill: {coachDrill.title}
+            </span>
+          </div>
+          {coachDrill.instructions && (
+            <p className="text-sm mb-1.5" style={{ color: "rgba(255,255,255,0.7)", lineHeight: 1.5 }}>{coachDrill.instructions}</p>
+          )}
+          <div className="flex items-center gap-4 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+            {coachDrill.target && (
+              <span className="flex items-center gap-1.5"><Target className="w-3 h-3" style={{ color: "#00c8a0" }} />{coachDrill.target}</span>
+            )}
+            {coachDrill.duration && (
+              <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" />{coachDrill.duration}</span>
+            )}
+          </div>
+          <p className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.3)" }}>
+            Set up a game below to run through it, then use "Log Completion" back on your Coach tab to track your progress.
+          </p>
+        </div>
+      )}
 
       {/* Mode toggle */}
       <div className="flex gap-2">
