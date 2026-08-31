@@ -5,6 +5,17 @@
  */
 
 import type { Dart } from "./dartboard";
+import { CHECKOUTS } from "./dartboard";
+
+// A handful of scores in the 1-170 range have no valid double-out checkout
+// route at all (159, 162, 163, 165, 166, 168, 169 — see the gaps in
+// CHECKOUTS below). "On checkout" used to mean nothing more than
+// `remaining <= 170`, so a card like Unstoppable Checkout could stay active
+// (blocking opponent penalties) at a remaining score the player could
+// never actually finish from. This checks the real checkout table instead.
+function isRealCheckoutScore(remaining: number): boolean {
+  return remaining > 0 && remaining <= 170 && remaining in CHECKOUTS;
+}
 
 // ── Adjacency map for Off Target / Aim Shift cards ──────────────────────────
 const ADJACENT: Record<number, [number, number]> = {
@@ -577,16 +588,31 @@ export function ccPreprocessDart(
       segment = e.minSegment; multiplier = 1; value = e.minSegment;
       label = `${e.minSegment} (${rawLabel} raised)`;
     }
-    // Max dart value (Shackled)
+  }
+
+  // Max dart value (Shackled) — deliberately applied in its OWN pass, after
+  // every other effect (including every multiplier) has already run, not
+  // inside the per-effect loop above. Effects were applied in cast order:
+  // if a maxDartValue cap happened to be cast before a later
+  // allDartsMultiplier, the multiplier ran on the already-capped value and
+  // could push it straight back over the cap (e.g. Shackled capping a T20
+  // to 50, then a same-turn Iron Will's ×1.2 producing floor(50*1.2)=60 —
+  // the cap fully defeated by cast order). A hard ceiling should hold
+  // regardless of what order effects were cast in, so it's now resolved
+  // last against whatever every other effect produced.
+  for (const e of active) {
     if (e.maxDartValue !== undefined && value > e.maxDartValue) {
       value = e.maxDartValue; label = `${value} (${rawLabel} capped)`;
     }
-    // Min dart value (Safety Boost)
+  }
+  // Min dart value (Safety Boost) — same reasoning as the cap above, run
+  // last so a floor can't be undercut by a multiplier cast after it either.
+  for (const e of active) {
     if (e.minDartValue !== undefined && value > 0 && value < e.minDartValue) {
       value = e.minDartValue; label = `${value} (${rawLabel} raised)`;
     }
   }
-  
+
   // DEBUG: Log final modified dart (first dart of visit only)
   if (dartIdx === 0 && active.length > 0) {
   }
@@ -1044,9 +1070,11 @@ export function ccOpponentPenaltiesBlocked(effects: CCEffect[], player: 0 | 1): 
 export function ccValidateCheckoutOnlyCards(effects: CCEffect[], scores: [number, number], player: 0 | 1): CCEffect[] {
   return effects.map(e => {
     if (e.checkoutOnly && e.status === "active" && e.affectsPlayer === player) {
-      // Player must be on valid double-out finish (remaining <= 170)
+      // Player must be on a remaining score that's actually finishable on a
+      // double in 3 darts or fewer — not just anything <= 170 (159, 162,
+      // 163, 165, 166, 168 and 169 have no valid double-out route at all).
       const remaining = scores[player];
-      const isOnCheckout = remaining > 0 && remaining <= 170;
+      const isOnCheckout = isRealCheckoutScore(remaining);
       if (!isOnCheckout) {
         return { ...e, status: "expired" };
       }
@@ -1059,9 +1087,12 @@ export function ccValidateCheckoutOnlyCards(effects: CCEffect[], scores: [number
 export function ccValidateExactFinishCards(effects: CCEffect[], scores: [number, number], player: 0 | 1): CCEffect[] {
   return effects.map(e => {
     if (e.requiresExactFinish && e.status === "active" && e.affectsPlayer === player) {
-      // Only valid if remaining <= 50 (will require double finish)
+      // Only valid if remaining <= 50 AND actually finishable — remaining
+      // === 1 falls in range but (like the checkoutOnly case above) has no
+      // legal double-out finish at all, so it needs the same real-checkout
+      // check, not just the range bound.
       const remaining = scores[player];
-      const isExactFinish = remaining > 0 && remaining <= 50;
+      const isExactFinish = remaining <= 50 && isRealCheckoutScore(remaining);
       if (!isExactFinish) {
         return { ...e, status: "expired" };
       }

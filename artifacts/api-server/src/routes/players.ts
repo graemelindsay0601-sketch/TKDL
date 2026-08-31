@@ -7,6 +7,7 @@ import { calcTier } from "../lib/elo";
 import { gamerscoreForRarity, SHADOW_BOT_ACHIEVEMENT_DEFS } from "../lib/shadow-bot-achievements";
 import { logger } from "../lib/logger";
 import { TITLE_DEFINITIONS, getAllPlayerTitles, checkAndGrantTitles } from "../lib/titles";
+import { requireAdminSession } from "../middleware/requireAdminSession";
 
 const progressCache = new Map<number, { data: unknown; expiresAt: number }>();
 const PROGRESS_TTL_MS = 60_000;
@@ -21,7 +22,13 @@ const CreatePlayerBody = z.object({
 const UpdatePlayerBody = z.object({
   name:             z.string().min(1).optional(),
   isActive:         z.boolean().optional(),
-  status:           z.string().optional(),
+  // Was z.string() — accepted any string at all, so a typo'd value (wrong
+  // case, a stray space) would silently pass validation and desync that
+  // player from every status-based query in the app (leaderboard, practice
+  // eligibility, title checks — each reads this column with a slightly
+  // different subset of the three real values). These three are the only
+  // values anything in the codebase actually checks for.
+  status:           z.enum(["ACTIVE", "ELIMINATED", "INACTIVE"]).optional(),
   practiceEnabled:  z.boolean().optional(),
   tourEnabled:      z.boolean().optional(),
   m501Enabled:      z.boolean().optional(),
@@ -78,7 +85,16 @@ router.get("/players", async (_req, res): Promise<void> => {
   }
 });
 
-router.post("/players", async (req, res): Promise<void> => {
+// These three general-purpose CRUD routes had no auth at all — anyone who
+// could reach the public URL could delete, rename, or re-flag any player's
+// status with a plain curl request. The only frontend callers of any of
+// these are the admin pages (user-accounts-manager.tsx and admin/index.tsx),
+// so gating them behind the admin session matches how they're actually used
+// and closes the hole without changing legitimate behavior. (Note:
+// PATCH /players/:id/active-title and /notification-prefs are separate
+// sub-routes further down used by players' own account pages — this only
+// covers the general update route.)
+router.post("/players", requireAdminSession, async (req, res): Promise<void> => {
   const parsed = CreatePlayerBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const { name, playerId } = parsed.data;
@@ -102,7 +118,7 @@ router.get("/players/:id", async (req, res): Promise<void> => {
   res.json(player);
 });
 
-router.patch("/players/:id", async (req, res): Promise<void> => {
+router.patch("/players/:id", requireAdminSession, async (req, res): Promise<void> => {
   const params = IdParam.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = UpdatePlayerBody.safeParse(req.body);
@@ -112,13 +128,14 @@ router.patch("/players/:id", async (req, res): Promise<void> => {
   res.json(player);
 });
 
-router.delete("/players/:id", async (req, res): Promise<void> => {
-  const params = IdParam.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
-  const [player] = await db.delete(playersTable).where(eq(playersTable.id, params.data.id)).returning();
-  if (!player) { res.status(404).json({ error: "Player not found" }); return; }
-  res.sendStatus(204);
-});
+// A DELETE /players/:id used to live here too — no auth, and a bare
+// `db.delete(playersTable)` with none of the cascade cleanup that
+// DELETE /admin/players/:id does (achievements, season standings, titles,
+// shadow bot data, tour history, practice sessions, the linked user
+// account, matches, season champion references). It had zero frontend
+// callers — the admin UI already uses the admin route — so rather than
+// duplicate (and now have to keep in sync) a second, less-safe deletion
+// path, it's removed. Use DELETE /admin/players/:id.
 
 router.get("/players/:id/stats", async (req, res): Promise<void> => {
   const params = IdParam.safeParse(req.params);

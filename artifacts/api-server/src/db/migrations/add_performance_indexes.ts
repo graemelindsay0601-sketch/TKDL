@@ -10,10 +10,40 @@ import { db } from "@workspace/db";
 export async function addPerformanceIndexes() {
   console.log("📊 Adding performance indexes...");
 
+  // grantIfNotHas() (lib/achievements.ts) checked "does this player already
+  // have this achievement?" and inserted as two separate statements with no
+  // DB-level guard in between — two concurrent achievement checks for the
+  // same player (easily triggered by two rapid match-end award passes) could
+  // both pass the check and double-insert, double-granting coins/packs. A
+  // unique index is what makes the app's ON CONFLICT DO NOTHING guard (now
+  // used in grantIfNotHas) actually atomic. Dedupe any rows that already
+  // slipped through before this fix, so the index below has a chance to
+  // apply even on a database that already has duplicates.
+  try {
+    const dedupeResult = await db.execute(sql`
+      DELETE FROM player_achievements a USING player_achievements b
+      WHERE a.id > b.id
+        AND a.player_id = b.player_id
+        AND a.achievement_id = b.achievement_id
+    `);
+    console.log(`  🧹 Deduplicated player_achievements (removed ${dedupeResult.rowCount ?? 0} duplicate row(s))`);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (!errorMessage.includes("does not exist")) {
+      console.warn(`  ⚠️  player_achievements dedupe skipped: ${errorMessage}`);
+    }
+  }
+
   // Wrap each index individually so if one fails (missing table), others continue
   // This prevents app crash on missing tables
-  
+
   const indexes = [
+    {
+      name: "idx_player_achievements_unique",
+      query: sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_player_achievements_unique
+          ON player_achievements(player_id, achievement_id)`,
+      description: "player_achievements (unique player_id, achievement_id)",
+    },
     {
       name: "idx_card_clash_matches_player_1_id",
       query: sql`CREATE INDEX IF NOT EXISTS idx_card_clash_matches_player_1_id 

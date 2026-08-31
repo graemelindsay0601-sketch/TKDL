@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { challengeService } from "../services/challenge-service";
 import { db } from "@workspace/db";
 import { playerDailyChallenges, playerWeeklyChallenges, dailyChallenges, weeklyChallenges } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte, lt } from "drizzle-orm";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { paramStr } from "../lib/http";
 
@@ -84,9 +84,8 @@ router.post("/admin/daily/reset/:playerId", verifyAdminPin, async (req: Request,
       .where(
         and(
           eq(playerDailyChallenges.player_id, id),
-          ...(true ? [
-            // This is a simplified delete - in production you'd filter by date_assigned
-          ] : [])
+          gte(playerDailyChallenges.date_assigned, today),
+          lt(playerDailyChallenges.date_assigned, tomorrow)
         )
       );
     

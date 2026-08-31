@@ -3,16 +3,37 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable, achievementsTable, playerAchievementsTable } from "@workspace/db";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
+import crypto from "crypto";
 import { checkStatAchievements, checkMatchAchievements, retroactiveSweep } from "../lib/achievements";
 import { applyEloChange, calcTier } from "../lib/elo";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { createAnnouncement, getNotificationAnalytics } from "../services/notificationService";
 import { drawDoublesTeams } from "../lib/doublesDraw";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
-// ── PIN verification (stateless — PIN set via env var ADMIN_PIN, default 0601) ──
-const ADMIN_PIN = process.env.ADMIN_PIN ?? "0601";
+// ── PIN verification (stateless — PIN set via env var ADMIN_PIN) ────────────
+// This used to fall back to a hardcoded "0601" if ADMIN_PIN was ever unset —
+// meaning the admin gate for the ENTIRE app (every /admin/* route, on a
+// public internet URL) would silently fall open to a value sitting in this
+// very source file. Failing closed instead: with no ADMIN_PIN configured,
+// verify-pin always rejects rather than accepting a guessable default.
+const ADMIN_PIN = process.env.ADMIN_PIN;
+if (!ADMIN_PIN) {
+  logger.warn("ADMIN_PIN is not set — admin login is disabled until it's configured in the environment.");
+}
+
+// Plain === leaks timing information proportional to how many leading
+// characters match. Not very exploitable over a network for a 4-digit PIN
+// (especially behind the 10-attempts/15-min limiter below), but it's a free
+// fix: compare with a fixed-time algorithm instead.
+function safeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 const pinRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -26,7 +47,7 @@ const pinRateLimit = rateLimit({
 
 router.post("/admin/verify-pin", pinRateLimit, (req, res): void => {
   const { pin } = req.body ?? {};
-  if (pin === ADMIN_PIN) {
+  if (ADMIN_PIN && typeof pin === "string" && safeCompare(pin, ADMIN_PIN)) {
     (req.session as any).isAdmin = true;
     req.session.save(() => {});
     res.json({ ok: true });
@@ -162,7 +183,10 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
   origL.seasonGamesPlayed = Math.max(0, origL.seasonGamesPlayed - 1);
   origL.careerLosses      = Math.max(0, origL.careerLosses - 1);
   origL.careerGamesPlayed = Math.max(0, origL.careerGamesPlayed - 1);
-  if (loserWasElim) origL.status = "ACTIVE";
+  if (loserWasElim) {
+    origL.status = "ACTIVE";
+    origW.eliminationsCount = Math.max(0, origW.eliminationsCount - 1);
+  }
 
   const newW = pm.get(winnerId)!;
   const newL = pm.get(loserId)!;
@@ -186,7 +210,10 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
   newL.careerLosses      = newL.careerLosses + 1;
   newL.careerGamesPlayed = newL.careerGamesPlayed + 1;
   newL.careerPoints      = newL.careerPoints - stake;
-  if (newLoserElim) newL.status = "ELIMINATED";
+  if (newLoserElim) {
+    newL.status = "ELIMINATED";
+    newW.eliminationsCount = newW.eliminationsCount + 1;
+  }
 
   for (const p of pm.values()) {
     await db.update(playersTable).set({
@@ -200,6 +227,7 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
       careerGamesPlayed: p.careerGamesPlayed,
       careerPoints:      p.careerPoints,
       status:            p.status,
+      eliminationsCount: p.eliminationsCount,
     }).where(eq(playersTable.id, p.id));
   }
 
@@ -227,22 +255,30 @@ router.delete("/admin/players/:id", async (req, res): Promise<void> => {
     .from(playersTable).where(eq(playersTable.id, playerId));
   if (!player) { res.status(404).json({ error: "Player not found" }); return; }
 
-  await db.execute(sql`DELETE FROM player_achievements        WHERE player_id = ${playerId}`);
-  await db.execute(sql`DELETE FROM season_standings           WHERE player_id = ${playerId}`);
-  await db.execute(sql`DELETE FROM player_titles              WHERE player_id = ${playerId}`);
-  await db.execute(sql`DELETE FROM shadow_bot_achievements    WHERE player_id = ${playerId}`);
-  await db.execute(sql`DELETE FROM player_tour_achievements   WHERE player_id = ${playerId}`);
-  await db.execute(sql`DELETE FROM tour_trophies              WHERE player_id = ${playerId}`);
-  await db.execute(sql`DELETE FROM player_tour_runs           WHERE player_id = ${playerId}`);
-  await db.execute(sql`DELETE FROM practice_sessions          WHERE player1_id = ${playerId} OR player2_id = ${playerId}`);
-  await db.execute(sql`DELETE FROM users                      WHERE player_id = ${playerId}`);
+  // This cascade is 12 separate statements across 9 tables with no FK-level
+  // ON DELETE CASCADE backing it up — previously unwrapped, so a crash or DB
+  // error partway through (e.g. after clearing achievements but before the
+  // player row itself is deleted) left the player half-deleted: still
+  // present, but missing achievement/title/tour history with no way to tell
+  // that happened short of noticing it. A transaction makes it all-or-nothing.
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`DELETE FROM player_achievements        WHERE player_id = ${playerId}`);
+    await tx.execute(sql`DELETE FROM season_standings           WHERE player_id = ${playerId}`);
+    await tx.execute(sql`DELETE FROM player_titles              WHERE player_id = ${playerId}`);
+    await tx.execute(sql`DELETE FROM shadow_bot_achievements    WHERE player_id = ${playerId}`);
+    await tx.execute(sql`DELETE FROM player_tour_achievements   WHERE player_id = ${playerId}`);
+    await tx.execute(sql`DELETE FROM tour_trophies              WHERE player_id = ${playerId}`);
+    await tx.execute(sql`DELETE FROM player_tour_runs           WHERE player_id = ${playerId}`);
+    await tx.execute(sql`DELETE FROM practice_sessions          WHERE player1_id = ${playerId} OR player2_id = ${playerId}`);
+    await tx.execute(sql`DELETE FROM users                      WHERE player_id = ${playerId}`);
 
-  await db.delete(matchesTable).where(eq(matchesTable.winnerId, playerId));
-  await db.delete(matchesTable).where(eq(matchesTable.loserId, playerId));
+    await tx.delete(matchesTable).where(eq(matchesTable.winnerId, playerId));
+    await tx.delete(matchesTable).where(eq(matchesTable.loserId, playerId));
 
-  await db.execute(sql`UPDATE seasons SET champion_id = NULL, champion_name = NULL WHERE champion_id = ${playerId}`);
+    await tx.execute(sql`UPDATE seasons SET champion_id = NULL, champion_name = NULL WHERE champion_id = ${playerId}`);
 
-  await db.delete(playersTable).where(eq(playersTable.id, playerId));
+    await tx.delete(playersTable).where(eq(playersTable.id, playerId));
+  });
 
   req.log.info({ playerId, name: player.name }, "Player deleted by admin");
   res.json({ ok: true, deleted: player.name });

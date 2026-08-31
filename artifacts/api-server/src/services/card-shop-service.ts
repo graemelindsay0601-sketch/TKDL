@@ -5,7 +5,7 @@ import {
   cardDefinitionsTable,
   cardPityTable,
 } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 
 // The callback passed to db.transaction() receives a PgTransaction, not the
 // top-level `db` — it can run every query db can, but lacks db's `$client`
@@ -42,11 +42,16 @@ export async function purchasePack(
   // error), the currency deduction above it had already committed, taking
   // the player's coins/tokens with fewer or no cards delivered in return.
   return await db.transaction(async (tx) => {
-    // Check player currency
+    // Check player currency. FOR UPDATE locks this row for the rest of the
+    // transaction — without it, two concurrent purchases (e.g. double-tapping
+    // "buy" or two browser tabs) could both read the same pre-purchase
+    // balance under READ COMMITTED and both pass the affordability check,
+    // letting a player spend the same coins twice.
     const playerCurrency = await tx
       .select()
       .from(playerCurrencyTable)
       .where(eq(playerCurrencyTable.playerId, playerId))
+      .for("update")
       .limit(1);
 
     if (!playerCurrency[0]) {
@@ -241,24 +246,28 @@ export async function getPlayerCurrency(playerId: number) {
 }
 
 export async function addCoinsToPlayer(playerId: number, amount: number) {
-  const playerCurrency = await getPlayerCurrency(playerId);
-
-  if (!playerCurrency.id) {
-    await db.insert(playerCurrencyTable).values({
+  // Single atomic upsert instead of read-then-write: two concurrent awards to
+  // the same player (e.g. a match-win coin grant firing alongside an
+  // achievement grant) used to both read the same starting balance and one
+  // credit could silently overwrite the other. onConflictDoUpdate with a SQL
+  // increment expression makes the whole read-modify-write happen in one
+  // statement, atomically, on the DB side. playerId has a unique constraint
+  // so this always targets exactly one row.
+  await db
+    .insert(playerCurrencyTable)
+    .values({
       playerId,
       cardPoints: amount,
       lifetimeCoinsEarned: amount,
-    });
-  } else {
-    await db
-      .update(playerCurrencyTable)
-      .set({
-        cardPoints: (playerCurrency.cardPoints || 0) + amount,
-        lifetimeCoinsEarned: (playerCurrency.lifetimeCoinsEarned || 0) + amount,
+    })
+    .onConflictDoUpdate({
+      target: playerCurrencyTable.playerId,
+      set: {
+        cardPoints: sql`${playerCurrencyTable.cardPoints} + ${amount}`,
+        lifetimeCoinsEarned: sql`${playerCurrencyTable.lifetimeCoinsEarned} + ${amount}`,
         updatedAt: new Date(),
-      })
-      .where(eq(playerCurrencyTable.playerId, playerId));
-  }
+      },
+    });
 }
 
 /**

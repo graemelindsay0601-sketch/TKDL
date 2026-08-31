@@ -39,6 +39,8 @@ const AssignPlayerTeamBody = z.object({
 
 const router = Router();
 
+class ShiftWarsConflictError extends Error {}
+
 // ── Team standings + roster ─────────────────────────────────────────────────
 
 router.get("/shift-wars/teams", async (_req, res): Promise<void> => {
@@ -149,47 +151,63 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
 
   if (winnerTeamId === loserTeamId) { res.status(400).json({ error: "A team cannot play itself" }); return; }
 
-  const teamRows = await db.execute(sql`SELECT * FROM shift_wars_teams WHERE id IN (${winnerTeamId}, ${loserTeamId})`);
-  const teams = teamRows.rows as any[];
-  const winner = teams.find(t => t.id === winnerTeamId);
-  const loser  = teams.find(t => t.id === loserTeamId);
+  // Locked transaction for the same reason as doubles/matches.ts: reading
+  // team balances, computing new ones in JS, and writing them back as
+  // separate unguarded statements lets two concurrent submissions for the
+  // same team race and lose one match's points to the other.
+  try {
+    const { match, winnerName, loserName } = await db.transaction(async (tx) => {
+      const teamRows = await tx.execute(sql`SELECT * FROM shift_wars_teams WHERE id IN (${winnerTeamId}, ${loserTeamId}) FOR UPDATE`);
+      const teams = teamRows.rows as any[];
+      const winner = teams.find(t => t.id === winnerTeamId);
+      const loser  = teams.find(t => t.id === loserTeamId);
 
-  if (!winner || !loser) { res.status(400).json({ error: "One or both teams not found" }); return; }
+      if (!winner || !loser) throw new ShiftWarsConflictError("One or both teams not found");
 
-  const stakeError = validateStake(
-    stake,
-    { points: winner.points, name: winner.name },
-    { points: loser.points, name: loser.name },
-  );
-  if (stakeError) { res.status(400).json({ error: stakeError }); return; }
+      const stakeError = validateStake(
+        stake,
+        { points: winner.points, name: winner.name },
+        { points: loser.points, name: loser.name },
+      );
+      if (stakeError) throw new ShiftWarsConflictError(stakeError);
 
-  const { newWinnerPoints, newLoserPoints } = applyWager(
-    stake,
-    { points: winner.points },
-    { points: loser.points },
-  );
+      const { newWinnerPoints, newLoserPoints } = applyWager(
+        stake,
+        { points: winner.points },
+        { points: loser.points },
+      );
 
-  await db.execute(sql`
-    UPDATE shift_wars_teams SET
-      points = ${newWinnerPoints},
-      peak_points = GREATEST(peak_points, ${newWinnerPoints}),
-      wins = wins + 1
-    WHERE id = ${winner.id}
-  `);
-  await db.execute(sql`
-    UPDATE shift_wars_teams SET
-      points = ${newLoserPoints},
-      losses = losses + 1
-    WHERE id = ${loser.id}
-  `);
+      await tx.execute(sql`
+        UPDATE shift_wars_teams SET
+          points = ${newWinnerPoints},
+          peak_points = GREATEST(peak_points, ${newWinnerPoints}),
+          wins = wins + 1
+        WHERE id = ${winner.id}
+      `);
+      await tx.execute(sql`
+        UPDATE shift_wars_teams SET
+          points = ${newLoserPoints},
+          losses = losses + 1
+        WHERE id = ${loser.id}
+      `);
 
-  const [match] = (await db.execute(sql`
-    INSERT INTO shift_wars_matches (winner_team_id, loser_team_id, stake, game_type, notes)
-    VALUES (${winner.id}, ${loser.id}, ${stake}, ${gameType}, ${notes ?? null})
-    RETURNING *
-  `)).rows as any[];
+      const [match] = (await tx.execute(sql`
+        INSERT INTO shift_wars_matches (winner_team_id, loser_team_id, stake, game_type, notes)
+        VALUES (${winner.id}, ${loser.id}, ${stake}, ${gameType}, ${notes ?? null})
+        RETURNING *
+      `)).rows as any[];
 
-  res.status(201).json({ match, winnerName: winner.name, loserName: loser.name });
+      return { match, winnerName: winner.name, loserName: loser.name };
+    });
+
+    res.status(201).json({ match, winnerName, loserName });
+  } catch (err) {
+    if (err instanceof ShiftWarsConflictError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 // ── Admin: edit a team's points directly ────────────────────────────────────

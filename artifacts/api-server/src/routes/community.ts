@@ -136,7 +136,16 @@ router.post("/community/posts", async (req, res): Promise<void> => {
 });
 
 // ── POST /community/auto-post — system trigger ────────────────────────────────
+// Despite the name, this was reachable by anyone: no auth, and playerId came
+// straight from the request body, so any anonymous request could post a fake
+// "🎯 MAXIMUM! 180!" (or high-checkout) announcement attributed to any player
+// and fire a real push notification to them — pure spam/impersonation. No
+// frontend page calls this HTTP route at all (real match-triggered posts go
+// through the createAutoPost() function directly, in-process, from
+// matches.ts) — it's admin-gated rather than removed in case it's meant for
+// a future manual/admin trigger.
 router.post("/community/auto-post", async (req, res): Promise<void> => {
+  if (!sessionIsAdmin(req)) { res.status(403).json({ error: "Admin required" }); return; }
   if (!await featureEnabled("community_enabled")) {
     res.json({ ok: false, reason: "community disabled" }); return;
   }

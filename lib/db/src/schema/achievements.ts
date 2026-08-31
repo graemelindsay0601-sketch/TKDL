@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, boolean, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -29,6 +29,11 @@ export const playerAchievementsTable = pgTable("player_achievements", {
 }, (t) => [
   index("pa_player_id_idx").on(t.playerId),
   index("pa_achievement_id_idx").on(t.achievementId),
+  // A player can only unlock a given achievement once — this is also
+  // relied on (as idx_player_achievements_unique, created idempotently at
+  // boot in add_performance_indexes.ts) to make grantIfNotHas's
+  // onConflictDoNothing() an atomic guard against double-granting.
+  uniqueIndex("pa_player_achievement_unique").on(t.playerId, t.achievementId),
 ]);
 
 export const seasonStandingsTable = pgTable("season_standings", {

@@ -68,20 +68,18 @@ export async function getActiveCardClashSeason() {
   return null;
 }
 
-export async function startCardClashMatch(
-  gameMode: "X01" | "CRICKET",
-  player1Id: number,
-  player2Id: number,
-  equippedCards?: {
-    player1?: Array<{ cardId: string; cardType: "GOOD" | "BAD" }>;
-    player2?: Array<{ cardId: string; cardType: "GOOD" | "BAD" }>;
-  },
-  isChaosMatch: boolean = false
-) {
-  const p1Cards = equippedCards?.player1 ?? [];
-  const p2Cards = equippedCards?.player2 ?? [];
+// The card_clash_matches self-heal DDL below used to run on every single
+// match start (8 ALTER TABLE statements per request — each one taking a
+// brief ACCESS EXCLUSIVE lock even as a no-op, so concurrent match starts
+// serialize behind each other on this table for no reason once the schema
+// has already been fixed once). It only ever needs to run once per server
+// process — after that the columns/constraints are already correct — so
+// it's now gated behind a module-level flag, matching the once-at-boot
+// self-heal pattern used elsewhere in the app.
+let cardClashMatchesSchemaEnsured = false;
 
-  logger.info({ gameMode, player1Id, player2Id }, "Starting Card Clash match");
+async function ensureCardClashMatchesSchema(): Promise<void> {
+  if (cardClashMatchesSchemaEnsured) return;
 
   // Ensure schema is up to date - make season_id nullable
   try {
@@ -116,6 +114,26 @@ export async function startCardClashMatch(
       // Column may already exist
     }
   }
+
+  cardClashMatchesSchemaEnsured = true;
+}
+
+export async function startCardClashMatch(
+  gameMode: "X01" | "CRICKET",
+  player1Id: number,
+  player2Id: number,
+  equippedCards?: {
+    player1?: Array<{ cardId: string; cardType: "GOOD" | "BAD" }>;
+    player2?: Array<{ cardId: string; cardType: "GOOD" | "BAD" }>;
+  },
+  isChaosMatch: boolean = false
+) {
+  const p1Cards = equippedCards?.player1 ?? [];
+  const p2Cards = equippedCards?.player2 ?? [];
+
+  logger.info({ gameMode, player1Id, player2Id }, "Starting Card Clash match");
+
+  await ensureCardClashMatchesSchema();
 
   // INSERT without season_id (Card Clash is standalone, no seasons)
   try {

@@ -804,6 +804,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     }
   }, [cardEffects]);
 
+  // Bot dart timers for the current visit — see the bot-turn effect below.
+  // handleWin clears these the instant a leg is won so a dart the bot had
+  // pre-scheduled can't fire into the next leg's already-transitioning state.
+  const botTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
   // Practice stat accumulators (refs = no re-render, always fresh in callbacks)
   const p1StatsRef = useRef({ darts: 0, score: 0, s100s: 0, s140s: 0, s170s: 0, s180s: 0, coAttempts: 0, coHits: 0, dartLog: [] as DartThrow[] });
   // P2 stats — only meaningful in human-vs-human (no bot) sessions
@@ -837,6 +842,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   }, [turn, bustResetTo]);
 
   const handleWin = useCallback((winnerIdx: 0|1, darts: Dart[]) => {
+    // Cancel any bot darts still scheduled for this visit — see
+    // botTimersRef's comment at the bot-turn effect. Without this, a bot
+    // dart planned before the winning dart (but scheduled to fire after it)
+    // could land a moment later into the already-transitioning next leg.
+    botTimersRef.current.forEach(clearTimeout);
+    botTimersRef.current = [];
     matchLoggerRef.current.log("leg_won", { winner: winnerIdx, finishingDarts: darts.map(d => d.label) });
     setVisitDarts(darts);
     const getStats = () => ({
@@ -1034,10 +1045,24 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         onPracticeStats?.(getStats());
       }, 200);
     }
-  }, [legs, legsNeeded, setsNeeded, setsToWin, legStarter, startingScore, doubleIn, onWin, onPracticeStats, setWins]);
+  // isCardClash/scores/p1Cards/p2Cards/activeEffects were missing here, so
+  // this callback only got recreated on the deps already listed (mainly
+  // legStarter, once per leg boundary) — its Perfect Game shutout check
+  // (`scores[opp] === startingScore`) was reading a `scores` snapshot frozen
+  // from the START of the current leg, not its actual end, making the check
+  // close to tautologically true for any win and blind to a Chaos-mode
+  // Perfect Game drawn mid-leg. Matches the deps CricketScorer's equivalent
+  // resetForLeg already correctly includes for the same check.
+  }, [legs, legsNeeded, setsNeeded, setsToWin, legStarter, startingScore, doubleIn, onWin, onPracticeStats, setWins, isCardClash, scores, p1Cards, p2Cards, activeEffects]);
 
   const handleDart = useCallback((dart: Dart) => {
-    if (bust || visitDarts.length >= 3) return;
+    // Checkout Confidence grants one bonus 4th dart for the visit after a
+    // missed double-finish (see freeRetryOnDoubleMiss below) — this cap has
+    // to widen to match, or that bonus dart can never actually be thrown:
+    // the retry logic sets visitDarts to length 3 intending a 4th dart next,
+    // but this guard used to see length >= 3 and swallow every further tap,
+    // permanently stalling the turn.
+    if (bust || visitDarts.length >= 3 + freeRetriesUsed[turn]) return;
 
     matchLoggerRef.current.log("dart_thrown", { player: turn, segment: dart.segment, multiplier: dart.multiplier, value: dart.value, label: dart.label, remainingBefore: scores[turn] });
 
@@ -1055,14 +1080,23 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       dart = { ...dart, multiplier: 1 as const, value: dart.segment, label: String(dart.segment) };
     }
 
-    // Double-in: before started, only doubles open the scoring
+    // Double-in: before started, only doubles open the scoring. A dart that
+    // doesn't open you is worth 0 and ends there — but the double that DOES
+    // open you is real darts rules' first scored dart of the leg, not just
+    // an "unlock" event, so it must keep its actual value and fall through
+    // to the normal scoring below (previously this always zeroed the dart
+    // and returned early, silently discarding the 32-50 points a player's
+    // opening double is worth, every leg, forever).
     if (doubleIn && !started[turn]) {
       const isDouble = dart.multiplier === 2 || (dart.segment === 25 && dart.value === 50);
-      const nv: Dart[] = [...visitDarts, { ...dart, value: 0 }];
-      if (isDouble) { setStarted(prev => { const n=[...prev] as [boolean,boolean]; n[turn]=true; return n; }); }
-      setVisitDarts(nv);
-      if (nv.length === 3) { setVisitDarts([]); setTurn(t => soloMode ? 0 : (t===0?1:0)); }
-      return;
+      if (!isDouble) {
+        const nv: Dart[] = [...visitDarts, { ...dart, value: 0 }];
+        setVisitDarts(nv);
+        if (nv.length === 3) { setVisitDarts([]); setTurn(t => soloMode ? 0 : (t===0?1:0)); }
+        return;
+      }
+      setStarted(prev => { const n=[...prev] as [boolean,boolean]; n[turn]=true; return n; });
+      // Fall through — this dart scores normally below.
     }
 
     // Track checkout opportunities (≤170 remaining at start of visit)
@@ -1345,7 +1379,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       if (isCardClash) setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
       setTurn(t => soloMode ? 0 : (t===0?1:0));
     }
-  }, [bust, visitDarts, turn, started, doubleIn, scores, legWins, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut, noTrebles, isCardClash, activeEffects, isChaosLabMode, activeBoardMarks]);
+  }, [bust, visitDarts, turn, started, doubleIn, scores, legWins, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut, noTrebles, isCardClash, activeEffects, isChaosLabMode, activeBoardMarks, freeRetriesUsed]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => {
@@ -1536,6 +1570,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     const t1 = safeTimeout(() => handleDartRef.current(d1), 700);
     const t2 = safeTimeout(() => handleDartRef.current(d2), 1400);
     const t3 = safeTimeout(() => handleDartRef.current(d3), 2100);
+    // Bot darts are pre-planned for the whole visit up front on fixed
+    // timers, but a Card Clash effect can make an intended "planned miss"
+    // actually score (e.g. Steady Hand), letting the bot finish the leg
+    // early. This effect's own cleanup only runs once `turn` changes, which
+    // doesn't happen until resetForLeg's own delayed callback well after the
+    // win — so the still-scheduled dart(s) used to fire into the leg while
+    // it was mid-transition. Stashing the ids here lets handleWin cancel
+    // them the instant it actually wins, not up to ~1.5s later.
+    botTimersRef.current = [t1, t2, t3];
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 

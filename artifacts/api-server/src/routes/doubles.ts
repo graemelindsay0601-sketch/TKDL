@@ -18,6 +18,8 @@ const RecordDoublesMatchBody = z.object({
 
 const router = Router();
 
+class DoublesConflictError extends Error {}
+
 // ── Team standings for a season ─────────────────────────────────────────────────
 
 router.get("/seasons/:id/doubles/teams", async (req, res): Promise<void> => {
@@ -106,55 +108,75 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
   const [activeSeason] = await db.select().from(seasonsTable).where(eq(seasonsTable.isActive, true)).limit(1);
   if (!activeSeason) { res.status(400).json({ error: "No active season found" }); return; }
 
-  const teamRows = await db.execute(sql`
-    SELECT * FROM doubles_teams WHERE id IN (${winnerTeamId}, ${loserTeamId}) AND season_id = ${activeSeason.id}
-  `);
-  const teams = teamRows.rows as any[];
-  const winner = teams.find(t => t.id === winnerTeamId);
-  const loser  = teams.find(t => t.id === loserTeamId);
+  // Everything from here on reads two team rows, computes new balances in JS,
+  // then writes them back — that read-modify-write must happen inside a
+  // single locked transaction, or two doubles matches submitted for the same
+  // team close together (or the process crashing mid-way) could either lose
+  // one match's stat gains to the other, or leave the points/Elo update
+  // applied but the match row never inserted. FOR UPDATE locks both team
+  // rows for the rest of the transaction so a concurrent submission for
+  // either team has to wait for this one to commit before it reads.
+  try {
+    const { match, eloChange, loserEliminated } = await db.transaction(async (tx) => {
+      const teamRows = await tx.execute(sql`
+        SELECT * FROM doubles_teams WHERE id IN (${winnerTeamId}, ${loserTeamId}) AND season_id = ${activeSeason.id} FOR UPDATE
+      `);
+      const teams = teamRows.rows as any[];
+      const winner = teams.find(t => t.id === winnerTeamId);
+      const loser  = teams.find(t => t.id === loserTeamId);
 
-  if (!winner || !loser) { res.status(400).json({ error: "One or both teams not found in the active season's doubles event" }); return; }
-  if (winner.is_eliminated) { res.status(400).json({ error: `${winner.team_name} has been eliminated from doubles and cannot play` }); return; }
-  if (loser.is_eliminated)  { res.status(400).json({ error: `${loser.team_name} has been eliminated from doubles and cannot play` }); return; }
+      if (!winner || !loser) throw new DoublesConflictError("One or both teams not found in the active season's doubles event");
+      if (winner.is_eliminated) throw new DoublesConflictError(`${winner.team_name} has been eliminated from doubles and cannot play`);
+      if (loser.is_eliminated)  throw new DoublesConflictError(`${loser.team_name} has been eliminated from doubles and cannot play`);
 
-  const stakeError = validateStake(
-    stake,
-    { points: winner.points, name: winner.team_name },
-    { points: loser.points, name: loser.team_name },
-  );
-  if (stakeError) { res.status(400).json({ error: stakeError }); return; }
+      const stakeError = validateStake(
+        stake,
+        { points: winner.points, name: winner.team_name },
+        { points: loser.points, name: loser.team_name },
+      );
+      if (stakeError) throw new DoublesConflictError(stakeError);
 
-  const { newWinnerPoints, newLoserPoints, loserEliminated } = applyWager(
-    stake,
-    { points: winner.points },
-    { points: loser.points },
-  );
-  const { newWinnerElo, newLoserElo, change: eloChange } = applyEloChange(winner.elo, loser.elo);
+      const { newWinnerPoints, newLoserPoints, loserEliminated } = applyWager(
+        stake,
+        { points: winner.points },
+        { points: loser.points },
+      );
+      const { newWinnerElo, newLoserElo, change: eloChange } = applyEloChange(winner.elo, loser.elo);
 
-  await db.execute(sql`
-    UPDATE doubles_teams SET
-      points = ${newWinnerPoints},
-      peak_points = GREATEST(peak_points, ${newWinnerPoints}),
-      elo = ${newWinnerElo},
-      wins = wins + 1
-    WHERE id = ${winner.id}
-  `);
-  await db.execute(sql`
-    UPDATE doubles_teams SET
-      points = ${newLoserPoints},
-      elo = ${newLoserElo},
-      losses = losses + 1,
-      is_eliminated = is_eliminated OR ${loserEliminated}
-    WHERE id = ${loser.id}
-  `);
+      await tx.execute(sql`
+        UPDATE doubles_teams SET
+          points = ${newWinnerPoints},
+          peak_points = GREATEST(peak_points, ${newWinnerPoints}),
+          elo = ${newWinnerElo},
+          wins = wins + 1
+        WHERE id = ${winner.id}
+      `);
+      await tx.execute(sql`
+        UPDATE doubles_teams SET
+          points = ${newLoserPoints},
+          elo = ${newLoserElo},
+          losses = losses + 1,
+          is_eliminated = is_eliminated OR ${loserEliminated}
+        WHERE id = ${loser.id}
+      `);
 
-  const [match] = (await db.execute(sql`
-    INSERT INTO doubles_matches (season_id, winner_team_id, loser_team_id, stake, elo_change, game_type, notes)
-    VALUES (${activeSeason.id}, ${winner.id}, ${loser.id}, ${stake}, ${eloChange}, ${gameType}, ${notes ?? null})
-    RETURNING *
-  `)).rows as any[];
+      const [match] = (await tx.execute(sql`
+        INSERT INTO doubles_matches (season_id, winner_team_id, loser_team_id, stake, elo_change, game_type, notes)
+        VALUES (${activeSeason.id}, ${winner.id}, ${loser.id}, ${stake}, ${eloChange}, ${gameType}, ${notes ?? null})
+        RETURNING *
+      `)).rows as any[];
 
-  res.status(201).json({ match, eloChange, loserEliminated });
+      return { match, eloChange, loserEliminated };
+    });
+
+    res.status(201).json({ match, eloChange, loserEliminated });
+  } catch (err) {
+    if (err instanceof DoublesConflictError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 export default router;

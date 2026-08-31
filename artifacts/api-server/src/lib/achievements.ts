@@ -375,9 +375,18 @@ async function grantIfNotHas(playerId: number, key: string): Promise<boolean> {
       eq(playerAchievementsTable.achievementId, ach.id)
     ));
   if (existing) return false;
-  
-  // Award the achievement
-  await db.insert(playerAchievementsTable).values({ playerId, achievementId: ach.id });
+
+  // The SELECT above is just a fast-path early exit — it can't stop two
+  // concurrent calls for the same player+achievement both passing it. The
+  // insert itself is the real guard: onConflictDoNothing (backed by the
+  // pa_player_achievement_unique index) makes the grant atomic, so at most
+  // one of two racing calls actually inserts a row and only that one goes
+  // on to award rewards/notify.
+  const [inserted] = await db.insert(playerAchievementsTable)
+    .values({ playerId, achievementId: ach.id })
+    .onConflictDoNothing()
+    .returning({ id: playerAchievementsTable.id });
+  if (!inserted) return false;
   logger.info({ playerId, key }, "Achievement unlocked");
   
   // Award rewards (coins/packs)

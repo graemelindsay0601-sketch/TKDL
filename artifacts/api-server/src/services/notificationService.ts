@@ -230,22 +230,43 @@ export async function getNotificationPreferences(playerId: number): Promise<any>
 }
 
 /**
- * Update notification preferences
+ * Update notification preferences.
+ *
+ * This used to build the column list and values by string-concatenating
+ * `prefs` straight into raw SQL text (both the column NAME and the value —
+ * the one place in the codebase that didn't follow the tagged-template
+ * parameterization used everywhere else). Nothing currently calls this
+ * function — the reachable route, PATCH /players/:id/notification-prefs in
+ * routes/players.ts, has its own properly-parameterized version — but it's
+ * real, exploitable SQL injection the moment anything wires user input
+ * into `prefs`, so it's fixed to use the same allowlisted, parameterized
+ * upsert as the reachable route rather than left as a landmine.
  */
+const NOTIFICATION_PREF_KEYS = [
+  "push_enabled", "match_results", "rank_changes",
+  "coach_tips", "announcements", "private_mode",
+] as const;
+
 export async function updateNotificationPreferences(
   playerId: number,
-  prefs: Partial<any>
+  prefs: Partial<Record<(typeof NOTIFICATION_PREF_KEYS)[number], boolean>>
 ): Promise<void> {
-  const updateFields = Object.entries(prefs)
-    .map(([key, value]) => `${key} = ${value === true ? "true" : value === false ? "false" : `'${value}'`}`)
-    .join(", ");
-
+  const p = prefs;
   await db.execute(sql`
-    INSERT INTO notification_preferences (player_id)
-    VALUES (${playerId})
+    INSERT INTO notification_preferences (player_id, push_enabled, match_results, rank_changes, coach_tips, announcements, private_mode)
+    VALUES (
+      ${playerId},
+      ${p.push_enabled ?? true}, ${p.match_results ?? true}, ${p.rank_changes ?? true},
+      ${p.coach_tips ?? true}, ${p.announcements ?? true}, ${p.private_mode ?? false}
+    )
     ON CONFLICT (player_id) DO UPDATE SET
-      ${sql.raw(updateFields)},
-      updated_at = NOW()
+      push_enabled  = COALESCE(${p.push_enabled ?? null}, notification_preferences.push_enabled),
+      match_results = COALESCE(${p.match_results ?? null}, notification_preferences.match_results),
+      rank_changes  = COALESCE(${p.rank_changes ?? null}, notification_preferences.rank_changes),
+      coach_tips    = COALESCE(${p.coach_tips ?? null}, notification_preferences.coach_tips),
+      announcements = COALESCE(${p.announcements ?? null}, notification_preferences.announcements),
+      private_mode  = COALESCE(${p.private_mode ?? null}, notification_preferences.private_mode),
+      updated_at    = NOW()
   `);
 }
 

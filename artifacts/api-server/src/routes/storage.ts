@@ -10,6 +10,28 @@ import { ObjectPermission } from "../lib/objectAcl";
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
+// Every upload entry point in the app (community photo posts, account/message
+// attachments) only ever offers an `accept="image/*"` file picker — so a
+// content-type outside this list can only arrive from a direct API call, not
+// normal use. Without this check, an uploaded file's client-supplied content
+// type was stored as-is and echoed back as the Content-Type response header
+// when served — meaning an upload of `Content-Type: text/html` (or
+// image/svg+xml, which can carry a <script>) would render as a live page
+// under the app's own origin instead of downloading as a photo, i.e. stored
+// XSS with no restriction stopping it.
+const ALLOWED_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
+
+function isAllowedImageType(contentType: string | undefined | null): boolean {
+  return !!contentType && ALLOWED_IMAGE_TYPES.has(contentType.toLowerCase().split(";")[0].trim());
+}
+
 /**
  * POST /storage/uploads/file — server-side proxy upload (avoids browser CORS)
  * Client sends raw file bytes; server proxies to GCS and returns objectPath.
@@ -23,6 +45,11 @@ router.post(
         (req.headers["x-file-type"] as string) ||
         req.headers["content-type"] ||
         "application/octet-stream";
+
+      if (!isAllowedImageType(contentType)) {
+        res.status(415).json({ error: "Only image uploads are allowed" });
+        return;
+      }
 
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
       const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
@@ -63,6 +90,11 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
 
   try {
     const { name, size, contentType } = parsed.data;
+
+    if (!isAllowedImageType(contentType)) {
+      res.status(415).json({ error: "Only image uploads are allowed" });
+      return;
+    }
 
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
