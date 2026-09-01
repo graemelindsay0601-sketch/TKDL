@@ -341,6 +341,7 @@ export interface RecentUnlock {
   unlocked_at: string;
   player_id: number;
   player_name: string;
+  achievement_key: string;
   achievement_name: string;
   icon?: string | null;
   rarity: string;

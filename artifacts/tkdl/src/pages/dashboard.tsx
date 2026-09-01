@@ -276,7 +276,7 @@ function AchievementsSection() {
           recent.map((u, i) => {
             const color = RARITY_COLORS[u.rarity] ?? "#9ca3af";
             return (
-              <Link key={i} href={`/players/${u.player_id}`}>
+              <Link key={i} href={`/achievements/core/${u.achievement_key}`}>
                 <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl cursor-pointer transition-all hover:-translate-y-0.5"
                   style={{ background: `${color}07`, border: `1px solid ${color}1a` }}>
                   <span className="text-xl leading-none shrink-0">{u.icon || "🎯"}</span>

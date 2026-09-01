@@ -1,30 +1,40 @@
 import { Router } from "express";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { db, seasonsTable, playersTable, seasonStandingsTable } from "@workspace/db";
 import { z } from "zod";
-import { performSeasonReset } from "../lib/seasonReset";
+import { performSeasonReset, performDoublesSeasonReset, performShiftWarsSeasonReset } from "../lib/seasonReset";
 import { calcTier } from "../lib/elo";
 import { computeIdentity } from "../lib/identity";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 
 const GetSeasonParams  = z.object({ id: z.coerce.number().int().positive() });
 const ResetSeasonBody  = z.object({ name: z.string().optional() });
+const LeagueTypeQuery  = z.object({ leagueType: z.enum(["singles", "doubles", "shift_wars"]).optional().default("singles") });
 
 const router = Router();
 
-router.get("/seasons", async (_req, res): Promise<void> => {
-  const seasons = await db.select().from(seasonsTable).orderBy(desc(seasonsTable.id));
+// Every existing caller of these two routes predates Doubles/Shift Wars
+// having their own season lifecycle and never passes leagueType, so
+// defaulting to "singles" keeps them all working unchanged.
+router.get("/seasons", async (req, res): Promise<void> => {
+  const leagueType = (LeagueTypeQuery.safeParse(req.query).data ?? { leagueType: "singles" as const }).leagueType;
+  const seasons = await db.select().from(seasonsTable)
+    .where(eq(seasonsTable.leagueType, leagueType))
+    .orderBy(desc(seasonsTable.id));
   const allPlayers = await db.select({ id: playersTable.id, name: playersTable.name }).from(playersTable);
   const playerMap = new Map(allPlayers.map(p => [p.id, p.name]));
   const enriched = seasons.map(s => ({
     ...s,
-    championName: s.championId ? (playerMap.get(s.championId) ?? null) : null,
+    championName: s.championId ? (playerMap.get(s.championId) ?? null) : s.championName,
   }));
   res.json(enriched);
 });
 
-router.get("/seasons/current", async (_req, res): Promise<void> => {
-  const [season] = await db.select().from(seasonsTable).where(eq(seasonsTable.isActive, true)).limit(1);
+router.get("/seasons/current", async (req, res): Promise<void> => {
+  const leagueType = (LeagueTypeQuery.safeParse(req.query).data ?? { leagueType: "singles" as const }).leagueType;
+  const [season] = await db.select().from(seasonsTable)
+    .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, leagueType)))
+    .limit(1);
   res.json(season ?? null);
 });
 
@@ -32,6 +42,22 @@ router.post("/seasons/reset", async (req, res): Promise<void> => {
   const parsed = ResetSeasonBody.safeParse(req.body ?? {});
   const overrideName = parsed.success ? parsed.data.name : undefined;
   const newSeason = await performSeasonReset(overrideName);
+  res.status(201).json(newSeason);
+});
+
+// Doubles and Shift Wars each get their own manual reset trigger now that
+// they run independent of the singles season — mirrors /seasons/reset above.
+router.post("/seasons/doubles/reset", async (req, res): Promise<void> => {
+  const parsed = ResetSeasonBody.safeParse(req.body ?? {});
+  const overrideName = parsed.success ? parsed.data.name : undefined;
+  const newSeason = await performDoublesSeasonReset(overrideName);
+  res.status(201).json(newSeason);
+});
+
+router.post("/seasons/shift-wars/reset", async (req, res): Promise<void> => {
+  const parsed = ResetSeasonBody.safeParse(req.body ?? {});
+  const overrideName = parsed.success ? parsed.data.name : undefined;
+  const newSeason = await performShiftWarsSeasonReset(overrideName);
   res.status(201).json(newSeason);
 });
 

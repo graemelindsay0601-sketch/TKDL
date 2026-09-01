@@ -133,7 +133,7 @@ export default function PlayerDetail() {
   const [doublesTeam, setDoublesTeam] = useState<any | null>(null);
   useEffect(() => {
     if (!playerId) return;
-    fetch("/api/seasons/current")
+    fetch("/api/seasons/current?leagueType=doubles")
       .then(r => r.json())
       .then(season => {
         if (!season?.id) return null;
@@ -383,7 +383,7 @@ export default function PlayerDetail() {
 
       {/* ══ DOUBLES EVENT ══ */}
       {doublesTeam && (
-        <Link href={`/seasons/${doublesTeam.seasonId}`} className="pdc-card p-4 flex items-center justify-between gap-4 hover:bg-white/[0.02] transition-colors"
+        <Link href={`/seasons/${doublesTeam.seasonId}?tab=doubles`} className="pdc-card p-4 flex items-center justify-between gap-4 hover:bg-white/[0.02] transition-colors"
           style={{ opacity: doublesTeam.isEliminated ? 0.6 : 1 }}>
           <div className="min-w-0">
             <div className="text-xs uppercase font-bold mb-1 flex items-center gap-1.5" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(0,102,255,0.7)", letterSpacing: "0.12em" }}>
@@ -508,9 +508,17 @@ export default function PlayerDetail() {
                   </div>
                   <div className="pb-4 flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: rc.color }}>
-                        {ev.title}
-                      </span>
+                      {ev.type === "achievement" && ev.achievementKey ? (
+                        <Link href={`/achievements/core/${ev.achievementKey}`}
+                          className="font-bold text-sm hover:underline"
+                          style={{ fontFamily: "Oswald, sans-serif", color: rc.color }}>
+                          {ev.title}
+                        </Link>
+                      ) : (
+                        <span className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: rc.color }}>
+                          {ev.title}
+                        </span>
+                      )}
                       {ev.rarity && (
                         <span className="text-[0.6rem] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider"
                           style={{ background: rc.bg, color: rc.color, border: `1px solid ${rc.color}44` }}>

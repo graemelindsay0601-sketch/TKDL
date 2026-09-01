@@ -1227,7 +1227,7 @@ components:
 
     RecentUnlock:
       type: object
-      required: [unlocked_at, player_id, player_name, achievement_name, rarity]
+      required: [unlocked_at, player_id, player_name, achievement_key, achievement_name, rarity]
       properties:
         unlocked_at:
           type: string
@@ -1235,6 +1235,8 @@ components:
         player_id:
           type: integer
         player_name:
+          type: string
+        achievement_key:
           type: string
         achievement_name:
           type: string

@@ -729,6 +729,7 @@ export const GetRecentAchievementsResponseItem = zod.object({
   "unlocked_at": zod.coerce.date(),
   "player_id": zod.number(),
   "player_name": zod.string(),
+  "achievement_key": zod.string(),
   "achievement_name": zod.string(),
   "icon": zod.string().nullish(),
   "rarity": zod.string()

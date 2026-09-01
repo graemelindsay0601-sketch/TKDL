@@ -47,7 +47,7 @@ function useDoublesTeamsForSubmit() {
 
   const reload = () => {
     setLoading(true);
-    fetch("/api/seasons/current")
+    fetch("/api/seasons/current?leagueType=doubles")
       .then(r => r.json())
       .then(season => {
         if (!season?.id) { setTeams([]); return null; }

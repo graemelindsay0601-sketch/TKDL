@@ -8,11 +8,19 @@
  * predictable: every effect a boss uses already works correctly in real
  * Card Clash matches today.
  *
- * Each boss has 2-3 "moves" that rotate leg by leg (leg 1 = move 0, leg 2 =
- * move 1, leg 3 = move 0 again, etc.) via BossBattleScorer's onLegStart
- * callback, so a fight has distinct phases instead of one flat penalty for
- * the whole match. Pure arcade — wins/losses here never touch real Elo or
- * league stats, same as Shadow League practice matches.
+ * Each boss has 2 "moves" that rotate leg by leg (leg 1 = move 0, leg 2 =
+ * move 1) via BossBattleScorer's onLegStart callback, so a fight has distinct
+ * phases instead of one flat penalty for the whole match. Pure arcade —
+ * wins/losses here never touch real Elo or league stats, same as Shadow
+ * League practice matches.
+ *
+ * Every fight is best of 3, so a leg 3 only ever gets played when the match
+ * is tied 1-1 — it's always the leg that actually decides the fight. Rather
+ * than just repeating move 0 again, each boss has an optional `enrageMove`
+ * that fires only on that decisive leg, stacking its established gimmick (or
+ * combining a couple of effects at once) into something nastier. This reuses
+ * the exact same CCEffect fields as the regular moves — no new mechanics,
+ * just a bigger dose of ones already proven in real Card Clash matches.
  */
 
 import type { CCEffect } from "./card-effect-engine";
@@ -37,6 +45,10 @@ export interface Boss {
   /** Ladder position — beat bosses in this order. */
   order: number;
   moves: BossMove[];
+  /** Fires instead of the regular rotation on the decisive leg (leg 3 of a
+   *  best-of-3, which only happens when the match is tied 1-1). Optional so
+   *  a boss without one just keeps rotating its regular moves. */
+  enrageMove?: BossMove;
 }
 
 export const BOSSES: Boss[] = [
@@ -63,6 +75,14 @@ export const BOSSES: Boss[] = [
         effects: [{ wildDartIndex: undefined as unknown as number }],
       },
     ],
+    enrageMove: {
+      name: "Panic Throw",
+      description: "Down to the wire: two of your three darts each visit go completely wide and score 0.",
+      // Same wildDartIndices mechanic as the "Wipeout" card, just used here
+      // instead of a single random miss — a fixed, harsher escalation of
+      // this boss's whole "your own throw betrays you" theme.
+      effects: [{ wildDartIndices: [1, 2] }],
+    },
   },
   {
     id: "old-jinx",
@@ -83,6 +103,11 @@ export const BOSSES: Boss[] = [
         effects: [{ maxDartValue: 50 }],
       },
     ],
+    enrageMove: {
+      name: "Full Jinx",
+      description: "The jinx doubles down: every dart is worth only half its real value this leg.",
+      effects: [{ allDartsMultiplier: 0.5 }],
+    },
   },
   {
     id: "the-warden",
@@ -103,6 +128,11 @@ export const BOSSES: Boss[] = [
         effects: [{ blockClosing: true }],
       },
     ],
+    enrageMove: {
+      name: "Iron Cage",
+      description: "Every hit only counts as a single mark this leg — trebles and doubles are wasted.",
+      effects: [{ sluggishMarks: true }],
+    },
   },
   {
     id: "lockdown",
@@ -125,11 +155,20 @@ export const BOSSES: Boss[] = [
         effects: [{ penaltyPerDart: 10 }],
       },
     ],
+    enrageMove: {
+      name: "Maximum Security",
+      description: "Only one number scores this leg, and every dart still costs you 15 — hit or miss.",
+      // Combines both regular moves into one, at a harsher rate — same
+      // single-effect-object-with-multiple-fields pattern the underlying
+      // engine already uses for cards like "Match Pressure". lockdownSegment
+      // is randomized per leg below, same as the regular "Locked In" move.
+      effects: [{ lockdownSegment: undefined as unknown as number, penaltyPerDart: 15 }],
+    },
   },
   {
     id: "the-annihilator",
     name: "The Annihilator",
-    tagline: "The one you build up to.",
+    tagline: "Everyone thinks this is the end.",
     gameMode: "X01",
     botLevel: "pro",
     order: 5,
@@ -145,18 +184,59 @@ export const BOSSES: Boss[] = [
         effects: [{ maxVisitTotal: 40 }],
       },
     ],
+    enrageMove: {
+      name: "Total Annihilation",
+      description: "Everything at once: trebles are worthless AND your whole visit is capped at 30.",
+      effects: [{ treblesAsSingles: true, maxVisitTotal: 30 }],
+    },
+  },
+  {
+    // Secret 6th boss — only reachable by beating all 5 above, since the
+    // ladder's unlock chain is just "beat order N-1" all the way down. No
+    // extra gating needed here; it falls out of the existing isUnlocked
+    // logic in boss-battle.tsx for free.
+    id: "the-reckoning",
+    name: "The Reckoning",
+    tagline: "Every trick they used, at the same time.",
+    gameMode: "X01",
+    botLevel: "elite",
+    order: 6,
+    moves: [
+      {
+        name: "Everything, All At Once",
+        description: "Every dart is worth only 80% of its real value, and 20 & 19 are blocked outright.",
+        effects: [{ allDartsMultiplier: 0.8, segmentBlock: [20, 19] }],
+      },
+      {
+        name: "Cold Comfort",
+        description: "No dart can score more than 40, and every one still costs you 5 — hit or miss.",
+        effects: [{ maxDartValue: 40, penaltyPerDart: 5 }],
+      },
+    ],
+    enrageMove: {
+      name: "The Reckoning",
+      description: "Trebles are singles, your visit is capped at 30, and every dart costs you 10. This is the one you've been building toward.",
+      effects: [{ treblesAsSingles: true, maxVisitTotal: 30, penaltyPerDart: 10 }],
+    },
   },
 ];
 
 const LOCKDOWN_SEGMENTS = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10];
 
+/** Every fight is best of 3 (see BossBattleScorer's `legs={3}`), so leg 3 is
+ *  only ever played when the match is tied 1-1 — it's always the decider. */
+const LEGS_PER_FIGHT = 3;
+
 /**
  * Materializes the boss's move for the given leg (1-indexed) into real
  * CCEffect objects ready to hand to X01Scorer/CricketScorer as `cardEffects`.
- * Rotates through the boss's move list leg by leg, wrapping around.
+ * Rotates through the boss's regular move list leg by leg, wrapping around —
+ * except on the decisive leg (leg 3 of a bo3, which can only happen when the
+ * match is 1-1), where the boss's enrageMove fires instead, if it has one.
  */
-export function getBossEffectsForLeg(boss: Boss, legNumber: number): { effects: CCEffect[]; move: BossMove } {
-  const move = boss.moves[(legNumber - 1) % boss.moves.length];
+export function getBossEffectsForLeg(boss: Boss, legNumber: number): { effects: CCEffect[]; move: BossMove; isEnrage: boolean } {
+  const isEnrage = legNumber === LEGS_PER_FIGHT && !!boss.enrageMove;
+  const move = isEnrage ? boss.enrageMove! : boss.moves[(legNumber - 1) % boss.moves.length];
   const effects: CCEffect[] = move.effects.map(partial => {
     const filled = { ...partial };
     // Lockdown's target number, and Rookie Wall's wild dart slot, are randomized
@@ -177,7 +257,7 @@ export function getBossEffectsForLeg(boss: Boss, legNumber: number): { effects: 
       ...filled,
     };
   });
-  return { effects, move };
+  return { effects, move, isEnrage };
 }
 
 export function getBossById(id: string): Boss | undefined {

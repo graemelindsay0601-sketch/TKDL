@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { useListPlayers } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-import { Building2 } from "lucide-react";
+import { Building2, RotateCcw, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type ShiftWarsTeam = {
   id: number;
@@ -23,17 +29,44 @@ export function ShiftWarsAdmin() {
   const { data: players } = useListPlayers();
   const [teams, setTeams] = useState<ShiftWarsTeam[]>([]);
   const [loading, setLoading] = useState(true);
+  const [current, setCurrent] = useState<any>(null);
+  const [pastSeasons, setPastSeasons] = useState<any[]>([]);
+  const [resetting, setResetting] = useState(false);
+  const [seasonName, setSeasonName] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const reload = () => {
     setLoading(true);
-    fetch("/api/shift-wars/teams")
-      .then(r => r.ok ? r.json() : [])
-      .then((data: ShiftWarsTeam[]) => setTeams(Array.isArray(data) ? data : []))
-      .catch(() => setTeams([]))
-      .finally(() => setLoading(false));
+    Promise.all([
+      fetch("/api/shift-wars/teams").then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch("/api/seasons/current?leagueType=shift_wars").then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch("/api/admin/seasons/shift-wars").then(r => r.ok ? r.json() : []).catch(() => []),
+    ]).then(([teamsRes, currentRes, pastRes]) => {
+      setTeams(Array.isArray(teamsRes) ? teamsRes : []);
+      setCurrent(currentRes ?? null);
+      setPastSeasons(Array.isArray(pastRes) ? pastRes.filter((s: any) => !s.isActive) : []);
+    }).finally(() => setLoading(false));
   };
 
   useEffect(() => { reload(); }, []);
+
+  const resetSeason = async () => {
+    setResetting(true);
+    try {
+      const res = await fetch("/api/seasons/shift-wars/reset", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: seasonName || undefined }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      toast({ title: "Shift Wars season reset", description: `"${data.name}" has started — team points reset to their configured values.` });
+      setSeasonName("");
+      reload();
+    } catch {
+      toast({ title: "Error resetting Shift Wars season", variant: "destructive" });
+    }
+    setResetting(false);
+  };
 
   const teamOf = (playerId: number) => teams.find(t => t.players.some(p => p.id === playerId));
 
@@ -90,6 +123,23 @@ export function ShiftWarsAdmin() {
         "Reset Season" button) puts each team's points back to its <em>Reset To</em> value below and clears
         their record — the roster and teams themselves never change.
       </p>
+
+      {/* Current season status */}
+      <div className="rounded-lg px-4 py-3 flex items-center justify-between gap-3"
+        style={{ background: "rgba(0,102,255,0.05)", border: "1px solid rgba(0,102,255,0.2)" }}>
+        <div>
+          <div className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#0066ff" }}>
+            {current?.name ?? "No active Shift Wars season"}
+          </div>
+          <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+            {current ? `Started ${current.startDate} · ${teams.length} team${teams.length === 1 ? "" : "s"}` : "Run a reset below to start one"}
+          </div>
+        </div>
+        <span className="flex items-center gap-1 text-xs px-2 py-1 rounded shrink-0"
+          style={{ background: "rgba(255,0,92,0.15)", color: "#ff005c", border: "1px solid rgba(255,0,92,0.3)" }}>
+          <span className="live-dot" style={{ width: 5, height: 5 }} />LIVE
+        </span>
+      </div>
 
       {/* ── Team points ── */}
       <div className="space-y-2">
@@ -150,6 +200,64 @@ export function ShiftWarsAdmin() {
           })}
         </div>
       </div>
+
+      {/* Reset season */}
+      <div className="pt-3 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+        <p className="text-sm mb-3" style={{ color: "rgba(255,255,255,0.4)" }}>
+          End the current Shift Wars season and reset every team's points back to their configured "Reset To" value — independent of the Singles season.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 items-start">
+          <div className="flex-1">
+            <Input placeholder="Custom season name (optional)" value={seasonName} onChange={e => setSeasonName(e.target.value)}
+              style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(0,102,255,0.2)" }} />
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.22)" }}>Leave blank for auto-generated name</p>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button disabled={resetting} className="gap-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                style={{ background: "#0066ff", border: "none", fontFamily: "Oswald, sans-serif" }}>
+                <RotateCcw className="w-4 h-4" /> Reset Shift Wars Season
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(0,102,255,0.3)" }}>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2" style={{ color: "#0066ff", fontFamily: "Oswald, sans-serif" }}>
+                  <AlertTriangle className="w-5 h-5" /> End the Shift Wars season?
+                </AlertDialogTitle>
+                <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
+                  This crowns the highest-points team champion, closes the season, and resets every team's points to their configured starting value. Singles is not affected.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={resetSeason} style={{ background: "#0066ff", color: "#fff", border: "none" }}>Yes, End Season</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+
+      {/* Past seasons */}
+      {pastSeasons.length > 0 && (
+        <div className="pt-3 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+          <button onClick={() => setHistoryOpen(v => !v)} className="w-full flex items-center justify-between text-xs uppercase tracking-wider font-bold py-1"
+            style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
+            Past Seasons ({pastSeasons.length})
+            {historyOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+          {historyOpen && (
+            <div className="space-y-1 mt-2">
+              {pastSeasons.map(s => (
+                <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded text-xs"
+                  style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <span style={{ color: "rgba(255,255,255,0.7)" }}>{s.name}</span>
+                  <span style={{ color: "#0066ff" }}>{s.championName ? `🏆 ${s.championName}` : "No champion recorded"}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable, matchParticipantsTable } from "@workspace/db";
 import { z } from "zod";
 import { calcEloChange } from "../lib/elo";
@@ -98,7 +98,11 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
     }
   }
 
-  const [activeSeason] = await db.select().from(seasonsTable).where(eq(seasonsTable.isActive, true)).limit(1);
+  // Team Match is an ad-hoc singles-tab wager (individual players' own
+  // points/Elo), not the Doubles Event — it belongs to the singles season.
+  const [activeSeason] = await db.select().from(seasonsTable)
+    .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "singles")))
+    .limit(1);
   if (!activeSeason) {
     res.status(400).json({ error: "No active season found" });
     return;

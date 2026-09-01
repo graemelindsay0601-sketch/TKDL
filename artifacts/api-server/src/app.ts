@@ -10,13 +10,15 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import cacheMiddleware from "./middleware/cache";
 import { seedAchievements } from "./lib/achievements";
-import { maybeAutoResetSeason } from "./lib/seasonReset";
+import { maybeAutoResetLeagueSeasons } from "./lib/seasonReset";
 import { addPerformanceIndexes } from "./db/migrations/add_performance_indexes";
 import { seedTourSystem } from "./lib/tourSeed";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
 import { initializeCardTables, initializeFeatureFlags, initializeFeaturedCardShopTables } from "./lib/cardTablesMigration";
 import { addFavoritesColumn } from "./db/migrations/add_favorites";
 import { addAchievementRewards } from "./db/migrations/add_achievement_rewards";
+import { addAchievementSeasonColumn } from "./db/migrations/add_achievement_season_column";
+import { addSeasonLeagueType } from "./db/migrations/add_season_league_type";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
 import { up as createCardClashFavoritesTable } from "./db/migrations/add_card_clash_favorites";
 import { addDailyChallengeKeyColumn } from "./db/migrations/add_daily_challenge_key";
@@ -663,6 +665,12 @@ async function seedCardFavorites() {
 // Boss Battle Mode: which bosses each player has beaten, so the ladder page
 // knows what's unlocked. Pure arcade — never touches matches/Elo, so a
 // simple per-player/boss row is all that's needed.
+//
+// boss_battle_stats is a separate table (not just extra columns on progress)
+// because it needs a row from a player's very first ATTEMPT at a boss, win
+// or lose — boss_battle_progress only ever gets a row once a boss is
+// actually beaten, so it can't hold an attempts counter that should already
+// be ticking up before the first win.
 async function seedBossBattleProgress() {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS boss_battle_progress (
@@ -672,7 +680,17 @@ async function seedBossBattleProgress() {
       PRIMARY KEY (player_id, boss_id)
     )
   `);
-  logger.info("Boss battle progress table ready");
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS boss_battle_stats (
+      player_id    INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      boss_id      TEXT NOT NULL,
+      attempts     INTEGER NOT NULL DEFAULT 0,
+      wins         INTEGER NOT NULL DEFAULT 0,
+      best_seconds INTEGER,
+      PRIMARY KEY (player_id, boss_id)
+    )
+  `);
+  logger.info("Boss battle progress + stats tables ready");
 }
 
 // Board Curse Mode: Solo mode's persistent state is two personal bests per
@@ -718,6 +736,49 @@ async function seedBoardCurseRecords() {
 // to it (no drill-runner UI calls POST .../drills/complete yet), so the
 // drill progress / adaptive difficulty widgets will honestly show "no drills
 // yet" until such a flow exists, rather than erroring.
+
+// Doubles Event storage. These tables were never actually added to the boot
+// sequence when the feature shipped (the original commit's own note said as
+// much) — they only ever existed on Render because someone created them by
+// hand directly against the production database, which is why a from-
+// scratch boot (a fresh dev DB, a review app) throws "relation doubles_teams
+// does not exist" the moment a season resets and tries to draw teams.
+// IF NOT EXISTS makes this a no-op against that already-patched production
+// database and a real fix everywhere else.
+async function seedDoublesTables() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS doubles_teams (
+      id            SERIAL PRIMARY KEY,
+      season_id     INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+      player1_id    INTEGER NOT NULL REFERENCES players(id),
+      player2_id    INTEGER NOT NULL REFERENCES players(id),
+      player3_id    INTEGER REFERENCES players(id),
+      team_name     TEXT NOT NULL,
+      points        INTEGER NOT NULL DEFAULT 50,
+      peak_points   INTEGER NOT NULL DEFAULT 50,
+      elo           INTEGER NOT NULL DEFAULT 1000,
+      wins          INTEGER NOT NULL DEFAULT 0,
+      losses        INTEGER NOT NULL DEFAULT 0,
+      is_eliminated BOOLEAN NOT NULL DEFAULT false,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS doubles_matches (
+      id             SERIAL PRIMARY KEY,
+      season_id      INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+      winner_team_id INTEGER NOT NULL REFERENCES doubles_teams(id) ON DELETE CASCADE,
+      loser_team_id  INTEGER NOT NULL REFERENCES doubles_teams(id) ON DELETE CASCADE,
+      stake          INTEGER NOT NULL,
+      elo_change     INTEGER,
+      game_type      TEXT,
+      notes          TEXT,
+      played_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  logger.info("Doubles Event tables ready");
+}
+
 // Shift Wars: 3 fixed department teams (Fresh, Twilight, Shift Leader) competing
 // on the same points/wager mechanic as the Doubles Event, but with no random
 // draw/reroll — the roster is a manual, admin-managed, permanent assignment
@@ -993,6 +1054,7 @@ async function init() {
     await initializeNotificationPreferences();
     await addFavoritesColumn();
     await addAchievementRewards();
+    await addAchievementSeasonColumn();
     await createCardClashPlayerSettingsTable();
     await createCardClashFavoritesTable();
     
@@ -1006,6 +1068,7 @@ async function init() {
     await seedBossBattleProgress();
     await seedBoardCurseBest();
     await seedBoardCurseRecords();
+    await seedDoublesTables();
     await seedShiftWars();
     await seedPractice();
     await seedMaster501();
@@ -1015,9 +1078,14 @@ async function init() {
     await seedGameTypes();
     await seedAchievements();
     await seedRealData();
-    await maybeAutoResetSeason();
+    // Must run after seedDoublesTables/seedShiftWars/seedRealData: it gives
+    // Doubles and Shift Wars their own season row (re-parenting Doubles'
+    // current teams onto it) and needs both those tables and a real active
+    // singles season to already exist.
+    await addSeasonLeagueType();
+    await maybeAutoResetLeagueSeasons();
     await seedPlayoffMatches();
-    await maybeAutoResetSeason();
+    await maybeAutoResetLeagueSeasons();
     
     // Initialize scheduled systems
     initializeCoachTipsScheduler();

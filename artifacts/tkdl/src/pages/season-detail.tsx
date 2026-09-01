@@ -1,5 +1,5 @@
 import { useGetSeason, getGetSeasonQueryKey } from "@workspace/api-client-react";
-import { useParams, Link } from "wouter";
+import { useParams, useSearch, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
@@ -20,86 +20,95 @@ function useSeasonMatches(seasonId: number) {
   return { data, loading };
 }
 
-function useDoublesTeams(seasonId: number) {
+// Doubles and Shift Wars each run their own independent monthly season now
+// (see db/migrations/add_season_league_type.ts) — their season ids no longer
+// line up with whichever Singles season this page happens to be showing, so
+// rather than pretend a fixed historical relationship these tabs always
+// reflect the CURRENT Doubles/Shift Wars season, whichever Singles season
+// you're browsing. This mirrors how Shift Wars was already treated here
+// ("a standing 3-team competition") — Doubles now gets the same treatment.
+function useCurrentLeagueSeasonId(leagueType: "doubles" | "shift_wars"): number | null {
+  const [id, setId] = useState<number | null>(null);
+  useEffect(() => {
+    fetch(`/api/seasons/current?leagueType=${leagueType}`)
+      .then(r => r.json())
+      .then(d => setId(d?.id ?? null))
+      .catch(() => setId(null));
+  }, [leagueType]);
+  return id;
+}
+
+function useDoublesTeams() {
+  const currentSeasonId = useCurrentLeagueSeasonId("doubles");
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    if (!seasonId) return;
+    if (currentSeasonId === null) return;
+    if (!currentSeasonId) { setData([]); setLoading(false); return; }
     setLoading(true);
-    fetch(`/api/seasons/${seasonId}/doubles/teams`)
+    fetch(`/api/seasons/${currentSeasonId}/doubles/teams`)
       .then(r => r.json())
       .then(d => { setData(Array.isArray(d) ? d : []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [seasonId]);
+  }, [currentSeasonId]);
   return { data, loading };
 }
 
-function useDoublesMatches(seasonId: number) {
+function useDoublesMatches() {
+  const currentSeasonId = useCurrentLeagueSeasonId("doubles");
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    if (!seasonId) return;
+    if (currentSeasonId === null) return;
+    if (!currentSeasonId) { setData([]); setLoading(false); return; }
     setLoading(true);
-    fetch(`/api/seasons/${seasonId}/doubles/matches`)
+    fetch(`/api/seasons/${currentSeasonId}/doubles/matches`)
       .then(r => r.json())
       .then(d => { setData(Array.isArray(d) ? d : []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [seasonId]);
+  }, [currentSeasonId]);
   return { data, loading };
 }
 
-// Shift Wars isn't season-scoped the way Doubles is — it's a standing 3-team
-// competition, snapshotted into shift_wars_season_history only once a season
-// closes (see lib/seasonReset.ts). So for a season that's already ended we
-// show that snapshot; for the still-active current season no snapshot exists
-// yet, so we fall back to the live /shift-wars/teams standings instead.
-function useSeasonShiftWars(seasonId: number, isActiveSeason: boolean) {
+// Always the live current Shift Wars standings, regardless of which Singles
+// season is being browsed — see the comment above useCurrentLeagueSeasonId.
+// Past Shift Wars seasons are still browsable via /api/shift-wars/history
+// (the "recent champions" list) elsewhere; this tab is just "what's
+// happening right now".
+function useSeasonShiftWars() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isLive, setIsLive] = useState(false);
   useEffect(() => {
-    if (!seasonId) return;
     setLoading(true);
-    fetch(`/api/shift-wars/history?seasonId=${seasonId}`)
+    fetch("/api/shift-wars/teams")
       .then(r => r.json())
-      .then(async (d) => {
-        if (Array.isArray(d) && d.length > 0) {
-          setIsLive(false);
-          setData(d);
-          setLoading(false);
-          return;
-        }
-        // No snapshot for this season yet — only worth falling back to the
-        // live board if this is the current season; a past season with no
-        // snapshot genuinely has no Shift Wars data.
-        if (isActiveSeason) {
-          const live = await fetch("/api/shift-wars/teams").then(r => r.json()).catch(() => []);
-          setIsLive(true);
-          setData(Array.isArray(live) ? live : []);
-        } else {
-          setData([]);
-        }
-        setLoading(false);
-      })
+      .then(d => { setData(Array.isArray(d) ? d : []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [seasonId, isActiveSeason]);
-  return { data, loading, isLive };
+  }, []);
+  return { data, loading, isLive: true };
 }
 
 export default function SeasonDetail() {
   const params = useParams();
   const seasonId = parseInt(params.id || "0", 10);
-  const [activeTab, setActiveTab] = useState<"standings" | "matches" | "doubles" | "shiftwars">("standings");
+  // A doubles/shift-wars card elsewhere in the app (e.g. a player's profile)
+  // links here with ?tab=doubles / ?tab=shiftwars since those seasons now
+  // have their own ids, separate from whichever Singles season this page's
+  // :id refers to — see useCurrentLeagueSeasonId above.
+  const search = useSearch();
+  const requestedTab = new URLSearchParams(search).get("tab");
+  const [activeTab, setActiveTab] = useState<"standings" | "matches" | "doubles" | "shiftwars">(
+    requestedTab === "doubles" || requestedTab === "shiftwars" ? requestedTab : "standings"
+  );
   const [doublesView, setDoublesView] = useState<"standings" | "matches">("standings");
 
   const { data: seasonDetail, isLoading } = useGetSeason(seasonId, {
     query: { enabled: !!seasonId, queryKey: getGetSeasonQueryKey(seasonId) },
   });
   const { data: matches, loading: matchesLoading } = useSeasonMatches(seasonId);
-  const { data: doublesTeams, loading: doublesTeamsLoading } = useDoublesTeams(seasonId);
-  const { data: doublesMatches, loading: doublesMatchesLoading } = useDoublesMatches(seasonId);
-  const { data: shiftWarsRows, loading: shiftWarsLoading, isLive: shiftWarsIsLive } =
-    useSeasonShiftWars(seasonId, seasonDetail?.season?.isActive ?? false);
+  const { data: doublesTeams, loading: doublesTeamsLoading } = useDoublesTeams();
+  const { data: doublesMatches, loading: doublesMatchesLoading } = useDoublesMatches();
+  const { data: shiftWarsRows, loading: shiftWarsLoading, isLive: shiftWarsIsLive } = useSeasonShiftWars();
   const { data: appSettings } = useSettings();
   const shiftWarsEnabled = appSettings?.shift_wars_enabled ?? false;
 
@@ -414,7 +423,7 @@ export default function SeasonDetail() {
                 </div>
               ) : doublesTeams.length === 0 ? (
                 <div className="px-4 py-10 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
-                  No doubles teams yet — an admin needs to run the random draw for this season.
+                  No doubles teams yet — an admin needs to run the random draw for the current Doubles Event season.
                 </div>
               ) : (
                 <>
@@ -547,9 +556,7 @@ export default function SeasonDetail() {
             </div>
           ) : shiftWarsRows.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
-              {season.isActive
-                ? "No Shift Wars data yet this season."
-                : "Shift Wars wasn't tracked yet when this season closed."}
+              No Shift Wars data yet.
             </div>
           ) : (
             <>

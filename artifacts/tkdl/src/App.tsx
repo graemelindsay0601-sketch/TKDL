@@ -15,6 +15,7 @@ const PlayerDetail    = lazy(() => import("@/pages/player-detail"));
 const Seasons         = lazy(() => import("@/pages/seasons"));
 const SeasonDetail    = lazy(() => import("@/pages/season-detail"));
 const Achievements    = lazy(() => import("@/pages/achievements"));
+const AchievementDetail = lazy(() => import("@/pages/achievement-detail"));
 const Admin           = lazy(() => import("@/pages/admin"));
 const Rules           = lazy(() => import("@/pages/rules"));
 const Play            = lazy(() => import("@/pages/play"));
@@ -97,6 +98,9 @@ function AppRoutes() {
             </Route>
             <Route path="/seasons/:id">
               <RoutePage><SeasonDetail /></RoutePage>
+            </Route>
+            <Route path="/achievements/:system/:key">
+              <RoutePage><AchievementDetail /></RoutePage>
             </Route>
             <Route path="/achievements">
               <RoutePage><Achievements /></RoutePage>

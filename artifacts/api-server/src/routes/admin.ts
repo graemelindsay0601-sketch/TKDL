@@ -312,8 +312,12 @@ router.post("/admin/achievement-sweep", async (_req, res): Promise<void> => {
 });
 
 // ── Get all seasons with standings for admin (3 queries total, not N+1) ───────
+// Scoped to Singles — the season-editor admin UI predates Doubles/Shift Wars
+// having their own season rows and only knows how to render singles-shaped
+// standings; see /admin/seasons/doubles and /admin/seasons/shift-wars below
+// for their own independent season lists.
 router.get("/admin/seasons", async (_req, res): Promise<void> => {
-  const seasons = await db.select().from(seasonsTable).orderBy(seasonsTable.id);
+  const seasons = await db.select().from(seasonsTable).where(eq(seasonsTable.leagueType, "singles")).orderBy(seasonsTable.id);
   if (seasons.length === 0) { res.json([]); return; }
 
   const seasonIds = seasons.map(s => s.id);
@@ -337,6 +341,18 @@ router.get("/admin/seasons", async (_req, res): Promise<void> => {
   }));
 
   res.json(result);
+});
+
+// ── Doubles Event / Shift Wars season history — own independent lists now
+// that they don't share the singles seasons row anymore ───────────────────
+router.get("/admin/seasons/doubles", async (_req, res): Promise<void> => {
+  const seasons = await db.select().from(seasonsTable).where(eq(seasonsTable.leagueType, "doubles")).orderBy(seasonsTable.id);
+  res.json(seasons);
+});
+
+router.get("/admin/seasons/shift-wars", async (_req, res): Promise<void> => {
+  const seasons = await db.select().from(seasonsTable).where(eq(seasonsTable.leagueType, "shift_wars")).orderBy(seasonsTable.id);
+  res.json(seasons);
 });
 
 // ── Admin announcements — push a message to all (or specific) players ───────

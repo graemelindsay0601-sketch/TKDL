@@ -463,7 +463,7 @@ export default function Standings() {
   const { data: doublesData,   isLoading: doublesLoading }  = useQuery({
     queryKey: ["leaderboard-doubles"],
     queryFn:  async () => {
-      const season = await fetch("/api/seasons/current").then(r => r.json());
+      const season = await fetch("/api/seasons/current?leagueType=doubles").then(r => r.json());
       if (!season?.id) return [];
       return fetch(`/api/seasons/${season.id}/doubles/teams`).then(r => r.json());
     },

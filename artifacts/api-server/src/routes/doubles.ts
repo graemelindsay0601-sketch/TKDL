@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db, seasonsTable } from "@workspace/db";
 import { z } from "zod";
 import { applyEloChange, calcTier } from "../lib/elo";
@@ -105,8 +105,13 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
 
   if (winnerTeamId === loserTeamId) { res.status(400).json({ error: "A team cannot play itself" }); return; }
 
-  const [activeSeason] = await db.select().from(seasonsTable).where(eq(seasonsTable.isActive, true)).limit(1);
-  if (!activeSeason) { res.status(400).json({ error: "No active season found" }); return; }
+  // Doubles now runs its own independent season lifecycle, separate from
+  // Singles — filtering by league_type is required, not just isActive,
+  // since both can be active at once.
+  const [activeSeason] = await db.select().from(seasonsTable)
+    .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "doubles")))
+    .limit(1);
+  if (!activeSeason) { res.status(400).json({ error: "No active Doubles Event season found" }); return; }
 
   // Everything from here on reads two team rows, computes new balances in JS,
   // then writes them back — that read-modify-write must happen inside a

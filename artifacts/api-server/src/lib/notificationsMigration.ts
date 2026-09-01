@@ -48,6 +48,31 @@ export async function seedNotificationTables() {
       logger.debug("player_id column already exists or migration failed");
     }
 
+    // The notifications table grew a second write path (a plain "actor did
+    // something to an entity" shape used by e.g. the admin test-comms route
+    // and social/DM notifications) alongside the original title/body/data
+    // shape, and GET /notifications reads both together with COALESCE — but
+    // the columns that second shape needs were never actually added to the
+    // table, so both that write path and the read route have been failing
+    // with "column does not exist" since whenever this was written. Backfill
+    // them idempotently; title/body relax to nullable since a message-style
+    // row supplies `message` instead of them.
+    try {
+      await db.execute(sql`
+        ALTER TABLE notifications
+        ADD COLUMN IF NOT EXISTS actor_id INTEGER REFERENCES players(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS entity_id INTEGER,
+        ADD COLUMN IF NOT EXISTS entity_type TEXT,
+        ADD COLUMN IF NOT EXISTS message TEXT,
+        ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ
+      `);
+      await db.execute(sql`ALTER TABLE notifications ALTER COLUMN title DROP NOT NULL`);
+      await db.execute(sql`ALTER TABLE notifications ALTER COLUMN body DROP NOT NULL`);
+      logger.info("Notifications table actor/entity/message columns ready");
+    } catch (e) {
+      logger.error({ err: e }, "Failed to add actor/entity/message columns to notifications");
+    }
+
     // Web push subscriptions
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS push_subscriptions (

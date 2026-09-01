@@ -325,6 +325,10 @@ router.get("/players/:id/career-journey", async (req, res): Promise<void> => {
     description?: string;
     icon?: string;
     rarity?: string;
+    // Present only on "achievement" events — lets the frontend link through
+    // to the unified trophy detail page (/achievements/core/:key) instead of
+    // dead-ending on the player's own profile.
+    achievementKey?: string;
   };
   const events: JourneyEvent[] = [];
 
@@ -336,6 +340,7 @@ router.get("/players/:id/career-journey", async (req, res): Promise<void> => {
   });
 
   const achievementRows = await db.select({
+    key:         achievementsTable.key,
     name:        achievementsTable.name,
     description: achievementsTable.description,
     icon:        achievementsTable.icon,
@@ -353,6 +358,7 @@ router.get("/players/:id/career-journey", async (req, res): Promise<void> => {
       description: a.description ?? undefined,
       icon: a.icon ?? "🏆",
       rarity: a.rarity ?? undefined,
+      achievementKey: a.key,
     });
   }
 

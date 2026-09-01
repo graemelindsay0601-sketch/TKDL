@@ -1,15 +1,32 @@
 import { db } from "@workspace/db";
 import { playersTable, seasonsTable, seasonStandingsTable } from "@workspace/db";
-import { eq, desc, sql } from "drizzle-orm";
+import type { LeagueType } from "@workspace/db";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { checkSeasonAchievements } from "./achievements";
 import { drawDoublesTeams } from "./doublesDraw";
 
+function newSeasonName(overrideName?: string): { name: string; startDate: string } {
+  const now = new Date();
+  const monthName = now.toLocaleString("en-GB", { month: "long" });
+  const year = now.getFullYear();
+  return {
+    name: overrideName ?? `${monthName} ${year}`,
+    startDate: now.toISOString().split("T")[0],
+  };
+}
+
+// ── Singles ──────────────────────────────────────────────────────────────
+// The original season reset: standings snapshot, season achievements,
+// crown the champion, reset all players to 25pts, open a new season. Scoped
+// to league_type='singles' — Doubles and Shift Wars each have their own
+// independent lifecycle below, and no longer ride along with this one (see
+// db/migrations/add_season_league_type.ts for why that used to be a bug).
 export async function performSeasonReset(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
   const [currentSeason] = await db
     .select()
     .from(seasonsTable)
-    .where(eq(seasonsTable.isActive, true))
+    .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "singles")))
     .limit(1);
 
   if (currentSeason) {
@@ -36,25 +53,6 @@ export async function performSeasonReset(overrideName?: string): Promise<typeof 
     // Grant season achievements
     await checkSeasonAchievements(currentSeason.id, sorted, champion?.id ?? null);
 
-    // Snapshot Shift Wars standings for the closing season before points reset
-    // below wipes them — otherwise a department's whole month's record would be
-    // lost with no way to look back at who won it.
-    try {
-      const swRows = (await db.execute(sql`SELECT * FROM shift_wars_teams ORDER BY points DESC, name ASC`)).rows as any[];
-      if (swRows.length > 0) {
-        const topPoints = swRows[0].points;
-        for (const t of swRows) {
-          await db.execute(sql`
-            INSERT INTO shift_wars_season_history (season_id, team_id, team_name, points, wins, losses, is_champion)
-            VALUES (${currentSeason.id}, ${t.id}, ${t.name}, ${t.points}, ${t.wins}, ${t.losses}, ${t.points === topPoints})
-          `);
-        }
-        logger.info({ seasonId: currentSeason.id }, "Shift Wars season history snapshot saved");
-      }
-    } catch (err) {
-      logger.error({ err, seasonId: currentSeason.id }, "Shift Wars season history snapshot failed");
-    }
-
     // Close season
     await db.update(seasonsTable).set({
       isActive: false,
@@ -63,7 +61,7 @@ export async function performSeasonReset(overrideName?: string): Promise<typeof 
       championName: champion?.name ?? null,
     }).where(eq(seasonsTable.id, currentSeason.id));
 
-    logger.info({ seasonId: currentSeason.id, champion: champion?.name }, "Season closed");
+    logger.info({ seasonId: currentSeason.id, champion: champion?.name }, "Singles season closed");
   }
 
   // Reset all active players for new season
@@ -80,34 +78,107 @@ export async function performSeasonReset(overrideName?: string): Promise<typeof 
     })
     .where(eq(playersTable.isActive, true));
 
-  const now = new Date();
-  const monthName = now.toLocaleString("en-GB", { month: "long" });
-  const year = now.getFullYear();
+  const { name, startDate } = newSeasonName(overrideName);
   const [newSeason] = await db.insert(seasonsTable).values({
-    name: overrideName ?? `${monthName} ${year}`,
-    startDate: now.toISOString().split("T")[0],
-    isActive: true,
+    name, startDate, isActive: true, leagueType: "singles",
   }).returning();
 
-  logger.info({ newSeasonId: newSeason.id, name: newSeason.name }, "New season started");
+  logger.info({ newSeasonId: newSeason.id, name: newSeason.name }, "New singles season started");
+  return newSeason;
+}
 
-  // Doubles Event and Shift Wars both run as their own monthly leagues alongside
-  // singles now, resetting on the exact same trigger (this function, whether fired
-  // by the admin "Reset Season" button or the automatic monthly check). Doubles
-  // gets a fresh random draw for the new season, same as singles resetting to
-  // 25pts; Shift Wars keeps its fixed departments (never rerolled) but its points/
-  // peak/record reset back to each team's configured starting points. Both are
-  // best-effort and must never block the singles reset that just succeeded above.
+// ── Doubles Event ────────────────────────────────────────────────────────
+// Its own independent monthly league: close out the current doubles season
+// (the team with the most points is champion — there's no single "player"
+// champion here, so championId stays null and championName carries the
+// team name), then open a new one and draw fresh random pairs for it.
+export async function performDoublesSeasonReset(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
+  const [currentSeason] = await db
+    .select()
+    .from(seasonsTable)
+    .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "doubles")))
+    .limit(1);
+
+  if (currentSeason) {
+    const teams = (await db.execute(sql`
+      SELECT team_name, points, elo FROM doubles_teams
+      WHERE season_id = ${currentSeason.id}
+      ORDER BY points DESC, elo DESC
+      LIMIT 1
+    `)).rows as { team_name: string }[];
+    const champion = teams[0] ?? null;
+
+    await db.update(seasonsTable).set({
+      isActive: false,
+      endDate: new Date().toISOString().split("T")[0],
+      championName: champion?.team_name ?? null,
+    }).where(eq(seasonsTable.id, currentSeason.id));
+
+    logger.info({ seasonId: currentSeason.id, champion: champion?.team_name }, "Doubles Event season closed");
+  }
+
+  const { name, startDate } = newSeasonName(overrideName);
+  const [newSeason] = await db.insert(seasonsTable).values({
+    name, startDate, isActive: true, leagueType: "doubles",
+  }).returning();
+
   try {
     const draw = await drawDoublesTeams(newSeason.id);
     if (draw.ok) {
-      logger.info({ seasonId: newSeason.id, teams: draw.teams.length }, "Doubles Event auto-drawn for new season");
+      logger.info({ seasonId: newSeason.id, teams: draw.teams.length }, "Doubles Event drawn for new season");
     } else {
-      logger.warn({ seasonId: newSeason.id, error: draw.error }, "Doubles Event auto-draw skipped");
+      logger.warn({ seasonId: newSeason.id, error: draw.error }, "Doubles Event draw skipped");
     }
   } catch (err) {
-    logger.error({ err, seasonId: newSeason.id }, "Doubles Event auto-draw failed");
+    logger.error({ err, seasonId: newSeason.id }, "Doubles Event draw failed");
   }
+
+  logger.info({ newSeasonId: newSeason.id, name: newSeason.name }, "New Doubles Event season started");
+  return newSeason;
+}
+
+// ── Shift Wars ───────────────────────────────────────────────────────────
+// Its own independent monthly league: snapshot the 3 departments' standing
+// into shift_wars_season_history before wiping it, then reset every team's
+// points/record back to its configured starting_points. The roster and
+// teams themselves are permanent and never touched here.
+export async function performShiftWarsSeasonReset(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
+  const [currentSeason] = await db
+    .select()
+    .from(seasonsTable)
+    .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "shift_wars")))
+    .limit(1);
+
+  if (currentSeason) {
+    try {
+      const swRows = (await db.execute(sql`SELECT * FROM shift_wars_teams ORDER BY points DESC, name ASC`)).rows as any[];
+      let champion: string | null = null;
+      if (swRows.length > 0) {
+        const topPoints = swRows[0].points;
+        champion = swRows[0].name;
+        for (const t of swRows) {
+          await db.execute(sql`
+            INSERT INTO shift_wars_season_history (season_id, team_id, team_name, points, wins, losses, is_champion)
+            VALUES (${currentSeason.id}, ${t.id}, ${t.name}, ${t.points}, ${t.wins}, ${t.losses}, ${t.points === topPoints})
+          `);
+        }
+        logger.info({ seasonId: currentSeason.id }, "Shift Wars season history snapshot saved");
+      }
+
+      await db.update(seasonsTable).set({
+        isActive: false,
+        endDate: new Date().toISOString().split("T")[0],
+        championName: champion,
+      }).where(eq(seasonsTable.id, currentSeason.id));
+    } catch (err) {
+      logger.error({ err, seasonId: currentSeason.id }, "Shift Wars season history snapshot failed");
+    }
+  }
+
+  const { name, startDate } = newSeasonName(overrideName);
+  const [newSeason] = await db.insert(seasonsTable).values({
+    name, startDate, isActive: true, leagueType: "shift_wars",
+  }).returning();
 
   try {
     await db.execute(sql`
@@ -122,19 +193,28 @@ export async function performSeasonReset(overrideName?: string): Promise<typeof 
     logger.error({ err }, "Shift Wars points reset failed");
   }
 
+  logger.info({ newSeasonId: newSeason.id, name: newSeason.name }, "New Shift Wars season started");
   return newSeason;
 }
 
-export async function maybeAutoResetSeason(): Promise<void> {
+// ── Auto-reset, checked independently per league ────────────────────────
+// Each league only resets when ITS OWN active season has rolled into a new
+// calendar month — Doubles or Shift Wars starting mid-August no longer
+// forces (or gets forced by) a Singles reset on September 1st just because
+// they used to share one row.
+async function maybeAutoResetLeague(
+  leagueType: LeagueType,
+  resetFn: () => Promise<typeof seasonsTable.$inferSelect>,
+): Promise<void> {
   const [current] = await db
     .select()
     .from(seasonsTable)
-    .where(eq(seasonsTable.isActive, true))
+    .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, leagueType)))
     .orderBy(desc(seasonsTable.id))
     .limit(1);
 
   if (!current) {
-    logger.info("No active season found on startup, skipping auto-reset");
+    logger.info({ leagueType }, "No active season found on startup, skipping auto-reset");
     return;
   }
 
@@ -143,7 +223,13 @@ export async function maybeAutoResetSeason(): Promise<void> {
   const sameMonth = start.getMonth() === now.getMonth() && start.getFullYear() === now.getFullYear();
 
   if (!sameMonth) {
-    logger.info({ currentSeasonId: current.id }, "Auto season reset triggered (new month)");
-    await performSeasonReset();
+    logger.info({ leagueType, currentSeasonId: current.id }, "Auto season reset triggered (new month)");
+    await resetFn();
   }
+}
+
+export async function maybeAutoResetLeagueSeasons(): Promise<void> {
+  await maybeAutoResetLeague("singles", () => performSeasonReset());
+  await maybeAutoResetLeague("doubles", () => performDoublesSeasonReset());
+  await maybeAutoResetLeague("shift_wars", () => performShiftWarsSeasonReset());
 }

@@ -20,6 +20,7 @@ import { FeatureFlags } from "./feature-flags";
 import { GameTypesManager } from "./game-types-manager";
 import { UserAccountsManager } from "./user-accounts-manager";
 import { SeasonEditor } from "./season-editor";
+import { DoublesSeasonManager } from "./doubles-season-manager";
 import { ShiftWarsAdmin } from "./shift-wars-admin";
 import { TourDataManager } from "./tour-data-manager";
 import { PracticeAnalytics } from "./practice-analytics";
@@ -243,18 +244,23 @@ export default function Admin() {
       <GameTypesManager />
       <UserAccountsManager players={players} />
 
-      {/* Season Manager */}
-      <CollapsibleAdminSection title="Season Manager" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.15)" background="rgba(255,210,74,0.02)">
+      {/* Season Manager — Singles */}
+      <CollapsibleAdminSection title="Season Manager (Singles)" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.15)" background="rgba(255,210,74,0.02)">
         <div className="p-5"><SeasonEditor /></div>
       </CollapsibleAdminSection>
 
-      {/* Shift Wars */}
+      {/* Season Manager — Doubles Event */}
+      <CollapsibleAdminSection title="Season Manager (Doubles Event)" icon={Users} accent="#0066ff" borderColor="rgba(0,102,255,0.15)" background="rgba(0,102,255,0.02)">
+        <div className="p-5"><DoublesSeasonManager /></div>
+      </CollapsibleAdminSection>
+
+      {/* Shift Wars (roster/points + its own season manager) */}
       <CollapsibleAdminSection title="Shift Wars" icon={Building2} accent="#22c55e" borderColor="rgba(34,197,94,0.15)" background="rgba(34,197,94,0.02)">
         <div className="p-5"><ShiftWarsAdmin /></div>
       </CollapsibleAdminSection>
 
-      {/* Start New Season */}
-      <CollapsibleAdminSection title="Start New Season" icon={RotateCcw} accent="#ff005c" borderColor="rgba(255,0,92,0.2)" background="rgba(255,0,92,0.03)">
+      {/* Start New Season — Singles only now; Doubles/Shift Wars have their own reset above */}
+      <CollapsibleAdminSection title="Start New Season (Singles)" icon={RotateCcw} accent="#ff005c" borderColor="rgba(255,0,92,0.2)" background="rgba(255,0,92,0.03)">
         <div className="p-5">
           <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
             End the current season and start a new one. All players reset to 25 pts. Elo and career stats preserved.

@@ -25,15 +25,22 @@ export const playerAchievementsTable = pgTable("player_achievements", {
   id: serial("id").primaryKey(),
   playerId: integer("player_id").notNull(),
   achievementId: integer("achievement_id").notNull(),
+  // 0 = lifetime/one-time achievement (the vast majority). A real season id
+  // marks one unlock of a genuinely repeatable seasonal achievement (Season
+  // MVP, Climber, etc.) for that specific season, so the same player can
+  // earn it again in a later season instead of it being a once-ever badge.
+  seasonId: integer("season_id").notNull().default(0),
   unlockedAt: timestamp("unlocked_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("pa_player_id_idx").on(t.playerId),
   index("pa_achievement_id_idx").on(t.achievementId),
-  // A player can only unlock a given achievement once — this is also
-  // relied on (as idx_player_achievements_unique, created idempotently at
-  // boot in add_performance_indexes.ts) to make grantIfNotHas's
-  // onConflictDoNothing() an atomic guard against double-granting.
-  uniqueIndex("pa_player_achievement_unique").on(t.playerId, t.achievementId),
+  // A player can only unlock a given achievement once per season (season 0
+  // for lifetime achievements, meaning "once ever") — this is also relied
+  // on (as idx_player_achievements_unique_seasonal, created idempotently at
+  // boot in db/migrations/add_achievement_season_column.ts) to make
+  // grantIfNotHas's onConflictDoNothing() an atomic guard against
+  // double-granting.
+  uniqueIndex("pa_player_achievement_unique").on(t.playerId, t.achievementId, t.seasonId),
 ]);
 
 export const seasonStandingsTable = pgTable("season_standings", {

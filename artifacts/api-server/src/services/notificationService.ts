@@ -298,13 +298,16 @@ export async function subscribeToPush(
  * Get notification analytics
  */
 export async function getNotificationAnalytics(): Promise<any> {
+  // NULLIF guards against a division-by-zero Postgres error when nothing's
+  // been sent in the last 30 days (COUNT(*) = 0) — this was throwing and
+  // taking down the whole /admin/notifications/analytics request with it.
   const { rows: [stats] } = await db.execute(sql`
     SELECT
       COUNT(*) as total_sent,
       COUNT(opened_at) as total_opened,
-      ROUND(COUNT(opened_at)::numeric / COUNT(*)::numeric * 100, 2) as open_rate,
+      ROUND(COUNT(opened_at)::numeric / NULLIF(COUNT(*), 0)::numeric * 100, 2) as open_rate,
       COUNT(clicked_at) as total_clicked,
-      ROUND(COUNT(clicked_at)::numeric / COUNT(*)::numeric * 100, 2) as click_rate
+      ROUND(COUNT(clicked_at)::numeric / NULLIF(COUNT(*), 0)::numeric * 100, 2) as click_rate
     FROM notification_analytics
     WHERE sent_at > NOW() - INTERVAL '30 days'
   `);

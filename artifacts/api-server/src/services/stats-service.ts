@@ -115,7 +115,7 @@ export const statsService = {
           FROM matches
           WHERE (winner_id = ${playerId} OR loser_id = ${playerId})
             AND played_at >= ${cutoff}
-            ${whereClause}
+            ${drizzleSql.raw(whereClause)}
         `).catch((err: any) => {
           console.error("Match stats query error:", err);
           return { rows: [{ total_matches: 0, wins: 0, total_darts: 0, avg_darts: 0, total_100s: 0, total_140s: 0, total_170s: 0, total_180s: 0, checkout_hits: 0, checkout_attempts: 0 }] };
@@ -196,9 +196,9 @@ export const statsService = {
           DATE_TRUNC('month', played_at)::DATE as month,
           COUNT(*)::int as matches,
           SUM(CASE WHEN winner_id = ${playerId} THEN 1 ELSE 0 END)::int as wins
-        FROM matches 
+        FROM matches
         WHERE (winner_id = ${playerId} OR loser_id = ${playerId})
-          ${whereClause}
+          ${drizzleSql.raw(whereClause)}
         GROUP BY DATE_TRUNC('month', played_at)
         ORDER BY month DESC
         LIMIT 12

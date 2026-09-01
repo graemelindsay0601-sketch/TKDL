@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Swords, Lock, Trophy, Skull } from "lucide-react";
+import { Swords, Lock, Trophy, Skull, Clock, Users } from "lucide-react";
 import { useCurrentPlayer } from "@/context/auth";
 import { BOSSES, type Boss } from "@/lib/boss-battles-data";
 import { BossBattleScorer } from "@/components/BossBattleScorer";
@@ -7,22 +7,57 @@ import type { GameResult } from "@/components/game-scorer";
 
 type Screen = { kind: "ladder" } | { kind: "entrance"; boss: Boss } | { kind: "fight"; boss: Boss } | { kind: "result"; boss: Boss; won: boolean };
 
+type BossStats = { attempts: number; wins: number; bestSeconds: number | null };
+
+type LeaderboardData = {
+  totalBosses: number;
+  players: { playerId: number; playerName: string; bossesDefeated: number; fullClear: boolean; lastDefeatAt: string }[];
+  fastestPerBoss: Record<string, { playerName: string; seconds: number }>;
+};
+
+/** mm:ss for a fight duration — best times are always well under an hour. */
+function formatSeconds(s: number): string {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
 export default function BossBattlePage() {
   const currentPlayer = useCurrentPlayer();
   const [defeated, setDefeated] = useState<Set<string>>(new Set());
+  const [stats, setStats] = useState<Record<string, BossStats>>({});
   const [loading, setLoading] = useState(true);
   const [screen, setScreen] = useState<Screen>({ kind: "ladder" });
+  const [fightStartedAt, setFightStartedAt] = useState<number | null>(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
 
   const loadProgress = () => {
     if (!currentPlayer?.playerId) { setLoading(false); return; }
     fetch(`/api/boss-battles/progress/${currentPlayer.playerId}`)
-      .then(r => r.ok ? r.json() : { defeated: [] })
-      .then((d: { defeated: string[] }) => setDefeated(new Set(d.defeated)))
-      .catch(() => setDefeated(new Set()))
+      .then(r => r.ok ? r.json() : { defeated: [], stats: {} })
+      .then((d: { defeated: string[]; stats?: Record<string, BossStats> }) => {
+        setDefeated(new Set(d.defeated));
+        setStats(d.stats ?? {});
+      })
+      .catch(() => { setDefeated(new Set()); setStats({}); })
       .finally(() => setLoading(false));
   };
 
   useEffect(loadProgress, [currentPlayer?.playerId]);
+
+  const toggleLeaderboard = () => {
+    setShowLeaderboard(v => !v);
+    if (!leaderboard && !leaderboardLoading) {
+      setLeaderboardLoading(true);
+      fetch("/api/boss-battles/leaderboard")
+        .then(r => r.ok ? r.json() : null)
+        .then(setLeaderboard)
+        .catch(() => setLeaderboard(null))
+        .finally(() => setLeaderboardLoading(false));
+    }
+  };
 
   const isUnlocked = (boss: Boss) => {
     if (boss.order <= 1) return true;
@@ -30,17 +65,27 @@ export default function BossBattlePage() {
     return prev ? defeated.has(prev.id) : true;
   };
 
+  const startFight = (boss: Boss) => {
+    setFightStartedAt(Date.now());
+    setScreen({ kind: "fight", boss });
+  };
+
   const handleMatchComplete = async (boss: Boss, result: GameResult) => {
     const won = result.winnerIdx === 0;
-    if (won && currentPlayer?.playerId) {
+    const elapsedSeconds = fightStartedAt ? Math.round((Date.now() - fightStartedAt) / 1000) : undefined;
+    if (currentPlayer?.playerId) {
       try {
-        await fetch("/api/boss-battles/complete", {
+        await fetch("/api/boss-battles/attempt", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ playerId: currentPlayer.playerId, bossId: boss.id }),
+          body: JSON.stringify({ playerId: currentPlayer.playerId, bossId: boss.id, won, elapsedSeconds }),
         });
-        setDefeated(prev => new Set(prev).add(boss.id));
+        // Refetch rather than patch locally — attempts/wins/best time are
+        // server-computed (upserts, min() on best time), so re-reading is
+        // the only way to stay exactly in sync with what was actually saved.
+        loadProgress();
       } catch { /* progress just won't be saved this time — not worth blocking the result screen over */ }
     }
+    setFightStartedAt(null);
     setScreen({ kind: "result", boss, won });
   };
 
@@ -92,7 +137,7 @@ export default function BossBattlePage() {
             style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}>
             Back
           </button>
-          <button onClick={() => setScreen({ kind: "fight", boss })}
+          <button onClick={() => startFight(boss)}
             className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider"
             style={{ background: "linear-gradient(135deg,#ff005c,#8b0000)", color: "#fff" }}>
             <Swords className="inline w-3.5 h-3.5 mr-1.5" />Fight
@@ -146,11 +191,62 @@ export default function BossBattlePage() {
         <div style={{ fontSize: "0.7rem", letterSpacing: "0.2em", color: "rgba(255,80,80,0.6)", textTransform: "uppercase" }}>Beta</div>
         <div style={{ fontSize: "1.6rem", fontWeight: 900, color: "#fff" }}>Boss Battle</div>
         <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>Beat each boss to unlock the next. Arcade only — no Elo impact.</div>
+        <button onClick={toggleLeaderboard}
+          className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide"
+          style={{ background: showLeaderboard ? "rgba(255,210,74,0.15)" : "rgba(255,255,255,0.06)", color: showLeaderboard ? "#ffd24a" : "rgba(255,255,255,0.5)" }}>
+          <Users className="w-3.5 h-3.5" /> Leaderboard
+        </button>
       </div>
+
+      {showLeaderboard && (
+        <div className="pdc-card p-4 mb-5">
+          {leaderboardLoading ? (
+            <div className="text-center py-4 text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Loading…</div>
+          ) : !leaderboard || leaderboard.players.length === 0 ? (
+            <div className="text-center py-2 text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>No one's beaten a boss yet — could be you.</div>
+          ) : (
+            <div className="space-y-2">
+              <div style={{ fontSize: "0.6rem", fontWeight: 800, letterSpacing: "0.08em", color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: "4px" }}>
+                Ladder Progress
+              </div>
+              {leaderboard.players.map((p, i) => (
+                <div key={p.playerId} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.7rem", width: "1.2em", display: "inline-block" }}>{i + 1}</span>
+                    <span style={{ color: p.playerId === currentPlayer?.playerId ? "#ffd24a" : "#fff", fontWeight: p.playerId === currentPlayer?.playerId ? 800 : 500 }}>
+                      {p.playerName}
+                    </span>
+                    {p.fullClear && <Trophy className="w-3 h-3" style={{ color: "#ffd24a" }} />}
+                  </div>
+                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.75rem" }}>{p.bossesDefeated}/{leaderboard.totalBosses}</span>
+                </div>
+              ))}
+              {Object.keys(leaderboard.fastestPerBoss).length > 0 && (
+                <>
+                  <div style={{ fontSize: "0.6rem", fontWeight: 800, letterSpacing: "0.08em", color: "rgba(255,255,255,0.4)", textTransform: "uppercase", margin: "10px 0 4px" }}>
+                    Fastest Clears
+                  </div>
+                  {BOSSES.filter(b => leaderboard.fastestPerBoss[b.id]).sort((a, b) => a.order - b.order).map(b => (
+                    <div key={b.id} className="flex items-center justify-between text-xs">
+                      <span style={{ color: "rgba(255,255,255,0.5)" }}>{b.name}</span>
+                      <span style={{ color: "rgba(255,255,255,0.4)" }}>
+                        <Clock className="inline w-3 h-3 mr-1" style={{ verticalAlign: "-1px" }} />
+                        {leaderboard.fastestPerBoss[b.id].playerName} · {formatSeconds(leaderboard.fastestPerBoss[b.id].seconds)}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="space-y-3">
         {BOSSES.sort((a, b) => a.order - b.order).map(boss => {
           const unlocked = isUnlocked(boss);
           const won = defeated.has(boss.id);
+          const bossStats = stats[boss.id];
           return (
             <button
               key={boss.id}
@@ -175,6 +271,12 @@ export default function BossBattlePage() {
                 <div style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.35)" }}>
                   {unlocked ? boss.tagline : "Beat the previous boss to unlock"}
                 </div>
+                {unlocked && bossStats && bossStats.attempts > 0 && (
+                  <div style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.25)", marginTop: "2px" }}>
+                    {bossStats.attempts} attempt{bossStats.attempts === 1 ? "" : "s"}
+                    {bossStats.bestSeconds !== null && <> · best {formatSeconds(bossStats.bestSeconds)}</>}
+                  </div>
+                )}
               </div>
               <div style={{ fontSize: "0.6rem", fontWeight: 700, color: "rgba(255,255,255,0.3)", textTransform: "uppercase" }}>
                 {boss.gameMode === "X01" ? "501" : "Cricket"}

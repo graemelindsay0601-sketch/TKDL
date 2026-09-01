@@ -46,21 +46,26 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon 
 
   const [cardEffects, setCardEffects] = useState<CCEffect[]>([]);
   const [attackBanner, setAttackBanner] = useState<BossMove | null>(null);
+  const [isEnrageBanner, setIsEnrageBanner] = useState(false);
   const lastLegRef = useRef<number>(0);
 
   const handleLegStart = (legNumber: number) => {
     if (legNumber === lastLegRef.current) return; // guard against StrictMode double-invoke
     lastLegRef.current = legNumber;
-    const { effects, move } = getBossEffectsForLeg(boss, legNumber);
+    const { effects, move, isEnrage } = getBossEffectsForLeg(boss, legNumber);
     setCardEffects(effects);
     setAttackBanner(move);
+    setIsEnrageBanner(isEnrage);
   };
 
   useEffect(() => {
     if (!attackBanner) return;
-    const t = setTimeout(() => setAttackBanner(null), 3500);
+    // Enrage banners get a beat longer on screen — there's more going on
+    // (the "final push" label plus a longer description) and it's the
+    // moment the fight actually turns, worth lingering on.
+    const t = setTimeout(() => setAttackBanner(null), isEnrageBanner ? 4500 : 3500);
     return () => clearTimeout(t);
-  }, [attackBanner]);
+  }, [attackBanner, isEnrageBanner]);
 
   const handleMatchComplete = (winnerIdx: 0 | 1, detail?: string) => {
     onMatchComplete({ winnerIdx, detail });
@@ -73,17 +78,31 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon 
       {attackBanner && (
         <div style={{
           position: "fixed", top: 60, left: "50%", transform: "translateX(-50%)", zIndex: 3000,
-          padding: "10px 22px", borderRadius: "12px", textAlign: "center",
-          background: "linear-gradient(135deg,#8b0000,#2b0000)", border: "1px solid rgba(255,80,80,0.5)",
-          boxShadow: "0 10px 32px rgba(0,0,0,0.6)", fontFamily: "Oswald, sans-serif",
+          padding: isEnrageBanner ? "14px 26px" : "10px 22px", borderRadius: "12px", textAlign: "center",
+          background: isEnrageBanner ? "linear-gradient(135deg,#ff005c,#4a0012)" : "linear-gradient(135deg,#8b0000,#2b0000)",
+          border: isEnrageBanner ? "1px solid rgba(255,0,92,0.8)" : "1px solid rgba(255,80,80,0.5)",
+          boxShadow: isEnrageBanner ? "0 0 40px rgba(255,0,92,0.5), 0 10px 32px rgba(0,0,0,0.6)" : "0 10px 32px rgba(0,0,0,0.6)",
+          fontFamily: "Oswald, sans-serif",
           maxWidth: "min(90vw, 380px)",
+          animation: isEnrageBanner ? "boss-enrage-pulse 1.1s ease-in-out infinite" : undefined,
         }}>
-          <div style={{ fontSize: "0.65rem", fontWeight: 900, letterSpacing: "0.08em", color: "#ff6b6b", textTransform: "uppercase" }}>
+          {isEnrageBanner && (
+            <div style={{ fontSize: "0.6rem", fontWeight: 900, letterSpacing: "0.15em", color: "#ffd24a", textTransform: "uppercase", marginBottom: "3px" }}>
+              ⚔ Final Push ⚔
+            </div>
+          )}
+          <div style={{ fontSize: isEnrageBanner ? "0.75rem" : "0.65rem", fontWeight: 900, letterSpacing: "0.08em", color: "#ff6b6b", textTransform: "uppercase" }}>
             {boss.name} uses {attackBanner.name}!
           </div>
           <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.75)", marginTop: "3px" }}>
             {attackBanner.description}
           </div>
+          <style>{`
+            @keyframes boss-enrage-pulse {
+              0%, 100% { transform: translateX(-50%) scale(1); }
+              50% { transform: translateX(-50%) scale(1.035); }
+            }
+          `}</style>
         </div>
       )}
       {boss.gameMode === "X01" ? (

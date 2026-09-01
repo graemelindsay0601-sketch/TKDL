@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, desc, count, inArray } from "drizzle-orm";
+import { eq, and, desc, count, inArray } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable, matchParticipantsTable } from "@workspace/db";
 import { sql as drizzleSql } from "drizzle-orm";
 import { calcTier } from "../lib/elo";
@@ -14,8 +14,11 @@ const LIVE_FEED_TTL_MS = 15_000;
 router.get("/stats/summary", async (_req, res): Promise<void> => {
   const allPlayers   = await db.select().from(playersTable);
   const activePlayers = allPlayers.filter(p => p.isActive);
-  const [currentSeason] = await db.select().from(seasonsTable).where(eq(seasonsTable.isActive, true)).limit(1);
-  const completedSeasons = await db.select({ id: seasonsTable.id }).from(seasonsTable).where(eq(seasonsTable.isActive, false));
+  const [currentSeason] = await db.select().from(seasonsTable)
+    .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "singles")))
+    .limit(1);
+  const completedSeasons = await db.select({ id: seasonsTable.id }).from(seasonsTable)
+    .where(and(eq(seasonsTable.isActive, false), eq(seasonsTable.leagueType, "singles")));
   const [lastMatch] = await db.select().from(matchesTable).orderBy(desc(matchesTable.playedAt)).limit(1);
 
   let currentSeasonMatches = 0;
@@ -115,7 +118,9 @@ router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
 
 router.get("/stats/narrative", async (_req, res): Promise<void> => {
   const players = await db.select().from(playersTable).where(eq(playersTable.isActive, true));
-  const [currentSeason] = await db.select().from(seasonsTable).where(eq(seasonsTable.isActive, true)).limit(1);
+  const [currentSeason] = await db.select().from(seasonsTable)
+    .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "singles")))
+    .limit(1);
   const recentMatches = currentSeason
     ? await db.select().from(matchesTable)
         .where(eq(matchesTable.seasonId, currentSeason.id))

@@ -82,7 +82,7 @@ function useDoublesTeamsForPlay() {
   useEffect(() => {
     (async () => {
       try {
-        const seasonRes = await fetch("/api/seasons/current");
+        const seasonRes = await fetch("/api/seasons/current?leagueType=doubles");
         const season = await seasonRes.json();
         if (!season?.id) { setTeams([]); setLoaded(true); return; }
         const teamsRes = await fetch(`/api/seasons/${season.id}/doubles/teams`);

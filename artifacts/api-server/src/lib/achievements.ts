@@ -25,6 +25,11 @@ export type AchievementDef = {
   secondaryValue?: number;
   coinReward?: number;
   packReward?: 'SINGLE' | 'FIVE' | 'TEN';
+  /** True for a genuinely seasonal achievement that can be earned again in a
+   *  later season (Season MVP, Climber, Most Active, etc.) — grantIfNotHas
+   *  is called with that season's real id for these. Everything else is a
+   *  one-time lifetime badge (grantIfNotHas defaults to season 0). */
+  repeatable?: boolean;
 };
 
 export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
@@ -74,13 +79,25 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { key: "RIVAL_BREAKER",     name: "⚔ Rival Breaker",      description: "Defeat a rival 10 times",                     icon: "⚔",  rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "RIVAL_WINS",       criteriaValue: 10,  engineType: "MATCH_EVENT" , coinReward: 75, packReward: 'SINGLE' },
   { key: "SURVIVOR_ACH",      name: "🛡 Survivor",          description: "Play 20+ matches in a single season",         icon: "🛡", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "SEASON_GAMES",     criteriaValue: 20,  engineType: "SEASON_EVENT" , coinReward: 75, packReward: 'SINGLE' },
   { key: "ELO_1200",          name: "🔶 Master Level",      description: "Reach 1200 ELO rating",                       icon: "🔶", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "PEAK_ELO",         criteriaValue: 1200, engineType: "STAT_BASED",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 30 , coinReward: 75, packReward: 'SINGLE' },
+  // ELO_1050 (1050) → ELO_1200 (1200) → ELO_1300 (1300) → ASCENDED (1400,
+  // below) is meant to be one continuous ladder. ASCENDED used to also
+  // require 1200 — identical to ELO_1200 in every respect and always
+  // granted alongside it — which made it a pure duplicate rather than the
+  // ladder's actual top rung. Bumped to 1400 so it's a real, harder-to-reach
+  // milestone above ELO_1300 instead of a second copy of ELO_1200.
   // === TIER ===
   { key: "BRONZE_BLOODED",    name: "🥉 Bronze Blooded",    description: "Reach 10 career wins",                        icon: "🥉", rarity: "Common",    category: "Tier",      hidden: false, priority: 20, criteriaType: "CAREER_WINS",      criteriaValue: 10,  engineType: "STAT_BASED" , coinReward: 15 },
   { key: "SILVER_STANDARD",   name: "🥈 Silver Standard",   description: "Reach 30 career wins",                        icon: "🥈", rarity: "Rare",      category: "Tier",      hidden: false, priority: 40, criteriaType: "CAREER_WINS",      criteriaValue: 30,  engineType: "STAT_BASED" , coinReward: 35, packReward: 'SINGLE' },
   { key: "GOLDEN_ERA",        name: "🥇 Golden Era",        description: "Reach 75 career wins",                        icon: "🥇", rarity: "Epic",      category: "Tier",      hidden: false, priority: 60, criteriaType: "CAREER_WINS",      criteriaValue: 75,  engineType: "STAT_BASED" , coinReward: 75, packReward: 'SINGLE' },
   // === LEGENDARY ===
   { key: "CROWNED",           name: "👑 Crowned",           description: "Finish a season with most points",            icon: "👑", rarity: "Legendary", category: "Career",    hidden: false, priority: 80, criteriaType: "SEASON_POINTS_LEADER", criteriaValue: 1, engineType: "SEASON_EVENT" , coinReward: 150, packReward: 'FIVE' },
-  { key: "MVP",               name: "🎖 Season MVP",        description: "Finish season with most points overall",      icon: "🎖", rarity: "Legendary", category: "Seasonal",  hidden: false, priority: 80, criteriaType: "SEASON_POINTS_LEADER", criteriaValue: 1, engineType: "SEASON_EVENT" , coinReward: 150, packReward: 'FIVE' },
+  // MVP and CROWNED used to be granted by the exact same two lines of code
+  // every time, despite MVP being tagged "Seasonal" and CROWNED "Career" —
+  // making MVP a duplicate of CROWNED rather than the repeatable badge its
+  // own category says it should be. Now: CROWNED stays a one-time "you've
+  // topped a season at least once" lifetime badge; MVP is genuinely
+  // seasonal and can be earned again each time you top the points table.
+  { key: "MVP",               name: "🎖 Season MVP",        description: "Finish a season with the most points overall",icon: "🎖", rarity: "Legendary", category: "Seasonal",  hidden: false, priority: 80, criteriaType: "SEASON_POINTS_LEADER", criteriaValue: 1, engineType: "SEASON_EVENT" , coinReward: 150, packReward: 'FIVE', repeatable: true },
   { key: "INFERNO",           name: "🔥 Inferno",           description: "Win 10 in a row",                             icon: "🔥", rarity: "Legendary", category: "Career",    hidden: false, priority: 80, criteriaType: "WIN_STREAK",       criteriaValue: 10,  engineType: "MATCH_EVENT",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 30 , coinReward: 150, packReward: 'FIVE' },
   { key: "IMMORTAL",          name: "🐐 Immortal",          description: "Reach 100 career wins",                       icon: "🐐", rarity: "Legendary", category: "Career",    hidden: false, priority: 80, criteriaType: "CAREER_WINS",      criteriaValue: 100, engineType: "STAT_BASED" , coinReward: 150, packReward: 'FIVE' },
   { key: "DECORATED",         name: "🎖 Decorated",         description: "Unlock 25 achievements",                      icon: "🎖", rarity: "Legendary", category: "Career",    hidden: false, priority: 80, criteriaType: "TOTAL_ACHIEVEMENTS",criteriaValue: 25,  engineType: "STAT_BASED" , coinReward: 150, packReward: 'FIVE' },
@@ -91,22 +108,38 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   // === MYTHIC ===
   { key: "DYNASTY",           name: "🏆 Dynasty",           description: "Be season champion 3 times",                  icon: "🏆", rarity: "Mythic",    category: "Career",    hidden: false, priority: 90, criteriaType: "SEASON_CHAMPION_COUNT", criteriaValue: 3, engineType: "SEASON_EVENT" , coinReward: 300, packReward: 'TEN' },
   { key: "UNTOUCHABLE",       name: "💎 Untouchable",       description: "Maintain 85% win rate over 50 games",         icon: "💎", rarity: "Mythic",    category: "Career",    hidden: false, priority: 90, criteriaType: "WIN_RATE",         criteriaValue: 85,  engineType: "STAT_BASED",   secondaryCriteria: "CAREER_GAMES", secondaryValue: 50 , coinReward: 300, packReward: 'TEN' },
-  { key: "ASCENDED",          name: "🌌 ELO Legend",        description: "Reach 1200 ELO rating",                       icon: "🌌", rarity: "Mythic",    category: "Career",    hidden: false, priority: 90, criteriaType: "PEAK_ELO",         criteriaValue: 1200, engineType: "STAT_BASED",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 50 , coinReward: 300, packReward: 'TEN' },
+  { key: "ASCENDED",          name: "🌌 ELO Legend",        description: "Reach 1400 ELO rating",                       icon: "🌌", rarity: "Mythic",    category: "Career",    hidden: false, priority: 90, criteriaType: "PEAK_ELO",         criteriaValue: 1400, engineType: "STAT_BASED",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 50 , coinReward: 300, packReward: 'TEN' },
   { key: "NIGHTMARE",         name: "👹 Nightmare",         description: "Eliminate 10 players total",                  icon: "👹", rarity: "Mythic",    category: "Career",    hidden: false, priority: 90, criteriaType: "ELIMINATIONS",     criteriaValue: 10,  engineType: "MATCH_EVENT" , coinReward: 300, packReward: 'TEN' },
   { key: "WARPATH",           name: "⚔ Warpath",            description: "Win 15 in a row",                             icon: "⚔",  rarity: "Mythic",    category: "Career",    hidden: false, priority: 90, criteriaType: "WIN_STREAK",       criteriaValue: 15,  engineType: "MATCH_EVENT",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 50 , coinReward: 300, packReward: 'TEN' },
   { key: "APOCALYPSE",        name: "💀 Apocalypse",        description: "Eliminate 5 top-ranked players",              icon: "💀", rarity: "Mythic",    category: "Career",    hidden: false, priority: 90, criteriaType: "TOP_RANKED_ELIMS", criteriaValue: 5,   engineType: "MATCH_EVENT" , coinReward: 300, packReward: 'TEN' },
   { key: "HALL_OF_FAME",      name: "🧬 Hall of Fame",      description: "Reach 200 career wins",                       icon: "🧬", rarity: "Mythic",    category: "Career",    hidden: false, priority: 90, criteriaType: "CAREER_WINS",      criteriaValue: 200, engineType: "STAT_BASED" , coinReward: 300, packReward: 'TEN' },
   { key: "LEGEND",            name: "🏛 Legend",            description: "Unlock 50 achievements",                      icon: "🏛", rarity: "Mythic",    category: "Career",    hidden: false, priority: 90, criteriaType: "TOTAL_ACHIEVEMENTS",criteriaValue: 50,  engineType: "STAT_BASED" , coinReward: 300, packReward: 'TEN' },
-  { key: "UNTOUCHABLE_PLUS",  name: "🧿 Untouchable+",      description: "Maintain 85% win rate with 50+ games",        icon: "🧿", rarity: "Mythic",    category: "Career",    hidden: false, priority: 90, criteriaType: "WIN_RATE",         criteriaValue: 85,  engineType: "STAT_BASED",   secondaryCriteria: "CAREER_GAMES", secondaryValue: 50 , coinReward: 300, packReward: 'TEN' },
+  // UNTOUCHABLE_PLUS was an exact duplicate of UNTOUCHABLE (same rate, same
+  // game count, granted together on the same line) rather than a harder
+  // next tier. Bumped to require sustaining it twice as long (100+ games),
+  // so it's a real "still Untouchable, much later" follow-up badge.
+  { key: "UNTOUCHABLE_PLUS",  name: "🧿 Untouchable+",      description: "Maintain 85% win rate over 100 games",        icon: "🧿", rarity: "Mythic",    category: "Career",    hidden: false, priority: 90, criteriaType: "WIN_RATE",         criteriaValue: 85,  engineType: "STAT_BASED",   secondaryCriteria: "CAREER_GAMES", secondaryValue: 100, coinReward: 300, packReward: 'TEN' },
   // === SEASONAL ===
-  { key: "RISING_STAR",       name: "📈 Rising Star",       description: "Gain 100+ points in first season",            icon: "📈", rarity: "Rare",      category: "Seasonal",  hidden: false, priority: 40, criteriaType: "FIRST_SEASON_POINTS", criteriaValue: 100, engineType: "SEASON_EVENT" , coinReward: 35, packReward: 'SINGLE' },
-  { key: "COLLAPSING",        name: "📉 Collapse",          description: "Lose 50+ points in a season",                 icon: "📉", rarity: "Rare",      category: "Seasonal",  hidden: false, priority: 40, criteriaType: "SEASON_POINTS_LOSS",criteriaValue: 50,  engineType: "SEASON_EVENT" , coinReward: 35, packReward: 'SINGLE' },
+  // Every achievement below was defined here but NEVER actually granted
+  // anywhere in the codebase — no grant call for any of these 8 keys
+  // existed before this pass, so nobody could ever earn them no matter what
+  // they did (they'd just sit on the achievements page forever locked).
+  // RISING_STAR/COLLAPSING/MOST_ACTIVE/ROCKET_START/CLIMBER/FREEFALL/METEOR
+  // are now wired up in retroactiveSweep() and checkSeasonAchievements().
+  // REAPER_SEASONAL and MOMENTUM need data the app doesn't track yet
+  // (per-season elimination counts and weekly win-streak history) and are
+  // left unwired rather than rushing an inaccurate implementation — flagged
+  // here for a future pass once that tracking exists.
+  { key: "RISING_STAR",       name: "📈 Rising Star",       description: "Gain 100+ points in your first season",       icon: "📈", rarity: "Rare",      category: "Seasonal",  hidden: false, priority: 40, criteriaType: "FIRST_SEASON_POINTS", criteriaValue: 100, engineType: "SEASON_EVENT" , coinReward: 35, packReward: 'SINGLE' },
+  { key: "COLLAPSING",        name: "📉 Collapse",          description: "Lose 50+ points in a season",                 icon: "📉", rarity: "Rare",      category: "Seasonal",  hidden: false, priority: 40, criteriaType: "SEASON_POINTS_LOSS",criteriaValue: 50,  engineType: "SEASON_EVENT" , coinReward: 35, packReward: 'SINGLE', repeatable: true },
+  // Not yet wired — needs per-season elimination tracking (see note above).
   { key: "REAPER_SEASONAL",   name: "💀 Reaper",            description: "Most eliminations in a season",               icon: "💀", rarity: "Epic",      category: "Seasonal",  hidden: false, priority: 60, criteriaType: "SEASON_ELIMINATIONS",criteriaValue: 1,  engineType: "SEASON_EVENT" , coinReward: 75, packReward: 'SINGLE' },
-  { key: "MOST_ACTIVE",       name: "🎯 Most Active",       description: "Play 50+ matches in a season",                icon: "🎯", rarity: "Rare",      category: "Seasonal",  hidden: false, priority: 40, criteriaType: "SEASON_GAMES",     criteriaValue: 50,  engineType: "SEASON_EVENT" , coinReward: 35, packReward: 'SINGLE' },
-  { key: "ROCKET_START",      name: "🚀 Rocket Start",      description: "Win first 3 matches of a season",             icon: "🚀", rarity: "Rare",      category: "Seasonal",  hidden: false, priority: 40, criteriaType: "SEASON_START_WINS",criteriaValue: 3,   engineType: "SEASON_EVENT" , coinReward: 35, packReward: 'SINGLE' },
-  { key: "CLIMBER",           name: "🪜 Climber",           description: "Gain 75+ points in a season",                 icon: "🪜", rarity: "Common",    category: "Seasonal",  hidden: false, priority: 20, criteriaType: "SEASON_POINTS",    criteriaValue: 75,  engineType: "SEASON_EVENT" , coinReward: 15 },
-  { key: "FREEFALL",          name: "🕳 Freefall",          description: "Lose 75+ points in a season",                 icon: "🕳", rarity: "Rare",      category: "Seasonal",  hidden: false, priority: 40, criteriaType: "SEASON_POINTS_LOSS",criteriaValue: 75,  engineType: "SEASON_EVENT" , coinReward: 35, packReward: 'SINGLE' },
+  { key: "MOST_ACTIVE",       name: "🎯 Most Active",       description: "Play 50+ matches in a season",                icon: "🎯", rarity: "Rare",      category: "Seasonal",  hidden: false, priority: 40, criteriaType: "SEASON_GAMES",     criteriaValue: 50,  engineType: "SEASON_EVENT" , coinReward: 35, packReward: 'SINGLE', repeatable: true },
+  { key: "ROCKET_START",      name: "🚀 Rocket Start",      description: "Win your first 3 matches of a season",        icon: "🚀", rarity: "Rare",      category: "Seasonal",  hidden: false, priority: 40, criteriaType: "SEASON_START_WINS",criteriaValue: 3,   engineType: "SEASON_EVENT" , coinReward: 35, packReward: 'SINGLE', repeatable: true },
+  { key: "CLIMBER",           name: "🪜 Climber",           description: "Gain 75+ points in a season",                 icon: "🪜", rarity: "Common",    category: "Seasonal",  hidden: false, priority: 20, criteriaType: "SEASON_POINTS",    criteriaValue: 75,  engineType: "SEASON_EVENT" , coinReward: 15, repeatable: true },
+  { key: "FREEFALL",          name: "🕳 Freefall",          description: "Lose 75+ points in a season",                 icon: "🕳", rarity: "Rare",      category: "Seasonal",  hidden: false, priority: 40, criteriaType: "SEASON_POINTS_LOSS",criteriaValue: 75,  engineType: "SEASON_EVENT" , coinReward: 35, packReward: 'SINGLE', repeatable: true },
   { key: "METEOR",            name: "☄ Meteor",             description: "Finish top 3 in your first season",           icon: "☄",  rarity: "Epic",      category: "Seasonal",  hidden: false, priority: 60, criteriaType: "FIRST_SEASON_TOP3",criteriaValue: 1,   engineType: "SEASON_EVENT" , coinReward: 75, packReward: 'SINGLE' },
+  // Not yet wired — needs weekly win-streak history (see note above).
   { key: "MOMENTUM",          name: "📈 Momentum",          description: "Win streaks in 3 consecutive weeks",          icon: "📈", rarity: "Common",    category: "Seasonal",  hidden: false, priority: 20, criteriaType: "WEEKLY_WINS",      criteriaValue: 3,   engineType: "SEASON_EVENT" , coinReward: 15 },
   // === HIDDEN ===
   { key: "LAST_MAN_STANDING", name: "☠ Last Man Standing",  description: "Never be eliminated across entire career",    icon: "☠",  rarity: "Mythic",    category: "Hidden",    hidden: true,  priority: 90, criteriaType: "NEVER_ELIMINATED",  criteriaValue: 1,  engineType: "STAT_BASED" , coinReward: 300, packReward: 'TEN' },
@@ -156,6 +189,18 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { key: "LUNCH_LEGEND",       name: "🥪 Lunch Break Legend",    description: "Win 3 or more matches in a single day",            icon: "🥪", rarity: "Rare",      category: "Hidden",  hidden: true,  priority: 40, criteriaType: "SAME_DAY_WINS",            criteriaValue: 3,  engineType: "MATCH_EVENT" , coinReward: 35, packReward: 'SINGLE' },
   { key: "KILBIRNIE_LION",     name: "🦁 Kilbirnie Lion",        description: "Win 5 or more matches in a single week",           icon: "🦁", rarity: "Epic",      category: "Hidden",  hidden: true,  priority: 60, criteriaType: "SAME_WEEK_WINS",           criteriaValue: 5,  engineType: "MATCH_EVENT" , coinReward: 75, packReward: 'SINGLE' },
   { key: "FIRST_BLOOD_SEASON", name: "🩸 Season Opener",         description: "Score the very first win of a new season",         icon: "🩸", rarity: "Rare",      category: "Hidden",  hidden: true,  priority: 40, criteriaType: "FIRST_MATCH_SEASON_WIN",   criteriaValue: 1,  engineType: "MATCH_EVENT" , coinReward: 35, packReward: 'SINGLE' },
+  // === RECOVERED FROM DEAD CODE ===
+  // checkStatAchievements/checkMatchAchievements already computed these
+  // (real Elo-diff math, real head-to-head SQL) on every match, but no
+  // definition existed for the key they were granting — grantIfNotHas
+  // silently no-ops when the key isn't in this array, so all that work ran
+  // for nothing, forever. Definitions added so the existing, already-tested
+  // computation actually grants something.
+  { key: "REGULAR_PLAYER",     name: "📅 Regular",               description: "Play a match in 20+ different weeks",              icon: "📅", rarity: "Rare",      category: "Career",  hidden: false, priority: 40, criteriaType: "ACTIVE_WEEKS",             criteriaValue: 20, engineType: "STAT_BASED" , coinReward: 100, packReward: 'SINGLE' },
+  { key: "UNDERDOG_SPECIAL",   name: "🐕 Underdog Special",      description: "Beat an opponent rated 100+ Elo above you",        icon: "🐕", rarity: "Rare",      category: "Career",  hidden: false, priority: 40, criteriaType: "ELO_UPSET_WIN",             criteriaValue: 100, engineType: "MATCH_EVENT" , coinReward: 75, packReward: 'SINGLE' },
+  { key: "LUCKY_SOB_MASSIVE",  name: "🍀 Lucky Sob",             description: "Beat an opponent rated 150+ Elo above you",        icon: "🍀", rarity: "Epic",      category: "Hidden",  hidden: true,  priority: 60, criteriaType: "ELO_UPSET_WIN",             criteriaValue: 150, engineType: "MATCH_EVENT" , coinReward: 150, packReward: 'FIVE' },
+  { key: "REVERSAL",           name: "🔄 Reversal",              description: "Beat your most-played rival twice in a row",       icon: "🔄", rarity: "Epic",      category: "Rivalry", hidden: false, priority: 60, criteriaType: "RIVAL_WIN_STREAK",         criteriaValue: 2,  engineType: "MATCH_EVENT" , coinReward: 100, packReward: 'SINGLE' },
+  { key: "UNBEATABLE_VS_ONE",  name: "🎭 Unbeatable vs. One",    description: "Win 3 in a row against the same opponent this season", icon: "🎭", rarity: "Rare",  category: "Rivalry", hidden: false, priority: 40, criteriaType: "SEASON_RIVAL_STREAK",      criteriaValue: 3,  engineType: "MATCH_EVENT" , coinReward: 75, packReward: 'SINGLE' },
   ...PRACTICE_ACHIEVEMENT_DEFINITIONS,
   ...FORMAT_AND_MEME_ACHIEVEMENT_DEFINITIONS,
   ...MASTER501_ACHIEVEMENT_DEFINITIONS,
@@ -174,6 +219,43 @@ function normGT(gt: string): string {
   if (g.includes("301") || g.includes("no black") || g.includes("no point black")
     || g.includes("pick a double") || g.includes("double or nothing"))                  return "301";
   return gt.length < 20 ? gt : "Other";
+}
+
+/** Points lost by each of the given players within one season (sum of stakes
+ *  from matches they lost that season) — powers COLLAPSING/FREEFALL, which
+ *  were defined but never actually computed anywhere before this. */
+async function getSeasonPointsLost(seasonId: number, playerIds: number[]): Promise<Map<number, number>> {
+  if (playerIds.length === 0) return new Map();
+  const rows = (await db.execute(sql`
+    SELECT loser_id, COALESCE(SUM(stake), 0)::int AS lost
+    FROM matches
+    WHERE season_id = ${seasonId} AND loser_id = ANY(ARRAY[${sql.join(playerIds.map(id => sql`${id}`), sql`, `)}]::int[])
+    GROUP BY loser_id
+  `)).rows as { loser_id: number; lost: number }[];
+  return new Map(rows.map(r => [r.loser_id, r.lost]));
+}
+
+/** True if a player's first N matches played in a season (chronologically)
+ *  were all wins — powers ROCKET_START, which was also never computed. */
+async function wonFirstNSeasonMatches(playerId: number, seasonId: number, n: number): Promise<boolean> {
+  const rows = await db.select().from(matchesTable)
+    .where(and(
+      eq(matchesTable.seasonId, seasonId),
+      or(eq(matchesTable.winnerId, playerId), eq(matchesTable.loserId, playerId))
+    ))
+    .orderBy(matchesTable.playedAt)
+    .limit(n);
+  return rows.length === n && rows.every(m => m.winnerId === playerId);
+}
+
+/** True if this is the first season this player has ever had a standings row
+ *  for — powers RISING_STAR/METEOR ("...in your first season"), which were
+ *  also defined but never computed. */
+async function isPlayersFirstSeason(playerId: number, seasonId: number): Promise<boolean> {
+  const [row] = (await db.execute(sql`
+    SELECT COUNT(*)::int AS cnt FROM season_standings WHERE player_id = ${playerId} AND season_id != ${seasonId}
+  `)).rows as { cnt: number }[];
+  return (row?.cnt ?? 0) === 0;
 }
 
 export async function retroactiveSweep(): Promise<{ granted: number; playersChecked: number }> {
@@ -299,19 +381,34 @@ export async function retroactiveSweep(): Promise<{ granted: number; playersChec
       const games = s.wins + s.losses;
       if (s.wins >= 15)   await grantIfNotHas(pid, "LONE_WOLF");
       if (s.wins >= 20)   await grantIfNotHas(pid, "STORM_BRINGER");
-      if (s.points >= 75)  await grantIfNotHas(pid, "CLIMBER");
+      if (s.points >= 75)  await grantIfNotHas(pid, "CLIMBER", s.seasonId);
       if (s.points >= 100) await grantIfNotHas(pid, "SHOCKWAVE");
       if (s.points >= 200) await grantIfNotHas(pid, "POINT_THIEF");
       if (s.position <= 3) await grantIfNotHas(pid, "UNBREAKABLE");
       if (games >= 20) await grantIfNotHas(pid, "SURVIVOR_ACH");
-      if (games >= 50) await grantIfNotHas(pid, "MOST_ACTIVE");
+      if (games >= 50) await grantIfNotHas(pid, "MOST_ACTIVE", s.seasonId);
       if (s.points > 0 && games >= 10) await grantIfNotHas(pid, "ROCK_SOLID");
       if (s.points > 0 && games >= 15) await grantIfNotHas(pid, "IRON_WALL");
       if (s.points > 0 && games >= 20) await grantIfNotHas(pid, "FORTRESS");
+
+      // Points lost this season — COLLAPSING/FREEFALL
+      const lost = (await getSeasonPointsLost(s.seasonId, [pid])).get(pid) ?? 0;
+      if (lost >= 50) await grantIfNotHas(pid, "COLLAPSING", s.seasonId);
+      if (lost >= 75) await grantIfNotHas(pid, "FREEFALL", s.seasonId);
+
+      // Won their first 3 matches of the season — ROCKET_START
+      if (await wonFirstNSeasonMatches(pid, s.seasonId, 3)) await grantIfNotHas(pid, "ROCKET_START", s.seasonId);
+
+      // First-season-only badges — RISING_STAR/METEOR
+      if (await isPlayersFirstSeason(pid, s.seasonId)) {
+        if (s.points >= 100) await grantIfNotHas(pid, "RISING_STAR");
+        if (s.position <= 3) await grantIfNotHas(pid, "METEOR");
+      }
     }
 
     const champSeasons = standings.filter(s => s.isChampion);
-    if (champSeasons.length >= 1) { await grantIfNotHas(pid, "CROWNED"); await grantIfNotHas(pid, "MVP"); }
+    if (champSeasons.length >= 1) await grantIfNotHas(pid, "CROWNED");
+    for (const cs of champSeasons) await grantIfNotHas(pid, "MVP", cs.seasonId);
     if (champSeasons.length >= 3)  await grantIfNotHas(pid, "DYNASTY");
 
     // Back-to-back titles
@@ -345,45 +442,68 @@ export async function seedAchievements(): Promise<void> {
     const [existing] = await db.select({ id: achievementsTable.id })
       .from(achievementsTable)
       .where(eq(achievementsTable.key, def.key));
+    const row = {
+      key:               def.key,
+      name:              def.name,
+      description:       def.description,
+      icon:              def.icon,
+      rarity:            def.rarity,
+      category:          def.category,
+      hidden:            def.hidden,
+      priority:          def.priority,
+      criteriaType:      def.criteriaType,
+      criteriaValue:     def.criteriaValue,
+      engineType:        def.engineType,
+      secondaryCriteria: def.secondaryCriteria ?? null,
+      secondaryValue:    def.secondaryValue ?? null,
+      // These were previously omitted from both insert AND update, so every
+      // seeded row's coin_reward sat at the column default (0) forever
+      // regardless of what the definition said — the real reward always
+      // came from the separate achievement-rewards.ts lookup instead. Now
+      // synced too, so the catalog row a trophy detail page reads from
+      // actually reflects what the achievement pays out.
+      coinReward:        def.coinReward ?? 0,
+      packReward:        def.packReward ?? null,
+    };
     if (!existing) {
-      await db.insert(achievementsTable).values({
-        key:               def.key,
-        name:              def.name,
-        description:       def.description,
-        icon:              def.icon,
-        rarity:            def.rarity,
-        category:          def.category,
-        hidden:            def.hidden,
-        priority:          def.priority,
-        criteriaType:      def.criteriaType,
-        criteriaValue:     def.criteriaValue,
-        engineType:        def.engineType,
-        secondaryCriteria: def.secondaryCriteria ?? null,
-        secondaryValue:    def.secondaryValue ?? null,
-      });
+      await db.insert(achievementsTable).values(row);
+    } else {
+      // Keep existing rows in sync with code on every boot (descriptions,
+      // rarities, thresholds, rewards) rather than only ever inserting once
+      // and letting the DB drift from ACHIEVEMENT_DEFINITIONS over time —
+      // this is exactly what let ASCENDED/UNTOUCHABLE_PLUS's fixes above
+      // actually reach a live database instead of just the code.
+      await db.update(achievementsTable).set(row).where(eq(achievementsTable.id, existing.id));
     }
   }
 }
 
-async function grantIfNotHas(playerId: number, key: string): Promise<boolean> {
+/**
+ * @param seasonId 0 (default) for a lifetime/one-time achievement — the vast
+ *   majority. Pass the real season id for a `repeatable: true` seasonal
+ *   achievement (Season MVP, Climber, etc.) so it can be earned again in a
+ *   later season instead of only ever once per player.
+ */
+async function grantIfNotHas(playerId: number, key: string, seasonId = 0): Promise<boolean> {
   const [ach] = await db.select().from(achievementsTable).where(eq(achievementsTable.key, key));
   if (!ach) return false;
   const [existing] = await db.select({ id: playerAchievementsTable.id })
     .from(playerAchievementsTable)
     .where(and(
       eq(playerAchievementsTable.playerId, playerId),
-      eq(playerAchievementsTable.achievementId, ach.id)
+      eq(playerAchievementsTable.achievementId, ach.id),
+      eq(playerAchievementsTable.seasonId, seasonId)
     ));
   if (existing) return false;
 
   // The SELECT above is just a fast-path early exit — it can't stop two
-  // concurrent calls for the same player+achievement both passing it. The
-  // insert itself is the real guard: onConflictDoNothing (backed by the
-  // pa_player_achievement_unique index) makes the grant atomic, so at most
-  // one of two racing calls actually inserts a row and only that one goes
-  // on to award rewards/notify.
+  // concurrent calls for the same player+achievement+season both passing
+  // it. The insert itself is the real guard: onConflictDoNothing (backed by
+  // the idx_player_achievements_unique_seasonal index) makes the grant
+  // atomic, so at most one of two racing calls actually inserts a row and
+  // only that one goes on to award rewards/notify.
   const [inserted] = await db.insert(playerAchievementsTable)
-    .values({ playerId, achievementId: ach.id })
+    .values({ playerId, achievementId: ach.id, seasonId })
     .onConflictDoNothing()
     .returning({ id: playerAchievementsTable.id });
   if (!inserted) return false;
@@ -473,8 +593,9 @@ export async function checkStatAchievements(playerId: number): Promise<void> {
   if (player.careerWins >= 200)        await grantIfNotHas(playerId, "HALL_OF_FAME");
   if (player.careerPoints >= 500)      await grantIfNotHas(playerId, "POINT_MASTER");
   if (player.careerPeakElo >= 1050)    await grantIfNotHas(playerId, "ELO_1050");
-  if (player.careerPeakElo >= 1200)    { await grantIfNotHas(playerId, "ELO_1200"); await grantIfNotHas(playerId, "ASCENDED"); }
+  if (player.careerPeakElo >= 1200)    await grantIfNotHas(playerId, "ELO_1200");
   if (player.careerPeakElo >= 1300)    await grantIfNotHas(playerId, "ELO_1300");
+  if (player.careerPeakElo >= 1400)    await grantIfNotHas(playerId, "ASCENDED");
   // Career points milestones
   if (player.careerPoints >= 100) await grantIfNotHas(playerId, "CENTURY_POINTS");
   if (player.careerPoints >= 200) await grantIfNotHas(playerId, "TWO_HUNDRED");
@@ -486,7 +607,8 @@ export async function checkStatAchievements(playerId: number): Promise<void> {
   if (player.careerGamesPlayed >= 20 && wr >= 70)  await grantIfNotHas(playerId, "PRECISION");
   if (player.careerGamesPlayed >= 30 && wr >= 75)  await grantIfNotHas(playerId, "SHARPSHOOTER_ACH");
   if (player.careerGamesPlayed >= 50 && wr >= 80)  await grantIfNotHas(playerId, "SNIPER");
-  if (player.careerGamesPlayed >= 50 && wr >= 85)  { await grantIfNotHas(playerId, "UNTOUCHABLE"); await grantIfNotHas(playerId, "UNTOUCHABLE_PLUS"); }
+  if (player.careerGamesPlayed >= 50 && wr >= 85)  await grantIfNotHas(playerId, "UNTOUCHABLE");
+  if (player.careerGamesPlayed >= 100 && wr >= 85) await grantIfNotHas(playerId, "UNTOUCHABLE_PLUS");
 
   // Check total achievements
   const [{ total }] = await db.select({ total: count() }).from(playerAchievementsTable)
@@ -595,15 +717,12 @@ export async function checkMatchAchievements(
       if ((rRev?.wins ?? 0) >= 2) await grantIfNotHas(playerId, "REVERSAL");
     } catch { /* non-critical */ }
 
-    // NEMESIS_RELATIONSHIP — 10+ games against the same opponent
-    try {
-      const [rNem] = (await db.execute(sql`
-        SELECT COUNT(*)::int AS cnt FROM matches
-        WHERE (winner_id = ${playerId} AND loser_id = ${opponentId})
-           OR (loser_id  = ${playerId} AND winner_id = ${opponentId})
-      `)).rows as { cnt: number }[];
-      if ((rNem?.cnt ?? 0) >= 10) await grantIfNotHas(playerId, "NEMESIS_RELATIONSHIP");
-    } catch { /* non-critical */ }
+    // NEMESIS_RELATIONSHIP used to be computed here (10+ games against the
+    // same opponent) but that's the exact same condition as RIVALRY_DEFINED
+    // below ("Play 10 matches against the same opponent") — a genuine
+    // functional duplicate, not a distinct achievement, so it's retired
+    // rather than given its own definition. RIVALRY_DEFINED already covers
+    // this.
 
     // UNBEATABLE_VS_ONE — 3+ consecutive wins vs same opponent in current season
     try {
@@ -716,7 +835,7 @@ export async function checkSeasonAchievements(
   // Grant season champion achievements
   if (championId !== null) {
     await grantIfNotHas(championId, "CROWNED");
-    await grantIfNotHas(championId, "MVP");
+    await grantIfNotHas(championId, "MVP", seasonId);
 
     // Dynasty — check if this player has 3 titles
     const prevTitles = await db.select().from(seasonStandingsTable)
@@ -724,12 +843,14 @@ export async function checkSeasonAchievements(
     if (prevTitles.length >= 3) await grantIfNotHas(championId, "DYNASTY");
   }
 
+  const pointsLost = await getSeasonPointsLost(seasonId, sorted.map(p => p.id));
+
   // Per-player seasonal checks
   for (let i = 0; i < sorted.length; i++) {
     const p = sorted[i];
 
     // Season points achievements
-    if (p.points >= 75)  await grantIfNotHas(p.id, "CLIMBER");
+    if (p.points >= 75)  await grantIfNotHas(p.id, "CLIMBER", seasonId);
     if (p.points >= 100) await grantIfNotHas(p.id, "SHOCKWAVE");
     if (p.points >= 200) await grantIfNotHas(p.id, "POINT_THIEF");
 
@@ -738,7 +859,7 @@ export async function checkSeasonAchievements(
 
     // Season games
     if (p.seasonGamesPlayed >= 20) await grantIfNotHas(p.id, "SURVIVOR_ACH");
-    if (p.seasonGamesPlayed >= 50) await grantIfNotHas(p.id, "MOST_ACTIVE");
+    if (p.seasonGamesPlayed >= 50) await grantIfNotHas(p.id, "MOST_ACTIVE", seasonId);
 
     // Season wins
     if (p.seasonWins >= 3)  await grantIfNotHas(p.id, "SEASON_STARTER");
@@ -759,6 +880,20 @@ export async function checkSeasonAchievements(
     // Eliminated this season
     if (p.status === "ELIMINATED") {
       await grantIfNotHas(p.id, "FROZEN_OUT");
+    }
+
+    // Points lost this season — COLLAPSING/FREEFALL (never wired up before)
+    const lost = pointsLost.get(p.id) ?? 0;
+    if (lost >= 50) await grantIfNotHas(p.id, "COLLAPSING", seasonId);
+    if (lost >= 75) await grantIfNotHas(p.id, "FREEFALL", seasonId);
+
+    // Won their first 3 matches of the season — ROCKET_START (never wired up before)
+    if (await wonFirstNSeasonMatches(p.id, seasonId, 3)) await grantIfNotHas(p.id, "ROCKET_START", seasonId);
+
+    // First-season-only badges — RISING_STAR/METEOR (never wired up before)
+    if (await isPlayersFirstSeason(p.id, seasonId)) {
+      if (p.points >= 100) await grantIfNotHas(p.id, "RISING_STAR");
+      if (i < 3)            await grantIfNotHas(p.id, "METEOR");
     }
   }
 }
