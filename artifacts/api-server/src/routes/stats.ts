@@ -237,11 +237,23 @@ router.get("/stats/live-feed", async (req, res): Promise<void> => {
 router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
   const [players, practiceQ, tourQ, achievQ] = await Promise.all([
     db.select().from(playersTable),
+    // Union both player1 and player2 perspectives — this used to only count
+    // player1_id, so anyone who mostly played as P2 in two-player practice
+    // sessions was undercounted (or missing entirely) on "Most Practice
+    // Sessions" and "Most 180s". Session count includes every session either
+    // side played in; darts/180s sums are null-safe per side via COALESCE.
     db.execute(drizzleSql`
-      SELECT player1_id AS player_id, COUNT(*)::int AS sessions,
-             COALESCE(SUM(darts_thrown),0)::int AS total_darts,
-             COALESCE(SUM(p1_180s),0)::int AS total_180s
-      FROM practice_sessions WHERE player1_id IS NOT NULL GROUP BY player1_id
+      WITH all_sessions AS (
+        SELECT player1_id AS player_id, p1_darts AS darts, p1_180s AS s180s
+        FROM practice_sessions WHERE player1_id IS NOT NULL
+        UNION ALL
+        SELECT player2_id AS player_id, p2_darts AS darts, p2_180s AS s180s
+        FROM practice_sessions WHERE player2_id IS NOT NULL
+      )
+      SELECT player_id, COUNT(*)::int AS sessions,
+             COALESCE(SUM(darts),0)::int AS total_darts,
+             COALESCE(SUM(s180s),0)::int AS total_180s
+      FROM all_sessions GROUP BY player_id
     `),
     db.execute(drizzleSql`SELECT player_id, COUNT(*)::int AS trophies FROM tour_trophies GROUP BY player_id`).catch(() => ({ rows: [] })),
     db.execute(drizzleSql`

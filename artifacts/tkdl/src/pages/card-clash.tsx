@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useCurrentPlayer } from "@/context/auth";
-import { LoginGate } from "@/components/LoginGate";
+import { useListPlayers } from "@workspace/api-client-react";
 import { CardShopUI } from "@/components/CardShopUI";
 import { FreePackDisplay } from "@/components/FreePackDisplay";
 import { FeaturedCardShop } from "@/components/FeaturedCardShop";
@@ -174,9 +174,24 @@ const PACKS = [
       );
     }
 
-    export default function CardClashPage() {
+    type RosterPlayer = { id: number; name: string; status: string; isActive: boolean };
+
+export default function CardClashPage() {
+  // Playing Card Clash has never needed an account — pick your name from
+  // the roster and go, same as Master-501/Practice/Tour/Boss Battle/Board
+  // Curse. useCurrentPlayer() only defaults the picker to your own name
+  // when you happen to be logged in; logging in is for claiming/managing
+  // an account, never a requirement to play or collect cards.
   const currentPlayer = useCurrentPlayer();
-  const playerId = currentPlayer?.playerId;
+  const { data: playersData } = useListPlayers();
+  const roster = ((playersData as RosterPlayer[] | undefined) ?? []).filter(p => p.isActive !== false);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
+  useEffect(() => {
+    if (selectedPlayerId !== null || roster.length === 0) return;
+    setSelectedPlayerId((currentPlayer ? roster.find(p => p.id === currentPlayer.playerId)?.id : undefined) ?? roster[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roster.length]);
+  const playerId = selectedPlayerId ?? undefined;
 
   const [activeTab, setActiveTab] = useState<Tab>("hub");
   const [stats, setStats]         = useState<Stats|null>(null);
@@ -282,12 +297,10 @@ const PACKS = [
 
   useEffect(()=>{ loadData(); },[loadData]);
 
-  if (!currentPlayer || !playerId) return (
-    <LoginGate
-      icon="🃏"
-      title="Play Card Clash"
-      subtitle="Collect cards, open packs, and battle the league. Log in to open your collection."
-    />
+  if (!playerId) return (
+    <div className="flex items-center justify-center py-20 px-4" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Arial,sans-serif" }}>
+      Loading players…
+    </div>
   );
 
   const filteredCards = COLLECTIBLE_CARDS.filter(c=>{
@@ -302,7 +315,7 @@ const PACKS = [
   const winRate  = stats&&stats.matchesPlayed>0 ? Math.round((stats.wins/stats.matchesPlayed)*100) : 0;
   const totalOwned = COLLECTIBLE_CARDS.filter(c=>ownedNames.has(c.name)).length;
   const completionPct = Math.round((totalOwned/COLLECTIBLE_CARDS.length)*100);
-  const playerName = (currentPlayer as any)?.name||(currentPlayer as any)?.playerName||"Player";
+  const playerName = roster.find(p => p.id === playerId)?.name || "Player";
 
   const goTo = (tab: Tab) => setActiveTab(tab);
 
@@ -364,6 +377,15 @@ const PACKS = [
 
                 {/* Tagline */}
                 <p style={{margin:"0 auto 1.6rem",fontSize:"11px",color:"rgba(255,255,255,0.35)",letterSpacing:"0.18em",textTransform:"uppercase"}}>100 CARDS · REAL DARTS CHAOS · MID-MATCH POWER-UPS</p>
+
+                {/* Player picker — no login needed, pick your name like every other game mode */}
+                <div style={{maxWidth:"260px",margin:"0 auto 1.6rem"}}>
+                  <select value={playerId} onChange={e=>setSelectedPlayerId(Number(e.target.value)||null)}
+                    style={{width:"100%",padding:"10px 14px",borderRadius:"10px",fontSize:"13px",fontWeight:700,textAlign:"center",cursor:"pointer",
+                      background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,210,74,0.3)",color:"#ffd24a",fontFamily:"Arial,sans-serif"}}>
+                    {roster.map(p=><option key={p.id} value={p.id} style={{color:"#111"}}>{p.name}</option>)}
+                  </select>
+                </div>
 
                 {/* Buzz Message */}
                 {stats && (

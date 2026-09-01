@@ -38,7 +38,14 @@ router.get("/seasons/current", async (req, res): Promise<void> => {
   res.json(season ?? null);
 });
 
-router.post("/seasons/reset", async (req, res): Promise<void> => {
+// These three had no auth at all — unlike the playoff routes further down
+// this file, which already use requireAdminSession (imported above but
+// never applied here). Each one force-ends the active season, crowns a
+// champion, and resets every player's/team's points and record, so a plain
+// unauthenticated request from anyone who found the URL could wipe the
+// league's current standings. Same bug class as the notification-prefs/
+// tour-delete fixes elsewhere this session.
+router.post("/seasons/reset", requireAdminSession, async (req, res): Promise<void> => {
   const parsed = ResetSeasonBody.safeParse(req.body ?? {});
   const overrideName = parsed.success ? parsed.data.name : undefined;
   const newSeason = await performSeasonReset(overrideName);
@@ -47,14 +54,14 @@ router.post("/seasons/reset", async (req, res): Promise<void> => {
 
 // Doubles and Shift Wars each get their own manual reset trigger now that
 // they run independent of the singles season — mirrors /seasons/reset above.
-router.post("/seasons/doubles/reset", async (req, res): Promise<void> => {
+router.post("/seasons/doubles/reset", requireAdminSession, async (req, res): Promise<void> => {
   const parsed = ResetSeasonBody.safeParse(req.body ?? {});
   const overrideName = parsed.success ? parsed.data.name : undefined;
   const newSeason = await performDoublesSeasonReset(overrideName);
   res.status(201).json(newSeason);
 });
 
-router.post("/seasons/shift-wars/reset", async (req, res): Promise<void> => {
+router.post("/seasons/shift-wars/reset", requireAdminSession, async (req, res): Promise<void> => {
   const parsed = ResetSeasonBody.safeParse(req.body ?? {});
   const overrideName = parsed.success ? parsed.data.name : undefined;
   const newSeason = await performShiftWarsSeasonReset(overrideName);

@@ -785,6 +785,14 @@ router.patch("/players/:id/active-title", async (req, res): Promise<void> => {
   const params = IdParam.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const id = params.data.id;
+
+  // Only reachable from account.tsx's <LoginGate>-wrapped titles picker — no
+  // ownership check meant anyone could equip any earned title onto any
+  // player's profile by id. Same fix as the notification-prefs routes above.
+  const sessionPlayerId = (req.session as any)?.playerId ?? null;
+  if (!sessionPlayerId) { res.status(401).json({ error: "Login required" }); return; }
+  if (sessionPlayerId !== id) { res.status(403).json({ error: "You can only change your own active title" }); return; }
+
   try {
     const { titleKey } = z.object({ titleKey: z.string().nullable() }).parse(req.body);
     if (titleKey !== null) {
@@ -858,14 +866,23 @@ router.post("/cards/:cardId/favorite", async (req, res): Promise<void> => {
 router.get("/players/:id/notification-prefs", async (req, res): Promise<void> => {
   const params = IdParam.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  // Unlike pinned achievements, a player's notification settings aren't
+  // meant to be publicly browsable — there's no legitimate reason for one
+  // player to read another's push/preference state, so this is gated the
+  // same way the PATCH below is.
+  const sessionPlayerId = (req.session as any)?.playerId ?? null;
+  if (!sessionPlayerId) { res.status(401).json({ error: "Login required" }); return; }
+  if (sessionPlayerId !== params.data.id) { res.status(403).json({ error: "You can only view your own notification settings" }); return; }
+
   try {
     const rows = await db.execute(sql`
-      SELECT push_enabled, match_results, rank_changes, coach_tips, announcements, private_mode
+      SELECT push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode
       FROM notification_preferences WHERE player_id = ${params.data.id}
     `);
     const row = (rows.rows as any[])[0];
     res.json(row ?? {
-      push_enabled: true, match_results: true, rank_changes: true,
+      push_enabled: true, match_results: true, rank_changes: true, threat_alerts: true,
       coach_tips: true, announcements: true, private_mode: false,
     });
   } catch (err) {
@@ -878,6 +895,7 @@ const NotificationPrefsBody = z.object({
   push_enabled:  z.boolean().optional(),
   match_results: z.boolean().optional(),
   rank_changes:  z.boolean().optional(),
+  threat_alerts: z.boolean().optional(),
   coach_tips:    z.boolean().optional(),
   announcements: z.boolean().optional(),
   private_mode:  z.boolean().optional(),
@@ -886,6 +904,15 @@ const NotificationPrefsBody = z.object({
 router.patch("/players/:id/notification-prefs", async (req, res): Promise<void> => {
   const params = IdParam.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  // These routes had no ownership check at all — anyone who knew (or
+  // guessed) a player's id could silently rewrite their notification
+  // settings, e.g. muting match results for someone else with a plain curl
+  // request. Same fix as PUT /players/:id/pinned-achievements.
+  const sessionPlayerId = (req.session as any)?.playerId ?? null;
+  if (!sessionPlayerId) { res.status(401).json({ error: "Login required" }); return; }
+  if (sessionPlayerId !== params.data.id) { res.status(403).json({ error: "You can only edit your own notification settings" }); return; }
+
   const parsed = NotificationPrefsBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const p = parsed.data;
@@ -893,16 +920,17 @@ router.patch("/players/:id/notification-prefs", async (req, res): Promise<void> 
 
   try {
     await db.execute(sql`
-      INSERT INTO notification_preferences (player_id, push_enabled, match_results, rank_changes, coach_tips, announcements, private_mode)
+      INSERT INTO notification_preferences (player_id, push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode)
       VALUES (
         ${id},
-        ${p.push_enabled ?? true}, ${p.match_results ?? true}, ${p.rank_changes ?? true},
+        ${p.push_enabled ?? true}, ${p.match_results ?? true}, ${p.rank_changes ?? true}, ${p.threat_alerts ?? true},
         ${p.coach_tips ?? true}, ${p.announcements ?? true}, ${p.private_mode ?? false}
       )
       ON CONFLICT (player_id) DO UPDATE SET
         push_enabled  = COALESCE(${p.push_enabled ?? null}, notification_preferences.push_enabled),
         match_results = COALESCE(${p.match_results ?? null}, notification_preferences.match_results),
         rank_changes  = COALESCE(${p.rank_changes ?? null}, notification_preferences.rank_changes),
+        threat_alerts = COALESCE(${p.threat_alerts ?? null}, notification_preferences.threat_alerts),
         coach_tips    = COALESCE(${p.coach_tips ?? null}, notification_preferences.coach_tips),
         announcements = COALESCE(${p.announcements ?? null}, notification_preferences.announcements),
         private_mode  = COALESCE(${p.private_mode ?? null}, notification_preferences.private_mode),

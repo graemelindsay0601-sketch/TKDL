@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { checkAndAwardShadowBotAchievements, getShadowAchievementProgress } from "../lib/shadow-bot-achievements";
 import { requireAdminSession } from "../middleware/requireAdminSession";
+import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 
 const router = Router();
 
@@ -67,7 +68,14 @@ router.get("/practice/sessions/:id", async (req, res): Promise<void> => {
 });
 
 // POST /api/practice/sessions — save a completed practice session
-router.post("/practice/sessions", async (req, res): Promise<void> => {
+//
+// No login/session check here, deliberately — practice.tsx (like
+// master501.tsx and /matches) is usable from a shared walk-up device with
+// players picking their own name, not gated behind an individual login.
+// matchSubmitRateLimit is the established fix for that class of route:
+// throttle scripted floods rather than require auth that would break the
+// intended shared-device UX.
+router.post("/practice/sessions", matchSubmitRateLimit, async (req, res): Promise<void> => {
   try {
     const body = SessionBody.parse(req.body);
     // Merge both dart logs into session_data JSONB
@@ -1363,7 +1371,19 @@ router.get("/players/:id/practice-routine", async (req, res): Promise<void> => {
 });
 
 // ─── GET /api/players/:id/shadow-rivalry ─────────────────────────────────────
-// W/L record against each shadow bot the player has faced
+// "Who Beats This Bot" — for the shadow bot owned by :id, the W/L record of
+// each OTHER player who has challenged it.
+//
+// This used to do the opposite: it filtered on `player1_id = playerId` (i.e.
+// sessions the bot's owner themselves played against various shadow bots)
+// and returned shadowPlayerId/shadowPlayerName fields. shadow-bot-detail.tsx
+// renders this under the "Who Beats This Bot" heading and reads
+// r.playerId/r.playerName (for the challenger's profile link) and
+// r.wins/r.losses from the challenger's perspective — none of which the old
+// query produced, so the section rendered blank/broken links. This now
+// mirrors GET /shadow-bot/:playerId/matches's WHERE clause: sessions where
+// this player's bot (shadowPlayerId) was the opponent, grouped by the real
+// player (player1_id) who fought it.
 router.get("/players/:id/shadow-rivalry", async (req, res): Promise<void> => {
   try {
     const playerId = parseInt(req.params.id, 10);
@@ -1371,34 +1391,26 @@ router.get("/players/:id/shadow-rivalry", async (req, res): Promise<void> => {
 
     const result = await db.execute(sql`
       SELECT
-        (ps.session_data->>'shadowPlayerId')::int                                        AS shadow_player_id,
-        p.name                                                                            AS shadow_player_name,
+        ps.player1_id                                                                     AS player_id,
+        p.name                                                                            AS player_name,
         COUNT(*)::int                                                                     AS sessions_played,
         SUM(CASE WHEN ps.winner_idx = 0 THEN 1 ELSE 0 END)::int                         AS wins,
         SUM(CASE WHEN ps.winner_idx = 1 THEN 1 ELSE 0 END)::int                         AS losses,
-        ROUND(AVG(
-          CASE WHEN COALESCE(ps.p1_darts,0) > 0
-            THEN ps.p1_score::numeric * 3.0 / ps.p1_darts END
-        )::numeric, 1)::float                                                            AS avg_vs_bot,
         MAX(ps.created_at)                                                               AS last_played
       FROM practice_sessions ps
-      LEFT JOIN players p ON p.id = (ps.session_data->>'shadowPlayerId')::int
-      WHERE ps.player1_id = ${playerId}
-        AND ps.session_data ? 'shadowPlayerId'
-        AND (ps.session_data->>'shadowPlayerId') IS NOT NULL
-        AND (ps.session_data->>'shadowPlayerId')::text NOT IN ('0', 'null')
-      GROUP BY (ps.session_data->>'shadowPlayerId')::int, p.name
+      LEFT JOIN players p ON p.id = ps.player1_id
+      WHERE (ps.session_data->>'shadowPlayerId')::int = ${playerId}
+      GROUP BY ps.player1_id, p.name
       ORDER BY sessions_played DESC
       LIMIT 10
     `);
 
     res.json(result.rows.map((r: any) => ({
-      shadowPlayerId: Number(r.shadow_player_id),
-      shadowPlayerName: r.shadow_player_name as string,
+      playerId: Number(r.player_id),
+      playerName: r.player_name as string,
       sessionsPlayed: Number(r.sessions_played),
       wins: Number(r.wins),
       losses: Number(r.losses),
-      avgVsBot: r.avg_vs_bot != null ? Number(r.avg_vs_bot) : null,
       lastPlayed: r.last_played as string,
     })));
   } catch (err) {

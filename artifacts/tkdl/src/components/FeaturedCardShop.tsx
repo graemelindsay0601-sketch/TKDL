@@ -88,6 +88,7 @@ export function FeaturedCardShop({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cardIds: cardList.map(c => c.cardId),
+          playerId,
         }),
       });
 
@@ -113,7 +114,7 @@ export function FeaturedCardShop({
       // Fallback: Check individually if batch fails
       for (const card of cardList) {
         try {
-          const res = await fetch(`/api/card-clash/shop/featured/${card.cardId}/purchase-status`);
+          const res = await fetch(`/api/card-clash/shop/featured/${card.cardId}/purchase-status?playerId=${playerId}`);
           if (res.ok) {
             const data = await res.json();
             newCooldowns.set(card.cardId, data);

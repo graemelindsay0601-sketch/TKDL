@@ -1542,9 +1542,15 @@ router.post(
 // Check if player can claim free pack and when next available
 router.get("/free-pack/status", async (req: Request, res: Response) => {
   try {
-    const playerId = (req.session as any)?.playerId;
-    if (!playerId) {
-      res.status(401).json({ error: "Not authenticated" });
+    // No login required to play Card Clash — this used to pull playerId
+    // only from the session, so it silently 401'd for anyone using the app
+    // the way every other game mode works (pick your name, no account
+    // needed). The session is still checked first so a logged-in player's
+    // own pack status can't be spoofed by a query param, but falls back to
+    // the caller-supplied id, same as every other Card Clash route.
+    const playerId = (req.session as any)?.playerId ?? Number(req.query.playerId);
+    if (!playerId || isNaN(playerId)) {
+      res.status(400).json({ error: "playerId is required" });
       return;
     }
 
@@ -1562,9 +1568,10 @@ router.get("/free-pack/status", async (req: Request, res: Response) => {
 // Claim free pack if eligible
 router.post("/free-pack/claim", async (req: Request, res: Response) => {
   try {
-    const playerId = (req.session as any)?.playerId;
-    if (!playerId) {
-      res.status(401).json({ error: "Not authenticated" });
+    // Same fix as GET /free-pack/status above — no login required to play.
+    const playerId = (req.session as any)?.playerId ?? Number(req.body?.playerId);
+    if (!playerId || isNaN(playerId)) {
+      res.status(400).json({ error: "playerId is required" });
       return;
     }
 
@@ -1610,9 +1617,10 @@ router.post("/admin/free-pack/reset/:playerId", verifyAdminPin, async (req: Requ
 // Check if player can purchase this card (cooldown check)
 router.get("/shop/featured/:cardId/purchase-status", async (req: Request, res: Response) => {
   try {
-    const playerId = (req.session as any)?.playerId;
-    if (!playerId) {
-      res.status(401).json({ error: "Not authenticated" });
+    // Same fix as GET /free-pack/status above — no login required to play.
+    const playerId = (req.session as any)?.playerId ?? Number(req.query.playerId);
+    if (!playerId || isNaN(playerId)) {
+      res.status(400).json({ error: "playerId is required" });
       return;
     }
 
@@ -1670,9 +1678,10 @@ router.post(
 // Batch check purchase cooldowns for multiple cards (OPTIMIZATION: 3 queries → 1)
 router.post("/shop/featured/purchase-status/batch", async (req: Request, res: Response) => {
   try {
-    const playerId = (req.session as any)?.playerId;
-    if (!playerId) {
-      res.status(401).json({ error: "Not authenticated" });
+    // Same fix as GET /free-pack/status above — no login required to play.
+    const playerId = (req.session as any)?.playerId ?? Number(req.body?.playerId);
+    if (!playerId || isNaN(playerId)) {
+      res.status(400).json({ error: "playerId is required" });
       return;
     }
 

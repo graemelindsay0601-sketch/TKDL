@@ -5,6 +5,7 @@ import { z } from "zod";
 import { validateStake, applyWager } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { requireAdminSession } from "../middleware/requireAdminSession";
+import { sendShiftWarsMatchResultNotification } from "../services/notificationService";
 
 /**
  * Shift Wars — 3 fixed department teams (Fresh, Twilight, Shift Leader) competing
@@ -201,6 +202,25 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
     });
 
     res.status(201).json({ match, winnerName, loserName });
+
+    // Push notifications (fire and forget — never delay the response). Shift
+    // Wars had no notification integration at all before this. The match
+    // itself only records team ids/names — no individual player attribution
+    // — so the roster to notify is looked up fresh from players.shift_wars_
+    // team_id rather than threaded through the transaction above.
+    void (async () => {
+      try {
+        const rosterRows = await db.execute(sql`
+          SELECT id, shift_wars_team_id FROM players WHERE shift_wars_team_id IN (${winnerTeamId}, ${loserTeamId})
+        `);
+        const roster = rosterRows.rows as any[];
+        const winnerPlayerIds = roster.filter(p => p.shift_wars_team_id === winnerTeamId).map(p => p.id);
+        const loserPlayerIds  = roster.filter(p => p.shift_wars_team_id === loserTeamId).map(p => p.id);
+        await sendShiftWarsMatchResultNotification(winnerName, loserName, winnerPlayerIds, loserPlayerIds, stake);
+      } catch (err) {
+        req.log?.error?.({ err }, "Failed to send Shift Wars match result notifications");
+      }
+    })();
   } catch (err) {
     if (err instanceof ShiftWarsConflictError) {
       res.status(400).json({ error: err.message });

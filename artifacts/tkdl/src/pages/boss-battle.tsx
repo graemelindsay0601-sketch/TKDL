@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Swords, Lock, Trophy, Skull, Clock, Users } from "lucide-react";
 import { useCurrentPlayer } from "@/context/auth";
-import { LoginGate } from "@/components/LoginGate";
 import { BOSSES, type Boss } from "@/lib/boss-battles-data";
 import { BossBattleScorer } from "@/components/BossBattleScorer";
 import type { GameResult } from "@/components/game-scorer";
@@ -9,6 +8,8 @@ import type { GameResult } from "@/components/game-scorer";
 type Screen = { kind: "ladder" } | { kind: "entrance"; boss: Boss } | { kind: "fight"; boss: Boss } | { kind: "result"; boss: Boss; won: boolean };
 
 type BossStats = { attempts: number; wins: number; bestSeconds: number | null };
+
+type RosterPlayer = { id: number; name: string; status: string; isActive: boolean };
 
 type LeaderboardData = {
   totalBosses: number;
@@ -24,7 +25,14 @@ function formatSeconds(s: number): string {
 }
 
 export default function BossBattlePage() {
+  // Playing Boss Battle has never needed an account — pick your name from
+  // the roster and go, same as Master-501/Practice/Tour. useCurrentPlayer()
+  // is only consulted to default the picker to your own name when you
+  // happen to be logged in; logging in is for claiming/managing an account
+  // (settings, notification prefs), never a requirement to play.
   const currentPlayer = useCurrentPlayer();
+  const [players, setPlayers] = useState<RosterPlayer[]>([]);
+  const [playerId, setPlayerId] = useState<number | null>(null);
   const [defeated, setDefeated] = useState<Set<string>>(new Set());
   const [stats, setStats] = useState<Record<string, BossStats>>({});
   const [loading, setLoading] = useState(true);
@@ -34,9 +42,22 @@ export default function BossBattlePage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
 
+  const playerName = players.find(p => p.id === playerId)?.name ?? "";
+
+  useEffect(() => {
+    fetch("/api/players")
+      .then(r => r.json())
+      .then((d: RosterPlayer[]) => {
+        const active = d.filter(p => p.isActive !== false);
+        setPlayers(active);
+        setPlayerId(prev => prev ?? (currentPlayer ? active.find(p => p.id === currentPlayer.playerId)?.id : undefined) ?? active[0]?.id ?? null);
+      })
+      .catch(() => {});
+  }, []);
+
   const loadProgress = () => {
-    if (!currentPlayer?.playerId) { setLoading(false); return; }
-    fetch(`/api/boss-battles/progress/${currentPlayer.playerId}`)
+    if (!playerId) { setLoading(false); return; }
+    fetch(`/api/boss-battles/progress/${playerId}`)
       .then(r => r.ok ? r.json() : { defeated: [], stats: {} })
       .then((d: { defeated: string[]; stats?: Record<string, BossStats> }) => {
         setDefeated(new Set(d.defeated));
@@ -46,7 +67,7 @@ export default function BossBattlePage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(loadProgress, [currentPlayer?.playerId]);
+  useEffect(loadProgress, [playerId]);
 
   const toggleLeaderboard = () => {
     setShowLeaderboard(v => !v);
@@ -74,11 +95,11 @@ export default function BossBattlePage() {
   const handleMatchComplete = async (boss: Boss, result: GameResult) => {
     const won = result.winnerIdx === 0;
     const elapsedSeconds = fightStartedAt ? Math.round((Date.now() - fightStartedAt) / 1000) : undefined;
-    if (currentPlayer?.playerId) {
+    if (playerId) {
       try {
         await fetch("/api/boss-battles/attempt", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ playerId: currentPlayer.playerId, bossId: boss.id, won, elapsedSeconds }),
+          body: JSON.stringify({ playerId, bossId: boss.id, won, elapsedSeconds }),
         });
         // Refetch rather than patch locally — attempts/wins/best time are
         // server-computed (upserts, min() on best time), so re-reading is
@@ -90,16 +111,6 @@ export default function BossBattlePage() {
     setScreen({ kind: "result", boss, won });
   };
 
-  if (!currentPlayer) {
-    return (
-      <LoginGate
-        icon="🐉"
-        title="Take On The Boss Ladder"
-        subtitle="Six bosses, five enrage phases, one dartboard. Log in to start the climb."
-      />
-    );
-  }
-
   if (loading) {
     return <div className="max-w-md mx-auto py-16 text-center" style={{ color: "rgba(255,255,255,0.3)" }}>Loading…</div>;
   }
@@ -108,7 +119,7 @@ export default function BossBattlePage() {
     return (
       <BossBattleScorer
         boss={screen.boss}
-        playerName={currentPlayer.playerName}
+        playerName={playerName}
         onMatchComplete={(r) => handleMatchComplete(screen.boss, r)}
         onAbandon={() => setScreen({ kind: "ladder" })}
       />
@@ -201,6 +212,17 @@ export default function BossBattlePage() {
         </button>
       </div>
 
+      {/* Player selector — no login needed, pick your name like Master-501/Practice/Tour */}
+      <div className="mb-5">
+        <h2 className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald,sans-serif" }}>Player</h2>
+        <select value={playerId ?? ""} onChange={e => setPlayerId(Number(e.target.value) || null)}
+          className="w-full px-3 py-2.5 rounded-lg text-sm"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff", fontFamily: "Oswald,sans-serif", cursor: "pointer" }}>
+          <option value="">Select player…</option>
+          {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
+
       {showLeaderboard && (
         <div className="pdc-card p-4 mb-5">
           {leaderboardLoading ? (
@@ -216,7 +238,7 @@ export default function BossBattlePage() {
                 <div key={p.playerId} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.7rem", width: "1.2em", display: "inline-block" }}>{i + 1}</span>
-                    <span style={{ color: p.playerId === currentPlayer?.playerId ? "#ffd24a" : "#fff", fontWeight: p.playerId === currentPlayer?.playerId ? 800 : 500 }}>
+                    <span style={{ color: p.playerId === playerId ? "#ffd24a" : "#fff", fontWeight: p.playerId === playerId ? 800 : 500 }}>
                       {p.playerName}
                     </span>
                     {p.fullClear && <Trophy className="w-3 h-3" style={{ color: "#ffd24a" }} />}
@@ -253,7 +275,7 @@ export default function BossBattlePage() {
           return (
             <button
               key={boss.id}
-              disabled={!unlocked}
+              disabled={!unlocked || !playerId}
               onClick={() => setScreen({ kind: "entrance", boss })}
               className="w-full text-left"
               style={{

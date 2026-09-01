@@ -1,15 +1,16 @@
 import { useEffect, useState, useRef } from "react";
 import { format } from "date-fns";
 
+// Diamond/Platinum removed — calcTier() (lib/elo.ts) only ever emits
+// Gold/Silver/Bronze, so these two entries could never render; keeping them
+// around implied a tier ladder the app doesn't actually have.
 const TIER_COLORS: Record<string, string> = {
-  Diamond:  "#00d4ff",
-  Platinum: "#e879f9",
   Gold:     "#ffd24a",
   Silver:   "#c0c8d8",
   Bronze:   "#cd7f32",
 };
 const TIER_ICONS: Record<string, string> = {
-  Diamond: "💎", Platinum: "⚡", Gold: "🥇", Silver: "🥈", Bronze: "🥉",
+  Gold: "🥇", Silver: "🥈", Bronze: "🥉",
 };
 
 function useTick() {

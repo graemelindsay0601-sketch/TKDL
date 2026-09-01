@@ -14,6 +14,7 @@ import { Router, Request, Response } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { paramStr } from "../lib/http";
+import { bossBattleRateLimit } from "../middleware/writeRateLimit";
 
 const router = Router();
 
@@ -47,7 +48,7 @@ router.get("/board-curse/best/:playerId/:gameType", async (req: Request, res: Re
   }
 });
 
-router.post("/board-curse/best", async (req: Request, res: Response) => {
+router.post("/board-curse/best", bossBattleRateLimit, async (req: Request, res: Response) => {
   try {
     const { playerId, gameType, visits, streak } = req.body ?? {};
     const pid = parseInt(playerId, 10);
@@ -57,6 +58,12 @@ router.post("/board-curse/best", async (req: Request, res: Response) => {
       res.status(400).json({ error: "playerId, gameType, and at least one of visits/streak are required" });
       return;
     }
+
+    // No login/session check here, on purpose — board-curse.tsx dropped its
+    // login requirement so anyone can pick a name from the roster and play,
+    // same as Master-501/Practice/Tour/Matches. bossBattleRateLimit (shared
+    // with Boss Battle — both are the same "unauthenticated arcade write"
+    // risk shape) is the guard for this route, not a login requirement.
     if (v !== null && (!Number.isFinite(v) || v <= 0)) {
       res.status(400).json({ error: "visits must be a positive number" });
       return;
@@ -107,7 +114,7 @@ router.get("/board-curse/record/:playerId/:format", async (req: Request, res: Re
   }
 });
 
-router.post("/board-curse/record", async (req: Request, res: Response) => {
+router.post("/board-curse/record", bossBattleRateLimit, async (req: Request, res: Response) => {
   try {
     const { playerId, format, won } = req.body ?? {};
     const pid = parseInt(playerId, 10);
@@ -115,6 +122,7 @@ router.post("/board-curse/record", async (req: Request, res: Response) => {
       res.status(400).json({ error: "playerId, format, and won (boolean) are required" });
       return;
     }
+
     await db.execute(sql`
       INSERT INTO board_curse_records (player_id, format, wins, losses)
       VALUES (${pid}, ${format}, ${won ? 1 : 0}, ${won ? 0 : 1})

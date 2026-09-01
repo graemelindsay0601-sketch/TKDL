@@ -6,7 +6,7 @@ import {
   Shield, Target, LogOut, Lock, User, TrendingUp, TrendingDown,
   Zap, Trophy, Dumbbell, CircuitBoard, Star, ChevronDown, ChevronRight,
   Award, Flame, CheckCircle, Clock, Brain, BarChart3,
-  MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera, Sparkles,
+  MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera, Sparkles, Pin,
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { LoginGate } from "@/components/LoginGate";
@@ -93,6 +93,7 @@ function AchievementPortal({
   progressField = "currentProgress",
   valueField    = "criteriaValue",
   gsField       = "rarity" as "rarity" | "gamerscore",
+  pinSystem, pins, onTogglePin,
 }: {
   categories:    AchCat[];
   cfgMap:        CfgMap;
@@ -101,6 +102,10 @@ function AchievementPortal({
   progressField?: string;
   valueField?:    string;
   gsField?:       "rarity" | "gamerscore";
+  /** Trophy-case controls — omit entirely to render the plain read-only list (used e.g. when viewing someone else's data). */
+  pinSystem?:    string;
+  pins?:         { system: string; key: string }[];
+  onTogglePin?:  (key: string, display: { name: string; icon: string; rarity: string | null }) => void;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set(defaultOpen));
   const toggle = (cat: string) => setExpanded(prev => {
@@ -162,6 +167,9 @@ function AchievementPortal({
                   const isClose     = !isUnlocked && pct >= 60;
                   const gs          = gsField === "gamerscore" ? (a.gamerscore ?? 0) : gamerscoreForRarity(a.rarity);
                   const rCol        = RARITY_COL[a.rarity] ?? "#9ca3af";
+                  const canPin      = !!pinSystem && !!onTogglePin && !!a.key && isUnlocked;
+                  const isPinnedItem = canPin && !!pins?.some(p => p.system === pinSystem && p.key === a.key);
+                  const pinCapped   = canPin && !isPinnedItem && (pins?.length ?? 0) >= 5;
                   return (
                     <div key={a.key ?? a.id}
                       className="flex items-start gap-2.5 px-2.5 py-2 rounded-lg"
@@ -200,6 +208,21 @@ function AchievementPortal({
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-0.5 shrink-0" style={{ minWidth: "36px" }}>
+                        {canPin && (
+                          <button
+                            onClick={() => onTogglePin!(a.key, { name: a.name, icon: a.icon ?? "🏆", rarity: a.rarity ?? null })}
+                            disabled={!isPinnedItem && pinCapped}
+                            title={isPinnedItem ? "Remove from trophy case" : pinCapped ? "Trophy case full (5 max) — unpin one first" : "Pin to trophy case"}
+                            className="p-1 rounded-md transition-all"
+                            style={{
+                              background: isPinnedItem ? "rgba(255,210,74,0.18)" : "rgba(255,255,255,0.06)",
+                              opacity: !isPinnedItem && pinCapped ? 0.35 : 1,
+                              cursor: !isPinnedItem && pinCapped ? "not-allowed" : "pointer",
+                            }}>
+                            <Pin className="w-3 h-3" style={{ color: isPinnedItem ? "#ffd24a" : "rgba(255,255,255,0.3)" }}
+                              fill={isPinnedItem ? "#ffd24a" : "none"} />
+                          </button>
+                        )}
                         {isUnlocked ? (
                           <>
                             <CheckCircle className="w-3.5 h-3.5" style={{ color: cfg.accent }} />
@@ -291,6 +314,12 @@ export default function AccountPage() {
   const [shadowAchs,    setShadowAchs]  = useState<any[]>([]);
   const [tourAchs,      setTourAchs]    = useState<any[]>([]);
   const [achProgress,   setAchProgress] = useState<any[]>([]);
+  // Trophy case — up to 5 pinned achievements spanning all achievement systems
+  // (see /api/players/:id/pinned-achievements). Same feature as the one on
+  // /players/:id, wired up here too since this account page is the profile
+  // most players actually use.
+  type PinEntry = { system: string; key: string; name?: string; icon?: string; rarity?: string | null };
+  const [pins, setPins] = useState<PinEntry[]>([]);
   const [eloHistory,    setEloHistory]  = useState<any[]>([]);
   const [titleList,    setTitleList]    = useState<any[]>([]);
   const [titleSaving,  setTitleSaving]  = useState(false);
@@ -315,8 +344,6 @@ export default function AccountPage() {
   const [msgPhotoFile,     setMsgPhotoFile]    = useState<File | null>(null);
   const [msgPhotoPreview,  setMsgPhotoPreview] = useState<string | null>(null);
   const [sendingMsg,       setSendingMsg]      = useState(false);
-  const [notifs,           setNotifs]          = useState<any[]>([]);
-  const [notifsLoading,    setNotifsLoading]   = useState(false);
   const [messagingEnabled, setMessagingEnabled] = useState(false);
   const [notifsEnabled,    setNotifsEnabled]   = useState(false);
   const [myPhotoPosts,     setMyPhotoPosts]    = useState<any[] | null>(null);
@@ -345,6 +372,31 @@ export default function AccountPage() {
       fetch(`/api/players/${id}/titles`).then(r => r.ok ? r.json() : []).then(setTitleList),
     ]);
   }, [user?.playerId]);
+
+  useEffect(() => {
+    if (!user?.playerId) return;
+    fetch(`/api/players/${user.playerId}/pinned-achievements`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setPins(Array.isArray(d?.pins) ? d.pins : []))
+      .catch(() => {});
+  }, [user?.playerId]);
+
+  const isPinned = (system: string, key: string) => pins.some(p => p.system === system && p.key === key);
+  const togglePin = (system: string, key: string, display: { name: string; icon: string; rarity: string | null }) => {
+    if (!user?.playerId) return;
+    const already = isPinned(system, key);
+    if (!already && pins.length >= 5) return;
+    const next = already
+      ? pins.filter(p => !(p.system === system && p.key === key))
+      : [...pins, { system, key, ...display }];
+    setPins(next); // optimistic — reverted below if the save fails
+    fetch(`/api/players/${user.playerId}/pinned-achievements`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ pins: next.map(p => ({ system: p.system, key: p.key })) }),
+    }).catch(() => setPins(pins));
+  };
 
   useEffect(() => {
     fetch("/api/settings")
@@ -388,19 +440,20 @@ export default function AccountPage() {
   useEffect(() => {
     if (activeTab !== "social") return;
     if (socialTab === "dms") {
+      // Note: intentionally NOT resetting activeConvId/threadMessages here —
+      // switching to another Social sub-tab and back should return you to
+      // the same open conversation, not bounce you to the list.
       void loadConversations();
-      setActiveConvId(null);
-      setThreadMessages([]);
-      setShowNewMsg(false);
       if (allPlayers.length === 0) {
         fetch("/api/players").then(r => r.ok ? r.json() : []).then(setAllPlayers).catch(() => {});
       }
-    } else if (socialTab === "notifications") {
-      setNotifsLoading(true);
-      fetch("/api/notifications", { credentials: "include" })
-        .then(r => r.ok ? r.json() : [])
-        .then(data => { setNotifs(data); setUnreadNotifCount(0); })
-        .finally(() => setNotifsLoading(false));
+    } else if (socialTab === "notifications" && notifsEnabled) {
+      // Mark everything read server-side (this is the endpoint's stated
+      // purpose — see notifications.ts's "alias used by account.tsx" comment)
+      // rather than just zeroing the badge on the client.
+      fetch("/api/notifications/mark-all-read", { method: "POST", credentials: "include" })
+        .then(r => { if (r.ok) setUnreadNotifCount(0); })
+        .catch(() => {});
     } else if (socialTab === "photos" && myPhotoPosts === null) {
       if (!user?.playerId) return;
       setPhotosLoading(true);
@@ -409,15 +462,15 @@ export default function AccountPage() {
         .then(setMyPhotoPosts)
         .finally(() => setPhotosLoading(false));
     }
-  }, [activeTab, socialTab, loadConversations, user?.playerId, myPhotoPosts]);
+  }, [activeTab, socialTab, loadConversations, user?.playerId, myPhotoPosts, notifsEnabled]);
 
   useEffect(() => {
-    if (!user?.playerId) return;
+    if (!user?.playerId || !notifsEnabled) return;
     fetch("/api/notifications", { credentials: "include" })
       .then(r => r.ok ? r.json() : [])
       .then((data: any[]) => setUnreadNotifCount(data.filter((n: any) => !n.read_at).length))
       .catch(() => {});
-  }, [user?.playerId]);
+  }, [user?.playerId, notifsEnabled]);
 
   useEffect(() => {
     if (!user?.playerId || activeTab !== "coach") return;
@@ -1314,6 +1367,40 @@ export default function AccountPage() {
       {activeTab === "achievements" && (
         <div className="space-y-3">
 
+        {/* ── Trophy Highlights — the curated show-off strip, up to 5 pins ── */}
+        {pins.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap px-3 py-2.5 rounded-xl"
+            style={{ background: "linear-gradient(120deg, rgba(255,210,74,0.07), rgba(255,0,92,0.03))", border: "1px solid rgba(255,210,74,0.2)" }}>
+            <Pin className="w-3.5 h-3.5 shrink-0" style={{ color: "#ffd24a" }} />
+            {pins.map(p => {
+              const rc = RARITY_COL[p.rarity ?? "Common"] ?? RARITY_COL.Common;
+              return (
+                <div key={`${p.system}-${p.key}`}
+                  className="flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-lg"
+                  style={{ background: `${rc}1c`, border: `1px solid ${rc}40` }}>
+                  <span className="text-sm leading-none">{p.icon}</span>
+                  <span className="font-black text-xs uppercase" style={{ fontFamily: "Oswald, sans-serif", color: rc, letterSpacing: "0.02em" }}>
+                    {p.name}
+                  </span>
+                  <button
+                    onClick={() => togglePin(p.system, p.key, { name: p.name ?? "", icon: p.icon ?? "🏆", rarity: p.rarity ?? null })}
+                    title="Remove from trophy case"
+                    className="p-0.5 rounded transition-colors hover:bg-white/10">
+                    <X className="w-2.5 h-2.5" style={{ color: "rgba(255,255,255,0.35)" }} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {pins.length === 0 && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs"
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.3)" }}>
+            <Pin className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.25)" }} />
+            Pin up to 5 achievements below to build your trophy case — it shows on your player profile too.
+          </div>
+        )}
+
         {/* Source selector */}
         <div className="flex gap-1 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
           {([
@@ -1368,7 +1455,8 @@ export default function AccountPage() {
 
         {achSource === "league" && (
           achByCategory.length > 0 ? (
-            <AchievementPortal categories={achByCategory} cfgMap={CATEGORY_CFG} defaultOpen={["Career"]} />
+            <AchievementPortal categories={achByCategory} cfgMap={CATEGORY_CFG} defaultOpen={["Career"]}
+              pinSystem="core" pins={pins} onTogglePin={(key, display) => togglePin("core", key, display)} />
           ) : (
             <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", textAlign: "center", padding: "24px 0" }}>
               No achievements yet — play some matches to get started
@@ -1379,7 +1467,8 @@ export default function AccountPage() {
         {achSource === "bot" && (
           shadowAchsByCategory.length > 0 ? (
             <AchievementPortal categories={shadowAchsByCategory} cfgMap={SHADOW_CAT} defaultOpen={["Darts Thrown"]}
-              unlockedField="unlocked" progressField="currentValue" valueField="criteriaValue" gsField="gamerscore" />
+              unlockedField="unlocked" progressField="currentValue" valueField="criteriaValue" gsField="gamerscore"
+              pinSystem="shadow-bot" pins={pins} onTogglePin={(key, display) => togglePin("shadow-bot", key, display)} />
           ) : (
             <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", textAlign: "center", padding: "24px 0" }}>
               No Shadow Bot achievements yet
@@ -1390,7 +1479,8 @@ export default function AccountPage() {
         {achSource === "tour" && (
           tourAchsByCategory.length > 0 ? (
             <AchievementPortal categories={tourAchsByCategory} cfgMap={TOUR_CAT} defaultOpen={["career"]}
-              unlockedField="unlocked" progressField="_noProgress" valueField="criteriaValue" gsField="gamerscore" />
+              unlockedField="unlocked" progressField="_noProgress" valueField="criteriaValue" gsField="gamerscore"
+              pinSystem="tour" pins={pins} onTogglePin={(key, display) => togglePin("tour", key, display)} />
           ) : (
             <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", textAlign: "center", padding: "24px 0" }}>
               No Tour achievements yet — enter a tour to get started
@@ -1402,7 +1492,8 @@ export default function AccountPage() {
           m501AchCategories.length > 0 ? (
             <AchievementPortal categories={m501AchCategories}
               cfgMap={{ "Master-501": { label: "Master 501", accent: "#00e5a0", emoji: "🎯" } }}
-              defaultOpen={["Master-501"]} />
+              defaultOpen={["Master-501"]}
+              pinSystem="core" pins={pins} onTogglePin={(key, display) => togglePin("core", key, display)} />
           ) : (
             <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", textAlign: "center", padding: "24px 0" }}>
               No M·501 achievements yet — start playing to unlock them
@@ -1845,6 +1936,8 @@ export default function AccountPage() {
                         const { uploadURL, objectPath } = await pur.json() as { uploadURL: string; objectPath: string };
                         await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": msgPhotoFile.type }, body: msgPhotoFile });
                         photoPath = objectPath;
+                      } else {
+                        toast({ title: "Photo upload failed", description: "Sending without the photo attached.", variant: "destructive" });
                       }
                     }
                     const r = await fetch("/api/messages", {
@@ -1858,7 +1951,12 @@ export default function AccountPage() {
                       setMsgPhotoPreview(null);
                       if (msgFileRef.current) msgFileRef.current.value = "";
                       void loadThread(activeConvId!);
+                    } else {
+                      const data = await r.json().catch(() => ({}));
+                      toast({ title: "Message not sent", description: data.error ?? "Please try again.", variant: "destructive" });
                     }
+                  } catch {
+                    toast({ title: "Network error", description: "Message not sent — check your connection and try again.", variant: "destructive" });
                   } finally { setSendingMsg(false); }
                 }}>
                   <input ref={msgFileRef} type="file" accept="image/*" className="hidden"
@@ -1890,6 +1988,14 @@ export default function AccountPage() {
         {socialTab === "notifications" && (
         <div className="space-y-3">
 
+          {!notifsEnabled ? (
+            <div className="text-center py-16 rounded-2xl" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <Bell className="w-8 h-8 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.12)" }} />
+              <p className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>NOTIFICATIONS COMING SOON</p>
+              <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.15)" }}>In-app notifications aren't live yet.</p>
+            </div>
+          ) : (
+          <>
           {/* ── Push notification opt-in card ── */}
           {push.supported && (
             <div className="rounded-2xl px-5 py-4"
@@ -1939,6 +2045,8 @@ export default function AccountPage() {
           <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
             <NotificationCenter playerId={user.playerId} />
           </div>
+          </>
+          )}
         </div>
       )}
 
@@ -2052,7 +2160,7 @@ export default function AccountPage() {
             <StreakWidget playerId={user.playerId} />
             <TimeOfDayPerformance playerId={user.playerId} />
           </div>
-          <DebugStatsViewer playerId={user.playerId} />
+          {user.isAdmin && <DebugStatsViewer playerId={user.playerId} />}
           <CategoryStatsEnhanced playerId={user.playerId} />
         </div>
       )}

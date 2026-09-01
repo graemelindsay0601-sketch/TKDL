@@ -13,3 +13,16 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      # Web push (see artifacts/api-server/src/app.ts) — without these three,
+      # app.ts logs "VAPID keys not configured" at boot and every push send
+      # silently no-ops, which is why push notifications have never actually
+      # gone out despite the rest of the pipeline working. Generate a keypair
+      # with `npx web-push generate-vapid-keys` and set the values in the
+      # Render dashboard (Environment tab) — sync: false keeps the actual
+      # secret out of this file.
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_EMAIL
+        sync: false

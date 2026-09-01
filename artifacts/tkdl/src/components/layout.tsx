@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { useGetStatsSummary, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
 import { useSettings } from "@/hooks/use-settings";
+import { NotificationOptInPrompt } from "@/components/NotificationOptInPrompt";
 
 const hubNav = [
   { href: "/",             label: "Hub",          icon: LayoutDashboard },
@@ -445,6 +446,8 @@ export function Layout({ children }: { children: ReactNode }) {
       </div>
 
       <LiveTicker />
+
+      <NotificationOptInPrompt />
 
       {/* Bottom nav — tablet/mobile only (<1024px) */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 flex"

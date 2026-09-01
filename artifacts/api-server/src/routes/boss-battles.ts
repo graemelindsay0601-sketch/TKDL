@@ -83,6 +83,13 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
       res.status(400).json({ error: "A valid playerId and bossId are required" });
       return;
     }
+
+    // No login/session check here, on purpose — boss-battle.tsx dropped its
+    // login requirement so anyone can pick a name from the roster and play,
+    // same as Master-501/Practice/Tour/Matches. bossBattleRateLimit is the
+    // established guard for this class of route (unauthenticated write,
+    // throttle scripted floods) rather than an ownership check that would
+    // reintroduce a login requirement the app deliberately doesn't want.
     const order = BOSS_ORDER[bossId];
     const didWin = won === true;
 

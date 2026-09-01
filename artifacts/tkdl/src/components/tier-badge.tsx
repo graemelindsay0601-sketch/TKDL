@@ -1,7 +1,9 @@
 const TIER_CONFIG: Record<string, { label: string; color: string; border: string; bg: string }> = {
-  Gold:   { label: "GOLD",   color: "#ffd24a", border: "rgba(255,210,74,0.4)",  bg: "rgba(255,210,74,0.1)" },
-  Silver: { label: "SILVER", color: "#c0c8d8", border: "rgba(192,200,216,0.4)", bg: "rgba(192,200,216,0.08)" },
-  Bronze: { label: "BRONZE", color: "#cd7f32", border: "rgba(205,127,50,0.4)",  bg: "rgba(205,127,50,0.08)" },
+  Diamond:  { label: "DIAMOND",  color: "#00e5ff", border: "rgba(0,229,255,0.4)",   bg: "rgba(0,229,255,0.1)" },
+  Platinum: { label: "PLATINUM", color: "#e5e4e2", border: "rgba(229,228,226,0.4)", bg: "rgba(229,228,226,0.08)" },
+  Gold:     { label: "GOLD",     color: "#ffd24a", border: "rgba(255,210,74,0.4)",  bg: "rgba(255,210,74,0.1)" },
+  Silver:   { label: "SILVER",   color: "#c0c8d8", border: "rgba(192,200,216,0.4)", bg: "rgba(192,200,216,0.08)" },
+  Bronze:   { label: "BRONZE",   color: "#cd7f32", border: "rgba(205,127,50,0.4)",  bg: "rgba(205,127,50,0.08)" },
 };
 
 export function TierBadge({ tier }: { tier?: string }) {

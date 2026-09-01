@@ -294,7 +294,13 @@ router.patch("/admin/players/:id/elo", async (req, res): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const { elo } = parsed.data;
-  const tier = elo >= 1400 ? "Diamond" : elo >= 1250 ? "Platinum" : elo >= 1100 ? "Gold" : elo >= 950 ? "Silver" : "Bronze";
+  // Was a hand-rolled 5-tier scheme (Diamond/Platinum/Gold/Silver/Bronze)
+  // left over from before the ladder was simplified to 3 tiers — it
+  // disagreed with calcTier() (the tier every other page derives from Elo),
+  // so an admin override could show a player as "Platinum" here while their
+  // own profile showed "Gold" for the same Elo. calcTier() is the one
+  // canonical source now.
+  const tier = calcTier(elo);
 
   const [updated] = await db.update(playersTable)
     .set({ elo })

@@ -4,6 +4,9 @@ import { sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { generateKOBracket, generatePLBracket, advanceKOBracket, advancePLBracket, type KOBracket, type PLBracket } from "../lib/bracketEngine";
 import { TROPHY_GAMERSCORE, TOUR_ACHIEVEMENT_DEFS } from "../lib/tourSeed";
+import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
+import { requireAdminSession } from "../middleware/requireAdminSession";
+import { paramStr } from "../lib/http";
 
 const router = Router();
 
@@ -280,7 +283,12 @@ const StartRunBody = z.object({
   playerName: z.string(),
 });
 
-router.post("/tour/runs", async (req, res): Promise<void> => {
+// No login/session check here, deliberately — like /matches and
+// /master501/runs, Tour is playable from a shared device without an
+// individual account login. matchSubmitRateLimit applies the same
+// "unauthenticated write, throttle scripted floods" treatment used
+// everywhere else for this class of endpoint.
+router.post("/tour/runs", matchSubmitRateLimit, async (req, res): Promise<void> => {
   try {
     const body = StartRunBody.parse(req.body);
     const { playerId, tourSlug, difficulty, playerName } = body;
@@ -339,9 +347,9 @@ const AdvanceRunBody = z.object({
   playerWon:  z.boolean(),
 });
 
-router.patch("/tour/runs/:runId", async (req, res): Promise<void> => {
+router.patch("/tour/runs/:runId", matchSubmitRateLimit, async (req, res): Promise<void> => {
   try {
-    const runId = parseInt(req.params.runId, 10);
+    const runId = parseInt(paramStr(req.params.runId), 10);
     const body = AdvanceRunBody.parse(req.body);
     const { playerId, playerWon } = body;
 
@@ -527,10 +535,14 @@ router.get("/tour/all-trophies", async (req, res): Promise<void> => {
 });
 
 // ── DELETE /api/tour/runs/:runId — admin delete a single tour run ────────────
+// Driven only by admin/tour-data-manager.tsx, but was missing the session
+// gate every other admin route uses — anyone who found the URL could delete
+// any run with a plain unauthenticated request. Same fix as the trophy/
+// player-wipe deletes below.
 
-router.delete("/tour/runs/:runId", async (req, res): Promise<void> => {
+router.delete("/tour/runs/:runId", requireAdminSession, async (req, res): Promise<void> => {
   try {
-    const runId = parseInt(req.params.runId, 10);
+    const runId = parseInt(paramStr(req.params.runId), 10);
     if (isNaN(runId)) { res.status(400).json({ error: "Invalid run id" }); return; }
     const result = await db.execute(sql`DELETE FROM player_tour_runs WHERE id = ${runId} RETURNING id`);
     if (result.rows.length === 0) { res.status(404).json({ error: "Run not found" }); return; }
@@ -543,9 +555,9 @@ router.delete("/tour/runs/:runId", async (req, res): Promise<void> => {
 
 // ── DELETE /api/tour/trophies/:trophyId — admin delete a single trophy ────────
 
-router.delete("/tour/trophies/:trophyId", async (req, res): Promise<void> => {
+router.delete("/tour/trophies/:trophyId", requireAdminSession, async (req, res): Promise<void> => {
   try {
-    const trophyId = parseInt(req.params.trophyId, 10);
+    const trophyId = parseInt(paramStr(req.params.trophyId), 10);
     if (isNaN(trophyId)) { res.status(400).json({ error: "Invalid trophy id" }); return; }
     const result = await db.execute(sql`DELETE FROM tour_trophies WHERE id = ${trophyId} RETURNING id`);
     if (result.rows.length === 0) { res.status(404).json({ error: "Trophy not found" }); return; }
@@ -558,9 +570,9 @@ router.delete("/tour/trophies/:trophyId", async (req, res): Promise<void> => {
 
 // ── DELETE /api/tour/player/:playerId — admin wipe all tour data for a player ──
 
-router.delete("/tour/player/:playerId", async (req, res): Promise<void> => {
+router.delete("/tour/player/:playerId", requireAdminSession, async (req, res): Promise<void> => {
   try {
-    const playerId = parseInt(req.params.playerId, 10);
+    const playerId = parseInt(paramStr(req.params.playerId), 10);
     if (isNaN(playerId)) { res.status(400).json({ error: "Invalid player id" }); return; }
 
     const [trophies, achievements, runs] = await Promise.all([

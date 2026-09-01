@@ -23,7 +23,7 @@ export function FreePackDisplay({ playerId, onClaimPack }: FreePackDisplayProps)
   useEffect(() => {
     const checkPackAvailability = async () => {
       try {
-        const response = await fetch(`/api/card-clash/free-pack/status`);
+        const response = await fetch(`/api/card-clash/free-pack/status?playerId=${playerId}`);
         if (!response.ok) throw new Error('Failed to check pack');
 
         const data = await response.json();
@@ -73,6 +73,7 @@ export function FreePackDisplay({ playerId, onClaimPack }: FreePackDisplayProps)
       const response = await fetch('/api/card-clash/free-pack/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId }),
       });
 
       if (!response.ok) {

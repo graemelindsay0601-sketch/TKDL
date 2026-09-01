@@ -16,11 +16,24 @@ export async function seedNotificationTables() {
         push_enabled BOOLEAN DEFAULT true,
         match_results BOOLEAN DEFAULT true,
         rank_changes BOOLEAN DEFAULT true,
+        threat_alerts BOOLEAN DEFAULT true,
         coach_tips BOOLEAN DEFAULT true,
         announcements BOOLEAN DEFAULT true,
         private_mode BOOLEAN DEFAULT false,
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )
+    `);
+
+    // threat_alerts on an existing (already-created) table — see the
+    // ADD COLUMN IF NOT EXISTS pattern used for the notifications table
+    // below. Threat alerts ("X is closing in on your rank") used to be
+    // unconditional — sent on every close singles match regardless of any
+    // preference, the one type players had no way to turn off — because
+    // this column didn't exist for the per-type check in
+    // notificationService.ts's shouldSendNotification() to key off.
+    await db.execute(sql`
+      ALTER TABLE notification_preferences
+        ADD COLUMN IF NOT EXISTS threat_alerts BOOLEAN DEFAULT true
     `);
 
     // Notifications table

@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 import { logger } from "../lib/logger";
 import { checkM501Achievements } from "../lib/master501-achievements";
 import { checkAndGrantTitles } from "../lib/titles";
+import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 
 const router = Router();
 
@@ -149,7 +150,15 @@ router.get("/master501/achievement-definitions", async (_req, res): Promise<void
 
 // POST /api/master501/runs — start a run at the player's current tier/round, or at a
 // specific tier/round if the player has already unlocked it (for replay).
-router.post("/master501/runs", async (req, res): Promise<void> => {
+//
+// No login/session check here, deliberately — like /matches, /practice/sessions
+// and the other shared-kiosk-friendly write routes, M-501 is meant to be
+// playable by anyone selecting their own name from a shared device at the
+// board, not gated behind an individual account login. That openness is why
+// this (and the PATCH below) carry matchSubmitRateLimit — the same
+// "unauthenticated write, so throttle scripted floods" reasoning already
+// applied to match/doubles/Shift Wars submission.
+router.post("/master501/runs", matchSubmitRateLimit, async (req, res): Promise<void> => {
   try {
     const { playerId, tier: reqTier, round: reqRound } = z.object({
       playerId: z.number().int().positive(),
@@ -201,7 +210,7 @@ router.post("/master501/runs", async (req, res): Promise<void> => {
 });
 
 // PATCH /api/master501/runs/:runId — record final match result
-router.patch("/master501/runs/:runId", async (req, res): Promise<void> => {
+router.patch("/master501/runs/:runId", matchSubmitRateLimit, async (req, res): Promise<void> => {
   try {
     const runId = Number(req.params.runId);
     const { result, legsWon, legsLost } = z.object({

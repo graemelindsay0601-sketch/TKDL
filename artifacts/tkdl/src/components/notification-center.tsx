@@ -21,6 +21,7 @@ interface NotificationPreferences {
   push_enabled: boolean;
   match_results: boolean;
   rank_changes: boolean;
+  threat_alerts: boolean;
   coach_tips: boolean;
   announcements: boolean;
   private_mode: boolean;
@@ -55,7 +56,7 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
 
   const fetchPreferences = async () => {
     try {
-      const res = await fetch(`/api/players/${playerId}/notification-prefs`);
+      const res = await fetch(`/api/players/${playerId}/notification-prefs`, { credentials: "include" });
       if (res.ok) {
         setPreferences(await res.json());
       }
@@ -99,6 +100,7 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
     try {
       const res = await fetch(`/api/players/${playerId}/notification-prefs`, {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(preferences),
       });
@@ -209,12 +211,17 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
             />
           </div>
 
-          {/* Per-type toggles */}
+          {/* Per-type toggles. "Rank Changes" was deliberately dropped from
+              this list — nothing in the app has ever actually sent that
+              notification type (see sendRankChangeNotifications in
+              notificationService.ts, which is defined but never called), so
+              showing a toggle for it would just mislead people into thinking
+              it does something. */}
           {[
-            { key: "match_results", label: "Match Results" },
-            { key: "rank_changes", label: "Rank Changes" },
+            { key: "match_results", label: "Match Results (Singles, Doubles, Shift Wars)" },
+            { key: "threat_alerts", label: "Close Match Alerts" },
             { key: "coach_tips", label: "Coach Tips" },
-            { key: "announcements", label: "Announcements" },
+            { key: "announcements", label: "League Announcements" },
           ].map(({ key, label }) => (
             <div
               key={key}

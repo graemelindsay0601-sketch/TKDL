@@ -212,7 +212,7 @@ export function AdaptiveDifficulty({ playerId }: AdaptiveDifficultyProps) {
         color: "rgba(255,255,255,0.6)",
         lineHeight: 1.5,
       }}>
-        💡 The coach automatically adjusts drill difficulty as you improve. Master the current level to unlock the next challenge!
+        💡 Your tier is based on the difficulty and score you log after each drill — no auto-adjustment happens behind the scenes. Log honestly and aim for a higher score to climb toward Master!
       </div>
     </div>
   );

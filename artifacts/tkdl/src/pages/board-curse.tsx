@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Flame, Swords, User, Users, Bot, Trophy, Skull, Crown, Square, Infinity as InfinityIcon, BookOpen } from "lucide-react";
 import { useCurrentPlayer } from "@/context/auth";
-import { LoginGate } from "@/components/LoginGate";
 import { useListPlayers } from "@workspace/api-client-react";
 import { BoardCurseScorer, type BoardCurseResult } from "@/components/BoardCurseScorer";
 import { BOT_LEVELS, type BotLevel } from "@/lib/bot-engine";
@@ -27,28 +26,40 @@ type Record_ = { wins: number; losses: number };
 type LeaderboardEntry = { playerName: string; value: number };
 
 export default function BoardCursePage() {
+  // Playing Board Curse has never needed an account — pick your name from
+  // the roster and go, same as Master-501/Practice/Tour. useCurrentPlayer()
+  // is only consulted to default the picker to your own name when you
+  // happen to be logged in; logging in is for claiming/managing an account,
+  // never a requirement to play.
   const currentPlayer = useCurrentPlayer();
   const [screen, setScreen] = useState<Screen>({ kind: "setup" });
   const [gameMode, setGameMode] = useState<CurseGameMode>("X01");
   const [format, setFormat] = useState<Format>("solo");
   const [botLevel, setBotLevel] = useState<BotLevel>("club");
-  // "vs Local Player" used to be a free-text name field, disconnected from
-  // the app's real player list — this pulls the actual roster instead
-  // (same "casual mode only excludes INACTIVE players" rule used elsewhere,
-  // e.g. play.tsx's Team Game fix), with a Guest fallback for someone not
-  // in the app at all.
   const { data: playersData } = useListPlayers();
-  const opponents = ((playersData as RosterPlayer[] | undefined) ?? [])
-    .filter(p => p.isActive !== false && p.id !== currentPlayer?.playerId)
+  const roster = ((playersData as RosterPlayer[] | undefined) ?? []).filter(p => p.isActive !== false);
+  const [playerId, setPlayerId] = useState<number | null>(null);
+  useEffect(() => {
+    if (playerId !== null || roster.length === 0) return;
+    setPlayerId((currentPlayer ? roster.find(p => p.id === currentPlayer.playerId)?.id : undefined) ?? roster[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roster.length]);
+  const playerName = roster.find(p => p.id === playerId)?.name ?? "";
+  // "vs Local Player" pulls the actual roster (same "casual mode only
+  // excludes INACTIVE players" rule used elsewhere, e.g. play.tsx's Team
+  // Game fix), excluding whoever is picked as "You" above, with a Guest
+  // fallback for someone not in the app at all.
+  const opponents = roster
+    .filter(p => p.id !== playerId)
     .sort((a, b) => a.name.localeCompare(b.name));
   const [opponentSelection, setOpponentSelection] = useState<string>("");
   const [guestName, setGuestName] = useState("");
   const opponentName = opponentSelection === GUEST_OPTION
     ? (guestName.trim() || "Guest")
     : (opponents.find(p => String(p.id) === opponentSelection)?.name ?? "Player 2");
-  const canStart = format !== "local" || (
+  const canStart = !!playerId && (format !== "local" || (
     opponentSelection !== "" && (opponentSelection !== GUEST_OPTION || guestName.trim() !== "")
-  );
+  ));
   const [matchLegs, setMatchLegs] = useState<MatchLegs>(3);
   const [endlessMode, setEndlessMode] = useState(false);
   const [bestVisits, setBestVisits] = useState<number | null>(null);
@@ -59,43 +70,33 @@ export default function BoardCursePage() {
   const [leaderboard, setLeaderboard] = useState<{ bestVisits: LeaderboardEntry[]; bestStreak: LeaderboardEntry[] } | null>(null);
 
   const loadBest = (mode: CurseGameMode) => {
-    if (!currentPlayer?.playerId) return;
-    fetch(`/api/board-curse/best/${currentPlayer.playerId}/${mode}`)
+    if (!playerId) return;
+    fetch(`/api/board-curse/best/${playerId}/${mode}`)
       .then(r => r.ok ? r.json() : { bestVisits: null, bestStreak: null })
       .then((d: { bestVisits: number | null; bestStreak: number | null }) => { setBestVisits(d.bestVisits); setBestStreak(d.bestStreak); })
       .catch(() => { setBestVisits(null); setBestStreak(null); });
   };
 
   const loadRecord = (fmt: "bot" | "local") => {
-    if (!currentPlayer?.playerId) return;
-    fetch(`/api/board-curse/record/${currentPlayer.playerId}/${fmt}`)
+    if (!playerId) return;
+    fetch(`/api/board-curse/record/${playerId}/${fmt}`)
       .then(r => r.ok ? r.json() : { wins: 0, losses: 0 })
       .then((d: Record_) => setRecord(d))
       .catch(() => setRecord(null));
   };
 
-  useEffect(() => { loadBest(gameMode); }, [gameMode, currentPlayer?.playerId]);
+  useEffect(() => { loadBest(gameMode); }, [gameMode, playerId]);
   useEffect(() => {
     if (format === "bot" || format === "local") loadRecord(format);
     else setRecord(null);
-  }, [format, currentPlayer?.playerId]);
+  }, [format, playerId]);
 
   useEffect(() => {
     if (format !== "solo") setEndlessMode(false);
   }, [format]);
 
-  if (!currentPlayer) {
-    return (
-      <LoginGate
-        icon="👻"
-        title="Play Board Curse"
-        subtitle="Every visit rolls a new curse against your throw. Log in to see what you're up against."
-      />
-    );
-  }
-
   const handleStart = () => {
-    const p1Name = currentPlayer.playerName;
+    const p1Name = playerName;
     const p2Name = format === "bot" ? `CPU (${BOT_LEVELS[botLevel].label})` : format === "local" ? opponentName : "The Board";
     setEndlessStreak(0);
     setEndlessKey(k => k + 1);
@@ -108,11 +109,11 @@ export default function BoardCursePage() {
   };
 
   const reportBest = async (mode: CurseGameMode, opts: { visits?: number; streak?: number }) => {
-    if (!currentPlayer?.playerId) return;
+    if (!playerId) return;
     try {
       await fetch("/api/board-curse/best", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId: currentPlayer.playerId, gameType: mode, ...opts }),
+        body: JSON.stringify({ playerId, gameType: mode, ...opts }),
       });
       loadBest(mode);
     } catch { /* best just won't update this time — not worth blocking the result screen over */ }
@@ -128,11 +129,11 @@ export default function BoardCursePage() {
     if (s.format === "solo") {
       await reportBest(s.gameMode, { visits: result.visitsTaken });
     } else {
-      if (currentPlayer?.playerId) {
+      if (playerId) {
         try {
           await fetch("/api/board-curse/record", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ playerId: currentPlayer.playerId, format: s.format, won: result.winnerIdx === 0 }),
+            body: JSON.stringify({ playerId, format: s.format, won: result.winnerIdx === 0 }),
           });
           loadRecord(s.format);
         } catch { /* record just won't update this time */ }
@@ -379,6 +380,16 @@ export default function BoardCursePage() {
             <BookOpen className="inline w-3.5 h-3.5 mr-1" />Curses
           </button>
         </div>
+      </div>
+
+      <div className="mb-5">
+        <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>You</div>
+        <select value={playerId ?? ""} onChange={e => setPlayerId(Number(e.target.value) || null)}
+          className="w-full px-4 py-2.5 rounded-lg text-sm"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: playerId ? "#fff" : "rgba(255,255,255,0.35)" }}>
+          <option value="" style={{ color: "#111" }}>Select player…</option>
+          {roster.map(p => <option key={p.id} value={p.id} style={{ color: "#111" }}>{p.name}</option>)}
+        </select>
       </div>
 
       <div className="mb-5">

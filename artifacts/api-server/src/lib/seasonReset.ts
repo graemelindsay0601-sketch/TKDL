@@ -1,3 +1,4 @@
+import cron from "node-cron";
 import { db } from "@workspace/db";
 import { playersTable, seasonsTable, seasonStandingsTable } from "@workspace/db";
 import type { LeagueType } from "@workspace/db";
@@ -232,4 +233,35 @@ export async function maybeAutoResetLeagueSeasons(): Promise<void> {
   await maybeAutoResetLeague("singles", () => performSeasonReset());
   await maybeAutoResetLeague("doubles", () => performDoublesSeasonReset());
   await maybeAutoResetLeague("shift_wars", () => performShiftWarsSeasonReset());
+}
+
+// ── Scheduled auto-reset ─────────────────────────────────────────────────
+// maybeAutoResetLeagueSeasons() used to only run at server startup, which
+// meant a month could roll over with no reset (and, for Shift Wars, no
+// history snapshot) if the server just stayed up the whole time — the same
+// class of bug fixed for the featured card shop in
+// featured-card-shop-service.ts. This runs the same check daily so a new
+// month is always caught within a day of it starting, regardless of
+// deploys/restarts. Each per-league check is already idempotent (it only
+// resets when the active season's start month differs from the current
+// month), so a daily cadence is safe to run indefinitely.
+export function initializeSeasonResetScheduler(): void {
+  try {
+    // Every day at 00:15 UTC — after the 00:05 featured-card rotation, well
+    // clear of midnight-boundary races.
+    cron.schedule("15 0 * * *", async () => {
+      try {
+        await maybeAutoResetLeagueSeasons();
+        logger.info("Season auto-reset: daily check complete");
+      } catch (error) {
+        logger.error({ error }, "Season auto-reset: scheduled check failed");
+      }
+    }, {
+      runOnInit: false,
+    });
+
+    logger.info("Season auto-reset scheduler initialized (daily at 00:15 UTC)");
+  } catch (error) {
+    logger.error({ error }, "Failed to initialize season auto-reset scheduler");
+  }
 }

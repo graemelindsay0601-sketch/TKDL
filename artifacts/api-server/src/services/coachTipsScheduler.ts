@@ -22,24 +22,39 @@ interface CoachTip {
  */
 async function generateCoachTips(playerId: number): Promise<CoachTip | null> {
   try {
-    // Get player's stats for the past 7 days (both wins and losses)
+    // Get player's stats for the past 7 days (both wins and losses).
+    // This used to only read the winner_* columns, so every stat here
+    // (checkout %, darts/turn, 180s) silently dropped to 0/null for any
+    // match the player lost — a player who went 1-4 for the week got a tip
+    // built from just their one win instead of all 5 matches. The parallel
+    // loser_* columns (loser_checkout_hits/attempts, loser_darts,
+    // loser_180s) already exist and are populated — practice.ts's
+    // shadow-bot-stats route reads them the same way — so pull from
+    // whichever side of the match this player was on.
     const stats = await db.execute(sql`
-      SELECT 
-        -- When player is winner
+      SELECT
         COUNT(CASE WHEN winner_id = ${playerId} THEN 1 END) as wins,
         COUNT(CASE WHEN loser_id = ${playerId} THEN 1 END) as losses,
-        
-        -- Checkout stats (when winner)
-        AVG(CASE WHEN winner_id = ${playerId} AND winner_checkout_attempts > 0 
-            THEN (winner_checkout_hits::float / winner_checkout_attempts * 100) END) as avg_checkout_pct,
-        
-        -- Darts per turn (when winner - lower is better)
-        AVG(CASE WHEN winner_id = ${playerId} AND winner_darts > 0 
-            THEN (winner_darts::float / 3) END) as avg_darts_per_turn,
-        
-        -- 180s per match (when winner)
-        AVG(CASE WHEN winner_id = ${playerId} 
-            THEN winner_180s END) as avg_180s
+
+        -- Checkout stats (winner or loser side, whichever this player was)
+        AVG(CASE
+              WHEN winner_id = ${playerId} AND winner_checkout_attempts > 0
+                THEN (winner_checkout_hits::float / winner_checkout_attempts * 100)
+              WHEN loser_id = ${playerId} AND loser_checkout_attempts > 0
+                THEN (loser_checkout_hits::float / loser_checkout_attempts * 100)
+            END) as avg_checkout_pct,
+
+        -- Darts per turn (lower is better)
+        AVG(CASE
+              WHEN winner_id = ${playerId} AND winner_darts > 0 THEN (winner_darts::float / 3)
+              WHEN loser_id = ${playerId} AND loser_darts > 0 THEN (loser_darts::float / 3)
+            END) as avg_darts_per_turn,
+
+        -- 180s per match
+        AVG(CASE
+              WHEN winner_id = ${playerId} THEN winner_180s
+              WHEN loser_id = ${playerId} THEN loser_180s
+            END) as avg_180s
       FROM matches
       WHERE (winner_id = ${playerId} OR loser_id = ${playerId})
       AND played_at > NOW() - INTERVAL '7 days'

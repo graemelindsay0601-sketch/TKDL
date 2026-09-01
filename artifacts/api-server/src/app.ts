@@ -10,7 +10,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import cacheMiddleware from "./middleware/cache";
 import { seedAchievements } from "./lib/achievements";
-import { maybeAutoResetLeagueSeasons } from "./lib/seasonReset";
+import { maybeAutoResetLeagueSeasons, initializeSeasonResetScheduler } from "./lib/seasonReset";
 import { addPerformanceIndexes } from "./db/migrations/add_performance_indexes";
 import { seedTourSystem } from "./lib/tourSeed";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
@@ -1090,6 +1090,7 @@ async function init() {
     // Initialize scheduled systems
     initializeCoachTipsScheduler();
     initializeFeaturedCardScheduler();
+    initializeSeasonResetScheduler();
     await seedSessions();
     await seedUsers();
     await seedTitles();

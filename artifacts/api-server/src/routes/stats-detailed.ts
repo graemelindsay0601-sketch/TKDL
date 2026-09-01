@@ -241,6 +241,14 @@ router.post("/players/:id/drills/complete", async (req, res) => {
   try {
     const playerId = parseInt(req.params.id, 10);
     if (isNaN(playerId)) { res.status(400).json({ error: "Invalid player ID" }); return; }
+
+    // The Coach tab this feeds lives on account.tsx, behind <LoginGate> — so
+    // (unlike the shared-kiosk match/practice submission routes) a drill
+    // completion should only ever be logged for whoever is signed in.
+    const sessionPlayerId = (req.session as any)?.playerId ?? null;
+    if (!sessionPlayerId) { res.status(401).json({ error: "Login required" }); return; }
+    if (sessionPlayerId !== playerId) { res.status(403).json({ error: "You can only log drills for your own account" }); return; }
+
     const { drillId, drillTitle, durationMinutes, score, difficulty, notes } = req.body ?? {};
     if (!drillId || !drillTitle || typeof score !== "number") {
       res.status(400).json({ error: "drillId, drillTitle and score are required" }); return;

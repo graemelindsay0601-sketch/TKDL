@@ -3,11 +3,11 @@ import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
-import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare, Sparkles, Building2, Pin } from "lucide-react";
+import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare, Sparkles, Building2, Pin, Layers, Users, Ghost } from "lucide-react";
 import { useAuth } from "@/context/auth";
 import {
   FormStrip, EloSparkline, AchievementCard,
-  BigStat, SmallStat, TIER_GLOW, CollapsibleSection, ScorecardView, RARITY_COLORS,
+  BigStat, StatPanel, ModeTile, TIER_GLOW, CollapsibleSection, ScorecardView, RARITY_COLORS,
 } from "./helpers";
 import { CategoryStatsEnhanced } from "@/components/stats";
 
@@ -174,6 +174,32 @@ export default function PlayerDetail() {
         setShiftWarsTeam(mine ?? null);
       })
       .catch(() => setShiftWarsTeam(null));
+  }, [playerId]);
+
+  // The rest of the app's game modes — previously invisible on this page
+  // even though every one of them records real per-player data server-side.
+  // Each fetch is caught independently so one missing/erroring mode never
+  // blanks out the others.
+  const [master501, setMaster501] = useState<any>(null);
+  const [shadowStats, setShadowStats] = useState<any>(null);
+  const [bossBattle, setBossBattle] = useState<{ defeated: string[] } | null>(null);
+  const [boardCurseRecord, setBoardCurseRecord] = useState<{ wins: number; losses: number } | null>(null);
+  const [cardClashStats, setCardClashStats] = useState<any>(null);
+  const [tourRuns, setTourRuns] = useState<any[]>([]);
+  useEffect(() => {
+    if (!playerId) return;
+    fetch(`/api/master501/progress/${playerId}`).then(r => r.ok ? r.json() : null).then(setMaster501).catch(() => setMaster501(null));
+    fetch(`/api/players/${playerId}/shadow-bot-stats`).then(r => r.ok ? r.json() : null).then(setShadowStats).catch(() => setShadowStats(null));
+    fetch(`/api/boss-battles/progress/${playerId}`).then(r => r.ok ? r.json() : null).then(setBossBattle).catch(() => setBossBattle(null));
+    fetch(`/api/card-clash/player/${playerId}/stats`).then(r => r.ok ? r.json() : null).then(setCardClashStats).catch(() => setCardClashStats(null));
+    fetch(`/api/tour/runs/${playerId}`).then(r => r.ok ? r.json() : []).then(d => setTourRuns(Array.isArray(d) ? d : [])).catch(() => setTourRuns([]));
+    Promise.all([
+      fetch(`/api/board-curse/record/${playerId}/bot`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/board-curse/record/${playerId}/local`).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([bot, local]) => {
+      if (!bot && !local) { setBoardCurseRecord(null); return; }
+      setBoardCurseRecord({ wins: (bot?.wins ?? 0) + (local?.wins ?? 0), losses: (bot?.losses ?? 0) + (local?.losses ?? 0) });
+    });
   }, [playerId]);
 
   if (isLoading) {
@@ -418,58 +444,43 @@ export default function PlayerDetail() {
           style={{ background: `linear-gradient(90deg, transparent, ${tierColor}40, transparent)` }} />
       </div>
 
-      {/* ══ DOUBLES EVENT ══ */}
-      {doublesTeam && (
-        <Link href={`/seasons/${doublesTeam.seasonId}?tab=doubles`} className="pdc-card p-4 flex items-center justify-between gap-4 hover:bg-white/[0.02] transition-colors"
-          style={{ opacity: doublesTeam.isEliminated ? 0.6 : 1 }}>
-          <div className="min-w-0">
-            <div className="text-xs uppercase font-bold mb-1 flex items-center gap-1.5" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(0,102,255,0.7)", letterSpacing: "0.12em" }}>
-              Doubles Event{doublesTeam.isEliminated && " — Eliminated"}
-            </div>
-            <div className="font-bold text-lg truncate" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)" }}>
-              {doublesTeam.teamName}
-            </div>
-          </div>
-          <div className="flex items-center gap-4 shrink-0 text-sm font-mono">
-            <div className="text-center">
-              <div style={{ color: "#22c55e" }}>{doublesTeam.wins}<span style={{ color: "rgba(255,255,255,0.25)" }}>-</span><span style={{ color: "#ff005c" }}>{doublesTeam.losses}</span></div>
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>Record</div>
-            </div>
-            <div className="text-center">
-              <div style={{ color: "#0066ff" }}>{doublesTeam.elo}</div>
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>Elo</div>
-            </div>
-            <div className="text-center">
-              <div style={{ color: "#ffd24a" }}>{doublesTeam.points}</div>
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>Points</div>
-            </div>
-          </div>
-        </Link>
-      )}
-
-      {/* ══ SHIFT WARS ══ */}
-      {shiftWarsTeam && (
-        <Link href="/leaderboard?mode=shiftwars" className="pdc-card p-4 flex items-center justify-between gap-4 hover:bg-white/[0.02] transition-colors">
-          <div className="min-w-0">
-            <div className="text-xs uppercase font-bold mb-1 flex items-center gap-1.5" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(34,197,94,0.7)", letterSpacing: "0.12em" }}>
-              <Building2 className="w-3 h-3" /> Shift Wars
-            </div>
-            <div className="font-bold text-lg truncate" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)" }}>
-              {shiftWarsTeam.name}
-            </div>
-          </div>
-          <div className="flex items-center gap-4 shrink-0 text-sm font-mono">
-            <div className="text-center">
-              <div style={{ color: "#22c55e" }}>{shiftWarsTeam.wins}<span style={{ color: "rgba(255,255,255,0.25)" }}>-</span><span style={{ color: "#ff005c" }}>{shiftWarsTeam.losses}</span></div>
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>Record</div>
-            </div>
-            <div className="text-center">
-              <div style={{ color: "#ffd24a" }}>{shiftWarsTeam.points}</div>
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>Points</div>
-            </div>
-          </div>
-        </Link>
-      )}
+      {/* ══ GAME MODES ══ */}
+      {/* One tile per mode instead of a full-width card each — same colors
+          the Hub uses for these modes (dashboard.tsx's GAME_MODES), so a
+          mode reads the same everywhere in the app. Always shown, even with
+          no data yet, so this page stays the full picture of a player
+          whether you're looking at yourself or someone else. */}
+      <div>
+        <div className="text-xs uppercase font-bold mb-2.5"
+          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.22)", letterSpacing: "0.15em" }}>
+          Game Modes
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          <ModeTile href="/master501" icon={<Zap className="w-3.5 h-3.5" />} accent="#00c8a0" label="Master-501">
+            {master501 ? `Tier ${master501.currentTier} · Round ${master501.currentRound}` : "Not started"}
+          </ModeTile>
+          <ModeTile href={`/shadow-bot/${playerId}`} icon={<CircuitBoard className="w-3.5 h-3.5" />} accent="#00e5a0" label="Shadow Bot">
+            {shadowStats?.locked === false || (shadowStats && !shadowStats.locked)
+              ? `${shadowStats.totalMatches ?? 0} matches · ${shadowStats.matchWinRate ?? 0}% win`
+              : shadowStats?.locked ? "Locked — keep practicing" : "Not started"}
+          </ModeTile>
+          <ModeTile href="/card-clash" icon={<Layers className="w-3.5 h-3.5" />} accent="#f97316" label="Card Clash">
+            {cardClashStats ? `${cardClashStats.cardsOwned} cards · ${cardClashStats.wins}-${cardClashStats.losses}` : "Not started"}
+          </ModeTile>
+          <ModeTile href={doublesTeam ? `/seasons/${doublesTeam.seasonId}?tab=doubles` : "/leaderboard?mode=doubles"} icon={<Users className="w-3.5 h-3.5" />} accent="#0066ff" label="Doubles Event">
+            {doublesTeam ? `${doublesTeam.wins}-${doublesTeam.losses} · ${doublesTeam.points}pts${doublesTeam.isEliminated ? " · Eliminated" : ""}` : "No team this season"}
+          </ModeTile>
+          <ModeTile href="/leaderboard?mode=shiftwars" icon={<Building2 className="w-3.5 h-3.5" />} accent="#22c55e" label="Shift Wars">
+            {shiftWarsTeam ? `${shiftWarsTeam.wins}-${shiftWarsTeam.losses} · ${shiftWarsTeam.points}pts` : "Unassigned"}
+          </ModeTile>
+          <ModeTile href="/boss-battle" icon={<Skull className="w-3.5 h-3.5" />} accent="#ef4444" label="Boss Battle">
+            {bossBattle ? `${bossBattle.defeated?.length ?? 0}/6 bosses beaten` : "Not started"}
+          </ModeTile>
+          <ModeTile href="/board-curse" icon={<Ghost className="w-3.5 h-3.5" />} accent="#8b5cf6" label="Board Curse">
+            {boardCurseRecord ? `${boardCurseRecord.wins}-${boardCurseRecord.losses} overall` : "Not started"}
+          </ModeTile>
+        </div>
+      </div>
 
       {/* ══ ELO JOURNEY ══ */}
       {recentMatches && recentMatches.length >= 2 && (
@@ -479,39 +490,34 @@ export default function PlayerDetail() {
       )}
 
       {/* ══ SEASON STATS ══ */}
-      <div>
-        <div className="text-xs uppercase font-bold mb-2.5"
-          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.22)", letterSpacing: "0.15em" }}>
-          Current Season
-        </div>
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-          <SmallStat label="Wins"     value={player.seasonWins ?? 0}         accent="#22c55e" />
-          <SmallStat label="Losses"   value={player.seasonLosses ?? 0}       accent="#ff005c" />
-          <SmallStat label="Played"   value={player.seasonGamesPlayed ?? 0} />
-          <SmallStat label="Win %"    value={(player.seasonGamesPlayed ?? 0) > 0 ? Math.round(((player.seasonWins ?? 0) / Math.max(1, player.seasonGamesPlayed ?? 1)) * 100) : 0} suffix="%" />
-          <SmallStat label="W-Streak" value={streak}  accent={streak >= 3 ? "#ff005c" : undefined} />
-          <SmallStat label="L-Streak" value={lossStreak} accent={lossStreak >= 3 ? "#ff005c" : undefined} />
-        </div>
-      </div>
+      <StatPanel
+        title="Current Season"
+        gridClass="grid-cols-3 sm:grid-cols-6"
+        stats={[
+          { label: "Wins",     value: player.seasonWins ?? 0,   accent: "#22c55e" },
+          { label: "Losses",   value: player.seasonLosses ?? 0, accent: "#ff005c" },
+          { label: "Played",   value: player.seasonGamesPlayed ?? 0 },
+          { label: "Win %",    value: (player.seasonGamesPlayed ?? 0) > 0 ? Math.round(((player.seasonWins ?? 0) / Math.max(1, player.seasonGamesPlayed ?? 1)) * 100) : 0, suffix: "%" },
+          { label: "W-Streak", value: streak,     accent: streak >= 3 ? "#ff005c" : undefined },
+          { label: "L-Streak", value: lossStreak, accent: lossStreak >= 3 ? "#ff005c" : undefined },
+        ]}
+      />
 
       {/* ══ CAREER STATS ══ */}
-      <div>
-        <div className="text-xs uppercase font-bold mb-2.5"
-          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.22)", letterSpacing: "0.15em" }}>
-          Career
-        </div>
-        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-          <SmallStat label="Wins"      value={player.careerWins ?? 0}     accent="#22c55e" />
-          <SmallStat label="Losses"    value={player.careerLosses ?? 0}   accent="#ff005c" />
-          <SmallStat label="Played"    value={totalGames} />
-          <SmallStat label="Win %"     value={winRate}                     suffix="%" accent={winRate >= 60 ? "#ffd24a" : undefined} />
-          <SmallStat label="Peak ELO"  value={player.careerPeakElo ?? player.elo} accent="#0066ff" />
-          <SmallStat label="Career Pts" value={player.careerPoints ?? 0}
-            accent={(player.careerPoints ?? 0) >= 0 ? "#22c55e" : "#ff005c"} />
-          <SmallStat label="Gamerscore" value={gamerscore?.total ?? 0} suffix="G" accent="#ffd24a" />
-          <SmallStat label="Best CO" value={(practiceAgg as any)?.highest_checkout > 0 ? (practiceAgg as any).highest_checkout : null} accent="#ff005c" placeholder="—" />
-        </div>
-      </div>
+      <StatPanel
+        title="Career"
+        gridClass="grid-cols-4 sm:grid-cols-8"
+        stats={[
+          { label: "Wins",       value: player.careerWins ?? 0,   accent: "#22c55e" },
+          { label: "Losses",     value: player.careerLosses ?? 0, accent: "#ff005c" },
+          { label: "Played",     value: totalGames },
+          { label: "Win %",      value: winRate, suffix: "%", accent: winRate >= 60 ? "#ffd24a" : undefined },
+          { label: "Peak ELO",   value: player.careerPeakElo ?? player.elo, accent: "#0066ff" },
+          { label: "Career Pts", value: player.careerPoints ?? 0, accent: (player.careerPoints ?? 0) >= 0 ? "#22c55e" : "#ff005c" },
+          { label: "Gamerscore", value: gamerscore?.total ?? 0, suffix: "G", accent: "#ffd24a" },
+          { label: "Best CO",    value: (practiceAgg as any)?.highest_checkout > 0 ? (practiceAgg as any).highest_checkout : null, accent: "#ff005c", placeholder: "—" },
+        ]}
+      />
 
       {/* ══ CAREER JOURNEY ══ */}
       {careerJourney.length > 0 && (
@@ -1724,6 +1730,11 @@ export default function PlayerDetail() {
               )}
               <ChevronDown className="w-4 h-4 shrink-0 transition-transform duration-200" style={{ color: "rgba(255,255,255,0.3)", transform: openTrophy ? "rotate(180deg)" : "rotate(0deg)" }} />
             </button>
+            {tourRuns.length > 0 && (
+              <div className="px-4 py-1.5 text-xs" style={{ color: "rgba(255,255,255,0.22)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" }}>
+                {tourRuns.length} tour run{tourRuns.length !== 1 ? "s" : ""} played
+              </div>
+            )}
             <div className={openTrophy ? "border-t" : "hidden"} style={{ borderColor: "rgba(255,255,255,0.05)" }}>
               {tourTrophies.length === 0 ? (
                 <div className="px-4 py-8 flex flex-col items-center gap-3 text-center">

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { format } from "date-fns";
+import { Link } from "wouter";
 import { ChevronDown, CheckCircle, Pin } from "lucide-react";
 
 // ── useCountUp ─────────────────────────────────────────────────────────────
@@ -237,6 +238,74 @@ export function SmallStat({ value, label, accent, suffix = "", placeholder = "0"
         {value == null ? placeholder : `${animated}${suffix}`}
       </div>
     </div>
+  );
+}
+
+// ── StatPanel ──────────────────────────────────────────────────────────────
+// Same numbers, same per-stat accent colours as SmallStat, but grouped into
+// ONE pdc-card with hairline dividers between cells instead of each number
+// getting its own full bordered/shadowed card. Cuts a page's worth of
+// repeated card chrome without touching a single colour or value.
+export type StatDef = { label: string; value: number | null; accent?: string; suffix?: string; placeholder?: string };
+
+function StatCell({ value, label, accent, suffix = "", placeholder = "0" }: StatDef) {
+  const animated = useCountUp(value ?? 0);
+  return (
+    <div className="p-3 text-center" style={{ border: "1px solid rgba(255,255,255,0.06)", marginTop: "-1px", marginLeft: "-1px" }}>
+      <div className="text-xs uppercase tracking-widest mb-1.5 font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.22)", fontSize: "0.58rem", letterSpacing: "0.15em" }}>
+        {label}
+      </div>
+      <div className="text-xl font-bold leading-none" style={{ fontFamily: "Oswald, sans-serif", color: value == null ? "rgba(255,255,255,0.2)" : (accent ?? "rgba(255,255,255,0.85)") }}>
+        {value == null ? placeholder : `${animated}${suffix}`}
+      </div>
+    </div>
+  );
+}
+
+export function StatPanel({ title, stats, gridClass = "grid-cols-3 sm:grid-cols-6" }: { title: string; stats: StatDef[]; gridClass?: string }) {
+  return (
+    <div>
+      <div className="text-xs uppercase font-bold mb-2.5"
+        style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.22)", letterSpacing: "0.15em" }}>
+        {title}
+      </div>
+      <div className="pdc-card" style={{ padding: 1, overflow: "hidden" }}>
+        <div className={`grid ${gridClass}`}>
+          {stats.map(s => <StatCell key={s.label} {...s} />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ModeTile ───────────────────────────────────────────────────────────────
+// One compact tile per game mode, grouped into a single grid instead of each
+// mode getting its own full-width pdc-card — same "one panel, not one card
+// per thing" idea as StatPanel, applied to the mode-summary blocks (Doubles,
+// Shift Wars, Master-501, Boss Battle, Board Curse, Card Clash). Colors match
+// the Hub's GAME_MODES accents (dashboard.tsx) so the same mode reads the
+// same color everywhere in the app.
+export function ModeTile({ href, icon, label, accent, children }: {
+  href: string; icon: ReactNode; label: string; accent: string; children: ReactNode;
+}) {
+  return (
+    <Link href={href}>
+      <div className="relative overflow-hidden rounded-xl px-3 py-3 cursor-pointer transition-all hover:-translate-y-0.5 h-full"
+        style={{ background: `${accent}0d`, border: `1px solid ${accent}33` }}>
+        <div className="flex items-center gap-2 mb-1.5">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: `${accent}1f`, color: accent, boxShadow: `0 0 12px ${accent}33` }}>
+            {icon}
+          </div>
+          <div className="font-black uppercase text-xs leading-tight" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)", letterSpacing: "0.03em" }}>
+            {label}
+          </div>
+        </div>
+        <div className="text-xs" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif", fontSize: "0.68rem" }}>
+          {children}
+        </div>
+      </div>
+    </Link>
   );
 }
 

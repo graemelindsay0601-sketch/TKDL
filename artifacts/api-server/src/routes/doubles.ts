@@ -5,6 +5,7 @@ import { z } from "zod";
 import { applyEloChange, calcTier } from "../lib/elo";
 import { validateStake, applyWager } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
+import { sendDoublesMatchResultNotification } from "../services/notificationService";
 
 const GetSeasonParams = z.object({ id: z.coerce.number().int().positive() });
 
@@ -122,7 +123,10 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
   // rows for the rest of the transaction so a concurrent submission for
   // either team has to wait for this one to commit before it reads.
   try {
-    const { match, eloChange, loserEliminated } = await db.transaction(async (tx) => {
+    const {
+      match, eloChange, loserEliminated,
+      winnerTeamName, loserTeamName, winnerPlayerIds, loserPlayerIds,
+    } = await db.transaction(async (tx) => {
       const teamRows = await tx.execute(sql`
         SELECT * FROM doubles_teams WHERE id IN (${winnerTeamId}, ${loserTeamId}) AND season_id = ${activeSeason.id} FOR UPDATE
       `);
@@ -171,10 +175,27 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
         RETURNING *
       `)).rows as any[];
 
-      return { match, eloChange, loserEliminated };
+      const teamPlayerIds = (t: any): number[] =>
+        [t.player1_id, t.player2_id, t.player3_id].filter((id): id is number => id != null);
+
+      return {
+        match, eloChange, loserEliminated,
+        winnerTeamName: winner.team_name, loserTeamName: loser.team_name,
+        winnerPlayerIds: teamPlayerIds(winner), loserPlayerIds: teamPlayerIds(loser),
+      };
     });
 
     res.status(201).json({ match, eloChange, loserEliminated });
+
+    // Push notifications (fire and forget — never delay the response). Doubles
+    // had no notification integration at all before this; see the "no
+    // individual player attribution" comment on shift-wars.ts for why the
+    // team's own roster is looked up here rather than passed in.
+    void sendDoublesMatchResultNotification(
+      winnerTeamName, loserTeamName,
+      winnerPlayerIds, loserPlayerIds,
+      stake, eloChange,
+    );
   } catch (err) {
     if (err instanceof DoublesConflictError) {
       res.status(400).json({ error: err.message });

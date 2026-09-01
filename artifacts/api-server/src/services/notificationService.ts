@@ -14,6 +14,11 @@ export interface NotificationPayload {
   title: string;
   body: string;
   data?: Record<string, any>;
+  // Only meaningful for type "announcement" — mirrors the admin composer's
+  // "critical" checkbox (announcements-manager.tsx), which claims to bypass
+  // quiet hours/daily batching limits. Threat alerts are always critical
+  // regardless of this flag.
+  critical?: boolean;
 }
 
 export interface PushSubscription {
@@ -29,9 +34,18 @@ export interface PushSubscription {
  */
 export async function createNotification(payload: NotificationPayload): Promise<number> {
   try {
+    // `message` is a leftover NOT NULL column from the notifications table's
+    // original shape (see the write path in communityNotify.ts) that this
+    // newer title/body pipeline never populated — every insert here has been
+    // failing a not-null constraint violation since this pipeline was
+    // written (match-result pushes, rank-change/threat alerts, coach tips,
+    // and admin announcements all go through this function). Filling it
+    // with `body` satisfies the constraint and matches what GET
+    // /notifications already falls back to via COALESCE(body, message) for
+    // the older message-shaped rows.
     const { rows: [notification] } = await db.execute(sql`
-      INSERT INTO notifications (player_id, type, title, body, data)
-      VALUES (${payload.playerId}, ${payload.type}, ${payload.title}, ${payload.body}, ${JSON.stringify(payload.data || {})})
+      INSERT INTO notifications (player_id, type, title, body, message, data)
+      VALUES (${payload.playerId}, ${payload.type}, ${payload.title}, ${payload.body}, ${payload.body}, ${JSON.stringify(payload.data || {})})
       RETURNING id
     `);
 
@@ -69,12 +83,32 @@ export async function createNotification(payload: NotificationPayload): Promise<
 async function shouldSendNotification(payload: NotificationPayload, prefs: any): Promise<boolean> {
   if (!prefs?.push_enabled) return false;
 
-  // Check type-specific preference
-  const typeKey = `${payload.type.replace(/-/g, "_")}` as keyof typeof prefs;
-  if (typeKey in prefs && !prefs[typeKey]) return false;
+  // Check type-specific preference. notification_preferences' columns are
+  // plural (match_results, rank_changes, coach_tips, announcements) while
+  // payload.type is singular (match_result, rank_change, coach_tip,
+  // announcement) — a bare "+ '_'" transform never matched any of them, so
+  // every per-type opt-out toggle has been silently ignored (only the
+  // master push_enabled switch above actually worked). threat_alert had no
+  // column at all — it was unconditional (see threat_alerts column added in
+  // notificationsMigration.ts), the one type players had no way to turn off.
+  const TYPE_TO_PREF_COLUMN: Record<string, string> = {
+    match_result: "match_results",
+    rank_change:  "rank_changes",
+    threat_alert: "threat_alerts",
+    coach_tip:    "coach_tips",
+    announcement: "announcements",
+  };
+  const typeKey = TYPE_TO_PREF_COLUMN[payload.type];
+  if (typeKey && typeKey in prefs && !prefs[typeKey]) return false;
 
-  // Critical notifications always go through
-  const isCritical = payload.type === "threat_alert" || payload.type === "announcement";
+  // Critical notifications always go through. This used to treat every
+  // announcement as critical unconditionally, so the admin composer's
+  // "critical" checkbox (announcements-manager.tsx) was pure UI theatre —
+  // checked or not, every announcement already bypassed quiet hours/daily
+  // batching limits the same way. Now only an announcement explicitly
+  // flagged critical gets that bypass; an unflagged one is subject to the
+  // same batching rules as any other notification type.
+  const isCritical = payload.type === "threat_alert" || (payload.type === "announcement" && payload.critical === true);
   
   // Check batching rules
   const batchingResult = await checkBatchingRules({
@@ -243,7 +277,7 @@ export async function getNotificationPreferences(playerId: number): Promise<any>
  * upsert as the reachable route rather than left as a landmine.
  */
 const NOTIFICATION_PREF_KEYS = [
-  "push_enabled", "match_results", "rank_changes",
+  "push_enabled", "match_results", "rank_changes", "threat_alerts",
   "coach_tips", "announcements", "private_mode",
 ] as const;
 
@@ -253,16 +287,17 @@ export async function updateNotificationPreferences(
 ): Promise<void> {
   const p = prefs;
   await db.execute(sql`
-    INSERT INTO notification_preferences (player_id, push_enabled, match_results, rank_changes, coach_tips, announcements, private_mode)
+    INSERT INTO notification_preferences (player_id, push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode)
     VALUES (
       ${playerId},
-      ${p.push_enabled ?? true}, ${p.match_results ?? true}, ${p.rank_changes ?? true},
+      ${p.push_enabled ?? true}, ${p.match_results ?? true}, ${p.rank_changes ?? true}, ${p.threat_alerts ?? true},
       ${p.coach_tips ?? true}, ${p.announcements ?? true}, ${p.private_mode ?? false}
     )
     ON CONFLICT (player_id) DO UPDATE SET
       push_enabled  = COALESCE(${p.push_enabled ?? null}, notification_preferences.push_enabled),
       match_results = COALESCE(${p.match_results ?? null}, notification_preferences.match_results),
       rank_changes  = COALESCE(${p.rank_changes ?? null}, notification_preferences.rank_changes),
+      threat_alerts = COALESCE(${p.threat_alerts ?? null}, notification_preferences.threat_alerts),
       coach_tips    = COALESCE(${p.coach_tips ?? null}, notification_preferences.coach_tips),
       announcements = COALESCE(${p.announcements ?? null}, notification_preferences.announcements),
       private_mode  = COALESCE(${p.private_mode ?? null}, notification_preferences.private_mode),
@@ -362,6 +397,78 @@ export async function sendMatchResultNotification(
 }
 
 /**
+ * Send match result notifications for a Doubles Event match to every player
+ * on both teams (2 or 3 a side). Doubles never had any push/notification
+ * integration at all — only singles (routes/matches.ts) did — so results
+ * here were invisible to anyone not actively watching the standings page.
+ * Reuses the "match_result" type so it's governed by the same
+ * match-results preference toggle players already have.
+ */
+export async function sendDoublesMatchResultNotification(
+  winnerTeamName: string,
+  loserTeamName: string,
+  winnerPlayerIds: number[],
+  loserPlayerIds: number[],
+  stake: number,
+  eloChange: number
+): Promise<void> {
+  try {
+    await Promise.all([
+      ...winnerPlayerIds.map(playerId => createNotification({
+        playerId,
+        type: "match_result",
+        title: "Victory!",
+        body: `${winnerTeamName} beat ${loserTeamName} • +${eloChange} ELO • ±${stake} pts`,
+        data: { winnerTeamName, loserTeamName, eloChange, stake, result: "win" },
+      })),
+      ...loserPlayerIds.map(playerId => createNotification({
+        playerId,
+        type: "match_result",
+        title: "Match Loss",
+        body: `${loserTeamName} lost to ${winnerTeamName} • -${eloChange} ELO • ±${stake} pts`,
+        data: { winnerTeamName, loserTeamName, eloChange, stake, result: "loss" },
+      })),
+    ]);
+  } catch (err) {
+    logger.error({ err }, "Failed to send doubles match result notifications");
+  }
+}
+
+/**
+ * Send match result notifications for a Shift Wars match to every player on
+ * both department rosters. Shift Wars is points-only (no ELO ladder — see
+ * routes/shift-wars.ts) and had no notification integration at all.
+ */
+export async function sendShiftWarsMatchResultNotification(
+  winnerTeamName: string,
+  loserTeamName: string,
+  winnerPlayerIds: number[],
+  loserPlayerIds: number[],
+  stake: number
+): Promise<void> {
+  try {
+    await Promise.all([
+      ...winnerPlayerIds.map(playerId => createNotification({
+        playerId,
+        type: "match_result",
+        title: "Shift Wars Victory!",
+        body: `${winnerTeamName} beat ${loserTeamName} • ±${stake} pts`,
+        data: { winnerTeamName, loserTeamName, stake, result: "win" },
+      })),
+      ...loserPlayerIds.map(playerId => createNotification({
+        playerId,
+        type: "match_result",
+        title: "Shift Wars Loss",
+        body: `${loserTeamName} lost to ${winnerTeamName} • ±${stake} pts`,
+        data: { winnerTeamName, loserTeamName, stake, result: "loss" },
+      })),
+    ]);
+  } catch (err) {
+    logger.error({ err }, "Failed to send Shift Wars match result notifications");
+  }
+}
+
+/**
  * Send rank change notifications to affected players
  */
 export async function sendRankChangeNotifications(
@@ -446,15 +553,29 @@ export async function createAnnouncement(
     playerIds = (players.rows as any[]).map(p => p.id);
   }
 
-  // Send to each player
+  // Send to each player — one bad row (e.g. a stale player id) used to abort
+  // the whole loop via an uncaught throw, silently dropping every
+  // notification after it and leaving `sent` stuck at false with no record
+  // of how far it got. Isolate each player so one failure doesn't take the
+  // rest of the list down with it.
+  let failures = 0;
   for (const playerId of playerIds) {
-    await createNotification({
-      playerId,
-      type: "announcement",
-      title,
-      body,
-      data: { announcementId },
-    });
+    try {
+      await createNotification({
+        playerId,
+        type: "announcement",
+        title,
+        body,
+        data: { announcementId },
+        critical,
+      });
+    } catch (err) {
+      failures++;
+      logger.error({ err, playerId, announcementId }, "Failed to notify one player for announcement");
+    }
+  }
+  if (failures > 0) {
+    logger.warn({ announcementId, failures, total: playerIds.length }, "Announcement had per-player failures");
   }
 
   // Mark as sent
