@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { format } from "date-fns";
-import { ChevronDown, CheckCircle } from "lucide-react";
+import { ChevronDown, CheckCircle, Pin } from "lucide-react";
 
 // ── useCountUp ─────────────────────────────────────────────────────────────
 export function useCountUp(target: number, duration = 900) {
@@ -141,19 +141,43 @@ export const RARITY_COLORS: Record<string, { color: string; glow: string; bg: st
   Mythic:    { color: "#ff005c", glow: "rgba(255,0,92,0.4)",    bg: "rgba(255,0,92,0.08)"   },
 };
 
-export function AchievementCard({ a }: { a: any }) {
+export function AchievementCard({
+  a, pinned, onTogglePin, pinDisabled,
+}: {
+  a: any;
+  /** Owner-only trophy-case controls — omit entirely to render the plain read-only card used everywhere else. */
+  pinned?: boolean;
+  onTogglePin?: () => void;
+  pinDisabled?: boolean;
+}) {
   const rc = RARITY_COLORS[a.rarity] ?? RARITY_COLORS.Common;
   const isHidden = a.hidden && !a.isUnlocked;
   const pct = Math.min(100, a.progressPct ?? 0);
   const isClose = pct >= 60 && !a.isUnlocked;
+  const showPin = onTogglePin && a.isUnlocked && !isHidden;
   return (
     <div className="relative rounded-lg overflow-hidden transition-all duration-200 cursor-default hover:-translate-y-0.5"
       style={{
         background: a.isUnlocked ? rc.bg : "rgba(255,255,255,0.025)",
-        border: `1px solid ${a.isUnlocked ? rc.color + "55" : isClose ? rc.color + "33" : "rgba(255,255,255,0.07)"}`,
+        border: `1px solid ${pinned ? "#ffd24a" : a.isUnlocked ? rc.color + "55" : isClose ? rc.color + "33" : "rgba(255,255,255,0.07)"}`,
         padding: "0.625rem",
       }}>
       <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: a.isUnlocked ? rc.color : "transparent" }} />
+      {showPin && (
+        <button
+          onClick={onTogglePin}
+          disabled={!pinned && pinDisabled}
+          title={pinned ? "Remove from trophy case" : pinDisabled ? "Trophy case full (5 max) — unpin one first" : "Pin to trophy case"}
+          className="absolute top-1.5 right-1.5 z-10 p-1 rounded-md transition-all"
+          style={{
+            background: pinned ? "rgba(255,210,74,0.18)" : "rgba(255,255,255,0.06)",
+            color: pinned ? "#ffd24a" : "rgba(255,255,255,0.25)",
+            opacity: !pinned && pinDisabled ? 0.35 : 1,
+            cursor: !pinned && pinDisabled ? "not-allowed" : "pointer",
+          }}>
+          <Pin className="w-3 h-3" fill={pinned ? "#ffd24a" : "none"} />
+        </button>
+      )}
       <div className="flex items-start gap-2.5">
         <div className={`text-2xl leading-none shrink-0 ${isHidden ? "grayscale opacity-30" : ""}`}>{isHidden ? "🔒" : a.icon}</div>
         <div className="flex-1 min-w-0">

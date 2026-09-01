@@ -102,6 +102,28 @@ function PlayerAvatar({ name, tier, size = 8 }: { name: string; tier: string; si
   );
 }
 
+// ── Auto-post event coloring ────────────────────────────────────────────────
+// Every system-generated post (post_type "auto") used to render identically
+// to every other one — same grey card, same green "AUTO" pill — whether it
+// was a routine match result or an elimination. The real event type already
+// lives in auto_meta.type (set in api-server/src/routes/matches.ts: "match",
+// "tier_up", "tier_drop", with loserEliminated flagged inside a "match"
+// post) — this just surfaces it visually instead of adding new event types.
+const AUTO_EVENT_STYLES: Record<string, { color: string; icon: string; label: string }> = {
+  elimination: { color: "#ff005c", icon: "💀", label: "Elimination" },
+  match:       { color: "#22c55e", icon: "🎯", label: "Match" },
+  tier_up:     { color: "#ffd24a", icon: "🏆", label: "Tier Up" },
+  tier_drop:   { color: "#f97316", icon: "📉", label: "Tier Down" },
+};
+
+function autoEventStyle(post: Post): { color: string; icon: string; label: string } | null {
+  if (post.post_type !== "auto") return null;
+  const meta = (post.auto_meta ?? {}) as { type?: string; loserEliminated?: boolean };
+  if (meta.type === "match" && meta.loserEliminated) return AUTO_EVENT_STYLES.elimination;
+  if (meta.type && AUTO_EVENT_STYLES[meta.type]) return AUTO_EVENT_STYLES[meta.type];
+  return { color: "#00e5a0", icon: "⚡", label: "Auto" };
+}
+
 function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDelete, onRemovePhoto, onDeleteComment, onEdit }: {
   post: Post;
   onReact: (id: number, emoji: string) => void;
@@ -180,10 +202,14 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
 
   const tierCol = TIER_COLORS[post.player_tier] ?? "#9ca3af";
   const isPending = post.status === "pending";
+  const eventStyle = autoEventStyle(post);
 
   return (
     <div className="rounded-2xl overflow-hidden"
-      style={{ background: isPending ? "rgba(255,200,0,0.04)" : "rgba(255,255,255,0.03)", border: `1px solid ${isPending ? "rgba(255,200,0,0.2)" : "rgba(255,255,255,0.07)"}` }}>
+      style={{
+        background: isPending ? "rgba(255,200,0,0.04)" : eventStyle ? `${eventStyle.color}0d` : "rgba(255,255,255,0.03)",
+        border: `1px solid ${isPending ? "rgba(255,200,0,0.2)" : eventStyle ? `${eventStyle.color}33` : "rgba(255,255,255,0.07)"}`,
+      }}>
 
       {/* Pending badge */}
       {isPending && (
@@ -210,18 +236,25 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
       <div className="p-4">
         {/* Header */}
         <div className="flex items-start gap-3 mb-3">
-          <PlayerAvatar name={post.player_name} tier={post.player_tier} />
+          {eventStyle ? (
+            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm"
+              style={{ background: `${eventStyle.color}22`, border: `1.5px solid ${eventStyle.color}66` }}>
+              {eventStyle.icon}
+            </div>
+          ) : (
+            <PlayerAvatar name={post.player_name} tier={post.player_tier} />
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: tierCol, letterSpacing: "0.04em" }}>
+              <span className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: eventStyle ? eventStyle.color : tierCol, letterSpacing: "0.04em" }}>
                 {post.player_name}
               </span>
               <span className="text-xs px-1.5 py-0.5 rounded-md font-bold" style={{ background: `${tierCol}18`, border: `1px solid ${tierCol}40`, color: tierCol, fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em", fontSize: "0.55rem" }}>
                 {post.player_tier}
               </span>
-              {post.post_type !== "manual" && (
-                <span className="text-xs px-1.5 py-0.5 rounded-md font-bold" style={{ background: "rgba(0,229,160,0.1)", border: "1px solid rgba(0,229,160,0.3)", color: "#00e5a0", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em", fontSize: "0.55rem" }}>
-                  AUTO
+              {eventStyle && (
+                <span className="text-xs px-1.5 py-0.5 rounded-md font-bold uppercase" style={{ background: `${eventStyle.color}1a`, border: `1px solid ${eventStyle.color}4d`, color: eventStyle.color, fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em", fontSize: "0.55rem" }}>
+                  {eventStyle.label}
                 </span>
               )}
             </div>

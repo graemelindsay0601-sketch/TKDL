@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useCurrentPlayer } from "@/context/auth";
+import { LoginGate } from "@/components/LoginGate";
 import { CardShopUI } from "@/components/CardShopUI";
 import { FreePackDisplay } from "@/components/FreePackDisplay";
 import { FeaturedCardShop } from "@/components/FeaturedCardShop";
@@ -282,13 +283,11 @@ const PACKS = [
   useEffect(()=>{ loadData(); },[loadData]);
 
   if (!currentPlayer || !playerId) return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#030812"}}>
-      <div style={{textAlign:"center"}}>
-        <div style={{fontSize:"52px",marginBottom:"1rem"}}>🎴</div>
-        <div style={{color:"rgba(255,255,255,0.45)",marginBottom:"1.5rem",fontFamily:"Arial,sans-serif"}}>Log in to access Card Clash</div>
-        <button onClick={()=>window.location.href="/login"} style={{padding:"12px 28px",background:"linear-gradient(135deg,#ffd24a,#ff8c00)",border:"none",borderRadius:"6px",color:"#000",fontSize:"13px",fontWeight:800,cursor:"pointer"}}>Go to Login</button>
-      </div>
-    </div>
+    <LoginGate
+      icon="🃏"
+      title="Play Card Clash"
+      subtitle="Collect cards, open packs, and battle the league. Log in to open your collection."
+    />
   );
 
   const filteredCards = COLLECTIBLE_CARDS.filter(c=>{

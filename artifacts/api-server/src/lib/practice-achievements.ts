@@ -1,8 +1,8 @@
 import { db } from "@workspace/db";
-import { achievementsTable, playerAchievementsTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { logger } from "./logger";
 import type { AchievementDef } from "./achievements";
+import { grantIfNotHas } from "./achievement-grant";
 
 // ─── Tiered names per rarity ─────────────────────────────────────────────────
 // 5 sessions  → Common    (Beginner)
@@ -130,51 +130,10 @@ export const PRACTICE_ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   ...makeSessionAchs("ATC",      "🕐", "Around the Clock",      [5,10,25,50,100], ["Clock Beginner","Clock Apprentice","Clock Journeyman","Clock Master","Clock Legend"]),
 ];
 
-// ─── grantIfNotHas (local to this module) ─────────────────────────────────────
-// Now awards coins and packs when achievement is unlocked
-async function grantIfNotHas(playerId: number, key: string): Promise<boolean> {
-  const { addCoinsToPlayer } = await import("../services/card-shop-service");
-  const { ensurePlayerCurrency } = await import("../lib/cardTablesMigration");
-
-  const ach = await db.select().from(achievementsTable).where(eq(achievementsTable.key, key));
-  if (!ach || ach.length === 0) return false;
-
-  const achievement = ach[0];
-  const existing = await db
-    .select({ id: playerAchievementsTable.id })
-    .from(playerAchievementsTable)
-    .where(
-      and(
-        eq(playerAchievementsTable.playerId, playerId),
-        eq(playerAchievementsTable.achievementId, achievement.id)
-      )
-    );
-
-  if (existing && existing.length > 0) return false;
-
-  // Insert achievement record
-  await db.insert(playerAchievementsTable).values({ playerId, achievementId: achievement.id });
-
-  // Award coins if defined
-  if (achievement.coinReward && achievement.coinReward > 0) {
-    await ensurePlayerCurrency(playerId);
-    await addCoinsToPlayer(playerId, achievement.coinReward);
-  }
-
-  // Award pack if defined
-  if (achievement.packReward) {
-    await db.execute(sql`
-      INSERT INTO card_clash_pack_inventory (player_id, pack_type, earned_reason)
-      VALUES (${playerId}, ${achievement.packReward}, ${"ACHIEVEMENT:" + key})
-    `);
-  }
-
-  logger.info(
-    { playerId, key, coins: achievement.coinReward, packs: achievement.packReward },
-    "Practice achievement unlocked with rewards"
-  );
-  return true;
-}
+// grantIfNotHas is now the shared, race-safe implementation from
+// ./achievement-grant — this module used to carry its own near-identical
+// copy (a plain SELECT-then-INSERT with no conflict guard), which could
+// double-grant and double-pay under two rapid-fire session completions.
 
 export async function checkPracticeAchievements(playerId: number): Promise<void> {
   try {

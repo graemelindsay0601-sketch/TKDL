@@ -1,9 +1,8 @@
 import { db } from "@workspace/db";
-import { achievementsTable, playerAchievementsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { logger } from "./logger";
 import type { AchievementDef } from "./achievements";
+import { grantIfNotHas } from "./achievement-grant";
 
 // ─── Achievement definitions ──────────────────────────────────────────────────
 
@@ -175,52 +174,6 @@ export const MASTER501_ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { key:"M501_BINGE_10",         name:"🎲 Dedicated Player",     description:"Complete 10 Master-501 runs in a single day",               icon:"🎲", rarity:"Legendary", category:"Master-501", hidden:true,  priority:83, criteriaType:"M501_DAY_RUNS",       criteriaValue:10,  engineType:"STAT_BASED" , coinReward: 150, packReward: "FIVE"},
 
 ];
-
-// ─── Grant helper ─────────────────────────────────────────────────────────────
-
-async function grantIfNotHas(playerId: number, key: string): Promise<boolean> {
-  const { addCoinsToPlayer } = await import("../services/card-shop-service");
-  const { ensurePlayerCurrency } = await import("../lib/cardTablesMigration");
-
-  const ach = await db.select().from(achievementsTable).where(eq(achievementsTable.key, key));
-  if (!ach || ach.length === 0) return false;
-
-  const achievement = ach[0];
-  const existing = await db
-    .select({ id: playerAchievementsTable.id })
-    .from(playerAchievementsTable)
-    .where(
-      and(
-        eq(playerAchievementsTable.playerId, playerId),
-        eq(playerAchievementsTable.achievementId, achievement.id)
-      )
-    );
-
-  if (existing && existing.length > 0) return false;
-
-  // Insert achievement record
-  await db.insert(playerAchievementsTable).values({ playerId, achievementId: achievement.id });
-
-  // Award coins if defined
-  if (achievement.coinReward && achievement.coinReward > 0) {
-    await ensurePlayerCurrency(playerId);
-    await addCoinsToPlayer(playerId, achievement.coinReward);
-  }
-
-  // Award pack if defined
-  if (achievement.packReward) {
-    await db.execute(sql`
-      INSERT INTO card_clash_pack_inventory (player_id, pack_type, earned_reason)
-      VALUES (${playerId}, ${achievement.packReward}, ${"ACHIEVEMENT:" + key})
-    `);
-  }
-
-  logger.info(
-    { playerId, key, coins: achievement.coinReward, packs: achievement.packReward },
-    "[M501] Achievement unlocked with rewards"
-  );
-  return true;
-}
 
 // ─── Check context ────────────────────────────────────────────────────────────
 

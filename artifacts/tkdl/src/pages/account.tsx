@@ -9,6 +9,7 @@ import {
   MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera, Sparkles,
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
+import { LoginGate } from "@/components/LoginGate";
 import { NotificationCenter } from "@/components/notification-center";
 import { CoinBalance } from "@/components/CoinBalance";
 import { CardCollectionBook } from "@/components/CardCollectionBook";
@@ -649,17 +650,11 @@ export default function AccountPage() {
 
   if (!user) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 gap-5">
-        <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.2rem", color: "rgba(255,255,255,0.3)", letterSpacing: "0.12em" }}>
-          You're not signed in
-        </div>
-        <button onClick={() => navigate("/login")}
-          className="px-6 py-3 rounded-xl flex items-center gap-2 font-bold"
-          style={{ background: "linear-gradient(135deg, #ff005c, rgba(255,0,92,0.7))", color: "#fff",
-            fontFamily: "Oswald, sans-serif", letterSpacing: "0.15em", fontSize: "0.85rem", border: "none" }}>
-          Sign In
-        </button>
-      </div>
+      <LoginGate
+        icon="👤"
+        title="Your Account"
+        subtitle="Stats, achievements, card collection, and settings all live here. Log in to see yours."
+      />
     );
   }
 

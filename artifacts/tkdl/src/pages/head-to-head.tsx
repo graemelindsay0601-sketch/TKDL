@@ -139,9 +139,30 @@ export default function HeadToHead() {
         </div>
       )}
 
-      {/* No match yet */}
+      {/* Nothing picked yet — the page was otherwise blank below the picker */}
+      {!loading && (!p1Id || !p2Id) && (
+        <div className="pdc-card p-8 text-center">
+          <Swords className="w-8 h-8 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.15)" }} />
+          <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
+            Pick two players above
+          </div>
+          <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.25)" }}>
+            See their full head-to-head record, form, and match history
+          </div>
+        </div>
+      )}
+
+      {/* Picked, but the lookup came back empty (fetch failed / no such pair) */}
       {!loading && p1Id && p2Id && !h2h && (
-        <div className="text-center py-10 text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No data available.</div>
+        <div className="pdc-card p-8 text-center">
+          <Target className="w-8 h-8 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.15)" }} />
+          <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
+            No data available
+          </div>
+          <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.25)" }}>
+            Try picking two different players.
+          </div>
+        </div>
       )}
 
       {h2h && (

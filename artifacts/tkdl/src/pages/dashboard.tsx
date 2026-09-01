@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useGetStatsSummary,
   useGetLeaderboard,
@@ -12,14 +12,36 @@ import {
 } from "@workspace/api-client-react";
 import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
+import { useCurrentPlayer } from "@/context/auth";
 import { Link } from "wouter";
 import {
   Trophy, Swords, Flame, Skull, Zap, Target, AlertTriangle,
   Star, Medal, CircuitBoard, ChevronRight, Crosshair,
+  Users, Building2, Ghost, Layers, Pin,
 } from "lucide-react";
 import { format } from "date-fns";
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
+
+// Endpoints added alongside this Hub rework (achievement counts, pinned
+// trophy case) aren't in the generated api-client-react yet — same
+// lightweight pattern achievements.tsx already uses for its newer endpoints
+// rather than re-running codegen for a couple of read-only GETs.
+function useFetch<T>(url: string | null) {
+  const [data, setData]       = useState<T | null>(null);
+  const [loading, setLoading] = useState(!!url);
+  useEffect(() => {
+    if (!url) { setData(null); setLoading(false); return; }
+    let cancelled = false;
+    setLoading(true);
+    fetch(url)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) { setData(d); setLoading(false); } })
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [url]);
+  return { data, loading };
+}
 
 function MiniStat({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   return (
@@ -255,8 +277,11 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
+type AchievementCounts = { core: number; tour: number; shadowBot: number; cardClash: number; total: number };
+
 function AchievementsSection() {
   const { data: recent, isLoading: loading } = useGetRecentAchievements();
+  const { data: counts } = useFetch<AchievementCounts>("/api/achievements/counts");
 
   return (
     <div className="section-card" style={{ borderTop: "2px solid #a855f7" }}>
@@ -311,12 +336,13 @@ function AchievementsSection() {
         )}
       </div>
 
-      <div className="mt-3 pt-2.5 border-t flex gap-3 items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+      <div className="mt-3 pt-2.5 border-t flex gap-3 items-center justify-between flex-wrap" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
         <div className="flex gap-3">
           {[
             { label: "League", color: "#ff005c" },
             { label: "Tour",   color: "#ffd24a" },
             { label: "Bot",    color: "#0066ff" },
+            { label: "Cards",  color: "#f97316" },
           ].map(p => (
             <span key={p.label} className="text-xs font-bold uppercase"
               style={{ fontFamily: "Oswald, sans-serif", color: p.color, fontSize: "0.6rem", opacity: 0.6 }}>
@@ -325,7 +351,7 @@ function AchievementsSection() {
           ))}
         </div>
         <span className="text-xs" style={{ color: "rgba(255,255,255,0.15)", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
-          456 total achievements
+          {counts ? counts.total : "…"} total achievements
         </span>
       </div>
     </div>
@@ -484,6 +510,132 @@ function RivalriesSection() {
   );
 }
 
+// ── GAME MODES strip ───────────────────────────────────────────────────────────
+// Surfaces every mode in the app on the Hub at a glance — previously only
+// League/Tour/Bot showed up here at all, so Master-501, Card Clash, Doubles
+// Event, Shift Wars, Boss Battle and Board Curse were invisible unless you
+// already knew to dig for them in the nav. Colors match each mode's real
+// established accent where one already exists elsewhere in the app
+// (Master-501 teal / Doubles blue / Shift Wars green all come straight from
+// the Standings tabs); Card Clash, Boss Battle and Board Curse had no
+// established color anywhere yet, so those three are new assignments.
+const GAME_MODES: {
+  key: string; label: string; desc: string; icon: React.ReactNode; accent: string; href: string;
+}[] = [
+  { key: "master501",  label: "Master-501",    desc: "Precision training ladder",       icon: <Zap className="w-4 h-4" />,       accent: "#00c8a0", href: "/master501" },
+  { key: "cardclash",  label: "Card Clash",    desc: "Collect, battle, open packs",     icon: <Layers className="w-4 h-4" />,    accent: "#f97316", href: "/card-clash" },
+  { key: "doubles",    label: "Doubles Event", desc: "Random-draw team season",         icon: <Users className="w-4 h-4" />,     accent: "#0066ff", href: "/leaderboard?mode=doubles" },
+  { key: "shiftwars",  label: "Shift Wars",    desc: "Department team rivalry",         icon: <Building2 className="w-4 h-4" />, accent: "#22c55e", href: "/leaderboard?mode=shiftwars" },
+  { key: "bossbattle", label: "Boss Battle",   desc: "Six bosses, one dartboard",       icon: <Skull className="w-4 h-4" />,     accent: "#ef4444", href: "/boss-battle" },
+  { key: "boardcurse", label: "Board Curse",   desc: "A new curse every visit",         icon: <Ghost className="w-4 h-4" />,     accent: "#8b5cf6", href: "/board-curse" },
+];
+
+function ModulesSection() {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <Swords className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.5)" }} />
+        <span className="text-xs font-black uppercase tracking-widest"
+          style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.18em", fontSize: "0.65rem" }}>
+          Game Modes
+        </span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {GAME_MODES.map(m => (
+          <Link key={m.key} href={m.href}>
+            <div className="relative overflow-hidden rounded-xl px-3 py-3.5 cursor-pointer transition-all hover:-translate-y-0.5 h-full"
+              style={{ background: `${m.accent}0d`, border: `1px solid ${m.accent}33` }}>
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center mb-2.5"
+                style={{ background: `${m.accent}1f`, color: m.accent, boxShadow: `0 0 12px ${m.accent}33` }}>
+                {m.icon}
+              </div>
+              <div className="font-black uppercase text-xs leading-tight"
+                style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)", letterSpacing: "0.03em" }}>
+                {m.label}
+              </div>
+              <div className="text-xs mt-0.5 leading-snug" style={{ color: "rgba(255,255,255,0.32)", fontSize: "0.62rem" }}>
+                {m.desc}
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── TROPHY CASE ────────────────────────────────────────────────────────────────
+// A player's pinned favourite achievements (set from their profile), shown
+// front-and-center on the Hub — the "show off" surface the achievements
+// overhaul was meant to build. Only rendered for a logged-in player; the
+// Hub itself is public, but a trophy case only means something as "yours".
+type PinnedAchievement = { system: string; key: string; name: string; icon: string; rarity: string | null };
+
+const PIN_RARITY_COLORS: Record<string, string> = {
+  Mythic: "#ff005c", Legendary: "#ffd24a", Epic: "#a855f7", Rare: "#0066ff", Common: "#9ca3af",
+};
+
+function TrophyCaseSection() {
+  const currentPlayer = useCurrentPlayer();
+  const { data, loading } = useFetch<{ pins: PinnedAchievement[] }>(
+    currentPlayer ? `/api/players/${currentPlayer.playerId}/pinned-achievements` : null
+  );
+
+  if (!currentPlayer) return null;
+  const pins = data?.pins ?? [];
+  if (!loading && pins.length === 0) {
+    return (
+      <Link href="/account">
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all hover:-translate-y-0.5"
+          style={{ background: "rgba(255,210,74,0.04)", border: "1px dashed rgba(255,210,74,0.25)" }}>
+          <Pin className="w-4 h-4 shrink-0" style={{ color: "#ffd24a" }} />
+          <span className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
+            <span style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif", fontWeight: 900, letterSpacing: "0.03em" }}>Build your trophy case — </span>
+            pin up to 5 achievements from your profile to show off here.
+          </span>
+        </div>
+      </Link>
+    );
+  }
+  if (pins.length === 0) return null;
+
+  return (
+    <div className="relative overflow-hidden rounded-xl px-4 py-3.5 fade-in-up"
+      style={{ background: "linear-gradient(120deg, rgba(255,210,74,0.07), rgba(255,0,92,0.04))", border: "1px solid rgba(255,210,74,0.2)" }}>
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="flex items-center gap-2">
+          <Pin className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />
+          <span className="font-black uppercase text-xs tracking-widest"
+            style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", letterSpacing: "0.16em", fontSize: "0.65rem" }}>
+            {currentPlayer.playerName}'s Trophy Case
+          </span>
+        </div>
+        <Link href="/account" className="text-xs font-bold uppercase tracking-widest transition-colors hover:opacity-100"
+          style={{ color: "#ffd24a", opacity: 0.6, fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
+          Manage →
+        </Link>
+      </div>
+      <div className="flex gap-2.5 flex-wrap">
+        {pins.map(p => {
+          const color = PIN_RARITY_COLORS[p.rarity ?? "Common"] ?? "#9ca3af";
+          return (
+            <Link key={`${p.system}-${p.key}`} href={`/achievements/${p.system}/${p.key}`}>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all hover:-translate-y-0.5"
+                style={{ background: `${color}0f`, border: `1px solid ${color}40` }}>
+                <span className="text-lg leading-none" style={{ filter: `drop-shadow(0 0 6px ${color}88)` }}>{p.icon}</span>
+                <span className="font-black text-xs uppercase whitespace-nowrap"
+                  style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)", letterSpacing: "0.02em" }}>
+                  {p.name}
+                </span>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── MAIN HUB PAGE ──────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -613,6 +765,8 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <TrophyCaseSection />
+
       {/* ── SITUATION STRIP (title race + danger zone) ── */}
       {(second || atRisk.length > 0) && (
         <div className={`grid gap-3 ${second && atRisk.length > 0 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
@@ -702,6 +856,8 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      <ModulesSection />
 
       {/* ── ACTIVITY WALL ── */}
       <div>

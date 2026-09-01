@@ -4,6 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { SHADOW_BOT_ACHIEVEMENT_DEFS, gamerscoreForRarity } from "../lib/shadow-bot-achievements";
 import { CC_ACHIEVEMENT_DEFS } from "../lib/card-clash-achievements";
+import { PINNABLE_SYSTEMS, getPinnedAchievements, setPinnedAchievements } from "../lib/pinned-achievements";
 
 const router = Router();
 
@@ -201,6 +202,114 @@ router.get("/achievements/shadow-bot-definitions", async (_req, res): Promise<vo
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: "Failed to get shadow bot achievement definitions" });
+  }
+});
+
+router.get("/achievements/card-clash-definitions", async (_req, res): Promise<void> => {
+  try {
+    const rows = (await db.execute(sql`
+      SELECT achievement_key, COUNT(*)::int AS unlock_count
+      FROM card_clash_achievements_earned
+      GROUP BY achievement_key
+    `)).rows as { achievement_key: string; unlock_count: number }[];
+
+    const countMap = new Map(rows.map(r => [r.achievement_key, r.unlock_count]));
+
+    const result = CC_ACHIEVEMENT_DEFS.map(def => ({
+      key:           def.key,
+      name:          def.name,
+      description:   def.description,
+      icon:          def.icon,
+      rarity:        def.rarity,
+      coinReward:    def.coinReward,
+      packReward:    def.packReward,
+      criteriaType:  def.statType,
+      criteriaValue: def.statValue,
+      unlockedCount: countMap.get(def.key) ?? 0,
+    }));
+
+    res.json(result);
+  } catch (err) {
+    (_req as any).log?.error?.({ err }, "Failed to get card clash achievement definitions");
+    res.status(500).json({ error: "Failed to get card clash achievement definitions" });
+  }
+});
+
+/**
+ * Aggregate achievement counts across all four systems, for the Hub's
+ * "X total achievements" stat — previously a hardcoded "456" that had
+ * drifted from reality as achievements were added/retired.
+ */
+router.get("/achievements/counts", async (_req, res): Promise<void> => {
+  try {
+    const [coreRows, tourRows] = await Promise.all([
+      db.select().from(achievementsTable),
+      holdersOrEmpty<{ count: number }>(db.execute(sql`SELECT COUNT(*)::int AS count FROM tour_achievement_definitions`)),
+    ]);
+    const core      = coreRows.length;
+    const tour      = Number(tourRows[0]?.count ?? 0);
+    const shadowBot = SHADOW_BOT_ACHIEVEMENT_DEFS.length;
+    const cardClash = CC_ACHIEVEMENT_DEFS.length;
+    res.json({ core, tour, shadowBot, cardClash, total: core + tour + shadowBot + cardClash });
+  } catch (err) {
+    (_req as any).log?.error?.({ err }, "Failed to get achievement counts");
+    res.status(500).json({ error: "Failed to get achievement counts" });
+  }
+});
+
+/**
+ * Trophy case — a player's pinned favourite achievements, shown on their
+ * profile and on the Hub. Deliberately spans all four achievement systems
+ * (a key alone isn't unique across them — GHOST-style collisions aside,
+ * Tour/Shadow Bot/Card Clash/core key namespaces aren't coordinated), so a
+ * pin is always a {system, key} pair, never a bare key.
+ */
+router.get("/players/:id/pinned-achievements", async (req, res): Promise<void> => {
+  const playerId = parseInt(req.params.id, 10);
+  if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+  try {
+    const pins = await getPinnedAchievements(playerId);
+    res.json({ pins });
+  } catch (err) {
+    (req as any).log?.error?.({ err }, "Failed to get pinned achievements");
+    res.status(500).json({ error: "Failed to get pinned achievements" });
+  }
+});
+
+router.put("/players/:id/pinned-achievements", async (req, res): Promise<void> => {
+  const playerId = parseInt(req.params.id, 10);
+  if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
+
+  // A trophy case is self-curated — without this check anyone could rewrite
+  // any other player's pins just by knowing their id.
+  const sessionPlayerId = (req.session as any)?.playerId ?? null;
+  if (!sessionPlayerId) { res.status(401).json({ error: "Login required" }); return; }
+  if (sessionPlayerId !== playerId) { res.status(403).json({ error: "You can only edit your own trophy case" }); return; }
+
+  const body = req.body as { pins?: unknown };
+  if (!Array.isArray(body.pins) || body.pins.length > 5) {
+    res.status(400).json({ error: "pins must be an array of at most 5 {system, key} entries" });
+    return;
+  }
+  const pins: { system: string; key: string }[] = [];
+  for (const p of body.pins) {
+    if (
+      !p || typeof p !== "object" ||
+      typeof (p as any).system !== "string" || typeof (p as any).key !== "string" ||
+      !PINNABLE_SYSTEMS.includes((p as any).system)
+    ) {
+      res.status(400).json({ error: `Each pin needs a valid system (${PINNABLE_SYSTEMS.join(", ")}) and key` });
+      return;
+    }
+    pins.push({ system: (p as any).system, key: (p as any).key });
+  }
+
+  try {
+    await setPinnedAchievements(playerId, pins);
+    res.json({ pins });
+  } catch (err) {
+    (req as any).log?.error?.({ err }, "Failed to set pinned achievements");
+    res.status(500).json({ error: "Failed to set pinned achievements" });
   }
 });
 

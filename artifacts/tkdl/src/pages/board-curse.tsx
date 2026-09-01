@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Flame, Swords, User, Users, Bot, Trophy, Skull, Crown, Square, Infinity as InfinityIcon, BookOpen } from "lucide-react";
 import { useCurrentPlayer } from "@/context/auth";
+import { LoginGate } from "@/components/LoginGate";
 import { useListPlayers } from "@workspace/api-client-react";
 import { BoardCurseScorer, type BoardCurseResult } from "@/components/BoardCurseScorer";
 import { BOT_LEVELS, type BotLevel } from "@/lib/bot-engine";
@@ -85,9 +86,11 @@ export default function BoardCursePage() {
 
   if (!currentPlayer) {
     return (
-      <div className="max-w-md mx-auto py-16 text-center" style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif" }}>
-        Log in to play Board Curse.
-      </div>
+      <LoginGate
+        icon="👻"
+        title="Play Board Curse"
+        subtitle="Every visit rolls a new curse against your throw. Log in to see what you're up against."
+      />
     );
   }
 

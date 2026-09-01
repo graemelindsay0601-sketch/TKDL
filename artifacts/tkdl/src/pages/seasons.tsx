@@ -317,6 +317,12 @@ function SeasonCard({ season, idx }: { season: any; idx: number }) {
   const showPlayoff = playoffPend || hasChampion;
   const isAdmin     = sessionStorage.getItem("tkdl_admin_unlocked") === "1";
 
+  // One accent color drives both the border/background tint (already here)
+  // and a top gradient bar — same "colored bar identifies the card at a
+  // glance" device Hall of Fame's RecordCard already uses, so a grid of
+  // seasons reads as scannable states rather than a wall of identical cards.
+  const accent = isLive ? "#ff005c" : hasChampion ? "#ffd24a" : playoffPend ? "#ffd24a" : "rgba(255,255,255,0.25)";
+
   return (
     <div
       className={`pdc-card overflow-hidden transition-all duration-300 fade-in-up ${isLive ? "pulse-red" : ""}`}
@@ -336,6 +342,7 @@ function SeasonCard({ season, idx }: { season: any; idx: number }) {
           : "rgba(255,255,255,0.025)",
       }}
     >
+      <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }} />
       <div className="p-5">
         {/* Header row */}
         <div className="flex items-start justify-between mb-3 gap-2">

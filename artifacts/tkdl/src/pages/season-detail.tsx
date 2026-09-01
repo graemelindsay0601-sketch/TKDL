@@ -243,7 +243,7 @@ export default function SeasonDetail() {
             style={{
               fontFamily: "Oswald, sans-serif",
               background: activeTab === tab ? "#ff005c" : "transparent",
-              color: activeTab === tab ? "#fff" : "rgba(255,255,255,0.4)",
+              color: activeTab === tab ? "#fff" : "rgba(255,255,255,0.6)",
               letterSpacing: "0.08em",
             }}
           >

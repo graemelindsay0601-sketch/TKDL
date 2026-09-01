@@ -97,13 +97,11 @@ export const TITLE_DEFINITIONS: TitleDef[] = [
   // ── Game-specific — Tactical / other formats ──────────────────────────────
   { key:"TITLE_TACTICIAN",        title:"The Tactician",      description:"Win 3 Tactics games",                               rarity:"Rare",      category:"game",      icon:"♟️", requiresAchievement:"TACTICS_WINS_3" },
   { key:"TITLE_KILLER",           title:"Killer",             description:"Win 3 Killer games",                                rarity:"Common",    category:"game",      icon:"☠️", requiresAchievement:"KILLER_WINS_3" },
-  { key:"TITLE_GHOST",            title:"The Ghost",          description:"Disappear from the Killer board",                   rarity:"Epic",      category:"game",      icon:"👻", requiresAchievement:"GHOST" },
   { key:"TITLE_CRICKET_KING",     title:"Cricket King",       description:"Dominate the Cricket format",                       rarity:"Rare",      category:"game",      icon:"🏏", requiresAchievement:"CRICKET_KING" },
   { key:"TITLE_SNAKE",            title:"The Snake",          description:"Slippery and dangerous",                            rarity:"Epic",      category:"game",      icon:"🐍", requiresAchievement:"SNAKE" },
   { key:"TITLE_LONE_WOLF",        title:"Lone Wolf",          description:"A solo operator",                                   rarity:"Rare",      category:"game",      icon:"🐺", requiresAchievement:"LONE_WOLF" },
   { key:"TITLE_CHAOS_AGENT",      title:"Chaos Agent",        description:"Bring unpredictability to every game",              rarity:"Epic",      category:"game",      icon:"🌀", requiresAchievement:"CHAOS_AGENT" },
   { key:"TITLE_DETONATOR",        title:"Detonator",          description:"Explosive finisher",                                rarity:"Epic",      category:"game",      icon:"💣", requiresAchievement:"DETONATOR" },
-  { key:"TITLE_REAPER",           title:"The Reaper",         description:"End seasons as the top eliminator",                 rarity:"Epic",      category:"game",      icon:"💀", requiresAchievement:"REAPER_SEASONAL" },
   { key:"TITLE_IMMORTAL",         title:"Immortal",           description:"Play endlessly and never stop improving",           rarity:"Legendary", category:"game",      icon:"⚰️", requiresAchievement:"IMMORTAL" },
   { key:"TITLE_PHOENIX",          title:"Phoenix",            description:"Rise from the ashes",                               rarity:"Legendary", category:"game",      icon:"🦅", requiresAchievement:"PHOENIX" },
 

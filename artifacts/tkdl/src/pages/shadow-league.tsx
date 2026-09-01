@@ -98,9 +98,27 @@ export default function ShadowLeague() {
           </div>
         </div>
       ) : data.rows.length === 0 ? (
-        <div className="section-card py-12 text-center">
-          <CircuitBoard className="w-8 h-8 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.1)" }} />
-          <p className="text-sm" style={{ color: "rgba(255,255,255,0.25)" }}>No bots have enough data yet (250+ darts required).</p>
+        <div className="section-card p-8 text-center space-y-4">
+          <div className="w-14 h-14 mx-auto rounded-full flex items-center justify-center"
+            style={{ background: "rgba(255,210,74,0.08)", border: "1px solid rgba(255,210,74,0.2)" }}>
+            <CircuitBoard className="w-7 h-7" style={{ color: "rgba(255,210,74,0.4)" }} />
+          </div>
+          <div>
+            <div className="font-black uppercase text-lg mb-2" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.35)", letterSpacing: "0.06em" }}>
+              No Bots Ranked Yet
+            </div>
+            <p className="text-sm max-w-xs mx-auto" style={{ color: "rgba(255,255,255,0.22)", lineHeight: 1.6 }}>
+              Bots need 250+ darts of practice data before they qualify for the league table.
+            </p>
+          </div>
+          <div className="flex items-center justify-center pt-1">
+            <Link href="/practice">
+              <button className="px-4 py-2 rounded-lg text-xs font-bold uppercase"
+                style={{ background: "rgba(255,210,74,0.1)", border: "1px solid rgba(255,210,74,0.3)", color: "#ffd24a", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                Log a Practice Session →
+              </button>
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">

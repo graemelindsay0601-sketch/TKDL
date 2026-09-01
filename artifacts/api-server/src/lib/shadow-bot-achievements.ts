@@ -1,6 +1,8 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "./logger";
+import { awardAchievementRewards } from "./achievement-grant";
+import { createNotification } from "./communityNotify";
 
 export function gamerscoreForRarity(rarity: string): number {
   switch (rarity) {
@@ -555,13 +557,31 @@ export const SHADOW_BOT_ACHIEVEMENT_DEFS: ShadowBotAchievementDef[] = [
 // Award function
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function awardShadowBotAchievement(playerId: number, key: string): Promise<void> {
-  await db.execute(sql`
+// The insert is the atomicity guard (backed by the UNIQUE(player_id,
+// achievement_key) constraint) — RETURNING id tells us whether THIS call
+// actually inserted the row, so rewards/notifications only fire once even
+// under concurrent checks for the same player. Previously this function
+// unconditionally "succeeded" with no way to tell a fresh unlock from a
+// no-op, and never paid out the coinReward/packReward or sent a
+// notification that every other achievement system already grants.
+async function awardShadowBotAchievement(playerId: number, def: ShadowBotAchievementDef): Promise<void> {
+  const result = await db.execute(sql`
     INSERT INTO shadow_bot_achievements (player_id, achievement_key)
-    VALUES (${playerId}, ${key})
+    VALUES (${playerId}, ${def.key})
     ON CONFLICT (player_id, achievement_key) DO NOTHING
+    RETURNING id
   `);
-  logger.info({ playerId, key }, "Shadow bot achievement awarded");
+  if (result.rows.length === 0) return;
+
+  logger.info({ playerId, key: def.key }, "Shadow bot achievement awarded");
+  await awardAchievementRewards(playerId, def.coinReward ?? null, def.packReward ?? null, def.key);
+
+  void createNotification({
+    playerId,
+    type:       "achievement_unlocked",
+    entityType: "shadow_bot_achievement",
+    message:    `${def.icon ?? "🤖"} Achievement unlocked: ${def.name}`,
+  });
 }
 
 export async function checkAndAwardShadowBotAchievements(playerId: number): Promise<void> {
@@ -639,7 +659,7 @@ export async function checkAndAwardShadowBotAchievements(playerId: number): Prom
           break;
         }
       }
-      if (met) await awardShadowBotAchievement(playerId, def.key);
+      if (met) await awardShadowBotAchievement(playerId, def);
     }
   } catch (err) {
     logger.error({ err, playerId }, "checkAndAwardShadowBotAchievements failed");

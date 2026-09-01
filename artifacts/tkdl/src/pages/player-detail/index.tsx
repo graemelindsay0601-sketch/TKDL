@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
-import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare, Sparkles, Building2 } from "lucide-react";
+import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare, Sparkles, Building2, Pin } from "lucide-react";
 import { useAuth } from "@/context/auth";
 import {
   FormStrip, EloSparkline, AchievementCard,
@@ -41,6 +41,20 @@ export default function PlayerDetail() {
   const [tourTrophies, setTourTrophies] = useState<any[]>([]);
   const [shadowAchs, setShadowAchs] = useState<any[]>([]);
   const [tourAchs, setTourAchs] = useState<any[]>([]);
+
+  // Trophy case — a curated highlight of up to 5 achievements, spanning all
+  // achievement systems (see /api/players/:id/pinned-achievements). Owner
+  // can pin/unpin from the achievement grid below; anyone viewing the
+  // profile sees the resulting highlight strip read-only.
+  type PinEntry = { system: string; key: string; name?: string; icon?: string; rarity?: string | null };
+  const [pins, setPins] = useState<PinEntry[]>([]);
+  useEffect(() => {
+    if (!playerId) return;
+    fetch(`/api/players/${playerId}/pinned-achievements`)
+      .then(r => r.json())
+      .then(d => setPins(Array.isArray(d?.pins) ? d.pins : []))
+      .catch(() => {});
+  }, [playerId]);
 
   const [expandedGame, setExpandedGame] = useState<string | null>(null);
   const [gameSessionsCache, setGameSessionsCache] = useState<Record<string, any[]>>({});
@@ -195,6 +209,7 @@ export default function PlayerDetail() {
     currentProgress: a.currentValue,
     hidden: false,
     category: "Shadow Bot",
+    _pinSystem: "shadow-bot",
   }));
   const normalizedTourAchs = tourAchs
     .map((a: any) => ({
@@ -207,10 +222,14 @@ export default function PlayerDetail() {
       progressPct: a.unlocked ? 100 : 0,
       hidden: false,
       rarity: a.gamerscore >= 100 ? "Legendary" : a.gamerscore >= 50 ? "Epic" : a.gamerscore >= 25 ? "Rare" : "Common",
+      _pinSystem: "tour",
     }));
 
-  const leagueAchs = achProgress.filter((a: any) => !a.key?.startsWith("M501_"));
-  const m501Achs   = achProgress.filter((a: any) =>  a.key?.startsWith("M501_"));
+  // Same "core" system tag for both — M501 achievements live in the same
+  // achievements table as league ones, just filtered client-side by key
+  // prefix, and the pinned-achievements API only knows the two apart by key.
+  const leagueAchs = achProgress.filter((a: any) => !a.key?.startsWith("M501_")).map((a: any) => ({ ...a, _pinSystem: "core" }));
+  const m501Achs   = achProgress.filter((a: any) =>  a.key?.startsWith("M501_")).map((a: any) => ({ ...a, _pinSystem: "core" }));
   const achSourceMap: Record<string, any[]> = {
     all:    [...leagueAchs, ...m501Achs, ...normalizedBotAchs, ...normalizedTourAchs],
     league: leagueAchs,
@@ -230,6 +249,24 @@ export default function PlayerDetail() {
     return true;
   });
   const displayedAch = showAllAch ? filteredAch : filteredAch.slice(0, 18);
+
+  const isOwnProfile = !!user && user.playerId === playerId;
+  const isPinned = (system: string, key: string) => pins.some(p => p.system === system && p.key === key);
+  const togglePin = (system: string, key: string, display: { name: string; icon: string; rarity: string | null }) => {
+    if (!isOwnProfile) return;
+    const already = isPinned(system, key);
+    if (!already && pins.length >= 5) return;
+    const next = already
+      ? pins.filter(p => !(p.system === system && p.key === key))
+      : [...pins, { system, key, ...display }];
+    setPins(next); // optimistic — reverted below if the save fails
+    fetch(`/api/players/${playerId}/pinned-achievements`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ pins: next.map(p => ({ system: p.system, key: p.key })) }),
+    }).catch(() => setPins(pins));
+  };
 
   const streak = player.currentWinStreak ?? 0;
   const lossStreak = player.currentLossStreak ?? 0;
@@ -1561,6 +1598,44 @@ export default function PlayerDetail() {
           )}
         </div>
 
+        {/* ── Trophy Highlights — the curated show-off strip, up to 5 pins ── */}
+        {pins.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap mb-3 px-3 py-2.5 rounded-xl"
+            style={{ background: "linear-gradient(120deg, rgba(255,210,74,0.07), rgba(255,0,92,0.03))", border: "1px solid rgba(255,210,74,0.2)" }}>
+            <Pin className="w-3.5 h-3.5 shrink-0" style={{ color: "#ffd24a" }} />
+            {pins.map(p => {
+              const rc = RARITY_COLORS[p.rarity ?? "Common"] ?? RARITY_COLORS.Common;
+              return (
+                <div key={`${p.system}-${p.key}`}
+                  className="flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-lg"
+                  style={{ background: rc.bg, border: `1px solid ${rc.color}40` }}>
+                  <Link href={`/achievements/${p.system}/${p.key}`} className="flex items-center gap-1.5">
+                    <span className="text-sm leading-none">{p.icon}</span>
+                    <span className="font-black text-xs uppercase" style={{ fontFamily: "Oswald, sans-serif", color: rc.color, letterSpacing: "0.02em" }}>
+                      {p.name}
+                    </span>
+                  </Link>
+                  {isOwnProfile && (
+                    <button
+                      onClick={() => togglePin(p.system, p.key, { name: p.name ?? "", icon: p.icon ?? "🏆", rarity: p.rarity ?? null })}
+                      title="Remove from trophy case"
+                      className="p-0.5 rounded transition-colors hover:bg-white/10">
+                      <X className="w-2.5 h-2.5" style={{ color: "rgba(255,255,255,0.35)" }} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {isOwnProfile && pins.length === 0 && (
+          <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-xl text-xs"
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.3)" }}>
+            <Pin className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.25)" }} />
+            Pin up to 5 achievements below to build your trophy case — it shows on the Hub too.
+          </div>
+        )}
+
         {/* Source type tabs */}
         <div className="flex gap-1 mb-3 flex-wrap">
           {([
@@ -1590,7 +1665,13 @@ export default function PlayerDetail() {
 
         {openAchievements && <>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {displayedAch.map((a: any) => <AchievementCard key={a.id} a={a} />)}
+          {displayedAch.map((a: any) => (
+            <AchievementCard key={a.id} a={a}
+              pinned={isOwnProfile ? isPinned(a._pinSystem, a.key) : undefined}
+              onTogglePin={isOwnProfile ? () => togglePin(a._pinSystem, a.key, { name: a.name, icon: a.icon, rarity: a.rarity ?? null }) : undefined}
+              pinDisabled={pins.length >= 5}
+            />
+          ))}
         </div>
 
         {filteredAch.length === 0 && (

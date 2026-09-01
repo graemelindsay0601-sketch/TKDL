@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Swords, Lock, Trophy, Skull, Clock, Users } from "lucide-react";
 import { useCurrentPlayer } from "@/context/auth";
+import { LoginGate } from "@/components/LoginGate";
 import { BOSSES, type Boss } from "@/lib/boss-battles-data";
 import { BossBattleScorer } from "@/components/BossBattleScorer";
 import type { GameResult } from "@/components/game-scorer";
@@ -91,9 +92,11 @@ export default function BossBattlePage() {
 
   if (!currentPlayer) {
     return (
-      <div className="max-w-md mx-auto py-16 text-center" style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif" }}>
-        Log in to take on the boss ladder.
-      </div>
+      <LoginGate
+        icon="🐉"
+        title="Take On The Boss Ladder"
+        subtitle="Six bosses, five enrage phases, one dartboard. Log in to start the climb."
+      />
     );
   }
 

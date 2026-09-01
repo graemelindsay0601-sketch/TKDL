@@ -59,9 +59,9 @@ function Tab({ active, onClick, color = "#ff005c", icon, children }: {
       className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase transition-all"
       style={{
         fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em",
-        background: active ? `${color}20` : "rgba(255,255,255,0.04)",
-        border: `1px solid ${active ? `${color}55` : "rgba(255,255,255,0.07)"}`,
-        color: active ? color : "rgba(255,255,255,0.3)",
+        background: active ? `${color}20` : "rgba(255,255,255,0.05)",
+        border: `1px solid ${active ? `${color}55` : "rgba(255,255,255,0.1)"}`,
+        color: active ? color : "rgba(255,255,255,0.6)",
         boxShadow: active ? `0 0 16px ${color}20` : undefined,
       }}>
       {icon && <span className="opacity-90">{icon}</span>}
@@ -76,9 +76,9 @@ function SortBtn({ active, onClick, children }: { active: boolean; onClick: () =
       className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all"
       style={{
         fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em",
-        background: active ? "rgba(255,210,74,0.15)" : "rgba(255,255,255,0.03)",
-        border: `1px solid ${active ? "rgba(255,210,74,0.4)" : "rgba(255,255,255,0.06)"}`,
-        color: active ? "#ffd24a" : "rgba(255,255,255,0.3)",
+        background: active ? "rgba(255,210,74,0.15)" : "rgba(255,255,255,0.04)",
+        border: `1px solid ${active ? "rgba(255,210,74,0.4)" : "rgba(255,255,255,0.09)"}`,
+        color: active ? "#ffd24a" : "rgba(255,255,255,0.6)",
       }}>
       {children}
     </button>

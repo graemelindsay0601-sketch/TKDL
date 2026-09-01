@@ -222,7 +222,7 @@ export function Layout({ children }: { children: ReactNode }) {
     return (
       <Link href={item.href}
         className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm relative overflow-hidden ${
-          isActive ? "text-white" : "text-white/30 hover:text-white/65"
+          isActive ? "text-white" : "text-white/60 hover:text-white"
         }`}
         style={isActive ? {
           background: "linear-gradient(90deg, rgba(255,0,92,0.22) 0%, rgba(255,0,92,0.04) 100%)",
@@ -236,7 +236,7 @@ export function Layout({ children }: { children: ReactNode }) {
         )}
         <div className="shrink-0 relative">
           {isActive && <div className="absolute" style={{ inset: -3, background: "rgba(255,0,92,0.45)", filter: "blur(8px)", borderRadius: "50%" }} />}
-          <item.icon className="h-4 w-4 relative z-10" style={isActive ? { color: "#ff005c", filter: "drop-shadow(0 0 5px rgba(255,0,92,0.9))" } : { color: "rgba(255,255,255,0.25)" }} />
+          <item.icon className="h-4 w-4 relative z-10" style={isActive ? { color: "#ff005c", filter: "drop-shadow(0 0 5px rgba(255,0,92,0.9))" } : { color: "rgba(255,255,255,0.5)" }} />
         </div>
         <span style={{ fontFamily: "Oswald, sans-serif", letterSpacing: isActive ? "0.1em" : "0.06em", fontSize: "0.82rem", fontWeight: isActive ? 700 : 400 }}>
           {item.label}
@@ -252,7 +252,7 @@ export function Layout({ children }: { children: ReactNode }) {
     return (
       <div>
         <div className="px-3 mb-1">
-          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.47rem", letterSpacing: "0.22em", color: "rgba(255,255,255,0.15)", textTransform: "uppercase" }}>
+          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.47rem", letterSpacing: "0.22em", color: "rgba(255,255,255,0.32)", textTransform: "uppercase" }}>
             {label}
           </span>
         </div>
@@ -459,8 +459,8 @@ export function Layout({ children }: { children: ReactNode }) {
               {isActive && (
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: col, boxShadow: `0 0 8px ${col}` }} />
               )}
-              <item.icon className="w-5 h-5" style={{ color: isActive ? col : "rgba(255,255,255,0.28)", filter: isActive ? `drop-shadow(0 0 6px ${col})` : "none", transition: "color 0.15s, filter 0.15s" }} />
-              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", fontWeight: isActive ? 700 : 400, color: isActive ? col : "rgba(255,255,255,0.28)", transition: "color 0.15s" }}>
+              <item.icon className="w-5 h-5" style={{ color: isActive ? col : "rgba(255,255,255,0.5)", filter: isActive ? `drop-shadow(0 0 6px ${col})` : "none", transition: "color 0.15s, filter 0.15s" }} />
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", fontWeight: isActive ? 700 : 400, color: isActive ? col : "rgba(255,255,255,0.5)", transition: "color 0.15s" }}>
                 {item.label}
               </span>
             </Link>
@@ -473,8 +473,8 @@ export function Layout({ children }: { children: ReactNode }) {
           {drawerOpen && (
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: "#ffffff", boxShadow: "0 0 8px rgba(255,255,255,0.6)" }} />
           )}
-          <Menu className="w-5 h-5" style={{ color: drawerOpen ? "#ffffff" : "rgba(255,255,255,0.28)", filter: drawerOpen ? "drop-shadow(0 0 6px rgba(255,255,255,0.7))" : "none", transition: "color 0.15s" }} />
-          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", fontWeight: drawerOpen ? 700 : 400, color: drawerOpen ? "#ffffff" : "rgba(255,255,255,0.28)", transition: "color 0.15s" }}>
+          <Menu className="w-5 h-5" style={{ color: drawerOpen ? "#ffffff" : "rgba(255,255,255,0.5)", filter: drawerOpen ? "drop-shadow(0 0 6px rgba(255,255,255,0.7))" : "none", transition: "color 0.15s" }} />
+          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", fontWeight: drawerOpen ? 700 : 400, color: drawerOpen ? "#ffffff" : "rgba(255,255,255,0.5)", transition: "color 0.15s" }}>
             More
           </span>
         </button>

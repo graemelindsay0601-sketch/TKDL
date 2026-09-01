@@ -37,13 +37,19 @@ type EquippedCards = {
 // casual pairing of two players for a one-off game; Doubles Event is the
 // season's official fixed random-draw teams competition (see the admin
 // toggle in Feature Flags to turn the whole event on/off for a season).
-const FORMAT_OPTIONS: { key: Format; label: string; icon: string; desc: string }[] = [
-  { key: "1v1",        label: "1v1",             icon: "👤",  desc: "Head to head" },
-  { key: "2v2",        label: "2v2 Team Game",   icon: "👥",  desc: "Any 2 players vs any 2 — casual, one-off" },
-  { key: "3v3",        label: "3v3 Triples",     icon: "👥",  desc: "Teams of 3 — casual, one-off" },
-  { key: "doubles-event", label: "Doubles Event", icon: "🎯",  desc: "Official season event — fixed random-draw teams" },
-  { key: "shift-wars", label: "Shift Wars", icon: "🏬",  desc: "Fixed department teams — Fresh, Twilight, Shift Leader" },
-  { key: "killer-ffa", label: "Killer Free-for-All", icon: "💀", desc: "3–6 individual players" },
+// Colors match each format's real established accent elsewhere in the app
+// where one already exists (Doubles/Shift Wars come straight from the
+// Standings tabs — see leaderboard.tsx) rather than a flat grey per tile;
+// 2v2/3v3/Killer had no established color anywhere, so those three are new
+// assignments (Killer's crimson echoes the same "elimination" theme Boss
+// Battle uses elsewhere).
+const FORMAT_OPTIONS: { key: Format; label: string; icon: string; desc: string; color: string }[] = [
+  { key: "1v1",        label: "1v1",             icon: "👤",  desc: "Head to head",                                          color: "#ff005c" },
+  { key: "2v2",        label: "2v2 Team Game",   icon: "👥",  desc: "Any 2 players vs any 2 — casual, one-off",              color: "#38bdf8" },
+  { key: "3v3",        label: "3v3 Triples",     icon: "👥",  desc: "Teams of 3 — casual, one-off",                          color: "#a78bfa" },
+  { key: "doubles-event", label: "Doubles Event", icon: "🎯", desc: "Official season event — fixed random-draw teams",       color: "#0066ff" },
+  { key: "shift-wars", label: "Shift Wars", icon: "🏬",       desc: "Fixed department teams — Fresh, Twilight, Shift Leader", color: "#22c55e" },
+  { key: "killer-ffa", label: "Killer Free-for-All", icon: "💀", desc: "3–6 individual players",                             color: "#ef4444" },
 ];
 
 const TEAM_CATEGORIES: Record<Format, string[]> = {
@@ -429,12 +435,12 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
             <button key={f.key} onClick={() => setFormat(f.key)}
               className="p-3 rounded-xl text-left transition-all"
               style={{
-                background: format === f.key ? "rgba(255,0,92,0.08)" : "rgba(255,255,255,0.03)",
-                border: `1px solid ${format === f.key ? "rgba(255,0,92,0.35)" : "rgba(255,255,255,0.07)"}`,
+                background: format === f.key ? `${f.color}14` : `${f.color}08`,
+                border: `1px solid ${format === f.key ? `${f.color}59` : `${f.color}22`}`,
                 cursor: "pointer",
               }}>
               <div className="text-lg mb-0.5">{f.icon}</div>
-              <div className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: format === f.key ? "#ff005c" : "rgba(255,255,255,0.6)", letterSpacing: "0.06em" }}>
+              <div className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: format === f.key ? f.color : "rgba(255,255,255,0.6)", letterSpacing: "0.06em" }}>
                 {f.label}
               </div>
               <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>{f.desc}</div>

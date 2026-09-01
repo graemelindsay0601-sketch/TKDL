@@ -520,7 +520,61 @@ router.get("/players/:id/achievement-progress", async (req, res): Promise<void> 
   const totalGames = player.careerGamesPlayed;
   const winRate = totalGames > 0 ? (player.careerWins / totalGames) * 100 : 0;
 
-  function getProgress(criteriaType: string, criteriaValue: number, secondaryCriteria: string | null, secondaryValue: number | null): number {
+  // Top-ranked-win counts (GIANT_KILLER/KING_SLAYER/CONQUEROR) and the
+  // comeback-streak scan (COMEBACK_KING) — same "top-ranked = best finishing
+  // position that season" approximation and same chronological scan used by
+  // the real grant logic in lib/achievements.ts's
+  // checkTopRankedAndComebackAchievements, so the progress bar shown here
+  // always agrees with what actually unlocks the achievement.
+  let top3Wins = 0, top1Wins = 0, uniqueTop5Beaten = 0;
+  const winOpponentIds = [...new Set(wins.map(m => m.loserId))];
+  if (winOpponentIds.length > 0) {
+    const oppStandings = await db.select({
+      seasonId: seasonStandingsTable.seasonId,
+      playerId: seasonStandingsTable.playerId,
+      position: seasonStandingsTable.position,
+    }).from(seasonStandingsTable).where(inArray(seasonStandingsTable.playerId, winOpponentIds));
+    const posOf = new Map(oppStandings.map(r => [`${r.seasonId}:${r.playerId}`, r.position]));
+    const top5Set = new Set<number>();
+    for (const m of wins) {
+      const pos = posOf.get(`${m.seasonId}:${m.loserId}`);
+      if (pos == null) continue;
+      if (pos <= 3) top3Wins++;
+      if (pos === 1) top1Wins++;
+      if (pos <= 5) top5Set.add(m.loserId);
+    }
+    uniqueTop5Beaten = top5Set.size;
+  }
+
+  let comebackStreak = 0;
+  {
+    const chrono = [...allMatches].sort((a, b) => new Date(a.playedAt).getTime() - new Date(b.playedAt).getTime());
+    let lossStreak = 0, winStreakAfterSlump = 0, sawSlump = false;
+    for (const m of chrono) {
+      if (m.winnerId !== id) { lossStreak++; sawSlump = false; winStreakAfterSlump = 0; continue; }
+      if (lossStreak >= 2) sawSlump = true;
+      lossStreak = 0;
+      if (!sawSlump) { winStreakAfterSlump = 0; continue; }
+      winStreakAfterSlump++;
+      comebackStreak = Math.max(comebackStreak, winStreakAfterSlump);
+    }
+  }
+
+  const massiveSwingWins = wins.filter(m => (m.eloChange ?? 0) >= 100).length;
+
+  const totalHiddenAchievements = allAchievements.filter(a => a.hidden && a.key !== "MYSTIC").length;
+  const hiddenUnlockedCount = allAchievements.filter(a => a.hidden && a.key !== "MYSTIC" && unlockedMap.has(a.id)).length;
+  const hiddenUnlockedFraction = totalHiddenAchievements > 0 ? hiddenUnlockedCount / totalHiddenAchievements : 0;
+
+  function getProgress(key: string, criteriaType: string, criteriaValue: number, secondaryCriteria: string | null, secondaryValue: number | null): number {
+    // GIANT_KILLER/KING_SLAYER/CONQUEROR all share criteriaType
+    // TOP_RANKED_WINS but mean three different things ("beat a top-3
+    // player N times" / "beat the #1 player N times" / "beat all of the
+    // top 5") — criteriaType+criteriaValue alone can't tell them apart, so
+    // switch on the achievement key for these first.
+    if (key === "GIANT_KILLER") return top3Wins;
+    if (key === "KING_SLAYER")  return top1Wins;
+    if (key === "CONQUEROR")    return uniqueTop5Beaten;
     switch (criteriaType) {
       case "CAREER_WINS":          return player.careerWins;
       case "CAREER_GAMES":         return player.careerGamesPlayed;
@@ -570,13 +624,13 @@ router.get("/players/:id/achievement-progress", async (req, res): Promise<void> 
       case "UNIQUE_ELIMINATIONS":           return player.eliminationsCount;
       case "SEASON_ELIMINATIONS":           return player.eliminationsCount;
       case "UPSET_WIN":                     return 0;
-      case "TOP_RANKED_WINS":               return 0;
-      case "TOP_RANKED_ELIMS":              return 0;
-      case "MASSIVE_SWING":                 return 0;
+      case "TOP_RANKED_WINS":               return top3Wins;
+      case "TOP_RANKED_ELIMS":              return 0; // retired (ASSASSIN/APOCALYPSE) — no per-match elimination data exists to reconstruct this
+      case "MASSIVE_SWING":                 return massiveSwingWins;
       case "WEEKLY_WINS":                   return 0;
       case "SEASON_START_WINS":             return 0;
-      case "COMEBACK_STREAK":               return 0;
-      case "ALL_HIDDEN_UNLOCKED":           return 0;
+      case "COMEBACK_STREAK":               return comebackStreak;
+      case "ALL_HIDDEN_UNLOCKED":           return hiddenUnlockedFraction;
       case "SINGLE_SEASON_INACTIVE":        return 0;
       case "SEASON_POINTS_LOSS":            return 0;
       default:                              return 0;
@@ -585,7 +639,7 @@ router.get("/players/:id/achievement-progress", async (req, res): Promise<void> 
 
   const result = allAchievements.map(a => {
     const isUnlocked = unlockedMap.has(a.id);
-    const currentProgress = getProgress(a.criteriaType, a.criteriaValue, a.secondaryCriteria ?? null, a.secondaryValue ?? null);
+    const currentProgress = getProgress(a.key, a.criteriaType, a.criteriaValue, a.secondaryCriteria ?? null, a.secondaryValue ?? null);
     const pct = Math.min(100, Math.round((currentProgress / a.criteriaValue) * 100));
     return {
       ...a,
