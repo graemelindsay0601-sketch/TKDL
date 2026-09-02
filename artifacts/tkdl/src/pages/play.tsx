@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useListPlayers, useSubmitMatch, getGetLeaderboardQueryKey, getGetStatsSummaryQueryKey, getGetRecentActivityQueryKey, getListMatchesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -1010,19 +1011,17 @@ export default function Play() {
     const p1Name = setupData.team1[0]?.name ?? "";
     const p2Name = setupData.team2[0]?.name ?? "";
 
-    const headerLabel = isTeam
-      ? `${setupData.team1.map(p => p.name).join(" & ")} vs ${setupData.team2.map(p => p.name).join(" & ")}`
-      : isKillerFfa
-      ? `Killer — ${setupData.team1.map(p => p.name).join(", ")}`
-      : `${p1Name} vs ${p2Name}`;
-
-    return (
-      <div className="max-w-lg mx-auto">
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
-            {headerLabel} · {setupData.gameType.name} · {setupData.stake}pt stake
-          </div>
-        </div>
+    // Rendered as a fixed, full-viewport portal straight into document.body —
+    // NOT nested inside the app shell's <main> (which is overflow-y-auto and
+    // only gets h-dvh minus its own header/padding). Nesting it there meant
+    // ScorerLayout's own `height:100dvh` demanded more space than its shrunk
+    // parent actually had, so `main` scrolled to reveal the overflow — the
+    // exact "have to scroll mid-match" complaint. Practice mode already uses
+    // this identical portal pattern for the same reason; this just brings
+    // real league matches in line with it so the app behaves like a native
+    // fullscreen scorer (no scrolling) the same way DartCounter/DartsMind do.
+    return createPortal(
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#06040e" }}>
         <GameScorer
           p1Name={p1Name}
           p2Name={p2Name}
@@ -1034,7 +1033,8 @@ export default function Play() {
           onAbandon={reset}
           onPracticeStats={s => setMatchStats(s)}
         />
-      </div>
+      </div>,
+      document.body
     );
   }
 

@@ -183,6 +183,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
     for (const p of loserPlayers) {
       const newPoints = Math.max(0, p.points - stake);
       const eliminated = newPoints === 0;
+      const newLossStreak = p.currentLossStreak + 1;
       await tx.update(playersTable).set({
         elo:               Math.max(800, p.elo - eloChange),
         points:            newPoints,
@@ -192,7 +193,9 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
         careerGamesPlayed: p.careerGamesPlayed + 1,
         careerPoints:      p.careerPoints - stake,
         currentWinStreak:  0,
-        currentLossStreak: p.currentLossStreak + 1,
+        currentLossStreak: newLossStreak,
+        longestLossStreak: Math.max(p.longestLossStreak, newLossStreak),
+        careerBiggestPointsFall: Math.max(p.careerBiggestPointsFall, p.peakPoints - newPoints),
         status:            eliminated ? "ELIMINATED" : p.status,
       }).where(eq(playersTable.id, p.id));
       txLoserResults.push({ id: p.id, newPoints, eliminated });

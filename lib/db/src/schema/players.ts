@@ -21,6 +21,13 @@ export const playersTable = pgTable("players", {
   currentWinStreak: integer("current_win_streak").notNull().default(0),
   longestWinStreak: integer("longest_win_streak").notNull().default(0),
   currentLossStreak: integer("current_loss_streak").notNull().default(0),
+  longestLossStreak: integer("longest_loss_streak").notNull().default(0),
+  // All-time high-water mark of "how far below my own in-season peak did I
+  // ever fall" (peakPoints - points at the moment of a loss). points and
+  // peakPoints both reset to 25 every season, so this is captured at the
+  // moment it happens and kept forever -- it survives resets on purpose,
+  // unlike the fields it's derived from.
+  careerBiggestPointsFall: integer("career_biggest_points_fall").notNull().default(0),
   eliminationsCount: integer("eliminations_count").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   practiceEnabled:  boolean("practice_enabled").notNull().default(true),

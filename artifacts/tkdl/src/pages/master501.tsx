@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Target, ArrowRight, CheckCircle, Lock, RotateCcw, Zap, Shield, Flame, TrendingUp } from "lucide-react";
 import { Master501Scorer } from "@/lib/scorers";
 import { type PracticeStats } from "@/lib/stats-types";
@@ -381,18 +382,24 @@ export default function Master501() {
   // ── PLAYING ────────────────────────────────────────────────────────────────
   if (phase === "playing" && startCfg) {
     const playerName = players.find(p => p.id === playerId)?.name ?? "Player";
-    return (
-      <Master501Scorer
-        playerName={playerName}
-        dartLimit={startCfg.dartLimit}
-        legs={startCfg.legs}
-        legsNeeded={startCfg.legsNeeded}
-        tierName={startCfg.name}
-        tierColor={startCfg.color}
-        onMatchResult={handleMatchResult}
-        onAbandon={() => setPhase("lobby")}
-        onPracticeStats={s => { pendingStatsRef.current = s; }}
-      />
+    // Same fixed full-viewport portal used by practice.tsx/play.tsx — see the
+    // comment in play.tsx's "playing" branch for why this can't just render
+    // inline inside the app shell without forcing a scroll mid-match.
+    return createPortal(
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#06040e" }}>
+        <Master501Scorer
+          playerName={playerName}
+          dartLimit={startCfg.dartLimit}
+          legs={startCfg.legs}
+          legsNeeded={startCfg.legsNeeded}
+          tierName={startCfg.name}
+          tierColor={startCfg.color}
+          onMatchResult={handleMatchResult}
+          onAbandon={() => setPhase("lobby")}
+          onPracticeStats={s => { pendingStatsRef.current = s; }}
+        />
+      </div>,
+      document.body
     );
   }
 

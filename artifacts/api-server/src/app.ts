@@ -22,6 +22,8 @@ import { addSeasonLeagueType } from "./db/migrations/add_season_league_type";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
 import { up as createCardClashFavoritesTable } from "./db/migrations/add_card_clash_favorites";
 import { addDailyChallengeKeyColumn } from "./db/migrations/add_daily_challenge_key";
+import { addLongestLossStreakColumn } from "./db/migrations/add_longest_loss_streak";
+import { addCareerBiggestPointsFallColumn } from "./db/migrations/add_career_biggest_points_fall";
 import { seedCardDefinitions } from "./services/card-definitions-service";
 import { challengeService } from "./services/challenge-service";
 import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
@@ -1048,6 +1050,8 @@ async function init() {
     }
     
     await addDailyChallengeKeyColumn();
+    await addLongestLossStreakColumn();
+    await addCareerBiggestPointsFallColumn();
     await challengeService.seedDefaultChallenges();
     await challengeService.seedComprehensivePool();
     await seedNotificationTables();

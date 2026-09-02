@@ -277,12 +277,18 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
   for (const r of achievQ.rows as any[]) achievMap.set(Number(r.player_id), Number(r.cnt));
 
   const all = players.map(p => ({
-    id:               p.id,
-    name:             p.name,
-    careerWins:       p.careerWins,
-    careerPeakElo:    p.careerPeakElo,
-    careerPoints:     p.careerPoints,
-    longestWinStreak: p.longestWinStreak ?? 0,
+    id:                 p.id,
+    name:               p.name,
+    careerWins:         p.careerWins,
+    careerLosses:       p.careerLosses,
+    careerPeakElo:      p.careerPeakElo,
+    careerPoints:       p.careerPoints,
+    longestWinStreak:   p.longestWinStreak ?? 0,
+    longestLossStreak:  p.longestLossStreak ?? 0,
+    // All-time high-water mark, captured at the moment of each loss and kept
+    // forever — unlike peakPoints/points themselves, this survives season
+    // resets (see career_biggest_points_fall migration).
+    careerBiggestPointsFall: p.careerBiggestPointsFall ?? 0,
     careerGamesPlayed:p.careerGamesPlayed ?? 0,
     sessions:         practiceMap.get(p.id)?.sessions    ?? 0,
     totalDarts:       practiceMap.get(p.id)?.total_darts ?? 0,
@@ -303,6 +309,10 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
     most180s:          topBy("total180s"),
     mostTourTrophies:  topBy("tourTrophies"),
     mostAchievements:  topBy("achievements"),
+    // Wall of Shame — same top-3-by-field shape, just sorted for the worst end.
+    mostLosses:        topBy("careerLosses"),
+    longestLossStreak: topBy("longestLossStreak"),
+    biggestPointsFall: topBy("careerBiggestPointsFall"),
   });
 });
 

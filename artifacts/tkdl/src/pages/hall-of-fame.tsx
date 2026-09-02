@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Award, Trophy, Zap, Target, Flame, Star, Dumbbell, Medal, ArrowLeft } from "lucide-react";
+import { Award, Trophy, Zap, Target, Flame, Star, Dumbbell, Medal, ArrowLeft, Skull, TrendingDown, Frown } from "lucide-react";
 import { TierBadge } from "@/components/tier-badge";
 
 function useFetch<T>(url: string) {
@@ -15,18 +15,25 @@ function useFetch<T>(url: string) {
   return { data, loading };
 }
 
-type PlayerRecord = { id: number; name: string; careerWins: number; careerPeakElo: number; careerPoints: number; longestWinStreak: number; sessions: number; total180s: number; tourTrophies: number; achievements: number };
-type HofData = { mostWins: PlayerRecord[]; highestElo: PlayerRecord[]; mostPoints: PlayerRecord[]; longestStreak: PlayerRecord[]; mostSessions: PlayerRecord[]; most180s: PlayerRecord[]; mostTourTrophies: PlayerRecord[]; mostAchievements: PlayerRecord[] };
+type PlayerRecord = { id: number; name: string; careerWins: number; careerLosses: number; careerPeakElo: number; careerPoints: number; longestWinStreak: number; longestLossStreak: number; careerBiggestPointsFall: number; sessions: number; total180s: number; tourTrophies: number; achievements: number };
+type HofData = {
+  mostWins: PlayerRecord[]; highestElo: PlayerRecord[]; mostPoints: PlayerRecord[]; longestStreak: PlayerRecord[];
+  mostSessions: PlayerRecord[]; most180s: PlayerRecord[]; mostTourTrophies: PlayerRecord[]; mostAchievements: PlayerRecord[];
+  mostLosses: PlayerRecord[]; longestLossStreak: PlayerRecord[]; biggestPointsFall: PlayerRecord[];
+};
 
 const MEDAL_COLORS = ["#ffd24a", "#c0c8d8", "#cd7f32"];
+const SHAME_COLORS = ["#ff005c", "#c76b8a", "#8a5a68"];
 
-function RecordCard({ icon, label, accent, top, valueKey, suffix = "" }: {
+function RecordCard({ icon, label, accent, top, valueKey, suffix = "", medals = ["🥇", "🥈", "🥉"], rankColors = MEDAL_COLORS, subtitle = "RECORD HOLDER" }: {
   icon: React.ReactNode; label: string; accent: string;
   top: PlayerRecord[]; valueKey: keyof PlayerRecord; suffix?: string;
+  medals?: string[]; rankColors?: string[]; subtitle?: string;
 }) {
   if (!top || top.length === 0) return null;
   const winner = top[0];
   const val    = winner[valueKey] as number;
+  if (!val) return null;
 
   return (
     <div className="pdc-card overflow-hidden">
@@ -38,16 +45,16 @@ function RecordCard({ icon, label, accent, top, valueKey, suffix = "" }: {
 
       {/* Winner */}
       <div className="px-4 py-3 flex items-center gap-3">
-        <div className="text-2xl leading-none">🥇</div>
+        <div className="text-2xl leading-none">{medals[0]}</div>
         <div className="flex-1 min-w-0">
           <Link href={`/players/${winner.id}`}>
             <div className="font-black uppercase text-sm truncate cursor-pointer hover:opacity-70 transition-opacity"
-              style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", letterSpacing: "0.06em" }}>
+              style={{ fontFamily: "Oswald, sans-serif", color: rankColors[0], letterSpacing: "0.06em" }}>
               {winner.name}
             </div>
           </Link>
           <div className="font-black text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
-            RECORD HOLDER
+            {subtitle}
           </div>
         </div>
         <div className="text-right shrink-0">
@@ -59,12 +66,12 @@ function RecordCard({ icon, label, accent, top, valueKey, suffix = "" }: {
       </div>
 
       {/* Runners up */}
-      {top.slice(1).map((p, i) => (
+      {top.slice(1).filter(p => (p[valueKey] as number) > 0).map((p, i) => (
         <div key={p.id} className="px-4 py-2 flex items-center gap-2.5 border-t" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-          <span className="text-base leading-none">{i === 0 ? "🥈" : "🥉"}</span>
+          <span className="text-base leading-none">{medals[i + 1]}</span>
           <Link href={`/players/${p.id}`}>
             <span className="font-bold text-xs uppercase truncate cursor-pointer hover:opacity-70 transition-opacity"
-              style={{ fontFamily: "Oswald, sans-serif", color: MEDAL_COLORS[i + 1], letterSpacing: "0.04em" }}>
+              style={{ fontFamily: "Oswald, sans-serif", color: rankColors[i + 1], letterSpacing: "0.04em" }}>
               {p.name}
             </span>
           </Link>
@@ -134,6 +141,36 @@ export default function HallOfFame() {
           <RecordCard icon={<Target className="w-4 h-4" />}    label="Most 180s"           accent="#ff005c"  top={data.most180s}         valueKey="total180s"         />
           <RecordCard icon={<Award className="w-4 h-4" />}     label="Most Tour Trophies"  accent="#ffd24a"  top={data.mostTourTrophies} valueKey="tourTrophies"      />
           <RecordCard icon={<Medal className="w-4 h-4" />}     label="Most Achievements"   accent="#a855f7"  top={data.mostAchievements} valueKey="achievements"      />
+        </div>
+      )}
+
+      {data && (
+        <div>
+          <div className="relative overflow-hidden rounded-2xl px-6 py-6 mb-4 mt-8"
+            style={{ background: "linear-gradient(135deg, rgba(255,0,92,0.12) 0%, rgba(255,0,92,0.03) 50%, rgba(0,0,0,0) 100%)", border: "1px solid rgba(255,0,92,0.2)" }}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(255,0,92,0.15)", border: "1px solid rgba(255,0,92,0.3)" }}>
+                <Skull className="w-5 h-5" style={{ color: "#ff005c", filter: "drop-shadow(0 0 6px rgba(255,0,92,0.6))" }} />
+              </div>
+              <div>
+                <div className="text-xs font-bold uppercase tracking-widest mb-0.5" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,0,92,0.5)", fontSize: "0.6rem", letterSpacing: "0.2em" }}>
+                  TKDL
+                </div>
+                <h2 className="font-black uppercase leading-none" style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(1.4rem, 3.5vw, 2.1rem)", color: "#ff005c", letterSpacing: "0.06em" }}>
+                  WALL OF SHAME
+                </h2>
+              </div>
+            </div>
+            <p className="text-sm mt-2" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" }}>
+              Every league needs a villain arc. Worn with pride, or at least denial.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <RecordCard icon={<Frown className="w-4 h-4" />}       label="Wooden Spoon"       accent="#ff005c" top={data.mostLosses}         valueKey="careerLosses"      medals={["🥄","😬","😅"]} rankColors={SHAME_COLORS} subtitle="MOST CAREER LOSSES" />
+            <RecordCard icon={<TrendingDown className="w-4 h-4" />} label="The Choke Award"    accent="#ff005c" top={data.longestLossStreak}  valueKey="longestLossStreak" medals={["🫠","😬","😅"]} rankColors={SHAME_COLORS} subtitle="LONGEST LOSING STREAK" />
+            <RecordCard icon={<Skull className="w-4 h-4" />}       label="The Collapse"       accent="#ff005c" top={data.biggestPointsFall}  valueKey="careerBiggestPointsFall" suffix=" pts" medals={["💀","😬","😅"]} rankColors={SHAME_COLORS} subtitle="BIGGEST FALL FROM PEAK (ALL-TIME)" />
+          </div>
         </div>
       )}
     </div>

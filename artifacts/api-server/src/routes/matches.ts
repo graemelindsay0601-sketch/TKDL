@@ -151,6 +151,7 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
       const eloResult = applyEloChange(w.elo, l.elo);
       const wagerResult = applyWager(stake, w, l);
       const winnerStreak = w.currentWinStreak + 1;
+      const loserStreak = l.currentLossStreak + 1;
 
       const [newMatch] = await tx.insert(matchesTable).values({
         seasonId:               activeSeason.id,
@@ -202,7 +203,9 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
         careerGamesPlayed: l.careerGamesPlayed + 1,
         careerPoints:     l.careerPoints - stake,
         currentWinStreak: 0,
-        currentLossStreak: l.currentLossStreak + 1,
+        currentLossStreak: loserStreak,
+        longestLossStreak: Math.max(l.longestLossStreak, loserStreak),
+        careerBiggestPointsFall: Math.max(l.careerBiggestPointsFall, l.peakPoints - wagerResult.newLoserPoints),
         status:           wagerResult.loserEliminated ? "ELIMINATED" : l.status,
         eliminationsCount: l.eliminationsCount,
       }).where(eq(playersTable.id, loserId));
