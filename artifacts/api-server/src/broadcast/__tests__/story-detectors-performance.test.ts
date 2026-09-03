@@ -137,6 +137,13 @@ describe("detectSeasonBest / detectPersonalBest (9.4: only when historical data 
     assert.equal(story.facts.value, 4);
   });
 
+  test("SEASON_BEST/PERSONAL_BEST expose verifiedRecordClaim so the Commentary Engine's 17.2 record-claim rule can be satisfied", () => {
+    const seasonBest = detectSeasonBest(baseFacts({ isVerifiedSeasonBest: true, recordMetricLabel: "180s", recordMetricValue: 4 }));
+    const personalBest = detectPersonalBest(baseFacts({ isVerifiedPersonalBest: true, recordMetricLabel: "180s", recordMetricValue: 6 }));
+    assert.equal(seasonBest?.facts.verifiedRecordClaim, true);
+    assert.equal(personalBest?.facts.verifiedRecordClaim, true);
+  });
+
   test("a verified personal best triggers and scores at least as high as a season best on historical significance", () => {
     const seasonBest = detectSeasonBest(baseFacts({ isVerifiedSeasonBest: true, recordMetricLabel: "180s", recordMetricValue: 4 }))!;
     const personalBest = detectPersonalBest(baseFacts({ isVerifiedPersonalBest: true, recordMetricLabel: "180s", recordMetricValue: 6 }))!;

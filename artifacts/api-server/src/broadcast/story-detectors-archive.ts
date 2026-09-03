@@ -126,12 +126,27 @@ export function detectSeasonComparison(facts: SeasonComparisonFacts): StoryCandi
     storyType: "SEASON_COMPARISON",
     leagueType: facts.leagueType,
     subjectKeys: [subjectKey(facts.leagueType, facts.entityId)],
-    sentiment: improved ? "positive" : "neutral",
+    // Was unconditionally "positive"/"neutral" — a materially WORSE season
+    // (the only other case reachable here, since the early return above
+    // already rejects anything below the "material" bar) was still labelled
+    // "neutral" and, with no distinct phrase pool of its own, got narrated
+    // through commentary-library.ts's only available SEASON_COMPARISON
+    // phrasing — wording written exclusively for an improvement ("running
+    // well clear", "step up") — regardless of which way the numbers
+    // actually moved. See the paired requires:["improved"]/["declined"]
+    // facts below and their phrase variants in commentary-library.ts.
+    sentiment: improved ? "positive" : "negative",
     tags: ["season_comparison"],
     facts: {
       entityId: facts.entityId,
       currentSeasonWinRate: facts.currentSeasonWinRate, previousSeasonWinRate: facts.previousSeasonWinRate,
       currentSeasonPosition: facts.currentSeasonPosition, previousSeasonFinalPosition: facts.previousSeasonFinalPosition,
+      // Presence-only flags (commentary-math.ts's phraseFactsSatisfied()
+      // checks key PRESENCE, never a value) so commentary-library.ts can
+      // require exactly one direction per phrase variant — mutually
+      // exclusive by construction, since `improved` above is a strict
+      // boolean split of the only two cases reachable past the early return.
+      ...(improved ? { improved: true } : { declined: true }),
     },
     components: {
       competitiveImportance: 4,

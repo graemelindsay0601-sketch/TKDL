@@ -154,6 +154,12 @@ function freshnessClassForStoryType(storyType: StoryType): StoryFreshnessClass {
     case "LEAGUE":
     case "SHIFT_WARS":
     case "ARCHIVE":
+    // Evergreen filler is re-upserted every single edition build (see this
+    // file's own FILLER section, and story-detectors-filler.ts's header),
+    // so detectedAt barely ever ages in the first place — "persistent"
+    // just means it doesn't get penalised for that the way a one-off
+    // "result" story would.
+    case "FILLER":
       return "persistent";
   }
 }
@@ -813,7 +819,11 @@ async function gatherSeasonComparisonFactsForPlayer(playerId: number, currentSea
  * "what did the table look like last time", per the module header's
  * caching rationale.
  */
-type StoredStandingSnapshot = { entityId: number; points: number; wins: number; losses: number; titleProbability: number; isEliminated: boolean };
+// Exported (not just for this file's own internal diffing) so live-events.ts
+// can read back the identical shape when resolving a titleProbabilityBand
+// validity rule's CURRENT probability, without a second, potentially-
+// drifting redefinition of what this table's payload actually contains.
+export type StoredStandingSnapshot = { entityId: number; points: number; wins: number; losses: number; titleProbability: number; isEliminated: boolean };
 
 async function readPreviousSnapshot(leagueType: LeagueType, seasonId: number, before: Date): Promise<StoredStandingSnapshot[] | null> {
   const [row] = await db

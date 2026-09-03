@@ -183,7 +183,14 @@ export function detectSeasonBest(facts: SinglesPerformanceFacts): StoryCandidate
     anchorMatchId: facts.matchId,
     sentiment: "positive",
     tags: ["season_best"],
-    facts: { playerId: facts.playerId, metric: facts.recordMetricLabel, value: facts.recordMetricValue },
+    // verifiedRecordClaim: true — not a placeholder value, it's literally what
+    // the `isVerifiedSeasonBest` guard above already proved before this
+    // candidate could exist. Exposed as a fact (rather than left implicit) so
+    // the Commentary Engine's mechanical record-claim rule (17.2) can require
+    // it on any phrase using "best"/"record"/"highest"-type language, per the
+    // fact firewall's own rule that nothing may be interpolated that isn't
+    // traceable to a real, already-verified query result.
+    facts: { playerId: facts.playerId, metric: facts.recordMetricLabel, value: facts.recordMetricValue, verifiedRecordClaim: true },
     components: {
       competitiveImportance: 4,
       unexpectedness: 0,
@@ -204,7 +211,9 @@ export function detectPersonalBest(facts: SinglesPerformanceFacts): StoryCandida
     anchorMatchId: facts.matchId,
     sentiment: "positive",
     tags: ["personal_best"],
-    facts: { playerId: facts.playerId, metric: facts.recordMetricLabel, value: facts.recordMetricValue },
+    // See detectSeasonBest's own comment just above for why this is a real
+    // fact and not a placeholder.
+    facts: { playerId: facts.playerId, metric: facts.recordMetricLabel, value: facts.recordMetricValue, verifiedRecordClaim: true },
     components: {
       competitiveImportance: 5,
       unexpectedness: 0,

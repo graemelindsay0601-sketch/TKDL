@@ -114,16 +114,26 @@ describe("detectSeasonComparison (Appendix A: current position/form vs previous 
     assert.equal(story.sentiment, "positive");
   });
 
-  test("a materially worse win rate triggers, non-positive sentiment", () => {
+  test("a materially worse win rate triggers, negative sentiment", () => {
+    // Was asserted "neutral" — matching the bug this fixes (commentary-
+    // library.ts had only ever had improvement-flavored SEASON_COMPARISON
+    // phrasing, "running well clear"/"step up", so a real decline was still
+    // narrated as good news). Now genuinely negative, and facts carries a
+    // `declined` flag so commentary-library.ts's paired phrase variants
+    // pick the right wording for the direction that actually happened.
     const story = detectSeasonComparison(seasonFacts({ currentSeasonWinRate: 0.3, previousSeasonWinRate: 0.6 }));
     assert.ok(story);
-    assert.equal(story.sentiment, "neutral");
+    assert.equal(story.sentiment, "negative");
+    assert.equal(story.facts.declined, true);
+    assert.equal(story.facts.improved, undefined);
   });
 
   test("a materially improved TABLE POSITION alone (win rate unchanged) also triggers", () => {
     const story = detectSeasonComparison(seasonFacts({ currentSeasonPosition: 1, previousSeasonFinalPosition: 5 }));
     assert.ok(story);
     assert.equal(story.sentiment, "positive");
+    assert.equal(story.facts.improved, true);
+    assert.equal(story.facts.declined, undefined);
   });
 
   test("missing position data on either side just skips the position check, still evaluates win rate", () => {

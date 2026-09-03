@@ -474,6 +474,100 @@
 /* ── Fade-in up ──────────────────────────────────────────────────────────── */
 .fade-in-up { animation: fade-in-up 0.4s ease-out forwards; }
 
+/* ── Lower third caption wipe-in (TKDL LIVE broadcast.LowerThird) ──────────
+   A real news lower-third slides/wipes in from the edge it's anchored to
+   rather than fading up in place — distinct from .fade-in-up on purpose. */
+@keyframes lower-third-in {
+  from { opacity: 0; transform: translateX(-18px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.lower-third-in { animation: lower-third-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+
+/* ── Score-bug graphic chips (TKDL LIVE broadcast/graphics/GraphicFrame) ────
+   Real broadcast graphics packages slide their stat chips in individually,
+   staggered, rather than the whole card fading up as one block — this is
+   what replaced GraphicFrame's old bordered card + grid-of-rows "board"
+   look. Each chip gets this class plus its own `animationDelay` (inline,
+   set from the chip's index) for the stagger. */
+@keyframes bug-chip-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.94); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.bug-chip-in { animation: bug-chip-in 0.38s cubic-bezier(0.16, 0.9, 0.3, 1) both; }
+
+/* The accent underline beneath a score-bug's tag chip "draws" in left to
+   right, like a graphics package's own build-on animation completing. */
+@keyframes bug-underline-draw {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.bug-underline-draw { animation: bug-underline-draw 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both; transform-origin: left center; }
+
+/* ── Bespoke graphics kit (graphics/kit.tsx) ────────────────────────────────
+   Real user feedback on the score-bug chips above: "too uniform... looks
+   like a screenshot of the app" — every graphic kind rendering through the
+   same label/value pill grid reads as a data table, not a broadcast
+   graphics package. graphics/kit.tsx's own primitives (versus split, probability
+   bar, ladder row, streak/gauge hero) replace that single shared shape with
+   one purpose-built visual per graphic kind — these two animations are
+   their own shared "build-on" language: a bar growing to its measured width
+   (a real graphics package draws a stat bar, it doesn't just appear at
+   full length) and a hero number counting/settling in with a touch more
+   punch than the plain chip entrance above, since a hero stat is the one
+   thing per graphic meant to read as THE number. */
+@keyframes bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.bar-grow { animation: bar-grow 0.6s cubic-bezier(0.16, 0.9, 0.3, 1) both; transform-origin: left center; }
+
+@keyframes hero-stat-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.92); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.hero-stat-in { animation: hero-stat-in 0.5s cubic-bezier(0.16, 0.9, 0.3, 1) both; }
+
+/* A scene's own graphic now arrives as its own distinct follow-on beat
+   after the headline, not simultaneously with it — real darts coverage
+   cuts to a stat graphic as its own moment rather than compositing it
+   permanently alongside the presenters the whole time it's on screen (see
+   scenes/scene-support.tsx's own renderGraphic). `both` (not `forwards`)
+   so the element sits fully transparent for the delay instead of flashing
+   at full opacity before the animation starts. */
+.fade-in-up-delayed { animation: fade-in-up 0.4s ease-out 0.45s both; }
+
+/* ── Broadcast panel skin (graphics/kit.tsx's Panel/HeroBadge/PanelTag) ─────
+   Real user feedback on the glass-chip kit above, after seeing it built:
+   "far too much like you've took an actual screenshot of the stats and
+   just pasting it in" — a translucent, blurred, rounded-corner card is
+   exactly the visual language of a modern web-app dashboard widget
+   (glassmorphism), regardless of what data or shape lives inside it. Real
+   broadcast graphics packages (Sky Sports darts included) don't blur or
+   float — they're solid opaque colour panels with hard angled corners, a
+   bold flat colour badge for the hero number, and they SLIDE on screen
+   rather than fading up in place. This is a second, deliberately different
+   skin built to actually break that "app card" resemblance, not another
+   pass at the same glass-card look with different content inside it. */
+@keyframes panel-slide-in {
+  from { opacity: 0; transform: translateX(-28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.panel-slide-in { animation: panel-slide-in 0.4s cubic-bezier(0.16, 0.9, 0.3, 1) both; }
+
+@keyframes badge-pop-in {
+  0%   { opacity: 0; transform: scale(0.7); }
+  70%  { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.badge-pop-in { animation: badge-pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+@keyframes bar-wipe {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.bar-wipe { animation: bar-wipe 0.45s cubic-bezier(0.65, 0, 0.35, 1) both; transform-origin: left center; }
+
 /* ── Eliminated row stripes ─────────────────────────────────────────────── */
 .eliminated-row {
   opacity: 0.55;

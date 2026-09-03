@@ -63,9 +63,24 @@ export const ARCHIVE_STORY_TYPES = [
   "LAST_MEETING", "SEASON_COMPARISON", "HISTORICAL_H2H",
 ] as const;
 
+// Not derived from real match/season data at all, unlike every family
+// above (even ARCHIVE's "evergreen" stories are still real H2H history —
+// see story-detectors-archive.ts's own header). FILLER exists for content
+// this show can air when there isn't enough real news to fill a running
+// order, and — separately — as a standing reminder slot so players
+// occasionally hear about game modes they might not otherwise notice
+// (practice/M-501 activity, Shadow Bot, and newly-shipped features/modes).
+// See story-detectors-filler.ts's own header for the evergreen upsert
+// pattern this family uses (always re-detected, never resolved) and
+// director.ts's slot 8 for how a stale FILLER story earns priority so
+// "every so often" is actually enforced rather than left to chance.
+export const FILLER_STORY_TYPES = [
+  "PRACTICE_ACTIVITY", "SHADOW_BOT_PROMO", "FEATURE_SPOTLIGHT",
+] as const;
+
 export const STORY_FAMILIES = [
   "RESULT", "FORM", "H2H", "PERFORMANCE", "LEAGUE",
-  "MILESTONE", "DOUBLES", "SHIFT_WARS", "ARCHIVE",
+  "MILESTONE", "DOUBLES", "SHIFT_WARS", "ARCHIVE", "FILLER",
 ] as const;
 export type StoryFamily = (typeof STORY_FAMILIES)[number];
 
@@ -79,6 +94,7 @@ export const STORY_TYPES_BY_FAMILY = {
   DOUBLES: DOUBLES_STORY_TYPES,
   SHIFT_WARS: SHIFT_WARS_STORY_TYPES,
   ARCHIVE: ARCHIVE_STORY_TYPES,
+  FILLER: FILLER_STORY_TYPES,
 } as const satisfies Record<StoryFamily, readonly string[]>;
 
 export type StoryType =
@@ -90,7 +106,8 @@ export type StoryType =
   | (typeof MILESTONE_STORY_TYPES)[number]
   | (typeof DOUBLES_STORY_TYPES)[number]
   | (typeof SHIFT_WARS_STORY_TYPES)[number]
-  | (typeof ARCHIVE_STORY_TYPES)[number];
+  | (typeof ARCHIVE_STORY_TYPES)[number]
+  | (typeof FILLER_STORY_TYPES)[number];
 
 const STORY_TYPE_TO_FAMILY = new Map<StoryType, StoryFamily>();
 for (const family of STORY_FAMILIES) {

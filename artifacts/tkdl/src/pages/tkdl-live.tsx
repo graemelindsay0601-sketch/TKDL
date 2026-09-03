@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { Link } from "wouter";
+import { BroadcastPlayer } from "@/features/broadcast/BroadcastPlayer";
 
 /**
  * TKDL LIVE — the automated broadcast "show" (see the handover doc's
@@ -64,10 +65,12 @@ export default function TkdlLive() {
   const previewOnly = status.adminTestMode && !status.liveForAll;
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center select-none" style={SHELL_STYLE}>
+    <div className="fixed inset-0 select-none">
+      <BroadcastPlayer />
+
       {previewOnly && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-1.5 rounded-full"
-          style={{ background: "rgba(255,210,74,0.14)", border: "1px solid rgba(255,210,74,0.4)" }}>
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-1.5 rounded-full"
+          style={{ background: "rgba(255,210,74,0.14)", border: "1px solid rgba(255,210,74,0.4)", backdropFilter: "blur(8px)" }}>
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#ffd24a" }} />
           <span className="font-black uppercase text-xs" style={{ color: "#ffd24a", letterSpacing: "0.15em" }}>
             Admin Preview — players can't see this yet
@@ -75,30 +78,9 @@ export default function TkdlLive() {
         </div>
       )}
 
-      <div className="text-center px-6 max-w-lg">
-        <div className="font-black uppercase text-white" style={{ fontSize: "2.4rem", letterSpacing: "0.2em" }}>
-          TKDL LIVE
-        </div>
-        <div className="mt-3 text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
-          The show is under construction. This screen becomes the automated
-          broadcast — presenters, storylines and live predictions — as each
-          build phase ships.
-        </div>
-
-        {!previewOnly && (
-          <div className="mt-6 inline-flex items-center gap-2 px-3 py-1 rounded-full"
-            style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.35)" }}>
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#22c55e" }} />
-            <span className="font-black uppercase text-xs" style={{ color: "#22c55e", letterSpacing: "0.15em" }}>
-              Live for everyone
-            </span>
-          </div>
-        )}
-
-        <Link href="/" className="block mt-8 text-xs font-bold uppercase" style={{ color: "#ff005c", letterSpacing: "0.15em" }}>
-          ← Back to the Hub
-        </Link>
-      </div>
+      <Link href="/" className="absolute bottom-14 right-4 z-40 text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.15em" }}>
+        ← Back to the Hub
+      </Link>
     </div>
   );
 }
