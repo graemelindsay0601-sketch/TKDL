@@ -36,7 +36,7 @@
 // the two bust portraits so their own feet-line lands exactly on top of
 // each image's real desk edge, standing "at" the real desk instead of a
 // drawn one. See DESK_LINE for the per-image measurements this relies on.
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Presenter } from "../Presenter";
 import type { PresenterId, PresenterState } from "./presenter-config";
 import { LISTENING_STATE } from "./presenter-state";
@@ -100,7 +100,14 @@ export function ShowTitleBar({ subtitle }: { subtitle: string }) {
       <div
         className="flex items-center justify-between px-6 md:px-10"
         style={{
-          height: 46,
+          minHeight: 46,
+          // Real content sits in a 46px-tall bar; `env(safe-area-inset-top)`
+          // adds real device notch/status-bar room on top of that instead of
+          // eating into it — plain `0` everywhere that doesn't need it, so
+          // this changes nothing on desktop. Fixes the "TKDL LIVE"/status-
+          // bar collision a real user screenshot showed on a phone where
+          // this page draws edge-to-edge under the OS status bar.
+          paddingTop: "env(safe-area-inset-top)",
           background: "linear-gradient(90deg, rgba(0,102,255,0.18) 0%, rgba(6,4,14,0.92) 42%, rgba(255,0,92,0.15) 100%)",
           borderBottom: "1px solid rgba(255,255,255,0.07)",
         }}
@@ -198,12 +205,18 @@ export function ScreenPanel({ children, framed = true }: ScreenPanelProps) {
 // No drawn desk shape any more (see the file header). Each backdrop image
 // bakes in its own real desk at a different height and horizontal position.
 // These numbers come from a finer percentage-gridline overlay pass against
-// the actual 941px-tall source art (every 5%, both axes) — re-measured
-// directly against each desk's own visible TOP SURFACE (where a standing
-// presenter's hands would actually rest), not the wider base/plinth below
-// it, which is a lower and less accurate line to stand busts on:
+// the actual 941px-tall source art. A real user screenshot ("the host is
+// slightly hovering above the table/desk again") caught the "main" value
+// specifically: a 1%-gridlined zoom crop of that image showed the previous
+// 62% actually lands on the desk's raised BACK ridge/lip — the far edge of
+// its top surface, well before the surface itself begins — not the front
+// edge closest to camera, which is what a standing presenter's torso should
+// meet. The real front lip (where the flat top surface breaks over into the
+// desk's vertical front face, traced by the bright blue neon strip) sits
+// ~68% down, six points lower:
 //   champion — centred round podium; ring's top surface ~53% down the frame
-//   main     — centred curved desk;  front top edge (blue neon strip) ~62%
+//   main     — centred curved desk;  front lip (top surface meets the
+//              vertical front face, blue neon strip) ~68%
 //   breaking — glass desk corner, bottom-LEFT and much narrower — its own
 //              top surface sits lower still, ~67% down, spanning only
 //              roughly the left 45% of the frame width
@@ -224,7 +237,7 @@ export function ScreenPanel({ children, framed = true }: ScreenPanelProps) {
 // need the same trade.
 const DESK_LINE: Record<StudioBackdropVariant, { bottomPct: number; align: "center" | "left"; gapPx: number; leftPadPct?: number; bustSize: "sm" | "md" }> = {
   champion: { bottomPct: 100 - 53, align: "center", gapPx: 64, bustSize: "md" },
-  main: { bottomPct: 100 - 62, align: "center", gapPx: 48, bustSize: "sm" },
+  main: { bottomPct: 100 - 68, align: "center", gapPx: 48, bustSize: "sm" },
   breaking: { bottomPct: 100 - 67, align: "left", gapPx: 28, leftPadPct: 4, bustSize: "sm" },
 };
 
@@ -234,8 +247,103 @@ export type PresenterOverlayProps = {
   activeState: PresenterState;
 };
 
+// ── Viewport-aware correction (real user screenshot: hosts standing well
+// above the desk with a big gap, and "tiny in comparison to the desk") ────
+// The backdrop images are a fixed 1672×941 (~16:9) frame, but StudioBackdrop
+// renders them with `background-size: cover` + `backgroundPosition: "top
+// center"` so they fill ANY viewport shape. DESK_LINE's percentages were
+// measured against that full original image. The two only agree when the
+// viewport happens to be exactly 16:9: on anything wider-than-tall relative
+// to that (a normal wide desktop monitor, effectively any window taller
+// than it is 16:9-proportioned... the opposite case, common on a big
+// monitor with browser chrome eating vertical space, IS what the screenshot
+// shows), "cover" scales the image up to fill the width and then crops its
+// own BOTTOM to fit the shorter container — so the container only ever
+// shows the image's own top slice, stretched. A point measured at 62% down
+// the FULL image then actually lands at 62%×(containerAspect/imgAspect) down
+// the VISIBLE container: further down than its raw number, and the
+// presenters — still positioned at the raw, uncorrected 62% — end up
+// floating well above the real desk edge. `cropFactor` below is exactly
+// that stretch ratio (1 when the viewport already matches 16:9, so nothing
+// changes there); `bustScale` separately grows the hosts themselves on a
+// big/wide screen, where the fixed pixel bust size the mockup was tuned
+// against reads as tiny next to a much larger rendered desk.
+const IMG_ASPECT = 1672 / 941;
+const REFERENCE_VIEWPORT_WIDTH = 1440;
+
+// Both below mirror constants that live in Presenter.tsx/PresenterPortrait
+// .tsx — duplicated here because the clearance/fit math needs a bust's
+// actual rendered pixel height before those components ever mount.
+const BUST_SIZE_PX: Record<"sm" | "md" | "lg", number> = { sm: 88, md: 140, lg: 200 };
+const BUST_PORTRAIT_ASPECT = 1200 / 1600;
+// A real user screenshot on a SHORT (not just wide) browser window — e.g.
+// maximized on a smaller laptop display, lots of chrome eating vertical
+// space — showed a host's head drawn right across the middle of "CHAMPION".
+// Cause: on a short window, `cropFactor` below still pushes the desk line
+// down and the bust's own grow-on-wide-screens scale still grows it, but at
+// moderate widths neither has scaled up enough yet to outrun a HEIGHT that
+// shrank much faster than the width did, so the bust's own top (its head)
+// ends up higher up the frame than ChampionScene's headline block sits —
+// the tallest headline any scene renders, so it's the one this has to clear.
+const MIN_HEADLINE_CLEARANCE_PX = 210;
+const MIN_BOTTOM_MARGIN_PX = 10;
+
+function computeViewportMetrics() {
+  if (typeof window === "undefined") return { cropFactor: 1, widthBustScale: 1, viewportHeight: 0 };
+  const containerAspect = window.innerWidth / window.innerHeight;
+  const cropFactor = containerAspect > IMG_ASPECT ? containerAspect / IMG_ASPECT : 1;
+  // Floor of 1 (not <1) is deliberate: BUST_SIZE's sm/md/lg values are
+  // already the tuned baseline, so this should only ever GROW hosts on a
+  // wider-than-reference screen, never shrink them smaller on a narrower
+  // one — subject to the height-driven cap applied in PresenterOverlay
+  // below, which CAN shrink below this when the viewport is simply too
+  // short (a landscape phone) for a full-size bust to fit at all.
+  const widthBustScale = Math.min(1.6, Math.max(1, window.innerWidth / REFERENCE_VIEWPORT_WIDTH));
+  return { cropFactor, widthBustScale, viewportHeight: window.innerHeight };
+}
+
+function useViewportMetrics() {
+  const [metrics, setMetrics] = useState(computeViewportMetrics);
+  useEffect(() => {
+    function onResize() { setMetrics(computeViewportMetrics()); }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return metrics;
+}
+
 export function PresenterOverlay({ variant, activeSpeaker, activeState }: PresenterOverlayProps) {
   const line = DESK_LINE[variant];
+  const { cropFactor, widthBustScale, viewportHeight } = useViewportMetrics();
+  const baseBustHeightPx = BUST_SIZE_PX[line.bustSize] / BUST_PORTRAIT_ASPECT;
+
+  // Rotating a phone to landscape showed the OPPOSITE failure: at that
+  // height, satisfying the full headline clearance below forced the bust
+  // down so far it sank visibly into the desk ring instead of standing at
+  // it — worse than the headline overlap it was meant to avoid. So on a
+  // viewport too short for a full-size bust to fit above the desk AND clear
+  // the headline, shrink the bust first (down to a floor of 0.55×) rather
+  // than only ever repositioning it.
+  const maxScaleForHeight = viewportHeight > 0
+    ? (viewportHeight - MIN_HEADLINE_CLEARANCE_PX - MIN_BOTTOM_MARGIN_PX) / baseBustHeightPx
+    : widthBustScale;
+  const bustScale = Math.min(widthBustScale, Math.max(0.55, maxScaleForHeight));
+  const bustDisplayHeightPx = baseBustHeightPx * bustScale;
+
+  const topPctRaw = 100 - line.bottomPct;
+  const naturalBottomPct = 100 - topPctRaw * cropFactor;
+  const maxBottomPctForClearance = viewportHeight > 0
+    ? ((viewportHeight - MIN_HEADLINE_CLEARANCE_PX - bustDisplayHeightPx) / viewportHeight) * 100
+    : 100;
+  const clearanceAdjustedBottomPct = Math.min(naturalBottomPct, maxBottomPctForClearance);
+  // Even after shrinking, a viewport can still be too short to fully clear
+  // the headline without sinking the bust below the desk — in that
+  // conflict, never pull it down more than 40% of the way from its natural,
+  // desk-aligned spot: some residual headline overlap in that edge case
+  // reads far less broken than a host visibly sunk into solid desk geometry
+  // (exactly the landscape-phone regression above, before this floor).
+  const minBottomPct = naturalBottomPct * 0.6;
+  const effectiveBottomPct = Math.max(2, minBottomPct, clearanceAdjustedBottomPct);
   return (
     <div className="absolute inset-0" aria-hidden="true" style={{ zIndex: 2, pointerEvents: "none" }}>
       <div
@@ -243,10 +351,16 @@ export function PresenterOverlay({ variant, activeSpeaker, activeState }: Presen
         style={{
           left: 0,
           right: 0,
-          bottom: `${line.bottomPct}%`,
+          bottom: `${effectiveBottomPct}%`,
           justifyContent: line.align === "center" ? "center" : "flex-start",
           paddingLeft: line.leftPadPct ? `${line.leftPadPct}%` : undefined,
           gap: line.gapPx,
+          // Scaling from the bottom edge (not the default center) keeps the
+          // feet pinned exactly on `effectiveBottomPct` while the busts grow
+          // upward/outward — so the desk-line fix above and this size fix
+          // never fight each other.
+          transform: `scale(${bustScale})`,
+          transformOrigin: line.align === "center" ? "center bottom" : "left bottom",
         }}
       >
         <Presenter speaker="A" active={activeSpeaker === "A"} state={activeSpeaker === "A" ? activeState : LISTENING_STATE} variant="bust" size={line.bustSize} showLabel={false} />

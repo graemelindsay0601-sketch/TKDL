@@ -7,7 +7,7 @@
  */
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { hashStringToSeed, mulberry32, seededRng, pickFrom } from "../seeded-rng.ts";
+import { hashStringToSeed, mulberry32, seededRng, pickFrom, shuffle } from "../seeded-rng.ts";
 
 describe("hashStringToSeed", () => {
   test("is deterministic for the same input", () => {
@@ -133,5 +133,50 @@ describe("pickFrom", () => {
     const seen = new Set<string>();
     for (let i = 0; i < 500; i++) seen.add(pickFrom(items, rng));
     assert.equal(seen.size, items.length);
+  });
+});
+
+describe("shuffle", () => {
+  test("never mutates the input array", () => {
+    const items = ["a", "b", "c", "d"];
+    const original = [...items];
+    shuffle(items, seededRng("mutation-check"));
+    assert.deepEqual(items, original);
+  });
+
+  test("returns a permutation — same elements, same length, nothing added or dropped", () => {
+    const items = [1, 2, 3, 4, 5];
+    const result = shuffle(items, seededRng("permutation-check"));
+    assert.equal(result.length, items.length);
+    assert.deepEqual([...result].sort((a, b) => a - b), items);
+  });
+
+  test("same seed produces the exact same shuffle every time", () => {
+    const items = ["a", "b", "c", "d", "e"];
+    const a = shuffle(items, seededRng("stable-key"));
+    const b = shuffle(items, seededRng("stable-key"));
+    assert.deepEqual(a, b);
+  });
+
+  test("a different seed generally produces a different order over a large enough array", () => {
+    const items = Array.from({ length: 10 }, (_, i) => i);
+    const a = shuffle(items, seededRng("seed-a"));
+    const b = shuffle(items, seededRng("seed-b"));
+    assert.notDeepEqual(a, b);
+  });
+
+  test("an empty array shuffles to an empty array", () => {
+    assert.deepEqual(shuffle([], seededRng("empty-check")), []);
+  });
+
+  test("a single-element array is unaffected", () => {
+    assert.deepEqual(shuffle(["only"], seededRng("single-check")), ["only"]);
+  });
+
+  test("over many distinct seeds, a 3-element array visits more than one ordering (not a degenerate no-op)", () => {
+    const items = ["x", "y", "z"];
+    const orderings = new Set<string>();
+    for (let i = 0; i < 50; i++) orderings.add(shuffle(items, seededRng("many-seeds", i)).join(","));
+    assert.ok(orderings.size > 1, "expected more than one distinct ordering across 50 seeds");
   });
 });

@@ -9,6 +9,7 @@ import type { BroadcastStory, StoryLifecycle } from "@workspace/db/schema";
 import type { Treatment } from "./story-types.ts";
 import type { ValidityRule } from "./live-events-math.ts";
 import { treatmentForScore } from "./story-engine-math.ts";
+import { shuffle } from "./seeded-rng.ts";
 
 // ═══════════════════════════════════════════════════════════════════════
 // 9.6 Story merging
@@ -138,13 +139,24 @@ export function isForcedRefresh(params: {
   noPublishedEditionExists: boolean;
   /** null when no published Edition exists at all (noPublishedEditionExists already covers that case on its own). */
   publishedEditionAgeHours: number | null;
-  hasAtLeastOneNewMatch: boolean;
   adminForced: boolean;
 }): boolean {
   if (params.adminForced) return true;
   if (params.noPublishedEditionExists) return true;
   if (params.seasonChampionOrResetEventOccurred) return true;
-  if (params.publishedEditionAgeHours !== null && params.publishedEditionAgeHours > 24 && params.hasAtLeastOneNewMatch) return true;
+  // Originally this clause also required hasAtLeastOneNewMatch, on the
+  // theory that a rebuild with literally nothing new to say wasn't worth
+  // forcing. In practice that meant a real quiet stretch (no matches
+  // logged) left the same published Edition looping indefinitely, which is
+  // exactly what players told us felt stale ("a constant same episode
+  // loop" — direct player feedback). collectNewAndActiveStories() always
+  // has HOT/ACTIVE/COOLING form and league stories, plus the FILLER family
+  // (PRACTICE_ACTIVITY/SHADOW_BOT_PROMO/FEATURE_SPOTLIGHT), so a forced
+  // rebuild on a quiet day still has real content to draw a fresh-sounding
+  // Edition from — it's just guaranteed to happen at least once every 24h
+  // regardless of match activity, per the explicit ask for "one new
+  // episode a day."
+  if (params.publishedEditionAgeHours !== null && params.publishedEditionAgeHours > 24) return true;
   return false;
 }
 
@@ -288,6 +300,48 @@ export function isWithinLeagueAirtimeCap(params: {
   if (params.totalFullSegmentSecondsSoFar === 0) return true; // nothing booked yet — nothing to be a share OF
   const projectedShare = (params.thisLeagueSecondsSoFar + params.candidateSeconds) / (params.totalFullSegmentSecondsSoFar + params.candidateSeconds);
   return projectedShare <= LEAGUE_AIRTIME_SOFT_CAP;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 10.5 Variety — breaking ties without breaking "the best story wins"
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Direct response to player feedback that two Editions felt "structurally
+// identical" even with the phrase bank's own variety fixed elsewhere:
+// rankCandidates' sort (director.ts) is fully deterministic once every
+// score/carry-forward input is fixed, so a genuinely tied field of
+// candidates — same priority, same raw score, common among ARCHIVE/FILLER's
+// own deliberately modest, deliberately stable scoring, and among several
+// FORM/PERFORMANCE stories on a quiet week — previously always resolved to
+// the same story id winning the same slot, Edition after Edition, for as
+// long as the tie held (the sort's own final tiebreak was raw id, which
+// never changes). This never changes WHICH story is best: a candidate can
+// only ever be reordered against others sharing its EXACT priority and
+// score, so a genuinely higher-ranked story can never lose a slot to a
+// lower-ranked one — it only decides, among several equally-good stories,
+// which one gets first pick this time. Uses the same per-Edition seeded-RNG
+// contract (seeded-rng.ts) every other seeded choice in this codebase
+// already follows, so the choice stays stable for every viewer of the same
+// Edition and reproducible on a rebuild of that exact slot.
+export function applyVarietyShuffle<T>(
+  sortedDescByPriorityThenScore: readonly T[],
+  keyOf: (item: T) => { priority: number; score: number },
+  rng: () => number,
+): T[] {
+  const result: T[] = [];
+  let i = 0;
+  while (i < sortedDescByPriorityThenScore.length) {
+    let j = i + 1;
+    const head = keyOf(sortedDescByPriorityThenScore[i]);
+    while (j < sortedDescByPriorityThenScore.length) {
+      const current = keyOf(sortedDescByPriorityThenScore[j]);
+      if (current.priority !== head.priority || current.score !== head.score) break;
+      j++;
+    }
+    result.push(...shuffle(sortedDescByPriorityThenScore.slice(i, j), rng));
+    i = j;
+  }
+  return result;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

@@ -77,7 +77,7 @@ describe("resolveBroadcastConfig", () => {
       broadcast_midday_time: "12:15", broadcast_evening_time: "20:00", broadcast_night_time: "23:30",
       broadcast_timezone: "Europe/London", broadcast_change_threshold: "45", broadcast_simulation_count: "5000",
       broadcast_live_poll_seconds: "15", broadcast_banter_level: "2", broadcast_commentary_version: "3",
-      broadcast_programme_version: "2",
+      broadcast_programme_version: "2", broadcast_single_daily_episode: "0",
     };
     const config = resolveBroadcastConfig(key => overrides[key]);
     assert.equal(config.middayTime, "12:15");
@@ -86,6 +86,19 @@ describe("resolveBroadcastConfig", () => {
     assert.equal(config.banterLevel, 2);
     assert.equal(config.commentaryVersion, 3);
     assert.equal(config.programmeVersion, 2);
+    assert.equal(config.singleDailyEpisode, false);
+  });
+
+  describe("singleDailyEpisode", () => {
+    test("defaults to true (one guaranteed daily episode) when nothing is stored", () => {
+      const config = resolveBroadcastConfig(() => "");
+      assert.equal(config.singleDailyEpisode, true);
+    });
+
+    test("\"1\" resolves true, \"0\" resolves false", () => {
+      assert.equal(resolveBroadcastConfig(key => (key === "broadcast_single_daily_episode" ? "1" : "")).singleDailyEpisode, true);
+      assert.equal(resolveBroadcastConfig(key => (key === "broadcast_single_daily_episode" ? "0" : "")).singleDailyEpisode, false);
+    });
   });
 
   test("one malformed key falls back independently without disturbing the others", () => {
@@ -128,5 +141,12 @@ describe("validateBroadcastSettingValue", () => {
   test("banter level uniquely allows 0", () => {
     assert.equal(validateBroadcastSettingValue("broadcast_banter_level", "0"), null);
     assert.notEqual(validateBroadcastSettingValue("broadcast_banter_level", "-1"), null);
+  });
+
+  test("single_daily_episode only accepts the literal strings \"0\" or \"1\"", () => {
+    assert.equal(validateBroadcastSettingValue("broadcast_single_daily_episode", "0"), null);
+    assert.equal(validateBroadcastSettingValue("broadcast_single_daily_episode", "1"), null);
+    assert.notEqual(validateBroadcastSettingValue("broadcast_single_daily_episode", "true"), null);
+    assert.notEqual(validateBroadcastSettingValue("broadcast_single_daily_episode", "2"), null);
   });
 });

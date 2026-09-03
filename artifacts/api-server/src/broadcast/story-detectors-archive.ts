@@ -51,6 +51,14 @@ export function detectLastMeeting(facts: ArchiveH2HFacts): StoryCandidate | null
       entityAId: facts.entityAId, entityBId: facts.entityBId,
       lastMeetingMatchId: facts.lastMeeting.matchId, lastMeetingWinnerId: facts.lastMeeting.winnerId,
       lastMeetingPlayedAt: facts.lastMeeting.playedAt.toISOString(), lastMeetingStake: facts.lastMeeting.stake,
+      // A plain year number, alongside the full ISO timestamp above — a
+      // spoken phrase can say "...back in 2025" but never a raw ISO string.
+      // This has been derivable from data every LAST_MEETING story has
+      // always carried (lastMeetingPlayedAt, present since this detector's
+      // very first version), so — unlike CHAMPION's seasonName above —
+      // every already-stored LAST_MEETING row already satisfies this, no
+      // stale-data gap to worry about.
+      lastMeetingYear: facts.lastMeeting.playedAt.getUTCFullYear(),
     },
     components: {
       competitiveImportance: 2,
@@ -97,8 +105,10 @@ export function detectArchiveH2HStories(facts: ArchiveH2HFacts): StoryCandidate[
 export type SeasonComparisonFacts = {
   leagueType: LeagueType;
   entityId: number;
+  currentSeasonName: string;
   currentSeasonWinRate: number;
   /** From the most recent COMPLETED prior season for this same entity/league, or null if none exists yet (this is the entity's first season). */
+  previousSeasonName: string | null;
   previousSeasonWinRate: number | null;
   currentSeasonPosition: number | null;
   previousSeasonFinalPosition: number | null;
@@ -139,6 +149,20 @@ export function detectSeasonComparison(facts: SeasonComparisonFacts): StoryCandi
     tags: ["season_comparison"],
     facts: {
       entityId: facts.entityId,
+      // currentSeasonName/previousSeasonName: same "clump of all seasons"
+      // fix as CHAMPION's seasonName (see story-detectors-league.ts's own
+      // comment on detectChampion) — without these, several different
+      // SEASON_COMPARISON stories (each genuinely about a different pair of
+      // months, since gatherSeasonComparisonFactsForPlayer always compares
+      // against ONE specific prior season) read as identical, undated
+      // "this season vs last season" lines when several of them air in the
+      // same catch-up-style edition. Not added to SEASON_COMPARISON_REQUIRES
+      // for the same reason CHAMPION's seasonName isn't required — stories
+      // already frozen in production before this change don't carry these
+      // keys and never will (this type is never re-upserted once its
+      // season closes). See commentary-library.ts's additive
+      // SEASON_COMPARISON.qf.improved.2/declined.2 phrases.
+      currentSeasonName: facts.currentSeasonName, previousSeasonName: facts.previousSeasonName,
       currentSeasonWinRate: facts.currentSeasonWinRate, previousSeasonWinRate: facts.previousSeasonWinRate,
       currentSeasonPosition: facts.currentSeasonPosition, previousSeasonFinalPosition: facts.previousSeasonFinalPosition,
       // Presence-only flags (commentary-math.ts's phraseFactsSatisfied()

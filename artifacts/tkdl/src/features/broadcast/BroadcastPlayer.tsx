@@ -1,9 +1,28 @@
-// TKDL LIVE — the top-level broadcast player (handover doc 15.4's scene
-// state machine, wired to real timers/React state on top of scene-timing
-// .ts's pure logic). Owns: the persistent wordmark/label chrome, which
-// scene is currently mounted, advancing dialogue turns on their own
-// hold-time, looping into a fresh Edition once the programme is exhausted,
-// and admitting queued live inserts at a safe boundary.
+// TKDL LIVE — the top-level broadcast player. Owns: the persistent
+// wordmark/label chrome, which scene is currently mounted, and admitting
+// queued live inserts at a safe boundary.
+//
+// ── One shared clock, not one timer per viewer ───────────────────────────
+// Real user feedback, in order: (1) "the show restarts every time you
+// click away... jarring" — a phone (especially an installed/home-screen
+// web app, which this one is — index.html's own apple-mobile-web-app-
+// capable meta tag) routinely unloads a backgrounded tab's memory outright
+// and reloads the page fresh; (2) directly after, the actual ask: "if I
+// started watching the show right now and someone else started it in 5
+// mins, we'd both be at the same part, same as how a live TV show actually
+// works." A per-client chained-setTimeout state machine (what used to live
+// here) can only ever half-solve either problem — a resume-point hack can
+// paper over a reload, but two independently-paced tabs are still never
+// actually watching the same instant. Both are properly solved at once by
+// not tracking "which segment/turn is playing" as this component's own
+// state at all: scene-timing.ts's computeTimedPosition() derives it fresh,
+// every tick, purely from this Edition's own `generatedAt` timestamp
+// (shared by every viewer of it) and `Date.now()`. A reload just
+// recomputes the same formula and lands back on the live position — better
+// than resuming where THIS viewer left off, it resumes where the
+// PROGRAMME actually is, the same as turning a real TV back on. This does
+// assume viewing devices' clocks are roughly correct, the same assumption
+// this file's own live-insert auto-dismiss timers already make.
 //
 // ── Studio backdrop ───────────────────────────────────────────────────────
 // No literal illustrated set: the user's own reference clip plays entirely
@@ -22,9 +41,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Broadcast from "../../pages/broadcast";
 import { useBroadcast, useSeenOverlays } from "./useBroadcast";
 import {
-  nextPlayableSegmentIndex, filterUnseenOverlays, mergeOverlayQueue, popReadyOverlay,
-  advancePlayerState, INITIAL_PLAYER_STATE,
-  type PlayerState, type PlayheadPosition,
+  filterUnseenOverlays, mergeOverlayQueue, popReadyOverlay,
+  totalPlayableDurationMs, computeTimedPosition,
+  type PlayheadPosition,
 } from "./scene-timing";
 import { SCENE_COMPONENTS } from "./scenes";
 import { visibleTurns } from "./scenes/scene-support";
@@ -35,6 +54,13 @@ import { LiveInsertOverlay } from "./LiveInsertOverlay";
 import { LowerThird } from "./LowerThird";
 import { LEAGUE_LABEL, SCENE_LABEL } from "./theme";
 import type { CurrentEdition, LiveOverlayItem, LiveTickerItem, Segment } from "./types";
+
+// How often the shared clock re-derives the current position. Dialogue
+// turns hold for several real seconds each (`holdSeconds`, DialogueTurn's
+// own field), so this is far finer-grained than it needs to be to feel
+// instant, while staying cheap enough to leave running on a kiosk screen
+// for hours.
+const CLOCK_TICK_MS = 500;
 
 // Used only by the two early-return states below (loading / no Edition yet)
 // — the main runtime's own background is StudioSet.tsx's StudioBackdrop.
@@ -67,7 +93,7 @@ export function BroadcastPlayer() {
     // (the standings board), not an empty screen.
     return (
       <div className="fixed inset-0 overflow-y-auto" style={SHELL_STYLE}>
-        <div className="sticky top-0 z-10 px-6 py-3 text-center backdrop-blur" style={{ background: "rgba(6,4,14,0.85)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="sticky top-0 z-10 px-6 text-center backdrop-blur" style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)", paddingBottom: "0.75rem", background: "rgba(6,4,14,0.85)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
           <Wordmark />
           <div className="mt-1 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
             The first Edition is still being prepared — here's where things stand right now.
@@ -110,10 +136,46 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
   // .ts's own segment-index logic doesn't need to know about the split.
   const playlist: Segment[] = useMemo(() => [...edition.headlines, ...edition.segments], [edition]);
 
-  const [state, setState] = useState<PlayerState>(INITIAL_PLAYER_STATE);
+  // The shared clock (this file's own header comment above) — `editionStartMs`
+  // is this Edition's own `generatedAt`, identical for every viewer of it,
+  // so `now - editionStartMs` is the same "how far into the programme" value
+  // wherever it's computed, and `now` itself only ever moves forward in real
+  // time (CLOCK_TICK_MS below), never advanced or paused by this component.
+  const editionStartMs = useMemo(() => new Date(edition.generatedAt).getTime(), [edition.generatedAt]);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), CLOCK_TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  const totalMs = useMemo(() => totalPlayableDurationMs(playlist, invalidSegmentIds), [playlist, invalidSegmentIds]);
+  const rawElapsedMs = Math.max(0, now - editionStartMs); // clamped for a clock-skewed/future `generatedAt` — never a negative "how far in"
+  // Once the prepared programme has played out in full, loop the SAME
+  // Edition from the top — still perfectly in sync, since every viewer
+  // wraps at the identical instant — while asking once per completed loop
+  // for whatever Edition is actually current now (mirrors the old model's
+  // own "TRANSITION -> LOAD_EDITION" trigger, just driven by the clock
+  // reaching the end of the timeline instead of a client walking off the
+  // end of its own local playlist index).
+  const loopCount = totalMs > 0 ? Math.floor(rawElapsedMs / totalMs) : 0;
+  const elapsedMs = totalMs > 0 ? rawElapsedMs % totalMs : 0;
+  const position = useMemo(
+    () => (totalMs > 0 ? computeTimedPosition(playlist, invalidSegmentIds, elapsedMs) : null),
+    [playlist, invalidSegmentIds, elapsedMs, totalMs],
+  );
+
+  const lastLoopRef = useRef(0);
+  useEffect(() => {
+    if (totalMs === 0) { refetchEdition(); return; } // nothing playable at all (e.g. every segment invalidated) — keep asking
+    if (loopCount > lastLoopRef.current) {
+      lastLoopRef.current = loopCount;
+      refetchEdition();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loopCount, totalMs]);
+
   const [overlayQueue, setOverlayQueue] = useState<LiveOverlayItem[]>([]);
   const [activeOverlay, setActiveOverlay] = useState<LiveOverlayItem | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Merge fresh live overlays into the queue (11.4/11.5), dropping anything this browser session has already shown.
   useEffect(() => {
@@ -122,85 +184,45 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
     setOverlayQueue(q => mergeOverlayQueue(q, fresh));
   }, [overlays, seenIds]);
 
-  /** Pops one ready overlay off the queue into `activeOverlay` if the current boundary allows it. Returns whether one was admitted. */
-  function tryAdmitOverlay(position: PlayheadPosition): boolean {
-    let admitted = false;
+  // Admits a queued overlay the instant the shared clock crosses a safe
+  // boundary (11.4) — `segment_boundary` for the whole `transition` beat
+  // (wide enough this tick-based check reliably lands inside it),
+  // `turn_boundary` the first tick the clock reaches a new turn. Overlays
+  // are deliberately NOT part of the shared clock at all: LiveInsertOverlay
+  // .tsx is a small banner layered on top (not a full-screen takeover), and
+  // the whole point of a shared clock is that it never pauses for any one
+  // viewer — the programme underneath keeps advancing exactly on schedule
+  // while the banner is up, the same as a real breaking-news crawl never
+  // pausing the show playing behind it. `lastBoundaryKeyRef` only fires this
+  // once per distinct position, not on every tick that happens to re-render
+  // with the same one.
+  const lastBoundaryKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!position) return;
+    const key = position.kind === "segment" ? `seg:${position.segmentIndex}:${position.turnIndex}` : `trans:${position.segmentIndex}`;
+    if (key === lastBoundaryKeyRef.current) return;
+    lastBoundaryKeyRef.current = key;
+    if (activeOverlay) return; // one at a time — the next queued overlay gets its own boundary once this one is dismissed
+
+    const boundary: PlayheadPosition = position.kind === "transition" ? { kind: "segment_boundary" } : { kind: "turn_boundary" };
     setOverlayQueue(q => {
-      const popped = popReadyOverlay(q, position);
+      const popped = popReadyOverlay(q, boundary);
       if (!popped) return q;
-      admitted = true;
       setActiveOverlay(popped.overlay);
       markSeen(popped.overlay.storyId);
       return popped.remainingQueue;
     });
-    return admitted;
-  }
-
-  // The main scheduler: one real timer per phase that needs one
-  // (PLAY_DIALOGUE_TURN's own reading-pace hold, TRANSITION's brief beat).
-  // BOOT/LOAD_EDITION/PLAY_SEGMENT are instant per scene-timing.ts's own
-  // state machine and just re-enter this effect on the next render.
-  useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    if (activeOverlay) return; // paused for LIVE_INSERT — resumes via dismissOverlay below
-
-    switch (state.phase) {
-      case "BOOT":
-      case "LOAD_EDITION":
-        setState(s => advancePlayerState(s, { totalTurnsInCurrentSegment: 0, hasMorePlayableSegments: playlist.length > 0 }));
-        return;
-
-      case "PLAY_SEGMENT": {
-        const playableIndex = nextPlayableSegmentIndex(playlist, invalidSegmentIds, state.segmentIndex);
-        if (playableIndex === -1) {
-          refetchEdition(); // programme (or everything left in it) is exhausted/invalid — fetch whatever Edition is current now
-          setState({ phase: "LOAD_EDITION", segmentIndex: 0, turnIndex: 0 });
-          return;
-        }
-        if (playableIndex !== state.segmentIndex) {
-          setState(s => ({ ...s, segmentIndex: playableIndex }));
-          return;
-        }
-        setState(s => advancePlayerState(s, { totalTurnsInCurrentSegment: playlist[playableIndex].dialogue.length, hasMorePlayableSegments: true }));
-        return;
-      }
-
-      case "PLAY_DIALOGUE_TURN": {
-        const segment = playlist[state.segmentIndex];
-        if (!segment) { setState({ phase: "LOAD_EDITION", segmentIndex: 0, turnIndex: 0 }); return; }
-        const turn = segment.dialogue[state.turnIndex];
-        const holdMs = Math.max(1000, (turn?.holdSeconds ?? 4) * 1000);
-        timerRef.current = setTimeout(() => {
-          if (tryAdmitOverlay({ kind: "turn_boundary" })) { setState(s => ({ ...s, phase: "LIVE_INSERT" })); return; }
-          setState(s => advancePlayerState(s, { totalTurnsInCurrentSegment: segment.dialogue.length, hasMorePlayableSegments: true }));
-        }, holdMs);
-        return;
-      }
-
-      case "TRANSITION": {
-        timerRef.current = setTimeout(() => {
-          if (tryAdmitOverlay({ kind: "segment_boundary" })) { setState(s => ({ ...s, phase: "LIVE_INSERT" })); return; }
-          const nextIndex = nextPlayableSegmentIndex(playlist, invalidSegmentIds, state.segmentIndex + 1);
-          setState(s => advancePlayerState(s, { totalTurnsInCurrentSegment: 0, hasMorePlayableSegments: nextIndex !== -1 }));
-        }, 500);
-        return;
-      }
-
-      case "LIVE_INSERT":
-        return; // handled by dismissOverlay below
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, activeOverlay, playlist, invalidSegmentIds]);
-
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  }, [position, activeOverlay, markSeen]);
 
   function dismissOverlay() {
-    setActiveOverlay(null);
-    setState(s => advancePlayerState(s, { totalTurnsInCurrentSegment: 0, hasMorePlayableSegments: true }));
+    setActiveOverlay(null); // the shared clock never paused, so this just uncovers wherever the programme already is
   }
 
-  const segment = playlist[state.segmentIndex] ?? null;
-  const turnsPlayed = state.turnIndex + 1;
+  const segment = position ? playlist[position.segmentIndex] ?? null : null;
+  // During the trailing transition beat, keep showing that segment's own
+  // last turn (nothing new to show yet) — the same as the old TRANSITION
+  // phase leaving its segment/turn untouched from PLAY_DIALOGUE_TURN.
+  const turnsPlayed = position && segment ? (position.kind === "segment" ? position.turnIndex + 1 : segment.dialogue.length) : 0;
   const SceneComponent = segment ? SCENE_COMPONENTS[segment.scene] : null;
   const cornerLabel = segment ? (segment.leagueType ? LEAGUE_LABEL[segment.leagueType] : SCENE_LABEL[segment.scene]) : "TKDL LIVE";
 
@@ -241,7 +263,14 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
 
       <LowerThirdDock>
         {activeTurn && (
-          <div className="lower-third-in" key={`${segment?.id}-${visible.length}`}>
+          // `minWidth: 0, maxWidth: "100%"` — this is LowerThirdDock's own
+          // flex item; without an explicit override a flex item's default
+          // `min-width: auto` lets LowerThird.tsx's own nowrap/truncate
+          // content force this (and the caption inside it) wider than the
+          // screen instead of shrinking to fit (see that file's own header
+          // for the full mechanism — a real user screenshot on a narrow
+          // phone showed exactly this, text clipped off both edges).
+          <div className="lower-third-in" style={{ minWidth: 0, maxWidth: "100%" }} key={`${segment?.id}-${visible.length}`}>
             <LowerThird turn={activeTurn} previousTurn={previousTurn} />
           </div>
         )}

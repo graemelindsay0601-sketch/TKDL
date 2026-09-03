@@ -122,58 +122,94 @@ export function popReadyOverlay(queue: readonly LiveOverlayItem[], position: Pla
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Player state machine — the shape BroadcastPlayer.tsx (once built) drives;
-// defined here so its transition RULES are pure and testable even though
-// nothing yet renders them.
+// Wall-clock-synchronized playhead — real user feedback: "if I started
+// watching the show right now and someone else started it in 5 mins, we'd
+// both be at the same part, same as how a live TV show actually works."
+//
+// This used to be a per-client chained-setTimeout state machine (a
+// PlayerState advanced one dialogue turn/segment at a time by
+// advancePlayerState() below, each call scheduled by BroadcastPlayer.tsx's
+// own setTimeout) — every browser tab paced itself independently starting
+// from whenever IT happened to mount, so two people watching the same
+// Edition were never actually watching the same instant, and anything that
+// could pause or drift one tab's own timers (a backgrounded tab throttling
+// them, or a phone fully reloading the page — see BroadcastPlayer.tsx's own
+// former resume-point mitigation, superseded by this) only pulled that
+// viewer further from everyone else's.
+//
+// `computeTimedPosition` below replaces that with a pure function of two
+// inputs every viewer already shares: this Edition's own `generatedAt`
+// timestamp (identical for everyone watching it) and `Date.now()`. Two tabs
+// opened minutes apart compute the exact same segment/turn from the exact
+// same formula — no per-tab state to advance, drift, or lose on a reload.
+// advancePlayerState/PlayerState/PlayerPhase (the old discrete machine) are
+// gone rather than kept alongside this as dead code, matching this file's
+// own established precedent (kit.tsx's removed v1 skin, same reasoning).
 // ═══════════════════════════════════════════════════════════════════════
 
-export type PlayerPhase = "BOOT" | "LOAD_EDITION" | "PLAY_SEGMENT" | "PLAY_DIALOGUE_TURN" | "TRANSITION" | "LIVE_INSERT";
+/** The fixed beat between one segment ending and the next starting — previously TRANSITION's own hard-coded `setTimeout(..., 500)` in BroadcastPlayer.tsx, folded in here so the shared clock accounts for it too. */
+export const TRANSITION_HOLD_MS = 500;
 
-export type PlayerState = {
-  phase: PlayerPhase;
-  segmentIndex: number;
-  turnIndex: number;
-};
-
-export const INITIAL_PLAYER_STATE: PlayerState = { phase: "BOOT", segmentIndex: 0, turnIndex: 0 };
+export type TimedPosition =
+  | { kind: "segment"; segmentIndex: number; turnIndex: number }
+  /** The trailing beat after `segmentIndex` finishes and before the next playable segment starts — the moment BroadcastPlayer.tsx should keep showing that segment's own last turn (nothing new to show yet) and treat as a `segment_boundary` for overlay purposes. */
+  | { kind: "transition"; segmentIndex: number };
 
 /**
- * One legal transition. Deliberately a plain data function (no side
- * effects, no timers) — advances by exactly one dialogue turn, rolling over
- * into TRANSITION once a segment's turns are exhausted, and back into
- * PLAY_SEGMENT for the next playable segment once a transition completes.
- * `totalTurnsInCurrentSegment` and `hasMorePlayableSegments` are supplied
- * by the caller (which knows the actual programme) rather than looked up
- * here, keeping this function's own signature framework- and data-shape-
- * agnostic.
+ * This Edition's own total on-screen runtime — every playable segment's
+ * dialogue plus its trailing transition beat, invalidated (11.6) segments
+ * skipped entirely. Once elapsed time since the Edition started reaches
+ * this, the prepared programme has played out in full; the caller wraps
+ * `elapsedMs` back into [0, this) to loop the same Edition (still perfectly
+ * in sync — every viewer wraps at the identical instant) while it asks for
+ * whatever Edition is current now, mirroring the old advancePlayerState's
+ * own TRANSITION -> LOAD_EDITION rule. Zero when nothing is playable at all
+ * (an empty programme, or every segment invalidated).
  */
-export function advancePlayerState(
-  state: PlayerState,
-  input: { totalTurnsInCurrentSegment: number; hasMorePlayableSegments: boolean },
-): PlayerState {
-  switch (state.phase) {
-    case "BOOT":
-      return { phase: "LOAD_EDITION", segmentIndex: 0, turnIndex: 0 };
-    case "LOAD_EDITION":
-      return { phase: "PLAY_SEGMENT", segmentIndex: state.segmentIndex, turnIndex: 0 };
-    case "PLAY_SEGMENT":
-      return { phase: "PLAY_DIALOGUE_TURN", segmentIndex: state.segmentIndex, turnIndex: 0 };
-    case "PLAY_DIALOGUE_TURN": {
-      const nextTurn = state.turnIndex + 1;
-      if (nextTurn < input.totalTurnsInCurrentSegment) {
-        return { phase: "PLAY_DIALOGUE_TURN", segmentIndex: state.segmentIndex, turnIndex: nextTurn };
-      }
-      return { phase: "TRANSITION", segmentIndex: state.segmentIndex, turnIndex: state.turnIndex };
-    }
-    case "TRANSITION":
-      return input.hasMorePlayableSegments
-        ? { phase: "PLAY_SEGMENT", segmentIndex: state.segmentIndex + 1, turnIndex: 0 }
-        : { phase: "LOAD_EDITION", segmentIndex: 0, turnIndex: 0 }; // programme exhausted — re-fetch/loop
-    case "LIVE_INSERT":
-      // A LIVE_INSERT is entered/exited explicitly by the caller around a
-      // TRANSITION or turn boundary (it isn't part of the normal segment/
-      // turn cycle), so advancing it just resumes exactly where playback
-      // was before the insert.
-      return { phase: "PLAY_SEGMENT", segmentIndex: state.segmentIndex, turnIndex: state.turnIndex };
+export function totalPlayableDurationMs(playlist: readonly Segment[], invalidSegmentIds: ReadonlySet<string>): number {
+  let total = 0;
+  for (const segment of playlist) {
+    if (invalidSegmentIds.has(segment.id)) continue;
+    total += segmentDurationMs(segment.dialogue) + TRANSITION_HOLD_MS;
   }
+  return total;
+}
+
+/**
+ * Where the shared clock says playback is right now, `elapsedMs` after the
+ * programme's own start — a pure function of the programme data and a
+ * clock reading, so any two callers with the same inputs get the identical
+ * answer. `elapsedMs` is assumed already wrapped into [0,
+ * totalPlayableDurationMs(...)) by the caller; this returns null only for
+ * the degenerate case of nothing playable to show (an empty playlist, or
+ * every segment invalidated — `totalPlayableDurationMs` would be 0 too).
+ *
+ * A segment invalidated (11.6) after some viewers have already played
+ * through it, in wall-clock terms, still simply isn't in this walk — every
+ * CURRENT viewer's timeline shifts uniformly to skip it, the same as a real
+ * broadcast schedule adjusting for a story getting pulled, rather than only
+ * affecting whoever's local state hadn't reached it yet (the old model's
+ * own, weaker, per-client version of the same idea).
+ */
+export function computeTimedPosition(playlist: readonly Segment[], invalidSegmentIds: ReadonlySet<string>, elapsedMs: number): TimedPosition | null {
+  let cursor = 0;
+  for (let i = 0; i < playlist.length; i++) {
+    const segment = playlist[i];
+    if (invalidSegmentIds.has(segment.id)) continue;
+
+    const dialogueMs = segmentDurationMs(segment.dialogue);
+    if (elapsedMs < cursor + dialogueMs) {
+      const offset = elapsedMs - cursor;
+      const schedule = scheduleDialogueTurns(segment.dialogue);
+      const turn = schedule.find(t => offset < t.endMs) ?? schedule[schedule.length - 1];
+      return { kind: "segment", segmentIndex: i, turnIndex: turn?.turnIndex ?? 0 };
+    }
+    cursor += dialogueMs;
+
+    if (elapsedMs < cursor + TRANSITION_HOLD_MS) {
+      return { kind: "transition", segmentIndex: i };
+    }
+    cursor += TRANSITION_HOLD_MS;
+  }
+  return null;
 }

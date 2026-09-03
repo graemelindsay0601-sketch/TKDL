@@ -107,7 +107,7 @@ import {
   type StoryScoreComponents, type StoryFreshnessClass, type StoryLifecycle,
 } from "./story-engine-math";
 import {
-  familyForStoryType, FORM_STORY_TYPES, H2H_STORY_TYPES, SHIFT_WARS_STORY_TYPES,
+  familyForStoryType, FORM_STORY_TYPES, H2H_STORY_TYPES, LEAGUE_STORY_TYPES, SHIFT_WARS_STORY_TYPES,
   type StoryCandidate, type StoryType, type StoryFamily,
 } from "./story-types";
 import { detectResultStories, type SinglesResultMatchFacts } from "./story-detectors-result";
@@ -119,6 +119,8 @@ import { detectMilestoneStories, type SinglesMilestoneFacts } from "./story-dete
 import { detectDoublesMatchStories, detectDoublesFormStories, type DoublesMatchResultFacts, type DoublesTeamFormFacts } from "./story-detectors-doubles";
 import { detectShiftWarsStories, type ShiftWarsStandingsFacts, type ShiftWarsTeamStanding, type ShiftWarsDeficitWindow } from "./story-detectors-shift-wars";
 import { detectArchiveH2HStories, detectSeasonComparison, type ArchiveH2HFacts, type SeasonComparisonFacts } from "./story-detectors-archive";
+import { detectShadowBotPromo, detectPracticeActivity, detectFeatureSpotlight, type PracticeActivityFacts } from "./story-detectors-filler";
+import { listEnabledFeatureSpotlights } from "./feature-spotlight-registry";
 
 const MODEL_VERSION = "story-engine-v1";
 const DEFAULT_GAME_TYPE = "501";
@@ -187,7 +189,7 @@ function narrativeContinuityComponent(previousLifecycle: StoryLifecycle | null):
  */
 const SEASON_ANCHORED_TYPES: ReadonlySet<StoryType> = new Set<StoryType>([
   "NEW_LEADER", "LEAD_TIGHTENS", "LEAD_WIDENS", "TITLE_SWING", "NEW_FAVOURITE",
-  "DEAD_HEAT", "TITLE_RACE", "CHAMPION", "TIE_PENDING",
+  "DEAD_HEAT", "TITLE_RACE", "CHAMPION", "TIE_PENDING", "SEASON_KICKOFF",
   "SHIFT_LEAD_CHANGE", "SHIFT_MOMENTUM", "SHIFT_COMEBACK", "SHIFT_DOMINANCE",
   "SEASON_COMPARISON",
 ]);
@@ -769,6 +771,16 @@ function h2hRecordToArchiveFacts(leagueType: LeagueType, entityAId: number, enti
 }
 
 async function gatherSeasonComparisonFactsForPlayer(playerId: number, currentSeasonId: number, cutoffEnd: Date, currentPosition: number | null): Promise<SeasonComparisonFacts | null> {
+  // Fetched once per (player, season) call, same as priorSeason below — not
+  // hoisted out of this per-player function, matching this function's own
+  // existing per-player query pattern (priorStanding is looked up the same
+  // way). See SeasonComparisonFacts's own comment for why these two names
+  // matter: without them, several different SEASON_COMPARISON stories (each
+  // genuinely about a different pair of months) are indistinguishable once
+  // more than one of them airs in the same edition.
+  const [currentSeason] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, currentSeasonId)).limit(1);
+  const currentSeasonName = currentSeason?.name ?? "the current season";
+
   const [priorSeason] = await db
     .select()
     .from(seasonsTable)
@@ -782,7 +794,7 @@ async function gatherSeasonComparisonFactsForPlayer(playerId: number, currentSea
     : 0;
 
   if (!priorSeason) {
-    return { leagueType: "singles", entityId: playerId, currentSeasonWinRate, previousSeasonWinRate: null, currentSeasonPosition: currentPosition, previousSeasonFinalPosition: null };
+    return { leagueType: "singles", entityId: playerId, currentSeasonName, currentSeasonWinRate, previousSeasonName: null, previousSeasonWinRate: null, currentSeasonPosition: currentPosition, previousSeasonFinalPosition: null };
   }
 
   const [priorStanding] = await db
@@ -792,13 +804,14 @@ async function gatherSeasonComparisonFactsForPlayer(playerId: number, currentSea
     .limit(1);
   if (!priorStanding) {
     // Player wasn't part of that closed season at all (e.g. joined since) -- no prior data to compare against.
-    return { leagueType: "singles", entityId: playerId, currentSeasonWinRate, previousSeasonWinRate: null, currentSeasonPosition: currentPosition, previousSeasonFinalPosition: null };
+    return { leagueType: "singles", entityId: playerId, currentSeasonName, currentSeasonWinRate, previousSeasonName: priorSeason.name, previousSeasonWinRate: null, currentSeasonPosition: currentPosition, previousSeasonFinalPosition: null };
   }
 
   const priorGames = priorStanding.wins + priorStanding.losses;
   return {
     leagueType: "singles", entityId: playerId,
-    currentSeasonWinRate,
+    currentSeasonName, currentSeasonWinRate,
+    previousSeasonName: priorSeason.name,
     previousSeasonWinRate: priorGames > 0 ? priorStanding.wins / priorGames : 0,
     currentSeasonPosition: currentPosition,
     previousSeasonFinalPosition: priorStanding.position,
@@ -862,6 +875,12 @@ function seasonEndedInWindow(season: typeof seasonsTable.$inferSelect, cutoffSta
   return endedAt >= new Date(cutoffStart.toISOString().slice(0, 10)) && endedAt <= cutoffEnd;
 }
 
+/** SEASON_KICKOFF's own counterpart to seasonEndedInWindow above — same window-boundary check, against startDate instead. Every season has a startDate (NOT NULL in the schema), so unlike seasonEndedInWindow there's no "still active" guard needed here. */
+function seasonStartedInWindow(season: typeof seasonsTable.$inferSelect, cutoffStart: Date, cutoffEnd: Date): boolean {
+  const startedAt = new Date(`${season.startDate}T00:00:00Z`);
+  return startedAt >= new Date(cutoffStart.toISOString().slice(0, 10)) && startedAt <= cutoffEnd;
+}
+
 async function resolveDoublesChampionTeamId(seasonId: number): Promise<number | null> {
   const rows = (await db.execute(sql`SELECT id FROM doubles_teams WHERE season_id = ${seasonId} ORDER BY points DESC, elo DESC LIMIT 1`)).rows as { id: number }[];
   return rows[0]?.id ?? null;
@@ -901,6 +920,7 @@ async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cut
     const facts: LeagueStandingsFacts = {
       leagueType, seasonId, current: [], previous: null,
       singlesTiePending: false, seasonJustEnded: true, championEntityId,
+      seasonJustStarted: false, seasonName: season.name,
     };
     return { candidates: detectChampionOnly(facts), confidence: 100, storyTypesRun: ["CHAMPION"] };
   }
@@ -956,9 +976,10 @@ async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cut
     leagueType, seasonId, current, previous,
     singlesTiePending: leagueType === "singles" && season.playoffPending,
     seasonJustEnded: false, championEntityId: null,
+    seasonJustStarted: seasonStartedInWindow(season, cutoffStart, cutoffEnd), seasonName: season.name,
   };
 
-  return { candidates: detectLeagueStories(facts), confidence, storyTypesRun: ["NEW_LEADER", "LEAD_TIGHTENS", "LEAD_WIDENS", "TITLE_SWING", "NEW_FAVOURITE", "DEAD_HEAT", "TITLE_RACE", "TIE_PENDING"] };
+  return { candidates: detectLeagueStories(facts), confidence, storyTypesRun: ["NEW_LEADER", "LEAD_TIGHTENS", "LEAD_WIDENS", "TITLE_SWING", "NEW_FAVOURITE", "DEAD_HEAT", "TITLE_RACE", "TIE_PENDING", "SEASON_KICKOFF"] };
 }
 
 async function attachWinsLosses(leagueType: "doubles" | "shift_wars", seasonId: number, current: LeagueEntityStanding[]): Promise<StoredStandingSnapshot[]> {
@@ -1137,11 +1158,145 @@ async function relevantSeasonIdsForLeague(
   return ids;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// FILLER family gathering — PRACTICE_ACTIVITY (real query, see below);
+// SHADOW_BOT_PROMO takes no facts at all (story-detectors-filler.ts's own
+// header); FEATURE_SPOTLIGHT reads feature-spotlight-registry.ts's own
+// enabled rows directly, gathered inline at the FILLER wiring call site
+// below rather than through a dedicated function here (a plain read, no
+// aggregation to name and isolate the way this one has).
+// ═══════════════════════════════════════════════════════════════════════
+
+/** A rolling window ending "now," not "since the last batch" — see story-detectors-filler.ts's own header on why PRACTICE_ACTIVITY has no real "new since X" concept; a short gap between Edition builds shouldn't make a genuinely active week read as quiet just because most of its sessions fall outside a tiny cutoffStart..cutoffEnd slice. */
+const PRACTICE_ACTIVITY_WINDOW_DAYS = 7;
+
+/**
+ * Real, verified COUNT(*)/COUNT(DISTINCT ...) aggregates over practice_sessions
+ * — never Shadow Bot sessions, which store their marker in
+ * session_data->>'shadowPlayerId' rather than as a separate table (see
+ * routes/practice.ts's own shadow-bot-matches query, which filters the same
+ * way), per this feature's own product decision that Shadow Bot stays pure
+ * promotional content with no real-result reporting attached to it.
+ */
+async function gatherPracticeActivityFacts(cutoffEnd: Date): Promise<PracticeActivityFacts> {
+  const windowStart = new Date(cutoffEnd.getTime() - PRACTICE_ACTIVITY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const rows = (await db.execute(sql`
+    SELECT player1_id, COUNT(*)::int AS session_count
+    FROM practice_sessions
+    WHERE created_at > ${windowStart} AND created_at <= ${cutoffEnd}
+      AND session_data->>'shadowPlayerId' IS NULL
+      AND player1_id IS NOT NULL
+    GROUP BY player1_id
+    ORDER BY session_count DESC
+  `)).rows as { player1_id: number; session_count: number }[];
+
+  const sessionCount = rows.reduce((sum, r) => sum + r.session_count, 0);
+  const top = rows[0] ?? null;
+
+  return {
+    windowDays: PRACTICE_ACTIVITY_WINDOW_DAYS,
+    sessionCount,
+    distinctPlayerCount: rows.length,
+    topPlayerId: top?.player1_id ?? null,
+    topPlayerSessionCount: top?.session_count ?? 0,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Time-based ARCHIVED sweep — story-engine-math.ts's own nextLifecycle()
+// comment flags this as a real scope boundary: "the actual time-based
+// ARCHIVED sweep... needs wall-clock tracking across Edition builds, which
+// is the Director's job, not this pure function's." This is that sweep. It
+// lives here rather than in director.ts because it needs the SAME
+// season-closing knowledge processLeagueFamily already reads
+// (seasons.endDate) to decide when a season is "done," and because it
+// writes broadcast_stories.lifecycle directly — director.ts never touches
+// that column, it only ever reads whatever collectNewAndActiveStories()
+// already handed it.
+//
+// SCOPE — deliberately narrow, not a general "everything ages out"
+// mechanism. CHAMPION and the rest of the season-anchored LEAGUE/
+// SHIFT_WARS family (NEW_LEADER, TITLE_RACE, SHIFT_LEAD_CHANGE, etc.) are
+// detected exactly once per season by processLeagueFamily/
+// buildShiftWarsFamilyFacts, and — once that season stops appearing in
+// relevantSeasonIdsForLeague's own window — can structurally NEVER be
+// re-detected again (a closed season never re-enters that set). That's
+// exactly the real bug a user report traced this to: a champion crowned
+// months ago, or a since-closed season's standings comparison, sat frozen
+// at whatever lifecycle it got on the one pass it was ever written, with
+// nothing to ever move it past NEW/ACTIVE — looking permanently "current"
+// next to whatever's actually happening now. Sweeping these to ARCHIVED
+// is safe precisely because that structural "can never be re-detected"
+// guarantee rules out the one risk this kind of sweep would otherwise
+// have: colliding with a genuine still-ongoing re-detection (which is
+// exactly why FORM/H2H/RESULT/PERFORMANCE/MILESTONE — families that DO
+// keep getting legitimately re-upserted for as long as the underlying
+// situation stays true, and whose own freshness decay already keeps them
+// correctly deprioritised without a hard cutoff — are deliberately left
+// alone here, rather than folded into one "sweep everything" pass).
+//
+// SEASON_COMPARISON is season-anchored too but deliberately EXCLUDED from
+// this sweep, even though it's detected the exact same "once, then never
+// again" way — see story-detectors-archive.ts / director.ts's own slot-8
+// header: it's part of the ARCHIVE family on purpose, the same "lighter,
+// evergreen flashback" content LAST_MEETING/HISTORICAL_H2H are, meant to
+// stay available for a callback slot indefinitely, not something that
+// should ever disappear from the pool outright.
+const SEASON_STORY_ARCHIVAL_GRACE_DAYS = 14;
+
+/** LEAGUE ∪ SHIFT_WARS — every season-anchored type EXCEPT ARCHIVE's own SEASON_COMPARISON (see this section's header for why that one stays out). */
+const ARCHIVABLE_SEASON_STORY_TYPES: readonly StoryType[] = [...LEAGUE_STORY_TYPES, ...SHIFT_WARS_STORY_TYPES];
+
+/** Every closed season (endDate set) whose endDate is more than `graceDays` before `now`. Fetched and filtered in JS rather than compared in SQL: seasons.endDate is a plain `date` column (mode: "string", e.g. "2026-03-15"), and every other site in this file that needs to compare it against a real Date already does the same `` new Date(`${endDate}T00:00:00Z`) `` conversion client-side (see seasonEndedInWindow above) rather than pushing date arithmetic into the query. */
+async function closedSeasonsOlderThan(now: Date, graceDays: number): Promise<{ id: number; leagueType: LeagueType }[]> {
+  const cutoff = new Date(now.getTime() - graceDays * 24 * 60 * 60 * 1000);
+  const rows = await db.select({ id: seasonsTable.id, leagueType: seasonsTable.leagueType, endDate: seasonsTable.endDate })
+    .from(seasonsTable)
+    .where(sql`${seasonsTable.endDate} IS NOT NULL`);
+  return rows
+    .filter(row => new Date(`${row.endDate}T00:00:00Z`) < cutoff)
+    // seasonsTable.leagueType is a plain text() column (no $type<LeagueType>()
+    // override — see lib/db/src/schema/seasons.ts), so a raw select always
+    // comes back typed as `string`; every real row is one of the three
+    // values LEAGUE_TYPES enforces at the application layer (there's no DB
+    // check constraint), same trust boundary story.storyType/lifecycle
+    // already cross via `as StoryType`/`as StoryLifecycle` casts elsewhere
+    // in this file.
+    .map(row => ({ id: row.id, leagueType: row.leagueType as LeagueType }));
+}
+
+/**
+ * Archives every still-live (NEW/HOT/ACTIVE/COOLING) row for the
+ * archivable season-anchored types, for every season that closed more than
+ * SEASON_STORY_ARCHIVAL_GRACE_DAYS ago — see this section's own header for
+ * the full reasoning. Returns how many rows it actually changed, purely
+ * for the caller's own result/observability reporting.
+ */
+async function sweepStaleSeasonStories(now: Date): Promise<number> {
+  const closedSeasons = await closedSeasonsOlderThan(now, SEASON_STORY_ARCHIVAL_GRACE_DAYS);
+  let archivedCount = 0;
+  for (const season of closedSeasons) {
+    for (const storyType of ARCHIVABLE_SEASON_STORY_TYPES) {
+      const prefix = seasonAnchoredStoryKeyPrefix(season.leagueType, storyType, season.id);
+      const updated = await db.update(broadcastStoriesTable)
+        .set({ lifecycle: "ARCHIVED", resolvedAt: now, updatedAt: now })
+        .where(and(
+          like(broadcastStoriesTable.storyKey, `${prefix}%`),
+          inArray(broadcastStoriesTable.lifecycle, ["NEW", "HOT", "ACTIVE", "COOLING"]),
+        ))
+        .returning({ id: broadcastStoriesTable.id });
+      archivedCount += updated.length;
+    }
+  }
+  return archivedCount;
+}
+
 export type DetectAndUpdateStoriesResult = {
   cutoffStart: Date;
   cutoffEnd: Date;
   newMatchesProcessed: { singles: number; doubles: number; shiftWars: number };
   storiesUpserted: number;
+  storiesArchived: number;
   byFamily: Partial<Record<StoryFamily, number>>;
 };
 
@@ -1375,10 +1530,50 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
     await resolveUndetectedSeasonStories({ leagueType: "shift_wars", storyTypesInFamily: SHIFT_WARS_STORY_TYPES, seasonId, detectedKeysByType, now: cutoffEnd });
   }
 
+  // ── FILLER family: all three detectors, now that the infrastructure the
+  // other two needed actually exists ──────────────────────────────────────
+  // story-detectors-filler.ts was fully written well before any of it was
+  // wired in here — real content this show is specifically designed to
+  // fall back on "when there isn't enough real match news" (that file's
+  // own header) was sitting completely unused, which made the exact
+  // content-drought scenario it exists for (an off-season/no-new-matches
+  // batch) worse than it needed to be: with FILLER contributing nothing,
+  // the story pool in that situation was left with nothing BUT the frozen,
+  // never-resolved multi-season ARCHIVE/CHAMPION/SEASON_COMPARISON
+  // backlog, which is what a real user report ("the catch-up episode is
+  // just a clump of all seasons") traced back to. SHADOW_BOT_PROMO was
+  // wired in first (it needs no real supporting data — pure explainer
+  // copy). PRACTICE_ACTIVITY's own real aggregate query
+  // (gatherPracticeActivityFacts above) and FEATURE_SPOTLIGHT's own
+  // registry table (feature-spotlight-registry.ts, broadcast_feature_
+  // spotlights) now exist too, so all three are wired in together.
+  //
+  // Confidence is 100 for both of the newly-added ones, same reasoning as
+  // SEASON_COMPARISON/MILESTONE elsewhere in this file: PRACTICE_ACTIVITY
+  // is a real COUNT(*)/COUNT(DISTINCT ...) aggregate, not a prediction, and
+  // FEATURE_SPOTLIGHT is a direct registry read — neither has any
+  // uncertainty to express.
+  await recordUpsert(detectShadowBotPromo(), 100, null);
+
+  const practiceActivityFacts = await gatherPracticeActivityFacts(cutoffEnd);
+  const practiceActivityCandidate = detectPracticeActivity(practiceActivityFacts);
+  if (practiceActivityCandidate) await recordUpsert(practiceActivityCandidate, 100, null);
+
+  const enabledSpotlights = await listEnabledFeatureSpotlights();
+  for (const spotlight of enabledSpotlights) {
+    await recordUpsert(detectFeatureSpotlight(spotlight), 100, null);
+  }
+
+  // ── Time-based ARCHIVED sweep — see this file's own section header above
+  // buildOrder-wise, this runs LAST: it only ever touches season-anchored
+  // rows for seasons that are long closed, so it can never interact with
+  // anything this same batch just upserted above. ─────────────────────────
+  const storiesArchived = await sweepStaleSeasonStories(cutoffEnd);
+
   return {
     cutoffStart, cutoffEnd,
     newMatchesProcessed: { singles: newMatches.singles.length, doubles: newMatches.doubles.length, shiftWars: newMatches.shiftWars.length },
-    storiesUpserted, byFamily,
+    storiesUpserted, storiesArchived, byFamily,
   };
 }
 

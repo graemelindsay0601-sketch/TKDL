@@ -78,7 +78,7 @@ router.get("/broadcast/current", async (req, res): Promise<void> => {
   try {
     const [edition, config] = await Promise.all([ensureCurrentBroadcastEdition(), getBroadcastConfig()]);
     const nextSlot = resolveNextLogicalSlot(new Date(), {
-      middayTime: config.middayTime, eveningTime: config.eveningTime, nightTime: config.nightTime, timezone: config.timezone,
+      middayTime: config.middayTime, eveningTime: config.eveningTime, nightTime: config.nightTime, timezone: config.timezone, singleDailyEpisode: config.singleDailyEpisode,
     });
     const channel = { nextLogicalSlot: nextSlot.slotKey, programmeVersion: config.programmeVersion, commentaryVersion: config.commentaryVersion };
     const live = { pollSeconds: config.livePollSeconds };

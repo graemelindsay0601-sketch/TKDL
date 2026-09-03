@@ -19,6 +19,7 @@ export const BROADCAST_SETTING_KEYS = [
   "broadcast_banter_level",
   "broadcast_commentary_version",
   "broadcast_programme_version",
+  "broadcast_single_daily_episode",
 ] as const;
 export type BroadcastSettingKey = (typeof BROADCAST_SETTING_KEYS)[number];
 
@@ -34,6 +35,13 @@ export const BROADCAST_SETTING_DEFAULTS: Record<BroadcastSettingKey, string> = {
   broadcast_banter_level: "1",
   broadcast_commentary_version: "1",
   broadcast_programme_version: "1",
+  // Direct response to player feedback ("even if we do one new episode a
+  // day... not just a constant same episode loop"): defaults ON, so the day
+  // reads as one appointment episode (the "night" wrap-up slot, using
+  // broadcast_night_time as its fire time) rather than three similar-
+  // looking midday/evening/night refreshes. "0" restores the legacy
+  // three-slot-a-day cadence for anyone who wants it back.
+  broadcast_single_daily_episode: "1",
 };
 
 export type BroadcastConfig = {
@@ -55,6 +63,8 @@ export type BroadcastConfig = {
   commentaryVersion: number;
   /** 14.4's channel.programmeVersion — bumping this signals a running-order/template change to clients, independent of commentaryVersion. */
   programmeVersion: number;
+  /** When true (the default), the day has exactly one guaranteed episode (the "night" slot, fired at nightTime) instead of three separate midday/evening/night slots — see edition-slots.ts's own resolveLogicalSlot/resolveNextLogicalSlot for how this collapses slot resolution down to a single daily instant. */
+  singleDailyEpisode: boolean;
 };
 
 function warnAndFallback(key: BroadcastSettingKey, raw: string, reason: string): string {
@@ -100,6 +110,9 @@ export function validateBroadcastSettingValue(key: BroadcastSettingKey, raw: str
       return "must be a valid IANA timezone name (e.g. \"Europe/London\")";
     }
   }
+  if (key === "broadcast_single_daily_episode") {
+    return raw === "0" || raw === "1" ? null : "must be \"0\" or \"1\"";
+  }
   const min = key === "broadcast_banter_level" ? 0 : 1;
   const n = Number(raw);
   if (!Number.isFinite(n) || !Number.isInteger(n) || n < min) return `must be an integer >= ${min}`;
@@ -119,5 +132,6 @@ export function resolveBroadcastConfig(raw: (key: BroadcastSettingKey) => string
     banterLevel: parseSettingInt("broadcast_banter_level", raw("broadcast_banter_level"), 0),
     commentaryVersion: parseSettingInt("broadcast_commentary_version", raw("broadcast_commentary_version")),
     programmeVersion: parseSettingInt("broadcast_programme_version", raw("broadcast_programme_version")),
+    singleDailyEpisode: raw("broadcast_single_daily_episode") !== "0",
   };
 }

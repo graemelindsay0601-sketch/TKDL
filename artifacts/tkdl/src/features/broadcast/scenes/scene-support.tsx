@@ -1,9 +1,9 @@
 // TKDL LIVE — small shared helpers every scenes/*.tsx file uses: turning a
 // Segment's own `graphic` into the right graphics/*.tsx element, and slicing
 // its dialogue down to "only the turns played so far" (BroadcastPlayer.tsx's
-// PlayerState.turnIndex, translated by the caller into a 1-based count —
-// scenes themselves stay ignorant of the state machine, they just render
-// whatever slice of dialogue they're handed).
+// own computeTimedPosition()-derived turnIndex, translated by the caller
+// into a 1-based count — scenes themselves stay ignorant of the shared
+// clock, they just render whatever slice of dialogue they're handed).
 import { GRAPHIC_COMPONENTS } from "../graphics";
 import { humanizeStoryType, visualTierForImportance, type VisualTier } from "../theme";
 import type { Segment } from "../types";

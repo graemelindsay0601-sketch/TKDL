@@ -20,6 +20,7 @@ import {
   detectTitleRace,
   detectChampion,
   detectTiePending,
+  detectSeasonKickoff,
   detectLeagueStories,
   type LeagueStandingsFacts,
   type LeagueEntityStanding,
@@ -46,6 +47,8 @@ function baseFacts(overrides: Partial<LeagueStandingsFacts> = {}): LeagueStandin
     singlesTiePending: false,
     seasonJustEnded: false,
     championEntityId: null,
+    seasonJustStarted: false,
+    seasonName: "September 2026",
     ...overrides,
   };
 }
@@ -226,6 +229,26 @@ describe("detectChampion (Appendix A: official season champion state)", () => {
     assert.equal(stories.length, 1);
     assert.equal(stories[0].components.competitiveImportance, 25);
   });
+
+  test("carries the season name through to facts — several champions from different months must be tellable apart", () => {
+    const stories = detectChampion(baseFacts({ seasonJustEnded: true, championEntityId: 1, seasonName: "March 2026" }));
+    assert.equal(stories[0].facts.seasonName, "March 2026");
+  });
+});
+
+describe("detectSeasonKickoff (a fresh season just began)", () => {
+  test("season not just started does not trigger", () => {
+    assert.deepEqual(detectSeasonKickoff(baseFacts({ seasonJustStarted: false })), []);
+  });
+
+  test("season just started triggers, carrying the season name and entrant count", () => {
+    const facts = baseFacts({ seasonJustStarted: true, seasonName: "September 2026" });
+    const stories = detectSeasonKickoff(facts);
+    assert.equal(stories.length, 1);
+    assert.equal(stories[0].facts.seasonName, "September 2026");
+    assert.equal(stories[0].facts.entrantCount, facts.current.length);
+    assert.deepEqual(stories[0].subjectKeys, []); // about the season itself, not any one entity
+  });
 });
 
 describe("detectTiePending (Appendix A: Singles points tie requiring official tiebreak)", () => {
@@ -256,5 +279,11 @@ describe("detectLeagueStories (runs the full LEAGUE family together)", () => {
     // TITLE_RACE (3 viable entities at 0.4/0.3/0.2) is the only thing that
     // needs no prior snapshot to evaluate in this fixture.
     assert.deepEqual(types, ["TITLE_RACE"]);
+  });
+
+  test("a season that just started runs SEASON_KICKOFF alongside the normal standings-based detectors", () => {
+    const facts = baseFacts({ previous: null, seasonJustStarted: true });
+    const types = detectLeagueStories(facts).map(s => s.storyType).sort();
+    assert.deepEqual(types, ["SEASON_KICKOFF", "TITLE_RACE"]);
   });
 });

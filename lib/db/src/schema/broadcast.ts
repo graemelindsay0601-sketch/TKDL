@@ -1,8 +1,10 @@
-import { pgTable, serial, integer, text, jsonb, real, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, jsonb, real, timestamp, uniqueIndex, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-// TKDL LIVE — four broadcast-specific tables (handover doc section 13).
+// TKDL LIVE — five broadcast-specific tables (handover doc section 13,
+// plus 13.5 below — added later, alongside the FILLER family's
+// FEATURE_SPOTLIGHT story type, not part of the original doc).
 // Deliberately does NOT duplicate matches or standings: everything here is
 // either broadcast-only state (an Edition's assembled programme, a story's
 // lifecycle/score) or a point-in-time snapshot of a prediction that was
@@ -143,3 +145,30 @@ export const broadcastMemoryTable = pgTable("broadcast_memory", {
 export const insertBroadcastMemorySchema = createInsertSchema(broadcastMemoryTable).omit({ id: true });
 export type InsertBroadcastMemory = z.infer<typeof insertBroadcastMemorySchema>;
 export type BroadcastMemory = typeof broadcastMemoryTable.$inferSelect;
+
+// ── 13.5 broadcast_feature_spotlights ────────────────────────────────────
+// Backs the FILLER family's FEATURE_SPOTLIGHT story type (story-types.ts,
+// story-detectors-filler.ts's own header) — a small, admin-curated registry
+// of already-shipped features/modes worth an occasional broadcast
+// shout-out. Deliberately its own table rather than reusing feature_flags:
+// that table gates whether a feature is LIVE at all (kill-switch/
+// admin-test-mode semantics — see feature-flags.ts), which is a different
+// question from "is this worth mentioning on air right now" — a feature
+// could be fully live and simply not worth spotlighting forever, or
+// (rarer) worth a spotlight the flags table doesn't cleanly express. Actual
+// idempotent CREATE TABLE + seed DDL lives in
+// artifacts/api-server/src/db/migrations/add_feature_spotlights.ts, same
+// split as every other hand-rolled-SQL table in this app.
+export const broadcastFeatureSpotlightsTable = pgTable("broadcast_feature_spotlights", {
+  id: serial("id").primaryKey(),
+  featureKey: text("feature_key").notNull().unique(),
+  featureName: text("feature_name").notNull(),
+  blurb: text("blurb").notNull(),
+  /** An admin can retire a spotlight without losing its row/history — set false rather than deleted. */
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertBroadcastFeatureSpotlightSchema = createInsertSchema(broadcastFeatureSpotlightsTable).omit({ id: true, createdAt: true });
+export type InsertBroadcastFeatureSpotlight = z.infer<typeof insertBroadcastFeatureSpotlightSchema>;
+export type BroadcastFeatureSpotlight = typeof broadcastFeatureSpotlightsTable.$inferSelect;

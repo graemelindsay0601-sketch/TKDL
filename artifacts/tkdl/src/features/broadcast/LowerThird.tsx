@@ -38,7 +38,19 @@ export function LowerThird({ turn, previousTurn }: LowerThirdProps) {
   const presenter = PRESENTERS[speaker];
 
   return (
-    <div className="flex flex-col items-stretch" style={{ maxWidth: 640, width: "100%" }}>
+    // `minWidth: 0` on every level below — a real user screenshot on a
+    // narrow phone showed this whole caption box, and the active line's own
+    // text with it, overflowing past both screen edges rather than wrapping.
+    // Cause: `previousTurn`'s line uses `truncate` (nowrap + ellipsis), and
+    // a `white-space: nowrap` element's contribution to its flex ancestors'
+    // shrink calculation is its FULL un-wrapped width, not the visually
+    // clipped one — flex items default to `min-width: auto`, so without an
+    // explicit override that full width becomes a hard floor the whole
+    // lower-third (and everything sharing its flex row, incl. the box
+    // BroadcastPlayer.tsx mounts this in) refuses to shrink below, however
+    // narrow the actual viewport is. `min-width: 0` at each nesting level
+    // removes that floor so `width: 100%`/`truncate` can do their real job.
+    <div className="flex flex-col items-stretch" style={{ maxWidth: 640, width: "100%", minWidth: 0 }}>
       {previousTurn && (
         <div
           className="self-start flex items-baseline gap-1.5 px-3 py-1 mb-1"
@@ -48,12 +60,14 @@ export function LowerThird({ turn, previousTurn }: LowerThirdProps) {
             transformOrigin: "left bottom",
             background: "rgba(6,4,14,0.72)",
             borderLeft: `2px solid ${PRESENTERS[previousTurn.speaker as PresenterId].accent}80`,
+            maxWidth: "100%",
+            minWidth: 0,
           }}
         >
           <span className="font-bold uppercase shrink-0" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.05em", color: PRESENTERS[previousTurn.speaker as PresenterId].accent }}>
             {PRESENTERS[previousTurn.speaker as PresenterId].name}
           </span>
-          <span className="truncate" style={{ fontFamily: "Inter, sans-serif", fontSize: "0.78rem", lineHeight: 1.3, color: "rgba(255,255,255,0.6)" }}>
+          <span className="truncate" style={{ fontFamily: "Inter, sans-serif", fontSize: "0.78rem", lineHeight: 1.3, color: "rgba(255,255,255,0.6)", minWidth: 0 }}>
             {previousTurn.text}
           </span>
         </div>

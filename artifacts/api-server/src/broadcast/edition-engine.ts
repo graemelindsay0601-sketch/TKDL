@@ -68,8 +68,9 @@ import {
   type EditionProgramme, type ProgrammeSegment, type QualityGateInput, type QualityGateSegment,
 } from "./director-math.ts";
 import { validityRulesForStory } from "./live-events-math.ts";
-import { renderConversation, buildGraphicFacts, type DialogueTurn, type BanterContext } from "./commentary-engine.ts";
-import { commentaryRng, dialogueHoldSeconds } from "./commentary-math.ts";
+import { renderConversation, buildGraphicFacts, buildTemplateFacts, type DialogueTurn, type BanterContext } from "./commentary-engine.ts";
+import { commentaryRng, dialogueHoldSeconds, interpolateTemplate } from "./commentary-math.ts";
+import { CLOSING_TEASE_TEMPLATES, hasClosingTease } from "./closing-tease-math.ts";
 import { pickFrom } from "./seeded-rng.ts";
 import type { StoryType, Treatment } from "./story-types.ts";
 
@@ -97,6 +98,61 @@ function buildFixedDialogue(pair: { a: string; b: string }): ProgrammeSegment["d
     { speaker: "A", text: pair.a, holdSeconds: dialogueHoldSeconds(pair.a) },
     { speaker: "B", text: pair.b, holdSeconds: dialogueHoldSeconds(pair.b) },
   ];
+}
+
+/**
+ * Slot 10's required sign-off (11.1) — always present, never a full segment
+ * of its own. The A-line stays one of the fixed CLOSING_DIALOGUE_OPTIONS
+ * wrap-ups exactly as before. The B-line is where "what's coming up" lives:
+ * when director.ts has attached a genuinely forward-looking storyline to
+ * this entry (the same LEAGUE story driving slot 9's "what to watch" recap,
+ * or a live win/loss streak — see director.ts's own header on slot 10) AND
+ * that story's type has a closing-tease-math.ts template, the B-line
+ * becomes a real, fact-checked tease ("keep an eye on the title race...")
+ * instead of always repeating the same handful of fixed generic lines —
+ * direct response to player feedback that the show felt like "a constant
+ * same episode loop" with no reason to check back. Any failure along that
+ * path (a story type with no template, or — defensively — an interpolation
+ * error) falls straight back to the original fixed B-line: a decorative
+ * aside is never worth risking the segment over.
+ *
+ * storyId/storyType/leagueType/facts stay null exactly as before, even when
+ * a tease renders successfully: this is presenter narration ABOUT a story
+ * already given its own real segment elsewhere (or, for a streak, about to
+ * get one via the normal FORM slot), not a second segment about it — so
+ * findDuplicateStoryIds' and the frontend's "closing has no story of its
+ * own" invariant is unchanged, and no 10.4 exposure/airtime accounting is
+ * needed (director.ts never calls commit() for this attachment either).
+ */
+async function buildClosingSegment(entry: RunningOrderEntry, slotKey: string, config: BroadcastConfig): Promise<ProgrammeSegment> {
+  const aLine = pickFrom(CLOSING_DIALOGUE_OPTIONS, commentaryRng(slotKey, "utility:closing:a", config.commentaryVersion)).a;
+
+  let bLine: string | null = null;
+  const story = entry.group?.primary ?? null;
+  if (story && hasClosingTease(story.storyType as StoryType)) {
+    try {
+      const templates = CLOSING_TEASE_TEMPLATES[story.storyType as StoryType]!;
+      const template = pickFrom(templates, commentaryRng(slotKey, "utility:closing:tease", config.commentaryVersion));
+      const templateFacts = await buildTemplateFacts(story.leagueType, story.facts);
+      bLine = interpolateTemplate(template, templateFacts);
+    } catch {
+      bLine = null; // e.g. MissingFactError — fall back below rather than ever throwing over a decorative aside.
+    }
+  }
+  if (bLine === null) {
+    bLine = pickFrom(CLOSING_DIALOGUE_OPTIONS, commentaryRng(slotKey, "utility:closing:b", config.commentaryVersion)).b;
+  }
+
+  return {
+    slot: entry.slot, purpose: "closing", importance: "utility",
+    storyId: null, supportingStoryIds: [], storyType: null, leagueType: null, lifecycleAtBroadcast: null,
+    dialogue: [
+      { speaker: "A", text: aLine, holdSeconds: dialogueHoldSeconds(aLine) },
+      { speaker: "B", text: bLine, holdSeconds: dialogueHoldSeconds(bLine) },
+    ],
+    validityRules: [],
+    facts: null,
+  };
 }
 
 // A lightweight defensive scan over final rendered text — see this file's
@@ -464,7 +520,6 @@ async function buildEdition(params: {
     seasonChampionOrResetEventOccurred: seasonBoundaryEventOccurred,
     noPublishedEditionExists: previous === null,
     publishedEditionAgeHours: previous?.publishedAt ? (cutoffEnd.getTime() - previous.publishedAt.getTime()) / 3_600_000 : null,
-    hasAtLeastOneNewMatch: newMatchCount > 0,
     adminForced,
   });
 
@@ -484,7 +539,7 @@ async function buildEdition(params: {
   }
 
   const previousProgramme = previous && isEditionProgramme(previous.programme) ? previous.programme : null;
-  const directorResult = directorSelect({ pool, previousProgramme });
+  const directorResult = directorSelect({ pool, previousProgramme, slotKey: claimedRow.slotKey });
 
   const negativeJokesThisEdition = new Map<string, number>();
   const globalFullSegmentCounter = { value: await getGlobalFullSegmentCounter() };
@@ -495,18 +550,25 @@ async function buildEdition(params: {
 
   const segments: ProgrammeSegment[] = [];
   for (const entry of directorResult.runningOrder) {
+    // 11.1's required "closing" sign-off (always present, slot 10) — handled
+    // before the `!entry.group` branch below because, unlike every other
+    // slot, "closing" can now carry a group (director.ts's own "what's
+    // coming up" attachment) WITHOUT that meaning "render this as a full
+    // segment about that story" — see buildClosingSegment's own header.
+    if (entry.purpose === "closing") {
+      segments.push(await buildClosingSegment(entry, claimedRow.slotKey, config));
+      continue;
+    }
     if (!entry.group) {
-      // The two documented utility slots: 11.1's required "closing" sign-off
-      // (always present) and slot 9's own documented no-LEAGUE-story
-      // fallback (director.ts's own header) — no story behind either, so
-      // fixed hand-written dialogue rather than anything templated.
-      const options = entry.purpose === "closing" ? CLOSING_DIALOGUE_OPTIONS : WHAT_TO_WATCH_FALLBACK_OPTIONS;
+      // Slot 9's own documented no-LEAGUE-story fallback (director.ts's own
+      // header) — no story behind it, so fixed hand-written dialogue rather
+      // than anything templated.
       const rng = commentaryRng(claimedRow.slotKey, `utility:${entry.purpose}`, config.commentaryVersion);
       segments.push({
         slot: entry.slot, purpose: entry.purpose, importance: "utility",
         storyId: null, supportingStoryIds: [], storyType: null, leagueType: null, lifecycleAtBroadcast: null,
-        dialogue: buildFixedDialogue(pickFrom(options, rng)),
-        // No story behind a fixed sign-off/fallback line — nothing about it can go stale, so genuinely no rules apply, not a placeholder.
+        dialogue: buildFixedDialogue(pickFrom(WHAT_TO_WATCH_FALLBACK_OPTIONS, rng)),
+        // No story behind a fixed fallback line — nothing about it can go stale, so genuinely no rules apply, not a placeholder.
         validityRules: [],
         facts: null,
       });
@@ -580,7 +642,7 @@ async function buildEdition(params: {
  */
 export async function ensureCurrentBroadcastEdition(now: Date = new Date()): Promise<BroadcastEdition | null> {
   const config = await getBroadcastConfig();
-  const slot = resolveLogicalSlot(now, { middayTime: config.middayTime, eveningTime: config.eveningTime, nightTime: config.nightTime, timezone: config.timezone });
+  const slot = resolveLogicalSlot(now, { middayTime: config.middayTime, eveningTime: config.eveningTime, nightTime: config.nightTime, timezone: config.timezone, singleDailyEpisode: config.singleDailyEpisode });
 
   await maybeAutoResetLeagueSeasons();
 
@@ -641,7 +703,7 @@ export type ForceRebuildResult =
  */
 export async function forceRebuildCurrentEdition(now: Date = new Date()): Promise<ForceRebuildResult> {
   const config = await getBroadcastConfig();
-  const slot = resolveLogicalSlot(now, { middayTime: config.middayTime, eveningTime: config.eveningTime, nightTime: config.nightTime, timezone: config.timezone });
+  const slot = resolveLogicalSlot(now, { middayTime: config.middayTime, eveningTime: config.eveningTime, nightTime: config.nightTime, timezone: config.timezone, singleDailyEpisode: config.singleDailyEpisode });
 
   await maybeAutoResetLeagueSeasons();
 

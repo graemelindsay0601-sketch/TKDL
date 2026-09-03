@@ -5,6 +5,14 @@
  * September) and GMT (UTC+0, e.g. January) to prove the timezone
  * conversion is real, not a fixed offset.
  *
+ * All of the describe blocks below run with singleDailyEpisode explicitly
+ * false, to exercise the original three-slots-a-day cadence in isolation —
+ * see the dedicated "singleDailyEpisode: true" describe block at the end of
+ * this file for the collapsed-to-one-episode-a-day behaviour that's now the
+ * real BROADCAST_SETTING_DEFAULTS default (direct response to player
+ * feedback that three near-identical daily slots read as "a constant same
+ * episode loop" rather than one thing to look forward to).
+ *
  * Run with: pnpm --filter @workspace/api-server run test
  */
 import { test, describe } from "node:test";
@@ -12,7 +20,7 @@ import assert from "node:assert/strict";
 import { resolveLogicalSlot, resolveNextLogicalSlot, type SlotTimesConfig } from "../edition-slots.ts";
 
 const DEFAULT_CONFIG: SlotTimesConfig = {
-  middayTime: "11:30", eveningTime: "19:00", nightTime: "00:00", timezone: "Europe/London",
+  middayTime: "11:30", eveningTime: "19:00", nightTime: "00:00", timezone: "Europe/London", singleDailyEpisode: false,
 };
 
 describe("resolveLogicalSlot — BST (September, UTC+1)", () => {
@@ -117,6 +125,55 @@ describe("resolveNextLogicalSlot", () => {
       const now = new Date(start + hours * 60 * 60 * 1000);
       const result = resolveNextLogicalSlot(now, DEFAULT_CONFIG);
       assert.ok(result.scheduledFor.getTime() > now.getTime(), `expected ${result.scheduledFor.toISOString()} > ${now.toISOString()}`);
+    }
+  });
+});
+
+describe("singleDailyEpisode: true — the day collapses to one guaranteed episode", () => {
+  const SINGLE_CONFIG: SlotTimesConfig = { ...DEFAULT_CONFIG, singleDailyEpisode: true };
+
+  test("resolveLogicalSlot never returns midday or evening, whatever time of day it is", () => {
+    // Same instants the three-slot describe blocks above use to prove
+    // midday/evening resolution — here they must all fall back to night,
+    // since midday/evening are no longer real candidates at all.
+    for (const iso of ["2026-09-02T11:00:00Z", "2026-09-02T19:00:00Z", "2026-01-15T11:30:00Z"]) {
+      const result = resolveLogicalSlot(new Date(iso), SINGLE_CONFIG);
+      assert.equal(result.slotType, "night", `expected night for ${iso}, got ${result.slotType}`);
+    }
+  });
+
+  test("resolveLogicalSlot still resolves to today's night once it's passed, exactly as in three-slot mode", () => {
+    const result = resolveLogicalSlot(new Date("2026-09-02T09:00:00Z"), SINGLE_CONFIG);
+    assert.equal(result.slotType, "night");
+    assert.equal(result.slotDate, "2026-09-02");
+    assert.equal(result.slotKey, "2026-09-02:night");
+  });
+
+  test("resolveNextLogicalSlot always points at the NEXT calendar day's night instant, never today's midday/evening", () => {
+    // Just after today's night@00:00 BST — in three-slot mode this resolves
+    // next to today's midday; collapsed to one episode a day, the only
+    // thing left to look forward to is tomorrow's night.
+    const result = resolveNextLogicalSlot(new Date("2026-09-02T09:00:00Z"), SINGLE_CONFIG);
+    assert.equal(result.slotType, "night");
+    assert.equal(result.slotKey, "2026-09-03:night");
+    assert.equal(result.scheduledFor.toISOString(), "2026-09-02T23:00:00.000Z"); // night@00:00 BST Sep 3 == 23:00 UTC Sep 2
+  });
+
+  test("resolveNextLogicalSlot is always strictly after `now`, across a full week including the DST transition, in single-episode mode too", () => {
+    const start = new Date("2026-03-20T00:00:00Z").getTime();
+    for (let hours = 0; hours < 24 * 7; hours++) {
+      const now = new Date(start + hours * 60 * 60 * 1000);
+      const result = resolveNextLogicalSlot(now, SINGLE_CONFIG);
+      assert.ok(result.scheduledFor.getTime() > now.getTime(), `expected ${result.scheduledFor.toISOString()} > ${now.toISOString()}`);
+    }
+  });
+
+  test("many instants across a full week all resolve to night and never throw", () => {
+    const start = new Date("2026-03-20T00:00:00Z").getTime();
+    for (let hours = 0; hours < 24 * 7; hours++) {
+      const result = resolveLogicalSlot(new Date(start + hours * 60 * 60 * 1000), SINGLE_CONFIG);
+      assert.equal(result.slotType, "night");
+      assert.match(result.slotKey, /^\d{4}-\d{2}-\d{2}:night$/);
     }
   });
 });

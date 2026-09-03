@@ -9,10 +9,11 @@ import assert from "node:assert/strict";
 import {
   mergeStoriesByAnchorAndNarrative, editionChangeScore, newlyCreatedGroupTreatments,
   isForcedRefresh, classifyCarryForward, isCarryForwardEligibleForFullSegment,
-  fullSegmentPriority, isWithinSubjectExposureCap, isWithinLeagueAirtimeCap,
+  fullSegmentPriority, isWithinSubjectExposureCap, isWithinLeagueAirtimeCap, applyVarietyShuffle,
   NORMAL_RUNNING_ORDER_TEMPLATE, evaluateQualityGate,
   LEAGUE_AIRTIME_SOFT_CAP, MAX_FULL_SEGMENTS_PER_SUBJECT,
 } from "../director-math.ts";
+import { seededRng } from "../seeded-rng.ts";
 import type { BroadcastStory } from "@workspace/db/schema";
 
 let nextId = 1;
@@ -144,12 +145,87 @@ describe("newlyCreatedGroupTreatments", () => {
   });
 });
 
+describe("applyVarietyShuffle", () => {
+  type Item = { id: string; priority: number; score: number };
+  const keyOf = (item: Item) => ({ priority: item.priority, score: item.score });
+
+  test("never reorders across DIFFERENT priority/score bands — a higher-ranked item always stays ahead of a lower-ranked one", () => {
+    const items: Item[] = [
+      { id: "a", priority: 90, score: 90 },
+      { id: "b", priority: 70, score: 70 },
+      { id: "c", priority: 50, score: 50 },
+    ];
+    for (let seed = 0; seed < 20; seed++) {
+      const result = applyVarietyShuffle(items, keyOf, seededRng("band-order-check", seed));
+      assert.deepEqual(result.map(i => i.id), ["a", "b", "c"]);
+    }
+  });
+
+  test("CAN reorder within an exactly-tied priority+score band", () => {
+    const items: Item[] = [
+      { id: "a", priority: 50, score: 50 },
+      { id: "b", priority: 50, score: 50 },
+      { id: "c", priority: 50, score: 50 },
+      { id: "d", priority: 50, score: 50 },
+    ];
+    const orderings = new Set<string>();
+    for (let seed = 0; seed < 50; seed++) {
+      orderings.add(applyVarietyShuffle(items, keyOf, seededRng("tie-shuffle-check", seed)).map(i => i.id).join(","));
+    }
+    assert.ok(orderings.size > 1, "expected more than one distinct ordering across 50 seeds for a fully-tied band");
+  });
+
+  test("a tied band never leaks past a higher band nor ahead of a lower one, whatever the seed", () => {
+    const items: Item[] = [
+      { id: "top", priority: 100, score: 100 },
+      { id: "tie1", priority: 50, score: 50 },
+      { id: "tie2", priority: 50, score: 50 },
+      { id: "tie3", priority: 50, score: 50 },
+      { id: "bottom", priority: 10, score: 10 },
+    ];
+    for (let seed = 0; seed < 30; seed++) {
+      const result = applyVarietyShuffle(items, keyOf, seededRng("mixed-band-check", seed));
+      assert.equal(result[0].id, "top");
+      assert.equal(result[4].id, "bottom");
+      assert.deepEqual(new Set(result.slice(1, 4).map(i => i.id)), new Set(["tie1", "tie2", "tie3"]));
+    }
+  });
+
+  test("distinguishes bands by BOTH priority and score — equal priority with different scores is not a tie", () => {
+    const items: Item[] = [
+      { id: "a", priority: 50, score: 90 },
+      { id: "b", priority: 50, score: 10 },
+    ];
+    for (let seed = 0; seed < 10; seed++) {
+      const result = applyVarietyShuffle(items, keyOf, seededRng("priority-vs-score-check", seed));
+      assert.deepEqual(result.map(i => i.id), ["a", "b"]);
+    }
+  });
+
+  test("same seed produces the exact same result every time", () => {
+    const items: Item[] = [
+      { id: "a", priority: 50, score: 50 },
+      { id: "b", priority: 50, score: 50 },
+      { id: "c", priority: 30, score: 30 },
+    ];
+    const rngKey = "stable-variety-key";
+    const first = applyVarietyShuffle(items, keyOf, seededRng(rngKey));
+    const second = applyVarietyShuffle(items, keyOf, seededRng(rngKey));
+    assert.deepEqual(first, second);
+  });
+
+  test("an empty list and a singleton list are both unaffected", () => {
+    assert.deepEqual(applyVarietyShuffle([] as Item[], keyOf, seededRng("empty")), []);
+    const single: Item[] = [{ id: "only", priority: 1, score: 1 }];
+    assert.deepEqual(applyVarietyShuffle(single, keyOf, seededRng("single")), single);
+  });
+});
+
 describe("isForcedRefresh", () => {
   const base = {
     seasonChampionOrResetEventOccurred: false,
     noPublishedEditionExists: false,
     publishedEditionAgeHours: 1,
-    hasAtLeastOneNewMatch: false,
     adminForced: false,
   };
 
@@ -165,13 +241,12 @@ describe("isForcedRefresh", () => {
     assert.equal(isForcedRefresh({ ...base, adminForced: true }), true);
   });
 
-  test("24h-stale requires BOTH age > 24h AND at least one new match", () => {
-    assert.equal(isForcedRefresh({ ...base, publishedEditionAgeHours: 25, hasAtLeastOneNewMatch: false }), false);
-    assert.equal(isForcedRefresh({ ...base, publishedEditionAgeHours: 25, hasAtLeastOneNewMatch: true }), true);
+  test("24h-stale forces a refresh purely on elapsed time — no new match required. A quiet day with zero logged matches must still get a fresh Edition at least once every 24h, per the explicit ask for 'one new episode a day' rather than the same published Edition looping indefinitely.", () => {
+    assert.equal(isForcedRefresh({ ...base, publishedEditionAgeHours: 25 }), true);
   });
 
   test("exactly 24h old is not yet stale (strictly greater than)", () => {
-    assert.equal(isForcedRefresh({ ...base, publishedEditionAgeHours: 24, hasAtLeastOneNewMatch: true }), false);
+    assert.equal(isForcedRefresh({ ...base, publishedEditionAgeHours: 24 }), false);
   });
 
   test("none of the conditions -> not forced", () => {

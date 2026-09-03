@@ -93,7 +93,14 @@ export function MatchContextGraphic({ leagueType, data, compact }: { leagueType:
   const lastWinner = str(data, "lastMeetingWinnerName");
   const playedAt = str(data, "lastMeetingPlayedAt");
   if (entityA && entityB) {
-    const date = playedAt ? new Date(playedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null;
+    // Was `{ day: "numeric", month: "short" }` — omitting the year entirely,
+    // so "12 Jan" rendered identically whether that meeting was 3 months or
+    // 3 years ago. This is the one archive graphic that DOES carry real
+    // date data (lastMeetingPlayedAt), so hiding the year was actively
+    // hiding the one thing that would tell a viewer how old "last meeting"
+    // really is — part of a real user report about archive/retrospective
+    // content being impossible to place in time.
+    const date = playedAt ? new Date(playedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : null;
     if (big) {
       return (
         <BigPanel accent={ACCENT} fill={false}>

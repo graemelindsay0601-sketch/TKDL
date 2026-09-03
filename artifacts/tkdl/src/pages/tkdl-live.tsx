@@ -69,8 +69,15 @@ export default function TkdlLive() {
       <BroadcastPlayer />
 
       {previewOnly && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-1.5 rounded-full"
-          style={{ background: "rgba(255,210,74,0.14)", border: "1px solid rgba(255,210,74,0.4)", backdropFilter: "blur(8px)" }}>
+        // `top: max(1.5rem, ...)` instead of a plain `top-6` — on a phone
+        // where this page draws edge-to-edge under the OS status bar (this
+        // app's own manifest opts into that), a fixed 1.5rem collided
+        // directly with the status bar's own clock/signal/battery icons
+        // (real user screenshot: "TKDL LIVE" and this pill rendering right
+        // on top of "09:43"). `env(safe-area-inset-top)` is 0 on any device
+        // that doesn't need it, so this is a no-op everywhere else.
+        <div className="absolute left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-1.5 rounded-full"
+          style={{ top: "max(1.5rem, calc(env(safe-area-inset-top) + 0.75rem))", background: "rgba(255,210,74,0.14)", border: "1px solid rgba(255,210,74,0.4)", backdropFilter: "blur(8px)" }}>
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#ffd24a" }} />
           <span className="font-black uppercase text-xs" style={{ color: "#ffd24a", letterSpacing: "0.15em" }}>
             Admin Preview — players can't see this yet

@@ -25,6 +25,7 @@ import { addDailyChallengeKeyColumn } from "./db/migrations/add_daily_challenge_
 import { addLongestLossStreakColumn } from "./db/migrations/add_longest_loss_streak";
 import { addCareerBiggestPointsFallColumn } from "./db/migrations/add_career_biggest_points_fall";
 import { addTkdlLiveBroadcastTables } from "./db/migrations/add_tkdl_live_broadcast";
+import { addFeatureSpotlights } from "./db/migrations/add_feature_spotlights";
 import { seedBroadcastSettings } from "./broadcast/config";
 import { seedCardDefinitions } from "./services/card-definitions-service";
 import { challengeService } from "./services/challenge-service";
@@ -1041,6 +1042,7 @@ async function init() {
     await initializeCardTables();
     await initializeFeatureFlags();
     await addTkdlLiveBroadcastTables();
+    await addFeatureSpotlights();
     await seedBroadcastSettings();
     await seedCardDefinitions();
     await initializeFeaturedCardShopTables();

@@ -32,6 +32,7 @@ import { NotificationAnalytics } from "./notification-analytics";
 import AdminCardClashPanel from "@/components/admin-card-clash-panel";
 import AdminChallengesPanel from "@/components/admin-challenges-panel";
 import AdminFeatureFlagsPanel from "@/components/admin-feature-flags-panel";
+import AdminBroadcastPanel from "@/components/admin-broadcast-panel";
 
 type ModeKey = "isActive" | "practiceEnabled" | "tourEnabled" | "m501Enabled" | "shadowBotEnabled";
 const PLAYER_MODES: { key: ModeKey; label: string; desc: string; color: string; emoji: string }[] = [
@@ -502,6 +503,7 @@ export default function Admin() {
       <AdminCardClashPanel />
       <AdminChallengesPanel />
       <AdminFeatureFlagsPanel />
+      <AdminBroadcastPanel />
       <SweepTool />
       <PracticeAnalytics />
     </div>

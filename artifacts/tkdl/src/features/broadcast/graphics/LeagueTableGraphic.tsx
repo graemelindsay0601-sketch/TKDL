@@ -1,8 +1,9 @@
 // TKDL LIVE — LeagueTableGraphic (GRAPHIC_KIND_BY_STORY_TYPE: NEW_LEADER,
-// LEAD_TIGHTENS, LEAD_WIDENS, TIE_PENDING, CHAMPION, SHIFT_LEAD_CHANGE,
-// SHIFT_MOMENTUM). A standings-ladder shaped visual — a leapfrog move for a
-// leadership change, a gap-meter for the margin tightening/widening, a
-// level-pegging row for a tie, a full-width crown card for a champion —
+// LEAD_TIGHTENS, LEAD_WIDENS, TIE_PENDING, CHAMPION, SEASON_KICKOFF,
+// SHIFT_LEAD_CHANGE, SHIFT_MOMENTUM). A standings-ladder shaped visual — a
+// leapfrog move for a leadership change, a gap-meter for the margin
+// tightening/widening, a level-pegging row for a tie, a full-width crown
+// card for a champion, a fresh-board card for a new season kicking off —
 // instead of the old shared chip grid rendering "points"/"currentGap"/
 // "previousGap" as unrelated label/value pills (see kit.tsx's own header).
 //
@@ -24,6 +25,27 @@ export function LeagueTableGraphic({ leagueType, data, compact }: { leagueType: 
   const accent = "#ffd24a";
   const leagueAccent = leagueType ? LEAGUE_ACCENT[leagueType] : accent;
   const big = !compact;
+
+  const kickoffSeasonName = str(data, "seasonName");
+  const kickoffEntrantCount = num(data, "entrantCount");
+  if (kickoffSeasonName) {
+    if (big) {
+      return (
+        <BigPanel accent={accent} fill={false}>
+          <BigPanelHeader icon="🆕" kind="New Season" leagueType={leagueType} accent={accent} />
+          <div className="badge-pop-in font-black uppercase" style={{ color: accent, fontSize: "2.4rem", lineHeight: 1.05, textShadow: `0 0 40px ${accent}66` }}>{kickoffSeasonName}</div>
+          {kickoffEntrantCount !== null && <BigLine>{kickoffEntrantCount} {kickoffEntrantCount === 1 ? "entrant" : "entrants"} back on the board</BigLine>}
+        </BigPanel>
+      );
+    }
+    return (
+      <Panel accent={accent} compact>
+        <PanelTag icon="🆕" kind="New Season" leagueType={leagueType} accent={accent} compact />
+        <div className="badge-pop-in font-black uppercase truncate" style={{ animationDelay: "80ms", color: accent, fontSize: "1.1rem" }}>{kickoffSeasonName}</div>
+        {kickoffEntrantCount !== null && <PanelLine>{kickoffEntrantCount} {kickoffEntrantCount === 1 ? "entrant" : "entrants"} back on the board</PanelLine>}
+      </Panel>
+    );
+  }
 
   const championName = str(data, "championEntityName");
   if (championName) {

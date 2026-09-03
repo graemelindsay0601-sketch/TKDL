@@ -270,6 +270,14 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
     const previousSeasonFinalPosition = num(data, "previousSeasonFinalPosition");
     const improved = bool(data, "improved");
     const tone = improved ? "#22c55e" : "#ff005c";
+    // currentSeasonName/previousSeasonName: absent on a comparison detected
+    // before these facts existed (this story type is never re-detected once
+    // its season closes, so old rows never gain them) — falls back to the
+    // old generic "last season" wording rather than showing nothing. See
+    // story-detectors-archive.ts's own comment on why several different
+    // SEASON_COMPARISON stories, each genuinely about a different pair of
+    // months, used to be impossible to tell apart on screen.
+    const previousSeasonLabel = str(data, "previousSeasonName") ?? "last season";
     if (big) {
       return (
         <BigPanel accent={tone} fill={false}>
@@ -280,7 +288,7 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
           ) : (
             <BigHeroNumber value={pct(currentSeasonWinRate)} label="Win Rate" accent={tone} />
           )}
-          {previousSeasonWinRate !== null && <BigLine>Was {pct(previousSeasonWinRate)} last season</BigLine>}
+          {previousSeasonWinRate !== null && <BigLine>Was {pct(previousSeasonWinRate)} in {previousSeasonLabel}</BigLine>}
         </BigPanel>
       );
     }
@@ -297,7 +305,7 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
         ) : (
           <HeroBadge value={pct(currentSeasonWinRate)} label="Win Rate" accent={tone} compact />
         )}
-        {previousSeasonWinRate !== null && <PanelLine>Was {pct(previousSeasonWinRate)} last season</PanelLine>}
+        {previousSeasonWinRate !== null && <PanelLine>Was {pct(previousSeasonWinRate)} in {previousSeasonLabel}</PanelLine>}
       </Panel>
     );
   }

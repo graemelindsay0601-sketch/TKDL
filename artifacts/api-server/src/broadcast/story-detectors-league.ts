@@ -45,6 +45,10 @@ export type LeagueStandingsFacts = {
   seasonJustEnded: boolean;
   /** Set only when seasonJustEnded is true. */
   championEntityId: number | null;
+  /** Mirrors seasonJustEnded's own "did the boundary fall inside this batch's window" shape, but for the season's startDate instead — the concrete, checkable proxy for "a new season just began" (see CHAMPION's own comment on why a window-based check is what's actually available here). */
+  seasonJustStarted: boolean;
+  /** The season's display name (e.g. "September 2026") — a plain already-verified string, not an entity id, so it passes straight through the commentary engine's template facts unresolved. Always populated (every season has a name), but only actually consumed by SEASON_KICKOFF today. */
+  seasonName: string;
 };
 
 const TITLE_SWING_THRESHOLD = 0.10; // 9.4: ">=10 percentage points"
@@ -273,11 +277,59 @@ export function detectChampion(facts: LeagueStandingsFacts): StoryCandidate[] {
     subjectKeys: [subjectKey(facts.leagueType, facts.championEntityId)],
     sentiment: "positive",
     tags: ["champion"],
-    facts: { seasonId: facts.seasonId, championEntityId: facts.championEntityId },
+    // seasonName added alongside the pre-existing seasonId/championEntityId
+    // — a real user report ("the last season's catch-up episode is just a
+    // clump of all seasons") traced back to this exact story type: CHAMPION
+    // is written once when a season closes and then NEVER re-evaluated (see
+    // story-engine.ts's processLeagueFamily header), so several different
+    // months' champions can end up sitting in the same story pool at once
+    // with nothing distinguishing "champion of March" from "champion of
+    // June." `facts.seasonName` is already available on every call site
+    // (LeagueStandingsFacts requires it — SEASON_KICKOFF already uses it the
+    // same way) — this was simply never carried through to CHAMPION's own
+    // facts. Deliberately NOT added to CHAMPION_REQUIRES in
+    // commentary-library.ts (which would gate every CHAMPION phrase on it) —
+    // stories already frozen in production from before this change don't
+    // have this key in their stored `facts` JSON and never will (they're
+    // never re-upserted), so a hard requirement would silently drop their
+    // dialogue entirely. See commentary-library.ts's own CHAMPION.qf.2 for
+    // how this is surfaced instead, additively.
+    facts: { seasonId: facts.seasonId, championEntityId: facts.championEntityId, seasonName: facts.seasonName },
     components: {
       competitiveImportance: 25, // the single most consequential state a season can reach
       unexpectedness: 0,
       historicalSignificance: 15,
+      performanceAnomaly: 0,
+      entertainmentValue: 5,
+    },
+  }];
+}
+
+// ── SEASON_KICKOFF (new: a fresh season just began) ───────────────────────
+// The deliberate counterweight to CHAMPION: without this, the very first
+// Edition of a new season has nothing telling viewers "the board just
+// reset" — it would just start narrating the new month's early standings as
+// if they were a continuation of the same old race, which is exactly the
+// "same old players doing the same old thing every month" staleness this
+// story exists to head off. Fires once per season (season-anchored, like
+// CHAMPION and TIE_PENDING — see story-engine.ts's SEASON_ANCHORED_TYPES),
+// runs alongside the normal standings-based detectors rather than replacing
+// them the way CHAMPION does, since a season that's just STARTED is still
+// very much active and has real (if early) title-probability data to show.
+export function detectSeasonKickoff(facts: LeagueStandingsFacts): StoryCandidate[] {
+  if (!facts.seasonJustStarted) return [];
+
+  return [{
+    storyType: "SEASON_KICKOFF",
+    leagueType: facts.leagueType,
+    subjectKeys: [], // about the season itself, not any one entity
+    sentiment: "neutral",
+    tags: ["season_kickoff"],
+    facts: { seasonId: facts.seasonId, seasonName: facts.seasonName, entrantCount: facts.current.length },
+    components: {
+      competitiveImportance: 15,
+      unexpectedness: 0,
+      historicalSignificance: 8,
       performanceAnomaly: 0,
       entertainmentValue: 5,
     },
@@ -318,6 +370,7 @@ export const LEAGUE_DETECTORS = [
   detectTitleRace,
   detectChampion,
   detectTiePending,
+  detectSeasonKickoff,
 ] as const satisfies readonly ((facts: LeagueStandingsFacts) => StoryCandidate[])[];
 
 export function detectLeagueStories(facts: LeagueStandingsFacts): StoryCandidate[] {

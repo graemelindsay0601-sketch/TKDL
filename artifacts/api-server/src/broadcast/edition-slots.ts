@@ -93,23 +93,34 @@ export type SlotTimesConfig = {
   eveningTime: string;
   nightTime: string;
   timezone: string;
+  /** When true, the day has exactly one logical slot ("night", fired at nightTime) instead of three — see the "single daily episode" section below both slot functions build their candidate list from. */
+  singleDailyEpisode: boolean;
 };
+
+/** The day's logical slot instants, in the configured timezone — three (midday/evening/night) normally, or just "night" alone when config.singleDailyEpisode collapses the day to one guaranteed episode (direct response to player feedback that three near-identical slots a day felt like "a constant same episode loop" rather than one thing to look forward to). Both resolveLogicalSlot and resolveNextLogicalSlot build their candidate list from this single place so the two functions can never disagree about how many slots a day has. */
+function daySlotCandidates(dateParts: DateParts, config: SlotTimesConfig): { slotType: Exclude<SlotType, "manual">; instant: Date }[] {
+  if (config.singleDailyEpisode) {
+    return [{ slotType: "night", instant: zonedTimeToUtc(dateParts, splitHHMM(config.nightTime), config.timezone) }];
+  }
+  return [
+    { slotType: "night", instant: zonedTimeToUtc(dateParts, splitHHMM(config.nightTime), config.timezone) },
+    { slotType: "midday", instant: zonedTimeToUtc(dateParts, splitHHMM(config.middayTime), config.timezone) },
+    { slotType: "evening", instant: zonedTimeToUtc(dateParts, splitHHMM(config.eveningTime), config.timezone) },
+  ];
+}
 
 /**
  * 16.3 step 1: "resolve latest logical slot in Europe/London." Returns the
- * most recent of today's three slot instants (in the configured timezone)
+ * most recent of today's slot instants (in the configured timezone)
  * that isn't in the future — see this file's own header for why "night"
- * being the day's first instant (00:00) makes that always well-defined.
+ * being the day's first instant (00:00) makes that always well-defined,
+ * whether today has three slot candidates or (with singleDailyEpisode) one.
  */
 export function resolveLogicalSlot(now: Date, config: SlotTimesConfig, recursionGuard = 3): ResolvedSlot {
   const today = zonedParts(now, config.timezone);
   const todayDateParts: DateParts = { year: today.year, month: today.month, day: today.day };
 
-  const unsorted: { slotType: Exclude<SlotType, "manual">; instant: Date }[] = [
-    { slotType: "night", instant: zonedTimeToUtc(todayDateParts, splitHHMM(config.nightTime), config.timezone) },
-    { slotType: "midday", instant: zonedTimeToUtc(todayDateParts, splitHHMM(config.middayTime), config.timezone) },
-    { slotType: "evening", instant: zonedTimeToUtc(todayDateParts, splitHHMM(config.eveningTime), config.timezone) },
-  ];
+  const unsorted = daySlotCandidates(todayDateParts, config);
   const candidates = unsorted.sort((a, b) => b.instant.getTime() - a.instant.getTime()); // latest first
 
   const chosen = candidates.find(c => c.instant.getTime() <= now.getTime());
@@ -161,11 +172,7 @@ export function resolveNextLogicalSlot(now: Date, config: SlotTimesConfig): Reso
   const today = zonedParts(now, config.timezone);
   const todayDateParts: DateParts = { year: today.year, month: today.month, day: today.day };
 
-  const unsorted: { slotType: Exclude<SlotType, "manual">; instant: Date }[] = [
-    { slotType: "night", instant: zonedTimeToUtc(todayDateParts, splitHHMM(config.nightTime), config.timezone) },
-    { slotType: "midday", instant: zonedTimeToUtc(todayDateParts, splitHHMM(config.middayTime), config.timezone) },
-    { slotType: "evening", instant: zonedTimeToUtc(todayDateParts, splitHHMM(config.eveningTime), config.timezone) },
-  ];
+  const unsorted = daySlotCandidates(todayDateParts, config);
   const candidates = unsorted.sort((a, b) => a.instant.getTime() - b.instant.getTime()); // earliest first — the opposite order from resolveLogicalSlot, which wants latest-not-yet-future
 
   const chosen = candidates.find(c => c.instant.getTime() > now.getTime());

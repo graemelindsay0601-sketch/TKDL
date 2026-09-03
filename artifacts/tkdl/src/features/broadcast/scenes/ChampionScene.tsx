@@ -27,6 +27,24 @@
 // art below now carries the celebratory weight a stats card used to —
 // supporting numbers (score, checkout) still reach the viewer via the
 // dialogue/LowerThird same as every other scene.
+//
+// ── The actual champion's name (real gap this scene had) ──────────────────
+// `headlineFor(segment)` humanizes the story TYPE ("CHAMPION" -> "Champion")
+// — it was never the champion's own name, so despite this file's own
+// header above claiming "the eyebrow + shimmering name IS the moment," the
+// giant text here simply repeated the eyebrow's own word ("SINGLES
+// CHAMPION" / "CHAMPION") and never actually named anyone. A real user
+// report ("last season's catch-up episode is just a clump of all
+// seasons... can't tell which is which") traced partly to this: with
+// several champions from different months able to appear in the same
+// catch-up-style edition (see director.ts/story-engine.ts), two CHAMPION
+// segments back to back both just said "CHAMPION" — visually
+// indistinguishable. `segment.championInfo` (api-shapes.ts's own
+// ApiSegment.championInfo) now carries the resolved name and, once
+// available, the season — surfaced here as plain text, deliberately NOT a
+// bordered card (see api-shapes.ts's own comment on why CHAMPION never
+// gets a `graphic`: an earlier card here grew tall enough to collide with
+// the hosts standing below).
 import { LEAGUE_LABEL } from "../theme";
 import { SceneShell } from "./SceneShell";
 import { headlineFor, type SceneProps } from "./scene-support";
@@ -34,6 +52,7 @@ import { headlineFor, type SceneProps } from "./scene-support";
 const GOLD = "#ffd24a";
 
 export function ChampionScene({ segment }: SceneProps) {
+  const championInfo = segment.championInfo;
   return (
     <SceneShell
       justify="start"
@@ -42,9 +61,10 @@ export function ChampionScene({ segment }: SceneProps) {
       <div className="text-center flex flex-col items-center">
         <div className="font-black uppercase mb-2" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.85rem", letterSpacing: "0.3em", color: GOLD }}>
           {segment.leagueType ? `${LEAGUE_LABEL[segment.leagueType]} Champion` : "Champion"}
+          {championInfo?.seasonName ? ` · ${championInfo.seasonName}` : ""}
         </div>
         <h1 className="shimmer-gold font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(2.6rem, 7vw, 5rem)", lineHeight: 1, textWrap: "balance" }}>
-          {headlineFor(segment)}
+          {championInfo?.championName ?? headlineFor(segment)}
         </h1>
       </div>
     </SceneShell>

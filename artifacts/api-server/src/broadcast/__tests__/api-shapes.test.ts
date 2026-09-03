@@ -114,6 +114,22 @@ describe("serializeSegment", () => {
     const api = serializeSegment(segment({ importance: "headline_ticker" as ProgrammeSegment["importance"] }), "slot-1");
     assert.equal(api.importance, "headline_ticker");
   });
+
+  test("a CHAMPION segment gets a null graphic but a populated championInfo — the champion's name was otherwise never shown anywhere on screen", () => {
+    const api = serializeSegment(segment({ storyType: "CHAMPION", facts: { seasonId: 11, championEntityName: "Dave", seasonName: "March 2026" } }), "slot-8");
+    assert.equal(api.graphic, null);
+    assert.deepEqual(api.championInfo, { championName: "Dave", seasonName: "March 2026" });
+  });
+
+  test("a CHAMPION segment from before seasonName existed still resolves the name, with a null season", () => {
+    const api = serializeSegment(segment({ storyType: "CHAMPION", facts: { seasonId: 11, championEntityName: "Dave" } }), "slot-8");
+    assert.deepEqual(api.championInfo, { championName: "Dave", seasonName: null });
+  });
+
+  test("a non-CHAMPION segment always gets a null championInfo", () => {
+    const api = serializeSegment(segment({ storyType: "HIGH_STAKE_WIN", facts: { playerId: 5, wagerAmount: 10 } }), "slot-2");
+    assert.equal(api.championInfo, null);
+  });
 });
 
 describe("humanizeStoryType", () => {

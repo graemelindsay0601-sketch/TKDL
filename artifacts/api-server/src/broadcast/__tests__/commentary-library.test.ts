@@ -23,17 +23,24 @@ import { COMMENTARY_LIBRARY, UNIVERSAL_CALLBACK_PHRASES, UNIVERSAL_BANTER_PHRASE
 import {
   RESULT_STORY_TYPES, FORM_STORY_TYPES, H2H_STORY_TYPES, PERFORMANCE_STORY_TYPES,
   LEAGUE_STORY_TYPES, MILESTONE_STORY_TYPES, DOUBLES_STORY_TYPES, SHIFT_WARS_STORY_TYPES,
-  ARCHIVE_STORY_TYPES, type StoryType,
+  ARCHIVE_STORY_TYPES, FILLER_STORY_TYPES, type StoryType,
 } from "../story-types.ts";
 
 const ALL_STORY_TYPES: readonly StoryType[] = [
   ...RESULT_STORY_TYPES, ...FORM_STORY_TYPES, ...H2H_STORY_TYPES, ...PERFORMANCE_STORY_TYPES,
   ...LEAGUE_STORY_TYPES, ...MILESTONE_STORY_TYPES, ...DOUBLES_STORY_TYPES, ...SHIFT_WARS_STORY_TYPES,
   ...ARCHIVE_STORY_TYPES,
+  // FILLER postdates Appendix A's own v1 catalogue (story-types.ts's own
+  // header), which is why it's listed separately from the rest rather than
+  // folded silently into one of the families above — but it's real,
+  // user-facing dialogue content once wired into story-engine.ts, so it
+  // gets the exact same coverage guarantee as everything else here rather
+  // than staying a silent exception forever.
+  ...FILLER_STORY_TYPES,
 ];
 
 describe("COMMENTARY_LIBRARY coverage", () => {
-  test("every Appendix A v1 story type has at least one phrase", () => {
+  test("every Appendix A v1 story type (plus FILLER) has at least one phrase", () => {
     const missing = ALL_STORY_TYPES.filter(t => !COMMENTARY_LIBRARY[t] || COMMENTARY_LIBRARY[t]!.length === 0);
     assert.deepEqual(missing, []);
   });

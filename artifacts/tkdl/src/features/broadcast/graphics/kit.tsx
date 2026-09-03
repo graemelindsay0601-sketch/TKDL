@@ -149,14 +149,24 @@ export function VersusPanel({
 }: { leftName: string; rightName: string; leftAccent: string; rightAccent: string; splitFraction?: number; splitLabel?: string; compact?: boolean }) {
   const namePad = compact ? "6px 10px" : "8px 14px";
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-stretch" style={{ gap: 2 }}>
-        <div style={{ background: leftAccent, clipPath: "polygon(0 0, 100% 0, 86% 100%, 0% 100%)", padding: namePad, paddingRight: compact ? 22 : 30 }}>
-          <span className="font-black uppercase whitespace-nowrap" style={{ color: "#08080c", fontSize: compact ? "0.92rem" : "1.15rem" }}>{leftName}</span>
+    // `min-w-0` down through every level here, and `truncate` in place of a
+    // bare `whitespace-nowrap`, for the same reason DeskScene's league-table
+    // card overflowed on a phone (real user screenshot: text clipped off the
+    // right edge in portrait) — a name plate sized to its own un-wrapped
+    // text has no ceiling, so a long player/team name just pushes this
+    // whole card wider than the screen instead of yielding to it.
+    <div className="flex flex-col gap-2 min-w-0">
+      <div className="flex items-stretch min-w-0" style={{ gap: 2 }}>
+        <div className="min-w-0" style={{ flex: "1 1 0%", background: leftAccent, clipPath: "polygon(0 0, 100% 0, 86% 100%, 0% 100%)", padding: namePad, paddingRight: compact ? 22 : 30 }}>
+          {/* `clamp()` + `overflowWrap: anywhere` in place of a bare `truncate`
+              — this file's own BigVersus below hit the same problem at a
+              bigger scale (see its header comment): ellipsizing a long
+              player/team name at this size cut it down to almost nothing. */}
+          <span className="font-black uppercase block" style={{ color: "#08080c", fontSize: compact ? "clamp(0.68rem, 3.6vw, 0.92rem)" : "clamp(0.8rem, 4vw, 1.15rem)", lineHeight: 1.2, overflowWrap: "anywhere" }}>{leftName}</span>
         </div>
         <div className="flex items-center justify-center font-black shrink-0" style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.64rem", letterSpacing: "0.05em" }}>VS</div>
-        <div style={{ background: rightAccent, clipPath: "polygon(14% 0, 100% 0, 100% 100%, 0% 100%)", padding: namePad, paddingLeft: compact ? 22 : 30 }}>
-          <span className="font-black uppercase whitespace-nowrap" style={{ color: "#08080c", fontSize: compact ? "0.92rem" : "1.15rem" }}>{rightName}</span>
+        <div className="min-w-0" style={{ flex: "1 1 0%", background: rightAccent, clipPath: "polygon(14% 0, 100% 0, 100% 100%, 0% 100%)", padding: namePad, paddingLeft: compact ? 22 : 30 }}>
+          <span className="font-black uppercase block" style={{ color: "#08080c", fontSize: compact ? "clamp(0.68rem, 3.6vw, 0.92rem)" : "clamp(0.8rem, 4vw, 1.15rem)", lineHeight: 1.2, overflowWrap: "anywhere" }}>{rightName}</span>
         </div>
       </div>
       {splitFraction !== undefined && (
@@ -251,7 +261,7 @@ export function PanelFlag({ children, accent }: { children: ReactNode; accent: s
 export function BigPanel({ accent, fill = true, children }: { accent: string; fill?: boolean; children: ReactNode }) {
   return (
     <div
-      className={`panel-slide-in flex-col ${fill ? "flex w-full" : "inline-flex"}`}
+      className={`panel-slide-in flex-col min-w-0 ${fill ? "flex w-full" : "inline-flex"}`}
       style={{
         background: "linear-gradient(165deg, #141d33 0%, #0a1120 55%, #070a14 100%)",
         clipPath: "polygon(0 0, calc(100% - 28px) 0, 100% 28px, 100% 100%, 0 100%)",
@@ -260,7 +270,20 @@ export function BigPanel({ accent, fill = true, children }: { accent: string; fi
         boxShadow: `0 0 0 1px rgba(255,255,255,0.04) inset, 0 28px 64px rgba(0,0,0,0.6), 0 0 46px ${withAlpha(accent, "26")}`,
         padding: "26px 34px 30px 30px",
         gap: 18,
-        minWidth: fill ? undefined : 380,
+        // `fill=false` used to size this panel purely to its own content via
+        // a bare `minWidth: 380` floor with nothing capping the top end —
+        // fine for a short hero number, but a long player/team name inside
+        // (BigMove/BigVersus below) simply grew the panel past the floor
+        // with no ceiling, wider than the phone screen itself (real user
+        // screenshot: DeskScene's league-table card clipped at the right
+        // edge in portrait). `maxWidth: "100%"` never lets this panel exceed
+        // whatever width its own wrapper (scenes/*.tsx's own `max-w-*` div)
+        // actually has; `min(380px, 100%)` keeps the floor on anything wide
+        // enough to afford it while letting it yield below 380px instead of
+        // forcing that width regardless (min-width otherwise wins over
+        // max-width in a conflict, which would silently undo the cap above).
+        minWidth: fill ? undefined : "min(380px, 100%)",
+        maxWidth: "100%",
       }}
     >
       {children}
@@ -320,11 +343,28 @@ export function BigRow({ rank, label, valueLabel, fraction, accent, delay = 0 }:
 
 /** A "before -> after" move, sized for this skin — DeskScene/ResultScene's move-shaped stories (a table-position climb, a form swing) at genuinely large scale rather than v1's ~1-1.8rem numbers. */
 export function BigMove({ before, after, accent, improved }: { before: string; after: string; accent: string; improved: boolean }) {
+  // This was built for short numeric moves ("P3" -> "P1", "2/5" -> "4/5"),
+  // which never overflowed anything — but LeagueTableGraphic/
+  // TitlePredictorGraphic also feed this arbitrary player/team NAMES for a
+  // new-leader/new-favourite move, at up to 3.3rem with nothing to stop it
+  // pushing this row (and BigPanel's own width above it) past a phone's
+  // screen — a real user screenshot showed exactly that, a name clipped off
+  // the right edge in portrait. A first fix reached for `truncate`, same as
+  // every OTHER name in this file — wrong call here specifically: those are
+  // short win/loss strips at ~1rem, where ellipsizing a long name still
+  // leaves most of it readable; at this component's actual 2.3-3.3rem hero
+  // scale the same fix cut a real name down to a single letter and an
+  // ellipsis. `clamp()` (SceneShell.tsx's own SceneHeadline already sets
+  // this precedent) shrinks the type itself on a narrow viewport instead,
+  // and `overflowWrap: "anywhere"` lets a still-too-long name wrap onto a
+  // second line rather than either overflowing or disappearing — full name
+  // stays readable either way. Short numeric moves never get close to
+  // wrapping at any real viewport width, so they render exactly as before.
   return (
-    <div className="bug-chip-in flex items-center gap-4">
-      <span className="font-bold tabular-nums" style={{ color: "rgba(255,255,255,0.35)", fontSize: "2.3rem", textDecoration: "line-through", textDecorationColor: "rgba(255,255,255,0.3)" }}>{before}</span>
-      <span aria-hidden="true" style={{ color: accent, fontSize: "1.9rem" }}>{improved ? "↗" : "↘"}</span>
-      <span className="font-black tabular-nums" style={{ color: accent, fontSize: "3.3rem", textShadow: `0 0 26px ${withAlpha(accent, "70")}` }}>{after}</span>
+    <div className="bug-chip-in flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0">
+      <span className="font-bold tabular-nums min-w-0" style={{ color: "rgba(255,255,255,0.35)", fontSize: "clamp(1.1rem, 4.5vw, 2.3rem)", lineHeight: 1.15, textDecoration: "line-through", textDecorationColor: "rgba(255,255,255,0.3)", overflowWrap: "anywhere" }}>{before}</span>
+      <span aria-hidden="true" className="shrink-0" style={{ color: accent, fontSize: "1.9rem" }}>{improved ? "↗" : "↘"}</span>
+      <span className="font-black tabular-nums min-w-0" style={{ color: accent, fontSize: "clamp(1.3rem, 6vw, 3.3rem)", lineHeight: 1.1, textShadow: `0 0 26px ${withAlpha(accent, "70")}`, overflowWrap: "anywhere" }}>{after}</span>
     </div>
   );
 }
@@ -350,15 +390,25 @@ export function BigLine({ children }: { children: ReactNode }) {
 export function BigVersus({
   leftName, rightName, leftAccent, rightAccent, splitFraction, splitLabel,
 }: { leftName: string; rightName: string; leftAccent: string; rightAccent: string; splitFraction?: number; splitLabel?: string }) {
+  // Same overflow class as BigMove above (this file's own comment there) —
+  // HeadToHeadGraphic feeds this arbitrary player/team names at 1.7rem with
+  // `whitespace-nowrap` and nothing to stop a long one pushing the whole
+  // versus row (and BigPanel above it) past the viewport. `min-w-0` +
+  // `flex: 1 1 0%` lets each name plate actually shrink; `clamp()` shrinks
+  // the type itself on a narrow viewport and `overflowWrap: "anywhere"`
+  // lets a still-too-long name wrap onto a second line — a bare `truncate`
+  // was tried first and rejected here (see BigMove's own header): at this
+  // hero scale it cut a real name down to a single letter and an ellipsis
+  // rather than leaving it readable.
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-stretch" style={{ gap: 3 }}>
-        <div style={{ background: leftAccent, clipPath: "polygon(0 0, 100% 0, 86% 100%, 0% 100%)", padding: "12px 20px", paddingRight: 40, boxShadow: `0 0 24px ${withAlpha(leftAccent, "44")}` }}>
-          <span className="font-black uppercase whitespace-nowrap" style={{ color: "#050810", fontSize: "1.7rem" }}>{leftName}</span>
+    <div className="flex flex-col gap-3 min-w-0">
+      <div className="flex items-stretch min-w-0" style={{ gap: 3 }}>
+        <div className="min-w-0" style={{ flex: "1 1 0%", background: leftAccent, clipPath: "polygon(0 0, 100% 0, 86% 100%, 0% 100%)", padding: "12px 20px", paddingRight: 40, boxShadow: `0 0 24px ${withAlpha(leftAccent, "44")}` }}>
+          <span className="font-black uppercase block" style={{ color: "#050810", fontSize: "clamp(0.95rem, 4.6vw, 1.7rem)", lineHeight: 1.15, overflowWrap: "anywhere" }}>{leftName}</span>
         </div>
         <div className="flex items-center justify-center font-black shrink-0" style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.85rem", letterSpacing: "0.06em" }}>VS</div>
-        <div style={{ background: rightAccent, clipPath: "polygon(14% 0, 100% 0, 100% 100%, 0% 100%)", padding: "12px 20px", paddingLeft: 40 }}>
-          <span className="font-black uppercase whitespace-nowrap" style={{ color: "#050810", fontSize: "1.7rem" }}>{rightName}</span>
+        <div className="min-w-0" style={{ flex: "1 1 0%", background: rightAccent, clipPath: "polygon(14% 0, 100% 0, 100% 100%, 0% 100%)", padding: "12px 20px", paddingLeft: 40 }}>
+          <span className="font-black uppercase block" style={{ color: "#050810", fontSize: "clamp(0.95rem, 4.6vw, 1.7rem)", lineHeight: 1.15, overflowWrap: "anywhere" }}>{rightName}</span>
         </div>
       </div>
       {splitFraction !== undefined && (

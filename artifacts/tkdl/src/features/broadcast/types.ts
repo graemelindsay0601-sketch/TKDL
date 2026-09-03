@@ -32,6 +32,15 @@ export type Segment = {
   scene: Scene;
   dialogue: DialogueTurn[];
   graphic: { kind: GraphicKind; data: GraphicData } | null;
+  /**
+   * CHAMPION-only — mirrors api-shapes.ts's own ApiSegment.championInfo.
+   * CHAMPION never carries `graphic` (StudioSet.tsx/ChampionScene.tsx's own
+   * "no card" design — see api-shapes.ts's comment), so this is the only
+   * place the champion's actual name (and, once available, which season)
+   * ever reaches the frontend. `seasonName` is null for a champion crowned
+   * before this field existed and never revisited since.
+   */
+  championInfo: { championName: string; seasonName: string | null } | null;
   /** Opaque from the frontend's own point of view — only ever compared by identity against `invalidSegmentIds` (11.6), never interpreted client-side. */
   validityRules: unknown[];
   estimatedSeconds: number;

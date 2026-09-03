@@ -89,3 +89,23 @@ export function pickFrom<T>(items: readonly T[], rng: () => number): T {
   // out-of-bounds read.
   return items[Math.min(idx, items.length - 1)];
 }
+
+/**
+ * Deterministic Fisher-Yates shuffle using an already-seeded rng — same
+ * "same key -> same result, everywhere" contract as pickFrom, just
+ * returning a full reordering instead of one pick. Never mutates `items`.
+ * director-math.ts's own applyVarietyShuffle is the one real caller: it
+ * reorders only within a tied priority/score band, so this never needs to
+ * be (and isn't) anything more sophisticated than a plain full shuffle of
+ * whatever short band it's handed.
+ */
+export function shuffle<T>(items: readonly T[], rng: () => number): T[] {
+  const result = items.slice();
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const tmp = result[i];
+    result[i] = result[j];
+    result[j] = tmp;
+  }
+  return result;
+}

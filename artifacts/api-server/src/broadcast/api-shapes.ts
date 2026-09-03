@@ -163,6 +163,7 @@ export const GRAPHIC_KIND_BY_STORY_TYPE: Record<StoryType, GraphicKind> = {
   TITLE_RACE: "TitlePredictorGraphic",
   CHAMPION: "LeagueTableGraphic",
   TIE_PENDING: "LeagueTableGraphic",
+  SEASON_KICKOFF: "LeagueTableGraphic",
 
   // MILESTONE
   CAREER_MATCH_MILESTONE: "ResultGraphic",
@@ -217,6 +218,24 @@ export type ApiSegment = {
   scene: Scene;
   dialogue: ApiDialogueTurn[];
   graphic: { kind: GraphicKind; data: Record<string, unknown> } | null;
+  /**
+   * CHAMPION-only: the two facts ChampionScene.tsx needs to say WHICH
+   * champion, WHICH season — a real gap a user report surfaced ("last
+   * season's catch-up episode is just a clump of all seasons... can't tell
+   * which is which"): CHAMPION never carries a `graphic` (see this
+   * function's own comment on why — a card here once grew tall enough to
+   * collide with the hosts standing at the desk), and until this field
+   * existed that meant the champion's own NAME was never shown on screen
+   * anywhere, only spoken in dialogue. Deliberately a separate, narrow
+   * field rather than reusing `graphic` — it carries only two plain
+   * strings for ChampionScene's own existing text layout, never a bordered
+   * card, so it can't reintroduce the height problem that made `graphic`
+   * null here in the first place. `seasonName` is absent (not empty
+   * string) on stories detected before this field was added and never
+   * revisited since (CHAMPION is never re-upserted) — ChampionScene must
+   * render correctly either way.
+   */
+  championInfo: { championName: string; seasonName: string | null } | null;
   validityRules: unknown[];
   estimatedSeconds: number;
 };
@@ -240,6 +259,16 @@ export function serializeSegment(segment: ProgrammeSegment, segmentId: string): 
     ? { kind: GRAPHIC_KIND_BY_STORY_TYPE[segment.storyType as StoryType], data: segment.facts }
     : null;
 
+  // See ApiSegment's own comment on championInfo — reads straight off
+  // segment.facts (already resolved id->name by buildGraphicFacts, same as
+  // `graphic.data` would be) even though CHAMPION never gets a `graphic`.
+  const championInfo = segment.storyType === "CHAMPION" && segment.facts !== null
+    ? {
+        championName: typeof segment.facts.championEntityName === "string" ? segment.facts.championEntityName : "Unknown",
+        seasonName: typeof segment.facts.seasonName === "string" ? segment.facts.seasonName : null,
+      }
+    : null;
+
   return {
     id: segmentId,
     type: segment.storyType ?? segment.purpose,
@@ -249,6 +278,7 @@ export function serializeSegment(segment: ProgrammeSegment, segmentId: string): 
     scene: sceneForSegment(segment),
     dialogue: segment.dialogue,
     graphic,
+    championInfo,
     validityRules: segment.validityRules,
     estimatedSeconds: estimatedSecondsForSegment(segment.dialogue),
   };

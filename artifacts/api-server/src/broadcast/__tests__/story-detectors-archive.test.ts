@@ -43,6 +43,14 @@ describe("detectLastMeeting (Appendix A: historical context, not future fixture)
     assert.equal(story.sentiment, "neutral");
   });
 
+  test("derives a plain year alongside the full ISO timestamp — a spoken phrase needs 'back in 2025', never a raw ISO string", () => {
+    const story = detectLastMeeting(h2hFacts({
+      lastMeeting: { matchId: 1, playedAt: new Date("2025-11-03T18:00:00Z"), winnerId: 1, stake: 2 },
+    }));
+    assert.ok(story);
+    assert.equal(story.facts.lastMeetingYear, 2025);
+  });
+
   test("leagueType flows through for a cross-league entity (e.g. shift_wars)", () => {
     const story = detectLastMeeting(h2hFacts({
       leagueType: "shift_wars",
@@ -91,7 +99,9 @@ function seasonFacts(overrides: Partial<SeasonComparisonFacts> = {}): SeasonComp
   return {
     leagueType: "singles",
     entityId: 1,
+    currentSeasonName: "This Season",
     currentSeasonWinRate: 0.5,
+    previousSeasonName: "Last Season",
     previousSeasonWinRate: 0.5,
     currentSeasonPosition: 3,
     previousSeasonFinalPosition: 3,
@@ -139,5 +149,15 @@ describe("detectSeasonComparison (Appendix A: current position/form vs previous 
   test("missing position data on either side just skips the position check, still evaluates win rate", () => {
     const story = detectSeasonComparison(seasonFacts({ currentSeasonPosition: null, currentSeasonWinRate: 0.8, previousSeasonWinRate: 0.3 }));
     assert.ok(story);
+  });
+
+  test("carries both season names through to facts — several comparisons from different month-pairs must be tellable apart", () => {
+    const story = detectSeasonComparison(seasonFacts({
+      currentSeasonName: "July 2026", previousSeasonName: "June 2026",
+      currentSeasonWinRate: 0.7, previousSeasonWinRate: 0.4,
+    }));
+    assert.ok(story);
+    assert.equal(story.facts.currentSeasonName, "July 2026");
+    assert.equal(story.facts.previousSeasonName, "June 2026");
   });
 });

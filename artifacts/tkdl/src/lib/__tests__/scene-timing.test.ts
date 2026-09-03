@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   nextPlayableSegmentIndex, scheduleDialogueTurns, segmentDurationMs,
   canInsertOverlayAt, filterUnseenOverlays, mergeOverlayQueue, popReadyOverlay,
-  advancePlayerState, INITIAL_PLAYER_STATE,
+  totalPlayableDurationMs, computeTimedPosition, TRANSITION_HOLD_MS,
 } from "../../features/broadcast/scene-timing.ts";
 import type { DialogueTurn, LiveOverlayItem, Segment } from "../../features/broadcast/types.ts";
 
@@ -113,37 +113,74 @@ describe("popReadyOverlay", () => {
   });
 });
 
-describe("advancePlayerState", () => {
-  test("BOOT -> LOAD_EDITION -> PLAY_SEGMENT -> PLAY_DIALOGUE_TURN", () => {
-    let state = INITIAL_PLAYER_STATE;
-    state = advancePlayerState(state, { totalTurnsInCurrentSegment: 2, hasMorePlayableSegments: true });
-    assert.equal(state.phase, "LOAD_EDITION");
-    state = advancePlayerState(state, { totalTurnsInCurrentSegment: 2, hasMorePlayableSegments: true });
-    assert.equal(state.phase, "PLAY_SEGMENT");
-    state = advancePlayerState(state, { totalTurnsInCurrentSegment: 2, hasMorePlayableSegments: true });
-    assert.deepEqual(state, { phase: "PLAY_DIALOGUE_TURN", segmentIndex: 0, turnIndex: 0 });
+function segmentWithDialogue(id: string, dialogue: DialogueTurn[]): Segment {
+  return { ...segment(id), dialogue };
+}
+
+describe("totalPlayableDurationMs", () => {
+  test("sums every playable segment's dialogue plus one transition beat each", () => {
+    const playlist = [
+      segmentWithDialogue("s1", [{ speaker: "A", text: "a", holdSeconds: 3 }]),
+      segmentWithDialogue("s2", [{ speaker: "A", text: "b", holdSeconds: 2 }, { speaker: "B", text: "c", holdSeconds: 4 }]),
+    ];
+    assert.equal(totalPlayableDurationMs(playlist, new Set()), 3000 + TRANSITION_HOLD_MS + 6000 + TRANSITION_HOLD_MS);
   });
 
-  test("advances through every dialogue turn before transitioning", () => {
-    let state: ReturnType<typeof advancePlayerState> = { phase: "PLAY_DIALOGUE_TURN", segmentIndex: 0, turnIndex: 0 };
-    state = advancePlayerState(state, { totalTurnsInCurrentSegment: 2, hasMorePlayableSegments: true });
-    assert.deepEqual(state, { phase: "PLAY_DIALOGUE_TURN", segmentIndex: 0, turnIndex: 1 });
-    state = advancePlayerState(state, { totalTurnsInCurrentSegment: 2, hasMorePlayableSegments: true });
-    assert.equal(state.phase, "TRANSITION");
+  test("skips invalidated segments entirely, including their transition beat", () => {
+    const playlist = [
+      segmentWithDialogue("s1", [{ speaker: "A", text: "a", holdSeconds: 3 }]),
+      segmentWithDialogue("s2", [{ speaker: "A", text: "b", holdSeconds: 5 }]),
+    ];
+    assert.equal(totalPlayableDurationMs(playlist, new Set(["s2"])), 3000 + TRANSITION_HOLD_MS);
   });
 
-  test("TRANSITION advances to the next segment when more are playable", () => {
-    const state = advancePlayerState({ phase: "TRANSITION", segmentIndex: 2, turnIndex: 1 }, { totalTurnsInCurrentSegment: 0, hasMorePlayableSegments: true });
-    assert.deepEqual(state, { phase: "PLAY_SEGMENT", segmentIndex: 3, turnIndex: 0 });
+  test("zero when nothing is playable", () => {
+    assert.equal(totalPlayableDurationMs([], new Set()), 0);
+    assert.equal(totalPlayableDurationMs([segment("s1")], new Set(["s1"])), 0);
+  });
+});
+
+describe("computeTimedPosition", () => {
+  // Two segments: s1 is a 3s single-turn segment, s2 is two turns (2s, 4s).
+  // Timeline: [0,3000) s1 turn0 | [3000,3500) transition | [3500,5500) s2
+  // turn0 | [5500,9500) s2 turn1 | [9500,10000) transition | (loops)
+  const playlist = [
+    segmentWithDialogue("s1", [{ speaker: "A", text: "a", holdSeconds: 3 }]),
+    segmentWithDialogue("s2", [{ speaker: "A", text: "b", holdSeconds: 2 }, { speaker: "B", text: "c", holdSeconds: 4 }]),
+  ];
+
+  test("lands on the first segment's only turn at the very start", () => {
+    assert.deepEqual(computeTimedPosition(playlist, new Set(), 0), { kind: "segment", segmentIndex: 0, turnIndex: 0 });
+    assert.deepEqual(computeTimedPosition(playlist, new Set(), 2999), { kind: "segment", segmentIndex: 0, turnIndex: 0 });
   });
 
-  test("TRANSITION loops back to LOAD_EDITION once the programme is exhausted", () => {
-    const state = advancePlayerState({ phase: "TRANSITION", segmentIndex: 9, turnIndex: 1 }, { totalTurnsInCurrentSegment: 0, hasMorePlayableSegments: false });
-    assert.deepEqual(state, { phase: "LOAD_EDITION", segmentIndex: 0, turnIndex: 0 });
+  test("the beat right after a segment finishes is a transition, still naming that segment", () => {
+    assert.deepEqual(computeTimedPosition(playlist, new Set(), 3000), { kind: "transition", segmentIndex: 0 });
+    assert.deepEqual(computeTimedPosition(playlist, new Set(), 3499), { kind: "transition", segmentIndex: 0 });
   });
 
-  test("LIVE_INSERT resumes exactly where it left off", () => {
-    const state = advancePlayerState({ phase: "LIVE_INSERT", segmentIndex: 4, turnIndex: 2 }, { totalTurnsInCurrentSegment: 3, hasMorePlayableSegments: true });
-    assert.deepEqual(state, { phase: "PLAY_SEGMENT", segmentIndex: 4, turnIndex: 2 });
+  test("advances into the next segment's own turns after its transition beat", () => {
+    assert.deepEqual(computeTimedPosition(playlist, new Set(), 3500), { kind: "segment", segmentIndex: 1, turnIndex: 0 });
+    assert.deepEqual(computeTimedPosition(playlist, new Set(), 5499), { kind: "segment", segmentIndex: 1, turnIndex: 0 });
+    assert.deepEqual(computeTimedPosition(playlist, new Set(), 5500), { kind: "segment", segmentIndex: 1, turnIndex: 1 });
+    assert.deepEqual(computeTimedPosition(playlist, new Set(), 9499), { kind: "segment", segmentIndex: 1, turnIndex: 1 });
+  });
+
+  test("two callers with the same elapsed time get the identical position — the whole point", () => {
+    const viewerA = computeTimedPosition(playlist, new Set(), 6000);
+    const viewerB = computeTimedPosition(playlist, new Set(), 6000);
+    assert.deepEqual(viewerA, viewerB);
+  });
+
+  test("null once nothing is playable at all", () => {
+    assert.equal(computeTimedPosition([], new Set(), 0), null);
+    assert.equal(computeTimedPosition(playlist, new Set(["s1", "s2"]), 0), null);
+  });
+
+  test("an invalidated segment is skipped, shifting everything after it earlier", () => {
+    // With s1 invalidated, the timeline starts straight at s2: [0,2000) turn0, [2000,6000) turn1.
+    const withInvalid = new Set(["s1"]);
+    assert.deepEqual(computeTimedPosition(playlist, withInvalid, 0), { kind: "segment", segmentIndex: 1, turnIndex: 0 });
+    assert.deepEqual(computeTimedPosition(playlist, withInvalid, 2500), { kind: "segment", segmentIndex: 1, turnIndex: 1 });
   });
 });
