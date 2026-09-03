@@ -74,7 +74,8 @@ const BREAKING_WORTHY_STORY_TYPES = new Set<StoryType>([
 type SceneInput = Pick<ProgrammeSegment, "purpose" | "storyType" | "storyId" | "importance">;
 
 export function sceneForSegment(segment: SceneInput): Scene {
-  if (segment.purpose === "opening_headlines") return "headlines";
+  if (segment.purpose === "opening") return "desk";
+  if (segment.purpose === "headlines") return "headlines";
   if (segment.purpose === "closing") return "desk";
   if (segment.storyType === "CHAMPION") return "champion";
   // storyId === null only ever happens for slot 9's documented no-LEAGUE-

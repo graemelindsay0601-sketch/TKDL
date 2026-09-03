@@ -11,7 +11,9 @@ import {
   isForcedRefresh, classifyCarryForward, isCarryForwardEligibleForFullSegment,
   fullSegmentPriority, isWithinSubjectExposureCap, isWithinLeagueAirtimeCap, applyVarietyShuffle,
   NORMAL_RUNNING_ORDER_TEMPLATE, evaluateQualityGate,
+  totalEstimatedSecondsForProgramme, classifyEditionLength,
   LEAGUE_AIRTIME_SOFT_CAP, MAX_FULL_SEGMENTS_PER_SUBJECT,
+  type EditionProgramme, type ProgrammeSegment,
 } from "../director-math.ts";
 import { seededRng } from "../seeded-rng.ts";
 import type { BroadcastStory } from "@workspace/db/schema";
@@ -364,14 +366,14 @@ describe("isWithinLeagueAirtimeCap", () => {
 });
 
 describe("NORMAL_RUNNING_ORDER_TEMPLATE", () => {
-  test("has exactly 10 slots, numbered 1-10 in order", () => {
-    assert.equal(NORMAL_RUNNING_ORDER_TEMPLATE.length, 10);
+  test("has exactly 11 slots, numbered 1-11 in order", () => {
+    assert.equal(NORMAL_RUNNING_ORDER_TEMPLATE.length, 11);
     NORMAL_RUNNING_ORDER_TEMPLATE.forEach((s, i) => assert.equal(s.slot, i + 1));
   });
 
-  test("opening headlines, main story, what-to-watch and closing are required; everything else is optional", () => {
+  test("opening, headlines, main story, what-to-watch and closing are required; everything else is optional", () => {
     const required = NORMAL_RUNNING_ORDER_TEMPLATE.filter(s => s.required).map(s => s.purpose);
-    assert.deepEqual(required, ["opening_headlines", "main_story", "what_to_watch", "closing"]);
+    assert.deepEqual(required, ["opening", "headlines", "main_story", "what_to_watch", "closing"]);
   });
 });
 
@@ -464,6 +466,36 @@ describe("evaluateQualityGate", () => {
     assert.equal(evaluateQualityGate({ ...baseInput, segments }).pass, true);
   });
 
+  test("No Fake Urgency: utility (storyId: null) segments never count toward the meaningful-segment minimum", () => {
+    // The realistic shape of the quietest possible day: opening + closing +
+    // a what_to_watch fallback (all fixed, no story) plus one genuine main
+    // story — 4 segments by raw count, but only 1 is backed by anything
+    // real. The Show Bible's own "NO FAKE URGENCY" box says a quiet day
+    // should publish a shorter Edition (or none at all), not a structurally
+    // full-looking one propped up on hand-written filler.
+    const segments = [
+      segment({ id: "a", storyId: null, importance: "utility" }), // opening
+      segment({ id: "b", storyId: 1 }), // the one genuine story
+      segment({ id: "c", storyId: null, importance: "utility" }), // what_to_watch fallback
+      segment({ id: "d", storyId: null, importance: "utility" }), // closing
+    ];
+    const result = evaluateQualityGate({ ...baseInput, segments });
+    assert.equal(result.pass, false);
+    if (!result.pass) assert.ok(result.reasons.some(r => r.includes("meaningful segments (1)")));
+  });
+
+  test("a headline tease (storyId set, importance headline_ticker) still counts as meaningful — it re-references a real story", () => {
+    const segments = [
+      segment({ id: "a", storyId: null, importance: "utility" }), // opening
+      segment({ id: "b", storyId: 1, leagueType: "singles" }),
+      segment({ id: "c", storyId: 2, leagueType: "doubles" }),
+      segment({ id: "d", storyId: 3, importance: "headline_ticker" }),
+      segment({ id: "e", storyId: 4, importance: "headline_ticker" }),
+      segment({ id: "f", storyId: null, importance: "utility" }), // closing
+    ];
+    assert.equal(evaluateQualityGate({ ...baseInput, segments }).pass, true);
+  });
+
   test("a club with only one active league passes at 100% share — there's no second league it could have crowded out", () => {
     // Same shape as "one league exceeding the soft cap fails" above (3
     // singles + would normally need a second league to compare against),
@@ -478,6 +510,40 @@ describe("evaluateQualityGate", () => {
       segment({ id: "d", leagueType: "singles" }),
     ];
     assert.equal(evaluateQualityGate({ ...baseInput, segments }).pass, true);
+  });
+});
+
+describe("totalEstimatedSecondsForProgramme / classifyEditionLength (Show Bible v1 §1 programme lengths)", () => {
+  function seg(holdSecondsList: number[]): ProgrammeSegment {
+    return {
+      slot: 1, purpose: "main_story", importance: "featured", storyId: 1, supportingStoryIds: [],
+      storyType: "UPSET", leagueType: "singles", lifecycleAtBroadcast: "HOT",
+      dialogue: holdSecondsList.map((holdSeconds, i) => ({ speaker: i % 2 === 0 ? "A" as const : "B" as const, text: `line ${i}`, holdSeconds })),
+      validityRules: [], facts: null,
+    };
+  }
+  function programme(segments: ProgrammeSegment[]): EditionProgramme {
+    return { segments };
+  }
+
+  test("sums every segment's own dialogue hold-time", () => {
+    const p = programme([seg([3.5, 5]), seg([4]), seg([9, 9])]);
+    assert.equal(totalEstimatedSecondsForProgramme(p), 3.5 + 5 + 4 + 9 + 9);
+  });
+
+  test("an empty programme is 0 seconds", () => {
+    assert.equal(totalEstimatedSecondsForProgramme(programme([])), 0);
+  });
+
+  test("classifies at and just under/over each of the doc's own band boundaries", () => {
+    assert.equal(classifyEditionLength(0), "quiet");
+    assert.equal(classifyEditionLength(7 * 60), "quiet");
+    assert.equal(classifyEditionLength(7 * 60 + 1), "normal");
+    assert.equal(classifyEditionLength(12 * 60), "normal");
+    assert.equal(classifyEditionLength(12 * 60 + 1), "busy");
+    assert.equal(classifyEditionLength(15 * 60), "busy");
+    assert.equal(classifyEditionLength(15 * 60 + 1), "exceptional");
+    assert.equal(classifyEditionLength(30 * 60), "exceptional");
   });
 });
 

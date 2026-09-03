@@ -74,13 +74,20 @@ import { CLOSING_TEASE_TEMPLATES, hasClosingTease } from "./closing-tease-math.t
 import { pickFrom } from "./seeded-rng.ts";
 import type { StoryType, Treatment } from "./story-types.ts";
 
-// ── Fixed utility dialogue (11.1's required "closing" slot, and slot 9's
-// own documented no-LEAGUE-story fallback — see director.ts's own header) ──
+// ── Fixed utility dialogue (11.1's required "opening" and "closing" slots,
+// and slot 10's own documented no-LEAGUE-story fallback — see director.ts's
+// own header) ──────────────────────────────────────────────────────────
 // These reference no facts at all (deliberately — there is no story behind
-// either slot for a template to interpolate from), so they're hand-written,
-// finished lines rather than anything templated, picked with the same
-// seeded-per-Edition RNG every other piece of commentary uses so a viewer
-// doesn't hear the identical sign-off every single Edition.
+// any of the three for a template to interpolate from), so they're
+// hand-written, finished lines rather than anything templated, picked with
+// the same seeded-per-Edition RNG every other piece of commentary uses so a
+// viewer doesn't hear the identical line every single Edition.
+const OPENING_DIALOGUE_OPTIONS: readonly { a: string; b: string }[] = [
+  { a: "Welcome to TKDL LIVE — plenty to get through from Kilbirnie tonight.", b: "Let's get straight into it." },
+  { a: "Evening, and welcome back to TKDL LIVE.", b: "No shortage of talking points since the last Edition." },
+  { a: "Welcome in — TKDL LIVE is on air, and there's been movement across the league.", b: "Let's not waste any time, then." },
+];
+
 const CLOSING_DIALOGUE_OPTIONS: readonly { a: string; b: string }[] = [
   { a: "That's everything from Kilbirnie for this Edition.", b: "We'll have the next update as soon as there's something worth saying." },
   { a: "And that wraps things up for now.", b: "Get those matches in — we'll be back with more." },
@@ -101,12 +108,12 @@ function buildFixedDialogue(pair: { a: string; b: string }): ProgrammeSegment["d
 }
 
 /**
- * Slot 10's required sign-off (11.1) — always present, never a full segment
+ * Slot 11's required sign-off (11.1) — always present, never a full segment
  * of its own. The A-line stays one of the fixed CLOSING_DIALOGUE_OPTIONS
  * wrap-ups exactly as before. The B-line is where "what's coming up" lives:
  * when director.ts has attached a genuinely forward-looking storyline to
- * this entry (the same LEAGUE story driving slot 9's "what to watch" recap,
- * or a live win/loss streak — see director.ts's own header on slot 10) AND
+ * this entry (the same LEAGUE story driving slot 10's "what to watch" recap,
+ * or a live win/loss streak — see director.ts's own header on slot 11) AND
  * that story's type has a closing-tease-math.ts template, the B-line
  * becomes a real, fact-checked tease ("keep an eye on the title race...")
  * instead of always repeating the same handful of fixed generic lines —
@@ -180,7 +187,7 @@ function hasUnresolvedPlaceholderText(segments: readonly ProgrammeSegment[]): bo
  * would mean that guarantee broke). Two purposes are deliberately excluded
  * from this check because they're DESIGNED to repeat a storyId that already
  * has a full segment elsewhere, per director.ts's own header comments:
- * "opening_headlines" is explicitly "a brief tease of up to 3 of the stories
+ * "headlines" is explicitly "a brief tease of up to 3 of the stories
  * ALREADY placed above," and "what_to_watch" is explicitly allowed to
  * "legitimately re-reference the best LEAGUE candidate already placed
  * elsewhere (recapping the open question is real content, not duplication)"
@@ -194,7 +201,7 @@ function findDuplicateStoryIds(segments: readonly ProgrammeSegment[]): boolean {
   const seen = new Set<number>();
   for (const seg of segments) {
     if (seg.storyId === null) continue;
-    if (seg.purpose === "opening_headlines" || seg.purpose === "what_to_watch") continue;
+    if (seg.purpose === "headlines" || seg.purpose === "what_to_watch") continue;
     if (seen.has(seg.storyId)) return true;
     seen.add(seg.storyId);
   }
@@ -397,7 +404,7 @@ async function buildSegmentForEntry(entry: RunningOrderEntry, ctx: SegmentBuildC
 
   const story = entry.group.primary;
   const subjectKey = story.subjectKeys[0];
-  const isHeadlineTease = entry.purpose === "opening_headlines";
+  const isHeadlineTease = entry.purpose === "headlines";
 
   async function attempt(treatment: Treatment): Promise<DialogueTurn[]> {
     const banterContext = await buildBanterContext(subjectKey, ctx.editionId, ctx.negativeJokesThisEdition, ctx.globalFullSegmentCounter.value);
@@ -550,7 +557,7 @@ async function buildEdition(params: {
 
   const segments: ProgrammeSegment[] = [];
   for (const entry of directorResult.runningOrder) {
-    // 11.1's required "closing" sign-off (always present, slot 10) — handled
+    // 11.1's required "closing" sign-off (always present, slot 11) — handled
     // before the `!entry.group` branch below because, unlike every other
     // slot, "closing" can now carry a group (director.ts's own "what's
     // coming up" attachment) WITHOUT that meaning "render this as a full
@@ -560,14 +567,18 @@ async function buildEdition(params: {
       continue;
     }
     if (!entry.group) {
-      // Slot 9's own documented no-LEAGUE-story fallback (director.ts's own
-      // header) — no story behind it, so fixed hand-written dialogue rather
-      // than anything templated.
+      // Slot 1's fixed opening sign-on (director.ts never gives it a group,
+      // by design — see its own header) and slot 10's documented no-LEAGUE-
+      // story fallback both land here: no story behind either one, so fixed
+      // hand-written dialogue rather than anything templated. "opening" gets
+      // its own line pool; everything else (only "what_to_watch" in
+      // practice) keeps the original fallback pool.
+      const fallbackOptions = entry.purpose === "opening" ? OPENING_DIALOGUE_OPTIONS : WHAT_TO_WATCH_FALLBACK_OPTIONS;
       const rng = commentaryRng(claimedRow.slotKey, `utility:${entry.purpose}`, config.commentaryVersion);
       segments.push({
         slot: entry.slot, purpose: entry.purpose, importance: "utility",
         storyId: null, supportingStoryIds: [], storyType: null, leagueType: null, lifecycleAtBroadcast: null,
-        dialogue: buildFixedDialogue(pickFrom(WHAT_TO_WATCH_FALLBACK_OPTIONS, rng)),
+        dialogue: buildFixedDialogue(pickFrom(fallbackOptions, rng)),
         // No story behind a fixed fallback line — nothing about it can go stale, so genuinely no rules apply, not a placeholder.
         validityRules: [],
         facts: null,

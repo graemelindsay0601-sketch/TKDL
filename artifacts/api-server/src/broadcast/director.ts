@@ -215,7 +215,7 @@ function commit(candidate: RankedCandidate, ctx: SlotFillContext): void {
 const LEAGUE_TYPES = ["singles", "doubles", "shift_wars"] as const;
 
 /**
- * Fills the 10-slot NORMAL_RUNNING_ORDER_TEMPLATE (11.1) from an
+ * Fills the 11-slot NORMAL_RUNNING_ORDER_TEMPLATE (11.1) from an
  * already-gathered story pool, applying 9.6 merging, 10.1-adjacent
  * priority ranking, 10.4 exposure caps and 11.2 carry-forward eligibility
  * along the way. Synchronous and side-effect-free — see this file's own
@@ -240,50 +240,50 @@ export function directorSelect(params: {
     entries.push({ slot, purpose, group: pick.group, treatment: pick.treatment, carryForwardState: pick.carryForwardState });
   }
 
-  // Slot 2 — main_story: the single highest-priority candidate — unfiltered
+  // Slot 3 — main_story: the single highest-priority candidate — unfiltered
   // by anything else, but never a flashback (see isFlashbackFamily's own
   // comment): the "main story" slot claiming an old champion or a filler
   // promo as today's top headline is exactly the bug this exists to avoid.
   const mainPick = pickForSlot(ranked, c => !isFlashbackFamily(c.group.primary), ctx);
-  place(2, "main_story", mainPick);
+  place(3, "main_story", mainPick);
 
-  // Slot 3 — second_major_story: a different league first; a same-league
+  // Slot 4 — second_major_story: a different league first; a same-league
   // Major story only if no different-league candidate is available. A
   // flashback story can't reach "major" treatment in practice (ARCHIVE/
   // FILLER detectors deliberately score modestly — see their own
-  // components), but the filter is applied for the same reason slot 2's is:
+  // components), but the filter is applied for the same reason slot 3's is:
   // this slot's OWN name promises a second real story, not a callback.
   const mainLeague = mainPick?.group.primary.leagueType ?? null;
   const secondPick =
     pickForSlot(ranked, c => c.group.primary.leagueType !== mainLeague && !isFlashbackFamily(c.group.primary), ctx) ??
     pickForSlot(ranked, c => c.treatment === "major" && !isFlashbackFamily(c.group.primary), ctx);
-  place(3, "second_major_story", secondPick);
+  place(4, "second_major_story", secondPick);
 
-  // Slot 4 — analysis_or_predictor: the LEAGUE family (Title Predictor's own domain).
+  // Slot 5 — analysis_or_predictor: the LEAGUE family (Title Predictor's own domain).
   const analysisPick = pickForSlot(ranked, c => storyFamily(c.group.primary) === "LEAGUE", ctx);
-  place(4, "analysis_or_predictor", analysisPick);
+  place(5, "analysis_or_predictor", analysisPick);
 
-  // Slot 5 — supporting_story_or_checkin: best remaining candidate — same
-  // flashback exclusion as slot 2. Without this, a quiet period could give
-  // slot 8 ONE archive/filler story and slot 5 a completely different one,
+  // Slot 6 — supporting_story_or_checkin: best remaining candidate — same
+  // flashback exclusion as slot 3. Without this, a quiet period could give
+  // slot 9 ONE archive/filler story and slot 6 a completely different one,
   // which is the literal "clump of all seasons" a real user report named:
   // two callback-shaped segments airing back to back, neither one framed
   // as a look-back.
   const supportingPick = pickForSlot(ranked, c => !isFlashbackFamily(c.group.primary), ctx);
-  place(5, "supporting_story_or_checkin", supportingPick);
+  place(6, "supporting_story_or_checkin", supportingPick);
 
-  // Slot 6 — form_h2h_or_spotlight: FORM ∪ H2H ∪ PERFORMANCE.
+  // Slot 7 — form_h2h_or_spotlight: FORM ∪ H2H ∪ PERFORMANCE.
   const formPick = pickForSlot(ranked, c => {
     const family = storyFamily(c.group.primary);
     return family === "FORM" || family === "H2H" || family === "PERFORMANCE";
   }, ctx);
-  place(6, "form_h2h_or_spotlight", formPick);
+  place(7, "form_h2h_or_spotlight", formPick);
 
-  // Slot 7 — third_league_current_state: only "if needed" — a league not
-  // yet represented in slots 2-6, and only if a real candidate exists. The
+  // Slot 8 — third_league_current_state: only "if needed" — a league not
+  // yet represented in slots 3-7, and only if a real candidate exists. The
   // slot's own purpose name says "current state" — a flashback story here
   // would misrepresent old news as that league's current state, so this
-  // excludes the same two families slots 2/3/5 do.
+  // excludes the same two families slots 3/4/6 do.
   const leaguesSoFar = new Set(entries.filter(e => e.group !== null).map(e => e.group!.primary.leagueType));
   let thirdLeaguePick: RankedCandidate | null = null;
   for (const league of LEAGUE_TYPES) {
@@ -291,16 +291,24 @@ export function directorSelect(params: {
     thirdLeaguePick = pickForSlot(ranked, c => c.group.primary.leagueType === league && !isFlashbackFamily(c.group.primary), ctx);
     if (thirdLeaguePick) break;
   }
-  place(7, "third_league_current_state", thirdLeaguePick);
+  place(8, "third_league_current_state", thirdLeaguePick);
 
-  // Slot 8 — lighter_or_archive_or_callback: ARCHIVE family preferred, else
+  // Slot 9 — lighter_or_archive_or_callback: ARCHIVE family preferred, else
   // whatever's next-best so real remaining content isn't left unused.
   const lighterPick =
     pickForSlot(ranked, c => storyFamily(c.group.primary) === "ARCHIVE", ctx) ??
     pickForSlot(ranked, () => true, ctx);
-  place(8, "lighter_or_archive_or_callback", lighterPick);
+  place(9, "lighter_or_archive_or_callback", lighterPick);
 
-  // Slot 1 — opening_headlines: a brief tease of up to 3 of the stories
+  // Slot 1 — opening: a fixed ~20-30s desk sign-on with no story of its own
+  // (Show Bible v1 section 4/5 — "explain why this Edition matters," not a
+  // templated claim about any specific story, so it carries no group and
+  // never counts against the exposure/airtime tallies above). edition-
+  // engine.ts renders it from a small fixed line pool exactly like slot 11's
+  // closing sign-off.
+  const openingEntry: RunningOrderEntry = { slot: 1, purpose: "opening", group: null, treatment: "utility", carryForwardState: null };
+
+  // Slot 2 — headlines: a brief tease of up to 3 of the stories
   // ALREADY placed above (highest score first) — never new content of its
   // own, and exempt from the exposure/airtime tallies above (10.4's caps
   // are explicitly about "full-segment time," and a headline tease isn't a
@@ -311,10 +319,10 @@ export function directorSelect(params: {
     .sort((a, b) => b.group!.primary.score - a.group!.primary.score)
     .slice(0, 3);
   const headlineEntries: RunningOrderEntry[] = headlineSources.map(e => ({
-    slot: 1, purpose: "opening_headlines", group: e.group, treatment: "headline_ticker", carryForwardState: e.carryForwardState,
+    slot: 2, purpose: "headlines", group: e.group, treatment: "headline_ticker", carryForwardState: e.carryForwardState,
   }));
 
-  // Slot 9 — what_to_watch (required): an unresolved LEAGUE-family
+  // Slot 10 — what_to_watch (required): an unresolved LEAGUE-family
   // question. Prefer a not-yet-used LEAGUE candidate; failing that,
   // legitimately re-reference the best LEAGUE candidate already placed
   // elsewhere (recapping the open question is real content, not
@@ -329,22 +337,22 @@ export function directorSelect(params: {
   let whatToWatchEntry: RunningOrderEntry;
   if (unusedLeaguePick) {
     commit(unusedLeaguePick, ctx);
-    whatToWatchEntry = { slot: 9, purpose: "what_to_watch", group: unusedLeaguePick.group, treatment: unusedLeaguePick.treatment, carryForwardState: unusedLeaguePick.carryForwardState };
+    whatToWatchEntry = { slot: 10, purpose: "what_to_watch", group: unusedLeaguePick.group, treatment: unusedLeaguePick.treatment, carryForwardState: unusedLeaguePick.carryForwardState };
   } else {
     const bestLeagueOverall = ranked.find(c => storyFamily(c.group.primary) === "LEAGUE") ?? null;
     whatToWatchEntry = bestLeagueOverall
-      ? { slot: 9, purpose: "what_to_watch", group: bestLeagueOverall.group, treatment: bestLeagueOverall.treatment, carryForwardState: bestLeagueOverall.carryForwardState }
-      : { slot: 9, purpose: "what_to_watch", group: null, treatment: "utility", carryForwardState: null };
+      ? { slot: 10, purpose: "what_to_watch", group: bestLeagueOverall.group, treatment: bestLeagueOverall.treatment, carryForwardState: bestLeagueOverall.carryForwardState }
+      : { slot: 10, purpose: "what_to_watch", group: null, treatment: "utility", carryForwardState: null };
   }
 
-  // Slot 10 — closing: a short sign-off — still no SEGMENT of its own (this
+  // Slot 11 — closing: a short sign-off — still no SEGMENT of its own (this
   // entry's own `group` never gets a commit() call, never counts against
   // 10.4's exposure/airtime caps, and edition-engine.ts keeps the resulting
   // segment's storyId/storyType/leagueType/facts all null exactly as
   // before). What CAN change, direct response to player feedback wanting
   // the show to feel like something worth coming back for rather than "a
   // constant same episode loop": when a genuinely forward-looking storyline
-  // is still live — the same LEAGUE story already driving slot 9's "what to
+  // is still live — the same LEAGUE story already driving slot 10's "what to
   // watch" recap, or (failing that) the best still-open win/loss streak in
   // the pool — attach it here too, so edition-engine.ts's own closing-tease-
   // math.ts can flavor the sign-off with a real, fact-checked tease
@@ -354,7 +362,7 @@ export function directorSelect(params: {
   // about it — see edition-engine.ts's own header on buildClosingSegment.
   const streakTeaseCandidate = ranked.find(c => c.group.primary.storyType === "WIN_STREAK" || c.group.primary.storyType === "LOSS_STREAK") ?? null;
   const closingTeaseGroup = whatToWatchEntry.group ?? streakTeaseCandidate?.group ?? null;
-  const closingEntry: RunningOrderEntry = { slot: 10, purpose: "closing", group: closingTeaseGroup, treatment: "utility", carryForwardState: null };
+  const closingEntry: RunningOrderEntry = { slot: 11, purpose: "closing", group: closingTeaseGroup, treatment: "utility", carryForwardState: null };
 
   // Order here is BUILD order, not display order — edition-engine.ts renders
   // each entry's dialogue (and records its phrase usage into broadcast_memory)
@@ -362,7 +370,7 @@ export function directorSelect(params: {
   // by `purpose` for display (headlines vs. body), which doesn't care where
   // in this array a headline entry sat. That distinction matters here because
   // a headline tease is, by 9.3's own design, a re-use of a story ALREADY
-  // placed in a full slot above (or slot 9's own "recap" fallback re-uses one
+  // placed in a full slot above (or slot 10's own "recap" fallback re-uses one
   // too) — both reuse the exact same QUICK_HIT phrase pool a full Supporting
   // segment for that same story/subject would need. A story type with few
   // phrases per intent (CHAMPION has exactly one) has nothing left once the
@@ -375,7 +383,7 @@ export function directorSelect(params: {
   // first and claim the phrase pool, with headline teases last so a cooldown
   // collision costs only the tease, never the segment it was teasing.
   return {
-    runningOrder: [...entries, whatToWatchEntry, ...headlineEntries, closingEntry],
+    runningOrder: [openingEntry, ...entries, whatToWatchEntry, ...headlineEntries, closingEntry],
     mergedGroups: merged,
   };
 }

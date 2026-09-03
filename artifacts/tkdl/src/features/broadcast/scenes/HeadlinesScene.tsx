@@ -1,6 +1,7 @@
-// TKDL LIVE — HeadlinesScene (sceneForSegment: opening_headlines). Up to
-// three of these play back-to-back at the very top of the programme
-// (director.ts's own slot-1 tease of the day's top 3 stories, CurrentEdition
+// TKDL LIVE — HeadlinesScene (sceneForSegment: headlines). Up to
+// three of these play back-to-back near the top of the programme, right
+// after the fixed opening sign-on (director.ts's own slot-2 tease of the
+// day's top 3 stories, CurrentEdition
 // .headlines — see BroadcastPlayer.tsx for how the two lists are stitched
 // into one playlist). Each is its own brief tease, not a list of three —
 // styled as a single rolling "coming up" banner rather than DeskScene's

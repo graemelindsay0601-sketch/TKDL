@@ -17,7 +17,10 @@ import {
 } from "../broadcast/config";
 import { resolveNextLogicalSlot } from "../broadcast/edition-slots";
 import { serializeSegment, editionTitle } from "../broadcast/api-shapes";
-import { programmeSegmentId, type EditionProgramme } from "../broadcast/director-math";
+import {
+  programmeSegmentId, totalEstimatedSecondsForProgramme, classifyEditionLength,
+  type EditionProgramme,
+} from "../broadcast/director-math";
 
 /**
  * TKDL LIVE — the automated broadcast "show" feature (handover doc section
@@ -92,12 +95,14 @@ router.get("/broadcast/current", async (req, res): Promise<void> => {
     }
 
     const programme = edition.programme as EditionProgramme;
-    // 14.4's own split: `headlines` is slot 1's opening tease list (up to 3
-    // brief mentions, director.ts), `segments` is the real programme body —
-    // both are just the same persisted list partitioned by purpose, not two
-    // independently-fetched things.
-    const headlines = programme.segments.filter(s => s.purpose === "opening_headlines");
-    const body = programme.segments.filter(s => s.purpose !== "opening_headlines");
+    // 14.4's own split: `headlines` is slot 2's tease list (up to 3 brief
+    // mentions, director.ts) — slot 1's fixed opening sign-on has no story of
+    // its own and stays in `segments` as the body's first entry, alongside
+    // every other purpose. Both `headlines` and `body` are just the same
+    // persisted list partitioned by purpose, not two independently-fetched
+    // things.
+    const headlines = programme.segments.filter(s => s.purpose === "headlines");
+    const body = programme.segments.filter(s => s.purpose !== "headlines");
 
     res.json({
       edition: {
@@ -167,6 +172,7 @@ router.get("/admin/broadcast/status", requireAdminSession, async (_req, res): Pr
           status: broadcastEditionsTable.status, changeScore: broadcastEditionsTable.changeScore,
           dataCutoff: broadcastEditionsTable.dataCutoff, publishedAt: broadcastEditionsTable.publishedAt,
           diagnostic: broadcastEditionsTable.diagnostic, createdAt: broadcastEditionsTable.createdAt,
+          programme: broadcastEditionsTable.programme,
         })
         .from(broadcastEditionsTable)
         .orderBy(desc(broadcastEditionsTable.id))
@@ -192,11 +198,19 @@ router.get("/admin/broadcast/status", requireAdminSession, async (_req, res): Pr
     );
 
     res.json({
-      recentEditions: recentEditions.map(e => ({
-        id: e.id, slotKey: e.slotKey, slotType: e.slotType, status: e.status, changeScore: e.changeScore,
-        dataCutoff: e.dataCutoff.toISOString(), publishedAt: e.publishedAt?.toISOString() ?? null,
-        diagnostic: e.diagnostic, createdAt: e.createdAt.toISOString(),
-      })),
+      // Show Bible v1 §1 "Programme lengths" — diagnostic-only runtime band
+      // (Quiet/Normal/Busy/Exceptional), never a publish gate (see director-
+      // math.ts's own header on classifyEditionLength). null for any
+      // Edition row with no real programme yet (SKIPPED/FAILED/BUILDING).
+      recentEditions: recentEditions.map(e => {
+        const runtimeSeconds = isEditionProgramme(e.programme) ? totalEstimatedSecondsForProgramme(e.programme) : null;
+        return {
+          id: e.id, slotKey: e.slotKey, slotType: e.slotType, status: e.status, changeScore: e.changeScore,
+          dataCutoff: e.dataCutoff.toISOString(), publishedAt: e.publishedAt?.toISOString() ?? null,
+          diagnostic: e.diagnostic, createdAt: e.createdAt.toISOString(),
+          runtimeSeconds, runtimeBand: runtimeSeconds !== null ? classifyEditionLength(runtimeSeconds) : null,
+        };
+      }),
       currentPublished: currentPublished
         ? { id: currentPublished.id, slotKey: currentPublished.slotKey, changeScore: currentPublished.changeScore, publishedAt: currentPublished.publishedAt?.toISOString() ?? null }
         : null,

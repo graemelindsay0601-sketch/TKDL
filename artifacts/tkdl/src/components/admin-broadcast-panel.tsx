@@ -32,6 +32,12 @@ type RecentEdition = {
   publishedAt: string | null;
   diagnostic: string | null;
   createdAt: string;
+  /** Show Bible v1 §1 "Programme lengths" — real dialogue-hold-time runtime
+   * and its Quiet/Normal/Busy/Exceptional band, diagnostic-only (never a
+   * publish gate — see director-math.ts's own classifyEditionLength).
+   * null for any row with no real programme yet (SKIPPED/FAILED/BUILDING). */
+  runtimeSeconds: number | null;
+  runtimeBand: "quiet" | "normal" | "busy" | "exceptional" | null;
 };
 
 type StoryCount = { lifecycle: string; leagueType: string; count: number };
@@ -56,6 +62,19 @@ function formatWhen(iso: string | null): string {
   const d = new Date(iso);
   return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
+
+function formatRuntime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+const RUNTIME_BAND_LABEL: Record<NonNullable<RecentEdition["runtimeBand"]>, string> = {
+  quiet: "Quiet", normal: "Normal", busy: "Busy", exceptional: "Exceptional",
+};
+const RUNTIME_BAND_COLOR: Record<NonNullable<RecentEdition["runtimeBand"]>, string> = {
+  quiet: D.sub, normal: D.info, busy: D.warn, exceptional: D.success,
+};
 
 export default function AdminBroadcastPanel() {
   const [status, setStatus]         = useState<BroadcastAdminStatus | null>(null);
@@ -157,11 +176,19 @@ export default function AdminBroadcastPanel() {
                   <div key={e.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", background: D.card, border: `1px solid ${D.border}`, borderRadius: "8px", padding: "10px 14px", flexWrap: "wrap" }}>
                     <div style={{ fontSize: "12px" }}>
                       <strong>#{e.id}</strong> <span style={{ color: D.sub }}>{e.slotKey} · {e.slotType} · change {e.changeScore}</span>
+                      {e.runtimeSeconds !== null && <span style={{ color: D.sub }}> · {formatRuntime(e.runtimeSeconds)}</span>}
                       {e.diagnostic && <span style={{ color: D.sub }}> — {e.diagnostic}</span>}
                     </div>
-                    <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", color: STATUS_COLOR[e.status], whiteSpace: "nowrap", padding: "3px 10px", borderRadius: "10px", background: `${STATUS_COLOR[e.status]}18`, border: `1px solid ${STATUS_COLOR[e.status]}33` }}>
-                      {e.status}
-                    </span>
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                      {e.runtimeBand && (
+                        <span title="Show Bible programme-length band — diagnostic only, never a publish gate" style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", color: RUNTIME_BAND_COLOR[e.runtimeBand], whiteSpace: "nowrap", padding: "3px 10px", borderRadius: "10px", background: `${RUNTIME_BAND_COLOR[e.runtimeBand]}18`, border: `1px solid ${RUNTIME_BAND_COLOR[e.runtimeBand]}33` }}>
+                          {RUNTIME_BAND_LABEL[e.runtimeBand]}
+                        </span>
+                      )}
+                      <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", color: STATUS_COLOR[e.status], whiteSpace: "nowrap", padding: "3px 10px", borderRadius: "10px", background: `${STATUS_COLOR[e.status]}18`, border: `1px solid ${STATUS_COLOR[e.status]}33` }}>
+                        {e.status}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -355,24 +355,33 @@ export function applyVarietyShuffle<T>(
 // tallies in hand, none of which this pure data belongs holding). This is
 // the fixed shape every normal Edition's running order is assembled
 // against.
+// "opening" and "headlines" are deliberately separate purposes (Show Bible
+// v1 section 4): a fixed ~20-30s desk sign-on carries no story of its own
+// (director.ts never gives it a group — same "no full segment" shape as
+// "closing"), while "headlines" is the pre-existing brief tease of up to 3
+// of the stories already placed elsewhere. Splitting them out of a single
+// "opening_headlines" purpose lets the frontend/API give the fixed sign-on
+// its own short beat before the tease, matching the doc's own two-row table
+// instead of collapsing both into one slot.
 export type RunningOrderSlotPurpose =
-  | "opening_headlines" | "main_story" | "second_major_story" | "analysis_or_predictor"
+  | "opening" | "headlines" | "main_story" | "second_major_story" | "analysis_or_predictor"
   | "supporting_story_or_checkin" | "form_h2h_or_spotlight" | "third_league_current_state"
   | "lighter_or_archive_or_callback" | "what_to_watch" | "closing";
 
 export type RunningOrderSlotTemplate = { slot: number; purpose: RunningOrderSlotPurpose; required: boolean };
 
 export const NORMAL_RUNNING_ORDER_TEMPLATE: readonly RunningOrderSlotTemplate[] = [
-  { slot: 1, purpose: "opening_headlines", required: true },
-  { slot: 2, purpose: "main_story", required: true },
-  { slot: 3, purpose: "second_major_story", required: false },
-  { slot: 4, purpose: "analysis_or_predictor", required: false },
-  { slot: 5, purpose: "supporting_story_or_checkin", required: false },
-  { slot: 6, purpose: "form_h2h_or_spotlight", required: false },
-  { slot: 7, purpose: "third_league_current_state", required: false },
-  { slot: 8, purpose: "lighter_or_archive_or_callback", required: false },
-  { slot: 9, purpose: "what_to_watch", required: true },
-  { slot: 10, purpose: "closing", required: true },
+  { slot: 1, purpose: "opening", required: true },
+  { slot: 2, purpose: "headlines", required: true },
+  { slot: 3, purpose: "main_story", required: true },
+  { slot: 4, purpose: "second_major_story", required: false },
+  { slot: 5, purpose: "analysis_or_predictor", required: false },
+  { slot: 6, purpose: "supporting_story_or_checkin", required: false },
+  { slot: 7, purpose: "form_h2h_or_spotlight", required: false },
+  { slot: 8, purpose: "third_league_current_state", required: false },
+  { slot: 9, purpose: "lighter_or_archive_or_callback", required: false },
+  { slot: 10, purpose: "what_to_watch", required: true },
+  { slot: 11, purpose: "closing", required: true },
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -395,7 +404,7 @@ export type ProgrammeSegment = {
   slot: number;
   purpose: RunningOrderSlotPurpose;
   importance: Treatment | "utility";
-  /** null only for a slot with no story of its own (10's closing sign-off, or 9's what-to-watch in the documented no-LEAGUE-story edge case — see director.ts). */
+  /** null only for a slot with no story of its own (1's fixed opening sign-on, 11's closing sign-off, or 10's what-to-watch in the documented no-LEAGUE-story edge case — see director.ts). */
   storyId: number | null;
   supportingStoryIds: number[];
   storyType: string | null;
@@ -449,11 +458,33 @@ export type QualityGateResult = { pass: true } | { pass: false; reasons: string[
 
 const MIN_MEANINGFUL_SEGMENTS = 4;
 
+/**
+ * Show Bible v1's own "NO FAKE URGENCY" box: "If the league has been quiet,
+ * the Edition should be shorter. Do not manufacture drama just to fill a
+ * target runtime." 11.1's required slots ("opening," "what_to_watch," and
+ * "closing") are ALWAYS present even on the quietest possible day — director
+ * .ts gives all three fixed, hand-written dialogue with no story behind them
+ * whenever the pool has nothing to offer (see director.ts's own header on
+ * slot 1 and edition-engine.ts's own fallback branch) — so counting raw
+ * `input.segments.length` against MIN_MEANINGFUL_SEGMENTS let a day with
+ * literally zero real stories still clear the gate on structural filler
+ * alone (opening + a utility what_to_watch + closing, plus whatever stale
+ * carry-forward scraped a "main story" pick, is 4 segments with at most one
+ * of them backed by anything real) — publishing a "new" Edition that reads
+ * as a full show while saying nothing new, exactly the fake urgency the doc
+ * warns against. Filtering to `storyId !== null` counts only segments
+ * actually backed by a real, verified story — a headline tease still counts
+ * (it re-references a real story's id, per 9.3), but none of the three fixed
+ * utility slots ever can, so a genuinely quiet day now has to clear the bar
+ * on real content alone, and correctly falls back to keeping the previous
+ * published Edition (17's own rule) when it can't.
+ */
 export function evaluateQualityGate(input: QualityGateInput): QualityGateResult {
   const reasons: string[] = [];
 
-  if (!input.isChampionOrSeasonBoundarySpecial && input.segments.length < MIN_MEANINGFUL_SEGMENTS) {
-    reasons.push(`fewer than ${MIN_MEANINGFUL_SEGMENTS} meaningful segments (${input.segments.length})`);
+  const meaningfulSegmentCount = input.segments.filter(s => s.storyId !== null).length;
+  if (!input.isChampionOrSeasonBoundarySpecial && meaningfulSegmentCount < MIN_MEANINGFUL_SEGMENTS) {
+    reasons.push(`fewer than ${MIN_MEANINGFUL_SEGMENTS} meaningful segments (${meaningfulSegmentCount})`);
   }
   if (input.hasFactsOutsideCutoffSnapshot) reasons.push("dialogue facts do not all validate against the Edition cutoff snapshot");
   if (input.hasInvalidFutureMatchLanguage) reasons.push("invalid future-match language present");
@@ -494,4 +525,49 @@ export function evaluateQualityGate(input: QualityGateInput): QualityGateResult 
   if (input.hasDuplicateStoryIds) reasons.push("duplicate story ids present");
 
   return reasons.length === 0 ? { pass: true } : { pass: false, reasons };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Edition length classification (Show Bible v1 §1 "Programme lengths")
+// ═══════════════════════════════════════════════════════════════════════
+//
+// The doc's own table: Quiet 5-7min ("calmer; archive, spotlight, table
+// state, predictor if useful"), Normal 8-12min ("7-10 meaningful segments;
+// balanced but not forced"), Busy 12-15min ("more results and quick hits;
+// strongest stories lead"), Exceptional up to ~18min ("title, record or
+// champion treatment"). This file already has the one number every one of
+// those rows actually needs — every segment's own `dialogue[].holdSeconds`
+// is the real, deterministic time a viewer spends on it (12.6; the same sum
+// api-shapes.ts's own estimatedSecondsForSegment already computes per
+// segment for the API response) — so classifying a whole programme is pure
+// arithmetic over data this file's own ProgrammeSegment/EditionProgramme
+// types already carry, not a new estimate. Deliberately diagnostic-only:
+// nothing in evaluateQualityGate reads this, so an Edition is never held
+// back from publishing purely for running long or short — the doc's "no
+// fake urgency" is enforced by MIN_MEANINGFUL_SEGMENTS actually counting
+// real content (see evaluateQualityGate's own header above), not by a
+// runtime clock. Admin tooling (routes/broadcast.ts's own /admin/broadcast/
+// status) surfaces the band for visibility only.
+export type EditionLengthBand = "quiet" | "normal" | "busy" | "exceptional";
+
+/** Upper bound (inclusive, seconds) of every band except "exceptional", which is genuinely open-ended per the doc's own "up to ~18min" phrasing. */
+const EDITION_LENGTH_BAND_MAX_SECONDS: Record<Exclude<EditionLengthBand, "exceptional">, number> = {
+  quiet: 7 * 60,
+  normal: 12 * 60,
+  busy: 15 * 60,
+};
+
+/** Sum of every segment's own dialogue hold-time — the whole programme's real, deterministic runtime. */
+export function totalEstimatedSecondsForProgramme(programme: EditionProgramme): number {
+  return programme.segments.reduce(
+    (total, seg) => total + seg.dialogue.reduce((segTotal, turn) => segTotal + turn.holdSeconds, 0),
+    0,
+  );
+}
+
+export function classifyEditionLength(totalEstimatedSeconds: number): EditionLengthBand {
+  if (totalEstimatedSeconds <= EDITION_LENGTH_BAND_MAX_SECONDS.quiet) return "quiet";
+  if (totalEstimatedSeconds <= EDITION_LENGTH_BAND_MAX_SECONDS.normal) return "normal";
+  if (totalEstimatedSeconds <= EDITION_LENGTH_BAND_MAX_SECONDS.busy) return "busy";
+  return "exceptional";
 }

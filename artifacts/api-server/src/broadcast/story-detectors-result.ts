@@ -218,7 +218,7 @@ export function detectLeaderBeaten(facts: SinglesResultMatchFacts): StoryCandida
     tags: ["leader_beaten"],
     facts: {
       matchId: facts.matchId, winnerId: facts.winnerId, loserId: facts.loserId,
-      leaderPointsBefore: facts.loserBefore.points,
+      leaderPointsBefore: facts.loserBefore.points, stake: facts.stake,
     },
     components: { ...baseComponents(facts), historicalSignificance: SCORE_MAX.historicalSignificance * 0.3, entertainmentValue: 3 },
   };
@@ -244,7 +244,7 @@ export function detectStreakBreaker(facts: SinglesResultMatchFacts): StoryCandid
     tags: ["streak_breaker"],
     facts: {
       matchId: facts.matchId, winnerId: facts.winnerId, loserId: facts.loserId,
-      brokenWinStreak: brokenStreak,
+      brokenWinStreak: brokenStreak, stake: facts.stake,
     },
     components: { ...baseComponents(facts), historicalSignificance, entertainmentValue: 3 },
   };
@@ -268,7 +268,7 @@ export function detectDroughtEnded(facts: SinglesResultMatchFacts): StoryCandida
     tags: ["drought_ended"],
     facts: {
       matchId: facts.matchId, winnerId: facts.winnerId, loserId: facts.loserId,
-      endedLossStreak: endedStreak,
+      endedLossStreak: endedStreak, stake: facts.stake,
     },
     components: { ...baseComponents(facts), historicalSignificance, entertainmentValue: 3 },
   };
@@ -293,7 +293,7 @@ export function detectFirstH2HWin(facts: SinglesResultMatchFacts): StoryCandidat
     tags: ["first_h2h_win"],
     facts: {
       matchId: facts.matchId, winnerId: facts.winnerId, loserId: facts.loserId,
-      priorLossesToThisOpponent: loserPriorWins,
+      priorLossesToThisOpponent: loserPriorWins, stake: facts.stake,
     },
     components: { ...baseComponents(facts), historicalSignificance, entertainmentValue: 4 },
   };
@@ -330,7 +330,7 @@ export function detectRevenge(facts: SinglesResultMatchFacts): StoryCandidate | 
     tags: ["revenge"],
     facts: {
       matchId: facts.matchId, winnerId: facts.winnerId, loserId: facts.loserId,
-      consecutivePriorLosses,
+      consecutivePriorLosses, stake: facts.stake,
     },
     components: { ...baseComponents(facts), historicalSignificance, entertainmentValue: 4 },
   };

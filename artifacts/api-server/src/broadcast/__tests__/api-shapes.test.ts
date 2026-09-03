@@ -45,8 +45,12 @@ describe("GRAPHIC_KIND_BY_STORY_TYPE", () => {
 });
 
 describe("sceneForSegment", () => {
-  test("opening_headlines is always the headlines scene", () => {
-    assert.equal(sceneForSegment(segment({ purpose: "opening_headlines" })), "headlines");
+  test("headlines is always the headlines scene", () => {
+    assert.equal(sceneForSegment(segment({ purpose: "headlines" })), "headlines");
+  });
+
+  test("opening is always the desk scene", () => {
+    assert.equal(sceneForSegment(segment({ purpose: "opening", storyId: null, storyType: null })), "desk");
   });
 
   test("closing is always the desk scene", () => {
@@ -57,7 +61,7 @@ describe("sceneForSegment", () => {
     assert.equal(sceneForSegment(segment({ purpose: "main_story", storyType: "CHAMPION" })), "champion");
   });
 
-  test("a null storyId (slot 9's no-LEAGUE-story fallback) reads from the desk", () => {
+  test("a null storyId (slot 10's no-LEAGUE-story fallback) reads from the desk", () => {
     assert.equal(sceneForSegment(segment({ purpose: "what_to_watch", storyId: null, storyType: null })), "desk");
   });
 

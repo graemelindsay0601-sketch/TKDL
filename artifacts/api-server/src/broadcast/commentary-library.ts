@@ -123,15 +123,15 @@ function ph(
 const UPSET_REQUIRES = ["winnerId", "loserId", "winnerProbability"];
 
 const UPSET_PHRASES: Phrase[] = [
-  ph("UPSET.qf.1", "A", "quick_fact", "{{winnerName}} beats {{loserName}} — the model had {{winnerName}} at just {{winnerProbabilityPct}}% coming in.", "positive", { requires: UPSET_REQUIRES }),
+  ph("UPSET.qf.1", "A", "quick_fact", "{{winnerName}} beats {{loserName}} for {{stake}} points — the model had {{winnerName}} at just {{winnerProbabilityPct}}% coming in.", "positive", { requires: [...UPSET_REQUIRES, "stake"] }),
   ph("UPSET.qr.1", "B", "quick_reaction", "Didn't see that coming — {{loserName}} will want to forget that one.", "neutral", { requires: UPSET_REQUIRES, tone: "humour" }),
   ph("UPSET.model.1", "A", "model_context", "Going in, our model gave {{winnerName}} a {{winnerProbabilityPct}}% chance against {{loserName}}.", "neutral", { requires: UPSET_REQUIRES }),
   ph("UPSET.contrary.1", "B", "contrary_opinion", "Numbers or no numbers, {{winnerName}} always fancied this one — I said as much last time out.", "positive", { requires: UPSET_REQUIRES }),
   ph("UPSET.evidence.1", "A", "evidence", "Fair, but a {{winnerProbabilityPct}}% shot landing is exactly why we call it an upset, {{stake}} points on the line as well.", "neutral", { requires: [...UPSET_REQUIRES, "stake"] }),
   ph("UPSET.close.1", "B", "disagree_close", "Model can recalculate — {{winnerName}} just made it look easy.", "positive", { requires: UPSET_REQUIRES }),
 
-ph("UPSET.qf.2", "A", "quick_fact", "Not many saw that — {{winnerName}} gets past {{loserName}} despite going in at only {{winnerProbabilityPct}}%.", "positive", { requires: UPSET_REQUIRES }),
-ph("UPSET.qf.3", "A", "quick_fact", "{{winnerName}} over {{loserName}} — the pre-match number on {{winnerName}} was just {{winnerProbabilityPct}}%.", "positive", { requires: UPSET_REQUIRES }),
+ph("UPSET.qf.2", "A", "quick_fact", "Not many saw that — {{winnerName}} gets past {{loserName}} for {{stake}} points despite going in at only {{winnerProbabilityPct}}%.", "positive", { requires: [...UPSET_REQUIRES, "stake"] }),
+ph("UPSET.qf.3", "A", "quick_fact", "{{winnerName}} over {{loserName}} for {{stake}} points — the pre-match number on {{winnerName}} was just {{winnerProbabilityPct}}%.", "positive", { requires: [...UPSET_REQUIRES, "stake"] }),
 ph("UPSET.qr.2", "B", "quick_reaction", "Well, that's turned the evening upside down.", "neutral", { requires: UPSET_REQUIRES, tone: "humour" }),
 ph("UPSET.qr.3", "B", "quick_reaction", "{{loserName}} walked in as the fancied one — walks off with a different story altogether.", "neutral", { requires: UPSET_REQUIRES }),
 ph("UPSET.model.2", "A", "model_context", "Pre-match, {{winnerName}} was rated at just {{winnerProbabilityPct}}% to get past {{loserName}}.", "neutral", { requires: UPSET_REQUIRES }),
@@ -147,15 +147,15 @@ ph("UPSET.close.3", "B", "disagree_close", "{{loserName}} will get another crack
 ];
 
 const MAJOR_UPSET_PHRASES: Phrase[] = [
-  ph("MAJOR_UPSET.qf.1", "A", "quick_fact", "A major upset — {{winnerName}} was rated only {{winnerProbabilityPct}}% to beat {{loserName}}, and did it anyway.", "positive", { requires: UPSET_REQUIRES }),
+  ph("MAJOR_UPSET.qf.1", "A", "quick_fact", "A major upset — {{winnerName}} was rated only {{winnerProbabilityPct}}% to beat {{loserName}}, and did it anyway for {{stake}} points.", "positive", { requires: [...UPSET_REQUIRES, "stake"] }),
   ph("MAJOR_UPSET.qr.1", "B", "quick_reaction", "That's a proper shock, that. {{loserName}} won't enjoy watching that back.", "neutral", { requires: UPSET_REQUIRES, tone: "humour" }),
   ph("MAJOR_UPSET.model.1", "A", "model_context", "The model had {{loserName}} winning this comfortably — {{winnerName}} at just {{winnerProbabilityPct}}%.", "neutral", { requires: UPSET_REQUIRES }),
   ph("MAJOR_UPSET.contrary.1", "B", "contrary_opinion", "The model doesn't watch {{winnerName}} throw under pressure — I do, and I'm not remotely stunned.", "positive", { requires: UPSET_REQUIRES }),
   ph("MAJOR_UPSET.evidence.1", "A", "evidence", "Under 25% and it landed regardless — with {{stake}} points at stake too, that's a genuinely big result.", "neutral", { requires: [...UPSET_REQUIRES, "stake"] }),
   ph("MAJOR_UPSET.close.1", "B", "disagree_close", "Stick that one on the highlights reel.", "positive", { requires: UPSET_REQUIRES, tone: "personality" }),
 
-ph("MAJOR_UPSET.qf.2", "A", "quick_fact", "A major upset on our hands — {{loserName}} was the strong favourite, but {{winnerName}} got the job done at just {{winnerProbabilityPct}}%.", "positive", { requires: UPSET_REQUIRES }),
-ph("MAJOR_UPSET.qf.3", "A", "quick_fact", "{{winnerName}} produces a big result — only {{winnerProbabilityPct}}% to win this one, according to the model.", "positive", { requires: UPSET_REQUIRES }),
+ph("MAJOR_UPSET.qf.2", "A", "quick_fact", "A major upset on our hands — {{loserName}} was the strong favourite, but {{winnerName}} got the job done for {{stake}} points at just {{winnerProbabilityPct}}%.", "positive", { requires: [...UPSET_REQUIRES, "stake"] }),
+ph("MAJOR_UPSET.qf.3", "A", "quick_fact", "{{winnerName}} produces a big result worth {{stake}} points — only {{winnerProbabilityPct}}% to win this one, according to the model.", "positive", { requires: [...UPSET_REQUIRES, "stake"] }),
 ph("MAJOR_UPSET.qr.2", "B", "quick_reaction", "That is a proper turn-up — {{winnerName}} deserves every bit of that.", "positive", { requires: UPSET_REQUIRES, tone: "personality" }),
 ph("MAJOR_UPSET.qr.3", "B", "quick_reaction", "{{loserName}} will be replaying that match in their head for a while.", "negative", { requires: UPSET_REQUIRES, tone: "humour" }),
 ph("MAJOR_UPSET.model.2", "A", "model_context", "{{winnerName}} came in at just {{winnerProbabilityPct}}% — one of the more lopsided numbers we've flagged tonight.", "neutral", { requires: UPSET_REQUIRES }),
@@ -171,15 +171,15 @@ ph("MAJOR_UPSET.close.3", "B", "disagree_close", "{{loserName}} won't want to wa
 ];
 
 const MODEL_SHOCK_PHRASES: Phrase[] = [
-  ph("MODEL_SHOCK.qf.1", "A", "quick_fact", "That is a genuine model shock — {{winnerName}} was given only {{winnerProbabilityPct}}% against {{loserName}}.", "positive", { requires: UPSET_REQUIRES }),
+  ph("MODEL_SHOCK.qf.1", "A", "quick_fact", "That is a genuine model shock — {{winnerName}} was given only {{winnerProbabilityPct}}% against {{loserName}}, and takes {{stake}} points for it.", "positive", { requires: [...UPSET_REQUIRES, "stake"] }),
   ph("MODEL_SHOCK.qr.1", "B", "quick_reaction", "Even I didn't have {{winnerName}} winning that one, and I back the underdog most weeks.", "neutral", { requires: UPSET_REQUIRES, tone: "humour" }),
   ph("MODEL_SHOCK.model.1", "A", "model_context", "Sub-15% for {{winnerName}} pre-match — about as heavy an underdog tag as the model hands out.", "neutral", { requires: UPSET_REQUIRES }),
   ph("MODEL_SHOCK.contrary.1", "B", "contrary_opinion", "This is exactly why you don't play the percentages against a player who fancies the big occasion.", "positive", { requires: UPSET_REQUIRES }),
   ph("MODEL_SHOCK.evidence.1", "A", "evidence", "Fifteen percent, beaten — with {{stake}} points changing hands, the model will be recalculating tonight.", "neutral", { requires: [...UPSET_REQUIRES, "stake"] }),
   ph("MODEL_SHOCK.close.1", "B", "disagree_close", "Sometimes the board doesn't care what the model says.", "positive", { requires: UPSET_REQUIRES, tone: "personality", distinctive: true }),
 
-ph("MODEL_SHOCK.qf.2", "A", "quick_fact", "About as extreme a result as the model produces — {{winnerName}} at just {{winnerProbabilityPct}}%, and {{loserName}} beaten anyway.", "positive", { requires: UPSET_REQUIRES }),
-ph("MODEL_SHOCK.qf.3", "A", "quick_fact", "{{winnerName}} defies the model completely tonight, rated at only {{winnerProbabilityPct}}% against {{loserName}}.", "positive", { requires: UPSET_REQUIRES }),
+ph("MODEL_SHOCK.qf.2", "A", "quick_fact", "About as extreme a result as the model produces — {{winnerName}} at just {{winnerProbabilityPct}}%, and {{loserName}} beaten anyway for {{stake}} points.", "positive", { requires: [...UPSET_REQUIRES, "stake"] }),
+ph("MODEL_SHOCK.qf.3", "A", "quick_fact", "{{winnerName}} defies the model completely tonight, rated at only {{winnerProbabilityPct}}% against {{loserName}}, banking {{stake}} points regardless.", "positive", { requires: [...UPSET_REQUIRES, "stake"] }),
 ph("MODEL_SHOCK.qr.2", "B", "quick_reaction", "That's about as shocked as I've been all season.", "neutral", { requires: UPSET_REQUIRES, tone: "humour" }),
 ph("MODEL_SHOCK.qr.3", "B", "quick_reaction", "{{loserName}} will be picking through that one for weeks.", "negative", { requires: UPSET_REQUIRES }),
 ph("MODEL_SHOCK.model.2", "A", "model_context", "{{winnerProbabilityPct}}% for {{winnerName}} — right down among the biggest gaps the model has flagged this season.", "neutral", { requires: UPSET_REQUIRES }),
@@ -242,15 +242,15 @@ ph("HIGH_STAKE_LOSS.closer.3", "B", "closer", "Move on quickly is the only way a
 
 const ELIMINATION_REQUIRES = ["winnerId", "loserId"];
 const ELIMINATION_PHRASES: Phrase[] = [
-  ph("ELIMINATION.qf.1", "A", "quick_fact", "That's it for {{loserName}} — eliminated after this loss to {{winnerName}}.", "negative", { requires: ELIMINATION_REQUIRES }),
+  ph("ELIMINATION.qf.1", "A", "quick_fact", "That's it for {{loserName}} — eliminated after this {{stake}}-point loss to {{winnerName}}.", "negative", { requires: [...ELIMINATION_REQUIRES, "stake"] }),
   ph("ELIMINATION.qr.1", "B", "quick_reaction", "Tough way to go out, that.", "negative", { requires: ELIMINATION_REQUIRES }),
   ph("ELIMINATION.fact.1", "A", "fact", "{{loserName}}'s run comes to an end, beaten by {{winnerName}} for {{stake}} points.", "negative", { requires: [...ELIMINATION_REQUIRES, "stake"] }),
   ph("ELIMINATION.reaction.1", "B", "reaction", "Every campaign ends somewhere — at least {{loserName}} goes down fighting.", "neutral", { requires: ELIMINATION_REQUIRES }),
   ph("ELIMINATION.context.1", "A", "context", "That result also has knock-on effects further up the standings.", "neutral", { requires: ELIMINATION_REQUIRES }),
   ph("ELIMINATION.closer.1", "B", "closer", "Chin up, {{loserName}} — there's always next season.", "neutral", { requires: ELIMINATION_REQUIRES }),
 
-ph("ELIMINATION.qf.2", "A", "quick_fact", "{{loserName}}'s campaign is over — {{winnerName}} the one to close it out.", "negative", { requires: ELIMINATION_REQUIRES }),
-ph("ELIMINATION.qf.3", "A", "quick_fact", "That's the end of the road for {{loserName}}, beaten by {{winnerName}}.", "negative", { requires: ELIMINATION_REQUIRES }),
+ph("ELIMINATION.qf.2", "A", "quick_fact", "{{loserName}}'s campaign is over — {{winnerName}} the one to close it out, taking {{stake}} points in the process.", "negative", { requires: [...ELIMINATION_REQUIRES, "stake"] }),
+ph("ELIMINATION.qf.3", "A", "quick_fact", "That's the end of the road for {{loserName}}, beaten by {{winnerName}} for {{stake}} points.", "negative", { requires: [...ELIMINATION_REQUIRES, "stake"] }),
 ph("ELIMINATION.qr.2", "B", "quick_reaction", "Hard way to see a season come to a close.", "negative", { requires: ELIMINATION_REQUIRES }),
 ph("ELIMINATION.qr.3", "B", "quick_reaction", "{{loserName}} gave it a real go, credit to them.", "neutral", { requires: ELIMINATION_REQUIRES }),
 ph("ELIMINATION.fact.2", "A", "fact", "{{loserName}}'s involvement ends here, beaten by {{winnerName}} on the night.", "negative", { requires: ELIMINATION_REQUIRES }),
@@ -265,19 +265,19 @@ ph("ELIMINATION.closer.3", "B", "closer", "That's a wrap on {{loserName}}'s nigh
 
 const LEADER_BEATEN_REQUIRES = ["winnerId", "loserId", "leaderPointsBefore"];
 const LEADER_BEATEN_PHRASES: Phrase[] = [
-  ph("LEADER_BEATEN.qf.1", "A", "quick_fact", "The points leader falls — {{winnerName}} beats {{loserName}}, who came in on {{leaderPointsBefore}} points.", "positive", { requires: LEADER_BEATEN_REQUIRES }),
+  ph("LEADER_BEATEN.qf.1", "A", "quick_fact", "The points leader falls — {{winnerName}} takes {{stake}} points off {{loserName}}, who came in leading on {{leaderPointsBefore}}.", "positive", { requires: [...LEADER_BEATEN_REQUIRES, "stake"] }),
   ph("LEADER_BEATEN.qr.1", "B", "quick_reaction", "Nobody's untouchable at the top, are they.", "neutral", { requires: LEADER_BEATEN_REQUIRES }),
-  ph("LEADER_BEATEN.fact.1", "A", "fact", "{{loserName}} led the way on {{leaderPointsBefore}} points coming in, but {{winnerName}} has beaten them regardless.", "positive", { requires: LEADER_BEATEN_REQUIRES }),
+  ph("LEADER_BEATEN.fact.1", "A", "fact", "{{loserName}} led the way on {{leaderPointsBefore}} points coming in, but {{winnerName}} has beaten them for {{stake}} points regardless.", "positive", { requires: [...LEADER_BEATEN_REQUIRES, "stake"] }),
   ph("LEADER_BEATEN.reaction.1", "B", "reaction", "Every leader gets tested eventually — that's the one for {{loserName}}.", "neutral", { requires: LEADER_BEATEN_REQUIRES }),
   ph("LEADER_BEATEN.context.1", "A", "context", "That result puts the whole top of the table back in play.", "neutral", { requires: LEADER_BEATEN_REQUIRES }),
   ph("LEADER_BEATEN.closer.1", "B", "closer", "Suddenly it's a race again.", "neutral", { requires: LEADER_BEATEN_REQUIRES }),
 
-ph("LEADER_BEATEN.qf.2", "A", "quick_fact", "{{winnerName}} gets the better of {{loserName}}, who arrived at the top on {{leaderPointsBefore}} points.", "positive", { requires: LEADER_BEATEN_REQUIRES }),
-ph("LEADER_BEATEN.qf.3", "A", "quick_fact", "The table topper falls tonight — {{loserName}} beaten by {{winnerName}} despite {{leaderPointsBefore}} points to their name.", "positive", { requires: LEADER_BEATEN_REQUIRES }),
+ph("LEADER_BEATEN.qf.2", "A", "quick_fact", "{{winnerName}} gets the better of {{loserName}} for {{stake}} points, who arrived at the top on {{leaderPointsBefore}} points.", "positive", { requires: [...LEADER_BEATEN_REQUIRES, "stake"] }),
+ph("LEADER_BEATEN.qf.3", "A", "quick_fact", "The table topper falls tonight — {{loserName}} beaten by {{winnerName}} for {{stake}} points despite {{leaderPointsBefore}} points to their name.", "positive", { requires: [...LEADER_BEATEN_REQUIRES, "stake"] }),
 ph("LEADER_BEATEN.qr.2", "B", "quick_reaction", "That's a real statement from {{winnerName}}.", "positive", { requires: LEADER_BEATEN_REQUIRES }),
 ph("LEADER_BEATEN.qr.3", "B", "quick_reaction", "Even the top of the table isn't safe tonight.", "neutral", { requires: LEADER_BEATEN_REQUIRES }),
-ph("LEADER_BEATEN.fact.2", "A", "fact", "{{leaderPointsBefore}} points and top of the pile — none of it mattered against {{winnerName}} tonight.", "positive", { requires: LEADER_BEATEN_REQUIRES }),
-ph("LEADER_BEATEN.fact.3", "A", "fact", "That's the league leader beaten, {{loserName}}'s {{leaderPointsBefore}} points doing nothing to stop {{winnerName}}.", "positive", { requires: LEADER_BEATEN_REQUIRES }),
+ph("LEADER_BEATEN.fact.2", "A", "fact", "{{leaderPointsBefore}} points and top of the pile — none of it mattered against {{winnerName}} tonight, who leaves with {{stake}} points more.", "positive", { requires: [...LEADER_BEATEN_REQUIRES, "stake"] }),
+ph("LEADER_BEATEN.fact.3", "A", "fact", "That's the league leader beaten, {{loserName}}'s {{leaderPointsBefore}} points doing nothing to stop {{winnerName}} taking {{stake}} points.", "positive", { requires: [...LEADER_BEATEN_REQUIRES, "stake"] }),
 ph("LEADER_BEATEN.reaction.2", "B", "reaction", "Good to be reminded nobody's just cruising to the title.", "neutral", { requires: LEADER_BEATEN_REQUIRES }),
 ph("LEADER_BEATEN.reaction.3", "B", "reaction", "{{winnerName}} will remember that result for a while.", "positive", { requires: LEADER_BEATEN_REQUIRES }),
 ph("LEADER_BEATEN.context.2", "A", "context", "Results like that keep the whole league honest.", "neutral", { requires: LEADER_BEATEN_REQUIRES }),
@@ -288,19 +288,19 @@ ph("LEADER_BEATEN.closer.3", "B", "closer", "Table's wide open again, isn't it."
 
 const STREAK_BREAKER_REQUIRES = ["winnerId", "loserId", "brokenWinStreak"];
 const STREAK_BREAKER_PHRASES: Phrase[] = [
-  ph("STREAK_BREAKER.qf.1", "A", "quick_fact", "{{winnerName}} ends {{loserName}}'s run of {{brokenWinStreak}} straight wins.", "positive", { requires: STREAK_BREAKER_REQUIRES }),
+  ph("STREAK_BREAKER.qf.1", "A", "quick_fact", "{{winnerName}} ends {{loserName}}'s run of {{brokenWinStreak}} straight wins, taking {{stake}} points in the process.", "positive", { requires: [...STREAK_BREAKER_REQUIRES, "stake"] }),
   ph("STREAK_BREAKER.qr.1", "B", "quick_reaction", "Every streak ends somewhere — credit to {{winnerName}} for being the one to do it.", "positive", { requires: STREAK_BREAKER_REQUIRES }),
-  ph("STREAK_BREAKER.fact.1", "A", "fact", "That's {{brokenWinStreak}} consecutive wins for {{loserName}} brought to a close by {{winnerName}}.", "positive", { requires: STREAK_BREAKER_REQUIRES }),
+  ph("STREAK_BREAKER.fact.1", "A", "fact", "That's {{brokenWinStreak}} consecutive wins for {{loserName}} brought to a close by {{winnerName}}, {{stake}} points changing hands with it.", "positive", { requires: [...STREAK_BREAKER_REQUIRES, "stake"] }),
   ph("STREAK_BREAKER.reaction.1", "B", "reaction", "Takes some nerve to be the one who steps in and stops that.", "positive", { requires: STREAK_BREAKER_REQUIRES }),
   ph("STREAK_BREAKER.context.1", "A", "context", "A run like that was always going to end eventually — question now is how {{loserName}} responds.", "neutral", { requires: STREAK_BREAKER_REQUIRES }),
   ph("STREAK_BREAKER.closer.1", "B", "closer", "Good while it lasted, {{loserName}}.", "neutral", { requires: STREAK_BREAKER_REQUIRES }),
 
-ph("STREAK_BREAKER.qf.2", "A", "quick_fact", "{{loserName}}'s run of {{brokenWinStreak}} straight wins is over, {{winnerName}} the one to end it.", "positive", { requires: STREAK_BREAKER_REQUIRES }),
-ph("STREAK_BREAKER.qf.3", "A", "quick_fact", "{{winnerName}} stops {{loserName}} right on {{brokenWinStreak}} consecutive wins.", "positive", { requires: STREAK_BREAKER_REQUIRES }),
+ph("STREAK_BREAKER.qf.2", "A", "quick_fact", "{{loserName}}'s run of {{brokenWinStreak}} straight wins is over, {{winnerName}} the one to end it and pocket {{stake}} points.", "positive", { requires: [...STREAK_BREAKER_REQUIRES, "stake"] }),
+ph("STREAK_BREAKER.qf.3", "A", "quick_fact", "{{winnerName}} stops {{loserName}} right on {{brokenWinStreak}} consecutive wins, for {{stake}} points.", "positive", { requires: [...STREAK_BREAKER_REQUIRES, "stake"] }),
 ph("STREAK_BREAKER.qr.2", "B", "quick_reaction", "Somebody had to do it eventually.", "neutral", { requires: STREAK_BREAKER_REQUIRES, tone: "humour" }),
 ph("STREAK_BREAKER.qr.3", "B", "quick_reaction", "That run had to end sometime — still, well played {{winnerName}}.", "positive", { requires: STREAK_BREAKER_REQUIRES }),
-ph("STREAK_BREAKER.fact.2", "A", "fact", "{{brokenWinStreak}} in a row for {{loserName}}, snapped by {{winnerName}} tonight.", "positive", { requires: STREAK_BREAKER_REQUIRES }),
-ph("STREAK_BREAKER.fact.3", "A", "fact", "That's {{winnerName}} bringing {{loserName}}'s {{brokenWinStreak}}-match run to a close.", "positive", { requires: STREAK_BREAKER_REQUIRES }),
+ph("STREAK_BREAKER.fact.2", "A", "fact", "{{brokenWinStreak}} in a row for {{loserName}}, snapped by {{winnerName}} tonight for {{stake}} points.", "positive", { requires: [...STREAK_BREAKER_REQUIRES, "stake"] }),
+ph("STREAK_BREAKER.fact.3", "A", "fact", "That's {{winnerName}} bringing {{loserName}}'s {{brokenWinStreak}}-match run to a close, {{stake}} points the reward.", "positive", { requires: [...STREAK_BREAKER_REQUIRES, "stake"] }),
 ph("STREAK_BREAKER.reaction.2", "B", "reaction", "Not an easy thing, walking in and being the one who stops that.", "positive", { requires: STREAK_BREAKER_REQUIRES }),
 ph("STREAK_BREAKER.reaction.3", "B", "reaction", "{{winnerName}} will fancy that as a big one to have on the resume.", "positive", { requires: STREAK_BREAKER_REQUIRES, tone: "personality" }),
 ph("STREAK_BREAKER.context.2", "A", "context", "How {{loserName}} responds from here says a lot about the rest of their season.", "neutral", { requires: STREAK_BREAKER_REQUIRES }),
@@ -311,18 +311,18 @@ ph("STREAK_BREAKER.closer.3", "B", "closer", "Back to zero, but no shame in a ru
 
 const DROUGHT_ENDED_REQUIRES = ["winnerId", "loserId", "endedLossStreak"];
 const DROUGHT_ENDED_PHRASES: Phrase[] = [
-  ph("DROUGHT_ENDED.qf.1", "A", "quick_fact", "{{winnerName}} finally back in the win column, ending a run of {{endedLossStreak}} straight losses.", "positive", { requires: DROUGHT_ENDED_REQUIRES }),
+  ph("DROUGHT_ENDED.qf.1", "A", "quick_fact", "{{winnerName}} finally back in the win column, ending a run of {{endedLossStreak}} straight losses with a {{stake}}-point win.", "positive", { requires: [...DROUGHT_ENDED_REQUIRES, "stake"] }),
   ph("DROUGHT_ENDED.qr.1", "B", "quick_reaction", "About time — you could see that one coming for a couple of weeks.", "positive", { requires: DROUGHT_ENDED_REQUIRES }),
-  ph("DROUGHT_ENDED.perf.1", "A", "performance_fact", "{{endedLossStreak}} losses on the spin, snapped tonight against {{loserName}}.", "positive", { requires: DROUGHT_ENDED_REQUIRES }),
+  ph("DROUGHT_ENDED.perf.1", "A", "performance_fact", "{{endedLossStreak}} losses on the spin, snapped tonight against {{loserName}} for {{stake}} points.", "positive", { requires: [...DROUGHT_ENDED_REQUIRES, "stake"] }),
   ph("DROUGHT_ENDED.credit.1", "B", "credit", "Credit where it's due — that's not an easy run to break out of.", "positive", { requires: DROUGHT_ENDED_REQUIRES }),
   ph("DROUGHT_ENDED.consequence.1", "A", "consequence", "A result like that can turn a season back around.", "positive", { requires: DROUGHT_ENDED_REQUIRES }),
 
-ph("DROUGHT_ENDED.qf.2", "A", "quick_fact", "{{winnerName}} snaps a run of {{endedLossStreak}} straight losses with a win over {{loserName}}.", "positive", { requires: DROUGHT_ENDED_REQUIRES }),
-ph("DROUGHT_ENDED.qf.3", "A", "quick_fact", "That's {{winnerName}} back in the winner's circle after {{endedLossStreak}} defeats on the spin.", "positive", { requires: DROUGHT_ENDED_REQUIRES }),
+ph("DROUGHT_ENDED.qf.2", "A", "quick_fact", "{{winnerName}} snaps a run of {{endedLossStreak}} straight losses with a {{stake}}-point win over {{loserName}}.", "positive", { requires: [...DROUGHT_ENDED_REQUIRES, "stake"] }),
+ph("DROUGHT_ENDED.qf.3", "A", "quick_fact", "That's {{winnerName}} back in the winner's circle after {{endedLossStreak}} defeats on the spin, {{stake}} points to show for it.", "positive", { requires: [...DROUGHT_ENDED_REQUIRES, "stake"] }),
 ph("DROUGHT_ENDED.qr.2", "B", "quick_reaction", "You could see the relief from here.", "positive", { requires: DROUGHT_ENDED_REQUIRES, tone: "humour" }),
 ph("DROUGHT_ENDED.qr.3", "B", "quick_reaction", "Good to see {{winnerName}} get that one over the line.", "positive", { requires: DROUGHT_ENDED_REQUIRES }),
-ph("DROUGHT_ENDED.perf.2", "A", "performance_fact", "{{endedLossStreak}} straight losses, ended tonight against {{loserName}}.", "positive", { requires: DROUGHT_ENDED_REQUIRES }),
-ph("DROUGHT_ENDED.perf.3", "A", "performance_fact", "A run of {{endedLossStreak}} without a win for {{winnerName}}, now firmly behind them.", "positive", { requires: DROUGHT_ENDED_REQUIRES }),
+ph("DROUGHT_ENDED.perf.2", "A", "performance_fact", "{{endedLossStreak}} straight losses, ended tonight against {{loserName}} with {{stake}} points banked.", "positive", { requires: [...DROUGHT_ENDED_REQUIRES, "stake"] }),
+ph("DROUGHT_ENDED.perf.3", "A", "performance_fact", "A run of {{endedLossStreak}} without a win for {{winnerName}}, now firmly behind them after a {{stake}}-point win.", "positive", { requires: [...DROUGHT_ENDED_REQUIRES, "stake"] }),
 ph("DROUGHT_ENDED.credit.2", "B", "credit", "Takes character to keep turning up through a run like that.", "positive", { requires: DROUGHT_ENDED_REQUIRES, tone: "personality" }),
 ph("DROUGHT_ENDED.credit.3", "B", "credit", "{{winnerName}} deserves that one after the run they've had.", "positive", { requires: DROUGHT_ENDED_REQUIRES }),
 ph("DROUGHT_ENDED.consequence.2", "A", "consequence", "Breaking a run like that can lift a whole season.", "positive", { requires: DROUGHT_ENDED_REQUIRES }),
@@ -331,19 +331,19 @@ ph("DROUGHT_ENDED.consequence.3", "A", "consequence", "That's the sort of win {{
 
 const FIRST_H2H_WIN_REQUIRES = ["winnerId", "loserId", "priorLossesToThisOpponent"];
 const FIRST_H2H_WIN_PHRASES: Phrase[] = [
-  ph("FIRST_H2H_WIN.qf.1", "A", "quick_fact", "{{winnerName}} finally gets past {{loserName}}, ending a run of {{priorLossesToThisOpponent}} straight losses in this head-to-head.", "positive", { requires: FIRST_H2H_WIN_REQUIRES }),
+  ph("FIRST_H2H_WIN.qf.1", "A", "quick_fact", "{{winnerName}} finally gets past {{loserName}} for {{stake}} points, ending a run of {{priorLossesToThisOpponent}} straight losses in this head-to-head.", "positive", { requires: [...FIRST_H2H_WIN_REQUIRES, "stake"] }),
   ph("FIRST_H2H_WIN.qr.1", "B", "quick_reaction", "That head-to-head has been one-way traffic — good to see {{winnerName}} finally get over the line.", "positive", { requires: FIRST_H2H_WIN_REQUIRES }),
-  ph("FIRST_H2H_WIN.fact.1", "A", "fact", "{{winnerName}} had lost {{priorLossesToThisOpponent}} in a row to {{loserName}} before tonight.", "positive", { requires: FIRST_H2H_WIN_REQUIRES }),
+  ph("FIRST_H2H_WIN.fact.1", "A", "fact", "{{winnerName}} had lost {{priorLossesToThisOpponent}} in a row to {{loserName}} before tonight's {{stake}}-point win.", "positive", { requires: [...FIRST_H2H_WIN_REQUIRES, "stake"] }),
   ph("FIRST_H2H_WIN.reaction.1", "B", "reaction", "That's a real monkey off the back for {{winnerName}}.", "positive", { requires: FIRST_H2H_WIN_REQUIRES, tone: "humour" }),
   ph("FIRST_H2H_WIN.context.1", "A", "context", "Whether that changes the pattern of this rivalry is one to watch.", "neutral", { requires: FIRST_H2H_WIN_REQUIRES }),
   ph("FIRST_H2H_WIN.closer.1", "B", "closer", "{{loserName}} won't want a rematch any time soon.", "neutral", { requires: FIRST_H2H_WIN_REQUIRES }),
 
-ph("FIRST_H2H_WIN.qf.2", "A", "quick_fact", "{{winnerName}} gets past {{loserName}} at last, after {{priorLossesToThisOpponent}} straight losses in this matchup.", "positive", { requires: FIRST_H2H_WIN_REQUIRES }),
-ph("FIRST_H2H_WIN.qf.3", "A", "quick_fact", "{{priorLossesToThisOpponent}} losses in a row to {{loserName}}, and {{winnerName}} finally turns it around.", "positive", { requires: FIRST_H2H_WIN_REQUIRES }),
+ph("FIRST_H2H_WIN.qf.2", "A", "quick_fact", "{{winnerName}} gets past {{loserName}} at last for {{stake}} points, after {{priorLossesToThisOpponent}} straight losses in this matchup.", "positive", { requires: [...FIRST_H2H_WIN_REQUIRES, "stake"] }),
+ph("FIRST_H2H_WIN.qf.3", "A", "quick_fact", "{{priorLossesToThisOpponent}} losses in a row to {{loserName}}, and {{winnerName}} finally turns it around for {{stake}} points.", "positive", { requires: [...FIRST_H2H_WIN_REQUIRES, "stake"] }),
 ph("FIRST_H2H_WIN.qr.2", "B", "quick_reaction", "That's been a long time coming for {{winnerName}}.", "positive", { requires: FIRST_H2H_WIN_REQUIRES }),
 ph("FIRST_H2H_WIN.qr.3", "B", "quick_reaction", "{{loserName}}'s hold on that matchup just ended.", "neutral", { requires: FIRST_H2H_WIN_REQUIRES }),
-ph("FIRST_H2H_WIN.fact.2", "A", "fact", "{{priorLossesToThisOpponent}} consecutive losses to {{loserName}} before tonight's result.", "positive", { requires: FIRST_H2H_WIN_REQUIRES }),
-ph("FIRST_H2H_WIN.fact.3", "A", "fact", "{{winnerName}} hadn't beaten {{loserName}} in {{priorLossesToThisOpponent}} attempts before tonight.", "positive", { requires: FIRST_H2H_WIN_REQUIRES }),
+ph("FIRST_H2H_WIN.fact.2", "A", "fact", "{{priorLossesToThisOpponent}} consecutive losses to {{loserName}} before tonight's {{stake}}-point result.", "positive", { requires: [...FIRST_H2H_WIN_REQUIRES, "stake"] }),
+ph("FIRST_H2H_WIN.fact.3", "A", "fact", "{{winnerName}} hadn't beaten {{loserName}} in {{priorLossesToThisOpponent}} attempts before tonight's {{stake}}-point win.", "positive", { requires: [...FIRST_H2H_WIN_REQUIRES, "stake"] }),
 ph("FIRST_H2H_WIN.reaction.2", "B", "reaction", "Every one of those {{priorLossesToThisOpponent}} losses will have made that one taste sweeter.", "positive", { requires: FIRST_H2H_WIN_REQUIRES }),
 ph("FIRST_H2H_WIN.reaction.3", "B", "reaction", "About time {{winnerName}} got one back in that matchup.", "positive", { requires: FIRST_H2H_WIN_REQUIRES, tone: "humour" }),
 ph("FIRST_H2H_WIN.context.2", "A", "context", "Whether this becomes the new pattern between them is one for the next meeting.", "neutral", { requires: FIRST_H2H_WIN_REQUIRES }),
@@ -354,19 +354,19 @@ ph("FIRST_H2H_WIN.closer.3", "B", "closer", "That's one {{loserName}} will want 
 
 const REVENGE_REQUIRES = ["winnerId", "loserId", "consecutivePriorLosses"];
 const REVENGE_PHRASES: Phrase[] = [
-  ph("REVENGE.qf.1", "A", "quick_fact", "{{winnerName}} turns the tables on {{loserName}}, reversing their last meeting.", "positive", { requires: REVENGE_REQUIRES }),
+  ph("REVENGE.qf.1", "A", "quick_fact", "{{winnerName}} turns the tables on {{loserName}} for {{stake}} points, reversing their last meeting.", "positive", { requires: [...REVENGE_REQUIRES, "stake"] }),
   ph("REVENGE.qr.1", "B", "quick_reaction", "Sweet result for {{winnerName}}, that.", "positive", { requires: REVENGE_REQUIRES }),
-  ph("REVENGE.fact.1", "A", "fact", "{{winnerName}} had lost {{consecutivePriorLosses}} straight to {{loserName}} before turning it around tonight.", "positive", { requires: REVENGE_REQUIRES }),
+  ph("REVENGE.fact.1", "A", "fact", "{{winnerName}} had lost {{consecutivePriorLosses}} straight to {{loserName}} before turning it around tonight for {{stake}} points.", "positive", { requires: [...REVENGE_REQUIRES, "stake"] }),
   ph("REVENGE.reaction.1", "B", "reaction", "You wait for that one, don't you.", "positive", { requires: REVENGE_REQUIRES }),
   ph("REVENGE.context.1", "A", "context", "A meaningful reversal given how one-sided this fixture has been.", "neutral", { requires: REVENGE_REQUIRES }),
   ph("REVENGE.closer.1", "B", "closer", "{{loserName}} will want that one back.", "neutral", { requires: REVENGE_REQUIRES }),
 
-ph("REVENGE.qf.2", "A", "quick_fact", "{{winnerName}} gets one back on {{loserName}} after {{consecutivePriorLosses}} losses in a row to them.", "positive", { requires: REVENGE_REQUIRES }),
-ph("REVENGE.qf.3", "A", "quick_fact", "Payback for {{winnerName}} tonight, reversing a run of {{consecutivePriorLosses}} straight losses to {{loserName}}.", "positive", { requires: REVENGE_REQUIRES }),
+ph("REVENGE.qf.2", "A", "quick_fact", "{{winnerName}} gets one back on {{loserName}} for {{stake}} points after {{consecutivePriorLosses}} losses in a row to them.", "positive", { requires: [...REVENGE_REQUIRES, "stake"] }),
+ph("REVENGE.qf.3", "A", "quick_fact", "Payback for {{winnerName}} tonight, worth {{stake}} points, reversing a run of {{consecutivePriorLosses}} straight losses to {{loserName}}.", "positive", { requires: [...REVENGE_REQUIRES, "stake"] }),
 ph("REVENGE.qr.2", "B", "quick_reaction", "That one will have felt good.", "positive", { requires: REVENGE_REQUIRES }),
 ph("REVENGE.qr.3", "B", "quick_reaction", "{{loserName}} won't have enjoyed watching that.", "neutral", { requires: REVENGE_REQUIRES, tone: "humour" }),
-ph("REVENGE.fact.2", "A", "fact", "{{consecutivePriorLosses}} straight defeats to {{loserName}}, put right by {{winnerName}} tonight.", "positive", { requires: REVENGE_REQUIRES }),
-ph("REVENGE.fact.3", "A", "fact", "{{winnerName}} hadn't beaten {{loserName}} across their last {{consecutivePriorLosses}} meetings — until now.", "positive", { requires: REVENGE_REQUIRES }),
+ph("REVENGE.fact.2", "A", "fact", "{{consecutivePriorLosses}} straight defeats to {{loserName}}, put right by {{winnerName}} tonight for {{stake}} points.", "positive", { requires: [...REVENGE_REQUIRES, "stake"] }),
+ph("REVENGE.fact.3", "A", "fact", "{{winnerName}} hadn't beaten {{loserName}} across their last {{consecutivePriorLosses}} meetings — until now, and for {{stake}} points.", "positive", { requires: [...REVENGE_REQUIRES, "stake"] }),
 ph("REVENGE.reaction.2", "B", "reaction", "That's the sort of result that changes how a rivalry feels.", "positive", { requires: REVENGE_REQUIRES }),
 ph("REVENGE.reaction.3", "B", "reaction", "Every one of those losses makes tonight count for a bit more.", "positive", { requires: REVENGE_REQUIRES }),
 ph("REVENGE.context.2", "A", "context", "One result doesn't erase {{consecutivePriorLosses}} losses, but it changes the conversation.", "neutral", { requires: REVENGE_REQUIRES }),
