@@ -31,6 +31,7 @@ const TourRun         = lazy(() => import("@/pages/tour-run"));
 const Master501       = lazy(() => import("@/pages/master501"));
 const HallOfFame      = lazy(() => import("@/pages/hall-of-fame"));
 const Broadcast       = lazy(() => import("@/pages/broadcast"));
+const TkdlLive        = lazy(() => import("@/pages/tkdl-live"));
 const Login           = lazy(() => import("@/pages/login"));
 const Account         = lazy(() => import("@/pages/account"));
 const Community       = lazy(() => import("@/pages/community"));
@@ -71,6 +72,9 @@ function AppRoutes() {
     <Switch>
       <Route path="/broadcast">
         <Suspense fallback={null}><Broadcast /></Suspense>
+      </Route>
+      <Route path="/tkdl-live">
+        <Suspense fallback={null}><TkdlLive /></Suspense>
       </Route>
       <Route path="/login">
         <RoutePage><Login /></RoutePage>

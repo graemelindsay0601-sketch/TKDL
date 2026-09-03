@@ -14,6 +14,7 @@ export type AppSettings = {
   boss_battle_enabled: boolean;
   board_curse_enabled: boolean;
   shift_wars_enabled: boolean;
+  tkdl_live_enabled: boolean;
 };
 
 async function fetchSettings(): Promise<AppSettings> {
@@ -32,6 +33,7 @@ async function fetchSettings(): Promise<AppSettings> {
     boss_battle_enabled: false,
     board_curse_enabled: false,
     shift_wars_enabled: false,
+    tkdl_live_enabled: false,
   };
   return res.json() as Promise<AppSettings>;
 }

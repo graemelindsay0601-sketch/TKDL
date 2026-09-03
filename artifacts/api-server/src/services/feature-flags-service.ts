@@ -7,22 +7,25 @@ export const FEATURES = {
   CARD_SHOP: "card_shop",
   COINS: "coins",
   CARD_CLASH: "card_clash",
+  TKDL_LIVE: "tkdl_live",
 } as const;
 
 /**
  * Initialize default feature flags
- * Run once on app startup or migration
+ * Run once on app startup or migration (also re-runnable any time via the
+ * admin panel's "Initialize" button — see POST /admin/feature-flags/initialize
+ * in routes/settings.ts).
+ *
+ * This used to check "does the table have ANY rows at all" and bail out
+ * entirely if so — which meant that on a production DB already seeded with
+ * card_shop/coins/card_clash, adding a brand-new flag here (like tkdl_live)
+ * would never actually get inserted, no matter how many times this ran.
+ * Each flag is now upserted individually and existing rows are left exactly
+ * as an admin has configured them (onConflictDoNothing, not DO UPDATE) —
+ * so re-running this is always safe and only ever fills in what's missing.
  */
 export async function initializeFeatureFlags() {
   try {
-    // Check if flags already exist
-    const existing = await db.select().from(featureFlagsTable).limit(1);
-    if (existing.length > 0) {
-      console.log("Feature flags already initialized");
-      return;
-    }
-
-    // Create default flags (all enabled for testing)
     await db.insert(featureFlagsTable).values([
       {
         featureName: FEATURES.CARD_SHOP,
@@ -42,9 +45,15 @@ export async function initializeFeatureFlags() {
         adminTestMode: false,
         description: "Card Clash - Full card clash mode and seasonal features",
       },
-    ]);
+      {
+        featureName: FEATURES.TKDL_LIVE,
+        enabled: false,
+        adminTestMode: true,
+        description: "TKDL LIVE - automated broadcast show (admin preview only until switched live for everyone)",
+      },
+    ]).onConflictDoNothing({ target: featureFlagsTable.featureName });
 
-    console.log("Feature flags initialized");
+    console.log("Feature flags initialized (existing flags left untouched)");
   } catch (error) {
     console.error("Failed to initialize feature flags:", error);
   }

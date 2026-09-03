@@ -16,6 +16,7 @@ import {
   LevelBotPicker, PersonaCard, ShadowPlayerPicker,
   type SoloBotMode, type ShadowProfileData, type ShadowProfileLocked, type ShadowProfileResult,
 } from "@/components/BotPickers";
+import { useWakeLock, useZoomLock, useExitGuard } from "@/lib/nativeParity";
 
 type Player = { id: number; name: string; points: number; elo: number; status: string; isActive: boolean };
 
@@ -785,6 +786,14 @@ export default function Practice() {
   const [setupData, setSetupData]     = useState<SetupData | null>(null);
   const [gameResult, setResult]       = useState<GameResult | null>(null);
   const [practiceStats, setPracticeStats] = useState<PracticeStats | null>(null);
+
+  // Native-app parity: keep the screen awake, stop pinch-zoom, and trap the
+  // back button/swipe behind a confirmation for as long as a session is live
+  // — see src/lib/nativeParity.ts.
+  const isLive = phase === "playing";
+  useWakeLock(isLive);
+  useZoomLock(isLive);
+  useExitGuard(isLive, () => { clearCardClashSession(); setPhase("setup"); });
 
   if (phase === "setup") {
     return <SetupScreen onStart={d => { setSetupData(d); setPhase("playing"); }} />;

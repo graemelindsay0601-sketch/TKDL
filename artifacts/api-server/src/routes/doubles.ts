@@ -12,7 +12,7 @@ const GetSeasonParams = z.object({ id: z.coerce.number().int().positive() });
 const RecordDoublesMatchBody = z.object({
   winnerTeamId: z.number().int().positive(),
   loserTeamId:  z.number().int().positive(),
-  stake:        z.number().int().min(0),
+  stake:        z.number().int().min(1), // Rules minimum is 1 — see wager.ts validateStake for why 0 has no legitimate case here.
   gameType:     z.string().optional().default("doubles_501"),
   notes:        z.string().optional(),
 });

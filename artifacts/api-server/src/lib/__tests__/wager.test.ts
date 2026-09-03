@@ -40,18 +40,19 @@ describe("validateStake", () => {
     assert.equal(validateStake(10, winner, loser), null);
   });
 
-  test("accepts a stake of 0", () => {
-    assert.equal(validateStake(0, winner, loser), null);
+  test("rejects a stake of 0 — Rules page minimum is 1, and the one legitimate 0-stake case (a championship tiebreak) never calls validateStake at all", () => {
+    const err = validateStake(0, winner, loser);
+    assert.match(err ?? "", /positive integer/);
   });
 
   test("rejects a negative stake", () => {
     const err = validateStake(-1, winner, loser);
-    assert.match(err ?? "", /non-negative integer/);
+    assert.match(err ?? "", /positive integer/);
   });
 
   test("rejects a non-integer stake", () => {
     const err = validateStake(2.5, winner, loser);
-    assert.match(err ?? "", /non-negative integer/);
+    assert.match(err ?? "", /positive integer/);
   });
 
   test("rejects NaN", () => {

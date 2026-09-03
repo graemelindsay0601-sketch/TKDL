@@ -89,12 +89,21 @@ export function DartInputBoard({
   highlightSegments,
   markedSegments,
   disabled = false,
+  visitDartCount,
 }: {
   onDart: (dart: Dart) => void;
   onMiss: () => void;
   onUndo: () => void;
   activeSegments?: number[];
   highlightSegments?: number[];
+  /**
+   * Number of darts thrown so far in the current visit (0-3), from the
+   * caller's own visit-tracking state. When this drops back to 0 — a new
+   * visit has started — the multiplier selector resets to Single, so the
+   * next player doesn't inherit whoever last selected Treble/Double.
+   * Optional so older/rarer call sites still compile without it.
+   */
+  visitDartCount?: number;
   /**
    * Chaos Lab Board Marks — additive to highlightSegments, doesn't affect
    * any other game mode. Carries enough info to be unambiguous directly on
@@ -115,6 +124,12 @@ export function DartInputBoard({
   disabled?: boolean;
 }) {
   const [mult, setMult] = useState<1 | 2 | 3>(1);
+
+  // Reset the multiplier back to Single whenever a new visit begins, so a
+  // Treble/Double selection doesn't carry over to the next player/turn.
+  useEffect(() => {
+    if (visitDartCount === 0) setMult(1);
+  }, [visitDartCount]);
 
   const { hitDart } = useDartHit();
   const { pendingDarts, setPendingDarts } = useCameraScorerCtx();

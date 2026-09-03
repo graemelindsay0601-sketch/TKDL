@@ -16,7 +16,7 @@ import { requireAdminSession } from "../middleware/requireAdminSession";
 const SubmitMatchBody = z.object({
   winnerId:                z.number().int().positive(),
   loserId:                 z.number().int().positive(),
-  stake:                   z.number().int().min(0),
+  stake:                   z.number().int().min(1), // Rules minimum is 1 — see wager.ts validateStake for why 0 has no legitimate case here.
   gameType:                z.string().optional().default("501"),
   notes:                   z.string().optional(),
   winnerDarts:             z.number().int().optional(),

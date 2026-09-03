@@ -26,6 +26,12 @@ router.get("/settings", async (_req, res): Promise<void> => {
     if (flag.featureName === "card_clash") out["card_clash_enabled"] = flag.enabled;
     if (flag.featureName === "card_shop") out["card_shop_enabled"] = flag.enabled;
     if (flag.featureName === "coins") out["coins_enabled"] = flag.enabled;
+    // Only reflects "live for everyone" — the admin-preview-only state is
+    // NOT exposed here (this endpoint is public/unauthenticated). The nav
+    // link additionally shows for an admin session regardless of this flag
+    // (see layout.tsx), and the real gate is GET /api/broadcast/status,
+    // which does know the caller's session.
+    if (flag.featureName === "tkdl_live") out["tkdl_live_enabled"] = flag.enabled;
   }
   
   res.json(out);

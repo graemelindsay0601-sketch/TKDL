@@ -11,6 +11,9 @@ import { MatchStatsCard } from "@/components/match-stats-card";
 import { CardEquipmentSelector } from "@/components/CardEquipmentSelector";
 import { useCurrentPlayer } from "@/context/auth";
 import { PostMatchAnalysisModal } from "@/components/stats/post-match-analysis";
+import { useWakeLock, useZoomLock, useExitGuard, useMatchSnapshot, readMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
+
+const PLAY_SNAPSHOT_KEY = "tkdl_play_snapshot";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Player = { id: number; name: string; points: number; elo: number; status: string };
@@ -931,26 +934,64 @@ export default function Play() {
   const [gameResult, setResult]     = useState<GameResult | null>(null);
   const [matchStats, setMatchStats] = useState<PracticeStats | null>(null);
 
-  const reset = () => { 
-    setPhase("setup"); 
-    setSetupData(null); 
+  const reset = () => {
+    setPhase("setup");
+    setSetupData(null);
     setPlayer1Equipment(null);
     setPlayer2Equipment(null);
     setEquipmentPhase("player1");
-    setResult(null); 
-    setMatchStats(null); 
+    setResult(null);
+    setMatchStats(null);
   };
 
+  // Native-app parity: keep the screen awake, stop pinch-zoom, and trap the
+  // back button/swipe behind a confirmation for as long as a match is live —
+  // see src/lib/nativeParity.ts for why each of these exists.
+  const isLive = phase === "playing";
+  useWakeLock(isLive);
+  useZoomLock(isLive);
+  useExitGuard(isLive, reset);
+  useMatchSnapshot(PLAY_SNAPSHOT_KEY, isLive, setupData);
+
   if (phase === "setup") {
-    return <SetupScreen onStart={d => { 
-      setSetupData(d);
-      // Route to equipment selection if Card Clash is enabled and game type is X01 or CRICKET
-      if (cardClashEnabled && d.format !== "shift-wars" && (d.gameType.key === "x01" || d.gameType.key === "cricket")) {
-        setPhase("equipment");
-      } else {
-        setPhase("playing");
-      }
-    }} />;
+    const interrupted = readMatchSnapshot<SetupData>(PLAY_SNAPSHOT_KEY);
+    return (
+      <>
+        {interrupted && (
+          <div className="max-w-2xl mx-auto mb-4 pdc-card p-3 flex items-center gap-3" style={{ borderColor: "rgba(255,210,74,0.3)", background: "rgba(255,210,74,0.06)" }}>
+            <AlertCircle className="w-4 h-4 shrink-0" style={{ color: "#ffd24a" }} />
+            <div className="flex-1 text-xs" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.6)" }}>
+              Your last match ({interrupted.team1.map(p => p.name).join(" & ")} vs {interrupted.team2.map(p => p.name).join(" & ") || "—"}, {interrupted.gameType.name}) looks like it got interrupted before a result was recorded.
+            </div>
+            <button
+              onClick={() => {
+                setSetupData(interrupted);
+                setPhase("playing");
+              }}
+              className="shrink-0 text-xs font-bold uppercase px-3 py-1.5 rounded-lg"
+              style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", background: "rgba(255,210,74,0.12)", border: "1px solid rgba(255,210,74,0.3)", cursor: "pointer" }}>
+              Same matchup again
+            </button>
+            <button
+              onClick={() => clearMatchSnapshot(PLAY_SNAPSHOT_KEY)}
+              className="shrink-0 text-xs"
+              style={{ color: "rgba(255,255,255,0.3)", cursor: "pointer" }}>
+              Dismiss
+            </button>
+          </div>
+        )}
+        <SetupScreen onStart={d => {
+          clearMatchSnapshot(PLAY_SNAPSHOT_KEY);
+          setSetupData(d);
+          // Route to equipment selection if Card Clash is enabled and game type is X01 or CRICKET
+          if (cardClashEnabled && d.format !== "shift-wars" && (d.gameType.key === "x01" || d.gameType.key === "cricket")) {
+            setPhase("equipment");
+          } else {
+            setPhase("playing");
+          }
+        }} />
+      </>
+    );
   }
 
   // ── Equipment Selection Phase ──

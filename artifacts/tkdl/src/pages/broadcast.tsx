@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { format } from "date-fns";
+import { Link } from "wouter";
 
 // Diamond/Platinum removed — calcTier() (lib/elo.ts) only ever emits
 // Gold/Silver/Bronze, so these two entries could never render; keeping them
@@ -110,6 +111,17 @@ export default function Broadcast() {
             <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#ff005c" }} />
             <span className="font-black uppercase tracking-widest text-xs" style={{ color: "#ff005c", letterSpacing: "0.15em" }}>LIVE</span>
           </div>
+          {/* This screen is a full-bleed kiosk view with no nav chrome by
+              design (it bypasses <Layout> entirely — see App.tsx), which
+              left it with literally no way back to the main app once
+              opened. A small, unobtrusive exit link fixes that without
+              disrupting the broadcast aesthetic. */}
+          <Link href="/"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-colors"
+            style={{ color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.12)", letterSpacing: "0.1em" }}
+            title="Back to the main app">
+            <span aria-hidden="true">←</span> Exit
+          </Link>
         </div>
       </div>
 

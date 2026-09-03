@@ -8,7 +8,7 @@ import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 const TeamMatchBody = z.object({
   winnerIds: z.array(z.number().int().positive()).min(1).max(6),
   loserIds:  z.array(z.number().int().positive()).min(1).max(6),
-  stake:     z.number().int().min(0),
+  stake:     z.number().int().min(1), // Rules minimum is 1 — see wager.ts validateStake for why 0 has no legitimate case here.
   gameType:  z.string().optional().default("team_501"),
   notes:     z.string().optional(),
 });

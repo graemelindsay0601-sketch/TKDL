@@ -2,6 +2,7 @@ import { db } from "@workspace/db";
 import { cardDefinitionsTable, cardInventoryTable, cardPityTable, playerCurrencyTable, cardClashMatchesTable, cardClashSeasonsTable, cardClashStandingsTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "./logger";
+import { FEATURES } from "../services/feature-flags-service";
 
 /**
  * Initialize all card-related tables if they don't exist
@@ -334,18 +335,35 @@ export async function initializeFeatureFlags() {
       { featureName: "card_clash", description: "Card Clash game mode with card collecting, packs, and seasons" },
     ];
 
+    // Insert-only for enabled/admin_test_mode: only `description` is synced
+    // on every boot (safe — it's just display text, never an admin's own
+    // choice). enabled/admin_test_mode must NEVER be touched once the row
+    // exists, or an admin's toggle silently reverts on every server
+    // restart — which on a free-tier host that spins down when idle means
+    // "reverts basically every time someone comes back to the app after a
+    // break," exactly the bug reported: turning card_clash off, then
+    // finding it back on after a refresh. (This used to force
+    // enabled=true/admin_test_mode=false unconditionally on every boot —
+    // fixed here, matching the insert-only pattern TKDL_LIVE already used
+    // below.)
     for (const flag of flags) {
       await db.execute(sql`
         INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)
         VALUES (${flag.featureName}, true, false, ${flag.description})
         ON CONFLICT (feature_name) DO UPDATE SET
-          enabled = true,
-          admin_test_mode = false,
           description = ${flag.description}
       `);
     }
 
-    logger.info("Feature flags initialized successfully - all features enabled");
+    // TKDL LIVE: seeded the same way — insert-only, never touching
+    // enabled/admin_test_mode after the row exists once.
+    await db.execute(sql`
+      INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)
+      VALUES (${FEATURES.TKDL_LIVE}, false, true, ${"TKDL LIVE - automated broadcast show (admin preview only until switched live for everyone)"})
+      ON CONFLICT (feature_name) DO NOTHING
+    `);
+
+    logger.info("Feature flags initialized successfully");
   } catch (error) {
     logger.error({ error }, "Failed to initialize feature flags");
     // Don't throw - this is not critical

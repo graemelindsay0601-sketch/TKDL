@@ -6,6 +6,7 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { checkSeasonAchievements } from "./achievements";
 import { drawDoublesTeams } from "./doublesDraw";
+import { decideSinglesChampion } from "./singles-champion";
 
 function newSeasonName(overrideName?: string): { name: string; startDate: string } {
   const now = new Date();
@@ -33,8 +34,32 @@ export async function performSeasonReset(overrideName?: string): Promise<typeof 
   if (currentSeason) {
     const players = await db.select().from(playersTable).where(eq(playersTable.isActive, true));
     const sorted = [...players].sort((a, b) => b.points - a.points || b.elo - a.elo);
+    const contenders = sorted.filter(p => p.status === "ACTIVE");
 
-    const champion = sorted.find(p => p.status === "ACTIVE") ?? sorted[0] ?? null;
+    // currentSeason.championId is only ever set here by the playoff-match
+    // admin flow (POST/PATCH /api/seasons/:id/playoff) resolving an earlier
+    // tie — decideSinglesChampion() honors that recorded result instead of
+    // re-deriving one, and never lets Elo silently settle a tie on points.
+    const decision = decideSinglesChampion(contenders, currentSeason.championId);
+
+    if (decision.kind === "tied") {
+      // The rules require a one-off no-stake tiebreaker for a tied Singles
+      // championship. Hold the season open and flag it for an admin to
+      // resolve via the existing playoff-match flow instead of crowning
+      // anyone. Re-checked on every reset attempt (daily cron + manual
+      // "reset now"), so this clears itself the moment either a recorded
+      // tiebreak or further real matches break the tie.
+      if (!currentSeason.playoffPending) {
+        await db.update(seasonsTable).set({ playoffPending: true }).where(eq(seasonsTable.id, currentSeason.id));
+        logger.warn(
+          { seasonId: currentSeason.id, tied: decision.tied.map(p => p.name), points: decision.points },
+          "Singles season tied for first place — holding season open pending tiebreak (resolve via admin season editor)"
+        );
+      }
+      return currentSeason;
+    }
+
+    const champion = decision.kind === "champion" ? decision.player : null;
 
     // Save standings snapshot
     for (let i = 0; i < sorted.length; i++) {
@@ -54,12 +79,15 @@ export async function performSeasonReset(overrideName?: string): Promise<typeof 
     // Grant season achievements
     await checkSeasonAchievements(currentSeason.id, sorted, champion?.id ?? null);
 
-    // Close season
+    // Close season. Prefer a champion already recorded on the season row
+    // (set via the playoff-match flow) over `champion` being null here —
+    // that only happens if the recorded champion has since left the active
+    // roster, and their playoff win shouldn't be erased by that.
     await db.update(seasonsTable).set({
       isActive: false,
       endDate: new Date().toISOString().split("T")[0],
-      championId: champion?.id ?? null,
-      championName: champion?.name ?? null,
+      championId: champion?.id ?? currentSeason.championId ?? null,
+      championName: champion?.name ?? currentSeason.championName ?? null,
     }).where(eq(seasonsTable.id, currentSeason.id));
 
     logger.info({ seasonId: currentSeason.id, champion: champion?.name }, "Singles season closed");

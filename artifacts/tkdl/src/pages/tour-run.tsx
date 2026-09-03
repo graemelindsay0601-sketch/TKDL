@@ -6,6 +6,7 @@ import { GameScorer, type GameTypeOption } from "@/components/game-scorer";
 import { BOT_LEVELS, type BotLevel } from "@/lib/bot-engine";
 import { type PracticeStats } from "@/lib/stats-types";
 import { SessionHistorySection } from "@/components/session-history";
+import { useWakeLock, useZoomLock, useExitGuard } from "@/lib/nativeParity";
 
 const TIER_COLORS: Record<number, string> = {
   1: "#94a3b8", 2: "#4ade80", 3: "#38bdf8",
@@ -344,6 +345,13 @@ export default function TourRun() {
 
   const pendingStatsRef = useRef<PracticeStats | null>(null);
   const matchStartRef   = useRef<number>(Date.now());
+
+  // Native-app parity: keep the screen awake, stop pinch-zoom, and trap the
+  // back button/swipe behind a confirmation for as long as a leg is live —
+  // see src/lib/nativeParity.ts.
+  useWakeLock(scoring);
+  useZoomLock(scoring);
+  useExitGuard(scoring, () => setScoring(false));
 
   const handleBullThrow = (playerScore: number) => {
     const BOT_POOL = [50, 50, 25, 25, 25, 20, 18, 16, 14, 11, 9, 7, 5, 3, 1, 0];

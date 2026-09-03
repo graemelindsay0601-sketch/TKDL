@@ -5,6 +5,10 @@ import { Master501Scorer } from "@/lib/scorers";
 import { type PracticeStats } from "@/lib/stats-types";
 import { SessionHistorySection } from "@/components/session-history";
 import { useCurrentPlayer } from "@/context/auth";
+import { useWakeLock, useZoomLock, useExitGuard, useMatchSnapshot, readMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
+
+const M501_SNAPSHOT_KEY = "tkdl_master501_snapshot";
+type M501Snapshot = { tier: number; round: number; tierName: string };
 
 const M501_TIERS = [
   { tier: 1, name: "Challenger",          color: "#94a3b8", dartLimits: [60, 55, 50] as const },
@@ -182,6 +186,21 @@ export default function Master501() {
   const handlePlayAgain = () => {
     setMatchResult(null); setRunId(null); setStartCfg(null); setPhase("lobby");
   };
+
+  // Native-app parity: keep the screen awake, stop pinch-zoom, and trap the
+  // back button/swipe behind a confirmation for as long as a leg is live —
+  // see src/lib/nativeParity.ts. The interrupted-run snapshot covers the
+  // wider bullup+playing window since a crash during Bull Up would otherwise
+  // strand a runId server-side with no result ever recorded against it.
+  const isLive = phase === "playing";
+  const inRun  = phase === "bullup" || phase === "playing";
+  useWakeLock(isLive);
+  useZoomLock(isLive);
+  useExitGuard(isLive, () => setPhase("lobby"));
+  useMatchSnapshot<M501Snapshot>(
+    M501_SNAPSHOT_KEY, inRun,
+    startCfg ? { tier: startCfg.tier, round: startCfg.round, tierName: startCfg.name } : null
+  );
 
   // ── RESULT ─────────────────────────────────────────────────────────────────
   if (phase === "result" && matchResult) {
@@ -408,9 +427,32 @@ export default function Master501() {
   const currentRound = progress?.currentRound ?? 0;
   const lobbyCfg     = progress?.config;
   const activeLbRows = lbRows.filter(r => r.total_runs > 0);
+  const interruptedRun = readMatchSnapshot<M501Snapshot>(M501_SNAPSHOT_KEY);
 
   return (
     <div className="space-y-5 pb-10">
+
+      {/* ── INTERRUPTED RUN RECOVERY ────────────────────────────────────────── */}
+      {interruptedRun && (
+        <div className="pdc-card p-3 flex items-center gap-3" style={{ borderColor: "rgba(255,210,74,0.3)", background: "rgba(255,210,74,0.06)" }}>
+          <Zap className="w-4 h-4 shrink-0" style={{ color: "#ffd24a" }} />
+          <div className="flex-1 text-xs" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.6)" }}>
+            Your last run ({interruptedRun.tierName}, Round {interruptedRun.round}) looks like it got interrupted before a result was recorded.
+          </div>
+          <button
+            onClick={() => { clearMatchSnapshot(M501_SNAPSHOT_KEY); void handleStartAt(interruptedRun.tier, interruptedRun.round); }}
+            className="shrink-0 text-xs font-bold uppercase px-3 py-1.5 rounded-lg"
+            style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", background: "rgba(255,210,74,0.12)", border: "1px solid rgba(255,210,74,0.3)", cursor: "pointer" }}>
+            Run it back
+          </button>
+          <button
+            onClick={() => clearMatchSnapshot(M501_SNAPSHOT_KEY)}
+            className="shrink-0 text-xs"
+            style={{ color: "rgba(255,255,255,0.3)", cursor: "pointer" }}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* ── HERO / SALES PITCH ─────────────────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl"

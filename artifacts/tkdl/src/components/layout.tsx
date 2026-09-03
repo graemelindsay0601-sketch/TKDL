@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 import { useGetStatsSummary, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
@@ -36,6 +36,12 @@ const bossBattleNav = [
 ];
 const boardCurseNav = [
   { href: "/board-curse",  label: "Board Curse",  icon: Flame           },
+];
+// Beta — gated behind the tkdl_live feature flag (see routes/broadcast.ts).
+// Shown in the nav once an admin flips it live for everyone, or always to
+// an admin session so they can reach the preview before that.
+const tkdlLiveNav = [
+  { href: "/tkdl-live",   label: "TKDL LIVE",    icon: Sparkles        },
 ];
 const leagueNav = [
   { href: "/leaderboard",  label: "Standings",    icon: Trophy          },
@@ -199,6 +205,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const cardClashEnabled = appSettings?.card_clash_enabled  ?? false;
   const bossBattleEnabled = appSettings?.boss_battle_enabled ?? false;
   const boardCurseEnabled = appSettings?.board_curse_enabled ?? false;
+  const tkdlLiveEnabled  = appSettings?.tkdl_live_enabled   ?? false;
   const [unreadCount, setUnreadCount]   = useState(0);
   useEffect(() => {
     if (!authUser) return;
@@ -221,6 +228,10 @@ export function Layout({ children }: { children: ReactNode }) {
   const dynamicCardClashNav: NavItem[] = cardClashEnabled ? cardClashNav : [];
   const dynamicBossBattleNav: NavItem[] = bossBattleEnabled ? bossBattleNav : [];
   const dynamicBoardCurseNav: NavItem[] = boardCurseEnabled ? boardCurseNav : [];
+  // Visible once live for everyone, or always to an admin session (so they
+  // can reach the preview screen while it's still being built) — same
+  // "enabled OR admin" shape as the Community section just above.
+  const dynamicTkdlLiveNav: NavItem[] = (tkdlLiveEnabled || authUser?.isAdmin) ? tkdlLiveNav : [];
 
   function NavLink({ item }: { item: NavItem }) {
     const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
@@ -363,6 +374,12 @@ export function Layout({ children }: { children: ReactNode }) {
         {dynamicBoardCurseNav.length > 0 && (
           <>
             <NavSection label="Board Curse"  items={dynamicBoardCurseNav} />
+            <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
+          </>
+        )}
+        {dynamicTkdlLiveNav.length > 0 && (
+          <>
+            <NavSection label="TKDL LIVE"    items={dynamicTkdlLiveNav} />
             <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
           </>
         )}

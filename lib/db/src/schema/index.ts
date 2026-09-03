@@ -25,3 +25,4 @@ export * from "./featured-card-shop";
 export * from "./card-clash-player-settings";
 export * from "./card-clash-favorites";
 export * from "./feature-flags";
+export * from "./broadcast";

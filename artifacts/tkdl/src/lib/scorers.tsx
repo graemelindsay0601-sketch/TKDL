@@ -2114,7 +2114,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       </div>
       }
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust || isBotTurnX01} markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks, "X01") : undefined} />
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust || isBotTurnX01} markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks, "X01") : undefined} />
         <AbandonBtn onAbandon={() => { if (isCardClash) uploadMatchLog(matchLoggerRef.current, { gameMode: "X01", isChaosMode, isChaosLabMode }); onAbandon(); }} />
         {isCardClash && <DownloadMatchLogBtn logger={matchLoggerRef.current} />}
       </div>}
@@ -3563,7 +3563,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard
+        <DartInputBoard visitDartCount={visitDarts.length}
           onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
           activeSegments={CRICKET_NUMS.slice(0, numCount)} highlightSegments={CRICKET_NUMS.slice(0, numCount)}
           markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks, "CRICKET") : undefined}
@@ -3768,7 +3768,7 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
           highlightSegments={killerNums.filter((n):n is number=>n!==null)}
           disabled={isBotTurnKill} />
         <AbandonBtn onAbandon={onAbandon} />
@@ -3906,7 +3906,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
         </div>
         <TurnBanner name={names[shanghaiTurn]} turn={shanghaiTurn} msg={`— aim at ${shanghaiRound}`} />
         <VisitDarts darts={shanghaiDarts} />
-        <DartInputBoard onDart={handleShDart} onMiss={() => handleShDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        <DartInputBoard visitDartCount={shanghaiDarts.length} onDart={handleShDart} onMiss={() => handleShDart({segment:0,multiplier:1,value:0,label:"Miss"})}
           onUndo={() => shanghaiDarts.length > 0 && setShanghaiDarts(p=>p.slice(0,-1))}
           highlightSegments={[shanghaiRound]} />
         <AbandonBtn onAbandon={onAbandon} />
@@ -3971,7 +3971,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
           onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
           onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
           highlightSegments={curTarget ? [curTarget.seg] : []}
@@ -4124,7 +4124,7 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
       <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
           onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
           onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
           highlightSegments={typeof curTarget === "number" ? [curTarget] : curTarget==="Bull" ? [25] : undefined}
@@ -4248,7 +4248,7 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
           onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
           onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
           highlightSegments={bullsOnly ? [25] : undefined}
@@ -4330,7 +4330,7 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
       {msg && <div className="text-center font-bold" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{msg}</div>}
       <TurnBanner name={names[turn]} turn={turn} msg={isBotTurnGotcha ? "— CPU THROWING…" : undefined} />
       <VisitDarts darts={visitDarts} />
-      <DartInputBoard onDart={handleDart}
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
         onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
         onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
         disabled={isBotTurnGotcha} />
@@ -4395,7 +4395,7 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, 
       </div>
       <TurnBanner name={names[half]} turn={half} msg={isBotTurnBaseball ? "— CPU THROWING…" : `— aim at ${inning}`} />
       <VisitDarts darts={visitDarts} />
-      <DartInputBoard onDart={handleDart}
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
         onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
         onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
         highlightSegments={[inning]} disabled={isBotTurnBaseball} />
@@ -4511,7 +4511,7 @@ export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
       <TurnBanner name={names[turn]} turn={turn}
         msg={isBotTurnScram ? "— CPU THROWING…" : turn===stopper ? "— close numbers!" : "— score on open numbers!"} />
       <VisitDarts darts={visitDarts} />
-      <DartInputBoard onDart={handleDart}
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
         onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
         onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
         activeSegments={SCRAM_NUMS} highlightSegments={SCRAM_NUMS.filter((_,i)=>!closed[i])} disabled={isBotTurnScram} />
@@ -4625,7 +4625,7 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={isBotTurnFB}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={isBotTurnFB}
           highlightSegments={possession === turn ? undefined : [25]} />
         <AbandonBtn onAbandon={onAbandon} />
       </div>}
@@ -4716,7 +4716,7 @@ export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAban
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
           onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
           onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
           highlightSegments={[hole]}
@@ -5005,7 +5005,7 @@ export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onP
         <VisitDarts darts={visitDarts}/>
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
           onUndo={()=>visitDarts.length>0&&!potted&&setVisitDarts(p=>p.slice(0,-1))}
           highlightSegments={ball.segs} activeSegments={ball.segs} disabled={isBotTurnSnk||potted}/>
         <AbandonBtn onAbandon={onAbandon}/>
@@ -5107,7 +5107,7 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAband
         <VisitDarts darts={visitDarts}/>
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
           onUndo={()=>visitDarts.length>0&&setVisitDarts(p=>p.slice(0,-1))} highlightSegments={[target]} disabled={isBotTurnJDC}/>
         <AbandonBtn onAbandon={onAbandon}/>
       </div>}
@@ -5176,7 +5176,7 @@ export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAb
         <VisitDarts darts={visitDarts}/>
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
           onUndo={()=>visitDarts.length>0&&setVisitDarts(p=>p.slice(0,-1))} highlightSegments={[target]} disabled={isBotTurnExp}/>
         <AbandonBtn onAbandon={onAbandon}/>
       </div>}
@@ -5265,7 +5265,7 @@ export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAban
         <TurnBanner name={names[half]} turn={half} msg={isBotTurnSG?"— CPU THROWING…":"— checkout on a double!"}/>
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={handleSgUndo} disabled={isBotTurnSG}/>
+        <DartInputBoard visitDartCount={dartCount} onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={handleSgUndo} disabled={isBotTurnSG}/>
         <AbandonBtn onAbandon={onAbandon}/>
       </div>}
     />
@@ -5342,7 +5342,7 @@ export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin,
         <VisitDarts darts={visitDarts}/>
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart} onMiss={()=>handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
           onUndo={()=>visitDarts.length>0&&setVisitDarts(p=>p.slice(0,-1))} highlightSegments={[25]} disabled={isBotTurnDC}/>
         <AbandonBtn onAbandon={onAbandon}/>
       </div>}
@@ -5470,7 +5470,7 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
             </div>
           </div>
           {!isBotTurn3B && (
-            <DartInputBoard onDart={handleDart}
+            <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
               onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
               onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
               highlightSegments={target ? [target] : undefined} />
@@ -5626,7 +5626,7 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
         )}
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust} />
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust} />
         <AbandonBtn onAbandon={onAbandon} />
       </div>}
     />
@@ -5775,7 +5775,7 @@ export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAband
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
           activeSegments={CRICKET_NUMS} highlightSegments={CRICKET_NUMS} />
         <AbandonBtn onAbandon={onAbandon} />
       </div>}
@@ -5960,7 +5960,7 @@ export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon }: 
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
           highlightSegments={killerNums.filter((num): num is number => num !== null)} />
         <AbandonBtn onAbandon={onAbandon} />
       </div>}
@@ -6100,7 +6100,7 @@ export function DoublesTeamCricketScorer({ team1, team2, cutThroat = false, incl
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
           onMiss={() => handleDart({ segment:0, multiplier:1, value:0, label:"Miss" })}
           onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0,-1))}
           activeSegments={CRICKET_NUMS.slice(0, numCount)} highlightSegments={CRICKET_NUMS.slice(0, numCount)}
@@ -6203,7 +6203,7 @@ export function TeamHalveItScorer({ team1, team2, gameKey, onWin, onAbandon }: {
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
           onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
           onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
           highlightSegments={typeof curTarget==="number"?[curTarget]:curTarget==="Bull"?[25]:undefined}
@@ -6300,7 +6300,7 @@ export function TeamCountUpScorer({ team1, team2, config, onWin, onAbandon }: {
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart}
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
           onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
           onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
           highlightSegments={bullsOnly?[25]:undefined}
@@ -6474,7 +6474,7 @@ export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPrac
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard
+        <DartInputBoard visitDartCount={visitDarts.length}
           onDart={handleDart}
           onMiss={handleMiss}
           onUndo={handleUndo}
@@ -6718,7 +6718,7 @@ export function Master501Scorer({
         )}
       </div>}
       bot={<div className="flex flex-col gap-2">
-        <DartInputBoard onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={isDisabled} />
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={isDisabled} />
         <AbandonBtn onAbandon={onAbandon} />
       </div>}
     />
