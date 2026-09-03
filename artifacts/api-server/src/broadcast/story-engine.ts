@@ -938,20 +938,40 @@ export type ClosedLeagueSeason = {
 };
 
 /**
- * Every league whose season closed strictly within (cutoffStart, cutoffEnd]
- * — the same real event processLeagueFamily's own seasonEndedInWindow
- * check reacts to, surfaced here with full detail (which season, its real
- * champion, its real recap numbers) for director-season-review.ts's Season
- * Review special to build a running order from, rather than the plain
- * boolean edition-engine.ts's own anySeasonEndedInWindow gives it (that
- * function's own comment already explains why it's a separate, re-derived
- * copy rather than a shared import — same reasoning applies here).
+ * Every closed league season that STILL OWES a Season Review — a durable
+ * state check against seasons.broadcastReviewedAt (see that column's own
+ * schema comment and add_season_broadcast_reviewed_at.ts's migration
+ * header), not the (cutoffStart, cutoffEnd] incremental window this
+ * function originally used.
+ *
+ * That window-based version was a real, shipped bug: it reused
+ * processLeagueFamily's own seasonEndedInWindow check, which answers "did a
+ * new result happen this batch" — correct for a match, wrong for a one-off
+ * retrospective, because the window only ever contains the season-close
+ * instant on the very FIRST build after it happens. A real user hit this
+ * directly: regenerating the current Edition a second time (exactly what
+ * previewing a new feature involves) landed outside that window, silently
+ * fell back to an ordinary Edition, and reported it back as "way too
+ * short" with the champion "brought up multiple times" — the ordinary
+ * CHAMPION/H2H/FORM rotation about the same dominant player standing in
+ * for the review that never actually ran a second time.
+ *
+ * `broadcastReviewedAt IS NULL` has none of that fragility: it stays true
+ * across as many rebuilds/regenerates of the same slot as it takes to
+ * actually clear the quality gate and publish, and once it publishes,
+ * edition-engine.ts sets the column and this season stops being offered
+ * again — a state transition, not a shrinking time window.
  */
-export async function resolveClosedLeagueSeasons(cutoffStart: Date, cutoffEnd: Date): Promise<ClosedLeagueSeason[]> {
-  const candidateSeasons = await db.select().from(seasonsTable).where(sql`${seasonsTable.endDate} IS NOT NULL`);
+export async function resolveClosedLeagueSeasons(now: Date): Promise<ClosedLeagueSeason[]> {
+  const candidateSeasons = await db.select().from(seasonsTable).where(and(
+    sql`${seasonsTable.endDate} IS NOT NULL`,
+    eq(seasonsTable.isActive, false),
+    isNull(seasonsTable.broadcastReviewedAt),
+  ));
   const result: ClosedLeagueSeason[] = [];
   for (const season of candidateSeasons) {
-    if (!seasonEndedInWindow(season, cutoffStart, cutoffEnd)) continue;
+    const endedAt = new Date(`${season.endDate}T00:00:00Z`);
+    if (endedAt > now) continue; // defensive only — isActive/endDate already imply this, but never review a season "ahead of" the build's own cutoff
     const leagueType = season.leagueType as LeagueType;
 
     let championEntityId: number | null;
@@ -960,7 +980,6 @@ export async function resolveClosedLeagueSeasons(cutoffStart: Date, cutoffEnd: D
     else championEntityId = await resolveShiftWarsChampionTeamId(season.id);
 
     const recap = await computeSeasonRecapFacts(leagueType, season.id);
-    const endedAt = new Date(`${season.endDate}T00:00:00Z`);
     result.push({
       leagueType, seasonId: season.id, seasonName: season.name,
       seasonStart: new Date(`${season.startDate}T00:00:00Z`),
@@ -970,6 +989,20 @@ export async function resolveClosedLeagueSeasons(cutoffStart: Date, cutoffEnd: D
     });
   }
   return result;
+}
+
+/**
+ * Marks a batch of closed seasons as having had their Season Review
+ * actually air — called by edition-engine.ts ONLY after a Season Review
+ * programme clears the quality gate and publishes, never on a
+ * failed/skipped attempt (a thin or gate-failing build should keep
+ * retrying as a Season Review on the next build, exactly like every other
+ * "keep previous published Edition" quality-gate case already works). Once
+ * set, resolveClosedLeagueSeasons above stops offering that season again.
+ */
+export async function markSeasonsReviewed(seasonIds: readonly number[], reviewedAt: Date): Promise<void> {
+  if (seasonIds.length === 0) return;
+  await db.update(seasonsTable).set({ broadcastReviewedAt: reviewedAt }).where(inArray(seasonsTable.id, seasonIds as number[]));
 }
 
 const HIGHLIGHT_ELIGIBLE_FAMILIES: Record<LeagueType, StoryFamily[]> = {
@@ -1015,19 +1048,27 @@ export async function collectSeasonHighlights(params: {
     ))
     .orderBy(desc(broadcastStoriesTable.score));
 
-  // Diversify: at most 2 highlights about the exact same subject(s), so one
-  // dominant player/team can't fill the whole reel on their own — the same
-  // "no single subject hogs the show" principle 10.4's exposure cap already
-  // applies to a normal Edition (director-math.ts's
-  // isWithinSubjectExposureCap), re-applied here since this pool never goes
-  // through that normal slot-filling machinery at all.
+  // Diversify: at most 2 highlights featuring any ONE individual entity
+  // (player or team), so a single dominant season champion can't fill the
+  // whole reel just by appearing against a different opponent each time —
+  // capping by the exact subjectKeys SET alone doesn't catch that, since
+  // "Graeme vs Richard" and "Graeme vs Sean" are different groups but the
+  // same real problem a real user reported ("brings up Graeme being
+  // champion multiple times"): CHAMPION, SEASON_RECAP and several
+  // highlights can all legitimately be about the same top player, reading
+  // as the show repeating itself even though every individual segment is
+  // technically distinct. This is the same "no single subject hogs the
+  // show" principle 10.4's exposure cap already applies to a normal Edition
+  // (director-math.ts's isWithinSubjectExposureCap), re-applied per
+  // INDIVIDUAL subject key rather than per exact group, since this pool
+  // never goes through that normal slot-filling machinery at all.
+  const MAX_HIGHLIGHTS_PER_SUBJECT = 2;
   const perSubjectCount = new Map<string, number>();
   const picked: BroadcastStory[] = [];
   for (const row of rows) {
-    const subjectGroupKey = [...row.subjectKeys].sort().join(",");
-    const count = perSubjectCount.get(subjectGroupKey) ?? 0;
-    if (count >= 2) continue;
-    perSubjectCount.set(subjectGroupKey, count + 1);
+    const overCap = row.subjectKeys.some(key => (perSubjectCount.get(key) ?? 0) >= MAX_HIGHLIGHTS_PER_SUBJECT);
+    if (overCap) continue;
+    for (const key of row.subjectKeys) perSubjectCount.set(key, (perSubjectCount.get(key) ?? 0) + 1);
     picked.push(row);
     if (picked.length >= params.limit) break;
   }

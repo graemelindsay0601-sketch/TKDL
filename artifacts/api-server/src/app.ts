@@ -26,6 +26,7 @@ import { addLongestLossStreakColumn } from "./db/migrations/add_longest_loss_str
 import { addCareerBiggestPointsFallColumn } from "./db/migrations/add_career_biggest_points_fall";
 import { addTkdlLiveBroadcastTables } from "./db/migrations/add_tkdl_live_broadcast";
 import { addBroadcastStorySeasonId } from "./db/migrations/add_broadcast_story_season_id";
+import { addSeasonBroadcastReviewedAt } from "./db/migrations/add_season_broadcast_reviewed_at";
 import { addFeatureSpotlights } from "./db/migrations/add_feature_spotlights";
 import { seedBroadcastSettings } from "./broadcast/config";
 import { seedCardDefinitions } from "./services/card-definitions-service";
@@ -1044,6 +1045,7 @@ async function init() {
     await initializeFeatureFlags();
     await addTkdlLiveBroadcastTables();
     await addBroadcastStorySeasonId();
+    await addSeasonBroadcastReviewedAt();
     await addFeatureSpotlights();
     await seedBroadcastSettings();
     await seedCardDefinitions();

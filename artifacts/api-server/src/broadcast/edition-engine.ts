@@ -60,7 +60,7 @@ import {
 import { getBroadcastConfig, type BroadcastConfig } from "./config.ts";
 import { maybeAutoResetLeagueSeasons } from "../lib/seasonReset.ts";
 import { resolveLogicalSlot, type ResolvedSlot } from "./edition-slots.ts";
-import { detectAndUpdateStories, collectNewAndActiveStories, resolveClosedLeagueSeasons, collectSeasonHighlights } from "./story-engine.ts";
+import { detectAndUpdateStories, collectNewAndActiveStories, resolveClosedLeagueSeasons, markSeasonsReviewed, collectSeasonHighlights } from "./story-engine.ts";
 import { directorSelect, type RunningOrderEntry } from "./director.ts";
 import { selectSeasonReviewRunningOrder } from "./director-season-review.ts";
 import {
@@ -524,8 +524,24 @@ async function buildEdition(params: {
   });
 
   const seasonBoundaryEventOccurred = await anySeasonEndedInWindow(previous?.dataCutoff ?? new Date(0), cutoffEnd);
+
+  // Season Review: which closed leagues STILL OWE a review, per seasons.
+  // broadcastReviewedAt (a durable state check, not an incremental window —
+  // see resolveClosedLeagueSeasons's own header for exactly why this has to
+  // be resolved BEFORE the change-score skip-check below, not gated behind
+  // seasonBoundaryEventOccurred the way the first version of this feature
+  // had it: a season that closed hours or days ago and still hasn't been
+  // reviewed must keep being offered on every later build/regenerate, not
+  // only the one build whose own tiny window happened to contain the close
+  // instant. A real user's report ("way way too short", champion "brought
+  // up multiple times") traced straight back to that original window-gated
+  // version silently reverting to an ordinary Edition on a second
+  // regenerate. See director-season-review.ts's own header for the rest of
+  // the reasoning behind building a dedicated special at all.
+  const closedLeagueSeasons = await resolveClosedLeagueSeasons(cutoffEnd);
+
   const forced = isForcedRefresh({
-    seasonChampionOrResetEventOccurred: seasonBoundaryEventOccurred,
+    seasonChampionOrResetEventOccurred: seasonBoundaryEventOccurred || closedLeagueSeasons.length > 0,
     noPublishedEditionExists: previous === null,
     publishedEditionAgeHours: previous?.publishedAt ? (cutoffEnd.getTime() - previous.publishedAt.getTime()) / 3_600_000 : null,
     adminForced,
@@ -547,16 +563,6 @@ async function buildEdition(params: {
   }
 
   const previousProgramme = previous && isEditionProgramme(previous.programme) ? previous.programme : null;
-
-  // Season Review: when a league's season closed this batch, build a
-  // dedicated multi-segment retrospective instead of a normal Edition — a
-  // real user report ("not covering all the topics or any of the matches
-  // from the league at all... just a 2 min show") is exactly why this
-  // exists rather than just a bigger single segment. See
-  // director-season-review.ts's own header for the full reasoning.
-  const closedLeagueSeasons = seasonBoundaryEventOccurred
-    ? await resolveClosedLeagueSeasons(previous?.dataCutoff ?? new Date(0), cutoffEnd)
-    : [];
 
   let runningOrder: RunningOrderEntry[];
   if (closedLeagueSeasons.length > 0) {
@@ -625,7 +631,8 @@ async function buildEdition(params: {
 
   const qualityInput: QualityGateInput = {
     segments: qualityGateSegments,
-    isChampionOrSeasonBoundarySpecial: seasonBoundaryEventOccurred,
+    // Tied to whether THIS build actually IS a Season Review (closedLeagueSeasons.length > 0), not the coarser seasonBoundaryEventOccurred window — a Season Review built on a regenerate long after the close-instant window has passed still needs this exemption exactly as much as the one built the same minute the season closed.
+    isChampionOrSeasonBoundarySpecial: seasonBoundaryEventOccurred || closedLeagueSeasons.length > 0,
     hasFactsOutsideCutoffSnapshot: false, // structurally guaranteed — see this file's own header
     hasInvalidFutureMatchLanguage: hasFutureMatchLanguage(segments),
     hasUnresolvedPlaceholders: hasUnresolvedPlaceholderText(segments),
@@ -642,6 +649,14 @@ async function buildEdition(params: {
       .set({ status: "PUBLISHED", dataCutoff: cutoffEnd, changeScore, programmeVersion: config.programmeVersion, programme, diagnostic: null, publishedAt: cutoffEnd })
       .where(eq(broadcastEditionsTable.id, claimedRow.id))
       .returning();
+    // Only NOW, once the Season Review has actually cleared the quality gate
+    // and published, does its season stop being offered again — see
+    // resolveClosedLeagueSeasons's own header. A failed/skipped attempt
+    // below deliberately leaves broadcastReviewedAt untouched so the next
+    // build keeps retrying it as a Season Review.
+    if (closedLeagueSeasons.length > 0) {
+      await markSeasonsReviewed(closedLeagueSeasons.map(c => c.seasonId), cutoffEnd);
+    }
     return published ?? null;
   }
 
