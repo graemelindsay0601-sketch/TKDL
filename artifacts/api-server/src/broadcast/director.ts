@@ -307,30 +307,48 @@ export function directorSelect(params: {
   // 4/6/7/8 all correctly come back empty (isFlashbackFamily's own header,
   // above, excludes ARCHIVE/FILLER from claiming them), which made slot 9
   // the ONLY way any of FILLER's real, always-available content
-  // (SHADOW_BOT_PROMO, FEATURE_SPOTLIGHT, PRACTICE_ACTIVITY) or ARCHIVE's
-  // own evergreen history could ever reach a segment — real content the
-  // pool already has sat unused rather than being spent. That was fine
-  // while evaluateQualityGate's MIN_MEANINGFUL_SEGMENTS counted raw segment
-  // count (the fixed opening/closing/what-to-watch-fallback padded a thin
-  // Edition over the bar on their own) — but now that it counts only
-  // story-backed segments (director-math.ts's own header on that change,
-  // made specifically so a day with nothing real couldn't dress itself up
-  // as a full show), a genuinely quiet month capped at ONE archive/filler
-  // segment plus maybe one LEAGUE story can fall short of 4 real segments
-  // and get held back entirely — repeating a stale Edition, which reads as
-  // "the show has gone bare/stuck" to a viewer, exactly the real report
-  // that prompted this fix. Rather than loosen the gate back to counting
-  // structural filler as if it were content, this spends MORE of the real
-  // archive/filler content the pool already holds — still real, verified
-  // stories, just several of them instead of one, exactly what a Quiet
-  // Edition is supposed to look like. Mirrors slot 2's headline entries'
-  // own "many entries, one purpose" shape (same slot number and purpose,
-  // one segment each) and is capped so it can never turn a single quiet
-  // story into a padded-out show pretending to be busy.
+  // (SHADOW_BOT_PROMO, FEATURE_SPOTLIGHT, PRACTICE_ACTIVITY) could ever
+  // reach a segment — real content the pool already has sat unused rather
+  // than being spent. That was fine while evaluateQualityGate's
+  // MIN_MEANINGFUL_SEGMENTS counted raw segment count (the fixed opening/
+  // closing/what-to-watch-fallback padded a thin Edition over the bar on
+  // their own) — but now that it counts only story-backed segments
+  // (director-math.ts's own header on that change, made specifically so a
+  // day with nothing real couldn't dress itself up as a full show), a
+  // genuinely quiet month capped at ONE lighter segment plus maybe one
+  // LEAGUE story can fall short of 4 real segments and get held back
+  // entirely — repeating a stale Edition, which reads as "the show has
+  // gone bare/stuck" to a viewer, exactly the real report that prompted
+  // this fix.
+  //
+  // This first version of the fix let the bonus loop pull from EITHER
+  // ARCHIVE or FILLER (isFlashbackFamily's own union) — which put a
+  // second and third ARCHIVE story into the same Edition. ARCHIVE
+  // (LAST_MEETING/HISTORICAL_H2H/SEASON_COMPARISON) is, unlike FILLER,
+  // never about the present: each candidate names a DIFFERENT old
+  // season/pairing on its own terms, so airing several of them back to
+  // back doesn't read as "a few calmer beats" the way several FILLER
+  // beats do — it reads as several unrelated old seasons stitched into
+  // one channel, which is the exact "clump of all seasons" shape slot 6's
+  // own comment above names as the original real bug report this whole
+  // single-slot confinement was built to prevent, and it's what a live
+  // viewer flagged the moment this shipped. FILLER's three detectors, by
+  // contrast, are ALL present-tense (a live feature promo, a live
+  // spotlight registry row, a live practice-mode plug — see
+  // story-detectors-filler.ts) — several of THOSE in one Edition is
+  // exactly the Quiet Edition's "archive, spotlight, ..." row read
+  // plurally, with no old-season content involved at all. So the bonus
+  // loop below is FILLER-only: slot 9's own pick above still gets first
+  // claim on the ONE ARCHIVE story an Edition may ever carry (unchanged
+  // from before this fix), and only the leftover FILLER pool backs a
+  // thin Edition up further — never a second old season. Mirrors slot 2's
+  // headline entries' own "many entries, one purpose" shape (same slot
+  // number and purpose, one segment each) and is capped so it can never
+  // turn a single quiet story into a padded-out show pretending to be busy.
   const MIN_REAL_ENTRIES_BEFORE_BACKFILL = 4;
   const MAX_BONUS_LIGHTER_ENTRIES = 3;
   for (let bonusCount = 0; entries.length < MIN_REAL_ENTRIES_BEFORE_BACKFILL && bonusCount < MAX_BONUS_LIGHTER_ENTRIES; bonusCount++) {
-    const bonusLighterPick = pickForSlot(ranked, c => isFlashbackFamily(c.group.primary), ctx);
+    const bonusLighterPick = pickForSlot(ranked, c => storyFamily(c.group.primary) === "FILLER", ctx);
     if (!bonusLighterPick) break;
     place(9, "lighter_or_archive_or_callback", bonusLighterPick);
   }

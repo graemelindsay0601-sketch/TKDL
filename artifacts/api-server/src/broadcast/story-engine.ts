@@ -103,7 +103,7 @@ import {
 import {
   SCORE_MAX, totalScore, freshnessComponent, highStakeThreshold, treatmentForScore,
   subjectKey, matchAnchoredStoryKey, subjectAnchoredStoryKey, seasonAnchoredStoryKey, seasonAnchoredStoryKeyPrefix,
-  nextLifecycle,
+  nextLifecycle, computeSeasonRecapAggregate,
   type StoryScoreComponents, type StoryFreshnessClass, type StoryLifecycle,
 } from "./story-engine-math";
 import {
@@ -114,7 +114,7 @@ import { detectResultStories, type SinglesResultMatchFacts } from "./story-detec
 import { detectFormStories, type SinglesFormFacts } from "./story-detectors-form";
 import { detectH2HStories, type SinglesH2HFacts } from "./story-detectors-h2h";
 import { detectPerformanceStories, type SinglesPerformanceFacts } from "./story-detectors-performance";
-import { detectLeagueStories, detectChampion as detectChampionOnly, type LeagueStandingsFacts, type LeagueEntityStanding } from "./story-detectors-league";
+import { detectLeagueStories, detectChampion as detectChampionOnly, detectSeasonRecap, type LeagueStandingsFacts, type LeagueEntityStanding } from "./story-detectors-league";
 import { detectMilestoneStories, type SinglesMilestoneFacts } from "./story-detectors-milestone";
 import { detectDoublesMatchStories, detectDoublesFormStories, type DoublesMatchResultFacts, type DoublesTeamFormFacts } from "./story-detectors-doubles";
 import { detectShiftWarsStories, type ShiftWarsStandingsFacts, type ShiftWarsTeamStanding, type ShiftWarsDeficitWindow } from "./story-detectors-shift-wars";
@@ -191,7 +191,7 @@ const SEASON_ANCHORED_TYPES: ReadonlySet<StoryType> = new Set<StoryType>([
   "NEW_LEADER", "LEAD_TIGHTENS", "LEAD_WIDENS", "TITLE_SWING", "NEW_FAVOURITE",
   "DEAD_HEAT", "TITLE_RACE", "CHAMPION", "TIE_PENDING", "SEASON_KICKOFF",
   "SHIFT_LEAD_CHANGE", "SHIFT_MOMENTUM", "SHIFT_COMEBACK", "SHIFT_DOMINANCE",
-  "SEASON_COMPARISON",
+  "SEASON_COMPARISON", "SEASON_RECAP",
 ]);
 
 function resolveStoryKey(candidate: StoryCandidate, seasonId: number | null): string {
@@ -894,16 +894,39 @@ async function resolveShiftWarsChampionTeamId(seasonId: number): Promise<number 
 type LeagueGatherResult = { candidates: StoryCandidate[]; confidence: number; storyTypesRun: readonly StoryType[] };
 
 /**
+ * The real numbers behind SEASON_RECAP (see story-detectors-league.ts's
+ * own header on why this exists): who won the most matches this closed
+ * season, and how many were played at all. Reuses the SAME real replayed
+ * timelines every other history-driven story in this file already trusts
+ * (buildSinglesTimeline/buildDoublesTeamTimeline/buildShiftWarsTeamTimeline
+ * — the fact firewall this whole file operates under means there's no
+ * OTHER source for "real, verified" match data), so this can never disagree
+ * with what the rest of the show already knows happened. The actual
+ * "who's top" math is computeSeasonRecapAggregate (story-engine-math.ts),
+ * kept pure and directly unit tested; this function's only job is the DB
+ * read and handing it a plain winner-id list.
+ */
+async function computeSeasonRecapFacts(leagueType: LeagueType, seasonId: number): Promise<{ matchesPlayed: number; topEntityId: number | null; topWins: number }> {
+  const winnerIds =
+    leagueType === "singles" ? (await buildSinglesTimeline(seasonId)).map(m => m.winnerId)
+    : leagueType === "doubles" ? (await buildDoublesTeamTimeline(seasonId)).map(m => m.winnerTeamId)
+    : (await buildShiftWarsTeamTimeline(seasonId)).map(m => m.winnerTeamId);
+  return computeSeasonRecapAggregate(winnerIds);
+}
+
+/**
  * Builds LeagueStandingsFacts and runs the full LEAGUE family for one
  * league/season — OR, when that season just closed this batch, skips
- * straight to CHAMPION alone. Every OTHER LEAGUE detector depends on real
+ * straight to CHAMPION (plus SEASON_RECAP — see that detector's own
+ * header) alone. Every OTHER LEAGUE detector depends on real
  * title-probability data (predictSinglesTitle/predictDoublesTitle/
  * predictShiftWarsTitle all THROW once a season has an endDate — "nothing
  * left to predict"), so forcing the full family through a fabricated
  * standings shape for a season that's already over would either crash or
  * risk manufacturing fake DEAD_HEAT/TITLE_RACE stories for a race that
- * doesn't exist anymore. CHAMPION is the one LEAGUE type that's ABOUT a
- * season having just ended, so it's handled on its own here.
+ * doesn't exist anymore. CHAMPION and SEASON_RECAP are the two LEAGUE
+ * types that are ABOUT a season having just ended, so they're handled on
+ * their own here.
  */
 async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cutoffStart: Date, cutoffEnd: Date): Promise<LeagueGatherResult> {
   const [season] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, seasonId)).limit(1);
@@ -915,14 +938,18 @@ async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cut
     else if (leagueType === "doubles") championEntityId = await resolveDoublesChampionTeamId(seasonId);
     else championEntityId = await resolveShiftWarsChampionTeamId(seasonId);
 
-    if (championEntityId === null) return { candidates: [], confidence: 100, storyTypesRun: ["CHAMPION"] };
+    const recapFacts = await computeSeasonRecapFacts(leagueType, seasonId);
+    const recapCandidates = detectSeasonRecap({ leagueType, seasonId, seasonName: season.name, ...recapFacts });
+    const storyTypesRun: StoryType[] = ["CHAMPION", "SEASON_RECAP"];
+
+    if (championEntityId === null) return { candidates: recapCandidates, confidence: 100, storyTypesRun };
 
     const facts: LeagueStandingsFacts = {
       leagueType, seasonId, current: [], previous: null,
       singlesTiePending: false, seasonJustEnded: true, championEntityId,
       seasonJustStarted: false, seasonName: season.name,
     };
-    return { candidates: detectChampionOnly(facts), confidence: 100, storyTypesRun: ["CHAMPION"] };
+    return { candidates: [...detectChampionOnly(facts), ...recapCandidates], confidence: 100, storyTypesRun };
   }
 
   if (season.endDate) {

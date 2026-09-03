@@ -25,6 +25,7 @@ import {
   seasonAnchoredStoryKeyPrefix,
   nextLifecycle,
   STORY_LIFECYCLES,
+  computeSeasonRecapAggregate,
 } from "../story-engine-math.ts";
 import type { StoryScoreComponents } from "../story-engine-math.ts";
 
@@ -398,5 +399,33 @@ describe("nextLifecycle (lifecycle transition rule)", () => {
     for (const value of outputs) {
       assert.ok((STORY_LIFECYCLES as readonly string[]).includes(value));
     }
+  });
+});
+
+describe("computeSeasonRecapAggregate", () => {
+  test("zero matches played means nothing to crown a top winner from", () => {
+    assert.deepEqual(computeSeasonRecapAggregate([]), { matchesPlayed: 0, topEntityId: null, topWins: 0 });
+  });
+
+  test("counts matches played and finds the entity with the most wins", () => {
+    // Player 7 wins 3 of 5 matches — the clear top winner.
+    const result = computeSeasonRecapAggregate([7, 9, 7, 9, 7]);
+    assert.deepEqual(result, { matchesPlayed: 5, topEntityId: 7, topWins: 3 });
+  });
+
+  test("a single match crowns its own winner", () => {
+    assert.deepEqual(computeSeasonRecapAggregate([3]), { matchesPlayed: 1, topEntityId: 3, topWins: 1 });
+  });
+
+  test("a tie for most wins resolves to whichever entity reached that count FIRST, chronologically", () => {
+    // Both 1 and 2 finish on 2 wins — 1 gets there first (its 2nd win is
+    // match index 2, before 2's 2nd win at index 3).
+    const result = computeSeasonRecapAggregate([1, 2, 1, 2]);
+    assert.deepEqual(result, { matchesPlayed: 4, topEntityId: 1, topWins: 2 });
+  });
+
+  test("real numbers pass straight through untouched", () => {
+    const winners = [1, 1, 1, 1, 2, 2, 3];
+    assert.deepEqual(computeSeasonRecapAggregate(winners), { matchesPlayed: 7, topEntityId: 1, topWins: 4 });
   });
 });

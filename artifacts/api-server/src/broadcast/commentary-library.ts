@@ -1012,6 +1012,29 @@ ph("CHAMPION.consequence.2", "A", "consequence", "The table's now settled at the
 ph("CHAMPION.consequence.3", "A", "consequence", "That's the story of the season written — next up is who comes to challenge for it.", "positive", { requires: CHAMPION_REQUIRES }),
 ];
 
+// SEASON_RECAP — CHAMPION's own deliberate counterpart (see
+// story-detectors-league.ts's own header on why this exists): CHAMPION
+// says who won, this says what actually happened across the season to get
+// there. Brand new story type with no production rows predating it, so —
+// unlike CHAMPION's own seasonName dance above — every fact this needs can
+// go straight into one shared REQUIRES from the start.
+const SEASON_RECAP_REQUIRES = ["seasonId", "seasonName", "matchesPlayed", "topEntityId", "topWins"];
+const SEASON_RECAP_PHRASES: Phrase[] = [
+  ph("SEASON_RECAP.qf.1", "A", "quick_fact", "Before we move on — {{seasonName}} in numbers: {{matchesPlayed}} matches played, and {{topEntityName}} led the way with {{topWins}} wins.", "positive", { requires: SEASON_RECAP_REQUIRES }),
+  ph("SEASON_RECAP.qf.2", "A", "quick_fact", "A quick look back at {{seasonName}}: {{matchesPlayed}} matches on the board, {{topEntityName}} racking up the most wins on {{topWins}}.", "positive", { requires: SEASON_RECAP_REQUIRES }),
+  ph("SEASON_RECAP.qr.1", "B", "quick_reaction", "{{matchesPlayed}} matches — that's a proper season's worth of darts.", "positive", { requires: SEASON_RECAP_REQUIRES, tone: "personality" }),
+  ph("SEASON_RECAP.qr.2", "B", "quick_reaction", "{{topWins}} wins from {{topEntityName}} — that's not a fluke, that's a season-long habit.", "positive", { requires: SEASON_RECAP_REQUIRES }),
+  ph("SEASON_RECAP.perf.1", "A", "performance_fact", "{{topEntityName}} finished the season as the busiest winner in the league — {{topWins}} wins from {{matchesPlayed}} matches played across the board.", "neutral", { requires: SEASON_RECAP_REQUIRES }),
+  ph("SEASON_RECAP.credit.1", "B", "credit", "Turning up and winning that many nights across a whole season takes some doing.", "positive", { requires: SEASON_RECAP_REQUIRES }),
+  ph("SEASON_RECAP.consequence.1", "A", "consequence", "That's {{seasonName}} wrapped up — a new board resets for the next one.", "neutral", { requires: SEASON_RECAP_REQUIRES }),
+
+ph("SEASON_RECAP.qf.3", "A", "quick_fact", "{{seasonName}} produced {{matchesPlayed}} matches, with {{topEntityName}} winning more of them than anyone else — {{topWins}} in total.", "positive", { requires: SEASON_RECAP_REQUIRES }),
+ph("SEASON_RECAP.qr.3", "B", "quick_reaction", "Say what you like about the rest of the table — {{topEntityName}} just kept winning.", "positive", { requires: SEASON_RECAP_REQUIRES, tone: "personality" }),
+ph("SEASON_RECAP.perf.2", "A", "performance_fact", "Across {{matchesPlayed}} matches this season, no one won more often than {{topEntityName}}.", "neutral", { requires: SEASON_RECAP_REQUIRES }),
+ph("SEASON_RECAP.credit.2", "B", "credit", "{{topWins}} wins over a full season — that's consistency, not one good week.", "positive", { requires: SEASON_RECAP_REQUIRES }),
+ph("SEASON_RECAP.consequence.2", "A", "consequence", "The page turns on {{seasonName}} — everyone starts level again from here.", "neutral", { requires: SEASON_RECAP_REQUIRES }),
+];
+
 // SEASON_KICKOFF's own seasonName is a plain already-verified string fact
 // (story-engine.ts pulls it straight off the seasons row), not an entity id
 // needing resolution — so unlike CHAMPION's {{championEntityName}} it
@@ -1739,6 +1762,7 @@ export const COMMENTARY_LIBRARY: Partial<Record<StoryType, Phrase[]>> = {
   CHAMPION: CHAMPION_PHRASES,
   TIE_PENDING: TIE_PENDING_PHRASES,
   SEASON_KICKOFF: SEASON_KICKOFF_PHRASES,
+  SEASON_RECAP: SEASON_RECAP_PHRASES,
 
   CAREER_MATCH_MILESTONE: CAREER_MATCH_MILESTONE_PHRASES,
   CAREER_WIN_MILESTONE: CAREER_WIN_MILESTONE_PHRASES,

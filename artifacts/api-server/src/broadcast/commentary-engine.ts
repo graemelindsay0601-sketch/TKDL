@@ -262,6 +262,7 @@ const CALLBACK_CLAIM_TAG: Partial<Record<StoryType, string>> = {
   NEW_LEADER: "a change at the top", LEAD_TIGHTENS: "a tightening lead", LEAD_WIDENS: "a widening lead",
   TITLE_SWING: "a swing in the title model", NEW_FAVOURITE: "a new title favourite", DEAD_HEAT: "a dead heat at the top",
   TITLE_RACE: "a wide-open title race", CHAMPION: "being crowned champion", TIE_PENDING: "a tie at the top",
+  SEASON_RECAP: "a look back at the season that just finished",
   CAREER_MATCH_MILESTONE: "a career-match milestone", CAREER_WIN_MILESTONE: "a career-win milestone",
   "180_MILESTONE": "a maximums milestone", ELIMINATION_MILESTONE: "an eliminations milestone",
   UNBEATEN_PAIR: "an unbeaten doubles run", PAIR_SURGE: "a doubles pair surging up the table",

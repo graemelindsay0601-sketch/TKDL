@@ -21,9 +21,11 @@ import {
   detectChampion,
   detectTiePending,
   detectSeasonKickoff,
+  detectSeasonRecap,
   detectLeagueStories,
   type LeagueStandingsFacts,
   type LeagueEntityStanding,
+  type SeasonRecapFacts,
 } from "../story-detectors-league.ts";
 
 function entity(overrides: Partial<LeagueEntityStanding> = {}): LeagueEntityStanding {
@@ -233,6 +235,31 @@ describe("detectChampion (Appendix A: official season champion state)", () => {
   test("carries the season name through to facts — several champions from different months must be tellable apart", () => {
     const stories = detectChampion(baseFacts({ seasonJustEnded: true, championEntityId: 1, seasonName: "March 2026" }));
     assert.equal(stories[0].facts.seasonName, "March 2026");
+  });
+});
+
+function recapFacts(overrides: Partial<SeasonRecapFacts> = {}): SeasonRecapFacts {
+  return { leagueType: "singles", seasonId: 1, seasonName: "March 2026", matchesPlayed: 12, topEntityId: 1, topWins: 5, ...overrides };
+}
+
+describe("detectSeasonRecap (a real look-back at the season that just closed)", () => {
+  test("no matches played means nothing real to recap — No Fake Urgency", () => {
+    assert.deepEqual(detectSeasonRecap(recapFacts({ matchesPlayed: 0, topEntityId: null, topWins: 0 })), []);
+  });
+
+  test("real matches played triggers, carrying the season's own numbers through to facts", () => {
+    const stories = detectSeasonRecap(recapFacts());
+    assert.equal(stories.length, 1);
+    assert.equal(stories[0].facts.matchesPlayed, 12);
+    assert.equal(stories[0].facts.topEntityId, 1);
+    assert.equal(stories[0].facts.topWins, 5);
+    assert.equal(stories[0].facts.seasonName, "March 2026");
+  });
+
+  test("CHAMPION still outscores its own recap — the outcome matters more than the summary of how it happened", () => {
+    const championStories = detectChampion(baseFacts({ seasonJustEnded: true, championEntityId: 1 }));
+    const recapStories = detectSeasonRecap(recapFacts());
+    assert.ok(championStories[0].components.competitiveImportance > recapStories[0].components.competitiveImportance);
   });
 });
 

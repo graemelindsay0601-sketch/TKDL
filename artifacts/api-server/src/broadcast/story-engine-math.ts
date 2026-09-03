@@ -178,6 +178,45 @@ export function subjectKey(leagueType: "singles" | "doubles" | "shift_wars", ent
   return `${leagueType}:${entityId}`;
 }
 
+// ── SEASON_RECAP aggregate ───────────────────────────────────────────────
+// The pure half of "who won the most matches this closed season, and how
+// many were played at all" — story-engine.ts's own computeSeasonRecapFacts
+// does the DB read (replaying that season's real timeline via
+// buildSinglesTimeline/buildDoublesTeamTimeline/buildShiftWarsTeamTimeline,
+// exactly like every other history-driven detector in this folder already
+// trusts) and hands this function nothing but the resulting winner-id list,
+// so the actual "who's top" math stays directly unit testable without a
+// database, same as everything else in this file.
+export type SeasonRecapAggregate = {
+  matchesPlayed: number;
+  /** null only when matchesPlayed is 0 — nothing real to crown a "top" winner from. */
+  topEntityId: number | null;
+  topWins: number;
+};
+
+/**
+ * `winnerIds` is one entry per match, in the order the matches were
+ * played (chronological) — the exact order buildSinglesTimeline /
+ * buildDoublesTeamTimeline / buildShiftWarsTeamTimeline already return.
+ * Ties for "most wins" resolve to whichever entity FIRST reached that win
+ * count during the season, a deterministic tie-break that needs no extra
+ * input beyond the chronological order already given.
+ */
+export function computeSeasonRecapAggregate(winnerIds: readonly number[]): SeasonRecapAggregate {
+  const matchesPlayed = winnerIds.length;
+  if (matchesPlayed === 0) return { matchesPlayed: 0, topEntityId: null, topWins: 0 };
+
+  const winsSoFar = new Map<number, number>();
+  let topEntityId: number = winnerIds[0];
+  let topWins = 0;
+  for (const id of winnerIds) {
+    const wins = (winsSoFar.get(id) ?? 0) + 1;
+    winsSoFar.set(id, wins);
+    if (wins > topWins) { topWins = wins; topEntityId = id; }
+  }
+  return { matchesPlayed, topEntityId, topWins };
+}
+
 export function matchAnchoredStoryKey(
   leagueType: "singles" | "doubles" | "shift_wars",
   storyType: string,

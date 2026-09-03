@@ -2,9 +2,9 @@
 // DROUGHT_ENDED, CLINICAL_FINISHING, DOUBLE_TROUBLE, SCORING_POWER,
 // SCORING_WITHOUT_FINISHING, SEASON_BEST, PERSONAL_BEST,
 // CAREER_MATCH_MILESTONE, CAREER_WIN_MILESTONE, 180_MILESTONE,
-// ELIMINATION_MILESTONE, PAIR_ELIMINATED, SEASON_COMPARISON — the
-// catch-all "here's the verified number behind this claim" kind, plus (for
-// now) the three not-yet-designed FILLER story types).
+// ELIMINATION_MILESTONE, PAIR_ELIMINATED, SEASON_COMPARISON, SEASON_RECAP —
+// the catch-all "here's the verified number behind this claim" kind, plus
+// (for now) the three not-yet-designed FILLER story types).
 //
 // On kit.tsx's v3 "BigBoard" skin at `compact={false}` (major visual tier —
 // real user feedback, via a reference image, "go big like this, one story
@@ -306,6 +306,31 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
           <HeroBadge value={pct(currentSeasonWinRate)} label="Win Rate" accent={tone} compact />
         )}
         {previousSeasonWinRate !== null && <PanelLine>Was {pct(previousSeasonWinRate)} in {previousSeasonLabel}</PanelLine>}
+      </Panel>
+    );
+  }
+
+  // SEASON_RECAP — the season that just closed, in real numbers: how many
+  // matches were actually played, and who won the most of them.
+  const matchesPlayed = num(data, "matchesPlayed");
+  if (matchesPlayed !== null) {
+    const topWins = num(data, "topWins");
+    const topEntityName = str(data, "topEntityName");
+    const seasonLabel = str(data, "seasonName");
+    if (big) {
+      return (
+        <BigPanel accent={ACCENT} fill={false}>
+          <BigPanelHeader icon="📋" kind="Season Recap" leagueType={leagueType} accent={ACCENT} />
+          <BigHeroNumber value={String(matchesPlayed)} label={seasonLabel ? `Matches Played, ${seasonLabel}` : "Matches Played"} accent={ACCENT} />
+          {topEntityName && topWins !== null && <BigLine>{topEntityName} led the way with {topWins} wins</BigLine>}
+        </BigPanel>
+      );
+    }
+    return (
+      <Panel accent={ACCENT} compact>
+        <PanelTag icon="📋" kind="Season Recap" leagueType={leagueType} accent={ACCENT} compact />
+        <HeroBadge value={String(matchesPlayed)} label="Matches Played" accent={ACCENT} compact />
+        {topEntityName && topWins !== null && <PanelLine>{topEntityName}: {topWins} wins</PanelLine>}
       </Panel>
     );
   }

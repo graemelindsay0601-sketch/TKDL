@@ -165,6 +165,11 @@ export const GRAPHIC_KIND_BY_STORY_TYPE: Record<StoryType, GraphicKind> = {
   CHAMPION: "LeagueTableGraphic",
   TIE_PENDING: "LeagueTableGraphic",
   SEASON_KICKOFF: "LeagueTableGraphic",
+  // SEASON_RECAP's facts (matchesPlayed/topEntityName/topWins) are a
+  // generic "here's the verified number" shape, not a standings table —
+  // ResultGraphic.tsx has a dedicated branch for it (checks "matchesPlayed"),
+  // same catch-all kind FILLER's own facts use.
+  SEASON_RECAP: "ResultGraphic",
 
   // MILESTONE
   CAREER_MATCH_MILESTONE: "ResultGraphic",

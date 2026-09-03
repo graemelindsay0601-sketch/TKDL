@@ -44,6 +44,15 @@ export const LEAGUE_STORY_TYPES = [
   "NEW_LEADER", "LEAD_TIGHTENS", "LEAD_WIDENS",
   "TITLE_SWING", "NEW_FAVOURITE", "DEAD_HEAT",
   "TITLE_RACE", "CHAMPION", "TIE_PENDING", "SEASON_KICKOFF",
+  // SEASON_RECAP: CHAMPION's own deliberate counterpart, added the same way
+  // SEASON_KICKOFF was — CHAMPION says WHO won, this says WHAT ACTUALLY
+  // HAPPENED across the season to get there (real matches played, who won
+  // the most of them), closing the gap a real user report named: a season
+  // closing produced exactly one story and nothing that looked back at the
+  // season's own results. See story-detectors-league.ts's own
+  // detectSeasonRecap for the detector and story-engine.ts's
+  // computeSeasonRecapFacts for where its numbers come from.
+  "SEASON_RECAP",
 ] as const;
 
 export const MILESTONE_STORY_TYPES = [

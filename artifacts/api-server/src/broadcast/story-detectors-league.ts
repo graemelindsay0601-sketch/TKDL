@@ -305,6 +305,57 @@ export function detectChampion(facts: LeagueStandingsFacts): StoryCandidate[] {
   }];
 }
 
+// ── SEASON_RECAP (new: a real look-back at the season that just closed) ──
+// CHAMPION says WHO won; this says WHAT ACTUALLY HAPPENED across the
+// season to get there. A real user report ("no real recap... matches,
+// form etc, it's literally one section") traced back to a genuine gap:
+// until now, a season closing produced exactly one story (CHAMPION) and
+// nothing else that looked back at the season's own results — every OTHER
+// LEAGUE detector is skipped once a season closes (see
+// story-engine.ts's processLeagueFamily header on why), so there was
+// simply nothing else to air. `facts` here already carries real,
+// pre-aggregated numbers (story-engine.ts's own computeSeasonRecapFacts,
+// replaying the season's real match timeline the same way every other
+// history-driven story in this file already trusts) — this detector's
+// only job is deciding whether there's anything real to report at all.
+export type SeasonRecapFacts = {
+  leagueType: LeagueType;
+  seasonId: number;
+  seasonName: string;
+  matchesPlayed: number;
+  topEntityId: number | null;
+  topWins: number;
+};
+
+export function detectSeasonRecap(facts: SeasonRecapFacts): StoryCandidate[] {
+  // No Fake Urgency (Show Bible v1): a season that closed with zero real
+  // matches played has nothing to recap, so this stays silent rather than
+  // manufacturing a "season in review" out of nothing.
+  if (facts.matchesPlayed === 0 || facts.topEntityId === null) return [];
+
+  return [{
+    storyType: "SEASON_RECAP",
+    leagueType: facts.leagueType,
+    subjectKeys: [subjectKey(facts.leagueType, facts.topEntityId)],
+    sentiment: "positive",
+    tags: ["recap"],
+    facts: {
+      seasonId: facts.seasonId,
+      seasonName: facts.seasonName,
+      matchesPlayed: facts.matchesPlayed,
+      topEntityId: facts.topEntityId,
+      topWins: facts.topWins,
+    },
+    components: {
+      competitiveImportance: 16, // real, but the season's OUTCOME (CHAMPION) still outranks its recap
+      unexpectedness: 0,
+      historicalSignificance: 15, // the whole season's worth of results, not one moment
+      performanceAnomaly: 0,
+      entertainmentValue: 5,
+    },
+  }];
+}
+
 // ── SEASON_KICKOFF (new: a fresh season just began) ───────────────────────
 // The deliberate counterweight to CHAMPION: without this, the very first
 // Edition of a new season has nothing telling viewers "the board just
