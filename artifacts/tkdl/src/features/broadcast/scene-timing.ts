@@ -21,6 +21,29 @@ import type { DialogueTurn, LiveOverlayItem, Segment } from "./types";
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
+ * Stitches CurrentEdition's two lists into the one ordered playlist the
+ * player actually walks — Show Bible v1 §4's own running order: the fixed
+ * "opening" sign-on airs FIRST, then the top-of-show headline tease (up to
+ * 3 segments, `headlines`), then the rest of the programme body. `opening`
+ * is the one segment `segments` carries ahead of the headline tease
+ * (routes/broadcast.ts only pulls `purpose === "headlines"` out into its
+ * own list — everything else, including the fixed opening sign-on, stays
+ * in `segments`), so it's found by its own `type` rather than assumed to
+ * sit at index 0 — an older cached Edition built before this split existed
+ * would have no such segment at all, and this still needs to produce a
+ * sane playlist for it (falls back to headlines-then-body, the pre-split
+ * order). Pulled out as its own pure, tested function (rather than left
+ * inline in BroadcastPlayer.tsx's own useMemo) specifically because segment
+ * ORDER bugs here are easy to introduce silently and easy to miss just
+ * reading a diff — this is the one place that order is decided.
+ */
+export function buildPlaylist(headlines: readonly Segment[], segments: readonly Segment[]): Segment[] {
+  const opening = segments.find(s => s.type === "opening");
+  if (!opening) return [...headlines, ...segments];
+  return [opening, ...headlines, ...segments.filter(s => s !== opening)];
+}
+
+/**
  * The next segment index at or after `fromIndex` whose id is NOT in
  * `invalidSegmentIds` — 15.4's own "Skip segment if its ID becomes
  * invalid." Returns -1 once the whole programme has been exhausted (the

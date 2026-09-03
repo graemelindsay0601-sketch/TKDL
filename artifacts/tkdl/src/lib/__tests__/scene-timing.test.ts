@@ -3,16 +3,48 @@ import assert from "node:assert/strict";
 import {
   nextPlayableSegmentIndex, scheduleDialogueTurns, segmentDurationMs,
   canInsertOverlayAt, filterUnseenOverlays, mergeOverlayQueue, popReadyOverlay,
-  totalPlayableDurationMs, computeTimedPosition, TRANSITION_HOLD_MS,
+  totalPlayableDurationMs, computeTimedPosition, TRANSITION_HOLD_MS, buildPlaylist,
 } from "../../features/broadcast/scene-timing.ts";
 import type { DialogueTurn, LiveOverlayItem, Segment } from "../../features/broadcast/types.ts";
 
-function segment(id: string): Segment {
+function segment(id: string, overrides: Partial<Segment> = {}): Segment {
   return {
     id, type: "UPSET", leagueType: "singles", storyId: 1, importance: "major", scene: "desk",
     dialogue: [{ speaker: "A", text: "x", holdSeconds: 3 }], graphic: null, validityRules: [], estimatedSeconds: 3,
+    ...overrides,
   };
 }
+
+describe("buildPlaylist", () => {
+  test("Show Bible v1 §4 order: opening first, then headlines, then the rest of the body", () => {
+    const opening = segment("slot-1", { type: "opening", storyId: null });
+    const mainStory = segment("slot-3", { type: "UPSET" });
+    const closing = segment("slot-11", { type: "closing", storyId: null });
+    const headline1 = segment("slot-2a", { type: "headline_ticker" });
+    const headline2 = segment("slot-2b", { type: "headline_ticker" });
+
+    const playlist = buildPlaylist([headline1, headline2], [opening, mainStory, closing]);
+
+    assert.deepEqual(playlist.map(s => s.id), ["slot-1", "slot-2a", "slot-2b", "slot-3", "slot-11"]);
+  });
+
+  test("an older cached Edition with no opening segment falls back to headlines-then-body", () => {
+    const mainStory = segment("slot-2");
+    const closing = segment("slot-10", { type: "closing", storyId: null });
+    const headline1 = segment("slot-1a", { type: "headline_ticker" });
+
+    const playlist = buildPlaylist([headline1], [mainStory, closing]);
+
+    assert.deepEqual(playlist.map(s => s.id), ["slot-1a", "slot-2", "slot-10"]);
+  });
+
+  test("no headlines at all still puts opening first", () => {
+    const opening = segment("slot-1", { type: "opening", storyId: null });
+    const mainStory = segment("slot-3");
+
+    assert.deepEqual(buildPlaylist([], [opening, mainStory]).map(s => s.id), ["slot-1", "slot-3"]);
+  });
+});
 
 function overlay(storyId: number, overlayClass: LiveOverlayItem["overlayClass"]): LiveOverlayItem {
   return { storyId, leagueType: "singles", storyType: "UPSET", subjectKeys: ["p1"], score: 80, overlayClass };

@@ -42,7 +42,7 @@ import Broadcast from "../../pages/broadcast";
 import { useBroadcast, useSeenOverlays } from "./useBroadcast";
 import {
   filterUnseenOverlays, mergeOverlayQueue, popReadyOverlay,
-  totalPlayableDurationMs, computeTimedPosition,
+  totalPlayableDurationMs, computeTimedPosition, buildPlaylist,
   type PlayheadPosition,
 } from "./scene-timing";
 import { SCENE_COMPONENTS } from "./scenes";
@@ -131,10 +131,11 @@ type PlayerRuntimeProps = {
 };
 
 function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalidSegmentIds, namesByKey, seenIds, markSeen }: PlayerRuntimeProps) {
-  // 14.4/15.4: the top-of-show headline tease (up to 3 segments) plays
-  // before the main programme body — one combined playlist so scene-timing
-  // .ts's own segment-index logic doesn't need to know about the split.
-  const playlist: Segment[] = useMemo(() => [...edition.headlines, ...edition.segments], [edition]);
+  // buildPlaylist (scene-timing.ts) owns the actual running order — see its
+  // own header for why opening/headlines/body get stitched in that specific
+  // sequence and why it's a pure, separately-tested function rather than
+  // inline logic here.
+  const playlist: Segment[] = useMemo(() => buildPlaylist(edition.headlines, edition.segments), [edition]);
 
   // The shared clock (this file's own header comment above) — `editionStartMs`
   // is this Edition's own `generatedAt`, identical for every viewer of it,

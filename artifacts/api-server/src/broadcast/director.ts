@@ -300,6 +300,41 @@ export function directorSelect(params: {
     pickForSlot(ranked, () => true, ctx);
   place(9, "lighter_or_archive_or_callback", lighterPick);
 
+  // ── Quiet-Edition backfill ────────────────────────────────────────────
+  // Show Bible v1 §1's own Quiet Edition row: "Calmer; archive, spotlight,
+  // table state, predictor if useful" — several calmer beats, not the
+  // single one 11.1's template names. On a genuinely quiet month, slots
+  // 4/6/7/8 all correctly come back empty (isFlashbackFamily's own header,
+  // above, excludes ARCHIVE/FILLER from claiming them), which made slot 9
+  // the ONLY way any of FILLER's real, always-available content
+  // (SHADOW_BOT_PROMO, FEATURE_SPOTLIGHT, PRACTICE_ACTIVITY) or ARCHIVE's
+  // own evergreen history could ever reach a segment — real content the
+  // pool already has sat unused rather than being spent. That was fine
+  // while evaluateQualityGate's MIN_MEANINGFUL_SEGMENTS counted raw segment
+  // count (the fixed opening/closing/what-to-watch-fallback padded a thin
+  // Edition over the bar on their own) — but now that it counts only
+  // story-backed segments (director-math.ts's own header on that change,
+  // made specifically so a day with nothing real couldn't dress itself up
+  // as a full show), a genuinely quiet month capped at ONE archive/filler
+  // segment plus maybe one LEAGUE story can fall short of 4 real segments
+  // and get held back entirely — repeating a stale Edition, which reads as
+  // "the show has gone bare/stuck" to a viewer, exactly the real report
+  // that prompted this fix. Rather than loosen the gate back to counting
+  // structural filler as if it were content, this spends MORE of the real
+  // archive/filler content the pool already holds — still real, verified
+  // stories, just several of them instead of one, exactly what a Quiet
+  // Edition is supposed to look like. Mirrors slot 2's headline entries'
+  // own "many entries, one purpose" shape (same slot number and purpose,
+  // one segment each) and is capped so it can never turn a single quiet
+  // story into a padded-out show pretending to be busy.
+  const MIN_REAL_ENTRIES_BEFORE_BACKFILL = 4;
+  const MAX_BONUS_LIGHTER_ENTRIES = 3;
+  for (let bonusCount = 0; entries.length < MIN_REAL_ENTRIES_BEFORE_BACKFILL && bonusCount < MAX_BONUS_LIGHTER_ENTRIES; bonusCount++) {
+    const bonusLighterPick = pickForSlot(ranked, c => isFlashbackFamily(c.group.primary), ctx);
+    if (!bonusLighterPick) break;
+    place(9, "lighter_or_archive_or_callback", bonusLighterPick);
+  }
+
   // Slot 1 — opening: a fixed ~20-30s desk sign-on with no story of its own
   // (Show Bible v1 section 4/5 — "explain why this Edition matters," not a
   // templated claim about any specific story, so it carries no group and
