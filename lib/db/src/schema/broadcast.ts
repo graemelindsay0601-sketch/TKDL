@@ -72,6 +72,8 @@ export const broadcastStoriesTable = pgTable("broadcast_stories", {
   /** Player ids (Singles) or team ids (Doubles/Shift Wars) this story is about, as strings — see story-engine.ts's subjectKey() for the exact encoding. */
   subjectKeys: jsonb("subject_keys").notNull().$type<string[]>(),
   anchorMatchId: integer("anchor_match_id"),
+  /** Which season this story belongs to, when it's about one — nullable: added after this table already had production rows (see db/migrations/add_broadcast_story_season_id.ts), and several story families (most of FORM/H2H/PERFORMANCE) never carried season context to begin with, per this table's own module header. story-engine.ts's collectSeasonHighlights() is this column's real reason for existing — pulling back a closed season's own real storylines for a proper recap. */
+  seasonId: integer("season_id"),
   detectedAt: timestamp("detected_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),

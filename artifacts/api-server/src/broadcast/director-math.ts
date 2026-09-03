@@ -366,7 +366,13 @@ export function applyVarietyShuffle<T>(
 export type RunningOrderSlotPurpose =
   | "opening" | "headlines" | "main_story" | "second_major_story" | "analysis_or_predictor"
   | "supporting_story_or_checkin" | "form_h2h_or_spotlight" | "third_league_current_state"
-  | "lighter_or_archive_or_callback" | "what_to_watch" | "closing";
+  | "lighter_or_archive_or_callback" | "what_to_watch" | "closing"
+  // "season_highlight" is director-season-review.ts's own purpose, not part
+  // of NORMAL_RUNNING_ORDER_TEMPLATE below — a Season Review special (built
+  // when a league's season closes) uses it for each of the season's own
+  // real storylines it features, several per Edition rather than the one
+  // slot every other purpose here is confined to.
+  | "season_highlight";
 
 export type RunningOrderSlotTemplate = { slot: number; purpose: RunningOrderSlotPurpose; required: boolean };
 

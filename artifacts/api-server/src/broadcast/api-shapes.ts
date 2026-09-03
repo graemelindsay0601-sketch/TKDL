@@ -93,6 +93,10 @@ export function sceneForSegment(segment: SceneInput): Scene {
       return "spotlight";
     case "third_league_current_state":
     case "supporting_story_or_checkin":
+    // Season Review's own highlight reel (director-season-review.ts) — the
+    // same "here's a real result, on screen" treatment slot 7/6 already
+    // use, so several highlights back to back don't all sit at the desk.
+    case "season_highlight":
       return "result";
     case "lighter_or_archive_or_callback":
       return segment.storyType !== null && familyForStoryType(segment.storyType as StoryType) === "ARCHIVE" ? "graphic" : "spotlight";

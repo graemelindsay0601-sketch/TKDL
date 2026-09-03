@@ -55,13 +55,14 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import {
   db,
   broadcastEditionsTable, broadcastStoriesTable, broadcastMemoryTable, seasonsTable,
-  type BroadcastEdition, type EditionStatus,
+  type BroadcastEdition, type EditionStatus, type LeagueType, type BroadcastStory,
 } from "@workspace/db";
 import { getBroadcastConfig, type BroadcastConfig } from "./config.ts";
 import { maybeAutoResetLeagueSeasons } from "../lib/seasonReset.ts";
 import { resolveLogicalSlot, type ResolvedSlot } from "./edition-slots.ts";
-import { detectAndUpdateStories, collectNewAndActiveStories } from "./story-engine.ts";
+import { detectAndUpdateStories, collectNewAndActiveStories, resolveClosedLeagueSeasons, collectSeasonHighlights } from "./story-engine.ts";
 import { directorSelect, type RunningOrderEntry } from "./director.ts";
+import { selectSeasonReviewRunningOrder } from "./director-season-review.ts";
 import {
   editionChangeScore, newlyCreatedGroupTreatments, isForcedRefresh, mergeStoriesByAnchorAndNarrative,
   evaluateQualityGate, programmeSegmentId,
@@ -546,7 +547,32 @@ async function buildEdition(params: {
   }
 
   const previousProgramme = previous && isEditionProgramme(previous.programme) ? previous.programme : null;
-  const directorResult = directorSelect({ pool, previousProgramme, slotKey: claimedRow.slotKey });
+
+  // Season Review: when a league's season closed this batch, build a
+  // dedicated multi-segment retrospective instead of a normal Edition — a
+  // real user report ("not covering all the topics or any of the matches
+  // from the league at all... just a 2 min show") is exactly why this
+  // exists rather than just a bigger single segment. See
+  // director-season-review.ts's own header for the full reasoning.
+  const closedLeagueSeasons = seasonBoundaryEventOccurred
+    ? await resolveClosedLeagueSeasons(previous?.dataCutoff ?? new Date(0), cutoffEnd)
+    : [];
+
+  let runningOrder: RunningOrderEntry[];
+  if (closedLeagueSeasons.length > 0) {
+    const highlightsByLeague = new Map<LeagueType, BroadcastStory[]>();
+    for (const closed of closedLeagueSeasons) {
+      const highlights = await collectSeasonHighlights({
+        leagueType: closed.leagueType, seasonId: closed.seasonId,
+        seasonStart: closed.seasonStart, seasonEndExclusive: closed.seasonEndExclusive,
+        limit: 8,
+      });
+      highlightsByLeague.set(closed.leagueType, highlights);
+    }
+    runningOrder = selectSeasonReviewRunningOrder({ closedSeasons: closedLeagueSeasons, pool, highlightsByLeague });
+  } else {
+    runningOrder = directorSelect({ pool, previousProgramme, slotKey: claimedRow.slotKey }).runningOrder;
+  }
 
   const negativeJokesThisEdition = new Map<string, number>();
   const globalFullSegmentCounter = { value: await getGlobalFullSegmentCounter() };
@@ -556,7 +582,7 @@ async function buildEdition(params: {
   };
 
   const segments: ProgrammeSegment[] = [];
-  for (const entry of directorResult.runningOrder) {
+  for (const entry of runningOrder) {
     // 11.1's required "closing" sign-off (always present, slot 11) — handled
     // before the `!entry.group` branch below because, unlike every other
     // slot, "closing" can now carry a group (director.ts's own "what's

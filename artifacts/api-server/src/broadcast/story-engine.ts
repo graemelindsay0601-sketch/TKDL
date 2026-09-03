@@ -67,7 +67,7 @@
 // LEAGUE detector needs. A future Director reads the same cached row rather
 // than re-simulating — consistent with, not a contradiction of, the doc's
 // own stated intent.
-import { and, asc, desc, eq, gt, inArray, like, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, like, lt, lte, or, sql } from "drizzle-orm";
 import {
   db,
   matchesTable,
@@ -108,6 +108,7 @@ import {
 } from "./story-engine-math";
 import {
   familyForStoryType, FORM_STORY_TYPES, H2H_STORY_TYPES, LEAGUE_STORY_TYPES, SHIFT_WARS_STORY_TYPES,
+  STORY_TYPES_BY_FAMILY,
   type StoryCandidate, type StoryType, type StoryFamily,
 } from "./story-types";
 import { detectResultStories, type SinglesResultMatchFacts } from "./story-detectors-result";
@@ -252,6 +253,14 @@ async function upsertStoryCandidate(candidate: StoryCandidate, confidence: numbe
     storyType: candidate.storyType,
     subjectKeys: candidate.subjectKeys,
     anchorMatchId: candidate.anchorMatchId ?? null,
+    // The column existed but was never actually written here — every row's
+    // real season context lived only inside the storyKey string (for
+    // season-anchored types) or nowhere at all. Persisting it directly is
+    // what lets collectSeasonHighlights (this file, below) query "every
+    // real story from season X" straight off the column, instead of every
+    // caller having to re-derive a season from detectedAt/anchorMatchId
+    // after the fact.
+    seasonId: seasonId ?? existing?.seasonId ?? null,
     detectedAt,
     updatedAt: now,
     resolvedAt: null,
@@ -277,6 +286,7 @@ async function upsertStoryCandidate(candidate: StoryCandidate, confidence: numbe
         storyType: values.storyType,
         subjectKeys: values.subjectKeys,
         anchorMatchId: values.anchorMatchId,
+        seasonId: values.seasonId,
         updatedAt: values.updatedAt,
         resolvedAt: values.resolvedAt,
         lifecycle: values.lifecycle,
@@ -912,6 +922,116 @@ async function computeSeasonRecapFacts(leagueType: LeagueType, seasonId: number)
     : leagueType === "doubles" ? (await buildDoublesTeamTimeline(seasonId)).map(m => m.winnerTeamId)
     : (await buildShiftWarsTeamTimeline(seasonId)).map(m => m.winnerTeamId);
   return computeSeasonRecapAggregate(winnerIds);
+}
+
+export type ClosedLeagueSeason = {
+  leagueType: LeagueType;
+  seasonId: number;
+  seasonName: string;
+  seasonStart: Date;
+  /** Exclusive upper bound (the instant after the season's own endDate) — a `< seasonEndExclusive` comparison naturally includes the last day itself. */
+  seasonEndExclusive: Date;
+  championEntityId: number | null;
+  matchesPlayed: number;
+  topEntityId: number | null;
+  topWins: number;
+};
+
+/**
+ * Every league whose season closed strictly within (cutoffStart, cutoffEnd]
+ * — the same real event processLeagueFamily's own seasonEndedInWindow
+ * check reacts to, surfaced here with full detail (which season, its real
+ * champion, its real recap numbers) for director-season-review.ts's Season
+ * Review special to build a running order from, rather than the plain
+ * boolean edition-engine.ts's own anySeasonEndedInWindow gives it (that
+ * function's own comment already explains why it's a separate, re-derived
+ * copy rather than a shared import — same reasoning applies here).
+ */
+export async function resolveClosedLeagueSeasons(cutoffStart: Date, cutoffEnd: Date): Promise<ClosedLeagueSeason[]> {
+  const candidateSeasons = await db.select().from(seasonsTable).where(sql`${seasonsTable.endDate} IS NOT NULL`);
+  const result: ClosedLeagueSeason[] = [];
+  for (const season of candidateSeasons) {
+    if (!seasonEndedInWindow(season, cutoffStart, cutoffEnd)) continue;
+    const leagueType = season.leagueType as LeagueType;
+
+    let championEntityId: number | null;
+    if (leagueType === "singles") championEntityId = season.championId;
+    else if (leagueType === "doubles") championEntityId = await resolveDoublesChampionTeamId(season.id);
+    else championEntityId = await resolveShiftWarsChampionTeamId(season.id);
+
+    const recap = await computeSeasonRecapFacts(leagueType, season.id);
+    const endedAt = new Date(`${season.endDate}T00:00:00Z`);
+    result.push({
+      leagueType, seasonId: season.id, seasonName: season.name,
+      seasonStart: new Date(`${season.startDate}T00:00:00Z`),
+      seasonEndExclusive: new Date(endedAt.getTime() + 24 * 60 * 60 * 1000),
+      championEntityId,
+      matchesPlayed: recap.matchesPlayed, topEntityId: recap.topEntityId, topWins: recap.topWins,
+    });
+  }
+  return result;
+}
+
+const HIGHLIGHT_ELIGIBLE_FAMILIES: Record<LeagueType, StoryFamily[]> = {
+  singles: ["RESULT", "FORM", "H2H", "PERFORMANCE", "MILESTONE"],
+  doubles: ["DOUBLES"],
+  shift_wars: ["SHIFT_WARS"],
+};
+
+/**
+ * The season's own real individual storylines — a real user report ("not
+ * covering... any of the matches from the league at all") named exactly
+ * this gap: SEASON_RECAP's aggregate numbers and CHAMPION's own outcome
+ * are both real, but neither one is an actual match or storyline FROM the
+ * season. This is that — every RESULT/FORM/H2H/PERFORMANCE/MILESTONE (or
+ * the league-appropriate DOUBLES/SHIFT_WARS equivalent) story genuinely
+ * detected during this season, regardless of its CURRENT lifecycle.
+ * collectNewAndActiveStories() deliberately excludes RESOLVED/ARCHIVED rows
+ * (11.2's own "one resolution segment, then cool/archive" cap) — correct
+ * for a normal Edition, wrong here: a season review is explicitly a look
+ * BACK, so a story that's long since resolved is exactly the real content
+ * it should feature.
+ *
+ * Prefers the `seasonId` column (persisted on every upsert as of this fix
+ * — see upsertStoryCandidate's own comment); falls back to a
+ * detection-window match for older rows written before that column was
+ * ever populated, so a season that closed before this fix shipped still
+ * gets a real reel rather than an empty one.
+ */
+export async function collectSeasonHighlights(params: {
+  leagueType: LeagueType; seasonId: number; seasonStart: Date; seasonEndExclusive: Date; limit: number;
+}): Promise<BroadcastStory[]> {
+  const eligibleTypes = HIGHLIGHT_ELIGIBLE_FAMILIES[params.leagueType].flatMap(family => STORY_TYPES_BY_FAMILY[family]) as StoryType[];
+  if (eligibleTypes.length === 0) return [];
+
+  const rows = await db.select().from(broadcastStoriesTable)
+    .where(and(
+      eq(broadcastStoriesTable.leagueType, params.leagueType),
+      inArray(broadcastStoriesTable.storyType, eligibleTypes),
+      or(
+        eq(broadcastStoriesTable.seasonId, params.seasonId),
+        and(isNull(broadcastStoriesTable.seasonId), gte(broadcastStoriesTable.detectedAt, params.seasonStart), lt(broadcastStoriesTable.detectedAt, params.seasonEndExclusive)),
+      ),
+    ))
+    .orderBy(desc(broadcastStoriesTable.score));
+
+  // Diversify: at most 2 highlights about the exact same subject(s), so one
+  // dominant player/team can't fill the whole reel on their own — the same
+  // "no single subject hogs the show" principle 10.4's exposure cap already
+  // applies to a normal Edition (director-math.ts's
+  // isWithinSubjectExposureCap), re-applied here since this pool never goes
+  // through that normal slot-filling machinery at all.
+  const perSubjectCount = new Map<string, number>();
+  const picked: BroadcastStory[] = [];
+  for (const row of rows) {
+    const subjectGroupKey = [...row.subjectKeys].sort().join(",");
+    const count = perSubjectCount.get(subjectGroupKey) ?? 0;
+    if (count >= 2) continue;
+    perSubjectCount.set(subjectGroupKey, count + 1);
+    picked.push(row);
+    if (picked.length >= params.limit) break;
+  }
+  return picked;
 }
 
 /**
