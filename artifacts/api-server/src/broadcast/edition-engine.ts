@@ -523,6 +523,26 @@ async function buildEdition(params: {
     newlyCreatedGroupTreatments: newlyCreatedGroupTreatments(mergedForChangeScore),
   });
 
+  // A real, repeated user report ("I entered new matches, regenerated, and
+  // nothing changed") turned out to be genuinely unanswerable from the data
+  // this table used to keep: `diagnostic` was only ever written on SKIPPED
+  // (a fixed "below threshold" string) or FAILED (the quality-gate reasons),
+  // and explicitly nulled out on PUBLISHED — so a published Edition with an
+  // unexpectedly low changeScore left no trace of what window it actually
+  // scanned or how many matches it actually found there. Reconstructing one
+  // real incident from timestamps alone (this file's own git history has the
+  // full trail) took far longer than it should have and still ended in
+  // "plausible, not certain." This scanSummary is recorded on EVERY outcome
+  // — published, skipped, or failed — precisely so the next report like that
+  // is a five-second read instead of an hour of archaeology.
+  // storyState.cutoffStart (not previous?.dataCutoff) is the actual window
+  // boundary detectAndUpdateStories used — the two only diverge when
+  // `previous` is null, in which case story-engine.ts's own
+  // resolveCutoffStart() picked the real starting point instead, and THAT is
+  // the value worth seeing if a match ever again goes missing at the seam
+  // between "no previous Edition yet" and "first one published."
+  const scanSummary = `scanned (${storyState.cutoffStart.toISOString()}, ${storyState.cutoffEnd.toISOString()}]: singles=${storyState.newMatchesProcessed.singles} doubles=${storyState.newMatchesProcessed.doubles} shiftWars=${storyState.newMatchesProcessed.shiftWars}, storiesUpserted=${storyState.storiesUpserted}, previousEditionId=${previous?.id ?? "none"}`;
+
   const seasonBoundaryEventOccurred = await anySeasonEndedInWindow(previous?.dataCutoff ?? new Date(0), cutoffEnd);
 
   // Season Review: which closed leagues STILL OWE a review, per seasons.
@@ -550,7 +570,7 @@ async function buildEdition(params: {
   if (!forced && changeScore < config.changeThreshold) {
     const [skipped] = await db
       .update(broadcastEditionsTable)
-      .set({ status: "SKIPPED", dataCutoff: cutoffEnd, changeScore, diagnostic: `change score ${changeScore} below threshold ${config.changeThreshold}` })
+      .set({ status: "SKIPPED", dataCutoff: cutoffEnd, changeScore, diagnostic: `change score ${changeScore} below threshold ${config.changeThreshold} | ${scanSummary}` })
       .where(eq(broadcastEditionsTable.id, claimedRow.id))
       .returning();
     // 16.3 step 6: "return previous" — the previously PUBLISHED Edition is
@@ -647,7 +667,7 @@ async function buildEdition(params: {
   if (qualityResult.pass) {
     const [published] = await db
       .update(broadcastEditionsTable)
-      .set({ status: "PUBLISHED", dataCutoff: cutoffEnd, changeScore, programmeVersion: config.programmeVersion, programme, diagnostic: null, publishedAt: cutoffEnd })
+      .set({ status: "PUBLISHED", dataCutoff: cutoffEnd, changeScore, programmeVersion: config.programmeVersion, programme, diagnostic: scanSummary, publishedAt: cutoffEnd })
       .where(eq(broadcastEditionsTable.id, claimedRow.id))
       .returning();
     // Only NOW, once the Season Review has actually cleared the quality gate
@@ -663,7 +683,7 @@ async function buildEdition(params: {
 
   await db
     .update(broadcastEditionsTable)
-    .set({ status: "FAILED", dataCutoff: cutoffEnd, changeScore, diagnostic: qualityResult.reasons.join("; ") })
+    .set({ status: "FAILED", dataCutoff: cutoffEnd, changeScore, diagnostic: `${qualityResult.reasons.join("; ")} | ${scanSummary}` })
     .where(eq(broadcastEditionsTable.id, claimedRow.id));
 
   // 17's own table: "New Edition fails quality gate -> Keep previous
