@@ -166,7 +166,7 @@ router.get("/broadcast/predictor/:league", async (req, res): Promise<void> => {
 
 router.get("/admin/broadcast/status", requireAdminSession, async (_req, res): Promise<void> => {
   try {
-    const [recentEditions, storyCountsRaw, currentPublished, config, ...predictorRows] = await Promise.all([
+    const [recentEditions, storyCountsRaw, currentSeasonStoriesRaw, currentPublished, config, ...predictorRows] = await Promise.all([
       db
         .select({
           id: broadcastEditionsTable.id, slotKey: broadcastEditionsTable.slotKey, slotType: broadcastEditionsTable.slotType,
@@ -179,6 +179,24 @@ router.get("/admin/broadcast/status", requireAdminSession, async (_req, res): Pr
         .orderBy(desc(broadcastEditionsTable.id))
         .limit(10),
       db.execute(sql`SELECT lifecycle, league_type, COUNT(*)::int AS count FROM broadcast_stories GROUP BY lifecycle, league_type ORDER BY league_type, lifecycle`),
+      // Diagnostic-only, added mid-incident: storyCounts above is an
+      // all-time aggregate and can't answer "does the CURRENT season have
+      // any real coverage yet" — exactly the question a real report kept
+      // coming back to ("nothing about September at all"). This joins each
+      // league's currently active season straight to broadcast_stories so
+      // that question has a direct, one-look answer instead of another
+      // round of inference from match/changeScore counts. A season with a
+      // LEFT JOIN row showing story_type: null truly has zero stories yet —
+      // proof the detection/upsert side never produced anything for it, as
+      // opposed to producing something the Director simply isn't airing.
+      db.execute(sql`
+        SELECT s.league_type, s.id AS season_id, s.name AS season_name, bs.story_type, bs.lifecycle, COUNT(*)::int AS count
+        FROM seasons s
+        LEFT JOIN broadcast_stories bs ON bs.season_id = s.id
+        WHERE s.is_active = true
+        GROUP BY s.league_type, s.id, s.name, bs.story_type, bs.lifecycle
+        ORDER BY s.league_type, count DESC
+      `),
       latestPublishedEdition(),
       getBroadcastConfig(),
       ...PREDICTOR_LEAGUE_TYPES.map(leagueType =>
@@ -217,6 +235,11 @@ router.get("/admin/broadcast/status", requireAdminSession, async (_req, res): Pr
         : null,
       storyCounts: (storyCountsRaw.rows as { lifecycle: string; league_type: string; count: number }[]).map(r => ({
         lifecycle: r.lifecycle, leagueType: r.league_type, count: r.count,
+      })),
+      // See this query's own comment above for why this exists.
+      currentSeasonStories: (currentSeasonStoriesRaw.rows as { league_type: string; season_id: number; season_name: string; story_type: string | null; lifecycle: string | null; count: number }[]).map(r => ({
+        leagueType: r.league_type, seasonId: r.season_id, seasonName: r.season_name,
+        storyType: r.story_type, lifecycle: r.lifecycle, count: r.count,
       })),
       predictorDiagnostics,
       config,
