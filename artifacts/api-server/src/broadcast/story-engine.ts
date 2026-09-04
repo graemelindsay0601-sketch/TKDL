@@ -428,16 +428,75 @@ export type NewMatchesWindow = {
   shiftWars: NewTeamMatch[];
 };
 
+/**
+ * Active seasons (per league) that have literally never had a single
+ * broadcast_stories row created for them — the concrete signal that a
+ * season is genuinely brand new AND that the plain (cutoffStart, cutoffEnd]
+ * window has never once included any of its matches.
+ *
+ * This exists because of a real, reported incident: a new singles season
+ * (id 9) started 1 Sept, three real matches were played and correctly
+ * saved (confirmed against the live standings and /api/matches), and yet
+ * four days later the show still had zero coverage of any of it — no
+ * SEASON_KICKOFF, no standings talk, no result commentary, nothing. The
+ * cause traced back to how cutoffStart works: every Edition's window starts
+ * where the previous one's ended, and that watermark only ever moves
+ * forward. The very first Edition that ever ran (the one whose own window
+ * should have covered 1-3 Sept) happened to find zero new matches for
+ * reasons lost to history now (it published before this file recorded
+ * per-build diagnostics) — but whatever the reason, the watermark still
+ * advanced past all three matches' playedAt when it published. Every
+ * regenerate since has correctly scanned forward from there, which by
+ * definition can never reach back far enough to find them again. A single
+ * missed batch, for a genuinely new season, meant that season's entire
+ * history became permanently invisible to normal incremental scanning —
+ * exactly the same "one bad window = gone forever" failure mode this
+ * project already solved for CLOSED seasons via broadcastReviewedAt (a
+ * durable state check, not an incremental window — see
+ * resolveClosedLeagueSeasons's own header for the identical reasoning).
+ * This is that same fix applied to a season's FIRST coverage instead of
+ * its LAST: as long as a season has zero broadcast_stories rows, treat
+ * ALL of its matches to date as "new" for this batch, regardless of
+ * cutoffStart. The instant it gets its first real story, this stops
+ * applying to it forever — a healthy, already-covered season is never
+ * re-scanned in full, so this can't manufacture duplicate or stale
+ * detections for anything that isn't in exactly this "never once seen"
+ * state. Doubles gets the same treatment (its matches carry seasonId the
+ * same way singles' do); Shift Wars matches don't carry a seasonId column
+ * at all (see NewTeamMatch's own header) so it's left on plain incremental
+ * scanning here — it has zero real matches today, so there's nothing yet
+ * for this gap to have silently swallowed.
+ */
+async function neverScannedActiveSeasonIds(leagueType: "singles" | "doubles"): Promise<Set<number>> {
+  const rows = (await db.execute(sql`
+    SELECT s.id FROM seasons s
+    WHERE s.league_type = ${leagueType} AND s.is_active = true
+      AND NOT EXISTS (SELECT 1 FROM broadcast_stories bs WHERE bs.season_id = s.id)
+  `)).rows as { id: number }[];
+  return new Set(rows.map(r => r.id));
+}
+
 async function loadNewMatchesSince(cutoffStart: Date, cutoffEnd: Date): Promise<NewMatchesWindow> {
+  const catchUpSingles = await neverScannedActiveSeasonIds("singles");
+  const catchUpDoubles = await neverScannedActiveSeasonIds("doubles");
+
   const singlesRows = await db
     .select({ id: matchesTable.id, seasonId: matchesTable.seasonId, playedAt: matchesTable.playedAt, winnerId: matchesTable.winnerId, loserId: matchesTable.loserId, gameType: matchesTable.gameType })
     .from(matchesTable)
-    .where(and(SINGLES_ONLY, gt(matchesTable.playedAt, cutoffStart), lte(matchesTable.playedAt, cutoffEnd)))
+    .where(and(
+      SINGLES_ONLY,
+      or(
+        and(gt(matchesTable.playedAt, cutoffStart), lte(matchesTable.playedAt, cutoffEnd)),
+        catchUpSingles.size > 0 ? inArray(matchesTable.seasonId, [...catchUpSingles]) : sql`false`,
+      ),
+    ))
     .orderBy(asc(matchesTable.playedAt), asc(matchesTable.id));
 
+  const catchUpDoublesArray = [...catchUpDoubles];
   const doublesRows = (await db.execute(sql`
     SELECT id, played_at, winner_team_id, loser_team_id, season_id FROM doubles_matches
-    WHERE played_at > ${cutoffStart} AND played_at <= ${cutoffEnd}
+    WHERE (played_at > ${cutoffStart} AND played_at <= ${cutoffEnd})
+       OR season_id = ANY(${catchUpDoublesArray}::int[])
     ORDER BY played_at ASC, id ASC
   `)).rows as { id: number; played_at: string | Date; winner_team_id: number; loser_team_id: number; season_id: number }[];
 
@@ -1246,7 +1305,18 @@ async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cut
     leagueType, seasonId, current, previous,
     singlesTiePending: leagueType === "singles" && season.playoffPending,
     seasonJustEnded: false, championEntityId: null,
-    seasonJustStarted: seasonStartedInWindow(season, cutoffStart, cutoffEnd), seasonName: season.name,
+    // seasonStartedInWindow alone is the fragile half of this check — it
+    // depends on the season's calendar startDate falling inside THIS
+    // batch's own (cutoffStart, cutoffEnd], which is exactly the incremental
+    // window that neverScannedActiveSeasonIds's own header explains can
+    // silently slide past a brand-new season's entire history in one bad
+    // build and never come back. `previousSnapshot === null` is the robust
+    // half: it's true precisely on the first time THIS season's LEAGUE
+    // family has ever actually run (writeSnapshot below guarantees it's
+    // non-null on every run after), so SEASON_KICKOFF still fires exactly
+    // once per season even when the calendar-window check alone would have
+    // missed it entirely.
+    seasonJustStarted: seasonStartedInWindow(season, cutoffStart, cutoffEnd) || previousSnapshot === null, seasonName: season.name,
   };
 
   return { candidates: detectLeagueStories(facts), confidence, storyTypesRun: ["NEW_LEADER", "LEAD_TIGHTENS", "LEAD_WIDENS", "TITLE_SWING", "NEW_FAVOURITE", "DEAD_HEAT", "TITLE_RACE", "TIE_PENDING", "SEASON_KICKOFF"] };
