@@ -571,7 +571,8 @@ async function buildEdition(params: {
       const highlights = await collectSeasonHighlights({
         leagueType: closed.leagueType, seasonId: closed.seasonId,
         seasonStart: closed.seasonStart, seasonEndExclusive: closed.seasonEndExclusive,
-        limit: 8,
+        // Raised alongside director-season-review.ts's own MAX_HIGHLIGHTS_PER_LEAGUE (4 -> 6) — fetch enough real candidates that the per-subject diversity cap (story-engine.ts's collectSeasonHighlights) has real headroom to still hand back 6 after trimming, rather than starving that slice back down to fewer than the league actually has.
+        limit: 12,
       });
       highlightsByLeague.set(closed.leagueType, highlights);
     }

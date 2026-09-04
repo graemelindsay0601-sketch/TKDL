@@ -234,6 +234,34 @@ router.patch("/master501/runs/:runId", matchSubmitRateLimit, async (req, res): P
       WHERE id = ${runId}
     `);
 
+    // Also log a practice_sessions row for this run — this was silently
+    // missing before (a real gap a user report named directly: "you were
+    // also supposed to log practice matches m-501"). Three other places in
+    // this codebase already assume M-501 completions land here:
+    // master501.ts's own leaderboard query above (session_stats CTE reads
+    // practice_sessions WHERE session_data->>'mode' = 'master501'),
+    // master501-achievements.ts's own mode filter, and practice.ts's
+    // "sessions by source (practice / tour / master501)" breakdown — none
+    // of which ever had a row to find, since this PATCH only ever touched
+    // master501_runs. Only real, already-verified values go in: legsWon/
+    // legsLost/result/tier/round are exactly what this handler already
+    // received and persisted above. Per-dart stats (p1_darts, p1_score,
+    // 180s, checkout hits) aren't tracked at this level — the M-501 client
+    // never submits them — so those columns stay their existing NULL/0
+    // defaults rather than inventing numbers, honoring the same fact
+    // firewall the broadcast story engine applies elsewhere. This also
+    // makes the run count toward story-engine.ts's own PRACTICE_ACTIVITY
+    // detector, which sources its sessionCount from this same table.
+    await db.execute(sql`
+      INSERT INTO practice_sessions
+        (player1_id, game_type_key, game_type_name, winner_idx, detail, session_data)
+      VALUES
+        (${run.player_id}, 'master501', 'Master-501',
+         ${result === "win" ? 0 : null},
+         ${`Tier ${run.tier} · Round ${run.round} (${legsWon}-${legsLost})`},
+         ${sql`${JSON.stringify({ mode: "master501", tier: run.tier, round: run.round, result, legsWon, legsLost })}::jsonb`})
+    `);
+
     let nextTier  = run.tier  as number;
     let nextRound = run.round as number;
 

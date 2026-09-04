@@ -11,6 +11,7 @@ import {
   ensureCurrentBroadcastEdition, forceRebuildCurrentEdition, latestPublishedEdition, isEditionProgramme,
 } from "../broadcast/edition-engine";
 import { getLivePayload } from "../broadcast/live-events";
+import { diagnoseSeasonHighlights, resetSeasonReviewForLeague } from "../broadcast/story-engine";
 import {
   getBroadcastConfig, setBroadcastSettings, BROADCAST_SETTING_KEYS, validateBroadcastSettingValue,
   type BroadcastSettingKey,
@@ -219,7 +220,40 @@ router.get("/admin/broadcast/status", requireAdminSession, async (_req, res): Pr
       })),
       predictorDiagnostics,
       config,
+      // Diagnostic-only: why did the Season Review find zero/thin real
+      // content for a league's most recently closed season, when the story
+      // pool clearly isn't empty — see diagnoseSeasonHighlights's own
+      // header. null per league with no closed season at all yet.
+      seasonReviewDiagnostics: await Promise.all(
+        PREDICTOR_LEAGUE_TYPES.map(leagueType => diagnoseSeasonHighlights(leagueType)),
+      ),
     });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+/**
+ * Admin-only: clears broadcastReviewedAt on a league's most recently closed
+ * season, so it's offered to the Season Review pipeline again on the next
+ * build/regenerate — see resetSeasonReviewForLeague's own header for why
+ * this exists (a thin Season Review can publish successfully and mark
+ * itself "reviewed" before a since-fixed bug is corrected; without this,
+ * fixing the bug alone wouldn't be enough to see it actually take effect).
+ */
+router.post("/admin/broadcast/season-review/reset", requireAdminSession, async (req, res): Promise<void> => {
+  const leagueType = typeof req.body?.leagueType === "string" ? req.body.leagueType : "";
+  if (!(PREDICTOR_LEAGUE_TYPES as readonly string[]).includes(leagueType)) {
+    res.status(400).json({ error: `leagueType must be one of ${PREDICTOR_LEAGUE_TYPES.join(", ")}` });
+    return;
+  }
+  try {
+    const result = await resetSeasonReviewForLeague(leagueType as LeagueType);
+    if (!result) {
+      res.status(404).json({ error: `no closed season found for ${leagueType}` });
+      return;
+    }
+    res.json({ ok: true, leagueType, ...result });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }

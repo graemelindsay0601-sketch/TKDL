@@ -97,15 +97,15 @@ describe("selectSeasonReviewRunningOrder", () => {
     assert.ok(supporting.some(e => e.group!.primary.id === 201));
   });
 
-  test("real per-league highlights are placed as season_highlight entries, capped at MAX_HIGHLIGHTS_PER_LEAGUE (4)", () => {
+  test("real per-league highlights are placed as season_highlight entries, capped at MAX_HIGHLIGHTS_PER_LEAGUE (6)", () => {
     const closed = closedSeason({ leagueType: "singles", seasonId: 1 });
-    const highlights = Array.from({ length: 6 }, (_, i) => story({ id: 300 + i, storyType: "UPSET", leagueType: "singles", score: 90 - i }));
+    const highlights = Array.from({ length: 8 }, (_, i) => story({ id: 300 + i, storyType: "UPSET", leagueType: "singles", score: 90 - i }));
     const order = selectSeasonReviewRunningOrder({
       closedSeasons: [closed], pool: [], highlightsByLeague: new Map([["singles" as LeagueType, highlights]]),
     });
     const highlightEntries = order.filter(e => e.purpose === "season_highlight");
-    assert.equal(highlightEntries.length, 4);
-    assert.deepEqual(highlightEntries.map(e => e.group!.primary.id), [300, 301, 302, 303]);
+    assert.equal(highlightEntries.length, 6);
+    assert.deepEqual(highlightEntries.map(e => e.group!.primary.id), [300, 301, 302, 303, 304, 305]);
   });
 
   test("highlights from every closed league appear — a real multi-league retrospective, not just one", () => {
@@ -177,6 +177,72 @@ describe("selectSeasonReviewRunningOrder", () => {
     const whatToWatch = order.find(e => e.purpose === "what_to_watch");
     assert.ok(whatToWatch);
     assert.equal(whatToWatch!.group!.primary.id, 801);
+  });
+
+  test("every still-open league gets its OWN third_league_current_state segment — not just a single shared what_to_watch mention (a real user report: 'did you actually make it have multiple sections... cover all three leagues' named exactly this gap)", () => {
+    const singlesClosed = closedSeason({ leagueType: "singles", seasonId: 1 });
+    const doublesStanding = story({ id: 900, storyType: "TITLE_RACE", leagueType: "doubles", score: 70 });
+    const shiftWarsStanding = story({ id: 901, storyType: "SHIFT_LEAD_CHANGE", leagueType: "shift_wars", score: 60 });
+    const order = selectSeasonReviewRunningOrder({
+      closedSeasons: [singlesClosed], pool: [doublesStanding, shiftWarsStanding], highlightsByLeague: new Map(),
+    });
+    const currentStateEntries = order.filter(e => e.purpose === "third_league_current_state");
+    const currentStateIds = currentStateEntries.map(e => e.group!.primary.id);
+    assert.equal(currentStateEntries.length, 2);
+    assert.deepEqual(new Set(currentStateIds), new Set([900, 901]));
+  });
+
+  test("a still-open league's current-state pick excludes ARCHIVE/FILLER (flashback) content — a current-state segment about an old season would misrepresent it as live", () => {
+    const singlesClosed = closedSeason({ leagueType: "singles", seasonId: 1 });
+    const doublesArchive = story({ id: 950, storyType: "HISTORICAL_H2H", leagueType: "doubles", score: 90 });
+    const doublesLive = story({ id: 951, storyType: "TITLE_RACE", leagueType: "doubles", score: 40 });
+    const order = selectSeasonReviewRunningOrder({
+      closedSeasons: [singlesClosed], pool: [doublesArchive, doublesLive], highlightsByLeague: new Map(),
+    });
+    const doublesCurrentState = order.find(e => e.purpose === "third_league_current_state" && e.group?.primary.leagueType === "doubles");
+    assert.ok(doublesCurrentState);
+    assert.equal(doublesCurrentState!.group!.primary.id, 951);
+  });
+
+  test("a still-open league with no real current story simply gets no third_league_current_state entry for it — never a fabricated one", () => {
+    const singlesClosed = closedSeason({ leagueType: "singles", seasonId: 1 });
+    const doublesStanding = story({ id: 960, storyType: "TITLE_RACE", leagueType: "doubles", score: 70 });
+    // shift_wars has nothing in the pool at all.
+    const order = selectSeasonReviewRunningOrder({
+      closedSeasons: [singlesClosed], pool: [doublesStanding], highlightsByLeague: new Map(),
+    });
+    const currentStateLeagues = order.filter(e => e.purpose === "third_league_current_state").map(e => e.group!.primary.leagueType);
+    assert.deepEqual(currentStateLeagues, ["doubles"]);
+  });
+
+  test("a real SHADOW_BOT_PROMO story in the pool is placed as a lighter_or_archive_or_callback beat — the user's own explicit ask ('a section about encouraging people to use the app for shadow bots so the shadow league could start')", () => {
+    const closed = closedSeason({ leagueType: "singles", seasonId: 1 });
+    const shadowPromo = story({ id: 1000, storyType: "SHADOW_BOT_PROMO", leagueType: "singles", score: 10 });
+    const order = selectSeasonReviewRunningOrder({
+      closedSeasons: [closed], pool: [shadowPromo], highlightsByLeague: new Map(),
+    });
+    const promoEntry = order.find(e => e.purpose === "lighter_or_archive_or_callback");
+    assert.ok(promoEntry);
+    assert.equal(promoEntry!.group!.primary.id, 1000);
+  });
+
+  test("falls back to PRACTICE_ACTIVITY when SHADOW_BOT_PROMO isn't in the pool", () => {
+    const closed = closedSeason({ leagueType: "singles", seasonId: 1 });
+    const practiceActivity = story({ id: 1001, storyType: "PRACTICE_ACTIVITY", leagueType: "singles", score: 10 });
+    const order = selectSeasonReviewRunningOrder({
+      closedSeasons: [closed], pool: [practiceActivity], highlightsByLeague: new Map(),
+    });
+    const promoEntry = order.find(e => e.purpose === "lighter_or_archive_or_callback");
+    assert.ok(promoEntry);
+    assert.equal(promoEntry!.group!.primary.id, 1001);
+  });
+
+  test("no promo beat is fabricated when neither SHADOW_BOT_PROMO nor PRACTICE_ACTIVITY exists in the pool", () => {
+    const closed = closedSeason({ leagueType: "singles", seasonId: 1 });
+    const order = selectSeasonReviewRunningOrder({
+      closedSeasons: [closed], pool: [], highlightsByLeague: new Map(),
+    });
+    assert.equal(order.find(e => e.purpose === "lighter_or_archive_or_callback"), undefined);
   });
 
   test("what_to_watch falls back to a group-less utility entry when no still-open league has a LEAGUE story", () => {

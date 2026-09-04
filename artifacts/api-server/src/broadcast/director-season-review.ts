@@ -26,11 +26,56 @@ import type { RunningOrderEntry } from "./director.ts";
 import type { ClosedLeagueSeason } from "./story-engine.ts";
 import type { BroadcastStory, LeagueType } from "@workspace/db/schema";
 
-/** Per closed league — enough real storylines to feel like an actual retrospective without one league's history swallowing the whole special. */
-const MAX_HIGHLIGHTS_PER_LEAGUE = 4;
+/** Per closed league — enough real storylines to feel like an actual retrospective without one league's history swallowing the whole special. Raised from an earlier 4: a real user report ("2/3 [segments] is nowhere near what I wanted") named both this cap and the missing open-league coverage below as too thin for what "dedicated multi-segment special" was meant to mean. story-engine.ts's own per-subject diversity cap (collectSeasonHighlights) still prevents one dominant player from filling every extra slot this opens up. */
+const MAX_HIGHLIGHTS_PER_LEAGUE = 6;
+
+/** Every league this show runs — not imported from @workspace/db/schema's own LEAGUE_TYPES, matching director.ts's own local copy (its own header: zero @workspace/db RUNTIME imports, this file's LeagueType is a type-only import already). */
+const ALL_LEAGUE_TYPES: readonly LeagueType[] = ["singles", "doubles", "shift_wars"];
 
 function storyFamily(story: Pick<BroadcastStory, "storyType">) {
   return familyForStoryType(story.storyType as StoryType);
+}
+
+/** ARCHIVE/FILLER content would misrepresent old material as a league's CURRENT state — the same exclusion director.ts's own (private) isFlashbackFamily applies to its slot 8 (third_league_current_state) pick, re-applied here since this file can't reach that private helper. */
+function isFlashbackFamily(story: Pick<BroadcastStory, "storyType">): boolean {
+  const family = storyFamily(story);
+  return family === "ARCHIVE" || family === "FILLER";
+}
+
+/**
+ * A Shadow Bot / practice-mode encouragement beat. A real user report named
+ * this gap directly, in the same breath as the season-recap ask itself:
+ * "...give a section about encouraging people to use the app for shadow
+ * bots so the shadow league could start." A Season Review airs exactly at
+ * the moment a season has just ended and the next one hasn't started —
+ * precisely the gap worth pointing players at Shadow Bot for, since a
+ * future shadow league needs real Shadow Bot activity to exist first.
+ *
+ * The content itself already exists and is real (story-detectors-filler.ts —
+ * SHADOW_BOT_PROMO is upserted unconditionally every batch, never
+ * fabricated here); what was actually missing is that director-season-
+ * review.ts's own running order has no equivalent of a normal Edition's
+ * slot 9 (director.ts's "lighter_or_archive_or_callback", the one home
+ * FILLER content is allowed to fill) at all — isFlashbackFamily above
+ * exists only to keep flashback content OUT of the current-state loop
+ * below, not to give it a home of its own the way director.ts's slot 9
+ * does. This function is that home, reused verbatim rather than
+ * reinvented: same purpose value, same story types, just explicitly
+ * placed instead of left to slot 9's normal "one FILLER story, if it
+ * outscores ARCHIVE this batch" lottery (a Season Review has no slot 9 to
+ * compete for in the first place).
+ *
+ * Prefers SHADOW_BOT_PROMO by name — the user's own explicit ask — and
+ * falls back to PRACTICE_ACTIVITY only if Shadow Bot's evergreen story is
+ * somehow missing from the pool. Never fabricates a segment: if neither
+ * exists, this returns null and the running order simply has one fewer
+ * beat, exactly like every other optional slot in this file.
+ */
+function pickFillerPromo(pool: readonly BroadcastStory[], usedStoryIds: ReadonlySet<number>): BroadcastStory | null {
+  const filler = pool.filter(s => storyFamily(s) === "FILLER" && !usedStoryIds.has(s.id));
+  return filler.find(s => s.storyType === "SHADOW_BOT_PROMO")
+    ?? filler.find(s => s.storyType === "PRACTICE_ACTIVITY")
+    ?? null;
 }
 
 export type SeasonReviewInput = {
@@ -97,6 +142,34 @@ export function selectSeasonReviewRunningOrder(input: SeasonReviewInput): Runnin
     place("supporting_story_or_checkin", findSeasonStory(input.pool, "SEASON_RECAP", closed));
   }
 
+  // Every league that DIDN'T close still gets its own real, dedicated
+  // moment — not just a single shared "what's next" mention. A real user
+  // report ("did you actually make it have multiple sections... 2/3 is
+  // nowhere near what I wanted") traced back to exactly this gap: only the
+  // closed league got genuine depth, while the other one or two leagues
+  // — still very much live — got at most one shared line between them.
+  // "Cover all three leagues" (the user's own explicit direction) means
+  // every league, not only the one whose season happens to have ended.
+  // Reuses director.ts's own "third_league_current_state" purpose/shape —
+  // a league's best real, non-flashback current storyline — one segment
+  // per still-open league rather than director.ts's own single "at most
+  // one, if a normal Edition still has room" version of it.
+  const closedLeagueTypes = new Set(input.closedSeasons.map(c => c.leagueType));
+  for (const league of ALL_LEAGUE_TYPES) {
+    if (closedLeagueTypes.has(league)) continue;
+    const currentStateStory = input.pool
+      .filter(s => s.leagueType === league && !usedStoryIds.has(s.id) && !isFlashbackFamily(s))
+      .sort((a, b) => b.score - a.score)[0] ?? null;
+    place("third_league_current_state", currentStateStory);
+  }
+
+  // A Shadow Bot / practice-mode encouragement beat — see pickFillerPromo's
+  // own header. Placed once, after every league's own real content, using
+  // the same "lighter/callback" home a normal Edition's slot 9 gives this
+  // exact content — never fabricated, skipped entirely if neither
+  // SHADOW_BOT_PROMO nor PRACTICE_ACTIVITY exists in the pool.
+  place("lighter_or_archive_or_callback", pickFillerPromo(input.pool, usedStoryIds));
+
   // Headlines — a brief tease of what's already been placed above, the
   // exact same shape a normal Edition's own slot 2 uses (director.ts's own
   // header on "many entries, one purpose").
@@ -110,11 +183,18 @@ export function selectSeasonReviewRunningOrder(input: SeasonReviewInput): Runnin
 
   // What's next — a STILL-OPEN league's own live storyline, never the
   // league that just closed (its season is over; nothing left to watch
-  // there until the next one starts).
-  const closedLeagueTypes = new Set(input.closedSeasons.map(c => c.leagueType));
-  const stillOpenLeagueStory = [...input.pool]
-    .filter(s => !usedStoryIds.has(s.id) && storyFamily(s) === "LEAGUE" && !closedLeagueTypes.has(s.leagueType as LeagueType))
-    .sort((a, b) => b.score - a.score)[0] ?? null;
+  // there until the next one starts). Prefer a not-yet-used LEAGUE story;
+  // the per-open-league current-state loop above will usually have already
+  // used the best one, so fall back to legitimately re-referencing it
+  // (director.ts's own documented what_to_watch allowance: "recapping the
+  // open question is real content, not duplication, since it airs in a
+  // structurally different slot") rather than degrading to the generic
+  // fixed fallback line just because it already got its own segment.
+  const openLeagueStoriesByScore = [...input.pool]
+    .filter(s => storyFamily(s) === "LEAGUE" && !closedLeagueTypes.has(s.leagueType as LeagueType))
+    .sort((a, b) => b.score - a.score);
+  const stillOpenLeagueStory =
+    openLeagueStoriesByScore.find(s => !usedStoryIds.has(s.id)) ?? openLeagueStoriesByScore[0] ?? null;
   const whatToWatchEntry: RunningOrderEntry = stillOpenLeagueStory
     ? toEntry(nextSlot, "what_to_watch", stillOpenLeagueStory)
     : { slot: nextSlot, purpose: "what_to_watch", group: null, treatment: "utility", carryForwardState: null };

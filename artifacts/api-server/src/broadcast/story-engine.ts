@@ -1076,6 +1076,88 @@ export async function collectSeasonHighlights(params: {
 }
 
 /**
+ * Read-only diagnostic for GET /admin/broadcast/status: WHY did
+ * collectSeasonHighlights come back empty (or thin) for a league's most
+ * recently closed season, when the story pool clearly isn't empty (a real
+ * case: 292 ACTIVE singles stories, zero highlights aired). Surfaces the
+ * exact same eligible-type filter and seasonId/detection-window match logic
+ * collectSeasonHighlights itself uses, plus a raw sample, so a mismatch
+ * (wrong/missing seasonId, a detectedAt outside the season's own window, or
+ * genuinely zero eligible-type stories at all) is visible directly rather
+ * than guessed at from outside the database.
+ */
+export type SeasonHighlightDiagnostic = {
+  leagueType: LeagueType;
+  seasonId: number;
+  seasonName: string;
+  seasonStart: string;
+  seasonEndExclusive: string;
+  broadcastReviewedAt: string | null;
+  eligibleStoryTypes: string[];
+  totalEligibleTypeStoriesForLeague: number;
+  matchedBySeasonIdColumn: number;
+  matchedByDetectionWindowFallback: number;
+  sample: { id: number; storyType: string; seasonId: number | null; detectedAt: string; score: number; lifecycle: string }[];
+};
+
+export async function diagnoseSeasonHighlights(leagueType: LeagueType): Promise<SeasonHighlightDiagnostic | null> {
+  const [season] = await db.select().from(seasonsTable)
+    .where(and(eq(seasonsTable.leagueType, leagueType), sql`${seasonsTable.endDate} IS NOT NULL`))
+    .orderBy(desc(seasonsTable.endDate))
+    .limit(1);
+  if (!season || !season.endDate) return null;
+
+  const eligibleTypes = HIGHLIGHT_ELIGIBLE_FAMILIES[leagueType].flatMap(family => STORY_TYPES_BY_FAMILY[family]) as StoryType[];
+  const seasonStart = new Date(`${season.startDate}T00:00:00Z`);
+  const endedAt = new Date(`${season.endDate}T00:00:00Z`);
+  const seasonEndExclusive = new Date(endedAt.getTime() + 24 * 60 * 60 * 1000);
+
+  const allEligible = eligibleTypes.length === 0 ? [] : await db.select().from(broadcastStoriesTable).where(and(
+    eq(broadcastStoriesTable.leagueType, leagueType),
+    inArray(broadcastStoriesTable.storyType, eligibleTypes),
+  ));
+
+  const matchedBySeasonIdColumn = allEligible.filter(s => s.seasonId === season.id).length;
+  const matchedByDetectionWindowFallback = allEligible.filter(s => s.seasonId === null && s.detectedAt >= seasonStart && s.detectedAt < seasonEndExclusive).length;
+
+  const sample = allEligible
+    .slice()
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8)
+    .map(s => ({ id: s.id, storyType: s.storyType, seasonId: s.seasonId, detectedAt: s.detectedAt.toISOString(), score: s.score, lifecycle: s.lifecycle }));
+
+  return {
+    leagueType, seasonId: season.id, seasonName: season.name,
+    seasonStart: seasonStart.toISOString(), seasonEndExclusive: seasonEndExclusive.toISOString(),
+    broadcastReviewedAt: season.broadcastReviewedAt ? season.broadcastReviewedAt.toISOString() : null,
+    eligibleStoryTypes: eligibleTypes,
+    totalEligibleTypeStoriesForLeague: allEligible.length,
+    matchedBySeasonIdColumn, matchedByDetectionWindowFallback,
+    sample,
+  };
+}
+
+/**
+ * Admin-only escape hatch: clears broadcastReviewedAt on a league's most
+ * recently closed season so resolveClosedLeagueSeasons offers it again on
+ * the next build/regenerate. Needed because markSeasonsReviewed (correctly)
+ * fires the moment a Season Review publishes at all — including a thin one
+ * that published successfully despite finding zero real highlights due to a
+ * since-fixed bug. Without this, fixing the underlying bug wouldn't be
+ * enough on its own: the season would stay marked "reviewed" and never get
+ * rebuilt with the fix in effect.
+ */
+export async function resetSeasonReviewForLeague(leagueType: LeagueType): Promise<{ seasonId: number; seasonName: string } | null> {
+  const [season] = await db.select().from(seasonsTable)
+    .where(and(eq(seasonsTable.leagueType, leagueType), sql`${seasonsTable.endDate} IS NOT NULL`))
+    .orderBy(desc(seasonsTable.endDate))
+    .limit(1);
+  if (!season) return null;
+  await db.update(seasonsTable).set({ broadcastReviewedAt: null }).where(eq(seasonsTable.id, season.id));
+  return { seasonId: season.id, seasonName: season.name };
+}
+
+/**
  * Builds LeagueStandingsFacts and runs the full LEAGUE family for one
  * league/season — OR, when that season just closed this batch, skips
  * straight to CHAMPION (plus SEASON_RECAP — see that detector's own
