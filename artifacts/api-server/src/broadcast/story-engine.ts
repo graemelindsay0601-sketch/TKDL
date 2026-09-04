@@ -492,11 +492,22 @@ async function loadNewMatchesSince(cutoffStart: Date, cutoffEnd: Date): Promise<
     ))
     .orderBy(asc(matchesTable.playedAt), asc(matchesTable.id));
 
-  const catchUpDoublesArray = [...catchUpDoubles];
+  // A JS array bound straight into a raw sql`` template does NOT arrive on
+  // the other side as a Postgres array literal the way drizzle's own
+  // inArray() query-builder helper (used for singles, above) does — it gets
+  // bound as a single scalar parameter, so `= ANY($n::int[])` fails to cast
+  // it ("malformed array literal", surfaced here as a 500 on regenerate).
+  // A real captured error confirmed this exactly: the bound parameter came
+  // through as the bare number 10, not an array containing it. Building the
+  // Postgres array-literal STRING ourselves ("{10}" / "{}") and casting
+  // that sidesteps the whole issue — these ids are our own trusted query
+  // output, not user input, so this is safe string construction, not
+  // injection-prone concatenation.
+  const catchUpDoublesLiteral = `{${[...catchUpDoubles].join(",")}}`;
   const doublesRows = (await db.execute(sql`
     SELECT id, played_at, winner_team_id, loser_team_id, season_id FROM doubles_matches
     WHERE (played_at > ${cutoffStart} AND played_at <= ${cutoffEnd})
-       OR season_id = ANY(${catchUpDoublesArray}::int[])
+       OR season_id = ANY(${catchUpDoublesLiteral}::int[])
     ORDER BY played_at ASC, id ASC
   `)).rows as { id: number; played_at: string | Date; winner_team_id: number; loser_team_id: number; season_id: number }[];
 
