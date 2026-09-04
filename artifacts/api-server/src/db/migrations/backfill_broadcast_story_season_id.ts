@@ -41,6 +41,34 @@ import { logger } from "../../lib/logger";
  *
  * Idempotent — every statement is scoped to `season_id IS NULL` — so it's
  * safe to run on every startup alongside this folder's other migrations.
+ *
+ * CORRECTION (post-deploy): the first version of this file referenced a
+ * `team_matches` table for the Doubles/Shift Wars half of Step 1. No such
+ * table exists in the real database — app.ts's own seedDoublesEvent()/
+ * seedShiftWars() create `doubles_matches` and `shift_wars_matches` as two
+ * separate tables (confirmed directly against their CREATE TABLE
+ * statements), and story-engine.ts's own loadNewMatchesSince() already
+ * queries them that way. That bad reference threw on every single server
+ * boot from the moment this file first shipped ("relation \"team_matches\"
+ * does not exist"), and because app.ts's init() awaits its migrations in
+ * sequence, EVERY step listed after this one silently never ran on any of
+ * those boots — a much bigger blast radius than this file's own job. Fixed
+ * below to use the real tables; shift_wars_matches has no season_id column
+ * at all (it's a fixed 3-department competition with only ever one season
+ * "in play" at a time — see app.ts's own CREATE TABLE for it), so there's
+ * no match-anchored value to backfill FROM for that league — Step 2's
+ * exactly-one-closed-season fallback is its only path, same as before.
+ *
+ * Also fixed here: Step 2's `${types}::text[]` had the identical class of
+ * bug just found and fixed in story-engine.ts's loadNewMatchesSince — a
+ * plain JS array bound straight into a raw sql`` template does not arrive
+ * as a Postgres array the way drizzle's inArray() query-builder helper
+ * does. It never actually ran (Step 1's crash above always stopped
+ * execution before reaching it), so this would have been a second,
+ * separate crash the moment the first one was fixed without also fixing
+ * this. Built as an explicit array-literal string instead, same fix as
+ * loadNewMatchesSince — these story-type constants are our own fixed code,
+ * never user input, so this is safe construction, not injection risk.
  */
 export async function backfillBroadcastStorySeasonId(): Promise<boolean> {
   try {
@@ -55,19 +83,22 @@ export async function backfillBroadcastStorySeasonId(): Promise<boolean> {
         AND bs.anchor_match_id = m.id
     `);
 
-    // Step 1 — Doubles/Shift Wars: anchor_match_id -> team_matches.season_id
-    // (shared match table for both team leagues — team-matches.ts's own
-    // header). A no-op today (both leagues show 0 stories so far) but
-    // correct and ready for when they have real history to backfill too.
+    // Step 1 — Doubles: anchor_match_id -> doubles_matches.season_id.
     await db.execute(sql`
       UPDATE broadcast_stories bs
-      SET season_id = tm.season_id
-      FROM team_matches tm
+      SET season_id = dm.season_id
+      FROM doubles_matches dm
       WHERE bs.season_id IS NULL
-        AND bs.league_type IN ('doubles', 'shift_wars')
+        AND bs.league_type = 'doubles'
         AND bs.anchor_match_id IS NOT NULL
-        AND bs.anchor_match_id = tm.id
+        AND bs.anchor_match_id = dm.id
     `);
+
+    // Shift Wars has no equivalent Step 1: shift_wars_matches carries no
+    // season_id column to backfill from (see header). Zero broadcast_stories
+    // rows exist for it today anyway, so there's nothing this gap has
+    // silently missed — Step 2 below is this league's only path, same as
+    // it always was.
 
     // Step 2 — remaining subject-anchored rows, only the eligible types,
     // only when exactly one closed season exists for that league.
@@ -85,6 +116,7 @@ export async function backfillBroadcastStorySeasonId(): Promise<boolean> {
     };
 
     for (const [leagueType, types] of Object.entries(ELIGIBLE_TYPES_BY_LEAGUE)) {
+      const typesLiteral = `{${types.map(t => `"${t}"`).join(",")}}`;
       await db.execute(sql`
         UPDATE broadcast_stories bs
         SET season_id = closed.id
@@ -96,7 +128,7 @@ export async function backfillBroadcastStorySeasonId(): Promise<boolean> {
         ) closed
         WHERE bs.season_id IS NULL
           AND bs.league_type = ${leagueType}
-          AND bs.story_type = ANY(${types}::text[])
+          AND bs.story_type = ANY(${typesLiteral}::text[])
           AND (SELECT COUNT(*) FROM seasons WHERE league_type = ${leagueType} AND is_active = false) = 1
       `);
     }

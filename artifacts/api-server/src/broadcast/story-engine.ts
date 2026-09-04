@@ -426,6 +426,13 @@ export type NewMatchesWindow = {
   singles: NewSinglesMatch[];
   doubles: NewDoublesMatch[];
   shiftWars: NewTeamMatch[];
+  /** Which active season ids (if any) neverScannedActiveSeasonIds found and
+   * folded into this batch's singles/doubles queries — surfaced all the way
+   * out to buildEdition's own scanSummary diagnostic (edition-engine.ts) so
+   * "is the catch-up even firing at all" is a direct field to read instead
+   * of something to infer from match counts. Empty on every normal batch;
+   * non-empty only for a season that still has zero broadcast_stories rows. */
+  catchUpSeasonIds: { singles: number[]; doubles: number[] };
 };
 
 /**
@@ -521,6 +528,7 @@ async function loadNewMatchesSince(cutoffStart: Date, cutoffEnd: Date): Promise<
     singles: singlesRows,
     doubles: doublesRows.map(r => ({ id: r.id, playedAt: new Date(r.played_at), winnerTeamId: r.winner_team_id, loserTeamId: r.loser_team_id, seasonId: r.season_id })),
     shiftWars: shiftWarsRows.map(r => ({ id: r.id, playedAt: new Date(r.played_at), winnerTeamId: r.winner_team_id, loserTeamId: r.loser_team_id })),
+    catchUpSeasonIds: { singles: [...catchUpSingles], doubles: [...catchUpDoubles] },
   };
 }
 
@@ -1649,6 +1657,8 @@ export type DetectAndUpdateStoriesResult = {
   storiesUpserted: number;
   storiesArchived: number;
   byFamily: Partial<Record<StoryFamily, number>>;
+  /** Straight passthrough of loadNewMatchesSince's own catchUpSeasonIds — see its header. */
+  catchUpSeasonIds: { singles: number[]; doubles: number[] };
 };
 
 /**
@@ -1925,6 +1935,7 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
     cutoffStart, cutoffEnd,
     newMatchesProcessed: { singles: newMatches.singles.length, doubles: newMatches.doubles.length, shiftWars: newMatches.shiftWars.length },
     storiesUpserted, storiesArchived, byFamily,
+    catchUpSeasonIds: newMatches.catchUpSeasonIds,
   };
 }
 
