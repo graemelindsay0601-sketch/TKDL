@@ -375,24 +375,43 @@ export function directorSelect(params: {
     slot: 2, purpose: "headlines", group: e.group, treatment: "headline_ticker", carryForwardState: e.carryForwardState,
   }));
 
-  // Slot 10 — what_to_watch (required): an unresolved LEAGUE-family
-  // question. Prefer a not-yet-used LEAGUE candidate; failing that,
-  // legitimately re-reference the best LEAGUE candidate already placed
-  // elsewhere (recapping the open question is real content, not
-  // duplication, since it airs in a structurally different slot). If the
-  // ENTIRE pool has no LEAGUE-family story at all — realistically only
-  // possible in the first few days of a brand-new season, before any
-  // standings-based story has ever been detected — this slot is left with
-  // no group; edition-engine.ts's quality gate (MIN_MEANINGFUL_SEGMENTS)
-  // is what correctly holds back publishing an Edition that thin, rather
-  // than this file inventing a question from data it was never given.
-  const unusedLeaguePick = pickForSlot(ranked, c => storyFamily(c.group.primary) === "LEAGUE", ctx);
+  // Slot 10 — what_to_watch (required): an UNRESOLVED LEAGUE-family
+  // question — something a viewer would actually keep watching for. Prefer
+  // a not-yet-used LEAGUE candidate; failing that, legitimately re-reference
+  // the best LEAGUE candidate already placed elsewhere (recapping the open
+  // question is real content, not duplication, since it airs in a
+  // structurally different slot). If the ENTIRE pool has no LEAGUE-family
+  // story at all — realistically only possible in the first few days of a
+  // brand-new season, before any standings-based story has ever been
+  // detected — this slot is left with no group; edition-engine.ts's quality
+  // gate (MIN_MEANINGFUL_SEGMENTS) is what correctly holds back publishing
+  // an Edition that thin, rather than this file inventing a question from
+  // data it was never given.
+  //
+  // CHAMPION and SEASON_RECAP are LEAGUE-family but are the opposite of an
+  // open question — the season is OVER, there is nothing left to watch for.
+  // A real user report named the exact symptom this caused: the champion
+  // being mentioned "multiple times" in one Edition. Root cause, confirmed
+  // against a real captured Edition (id 3, 4 Sep): CHAMPION legitimately won
+  // an earlier slot (analysis_or_predictor, still a LEAGUE story), then —
+  // because no OTHER open LEAGUE question existed this quiet week —
+  // unusedLeaguePick came back empty and the old fallback below picked
+  // "the best LEAGUE candidate overall" with no exclusion at all, landing
+  // on that same already-used CHAMPION story a second time (on top of its
+  // own headline tease, a third appearance). Excluding closed-matter types
+  // from BOTH branches here — not just the reuse fallback — closes this for
+  // good: a freshly-picked what_to_watch could hit the same trap on its
+  // first use if CHAMPION were the only unused LEAGUE story left.
+  const CLOSED_LEAGUE_MATTER_TYPES = new Set<StoryType>(["CHAMPION", "SEASON_RECAP"]);
+  const isOpenLeagueQuestion = (c: RankedCandidate) =>
+    storyFamily(c.group.primary) === "LEAGUE" && !CLOSED_LEAGUE_MATTER_TYPES.has(c.group.primary.storyType as StoryType);
+  const unusedLeaguePick = pickForSlot(ranked, isOpenLeagueQuestion, ctx);
   let whatToWatchEntry: RunningOrderEntry;
   if (unusedLeaguePick) {
     commit(unusedLeaguePick, ctx);
     whatToWatchEntry = { slot: 10, purpose: "what_to_watch", group: unusedLeaguePick.group, treatment: unusedLeaguePick.treatment, carryForwardState: unusedLeaguePick.carryForwardState };
   } else {
-    const bestLeagueOverall = ranked.find(c => storyFamily(c.group.primary) === "LEAGUE") ?? null;
+    const bestLeagueOverall = ranked.find(isOpenLeagueQuestion) ?? null;
     whatToWatchEntry = bestLeagueOverall
       ? { slot: 10, purpose: "what_to_watch", group: bestLeagueOverall.group, treatment: bestLeagueOverall.treatment, carryForwardState: bestLeagueOverall.carryForwardState }
       : { slot: 10, purpose: "what_to_watch", group: null, treatment: "utility", carryForwardState: null };
