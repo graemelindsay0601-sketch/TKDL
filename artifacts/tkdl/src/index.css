@@ -643,16 +643,30 @@
 .target-icon-wrap:hover .target-icon { animation: target-spin 1.2s ease-in-out; }
 
 .ticker-bar {
-  position: relative;
-  width: 100%;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   height: 38px;
-  z-index: 50;
-  display: flex;
+  z-index: 100;
+  display: none;
   align-items: center;
   overflow: hidden;
   background: rgba(8,6,18,0.98);
   border-top: 2px solid #ff005c;
   box-shadow: 0 -4px 16px rgba(0,0,0,0.6);
+}
+@media (min-width: 768px) {
+  .ticker-bar { display: flex; }
+}
+.ticker-bar.broadcast-ticker-bar {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  right: auto;
+  width: 100%;
+  z-index: 50;
+  display: flex;
 }
 .ticker-bar::after {
   content: "";

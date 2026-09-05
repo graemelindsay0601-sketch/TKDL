@@ -41,7 +41,7 @@ export function LiveTicker({ items, namesByKey, compact = false }: LiveTickerPro
 
   if (ordered.length === 0) {
     return (
-      <div className="ticker-bar" style={{ height }}>
+      <div className="ticker-bar broadcast-ticker-bar" style={{ height }}>
         <div className="ticker-label" style={{ fontSize: compact ? "0.55rem" : "0.6rem" }}>
           RESULTS
         </div>
@@ -55,7 +55,7 @@ export function LiveTicker({ items, namesByKey, compact = false }: LiveTickerPro
   }
 
   return (
-    <div className="ticker-bar" style={{ height }}>
+    <div className="ticker-bar broadcast-ticker-bar" style={{ height }}>
       <div className="ticker-label" style={{ fontSize: compact ? "0.55rem" : "0.6rem" }}>
         RESULTS
       </div>
