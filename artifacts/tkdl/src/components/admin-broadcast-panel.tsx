@@ -41,14 +41,24 @@ type RecentEdition = {
 };
 
 type StoryCount = { lifecycle: string; leagueType: string; count: number };
+type ProgrammeMode = "NEWS" | "BALANCED" | "MAGAZINE";
+type ContentBeat = "news" | "analysis" | "feature";
+type ProgrammeProfile = {
+  maxHeadlineTeases: number;
+  maxStorySegments: number;
+  estimatedRuntimeSeconds: { min: number; max: number };
+  contentMix: ContentBeat[];
+};
 
 type BroadcastAdminStatus = {
   recentEditions: RecentEdition[];
   currentPublished: { id: number; slotKey: string; changeScore: number; publishedAt: string | null } | null;
   storyCounts: StoryCount[];
   predictorDiagnostics: Record<string, { generatedAt: string; modelVersion: string } | null>;
-  config: Record<string, unknown>;
+  config: { programmeProfiles: Record<ProgrammeMode, ProgrammeProfile> } & Record<string, unknown>;
 };
+
+const PROGRAMME_MODES: ProgrammeMode[] = ["NEWS", "BALANCED", "MAGAZINE"];
 
 const STATUS_COLOR: Record<RecentEdition["status"], string> = {
   PUBLISHED: D.success,
@@ -82,6 +92,8 @@ export default function AdminBroadcastPanel() {
   const [regenerating, setRegenerating] = useState(false);
   const [message, setMessage]       = useState("");
   const [msgType, setMsgType]       = useState<"success" | "error">("success");
+  const [profiles, setProfiles] = useState<Record<ProgrammeMode, ProgrammeProfile> | null>(null);
+  const [savingProfiles, setSavingProfiles] = useState(false);
 
   useEffect(() => { loadStatus(); }, []);
 
@@ -95,7 +107,10 @@ export default function AdminBroadcastPanel() {
       setLoading(true);
       const r = await fetch("/api/admin/broadcast/status", { headers: getAdminHeaders() });
       const d = await r.json();
-      if (r.ok) setStatus(d);
+      if (r.ok) {
+        setStatus(d);
+        setProfiles(d.config.programmeProfiles);
+      }
       else toast(d.error ?? "Failed to load broadcast status", "error");
     } catch { toast("Failed to load broadcast status", "error"); } finally { setLoading(false); }
   };
@@ -116,6 +131,39 @@ export default function AdminBroadcastPanel() {
       }
       loadStatus();
     } catch { toast("Regenerate failed", "error"); } finally { setRegenerating(false); }
+  };
+
+  const updateProfile = (mode: ProgrammeMode, update: (profile: ProgrammeProfile) => ProgrammeProfile) => {
+    setProfiles(current => current ? { ...current, [mode]: update(current[mode]) } : current);
+  };
+
+  const saveProfiles = async () => {
+    if (!profiles) return;
+    try {
+      setSavingProfiles(true);
+      const r = await fetch("/api/admin/broadcast/settings", {
+        method: "PATCH",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({
+          broadcast_news_profile: JSON.stringify(profiles.NEWS),
+          broadcast_balanced_profile: JSON.stringify(profiles.BALANCED),
+          broadcast_magazine_profile: JSON.stringify(profiles.MAGAZINE),
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        const details = d.details ? Object.values(d.details).join("; ") : d.error;
+        toast(details ?? "Failed to save programme profiles", "error");
+        return;
+      }
+      setProfiles(d.config.programmeProfiles);
+      setStatus(current => current ? { ...current, config: d.config } : current);
+      toast("Programme profiles saved. They will apply to the next Edition.");
+    } catch {
+      toast("Failed to save programme profiles", "error");
+    } finally {
+      setSavingProfiles(false);
+    }
   };
 
   const latest = status?.recentEditions[0] ?? null;
@@ -167,6 +215,56 @@ export default function AdminBroadcastPanel() {
               </button>
             </div>
           </div>
+
+          {profiles && (
+            <div style={{ background: D.card, border: `1px solid ${D.border}`, borderRadius: "10px", padding: "18px", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "12px", flexWrap: "wrap", marginBottom: "14px" }}>
+                <div>
+                  <div style={{ fontSize: "12px", fontWeight: 800, letterSpacing: "0.06em" }}>PROGRAMME FORMAT CONTROLS</div>
+                  <div style={{ color: D.sub, fontSize: "11px", marginTop: "4px" }}>Tune pacing safely. Runtime must be 60–900 seconds with at least a 30-second range, and each content beat maps to one of 4–7 story segments.</div>
+                </div>
+                <button onClick={saveProfiles} disabled={savingProfiles} style={{ padding: "8px 14px", borderRadius: "8px", border: `1px solid ${D.info}55`, background: `${D.info}18`, color: D.info, cursor: savingProfiles ? "default" : "pointer", fontWeight: 800 }}>
+                  {savingProfiles ? "Saving…" : "Save Formats"}
+                </button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "12px" }}>
+                {PROGRAMME_MODES.map(mode => {
+                  const profile = profiles[mode];
+                  const maximumAchievableRuntime = profile.maxStorySegments * 6 * 9 + profile.maxHeadlineTeases * 3 * 9 + 3 * 2 * 9;
+                  const numberField = (label: string, value: number, min: number, max: number, onChange: (value: number) => void) => (
+                    <label style={{ display: "grid", gap: "4px", fontSize: "11px", color: D.sub }}>
+                      {label}
+                      <input type="number" min={min} max={max} value={value} onChange={e => onChange(Number(e.target.value))} style={{ background: "rgba(0,0,0,.25)", border: `1px solid ${D.border}`, borderRadius: "6px", color: D.text, padding: "7px" }} />
+                    </label>
+                  );
+                  return (
+                    <div key={mode} style={{ border: `1px solid ${D.border}`, borderRadius: "8px", padding: "12px" }}>
+                      <div style={{ fontWeight: 900, fontSize: "13px", marginBottom: "10px", color: mode === "NEWS" ? D.danger : mode === "BALANCED" ? D.info : D.warn }}>{mode}</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                        {numberField("Headline teases", profile.maxHeadlineTeases, 0, 5, value => updateProfile(mode, p => ({ ...p, maxHeadlineTeases: value })))}
+                        {numberField("Story segments", profile.maxStorySegments, 4, 7, value => updateProfile(mode, p => {
+                          const nextMix = Array.from({ length: value }, (_, i) => p.contentMix[i] ?? "feature");
+                          return { ...p, maxHeadlineTeases: Math.min(p.maxHeadlineTeases, value), maxStorySegments: value, contentMix: nextMix };
+                        }))}
+                        {numberField("Runtime min (sec)", profile.estimatedRuntimeSeconds.min, 60, maximumAchievableRuntime, value => updateProfile(mode, p => ({ ...p, estimatedRuntimeSeconds: { ...p.estimatedRuntimeSeconds, min: value } })))}
+                        {numberField("Runtime max (sec)", profile.estimatedRuntimeSeconds.max, profile.estimatedRuntimeSeconds.min + 30, 900, value => updateProfile(mode, p => ({ ...p, estimatedRuntimeSeconds: { ...p.estimatedRuntimeSeconds, max: value } })))}
+                      </div>
+                      <div style={{ marginTop: "10px", fontSize: "11px", color: D.sub }}>Content mix</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "5px", marginTop: "5px" }}>
+                        {profile.contentMix.map((beat, index) => (
+                          <select key={index} value={beat} onChange={e => updateProfile(mode, p => ({ ...p, contentMix: p.contentMix.map((item, i) => i === index ? e.target.value as ContentBeat : item) }))} style={{ background: "#171923", color: D.text, border: `1px solid ${D.border}`, borderRadius: "6px", padding: "5px", fontSize: "11px" }}>
+                            <option value="news">News</option>
+                            <option value="analysis">Analysis</option>
+                            <option value="feature">Feature</option>
+                          </select>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {status && status.recentEditions.length > 0 && (
             <div style={{ marginBottom: "1rem" }}>

@@ -558,11 +558,11 @@ export async function seedAchievements(): Promise<void> {
   // normal case.
   const retiredKeys = ["GHOST", "REAPER_SEASONAL", "MOMENTUM", "ASSASSIN", "APOCALYPSE"];
   const retiredRows = await db.select({ id: achievementsTable.id }).from(achievementsTable)
-    .where(sql`${achievementsTable.key} = ANY(${retiredKeys})`);
+    .where(inArray(achievementsTable.key, retiredKeys));
   if (retiredRows.length > 0) {
     const ids = retiredRows.map(r => r.id);
-    await db.delete(playerAchievementsTable).where(sql`${playerAchievementsTable.achievementId} = ANY(${ids})`);
-    await db.delete(achievementsTable).where(sql`${achievementsTable.key} = ANY(${retiredKeys})`);
+    await db.delete(playerAchievementsTable).where(inArray(playerAchievementsTable.achievementId, ids));
+    await db.delete(achievementsTable).where(inArray(achievementsTable.key, retiredKeys));
     logger.info({ keys: retiredKeys }, "Retired dead achievements with no grant path");
   }
 }

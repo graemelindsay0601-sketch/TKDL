@@ -106,11 +106,20 @@ function findSeasonStory(pool: readonly BroadcastStory[], storyType: "CHAMPION" 
 export function selectSeasonReviewRunningOrder(input: SeasonReviewInput): RunningOrderEntry[] {
   const bodyEntries: RunningOrderEntry[] = [];
   const usedStoryIds = new Set<number>();
+  const usedAnchoredMatches = new Set<string>();
   let nextSlot = 3; // 1 = opening, 2 = headlines (both assembled last, below)
 
   function place(purpose: RunningOrderSlotPurpose, story: BroadcastStory | null): void {
     if (!story || usedStoryIds.has(story.id)) return;
+    // Separate detectors can describe the same result (for example REVENGE
+    // and FIRST_H2H_WIN). A retrospective should deepen that moment once,
+    // not replay the same match as two nominally different highlights.
+    const anchorKey = story.anchorMatchId === null
+      ? null
+      : `${story.leagueType}:${story.anchorMatchId}`;
+    if (anchorKey !== null && usedAnchoredMatches.has(anchorKey)) return;
     usedStoryIds.add(story.id);
+    if (anchorKey !== null) usedAnchoredMatches.add(anchorKey);
     bodyEntries.push(toEntry(nextSlot, purpose, story));
     nextSlot += 1;
   }

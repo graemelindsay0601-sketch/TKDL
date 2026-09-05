@@ -13,6 +13,7 @@ import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetLeagueSeasons, initializeSeasonResetScheduler } from "./lib/seasonReset";
 import { addPerformanceIndexes } from "./db/migrations/add_performance_indexes";
 import { seedTourSystem } from "./lib/tourSeed";
+import { ensureCardClashAchievementTables } from "./lib/card-clash-achievements";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
 import { initializeCardTables, initializeFeatureFlags, initializeFeaturedCardShopTables } from "./lib/cardTablesMigration";
 import { addFavoritesColumn } from "./db/migrations/add_favorites";
@@ -1040,13 +1041,12 @@ async function seedUsers() {
 }
 
 async function init() {
-  try {
-    await seedSettings();
+  await seedSettings();
     await initializeCardTables();
+    await ensureCardClashAchievementTables();
     await initializeFeatureFlags();
     await addTkdlLiveBroadcastTables();
     await addBroadcastStorySeasonId();
-    await backfillBroadcastStorySeasonId();
     await addSeasonBroadcastReviewedAt();
     await addFeatureSpotlights();
     await seedBroadcastSettings();
@@ -1094,6 +1094,9 @@ async function init() {
     await seedGameTypes();
     await seedAchievements();
     await seedRealData();
+    // The backfill reads doubles_matches, so it must run after
+    // seedDoublesTables has created that fresh-database dependency.
+    await backfillBroadcastStorySeasonId();
     // Must run after seedDoublesTables/seedShiftWars/seedRealData: it gives
     // Doubles and Shift Wars their own season row (re-parenting Doubles'
     // current teams onto it) and needs both those tables and a real active
@@ -1121,18 +1124,10 @@ async function init() {
     }
     
     logger.info("Startup init complete");
-  } catch (err) {
-    logger.error({ err }, "Startup init failed");
-  }
 }
 
 export async function initApp() {
-  try {
-    await init();
-  } catch (err) {
-    logger.error({ err }, "Critical: Startup init failed");
-    throw err;
-  }
+  await init();
 }
 
 export default app;

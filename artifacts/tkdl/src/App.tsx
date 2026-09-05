@@ -32,6 +32,7 @@ const Master501       = lazy(() => import("@/pages/master501"));
 const HallOfFame      = lazy(() => import("@/pages/hall-of-fame"));
 const Broadcast       = lazy(() => import("@/pages/broadcast"));
 const TkdlLive        = lazy(() => import("@/pages/tkdl-live"));
+const TkdlLivePreview = import.meta.env.DEV ? lazy(() => import("@/pages/tkdl-live-preview")) : null;
 const Login           = lazy(() => import("@/pages/login"));
 const Account         = lazy(() => import("@/pages/account"));
 const Community       = lazy(() => import("@/pages/community"));
@@ -70,6 +71,11 @@ function RoutePage({ children }: { children: ReactNode }) {
 function AppRoutes() {
   return (
     <Switch>
+      {TkdlLivePreview && (
+        <Route path="/__tkdl-live-preview">
+          <Suspense fallback={null}><TkdlLivePreview /></Suspense>
+        </Route>
+      )}
       <Route path="/broadcast">
         <Suspense fallback={null}><Broadcast /></Suspense>
       </Route>

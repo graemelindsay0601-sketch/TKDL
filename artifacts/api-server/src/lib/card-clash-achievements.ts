@@ -53,10 +53,9 @@ const RARITY_ORDER: Record<string, number> = { Common: 1, Rare: 2, Epic: 3, Lege
 // ── Ensure tables exist ──────────────────────────────────────────────────────
 
 let tablesEnsured = false;
-async function ensureTables() {
+export async function ensureCardClashAchievementTables() {
   if (tablesEnsured) return;
-  try {
-    await db.execute(sql`
+  await db.execute(sql`
       CREATE TABLE IF NOT EXISTS card_clash_achievements_earned (
         id SERIAL PRIMARY KEY,
         player_id INTEGER NOT NULL,
@@ -67,7 +66,7 @@ async function ensureTables() {
         UNIQUE(player_id, achievement_key)
       )
     `);
-    await db.execute(sql`
+  await db.execute(sql`
       CREATE TABLE IF NOT EXISTS card_clash_pack_inventory (
         id SERIAL PRIMARY KEY,
         player_id INTEGER NOT NULL,
@@ -78,13 +77,9 @@ async function ensureTables() {
         is_opened BOOLEAN DEFAULT FALSE
       )
     `);
-    // Add packs_opened counter to player_currency if not exists
-    await db.execute(sql`ALTER TABLE player_currency ADD COLUMN IF NOT EXISTS packs_opened INTEGER DEFAULT 0`);
-    tablesEnsured = true;
-  } catch (e) {
-    logger.warn({ e }, "[CC_ACH] ensureTables warning (may already exist)");
-    tablesEnsured = true;
-  }
+  // Add packs_opened counter to player_currency if not exists
+  await db.execute(sql`ALTER TABLE player_currency ADD COLUMN IF NOT EXISTS packs_opened INTEGER DEFAULT 0`);
+  tablesEnsured = true;
 }
 
 // ── Player stats ─────────────────────────────────────────────────────────────
@@ -151,7 +146,7 @@ function statMet(def: CCAchievementDef, stats: Awaited<ReturnType<typeof getCCPl
 // ── Check and award ──────────────────────────────────────────────────────────
 
 export async function checkAndAwardCCAchievements(playerId: number): Promise<Array<CCAchievementDef & { packName?: string }>> {
-  await ensureTables();
+  await ensureCardClashAchievementTables();
   const newly: Array<CCAchievementDef & { packName?: string }> = [];
 
   try {
@@ -200,7 +195,7 @@ export async function checkAndAwardCCAchievements(playerId: number): Promise<Arr
 // ── List achievements with earned status ─────────────────────────────────────
 
 export async function getCCAchievementsForPlayer(playerId: number) {
-  await ensureTables();
+  await ensureCardClashAchievementTables();
   try {
     const [stats, earnedR] = await Promise.all([
       getCCPlayerStats(playerId),
@@ -248,7 +243,7 @@ function getProgress(def: CCAchievementDef, stats: any): number {
 // ── Pack inventory ───────────────────────────────────────────────────────────
 
 export async function getPlayerPackInventory(playerId: number) {
-  await ensureTables();
+  await ensureCardClashAchievementTables();
   try {
     const rows = await db.execute(sql`
       SELECT id, pack_type, earned_reason, earned_at, is_opened, opened_at
@@ -267,7 +262,7 @@ export async function getPlayerPackInventory(playerId: number) {
 }
 
 export async function markPackOpened(inventoryId: number, playerId: number): Promise<boolean> {
-  await ensureTables();
+  await ensureCardClashAchievementTables();
   try {
     const check = await db.execute(sql`
       SELECT id, is_opened FROM card_clash_pack_inventory
@@ -290,7 +285,7 @@ export async function markPackOpened(inventoryId: number, playerId: number): Pro
 }
 
 export async function incrementPacksOpened(playerId: number, count: number = 1) {
-  await ensureTables();
+  await ensureCardClashAchievementTables();
   try {
     await db.execute(sql`
       UPDATE player_currency

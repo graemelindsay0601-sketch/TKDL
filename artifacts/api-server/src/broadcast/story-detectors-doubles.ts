@@ -21,6 +21,7 @@ import type { StoryCandidate } from "./story-types.ts";
 
 export type DoublesMatchResultFacts = {
   matchId: number;
+  playedAt: Date;
   winnerTeamId: number;
   loserTeamId: number;
   loserBefore: TeamState;
@@ -49,7 +50,7 @@ export function detectPairUpset(facts: DoublesMatchResultFacts): StoryCandidate 
     anchorMatchId: facts.matchId,
     sentiment: "positive",
     tags: ["pair_upset"],
-    facts: { matchId: facts.matchId, winnerTeamId: facts.winnerTeamId, loserTeamId: facts.loserTeamId, winnerProbability: facts.winnerProbability },
+    facts: { matchId: facts.matchId, playedAt: facts.playedAt.toISOString(), winnerTeamId: facts.winnerTeamId, loserTeamId: facts.loserTeamId, winnerProbability: facts.winnerProbability },
     components: {
       competitiveImportance: 10,
       unexpectedness: unexpectednessComponent(facts.winnerProbability),
@@ -71,7 +72,7 @@ export function detectPairEliminated(facts: DoublesMatchResultFacts): StoryCandi
     anchorMatchId: facts.matchId,
     sentiment: "negative",
     tags: ["pair_eliminated"],
-    facts: { matchId: facts.matchId, winnerTeamId: facts.winnerTeamId, loserTeamId: facts.loserTeamId },
+    facts: { matchId: facts.matchId, playedAt: facts.playedAt.toISOString(), winnerTeamId: facts.winnerTeamId, loserTeamId: facts.loserTeamId },
     components: {
       competitiveImportance: 18,
       unexpectedness: 0,

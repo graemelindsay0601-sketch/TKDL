@@ -106,6 +106,10 @@ function subjects(facts: SinglesResultMatchFacts): string[] {
   return [subjectKey("singles", facts.winnerId), subjectKey("singles", facts.loserId)];
 }
 
+function matchIdentityFacts(facts: SinglesResultMatchFacts) {
+  return { matchId: facts.matchId, playedAt: facts.playedAt.toISOString() };
+}
+
 // ── UPSET / MAJOR_UPSET / MODEL_SHOCK ────────────────────────────────────
 // Three severity tiers of the SAME underlying fact (how unlikely the
 // actual winner was), not three independent triggers — a 10%-probability
@@ -133,7 +137,7 @@ export function detectUpsetTier(facts: SinglesResultMatchFacts): StoryCandidate 
     sentiment: "positive",
     tags: ["upset"],
     facts: {
-      matchId: facts.matchId, winnerId: facts.winnerId, loserId: facts.loserId,
+      ...matchIdentityFacts(facts), winnerId: facts.winnerId, loserId: facts.loserId,
       winnerProbability: facts.winnerProbability, stake: facts.stake,
     },
     components: { ...baseComponents(facts), historicalSignificance, entertainmentValue },
@@ -152,7 +156,7 @@ export function detectHighStakeWin(facts: SinglesResultMatchFacts): StoryCandida
     sentiment: "positive",
     tags: ["high_stake"],
     facts: {
-      matchId: facts.matchId, winnerId: facts.winnerId, loserId: facts.loserId,
+      ...matchIdentityFacts(facts), winnerId: facts.winnerId, loserId: facts.loserId,
       stake: facts.stake, highStakeThreshold: facts.highStakeThreshold,
     },
     components: { ...baseComponents(facts), historicalSignificance: 0, entertainmentValue: 3 },
@@ -179,7 +183,7 @@ export function detectHighStakeLoss(facts: SinglesResultMatchFacts): StoryCandid
     sentiment: "negative",
     tags: ["high_stake"],
     facts: {
-      matchId: facts.matchId, winnerId: facts.winnerId, loserId: facts.loserId,
+      ...matchIdentityFacts(facts), winnerId: facts.winnerId, loserId: facts.loserId,
       stake: facts.stake, highStakeThreshold: facts.highStakeThreshold,
     },
     components: { ...baseComponents(facts), historicalSignificance: 0, entertainmentValue: 2 },
@@ -198,7 +202,7 @@ export function detectElimination(facts: SinglesResultMatchFacts): StoryCandidat
     sentiment: "negative",
     tags: ["elimination"],
     facts: {
-      matchId: facts.matchId, winnerId: facts.winnerId, loserId: facts.loserId,
+      ...matchIdentityFacts(facts), winnerId: facts.winnerId, loserId: facts.loserId,
       stake: facts.stake,
     },
     components: { ...baseComponents(facts), historicalSignificance: 0, entertainmentValue: 2 },
@@ -217,7 +221,7 @@ export function detectLeaderBeaten(facts: SinglesResultMatchFacts): StoryCandida
     sentiment: "positive",
     tags: ["leader_beaten"],
     facts: {
-      matchId: facts.matchId, winnerId: facts.winnerId, loserId: facts.loserId,
+      ...matchIdentityFacts(facts), winnerId: facts.winnerId, loserId: facts.loserId,
       leaderPointsBefore: facts.loserBefore.points, stake: facts.stake,
     },
     components: { ...baseComponents(facts), historicalSignificance: SCORE_MAX.historicalSignificance * 0.3, entertainmentValue: 3 },
@@ -243,7 +247,7 @@ export function detectStreakBreaker(facts: SinglesResultMatchFacts): StoryCandid
     sentiment: "positive",
     tags: ["streak_breaker"],
     facts: {
-      matchId: facts.matchId, winnerId: facts.winnerId, loserId: facts.loserId,
+      ...matchIdentityFacts(facts), winnerId: facts.winnerId, loserId: facts.loserId,
       brokenWinStreak: brokenStreak, stake: facts.stake,
     },
     components: { ...baseComponents(facts), historicalSignificance, entertainmentValue: 3 },
@@ -267,7 +271,7 @@ export function detectDroughtEnded(facts: SinglesResultMatchFacts): StoryCandida
     sentiment: "positive",
     tags: ["drought_ended"],
     facts: {
-      matchId: facts.matchId, winnerId: facts.winnerId, loserId: facts.loserId,
+      ...matchIdentityFacts(facts), winnerId: facts.winnerId, loserId: facts.loserId,
       endedLossStreak: endedStreak, stake: facts.stake,
     },
     components: { ...baseComponents(facts), historicalSignificance, entertainmentValue: 3 },
@@ -292,7 +296,7 @@ export function detectFirstH2HWin(facts: SinglesResultMatchFacts): StoryCandidat
     sentiment: "positive",
     tags: ["first_h2h_win"],
     facts: {
-      matchId: facts.matchId, winnerId: facts.winnerId, loserId: facts.loserId,
+      ...matchIdentityFacts(facts), winnerId: facts.winnerId, loserId: facts.loserId,
       priorLossesToThisOpponent: loserPriorWins, stake: facts.stake,
     },
     components: { ...baseComponents(facts), historicalSignificance, entertainmentValue: 4 },
@@ -329,7 +333,7 @@ export function detectRevenge(facts: SinglesResultMatchFacts): StoryCandidate | 
     sentiment: "positive",
     tags: ["revenge"],
     facts: {
-      matchId: facts.matchId, winnerId: facts.winnerId, loserId: facts.loserId,
+      ...matchIdentityFacts(facts), winnerId: facts.winnerId, loserId: facts.loserId,
       consecutivePriorLosses, stake: facts.stake,
     },
     components: { ...baseComponents(facts), historicalSignificance, entertainmentValue: 4 },

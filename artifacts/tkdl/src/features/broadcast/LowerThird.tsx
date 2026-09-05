@@ -50,47 +50,48 @@ export function LowerThird({ turn, previousTurn }: LowerThirdProps) {
     // BroadcastPlayer.tsx mounts this in) refuses to shrink below, however
     // narrow the actual viewport is. `min-width: 0` at each nesting level
     // removes that floor so `width: 100%`/`truncate` can do their real job.
-    <div className="flex flex-col items-stretch" style={{ maxWidth: 640, width: "100%", minWidth: 0 }}>
+    <div className="flex flex-col items-stretch" style={{ maxWidth: 720, width: "100%", minWidth: 0 }}>
       {previousTurn && (
         <div
-          className="self-start flex items-baseline gap-1.5 px-3 py-1 mb-1"
+          className="self-start flex items-baseline gap-2 px-4 py-1.5 mb-1"
           style={{
-            opacity: 0.5,
-            transform: "scale(0.94)",
-            transformOrigin: "left bottom",
-            background: "rgba(6,4,14,0.72)",
-            borderLeft: `2px solid ${PRESENTERS[previousTurn.speaker as PresenterId].accent}80`,
-            maxWidth: "100%",
+            opacity: 0.65,
+            background: "linear-gradient(90deg, rgba(6,4,14,0.9) 0%, rgba(6,4,14,0.6) 80%, transparent 100%)",
+            borderLeft: `3px solid ${PRESENTERS[previousTurn.speaker as PresenterId].accent}`,
+            maxWidth: "90%",
             minWidth: 0,
+            clipPath: "polygon(0 0, 100% 0, 96% 100%, 0 100%)"
           }}
         >
-          <span className="font-bold uppercase shrink-0" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.05em", color: PRESENTERS[previousTurn.speaker as PresenterId].accent }}>
+          <span className="font-bold uppercase shrink-0" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.06em", color: PRESENTERS[previousTurn.speaker as PresenterId].accent }}>
             {PRESENTERS[previousTurn.speaker as PresenterId].name}
           </span>
-          <span className="truncate" style={{ fontFamily: "Inter, sans-serif", fontSize: "0.78rem", lineHeight: 1.3, color: "rgba(255,255,255,0.6)", minWidth: 0 }}>
+          <span className="truncate font-medium" style={{ fontFamily: "Inter, sans-serif", fontSize: "0.85rem", lineHeight: 1.3, color: "rgba(255,255,255,0.7)", minWidth: 0 }}>
             {previousTurn.text}
           </span>
         </div>
       )}
 
-      <div className="self-start flex items-baseline gap-2 px-3 py-1" style={{ background: presenter.accent }}>
-        <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.78rem", letterSpacing: "0.06em", color: "#fff" }}>
+      <div className="self-start flex items-baseline gap-2 px-4 py-1.5" style={{ background: presenter.accent, clipPath: "polygon(0 0, 100% 0, 94% 100%, 0 100%)", paddingRight: 32 }}>
+        <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.85rem", letterSpacing: "0.08em", color: "#fff" }}>
           {presenter.name}
         </span>
-        <span className="uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.1em", color: "rgba(255,255,255,0.82)" }}>
+        <span className="uppercase font-bold" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.15em", color: "rgba(255,255,255,0.9)" }}>
           {presenter.role}
         </span>
       </div>
       <div
-        className="px-3 py-2.5"
+        className="px-5 py-3.5 relative overflow-hidden"
         style={{
-          background: "rgba(6,4,14,0.94)",
-          borderLeft: `1px solid ${presenter.accent}40`,
-          borderRight: `1px solid ${presenter.accent}40`,
-          borderBottom: `1px solid ${presenter.accent}40`,
+          background: "linear-gradient(90deg, rgba(12,8,22,0.98) 0%, rgba(6,4,14,0.92) 100%)",
+          borderLeft: `4px solid ${presenter.accent}`,
+          boxShadow: `0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)`
         }}
       >
-        <span style={{ fontFamily: "Inter, sans-serif", fontSize: "0.98rem", lineHeight: 1.35, color: "rgba(255,255,255,0.95)" }}>
+        {/* subtle highlight at the top left of the dark box to make it feel physical */}
+        <div className="absolute top-0 left-0 w-32 h-[1px]" style={{ background: `linear-gradient(90deg, ${presenter.accent}, transparent)` }} />
+        
+        <span className="font-medium" style={{ fontFamily: "Inter, sans-serif", fontSize: "1.05rem", lineHeight: 1.45, color: "rgba(255,255,255,0.98)", textShadow: "0 2px 4px rgba(0,0,0,0.5)" }}>
           {turn.text}
         </span>
       </div>

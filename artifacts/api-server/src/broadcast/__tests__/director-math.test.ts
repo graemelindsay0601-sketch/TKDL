@@ -227,12 +227,11 @@ describe("isForcedRefresh", () => {
   const base = {
     seasonChampionOrResetEventOccurred: false,
     noPublishedEditionExists: false,
-    publishedEditionAgeHours: 1,
     adminForced: false,
   };
 
   test("bootstrap: no published Edition exists", () => {
-    assert.equal(isForcedRefresh({ ...base, noPublishedEditionExists: true, publishedEditionAgeHours: null }), true);
+    assert.equal(isForcedRefresh({ ...base, noPublishedEditionExists: true }), true);
   });
 
   test("season champion / reset event forces refresh", () => {
@@ -243,12 +242,8 @@ describe("isForcedRefresh", () => {
     assert.equal(isForcedRefresh({ ...base, adminForced: true }), true);
   });
 
-  test("24h-stale forces a refresh purely on elapsed time — no new match required. A quiet day with zero logged matches must still get a fresh Edition at least once every 24h, per the explicit ask for 'one new episode a day' rather than the same published Edition looping indefinitely.", () => {
-    assert.equal(isForcedRefresh({ ...base, publishedEditionAgeHours: 25 }), true);
-  });
-
-  test("exactly 24h old is not yet stale (strictly greater than)", () => {
-    assert.equal(isForcedRefresh({ ...base, publishedEditionAgeHours: 24 }), false);
+  test("elapsed wall-clock time alone never forces a replacement Edition", () => {
+    assert.equal(isForcedRefresh(base), false);
   });
 
   test("none of the conditions -> not forced", () => {
@@ -379,7 +374,7 @@ describe("NORMAL_RUNNING_ORDER_TEMPLATE", () => {
 
 describe("evaluateQualityGate", () => {
   function segment(overrides: Partial<import("../director-math.ts").QualityGateSegment> = {}) {
-    return { id: "s1", leagueType: "singles" as const, importance: "supporting" as const, sentiment: "neutral" as const, storyId: 1, ...overrides };
+    return { id: "s1", purpose: "main_story" as const, leagueType: "singles" as const, importance: "supporting" as const, sentiment: "neutral" as const, storyId: 1, ...overrides };
   }
   const baseInput = {
     segments: [
@@ -484,14 +479,26 @@ describe("evaluateQualityGate", () => {
     if (!result.pass) assert.ok(result.reasons.some(r => r.includes("meaningful segments (1)")));
   });
 
-  test("a headline tease (storyId set, importance headline_ticker) still counts as meaningful — it re-references a real story", () => {
+  test("headline teases do not inflate the meaningful-segment count by repeating promised stories", () => {
     const segments = [
       segment({ id: "a", storyId: null, importance: "utility" }), // opening
       segment({ id: "b", storyId: 1, leagueType: "singles" }),
       segment({ id: "c", storyId: 2, leagueType: "doubles" }),
-      segment({ id: "d", storyId: 3, importance: "headline_ticker" }),
-      segment({ id: "e", storyId: 4, importance: "headline_ticker" }),
+      segment({ id: "d", purpose: "headlines", storyId: 3, importance: "headline_ticker" }),
+      segment({ id: "e", purpose: "headlines", storyId: 4, importance: "headline_ticker" }),
       segment({ id: "f", storyId: null, importance: "utility" }), // closing
+    ];
+    const result = evaluateQualityGate({ ...baseInput, segments });
+    assert.equal(result.pass, false);
+    if (!result.pass) assert.ok(result.reasons.some(r => r.includes("meaningful segments (2)")));
+  });
+
+  test("concise headline-treatment BODY stories still count as meaningful substance", () => {
+    const segments = [
+      segment({ id: "a", purpose: "main_story", storyId: 1, importance: "headline_ticker" }),
+      segment({ id: "b", purpose: "second_major_story", storyId: 2, importance: "headline_ticker" }),
+      segment({ id: "c", purpose: "form_h2h_or_stats", storyId: 3, importance: "headline_ticker" }),
+      segment({ id: "d", purpose: "supporting_story_or_checkin", storyId: 4, importance: "headline_ticker" }),
     ];
     assert.equal(evaluateQualityGate({ ...baseInput, segments }).pass, true);
   });

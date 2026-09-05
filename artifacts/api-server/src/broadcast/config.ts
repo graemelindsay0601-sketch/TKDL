@@ -17,7 +17,7 @@
 // `isFeatureAvailable(FEATURES.TKDL_LIVE, isAdmin)` is the single source of
 // truth for whether the show is on, exactly as 16.2 already established.
 import { db, settingsTable } from "@workspace/db";
-import { inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   BROADCAST_SETTING_KEYS, BROADCAST_SETTING_DEFAULTS, resolveBroadcastConfig, validateBroadcastSettingValue,
   type BroadcastSettingKey, type BroadcastConfig,
@@ -55,6 +55,53 @@ export async function seedBroadcastSettings(): Promise<void> {
     .insert(settingsTable)
     .values(BROADCAST_SETTING_KEYS.map(key => ({ key, value: BROADCAST_SETTING_DEFAULTS[key] })))
     .onConflictDoNothing({ target: settingsTable.key });
+
+  // The first producer-profile default set News to 150-300 seconds. A
+  // real-data dress rehearsal showed a complete seven-story bulletin landing
+  // naturally at 140 seconds, so the new default floor is 135. Upgrade only
+  // the exact untouched legacy JSON; any producer-customised profile remains
+  // authoritative.
+  const legacyNewsProfile = JSON.stringify({
+    maxHeadlineTeases: 3,
+    maxStorySegments: 7,
+    estimatedRuntimeSeconds: { min: 150, max: 300 },
+    contentMix: ["news", "news", "analysis", "news", "feature", "analysis", "feature"],
+  });
+  await db
+    .update(settingsTable)
+    .set({ value: BROADCAST_SETTING_DEFAULTS.broadcast_news_profile, updatedAt: new Date() })
+    .where(and(
+      eq(settingsTable.key, "broadcast_news_profile"),
+      eq(settingsTable.value, legacyNewsProfile),
+    ));
+
+  const legacyBalancedProfile = JSON.stringify({
+    maxHeadlineTeases: 2,
+    maxStorySegments: 6,
+    estimatedRuntimeSeconds: { min: 180, max: 360 },
+    contentMix: ["news", "analysis", "feature", "news", "analysis", "feature"],
+  });
+  await db
+    .update(settingsTable)
+    .set({ value: BROADCAST_SETTING_DEFAULTS.broadcast_balanced_profile, updatedAt: new Date() })
+    .where(and(
+      eq(settingsTable.key, "broadcast_balanced_profile"),
+      eq(settingsTable.value, legacyBalancedProfile),
+    ));
+
+  const legacyMagazineProfile = JSON.stringify({
+    maxHeadlineTeases: 1,
+    maxStorySegments: 5,
+    estimatedRuntimeSeconds: { min: 210, max: 420 },
+    contentMix: ["feature", "analysis", "feature", "news", "feature"],
+  });
+  await db
+    .update(settingsTable)
+    .set({ value: BROADCAST_SETTING_DEFAULTS.broadcast_magazine_profile, updatedAt: new Date() })
+    .where(and(
+      eq(settingsTable.key, "broadcast_magazine_profile"),
+      eq(settingsTable.value, legacyMagazineProfile),
+    ));
 }
 
 /**

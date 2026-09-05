@@ -137,26 +137,14 @@ export function newlyCreatedGroupTreatments(groups: readonly MergedStoryGroup[])
 export function isForcedRefresh(params: {
   seasonChampionOrResetEventOccurred: boolean;
   noPublishedEditionExists: boolean;
-  /** null when no published Edition exists at all (noPublishedEditionExists already covers that case on its own). */
-  publishedEditionAgeHours: number | null;
   adminForced: boolean;
 }): boolean {
   if (params.adminForced) return true;
   if (params.noPublishedEditionExists) return true;
   if (params.seasonChampionOrResetEventOccurred) return true;
-  // Originally this clause also required hasAtLeastOneNewMatch, on the
-  // theory that a rebuild with literally nothing new to say wasn't worth
-  // forcing. In practice that meant a real quiet stretch (no matches
-  // logged) left the same published Edition looping indefinitely, which is
-  // exactly what players told us felt stale ("a constant same episode
-  // loop" — direct player feedback). collectNewAndActiveStories() always
-  // has HOT/ACTIVE/COOLING form and league stories, plus the FILLER family
-  // (PRACTICE_ACTIVITY/SHADOW_BOT_PROMO/FEATURE_SPOTLIGHT), so a forced
-  // rebuild on a quiet day still has real content to draw a fresh-sounding
-  // Edition from — it's just guaranteed to happen at least once every 24h
-  // regardless of match activity, per the explicit ask for "one new
-  // episode a day."
-  if (params.publishedEditionAgeHours !== null && params.publishedEditionAgeHours > 24) return true;
+  // Elapsed wall-clock time alone must not manufacture a new Edition.
+  // When the underlying snapshot has not changed meaningfully, the current
+  // published Edition remains the channel's canonical programme.
   return false;
 }
 
@@ -424,11 +412,84 @@ export type ProgrammeSegment = {
   facts: Record<string, unknown> | null;
 };
 
-export type EditionProgramme = { segments: ProgrammeSegment[] };
+export const PROGRAMME_MODES = ["NEWS", "BALANCED", "MAGAZINE", "SEASON_REVIEW"] as const;
+export type ProgrammeMode = (typeof PROGRAMME_MODES)[number];
 
-/** `${slot}`'s own stable public segment id — shared by edition-engine.ts (quality-gate segment ids, live-events.ts lookups) and, eventually, routes/broadcast.ts's own 14.5 response serialization, so all three agree on the same scheme without re-deriving it independently. */
-export function programmeSegmentId(slot: number): string {
-  return `slot-${slot}`;
+export type OrdinaryProgrammeMode = Exclude<ProgrammeMode, "SEASON_REVIEW">;
+
+export type ProgrammeContentBeat = "news" | "analysis" | "feature";
+
+export type ProgrammePacingRule = {
+  maxHeadlineTeases: number;
+  maxStorySegments: number;
+  estimatedRuntimeSeconds: { min: number; max: number };
+  contentMix: readonly ProgrammeContentBeat[];
+};
+
+/**
+ * Editorial guardrails for ordinary Editions. The runtime bands are targets
+ * for the completed programme (including utility links), while the segment
+ * caps and mix are enforced by directorSelect before dialogue is rendered.
+ */
+export const PROGRAMME_PACING_RULES: Record<OrdinaryProgrammeMode, ProgrammePacingRule> = {
+  NEWS: {
+    maxHeadlineTeases: 3,
+    maxStorySegments: 7,
+    estimatedRuntimeSeconds: { min: 135, max: 300 },
+    contentMix: ["news", "news", "analysis", "news", "feature", "analysis", "feature"],
+  },
+  BALANCED: {
+    maxHeadlineTeases: 2,
+    maxStorySegments: 6,
+    estimatedRuntimeSeconds: { min: 105, max: 360 },
+    contentMix: ["news", "analysis", "feature", "news", "analysis", "feature"],
+  },
+  MAGAZINE: {
+    maxHeadlineTeases: 1,
+    maxStorySegments: 5,
+    estimatedRuntimeSeconds: { min: 100, max: 420 },
+    contentMix: ["feature", "analysis", "feature", "news", "feature"],
+  },
+};
+
+export function isRuntimeWithinProgrammeMode(
+  mode: OrdinaryProgrammeMode,
+  estimatedSeconds: number,
+  rules: Record<OrdinaryProgrammeMode, ProgrammePacingRule> = PROGRAMME_PACING_RULES,
+): boolean {
+  const { min, max } = rules[mode].estimatedRuntimeSeconds;
+  // Producer profiles are configured in whole seconds while dialogue hold
+  // sums are fractional. Compare the displayed whole-second runtime so a
+  // 99.64s programme is not rejected against a 100s floor.
+  const roundedSeconds = Math.round(estimatedSeconds);
+  return roundedSeconds >= min && roundedSeconds <= max;
+}
+
+/**
+ * `mode` is optional only so Editions persisted before the v2 mode model was
+ * introduced remain readable. Every newly-built Edition writes it.
+ */
+export type EditionProgramme = { mode?: ProgrammeMode; segments: ProgrammeSegment[] };
+
+export function programmeModeOf(programme: EditionProgramme): ProgrammeMode {
+  return programme.mode && PROGRAMME_MODES.includes(programme.mode)
+    ? programme.mode
+    : "BALANCED";
+}
+
+type SegmentIdentity = Pick<ProgrammeSegment, "slot" | "purpose" | "storyId">;
+
+/**
+ * Stable public identity for one persisted programme segment.
+ *
+ * A slot is a running-order position, not a unique identifier: headline
+ * teases and quiet-period backfills can legitimately share a slot. Include
+ * purpose and story identity so invalidating one segment never suppresses
+ * unrelated content and React scenes always receive distinct keys.
+ */
+export function programmeSegmentId(segment: SegmentIdentity): string {
+  const storyPart = segment.storyId === null ? "utility" : `story-${segment.storyId}`;
+  return `slot-${segment.slot}-${segment.purpose}-${storyPart}`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -442,6 +503,7 @@ export function programmeSegmentId(slot: number): string {
 // without needing a fake Commentary Engine to produce fake dialogue.
 export type QualityGateSegment = {
   id: string;
+  purpose: RunningOrderSlotPurpose;
   leagueType: "singles" | "doubles" | "shift_wars" | null;
   importance: Treatment | "utility";
   sentiment: "positive" | "neutral" | "negative" | null;
@@ -479,16 +541,21 @@ const MIN_MEANINGFUL_SEGMENTS = 4;
  * of them backed by anything real) — publishing a "new" Edition that reads
  * as a full show while saying nothing new, exactly the fake urgency the doc
  * warns against. Filtering to `storyId !== null` counts only segments
- * actually backed by a real, verified story — a headline tease still counts
- * (it re-references a real story's id, per 9.3), but none of the three fixed
- * utility slots ever can, so a genuinely quiet day now has to clear the bar
- * on real content alone, and correctly falls back to keeping the previous
- * published Edition (17's own rule) when it can't.
+ * actually backed by a real, verified story. Slot-2 headline teases do not
+ * count: they promise stories that appear later and therefore cannot make a
+ * thin programme substantial merely by repeating the same material. A
+ * story-backed body segment still counts when its treatment is the concise
+ * headline_ticker tier — treatment controls duration, not whether the story
+ * is real substance.
+ * genuinely quiet day has to clear the bar on distinct full content and
+ * correctly keeps the previous published Edition when it cannot.
  */
 export function evaluateQualityGate(input: QualityGateInput): QualityGateResult {
   const reasons: string[] = [];
 
-  const meaningfulSegmentCount = input.segments.filter(s => s.storyId !== null).length;
+  const meaningfulSegmentCount = input.segments.filter(
+    s => s.storyId !== null && s.purpose !== "headlines",
+  ).length;
   if (!input.isChampionOrSeasonBoundarySpecial && meaningfulSegmentCount < MIN_MEANINGFUL_SEGMENTS) {
     reasons.push(`fewer than ${MIN_MEANINGFUL_SEGMENTS} meaningful segments (${meaningfulSegmentCount})`);
   }
@@ -547,13 +614,9 @@ export function evaluateQualityGate(input: QualityGateInput): QualityGateResult 
 // api-shapes.ts's own estimatedSecondsForSegment already computes per
 // segment for the API response) — so classifying a whole programme is pure
 // arithmetic over data this file's own ProgrammeSegment/EditionProgramme
-// types already carry, not a new estimate. Deliberately diagnostic-only:
-// nothing in evaluateQualityGate reads this, so an Edition is never held
-// back from publishing purely for running long or short — the doc's "no
-// fake urgency" is enforced by MIN_MEANINGFUL_SEGMENTS actually counting
-// real content (see evaluateQualityGate's own header above), not by a
-// runtime clock. Admin tooling (routes/broadcast.ts's own /admin/broadcast/
-// status) surfaces the band for visibility only.
+// types already carry, not a new estimate. The broad Show Bible
+// classification remains diagnostic, while edition-engine applies each
+// ordinary mode's narrower, producer-configured runtime band before publish.
 export type EditionLengthBand = "quiet" | "normal" | "busy" | "exceptional";
 
 /** Upper bound (inclusive, seconds) of every band except "exceptional", which is genuinely open-ended per the doc's own "up to ~18min" phrasing. */

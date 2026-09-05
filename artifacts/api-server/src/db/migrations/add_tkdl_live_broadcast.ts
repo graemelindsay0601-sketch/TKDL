@@ -60,6 +60,19 @@ export async function addTkdlLiveBroadcastTables() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_broadcast_stories_lifecycle ON broadcast_stories(lifecycle)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_broadcast_stories_league_type ON broadcast_stories(league_type)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_broadcast_stories_anchor_match_id ON broadcast_stories(anchor_match_id)`);
+    // Facts created before provenance tracking shipped were persisted at
+    // updated_at. Backfill that timestamp once so the new fail-closed quality
+    // gate can safely assess existing active stories.
+    await db.execute(sql`
+      UPDATE broadcast_stories
+      SET facts = jsonb_set(
+        COALESCE(facts, '{}'::jsonb),
+        '{__snapshotCutoff}',
+        to_jsonb(updated_at),
+        true
+      )
+      WHERE NOT COALESCE(facts, '{}'::jsonb) ? '__snapshotCutoff'
+    `);
 
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS broadcast_prediction_snapshots (

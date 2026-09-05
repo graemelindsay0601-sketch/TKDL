@@ -41,58 +41,44 @@ export function LiveTicker({ items, namesByKey, compact = false }: LiveTickerPro
 
   if (ordered.length === 0) {
     return (
-      <div
-        className="flex items-center px-4 border-t"
-        style={{ height, borderColor: "rgba(255,0,92,0.25)", background: "rgba(255,0,92,0.06)" }}
-      >
-        <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", fontSize: compact ? "0.6rem" : "0.65rem" }}>
-          Waiting on the next result…
-        </span>
+      <div className="ticker-bar" style={{ height }}>
+        <div className="ticker-label" style={{ fontSize: compact ? "0.55rem" : "0.6rem" }}>
+          RESULTS
+        </div>
+        <div className="flex-1 flex items-center px-4">
+          <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", fontSize: compact ? "0.6rem" : "0.65rem" }}>
+            Waiting on the next result…
+          </span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div
-      className="flex items-center overflow-hidden border-t"
-      style={{ height, borderColor: "rgba(255,0,92,0.25)", background: "rgba(255,0,92,0.06)", backdropFilter: "blur(8px)" }}
-    >
-      <div
-        className="shrink-0 px-4 font-black uppercase tracking-widest border-r h-full flex items-center"
-        style={{ color: "#ff005c", borderColor: "rgba(255,0,92,0.3)", letterSpacing: "0.2em", background: "rgba(255,0,92,0.12)", fontSize: compact ? "0.55rem" : "0.6rem", fontFamily: "Oswald, sans-serif" }}
-      >
+    <div className="ticker-bar" style={{ height }}>
+      <div className="ticker-label" style={{ fontSize: compact ? "0.55rem" : "0.6rem" }}>
         RESULTS
       </div>
-      <div className="flex-1 overflow-hidden relative">
+      <div className="ticker-scroll-wrap">
         <div
-          className="flex items-center gap-8 whitespace-nowrap font-bold"
+          className="ticker-track"
           style={{
-            color: "rgba(255,255,255,0.7)",
-            animation: `tkdl-live-ticker ${Math.max(20, ordered.length * 6)}s linear infinite`,
-            paddingLeft: "100%",
-            fontFamily: "Oswald, sans-serif",
-            letterSpacing: "0.06em",
-            fontSize: compact ? "0.7rem" : "0.8rem",
+            ["--ticker-duration" as any]: `${Math.max(20, ordered.length * 6)}s`
           }}
         >
           {[...ordered, ...ordered].map((item, i) => (
-            <span key={`${item.matchId}-${i}`} className="flex items-center gap-3">
-              <span style={{ color: LEAGUE_ACCENT[item.leagueType], opacity: 0.7 }}>●</span>
+            <div key={`${item.matchId}-${i}`} className="ticker-item">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: LEAGUE_ACCENT[item.leagueType], opacity: 0.9 }} />
               <span className="font-black uppercase" style={{ color: "#22c55e" }}>{displayName(item.leagueType, item.winnerId, namesByKey)}</span>
-              <span className="text-xs px-1.5 py-0.5 rounded font-black uppercase" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.3)", fontSize: "0.6rem", letterSpacing: "0.08em" }}>
+              <span className="text-xs px-1.5 py-0.5 rounded font-black uppercase" style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)", fontSize: "0.55rem", letterSpacing: "0.1em" }}>
                 def.
               </span>
-              <span className="font-bold uppercase" style={{ color: "rgba(255,255,255,0.55)" }}>{displayName(item.leagueType, item.loserId, namesByKey)}</span>
-            </span>
+              <span className="font-bold uppercase" style={{ color: "rgba(255,255,255,0.7)" }}>{displayName(item.leagueType, item.loserId, namesByKey)}</span>
+              <div className="h-4 w-px mx-2" style={{ background: "rgba(255,255,255,0.15)" }} />
+            </div>
           ))}
         </div>
       </div>
-      <style>{`
-        @keyframes tkdl-live-ticker {
-          from { transform: translateX(0); }
-          to   { transform: translateX(-50%); }
-        }
-      `}</style>
     </div>
   );
 }

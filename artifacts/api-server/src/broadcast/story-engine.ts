@@ -122,6 +122,7 @@ import { detectShiftWarsStories, type ShiftWarsStandingsFacts, type ShiftWarsTea
 import { detectArchiveH2HStories, detectSeasonComparison, type ArchiveH2HFacts, type SeasonComparisonFacts } from "./story-detectors-archive";
 import { detectShadowBotPromo, detectPracticeActivity, detectFeatureSpotlight, type PracticeActivityFacts } from "./story-detectors-filler";
 import { listEnabledFeatureSpotlights } from "./feature-spotlight-registry";
+import { factsWithSnapshotCutoff } from "./cutoff-snapshot-math";
 
 const MODEL_VERSION = "story-engine-v1";
 const DEFAULT_GAME_TYPE = "501";
@@ -268,7 +269,7 @@ async function upsertStoryCandidate(candidate: StoryCandidate, confidence: numbe
     score,
     confidence,
     sentiment: candidate.sentiment,
-    facts: candidate.facts,
+    facts: factsWithSnapshotCutoff(candidate.facts, now),
     tags: candidate.tags,
     lastFullEditionId: existing?.lastFullEditionId ?? null,
     lastHeadlineEditionId: existing?.lastHeadlineEditionId ?? null,
@@ -492,6 +493,7 @@ async function loadNewMatchesSince(cutoffStart: Date, cutoffEnd: Date): Promise<
     .from(matchesTable)
     .where(and(
       SINGLES_ONLY,
+      lte(matchesTable.playedAt, cutoffEnd),
       or(
         and(gt(matchesTable.playedAt, cutoffStart), lte(matchesTable.playedAt, cutoffEnd)),
         catchUpSingles.size > 0 ? inArray(matchesTable.seasonId, [...catchUpSingles]) : sql`false`,
@@ -513,8 +515,11 @@ async function loadNewMatchesSince(cutoffStart: Date, cutoffEnd: Date): Promise<
   const catchUpDoublesLiteral = `{${[...catchUpDoubles].join(",")}}`;
   const doublesRows = (await db.execute(sql`
     SELECT id, played_at, winner_team_id, loser_team_id, season_id FROM doubles_matches
-    WHERE (played_at > ${cutoffStart} AND played_at <= ${cutoffEnd})
-       OR season_id = ANY(${catchUpDoublesLiteral}::int[])
+    WHERE played_at <= ${cutoffEnd}
+      AND (
+        played_at > ${cutoffStart}
+        OR season_id = ANY(${catchUpDoublesLiteral}::int[])
+      )
     ORDER BY played_at ASC, id ASC
   `)).rows as { id: number; played_at: string | Date; winner_team_id: number; loser_team_id: number; season_id: number }[];
 
@@ -1110,7 +1115,7 @@ const HIGHLIGHT_ELIGIBLE_FAMILIES: Record<LeagueType, StoryFamily[]> = {
  * gets a real reel rather than an empty one.
  */
 export async function collectSeasonHighlights(params: {
-  leagueType: LeagueType; seasonId: number; seasonStart: Date; seasonEndExclusive: Date; limit: number;
+  leagueType: LeagueType; seasonId: number; seasonStart: Date; seasonEndExclusive: Date; cutoffEnd: Date; limit: number;
 }): Promise<BroadcastStory[]> {
   const eligibleTypes = HIGHLIGHT_ELIGIBLE_FAMILIES[params.leagueType].flatMap(family => STORY_TYPES_BY_FAMILY[family]) as StoryType[];
   if (eligibleTypes.length === 0) return [];
@@ -1119,6 +1124,7 @@ export async function collectSeasonHighlights(params: {
     .where(and(
       eq(broadcastStoriesTable.leagueType, params.leagueType),
       inArray(broadcastStoriesTable.storyType, eligibleTypes),
+      lte(broadcastStoriesTable.updatedAt, params.cutoffEnd),
       or(
         eq(broadcastStoriesTable.seasonId, params.seasonId),
         and(isNull(broadcastStoriesTable.seasonId), gte(broadcastStoriesTable.detectedAt, params.seasonStart), lt(broadcastStoriesTable.detectedAt, params.seasonEndExclusive)),
@@ -1370,7 +1376,7 @@ async function processDoublesMatch(match: NewDoublesMatch): Promise<DoublesMatch
   if (!entry) return { candidates: [], confidence: 0 };
 
   const facts: DoublesMatchResultFacts = {
-    matchId: match.id, winnerTeamId: match.winnerTeamId, loserTeamId: match.loserTeamId,
+    matchId: match.id, playedAt: match.playedAt, winnerTeamId: match.winnerTeamId, loserTeamId: match.loserTeamId,
     loserBefore: ctx.loserBefore, loserAfter: entry.loserAfter,
     winnerProbability: prediction.pA,
   };
@@ -1948,8 +1954,24 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
  * live" — ordered by score so a caller can take the top N without
  * re-sorting.
  */
-export async function collectNewAndActiveStories(leagueType?: LeagueType): Promise<BroadcastStory[]> {
+export async function collectNewAndActiveStories(cutoffEnd: Date, leagueType?: LeagueType): Promise<BroadcastStory[]> {
   const conditions = [inArray(broadcastStoriesTable.lifecycle, ["NEW", "HOT", "ACTIVE", "COOLING"] as const)];
+  conditions.push(lte(broadcastStoriesTable.updatedAt, cutoffEnd));
+  // Once a Season Review has aired, that season's match/form/performance
+  // rows are archive context rather than current programme candidates. Keep
+  // CHAMPION and SEASON_RECAP available as durable summary stories, while
+  // filtering the rest at collection time so older databases with NEW
+  // catch-up rows cannot manufacture a fresh ordinary Edition.
+  conditions.push(or(
+    isNull(broadcastStoriesTable.seasonId),
+    inArray(broadcastStoriesTable.storyType, ["CHAMPION", "SEASON_RECAP"]),
+    sql`NOT EXISTS (
+      SELECT 1
+      FROM ${seasonsTable}
+      WHERE ${seasonsTable.id} = ${broadcastStoriesTable.seasonId}
+        AND ${seasonsTable.broadcastReviewedAt} IS NOT NULL
+    )`,
+  )!);
   if (leagueType) conditions.push(eq(broadcastStoriesTable.leagueType, leagueType));
   return db.select().from(broadcastStoriesTable).where(and(...conditions)).orderBy(desc(broadcastStoriesTable.score));
 }

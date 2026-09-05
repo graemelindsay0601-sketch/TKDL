@@ -36,6 +36,7 @@ function teamState(overrides: Partial<TeamState> = {}): TeamState {
 function matchFacts(overrides: Partial<DoublesMatchResultFacts> = {}): DoublesMatchResultFacts {
   return {
     matchId: 701,
+    playedAt: new Date("2026-09-05T19:00:00Z"),
     winnerTeamId: 1,
     loserTeamId: 2,
     loserBefore: teamState(),

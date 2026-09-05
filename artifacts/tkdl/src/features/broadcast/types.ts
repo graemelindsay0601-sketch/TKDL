@@ -47,6 +47,7 @@ export type Segment = {
 };
 
 export type SlotType = "midday" | "evening" | "night" | "manual";
+export type ProgrammeMode = "NEWS" | "BALANCED" | "MAGAZINE" | "SEASON_REVIEW";
 
 // ── 14.4 current-edition response ───────────────────────────────────────
 
@@ -57,6 +58,7 @@ export type CurrentEdition = {
   generatedAt: string;
   dataCutoff: string;
   title: string;
+  mode: ProgrammeMode;
   headlines: Segment[];
   segments: Segment[];
 };

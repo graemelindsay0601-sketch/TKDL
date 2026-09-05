@@ -56,11 +56,13 @@ import {
   interpolateTemplate, dialogueHoldSeconds,
   phraseFactsSatisfied, phraseTemplateSatisfiable, isPhraseOffCooldown,
   isNegativeBanterAllowed,
+  preferredPhrasesForMode, isConversationPhraseAvailable, isPhraseSafeForMode, formatCountedNoun, COUNTED_LOSS_FACT_KEYS,
   scalarIdNameKey, arrayIdNamesJoinedKey, probabilityPctKey,
-  type Phrase, type BlueprintName, type BlueprintTurn, type TemplateFacts,
+  type Phrase, type BlueprintName, type BlueprintTurn, type TemplateFacts, type CommentaryMode, type EditorialBeat,
 } from "./commentary-math.ts";
 import { phrasesForStoryType, UNIVERSAL_CALLBACK_PHRASES, UNIVERSAL_BANTER_PHRASES } from "./commentary-library.ts";
-import type { StoryType, Treatment } from "./story-types.ts";
+import { familyForStoryType, type StoryType, type Treatment } from "./story-types.ts";
+import { isFreshResultEventForNews } from "./story-engine-math.ts";
 import { pickFrom } from "./seeded-rng.ts";
 
 // ── Name resolution ───────────────────────────────────────────────────────
@@ -150,6 +152,10 @@ export async function buildTemplateFacts(leagueType: LeagueType, facts: Record<s
   }
 
   await Promise.all([...idLookups, ...namesJoinedLookups]);
+  for (const countKey of COUNTED_LOSS_FACT_KEYS) {
+    const label = formatCountedNoun(facts[countKey], "loss", "losses");
+    if (label !== null) result[`${countKey}Label`] = label;
+  }
   return result;
 }
 
@@ -238,7 +244,11 @@ async function recordPhraseUsage(phraseId: string, subjectKey: string, editionId
     .values({ memoryType: "PHRASE", memoryKey: phraseId, subjectKey, lastUsedAt: new Date(), lastEditionId: editionId, usageCount: 1, payload: null })
     .onConflictDoUpdate({
       target: [broadcastMemoryTable.memoryType, broadcastMemoryTable.memoryKey, broadcastMemoryTable.subjectKey],
-      set: { lastUsedAt: new Date(), lastEditionId: editionId, usageCount: sql`${broadcastMemoryTable.usageCount} + 1` },
+      set: {
+        lastUsedAt: new Date(),
+        lastEditionId: editionId,
+        usageCount: sql`CASE WHEN ${broadcastMemoryTable.lastEditionId} = ${editionId} THEN ${broadcastMemoryTable.usageCount} ELSE ${broadcastMemoryTable.usageCount} + 1 END`,
+      },
     });
 }
 
@@ -280,7 +290,12 @@ async function recordPresenterCall(subjectKey: string, storyType: StoryType, edi
     .values({ memoryType: "PRESENTER_CALL", memoryKey: CALLBACK_MEMORY_KEY, subjectKey, lastUsedAt: new Date(), lastEditionId: editionId, usageCount: 1, payload: { claimTag } })
     .onConflictDoUpdate({
       target: [broadcastMemoryTable.memoryType, broadcastMemoryTable.memoryKey, broadcastMemoryTable.subjectKey],
-      set: { lastUsedAt: new Date(), lastEditionId: editionId, usageCount: sql`${broadcastMemoryTable.usageCount} + 1`, payload: { claimTag } },
+      set: {
+        lastUsedAt: new Date(),
+        lastEditionId: editionId,
+        usageCount: sql`CASE WHEN ${broadcastMemoryTable.lastEditionId} = ${editionId} THEN ${broadcastMemoryTable.usageCount} ELSE ${broadcastMemoryTable.usageCount} + 1 END`,
+        payload: { claimTag },
+      },
     });
 }
 
@@ -314,10 +329,19 @@ function eligiblePhrasesForTurn(params: {
    * merging, ELIMINATION_MILESTONE) — it just isn't specified.
    */
   banterLevel: number;
+  programmeMode: CommentaryMode;
+  forceRetrospective: boolean;
+  phraseIdsUsedThisBuild: ReadonlySet<string>;
+  isHeadlineTease: boolean;
 }): Phrase[] {
-  const { pool, turn, availableFactKeys, phraseEditionsSinceLastUse, banterContext, banterLevel } = params;
+  const {
+    pool, turn, availableFactKeys, phraseEditionsSinceLastUse, banterContext,
+    banterLevel, programmeMode, forceRetrospective, phraseIdsUsedThisBuild, isHeadlineTease,
+  } = params;
   return pool.filter(phrase => {
     if (phrase.speaker !== turn.speaker || phrase.intent !== turn.intent) return false;
+    if (!isHeadlineTease && phraseIdsUsedThisBuild.has(phrase.id)) return false;
+    if (!isPhraseSafeForMode(phrase, programmeMode, forceRetrospective)) return false;
     if (banterLevel <= 0 && (phrase.tone === "humour" || phrase.sentiment === "negative")) return false;
     if (!phraseFactsSatisfied(phrase, availableFactKeys)) return false;
     if (!phraseTemplateSatisfiable(phrase, availableFactKeys)) return false;
@@ -330,7 +354,7 @@ function eligiblePhrasesForTurn(params: {
 
 // ── renderConversation (Appendix C.3) ─────────────────────────────────────
 
-export type DialogueTurn = { speaker: "A" | "B"; text: string; holdSeconds: number; phraseId: string; intent: string; sentiment: Phrase["sentiment"] };
+export type DialogueTurn = { speaker: "A" | "B"; text: string; holdSeconds: number; phraseId: string; intent: string; beat: EditorialBeat; sentiment: Phrase["sentiment"] };
 
 export type BanterContext = {
   negativeJokesAlreadyThisEditionForSubject: number;
@@ -352,6 +376,14 @@ export type RenderConversationParams = {
   banterContext: BanterContext;
   /** 16.1's broadcast_banter_level setting — see eligiblePhrasesForTurn's own comment for exactly what this does. */
   banterLevel: number;
+  /** Programme energy: NEWS favours measured commentary; MAGAZINE favours chemistry and personality. */
+  programmeMode: CommentaryMode;
+  /** Edition cutoff used to judge the underlying result's age deterministically. */
+  editorialCutoff: Date;
+  /** Shared across every full segment in this one build attempt. */
+  phraseIdsUsedThisBuild: Set<string>;
+  /** True only for slot-2 teases, which may mirror their promised body story. */
+  isHeadlineTease: boolean;
 };
 
 /**
@@ -372,7 +404,14 @@ export type RenderConversationParams = {
  * job ends at reporting "can't be told" rather than guessing.
  */
 export async function renderConversation(params: RenderConversationParams): Promise<DialogueTurn[]> {
-  const { storyType, leagueType, facts, primarySubjectKey, treatment, slotKey, storyKey, commentaryVersion, editionId, banterContext, banterLevel } = params;
+  const {
+    storyType, leagueType, facts, primarySubjectKey, treatment, slotKey, storyKey,
+    commentaryVersion, editionId, banterContext, banterLevel, programmeMode,
+    editorialCutoff, phraseIdsUsedThisBuild, isHeadlineTease,
+  } = params;
+  const family = familyForStoryType(storyType);
+  const isMatchResult = family === "RESULT" || (family === "DOUBLES" && typeof facts.matchId === "number");
+  const forceRetrospective = isMatchResult && !isFreshResultEventForNews(facts.playedAt, editorialCutoff);
 
   const [templateFacts, memory] = await Promise.all([
     buildTemplateFacts(leagueType, facts),
@@ -387,6 +426,7 @@ export async function renderConversation(params: RenderConversationParams): Prom
 
   const typePool = phrasesForStoryType(storyType);
   const fullPool: Phrase[] = [...typePool, ...UNIVERSAL_CALLBACK_PHRASES, ...UNIVERSAL_BANTER_PHRASES];
+  const storySpecificPhraseIds = new Set(typePool.map(phrase => phrase.id));
 
   const rng = commentaryRng(slotKey, storyKey, commentaryVersion);
 
@@ -405,7 +445,9 @@ export async function renderConversation(params: RenderConversationParams): Prom
   // for this render (an empty lookup map — isPhraseOffCooldown treats an
   // absent entry as never-used) leaves the real cross-Edition guarantee
   // fully intact for every other treatment reading the same memory rows.
-  const phraseEditionsSinceLastUse = treatment === "headline_ticker" ? new Map<string, number>() : memory.phraseEditionsSinceLastUse;
+  const phraseEditionsSinceLastUse = isHeadlineTease
+    ? new Map<string, number>()
+    : new Map([...memory.phraseEditionsSinceLastUse].filter(([, editions]) => editions > 0));
 
   const viableBlueprints: BlueprintName[] = [];
   const turnsByBlueprint = new Map<BlueprintName, BlueprintTurn[]>();
@@ -413,7 +455,11 @@ export async function renderConversation(params: RenderConversationParams): Prom
     const turns = resolveTurnsForTreatment(treatment, BLUEPRINTS[name]);
     const requiredTurns = turns.filter(t => !t.optional);
     const satisfiable = requiredTurns.every(
-      turn => eligiblePhrasesForTurn({ pool: fullPool, turn, availableFactKeys, phraseEditionsSinceLastUse, banterContext, banterLevel }).length > 0,
+      turn => eligiblePhrasesForTurn({
+        pool: fullPool, turn, availableFactKeys, phraseEditionsSinceLastUse,
+        banterContext, banterLevel, programmeMode, forceRetrospective,
+        phraseIdsUsedThisBuild, isHeadlineTease,
+      }).length > 0,
     );
     if (satisfiable) {
       viableBlueprints.push(name);
@@ -427,8 +473,20 @@ export async function renderConversation(params: RenderConversationParams): Prom
   const turns = turnsByBlueprint.get(chosenName)!;
 
   const dialogue: DialogueTurn[] = [];
+  const usedPhraseIds = new Set<string>();
+  let negativeTurnsAlreadyForSubject = 0;
   for (const turn of turns) {
-    const candidates = eligiblePhrasesForTurn({ pool: fullPool, turn, availableFactKeys, phraseEditionsSinceLastUse, banterContext, banterLevel });
+    const eligible = eligiblePhrasesForTurn({
+      pool: fullPool, turn, availableFactKeys, phraseEditionsSinceLastUse,
+      banterContext, banterLevel, programmeMode, forceRetrospective,
+      phraseIdsUsedThisBuild, isHeadlineTease,
+    })
+      .filter(phrase => isConversationPhraseAvailable(phrase, usedPhraseIds, negativeTurnsAlreadyForSubject));
+    // When the story's own library can satisfy this intent, prefer that
+    // relevant reaction/handoff over generic universal banter. Universal
+    // lines remain a fallback for thinner story types.
+    const storySpecific = eligible.filter(phrase => storySpecificPhraseIds.has(phrase.id));
+    const candidates = preferredPhrasesForMode(storySpecific.length > 0 ? storySpecific : eligible, programmeMode);
     if (candidates.length === 0) {
       if (turn.optional) continue;
       // Pre-checked above for every required turn of the chosen blueprint —
@@ -439,7 +497,10 @@ export async function renderConversation(params: RenderConversationParams): Prom
     }
     const phrase = pickFrom(candidates, rng);
     const text = interpolateTemplate(phrase.template, availableFacts);
-    dialogue.push({ speaker: phrase.speaker, text, holdSeconds: dialogueHoldSeconds(text), phraseId: phrase.id, intent: phrase.intent, sentiment: phrase.sentiment });
+    dialogue.push({ speaker: phrase.speaker, text, holdSeconds: dialogueHoldSeconds(text), phraseId: phrase.id, intent: phrase.intent, beat: turn.beat, sentiment: phrase.sentiment });
+    usedPhraseIds.add(phrase.id);
+    if (!isHeadlineTease) phraseIdsUsedThisBuild.add(phrase.id);
+    if (phrase.sentiment === "negative") negativeTurnsAlreadyForSubject += 1;
     await recordPhraseUsage(phrase.id, primarySubjectKey, editionId);
   }
 

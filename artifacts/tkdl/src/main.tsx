@@ -14,7 +14,7 @@ import "./index.css";
 // actually matches the payload shape the backend sends (title/body/icon/
 // badge/data — see sendPushNotification in notificationService.ts); /sw.js
 // expected a different shape and is no longer registered anywhere.
-if ("serviceWorker" in navigator) {
+if ("serviceWorker" in navigator && !import.meta.env.DEV) {
   navigator.serviceWorker
     .register("/service-worker.js", { scope: "/" })
     .then((registration) => {
@@ -49,4 +49,33 @@ if ("serviceWorker" in navigator) {
     });
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+function renderApp() {
+  createRoot(document.getElementById("root")!).render(<App />);
+}
+
+async function startApp() {
+  if (!import.meta.env.DEV || !("serviceWorker" in navigator)) {
+    renderApp();
+    return;
+  }
+
+  // A production service worker must never control Vite's development
+  // modules. Its cached dependency chunks can outlive an optimise/restart
+  // cycle and mix two React runtimes, which surfaces as an "Invalid hook
+  // call" even though the component's hooks are valid.
+  const registrations = await navigator.serviceWorker.getRegistrations();
+  await Promise.all(registrations.map(registration => registration.unregister()));
+  if ("caches" in window) {
+    const cacheNames = await caches.keys();
+    await Promise.all(cacheNames.map(cacheName => caches.delete(cacheName)));
+  }
+
+  if (navigator.serviceWorker.controller) {
+    window.location.reload();
+    return;
+  }
+
+  renderApp();
+}
+
+void startApp();

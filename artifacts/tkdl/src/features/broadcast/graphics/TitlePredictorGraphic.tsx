@@ -38,11 +38,11 @@ export function TitlePredictorGraphic({ leagueType, data, compact }: { leagueTyp
 
     if (big) {
       return (
-        <BigPanel accent={ACCENT}>
+        <BigPanel accent={ACCENT} dense>
           <BigPanelHeader icon="🔮" kind="Title Race" leagueType={leagueType} accent={ACCENT} />
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
             {shown.map((entry, i) => (
-              <BigRow key={entry.name} rank={i + 1} label={entry.name} valueLabel={pct(entry.p)} fraction={entry.p} accent={i === 0 ? leagueAccent : "rgba(255,255,255,0.45)"} delay={i} />
+              <BigRow key={entry.name} rank={i + 1} label={entry.name} valueLabel={pct(entry.p)} fraction={entry.p} accent={i === 0 ? leagueAccent : "rgba(255,255,255,0.45)"} delay={i} dense />
             ))}
           </div>
           {overflow > 0 && <BigLine>+{overflow} more still in the mix</BigLine>}

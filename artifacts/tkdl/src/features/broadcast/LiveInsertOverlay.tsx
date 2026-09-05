@@ -37,54 +37,60 @@ export function LiveInsertOverlay({ overlay, namesBySubjectKey, onDismiss }: Liv
 
   return (
     <div
+      data-broadcast-region="live-overlay"
       role="status"
       aria-live={overlay.overlayClass === "breaking" ? "assertive" : "polite"}
-      className="fixed left-1/2 top-8 z-50 -translate-x-1/2 flex items-center gap-4 rounded-xl px-6 py-4 shadow-2xl"
-      style={{
-        background: "rgba(6,4,14,0.94)",
-        border: `2px solid ${accent}`,
-        boxShadow: `0 0 40px ${accent}55`,
-        fontFamily: "Oswald, sans-serif",
-        animation: "tkdl-live-insert-in 0.35s ease-out",
-        maxWidth: "min(90vw, 640px)",
-      }}
+      className="fixed left-0 right-0 top-12 z-50 flex justify-center pointer-events-none"
     >
       <div
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg shrink-0"
-        style={{ background: `${accent}22`, border: `1px solid ${accent}` }}
+        className="flex items-stretch shadow-2xl pointer-events-auto"
+        style={{
+          background: "rgba(6,4,14,0.96)",
+          borderBottom: `3px solid ${accent}`,
+          boxShadow: `0 12px 40px rgba(0,0,0,0.8), 0 0 30px ${accent}44`,
+          animation: "tkdl-live-insert-in 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+          width: "90%",
+          maxWidth: 720,
+          clipPath: "polygon(0 0, 100% 0, 97% 100%, 0 100%)",
+        }}
       >
-        <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: accent }} />
-        <span className="font-black uppercase text-xs" style={{ color: accent, letterSpacing: "0.18em" }}>
-          {OVERLAY_CLASS_LABEL[overlay.overlayClass]}
-        </span>
-      </div>
-      <div className="min-w-0">
         <div
-          className="text-xs font-bold uppercase tracking-widest"
-          style={{ color: leagueAccent, letterSpacing: "0.12em", fontSize: "0.6rem" }}
+          className="flex flex-col items-center justify-center pl-3 pr-5 py-3 shrink-0 sm:pl-4 sm:pr-8"
+          style={{ background: accent, clipPath: "polygon(0 0, 100% 0, 85% 100%, 0 100%)" }}
         >
-          {LEAGUE_LABEL[overlay.leagueType]}
+          <span className="w-2.5 h-2.5 rounded-full bg-white mb-1" style={{ animation: "live-pulse 1s infinite" }} />
+          <span className="font-black uppercase text-white" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.8rem", letterSpacing: "0.15em" }}>
+            {OVERLAY_CLASS_LABEL[overlay.overlayClass]}
+          </span>
         </div>
-        <div className="font-black uppercase truncate text-white leading-tight" style={{ fontSize: "1.1rem", letterSpacing: "0.03em" }}>
-          {subjects || humanizeStoryType(overlay.storyType)}
+        <div className="flex-1 min-w-0 flex flex-col justify-center px-3 py-2 relative sm:px-5">
+          <div
+            className="text-xs font-bold uppercase tracking-widest"
+            style={{ color: leagueAccent, fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em", fontSize: "0.6rem" }}
+          >
+            {LEAGUE_LABEL[overlay.leagueType]}
+          </div>
+          <div data-broadcast-overlay-subject className="font-black uppercase truncate text-white leading-tight text-base sm:text-xl" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.03em" }}>
+            {subjects || humanizeStoryType(overlay.storyType)}
+          </div>
+          <div className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.6)", letterSpacing: "0.05em" }}>
+            {humanizeStoryType(overlay.storyType)}
+          </div>
         </div>
-        <div className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
-          {humanizeStoryType(overlay.storyType)}
-        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          className="mr-3 shrink-0 w-8 h-8 flex items-center justify-center text-sm self-center hover:bg-white/10 transition-colors sm:mr-6"
+          style={{ color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "50%" }}
+        >
+          ✕
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Dismiss"
-        className="ml-2 shrink-0 rounded-full w-6 h-6 flex items-center justify-center text-xs"
-        style={{ color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.15)" }}
-      >
-        ✕
-      </button>
       <style>{`
         @keyframes tkdl-live-insert-in {
-          from { opacity: 0; transform: translate(-50%, -12px); }
-          to   { opacity: 1; transform: translate(-50%, 0); }
+          from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
     </div>

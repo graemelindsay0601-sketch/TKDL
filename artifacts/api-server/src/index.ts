@@ -17,7 +17,11 @@ if (Number.isNaN(port) || port <= 0) {
 
 async function start() {
   try {
-    // Start server first so health checks pass immediately
+    // Finish schema initialization before accepting traffic. Starting the
+    // listener first allowed a failed migration to leave the API apparently
+    // healthy while most routes returned missing-table errors.
+    await initApp();
+
     await new Promise<void>((resolve, reject) => {
       app.listen(port, (err) => {
         if (err) {
@@ -28,12 +32,6 @@ async function start() {
           resolve();
         }
       });
-    });
-
-    // Initialize app in background (non-blocking)
-    // This allows Render health checks to pass while initialization completes
-    initApp().catch((err) => {
-      logger.error({ err }, "Background initialization failed (server already running)");
     });
   } catch (err) {
     logger.error({ err }, "Failed to start server");

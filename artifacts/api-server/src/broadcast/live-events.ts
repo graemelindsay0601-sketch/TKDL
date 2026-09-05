@@ -224,7 +224,7 @@ async function computeInvalidSegmentIds(programme: EditionProgramme | null, cach
   const invalid: string[] = [];
   for (const segment of programme.segments) {
     if (segment.validityRules.length === 0) continue; // utility segments — nothing to check, never invalid
-    if (!(await isSegmentStillValid(segment.validityRules, cache))) invalid.push(programmeSegmentId(segment.slot));
+    if (!(await isSegmentStillValid(segment.validityRules, cache))) invalid.push(programmeSegmentId(segment));
   }
   return invalid;
 }

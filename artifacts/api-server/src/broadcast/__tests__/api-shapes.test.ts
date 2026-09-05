@@ -9,6 +9,7 @@ import {
   sceneForSegment, GRAPHIC_KIND_BY_STORY_TYPE, serializeSegment, humanizeStoryType, editionTitle,
   type GraphicKind,
 } from "../api-shapes.ts";
+import { programmeSegmentId } from "../director-math.ts";
 import { STORY_TYPES_BY_FAMILY, STORY_FAMILIES, type StoryType } from "../story-types.ts";
 import type { ProgrammeSegment, EditionProgramme } from "../director-math.ts";
 
@@ -133,6 +134,23 @@ describe("serializeSegment", () => {
   test("a non-CHAMPION segment always gets a null championInfo", () => {
     const api = serializeSegment(segment({ storyType: "HIGH_STAKE_WIN", facts: { playerId: 5, wagerAmount: 10 } }), "slot-2");
     assert.equal(api.championInfo, null);
+  });
+});
+
+describe("programmeSegmentId", () => {
+  test("segments sharing a running-order slot still receive unique stable identities", () => {
+    const firstHeadline = segment({ slot: 2, purpose: "headlines", storyId: 41 });
+    const secondHeadline = segment({ slot: 2, purpose: "headlines", storyId: 42 });
+    const mainStory = segment({ slot: 2, purpose: "main_story", storyId: 41 });
+
+    assert.notEqual(programmeSegmentId(firstHeadline), programmeSegmentId(secondHeadline));
+    assert.notEqual(programmeSegmentId(firstHeadline), programmeSegmentId(mainStory));
+    assert.equal(programmeSegmentId(firstHeadline), "slot-2-headlines-story-41");
+  });
+
+  test("utility segments have deterministic identities without a story id", () => {
+    const closing = segment({ slot: 11, purpose: "closing", storyId: null });
+    assert.equal(programmeSegmentId(closing), "slot-11-closing-utility");
   });
 });
 

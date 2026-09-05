@@ -39,7 +39,7 @@ export function PresenterPortrait({ speaker, size, state = "neutral", variant = 
         alt={name}
         width={size}
         height={height}
-        style={{ width: size, height, display: "block", filter: "drop-shadow(0 16px 28px rgba(0,0,0,0.55))" }}
+        style={{ width: size, height, display: "block" }}
         onError={() => setFailed(true)}
       />
     );

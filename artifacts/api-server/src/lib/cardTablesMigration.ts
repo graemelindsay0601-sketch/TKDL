@@ -24,6 +24,12 @@ export async function initializeCardTables() {
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    // CREATE TABLE IF NOT EXISTS does not retrofit constraints onto an
+    // older table. The upserts below require feature_name to be unique.
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS feature_flags_feature_name_unique
+      ON feature_flags(feature_name)
+    `);
 
     // Create card_definitions table if it doesn't exist
     await db.execute(sql`

@@ -12,6 +12,7 @@ import {
   phraseFactsSatisfied, phraseTemplateSatisfiable, isPhraseOffCooldown, isPhraseEligible,
   containsRecordClaimLanguage, isRecordClaimCompliant, VERIFIED_RECORD_CLAIM_FACT_KEY,
   dialogueHoldSeconds, isNegativeBanterAllowed, shouldPreferCreditTemplate, toneMixReport,
+  preferredPhrasesForMode, isConversationPhraseAvailable, isPhraseSafeForMode, formatCountedNoun,
   scalarIdNameKey, arrayIdNamesJoinedKey, probabilityPctKey,
   type Phrase,
 } from "../commentary-math.ts";
@@ -47,6 +48,15 @@ describe("resolveTurnsForTreatment", () => {
     // Supporting is exactly the treatment this turn exists for. See
     // commentary-math.ts's own comment on BLUEPRINTS.QUICK_HIT.
     assert.equal(turns.every(t => !t.optional), true);
+  });
+
+  test("every exchange is explicitly shaped as setup, reaction/counterpoint, and a resolving beat", () => {
+    for (const blueprint of Object.values(BLUEPRINTS)) {
+      const beats = blueprint.turns.map(t => t.beat);
+      assert.equal(beats[0], "setup", blueprint.name);
+      assert.ok(beats.includes("reaction") || beats.includes("counterpoint"), blueprint.name);
+      assert.ok(["counterpoint", "punchline", "handoff"].includes(beats.at(-1)!), blueprint.name);
+    }
   });
 
   test("featured keeps a blueprint's own turn count including its optional turns, within [3,4]", () => {
@@ -210,6 +220,57 @@ describe("isPhraseEligible", () => {
       phrase: p, turnSpeaker: "A", turnIntent: "fact",
       availableFactKeys: new Set(["winnerName"]), editionsSinceLastUse: 1,
     }), false);
+  });
+});
+
+describe("format energy and in-exchange cooldowns", () => {
+  const measured = phrase({ id: "measured", tone: "commentary" });
+  const warm = phrase({ id: "warm", tone: "personality" });
+  const funny = phrase({ id: "funny", tone: "humour" });
+
+  test("NEWS prefers measured commentary while MAGAZINE prefers chemistry", () => {
+    assert.deepEqual(preferredPhrasesForMode([warm, measured, funny], "NEWS").map(p => p.id), ["measured"]);
+    assert.deepEqual(preferredPhrasesForMode([warm, measured, funny], "MAGAZINE").map(p => p.id), ["warm", "funny"]);
+  });
+
+  test("format preference falls back rather than dropping a valid turn", () => {
+    assert.deepEqual(preferredPhrasesForMode([warm], "NEWS").map(p => p.id), ["warm"]);
+    assert.deepEqual(preferredPhrasesForMode([measured], "MAGAZINE").map(p => p.id), ["measured"]);
+  });
+
+  test("SEASON_REVIEW excludes language that makes historical results sound live", () => {
+    for (const template of [
+      "A result for Richard tonight.",
+      "Sean is flying right now.",
+      "Nobody can touch him at the minute.",
+      "This week changed everything.",
+      "Five straight wins and counting.",
+      "Give it another fortnight.",
+      "There is plenty brewing at the bottom.",
+    ]) {
+      assert.equal(isPhraseSafeForMode(phrase({ template }), "SEASON_REVIEW"), false);
+    }
+    assert.equal(isPhraseSafeForMode(phrase({ template: "That result changed the season." }), "SEASON_REVIEW"), true);
+    assert.equal(isPhraseSafeForMode(phrase({ template: "A result tonight." }), "NEWS"), true);
+    assert.equal(isPhraseSafeForMode(phrase({ template: "A result tonight." }), "NEWS", true), false);
+    assert.equal(isPhraseSafeForMode(phrase({ template: "That's the fun of live sport." }), "BALANCED", true), false);
+  });
+
+  test("counted nouns use singular grammar at one and plural grammar otherwise", () => {
+    assert.equal(formatCountedNoun(1, "loss", "losses"), "1 loss");
+    assert.equal(formatCountedNoun(2, "loss", "losses"), "2 losses");
+    assert.equal(formatCountedNoun("1", "loss", "losses"), null);
+  });
+
+  test("the same phrase cannot repeat within one exchange", () => {
+    assert.equal(isConversationPhraseAvailable(measured, new Set(["measured"]), 0), false);
+  });
+
+  test("a player/team cannot receive two negative lines in one exchange", () => {
+    const negative = phrase({ id: "negative", sentiment: "negative" });
+    assert.equal(isConversationPhraseAvailable(negative, new Set(), 0), true);
+    assert.equal(isConversationPhraseAvailable(negative, new Set(), 1), false);
+    assert.equal(isConversationPhraseAvailable(measured, new Set(), 1), true);
   });
 });
 

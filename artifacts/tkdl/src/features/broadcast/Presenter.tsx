@@ -42,9 +42,7 @@ export function Presenter({ speaker, active = true, size = "md", state = "neutra
 
   const frameStyle: CSSProperties = variant === "bust"
     ? {
-        opacity: active ? 1 : 0.5,
-        filter: active ? "none" : "grayscale(0.4)",
-        transition: "opacity 0.25s ease, filter 0.25s ease",
+        transition: "opacity 0.4s ease, filter 0.4s ease",
         flexShrink: 0,
         lineHeight: 0,
       }
@@ -57,11 +55,15 @@ export function Presenter({ speaker, active = true, size = "md", state = "neutra
         lineHeight: 0,
       };
 
-  const portrait = <PresenterPortrait speaker={speaker} size={dimension} state={state} variant={variant} />;
+  const portraitClass = variant === "bust"
+    ? `presenter-bust-filter ${active ? "presenter-bust-active" : "presenter-bust-inactive"}`
+    : "";
+
+  const portrait = <div className={portraitClass}><PresenterPortrait speaker={speaker} size={dimension} state={state} variant={variant} /></div>;
 
   if (variant === "bust") {
     return (
-      <div className="flex flex-col items-center gap-2" style={{ opacity: active ? 1 : 0.7, transition: "opacity 0.25s ease" }}>
+      <div data-broadcast-presenter={speaker} className="flex flex-col items-center gap-2" style={{ transition: "opacity 0.4s ease, transform 0.4s ease", transform: active ? "scale(1.02)" : "scale(0.98)" }}>
         {/* A soft dark pool behind the bust — real broadcast desks light
             standing presenters against their own backdrop for exactly this
             reason: without it, a presenter dims/greys straight into a busy

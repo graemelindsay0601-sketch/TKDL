@@ -19,7 +19,7 @@ import {
 import { resolveNextLogicalSlot } from "../broadcast/edition-slots";
 import { serializeSegment, editionTitle } from "../broadcast/api-shapes";
 import {
-  programmeSegmentId, totalEstimatedSecondsForProgramme, classifyEditionLength,
+  programmeSegmentId, programmeModeOf, totalEstimatedSecondsForProgramme, classifyEditionLength,
   type EditionProgramme,
 } from "../broadcast/director-math";
 
@@ -113,8 +113,9 @@ router.get("/broadcast/current", async (req, res): Promise<void> => {
         generatedAt: (edition.publishedAt ?? edition.createdAt).toISOString(),
         dataCutoff: edition.dataCutoff.toISOString(),
         title: editionTitle({ slotType: edition.slotType, scheduledFor: edition.scheduledFor }, programme),
-        headlines: headlines.map(s => serializeSegment(s, programmeSegmentId(s.slot))),
-        segments: body.map(s => serializeSegment(s, programmeSegmentId(s.slot))),
+        mode: programmeModeOf(programme),
+        headlines: headlines.map(s => serializeSegment(s, programmeSegmentId(s))),
+        segments: body.map(s => serializeSegment(s, programmeSegmentId(s))),
       },
       channel,
       live,

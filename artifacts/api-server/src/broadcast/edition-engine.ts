@@ -30,16 +30,8 @@
 // against director.ts's own source) — this pseudocode step is already fully
 // covered by the detectAndUpdateStories() call below, not a gap.
 //
-// ── Why "playersWithRepeatedNegativeBanterInCooldown" and
-// "hasFactsOutsideCutoffSnapshot" are always empty/false below, not stubs ───
-// Both are structural guarantees of the layers underneath, not values this
-// file merely defaults for convenience:
-//   - hasFactsOutsideCutoffSnapshot: buildTemplateFacts() (commentary-
-//     engine.ts) derives every interpolated fact solely from a story's own
-//     persisted `facts` column, itself populated at the exact cutoffEnd this
-//     same batch's detectAndUpdateStories() call used. No code path in this
-//     pipeline can produce a fact from outside that snapshot.
-//   - playersWithRepeatedNegativeBanterInCooldown: 12.7's hard gates are
+// ── Why "playersWithRepeatedNegativeBanterInCooldown" is empty below ─────
+// 12.7's hard gates are
 //     enforced INSIDE commentary-engine.ts's eligiblePhrasesForTurn() before
 //     a phrase is ever selectable, using the real per-subject banterContext
 //     this file computes (buildBanterContext, from broadcast_memory's
@@ -61,12 +53,12 @@ import { getBroadcastConfig, type BroadcastConfig } from "./config.ts";
 import { maybeAutoResetLeagueSeasons } from "../lib/seasonReset.ts";
 import { resolveLogicalSlot, type ResolvedSlot } from "./edition-slots.ts";
 import { detectAndUpdateStories, collectNewAndActiveStories, resolveClosedLeagueSeasons, markSeasonsReviewed, collectSeasonHighlights } from "./story-engine.ts";
-import { directorSelect, type RunningOrderEntry } from "./director.ts";
+import { directorSelect, selectProgrammeMode, type RunningOrderEntry } from "./director.ts";
 import { selectSeasonReviewRunningOrder } from "./director-season-review.ts";
 import {
   editionChangeScore, newlyCreatedGroupTreatments, isForcedRefresh, mergeStoriesByAnchorAndNarrative,
-  evaluateQualityGate, programmeSegmentId,
-  type EditionProgramme, type ProgrammeSegment, type QualityGateInput, type QualityGateSegment,
+  evaluateQualityGate, programmeSegmentId, totalEstimatedSecondsForProgramme, isRuntimeWithinProgrammeMode,
+  type EditionProgramme, type ProgrammeSegment, type QualityGateInput, type QualityGateSegment, type ProgrammeMode,
 } from "./director-math.ts";
 import { validityRulesForStory } from "./live-events-math.ts";
 import { renderConversation, buildGraphicFacts, buildTemplateFacts, type DialogueTurn, type BanterContext } from "./commentary-engine.ts";
@@ -74,6 +66,7 @@ import { commentaryRng, dialogueHoldSeconds, interpolateTemplate } from "./comme
 import { CLOSING_TEASE_TEMPLATES, hasClosingTease } from "./closing-tease-math.ts";
 import { pickFrom } from "./seeded-rng.ts";
 import type { StoryType, Treatment } from "./story-types.ts";
+import { validateStoryFactCutoffs } from "./cutoff-snapshot-math.ts";
 
 // ── Fixed utility dialogue (11.1's required "opening" and "closing" slots,
 // and slot 10's own documented no-LEAGUE-story fallback — see director.ts's
@@ -83,11 +76,24 @@ import type { StoryType, Treatment } from "./story-types.ts";
 // hand-written, finished lines rather than anything templated, picked with
 // the same seeded-per-Edition RNG every other piece of commentary uses so a
 // viewer doesn't hear the identical line every single Edition.
-const OPENING_DIALOGUE_OPTIONS: readonly { a: string; b: string }[] = [
-  { a: "Welcome to TKDL LIVE — plenty to get through from Kilbirnie tonight.", b: "Let's get straight into it." },
-  { a: "Evening, and welcome back to TKDL LIVE.", b: "No shortage of talking points since the last Edition." },
-  { a: "Welcome in — TKDL LIVE is on air, and there's been movement across the league.", b: "Let's not waste any time, then." },
-];
+const OPENING_DIALOGUE_OPTIONS: Record<ProgrammeMode, readonly { a: string; b: string }[]> = {
+  NEWS: [
+    { a: "Welcome to TKDL LIVE. This is a News Edition, and the board has moved.", b: "Results first, questions afterwards. Let's get into it." },
+    { a: "TKDL LIVE is on air with a proper stack of league news.", b: "No warm-up needed tonight. Start with the result everyone is talking about." },
+  ],
+  BALANCED: [
+    { a: "Welcome to TKDL LIVE. We have league movement, analysis, and a little more from around TKDL.", b: "A bit of everything, then — but the main story leads." },
+    { a: "TKDL LIVE is back with a Balanced Edition from across the league.", b: "News at the top, features later. That sounds like a decent programme to me." },
+  ],
+  MAGAZINE: [
+    { a: "Welcome to TKDL LIVE. The match board is quiet, so tonight we are going beyond the table.", b: "Players, practice, history and whatever else deserves a proper look. Much better than inventing a crisis." },
+    { a: "This is a Magazine Edition of TKDL LIVE — fewer breaking results, more of the stories around them.", b: "Which means you finally let me finish a point without shouting 'breaking news' over it." },
+  ],
+  SEASON_REVIEW: [
+    { a: "Welcome to the TKDL LIVE Season Review.", b: "The titles are settled. Now we can work out how it really happened." },
+    { a: "TKDL LIVE is on air for the final word on the season.", b: "Champions, turning points, and a few predictions we may want quietly deleted." },
+  ],
+};
 
 const CLOSING_DIALOGUE_OPTIONS: readonly { a: string; b: string }[] = [
   { a: "That's everything from Kilbirnie for this Edition.", b: "We'll have the next update as soon as there's something worth saying." },
@@ -362,11 +368,17 @@ async function buildBanterContext(
 async function updateStoryUsageBookkeeping(storyId: number, editionId: number, kind: "full" | "headline"): Promise<void> {
   if (kind === "full") {
     await db.update(broadcastStoriesTable)
-      .set({ fullCount: sql`${broadcastStoriesTable.fullCount} + 1`, lastFullEditionId: editionId })
+      .set({
+        fullCount: sql`CASE WHEN ${broadcastStoriesTable.lastFullEditionId} = ${editionId} THEN ${broadcastStoriesTable.fullCount} ELSE ${broadcastStoriesTable.fullCount} + 1 END`,
+        lastFullEditionId: editionId,
+      })
       .where(eq(broadcastStoriesTable.id, storyId));
   } else {
     await db.update(broadcastStoriesTable)
-      .set({ headlineCount: sql`${broadcastStoriesTable.headlineCount} + 1`, lastHeadlineEditionId: editionId })
+      .set({
+        headlineCount: sql`CASE WHEN ${broadcastStoriesTable.lastHeadlineEditionId} = ${editionId} THEN ${broadcastStoriesTable.headlineCount} ELSE ${broadcastStoriesTable.headlineCount} + 1 END`,
+        lastHeadlineEditionId: editionId,
+      })
       .where(eq(broadcastStoriesTable.id, storyId));
   }
 }
@@ -380,6 +392,9 @@ type SegmentBuildContext = {
   slotKey: string;
   commentaryVersion: number;
   banterLevel: number;
+  programmeMode: ProgrammeMode;
+  editorialCutoff: Date;
+  phraseIdsUsedThisBuild: Set<string>;
   /** subjectKey -> negative-targeted jokes already used for it THIS Edition build — resets fresh on every call to buildEdition(), unlike the broadcast_memory-backed cross-Edition counters below. */
   negativeJokesThisEdition: Map<string, number>;
   globalFullSegmentCounter: { value: number };
@@ -421,6 +436,10 @@ async function buildSegmentForEntry(entry: RunningOrderEntry, ctx: SegmentBuildC
       editionId: ctx.editionId,
       banterContext,
       banterLevel: ctx.banterLevel,
+      programmeMode: ctx.programmeMode,
+      editorialCutoff: ctx.editorialCutoff,
+      phraseIdsUsedThisBuild: ctx.phraseIdsUsedThisBuild,
+      isHeadlineTease,
     });
   }
 
@@ -515,7 +534,7 @@ async function buildEdition(params: {
     ? await detectAndUpdateStories({ cutoffStart: previous.dataCutoff, cutoffEnd })
     : await detectAndUpdateStories({ cutoffEnd });
 
-  const pool = await collectNewAndActiveStories();
+  const pool = await collectNewAndActiveStories(cutoffEnd);
   const mergedForChangeScore = mergeStoriesByAnchorAndNarrative(pool);
   const newMatchCount = storyState.newMatchesProcessed.singles + storyState.newMatchesProcessed.doubles + storyState.newMatchesProcessed.shiftWars;
   const changeScore = editionChangeScore({
@@ -563,7 +582,6 @@ async function buildEdition(params: {
   const forced = isForcedRefresh({
     seasonChampionOrResetEventOccurred: seasonBoundaryEventOccurred || closedLeagueSeasons.length > 0,
     noPublishedEditionExists: previous === null,
-    publishedEditionAgeHours: previous?.publishedAt ? (cutoffEnd.getTime() - previous.publishedAt.getTime()) / 3_600_000 : null,
     adminForced,
   });
 
@@ -585,12 +603,15 @@ async function buildEdition(params: {
   const previousProgramme = previous && isEditionProgramme(previous.programme) ? previous.programme : null;
 
   let runningOrder: RunningOrderEntry[];
+  let programmeMode: ProgrammeMode;
   if (closedLeagueSeasons.length > 0) {
+    programmeMode = "SEASON_REVIEW";
     const highlightsByLeague = new Map<LeagueType, BroadcastStory[]>();
     for (const closed of closedLeagueSeasons) {
       const highlights = await collectSeasonHighlights({
         leagueType: closed.leagueType, seasonId: closed.seasonId,
         seasonStart: closed.seasonStart, seasonEndExclusive: closed.seasonEndExclusive,
+        cutoffEnd,
         // Raised alongside director-season-review.ts's own MAX_HIGHLIGHTS_PER_LEAGUE (4 -> 6) — fetch enough real candidates that the per-subject diversity cap (story-engine.ts's collectSeasonHighlights) has real headroom to still hand back 6 after trimming, rather than starving that slice back down to fewer than the league actually has.
         limit: 12,
       });
@@ -598,14 +619,22 @@ async function buildEdition(params: {
     }
     runningOrder = selectSeasonReviewRunningOrder({ closedSeasons: closedLeagueSeasons, pool, highlightsByLeague });
   } else {
-    runningOrder = directorSelect({ pool, previousProgramme, slotKey: claimedRow.slotKey }).runningOrder;
+    programmeMode = selectProgrammeMode(pool, cutoffEnd);
+    runningOrder = directorSelect({
+      pool,
+      previousProgramme,
+      slotKey: claimedRow.slotKey,
+      mode: programmeMode,
+      pacing: config.programmeProfiles[programmeMode],
+    }).runningOrder;
   }
 
   const negativeJokesThisEdition = new Map<string, number>();
   const globalFullSegmentCounter = { value: await getGlobalFullSegmentCounter() };
   const segCtx: SegmentBuildContext = {
     editionId: claimedRow.id, slotKey: claimedRow.slotKey, commentaryVersion: config.commentaryVersion,
-    banterLevel: config.banterLevel, negativeJokesThisEdition, globalFullSegmentCounter,
+    banterLevel: config.banterLevel, programmeMode, editorialCutoff: cutoffEnd,
+    phraseIdsUsedThisBuild: new Set<string>(), negativeJokesThisEdition, globalFullSegmentCounter,
   };
 
   const segments: ProgrammeSegment[] = [];
@@ -626,7 +655,7 @@ async function buildEdition(params: {
       // hand-written dialogue rather than anything templated. "opening" gets
       // its own line pool; everything else (only "what_to_watch" in
       // practice) keeps the original fallback pool.
-      const fallbackOptions = entry.purpose === "opening" ? OPENING_DIALOGUE_OPTIONS : WHAT_TO_WATCH_FALLBACK_OPTIONS;
+      const fallbackOptions = entry.purpose === "opening" ? OPENING_DIALOGUE_OPTIONS[programmeMode] : WHAT_TO_WATCH_FALLBACK_OPTIONS;
       const rng = commentaryRng(claimedRow.slotKey, `utility:${entry.purpose}`, config.commentaryVersion);
       segments.push({
         slot: entry.slot, purpose: entry.purpose, importance: "utility",
@@ -642,8 +671,22 @@ async function buildEdition(params: {
     if (segment) segments.push(segment);
   }
 
+  const selectedStoriesById = new Map<number, BroadcastStory>();
+  for (const entry of runningOrder) {
+    if (!entry.group) continue;
+    selectedStoriesById.set(entry.group.primary.id, entry.group.primary);
+    for (const supporting of entry.group.supporting) {
+      selectedStoriesById.set(supporting.id, supporting);
+    }
+  }
+  const cutoffViolations = validateStoryFactCutoffs(
+    [...selectedStoriesById.values()],
+    cutoffEnd,
+  );
+
   const qualityGateSegments: QualityGateSegment[] = segments.map(seg => ({
-    id: programmeSegmentId(seg.slot),
+    id: programmeSegmentId(seg),
+    purpose: seg.purpose,
     leagueType: seg.leagueType,
     importance: seg.importance,
     sentiment: seg.storyId !== null ? (pool.find(s => s.id === seg.storyId)?.sentiment ?? null) : null,
@@ -654,15 +697,30 @@ async function buildEdition(params: {
     segments: qualityGateSegments,
     // Tied to whether THIS build actually IS a Season Review (closedLeagueSeasons.length > 0), not the coarser seasonBoundaryEventOccurred window — a Season Review built on a regenerate long after the close-instant window has passed still needs this exemption exactly as much as the one built the same minute the season closed.
     isChampionOrSeasonBoundarySpecial: seasonBoundaryEventOccurred || closedLeagueSeasons.length > 0,
-    hasFactsOutsideCutoffSnapshot: false, // structurally guaranteed — see this file's own header
+    hasFactsOutsideCutoffSnapshot: cutoffViolations.length > 0,
     hasInvalidFutureMatchLanguage: hasFutureMatchLanguage(segments),
     hasUnresolvedPlaceholders: hasUnresolvedPlaceholderText(segments),
     hasDuplicateStoryIds: findDuplicateStoryIds(segments),
     playersWithRepeatedNegativeBanterInCooldown: [], // structurally guaranteed — see this file's own header
   };
 
-  const qualityResult = evaluateQualityGate(qualityInput);
-  const programme: EditionProgramme = { segments };
+  const programme: EditionProgramme = { mode: programmeMode, segments };
+  const baseQualityResult = evaluateQualityGate(qualityInput);
+  const runtimeSeconds = totalEstimatedSecondsForProgramme(programme);
+  const runtimeReason = programmeMode !== "SEASON_REVIEW"
+    && !isRuntimeWithinProgrammeMode(programmeMode, runtimeSeconds, config.programmeProfiles)
+    ? `runtime ${runtimeSeconds}s is outside ${programmeMode} target ${config.programmeProfiles[programmeMode].estimatedRuntimeSeconds.min}-${config.programmeProfiles[programmeMode].estimatedRuntimeSeconds.max}s`
+    : null;
+  const qualityReasons = [
+    ...(baseQualityResult.pass ? [] : baseQualityResult.reasons),
+    ...(cutoffViolations.length > 0
+      ? [`cutoff violations: ${cutoffViolations.map(v => `story ${v.storyId} ${v.reason}${v.timestamp ? ` (${v.timestamp})` : ""}`).join(", ")}`]
+      : []),
+    ...(runtimeReason ? [runtimeReason] : []),
+  ];
+  const qualityResult = qualityReasons.length === 0
+    ? { pass: true as const }
+    : { pass: false as const, reasons: qualityReasons };
 
   if (qualityResult.pass) {
     const [published] = await db
