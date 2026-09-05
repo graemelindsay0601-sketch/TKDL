@@ -800,6 +800,19 @@ async function buildEdition(params: {
   const programme: EditionProgramme = { mode: programmeMode, segments };
   const baseQualityResult = evaluateQualityGate(qualityInput);
   const runtimeSeconds = totalEstimatedSecondsForProgramme(programme);
+  const catchUpExpectedMatchKeys = isSeasonCatchUp
+    ? new Set(pool
+        .filter(story => story.anchorMatchId !== null)
+        .map(story => `${story.leagueType}:${story.anchorMatchId}`))
+    : new Set<string>();
+  const catchUpRenderedMatchKeys = new Set(segments.flatMap(segment => {
+    if (segment.storyId === null) return [];
+    const story = pool.find(candidate => candidate.id === segment.storyId);
+    return story?.anchorMatchId !== null && story?.anchorMatchId !== undefined
+      ? [`${story.leagueType}:${story.anchorMatchId}`]
+      : [];
+  }));
+  const missingCatchUpMatches = [...catchUpExpectedMatchKeys].filter(key => !catchUpRenderedMatchKeys.has(key));
   const runtimeReason = programmeMode !== "SEASON_REVIEW"
     && !isRuntimeWithinProgrammeMode(programmeMode, runtimeSeconds, config.programmeProfiles)
     ? `runtime ${runtimeSeconds}s is outside ${programmeMode} target ${config.programmeProfiles[programmeMode].estimatedRuntimeSeconds.min}-${config.programmeProfiles[programmeMode].estimatedRuntimeSeconds.max}s`
@@ -808,6 +821,9 @@ async function buildEdition(params: {
     ...(baseQualityResult.pass ? [] : baseQualityResult.reasons),
     ...(cutoffViolations.length > 0
       ? [`cutoff violations: ${cutoffViolations.map(v => `story ${v.storyId} ${v.reason}${v.timestamp ? ` (${v.timestamp})` : ""}`).join(", ")}`]
+      : []),
+    ...(missingCatchUpMatches.length > 0
+      ? [`season catch-up did not render every unaired match: ${missingCatchUpMatches.join(", ")}`]
       : []),
     ...(runtimeReason ? [runtimeReason] : []),
   ];
