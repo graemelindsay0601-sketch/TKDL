@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, achievementsTable, playerAchievementsTable } from "@workspace/db";
+import { db, achievementsTable } from "@workspace/db";
 import { asc, eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { SHADOW_BOT_ACHIEVEMENT_DEFS, gamerscoreForRarity } from "../lib/shadow-bot-achievements";
@@ -134,16 +134,19 @@ router.get("/achievements/detail/:system/:key", async (req, res): Promise<void> 
 });
 
 router.get("/achievements", async (_req, res): Promise<void> => {
-  const [achievements, unlocks] = await Promise.all([
+  const [achievements, unlockCountRows] = await Promise.all([
     db.select().from(achievementsTable)
       .orderBy(asc(achievementsTable.priority), asc(achievementsTable.name)),
-    db.select({ achievementId: playerAchievementsTable.achievementId })
-      .from(playerAchievementsTable),
+    db.execute(sql`
+      SELECT achievement_id, COUNT(*)::int AS unlock_count
+      FROM player_achievements
+      GROUP BY achievement_id
+    `),
   ]);
 
   const unlockCounts = new Map<number, number>();
-  for (const u of unlocks) {
-    unlockCounts.set(u.achievementId, (unlockCounts.get(u.achievementId) ?? 0) + 1);
+  for (const row of unlockCountRows.rows as { achievement_id: number; unlock_count: number }[]) {
+    unlockCounts.set(row.achievement_id, row.unlock_count);
   }
 
   const result = achievements.map(a => ({
@@ -151,6 +154,7 @@ router.get("/achievements", async (_req, res): Promise<void> => {
     unlockedCount: unlockCounts.get(a.id) ?? 0,
   }));
 
+  res.set("Cache-Control", "public, max-age=300");
   res.json(result);
 });
 
@@ -199,6 +203,7 @@ router.get("/achievements/shadow-bot-definitions", async (_req, res): Promise<vo
       unlockedCount: countMap.get(def.key) ?? 0,
     }));
 
+    res.set("Cache-Control", "public, max-age=300");
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: "Failed to get shadow bot achievement definitions" });
@@ -228,6 +233,7 @@ router.get("/achievements/card-clash-definitions", async (_req, res): Promise<vo
       unlockedCount: countMap.get(def.key) ?? 0,
     }));
 
+    res.set("Cache-Control", "public, max-age=300");
     res.json(result);
   } catch (err) {
     (_req as any).log?.error?.({ err }, "Failed to get card clash achievement definitions");

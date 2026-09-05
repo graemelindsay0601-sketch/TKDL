@@ -1,5 +1,8 @@
 const K = 32;
-const ELO_FLOOR = 800;
+// Exported so any code that needs to restore/undo an Elo change (e.g. match
+// reversal) clamps against the exact same floor the forward path uses,
+// instead of a separately hardcoded "800" that could drift out of sync.
+export const ELO_FLOOR = 800;
 
 export function calcEloChange(winnerElo: number, loserElo: number): number {
   const expected = 1 / (1 + Math.pow(10, (loserElo - winnerElo) / 400));

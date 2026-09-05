@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Trophy, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -58,7 +58,7 @@ export function SeasonEditor() {
     await patchStanding(seasonId, playerId, { isChampion: true });
   };
 
-  useState(() => { load(); });
+  useEffect(() => { load(); }, []);
 
   if (loading && seasons.length === 0) {
     return <div className="flex justify-center py-8"><div className="w-6 h-6 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} /></div>;

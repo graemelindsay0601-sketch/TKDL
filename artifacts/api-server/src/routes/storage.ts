@@ -5,7 +5,7 @@ import {
   RequestUploadUrlResponse,
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
-import { ObjectPermission } from "../lib/objectAcl";
+import { ObjectPermission, getObjectAclPolicy } from "../lib/objectAcl";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -160,20 +160,57 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     const objectPath = `/objects/${wildcardPath}`;
     const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
 
-    // --- Protected route example (uncomment when using replit-auth) ---
-    // if (!req.isAuthenticated()) {
-    //   res.status(401).json({ error: "Unauthorized" });
-    //   return;
-    // }
-    // const canAccess = await objectStorageService.canAccessObjectEntity({
-    //   userId: req.user.id,
-    //   objectFile,
-    //   requestedPermission: ObjectPermission.READ,
-    // });
-    // if (!canAccess) {
-    //   res.status(403).json({ error: "Forbidden" });
-    //   return;
-    // }
+    // --- Access control ----------------------------------------------------
+    // This used to be entirely commented out (a leftover from the
+    // boilerplate's replit-auth example, which assumes req.isAuthenticated()
+    // / req.user.id — neither of which exist in this app's session model),
+    // so this route served ANY object to ANY request, logged in or not, as
+    // long as the caller knew or guessed its path.
+    //
+    // This app also never actually attaches an ObjectAclPolicy to uploaded
+    // objects — trySetObjectEntityAclPolicy (objectStorage.ts) is defined but
+    // not called anywhere upload happens (community photo posts, message/DM
+    // attachments). So every object today has no aclPolicy, and
+    // canAccessObjectEntity()/canAccessObject() would unconditionally return
+    // false for all of them (see objectAcl.ts: "if (!aclPolicy) return
+    // false"). Enforcing that literally, as the commented-out example did,
+    // would 403 every existing photo for everyone, including its legitimate
+    // viewers — a broken "fix" that trades an open hole for a fully broken
+    // feature.
+    //
+    // What IS available and matches how every other authenticated route in
+    // this app checks the caller (see /auth/me, requireAdminSession) is the
+    // session: require a logged-in player to read any object here, which
+    // closes the actual reported hole (anonymous internet access with no
+    // login at all). If an object DOES carry a real ACL policy, still
+    // enforce it via canAccessObjectEntity so that mechanism isn't dead code.
+    //
+    // Remaining limitation: because no ACL policy is ever written at upload
+    // time, this grants any logged-in league member read access to any
+    // object path (matching today's de facto behavior for community photos,
+    // which are already shared app-wide) rather than true per-owner/
+    // per-recipient privacy for things like DM attachments. Closing that
+    // fully would mean calling trySetObjectEntityAclPolicy with a real owner
+    // + aclRules when messages/community photos are uploaded — that's a
+    // separate, larger change to the upload flow and is out of scope here.
+    const sessionUserId = (req.session as any)?.userId;
+    if (!sessionUserId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const aclPolicy = await getObjectAclPolicy(objectFile);
+    if (aclPolicy) {
+      const canAccess = await objectStorageService.canAccessObjectEntity({
+        userId: String(sessionUserId),
+        objectFile,
+        requestedPermission: ObjectPermission.READ,
+      });
+      if (!canAccess) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+    }
 
     const response = await objectStorageService.downloadObject(objectFile);
 

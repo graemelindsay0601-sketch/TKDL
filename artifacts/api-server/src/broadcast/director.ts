@@ -107,6 +107,15 @@ function storyFamily(story: Pick<BroadcastStory, "storyType">) {
   return familyForStoryType(story.storyType as StoryType);
 }
 
+// LEAGUE-family types that are the definitive END of a season's story
+// rather than an ongoing one — the season is over, so neither "still open
+// to watch" (slot 10) nor "today's main/second/supporting/third-league
+// story" (isFlashbackFamily, below) reads as a fresh, current claim about
+// either of them the way it does for every other LEAGUE story. Hoisted
+// above isFlashbackFamily so both it and slot 10's own isOpenLeagueQuestion
+// filter share one definition rather than two independently-maintained sets.
+const CLOSED_LEAGUE_MATTER_TYPES = new Set<StoryType>(["CHAMPION", "SEASON_RECAP"]);
+
 // ── The "clump of all seasons, doesn't flow" fix ──────────────────────────
 // A real user report traced a catch-up-style Edition reading as an
 // incoherent jumble of old material back to two families that this file's
@@ -129,9 +138,35 @@ function storyFamily(story: Pick<BroadcastStory, "storyType">) {
 // edition-engine.ts's own MIN_MEANINGFUL_SEGMENTS gate exists to hold back
 // from publishing (11.6's "drop rather than publish broken or empty
 // content"), not a new failure mode this introduces.
+//
+// CHAMPION and SEASON_RECAP get the same treatment for a different, later-
+// discovered reason: a real user report ("still just talking about last
+// season" days into the NEW season, after the story engine was confirmed —
+// via a direct DB diagnostic — to already hold real, fresh RESULT/MILESTONE
+// stories for it) traced back to story-engine.ts's own processLeagueFamily:
+// CHAMPION/SEASON_RECAP are written EXACTLY ONCE, the single batch a season
+// closes in, and never re-evaluated after (relevantSeasonIdsForLeague stops
+// including a closed season's id the moment it's no longer "closed THIS
+// window", so processLeagueFamily's CHAMPION-only branch never runs for it
+// again). Every OTHER story type gets its freshness component recomputed
+// from real elapsed hours on every single build (upsertStoryCandidate),
+// which is what makes month-old news naturally lose ground to this week's —
+// CHAMPION alone is frozen at whatever freshness it had the moment the
+// season closed (maximum, since hoursSinceDetected was ~0 then) forever,
+// so as real weeks pass it doesn't fade the way it's supposed to; it just
+// sits there outscoring stories that are actually decaying on schedule,
+// permanently squatting on slot 3 (and, via slot 2's score-sorted tease,
+// the headline) long after it stopped being the news. The doc's own slot 10
+// comment already recognized this same fact for a different slot ("the
+// season is OVER, there is nothing left to watch for") — it's equally true
+// of "today's main story." Slot 5 (analysis_or_predictor, LEAGUE-family
+// only) is unaffected and remains CHAMPION's real home: the day a season
+// closes, it's still the single LEAGUE-family candidate and gets a full
+// segment there — this only stops it from ALSO permanently claiming the
+// slots that are supposed to belong to whatever's actually new.
 function isFlashbackFamily(story: Pick<BroadcastStory, "storyType">): boolean {
   const family = storyFamily(story);
-  return family === "ARCHIVE" || family === "FILLER";
+  return family === "ARCHIVE" || family === "FILLER" || CLOSED_LEAGUE_MATTER_TYPES.has(story.storyType as StoryType);
 }
 
 function rankCandidates(merged: readonly MergedStoryGroup[], previousProgramme: EditionProgramme | null, slotKey: string): RankedCandidate[] {
@@ -402,7 +437,8 @@ export function directorSelect(params: {
   // from BOTH branches here — not just the reuse fallback — closes this for
   // good: a freshly-picked what_to_watch could hit the same trap on its
   // first use if CHAMPION were the only unused LEAGUE story left.
-  const CLOSED_LEAGUE_MATTER_TYPES = new Set<StoryType>(["CHAMPION", "SEASON_RECAP"]);
+  // (CLOSED_LEAGUE_MATTER_TYPES itself now lives above isFlashbackFamily,
+  // above, which leans on the exact same set for the exact same reason.)
   const isOpenLeagueQuestion = (c: RankedCandidate) =>
     storyFamily(c.group.primary) === "LEAGUE" && !CLOSED_LEAGUE_MATTER_TYPES.has(c.group.primary.storyType as StoryType);
   const unusedLeaguePick = pickForSlot(ranked, isOpenLeagueQuestion, ctx);

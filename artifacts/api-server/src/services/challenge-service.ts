@@ -7,6 +7,7 @@ import {
   playerCurrencyTable,
 } from "@workspace/db/schema";
 import { eq, and, gte, lte, isNull } from "drizzle-orm";
+import { getIsoWeekKey } from "../lib/iso-week";
 
 export interface ChallengeProgress {
   id: number;
@@ -88,13 +89,10 @@ export const challengeService = {
    * Get this week's weekly challenges for a player
    */
   async getWeeklyChallengesForPlayer(playerId: number): Promise<ChallengeProgress[]> {
-    // Calculate ISO week number
-    const today = new Date();
-    const date = new Date(today.getTime());
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() + 4 - (date.getDay() || 7));
-    const yearStart = new Date(date.getFullYear(), 0, 1);
-    const weekNumber = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+    // Year-qualified ISO week key (e.g. 202601) — a bare 1-53 week number
+    // would collide with the same week number from a prior year at every
+    // year boundary, matching a stale row instead of starting a fresh one.
+    const weekNumber = getIsoWeekKey(new Date());
 
     // Get all active weekly challenge definitions
     const challenges = await db.query.weeklyChallenges.findMany({
@@ -251,13 +249,8 @@ export const challengeService = {
     incrementBy: number = 1
   ): Promise<{ completed: boolean; coinsAwarded: number }> {
     try {
-      // Calculate ISO week number
-      const today = new Date();
-      const date = new Date(today.getTime());
-      date.setHours(0, 0, 0, 0);
-      date.setDate(date.getDate() + 4 - (date.getDay() || 7));
-      const yearStart = new Date(date.getFullYear(), 0, 1);
-      const weekNumber = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+      // Year-qualified ISO week key — see getWeeklyChallengesForPlayer above.
+      const weekNumber = getIsoWeekKey(new Date());
 
       // Get challenge definition
       const challengeDef = await db.query.weeklyChallenges.findFirst({

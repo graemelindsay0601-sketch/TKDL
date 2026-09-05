@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { checkAndAwardShadowBotAchievements, getShadowAchievementProgress } from "../lib/shadow-bot-achievements";
+import { checkPracticeAchievements } from "../lib/practice-achievements";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 
@@ -102,6 +103,17 @@ router.post("/practice/sessions", matchSubmitRateLimit, async (req, res): Promis
     // Fire-and-forget: shadow bot achievement check for P1
     if (body.player1Id) {
       checkAndAwardShadowBotAchievements(body.player1Id).catch(() => {});
+    }
+
+    // Fire-and-forget: practice-mode achievement check for P1. This was
+    // previously only ever reached via checkStatAchievements() after a real
+    // league match (or the admin retroactive sweep), so a player who only
+    // ever plays Practice mode could never organically unlock a practice
+    // achievement — this call is what makes that path actually fire here,
+    // the same way master501.ts calls checkM501Achievements right after
+    // saving its own run.
+    if (body.player1Id) {
+      checkPracticeAchievements(body.player1Id).catch(() => {});
     }
 
     // Fire-and-forget: award practice coins

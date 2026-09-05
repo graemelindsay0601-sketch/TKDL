@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { useListPlayers, useSubmitMatch, getGetLeaderboardQueryKey, getGetStatsSummaryQueryKey, getGetRecentActivityQueryKey, getListMatchesQueryKey } from "@workspace/api-client-react";
+import { useListPlayers, useSubmitMatch, getGetLeaderboardQueryKey, getGetStatsSummaryQueryKey, getGetRecentActivityQueryKey, getListMatchesQueryKey, getGetPlayerStatsQueryKey, getGetPlayerQueryKey, getListPlayersQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/hooks/use-settings";
@@ -814,6 +814,12 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         await qc.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
         await qc.invalidateQueries({ queryKey: getGetRecentActivityQueryKey() });
         await qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+        await qc.invalidateQueries({ queryKey: getListPlayersQueryKey() });
+        const involvedPlayerIds = [...winnerTeam, ...loserTeam].map(p => p.id);
+        for (const id of involvedPlayerIds) {
+          await qc.invalidateQueries({ queryKey: getGetPlayerStatsQueryKey(id) });
+          await qc.invalidateQueries({ queryKey: getGetPlayerQueryKey(id) });
+        }
       }
       setSubmitted(true);
       toast({ title: "Match recorded!", description: `${winnerName} +${data.stake}pts` });

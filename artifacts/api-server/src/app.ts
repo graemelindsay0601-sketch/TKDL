@@ -12,6 +12,7 @@ import cacheMiddleware from "./middleware/cache";
 import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetLeagueSeasons, initializeSeasonResetScheduler } from "./lib/seasonReset";
 import { addPerformanceIndexes } from "./db/migrations/add_performance_indexes";
+import { addPerformanceIndexes2 } from "./db/migrations/add_performance_indexes_2";
 import { seedTourSystem } from "./lib/tourSeed";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
 import { initializeCardTables, initializeFeatureFlags, initializeFeaturedCardShopTables } from "./lib/cardTablesMigration";
@@ -24,6 +25,7 @@ import { up as createCardClashFavoritesTable } from "./db/migrations/add_card_cl
 import { addDailyChallengeKeyColumn } from "./db/migrations/add_daily_challenge_key";
 import { addLongestLossStreakColumn } from "./db/migrations/add_longest_loss_streak";
 import { addCareerBiggestPointsFallColumn } from "./db/migrations/add_career_biggest_points_fall";
+import { addMatchWasUpsetWinColumn } from "./db/migrations/add_match_was_upset_win";
 import { addTkdlLiveBroadcastTables } from "./db/migrations/add_tkdl_live_broadcast";
 import { addBroadcastStorySeasonId } from "./db/migrations/add_broadcast_story_season_id";
 import { backfillBroadcastStorySeasonId } from "./db/migrations/backfill_broadcast_story_season_id";
@@ -1039,20 +1041,31 @@ async function seedUsers() {
   }
 }
 
+// Runs a single startup migration/seed step in isolation so that a failure
+// in one step can never prevent the steps after it from running (see the
+// per-call try/catch below in init()).
+async function runInitStep(name: string, fn: () => Promise<unknown>) {
+  try {
+    await fn();
+  } catch (err) {
+    logger.error({ err }, `Startup init step failed: ${name} (continuing with remaining steps)`);
+  }
+}
+
 async function init() {
   try {
-    await seedSettings();
-    await initializeCardTables();
-    await initializeFeatureFlags();
-    await addTkdlLiveBroadcastTables();
-    await addBroadcastStorySeasonId();
-    await backfillBroadcastStorySeasonId();
-    await addSeasonBroadcastReviewedAt();
-    await addFeatureSpotlights();
-    await seedBroadcastSettings();
-    await seedCardDefinitions();
-    await initializeFeaturedCardShopTables();
-    
+    await runInitStep("seedSettings", seedSettings);
+    await runInitStep("initializeCardTables", initializeCardTables);
+    await runInitStep("initializeFeatureFlags", initializeFeatureFlags);
+    await runInitStep("addTkdlLiveBroadcastTables", addTkdlLiveBroadcastTables);
+    await runInitStep("addBroadcastStorySeasonId", addBroadcastStorySeasonId);
+    await runInitStep("backfillBroadcastStorySeasonId", backfillBroadcastStorySeasonId);
+    await runInitStep("addSeasonBroadcastReviewedAt", addSeasonBroadcastReviewedAt);
+    await runInitStep("addFeatureSpotlights", addFeatureSpotlights);
+    await runInitStep("seedBroadcastSettings", seedBroadcastSettings);
+    await runInitStep("seedCardDefinitions", seedCardDefinitions);
+    await runInitStep("initializeFeaturedCardShopTables", initializeFeaturedCardShopTables);
+
     // Initialize featured card shop - rotate featured cards daily
     try {
       const { rotateFeatureCards } = await import("./services/featured-card-shop-service");
@@ -1060,58 +1073,59 @@ async function init() {
     } catch (err) {
       logger.warn({ err }, "Failed to initialize featured card shop (non-critical)");
     }
-    
-    await addDailyChallengeKeyColumn();
-    await addLongestLossStreakColumn();
-    await addCareerBiggestPointsFallColumn();
-    await challengeService.seedDefaultChallenges();
-    await challengeService.seedComprehensivePool();
-    await seedNotificationTables();
-    await initializeNotificationPreferences();
-    await addFavoritesColumn();
-    await addAchievementRewards();
-    await addAchievementSeasonColumn();
-    await createCardClashPlayerSettingsTable();
-    await createCardClashFavoritesTable();
-    
+
+    await runInitStep("addDailyChallengeKeyColumn", addDailyChallengeKeyColumn);
+    await runInitStep("addLongestLossStreakColumn", addLongestLossStreakColumn);
+    await runInitStep("addCareerBiggestPointsFallColumn", addCareerBiggestPointsFallColumn);
+    await runInitStep("addMatchWasUpsetWinColumn", addMatchWasUpsetWinColumn);
+    await runInitStep("challengeService.seedDefaultChallenges", () => challengeService.seedDefaultChallenges());
+    await runInitStep("challengeService.seedComprehensivePool", () => challengeService.seedComprehensivePool());
+    await runInitStep("seedNotificationTables", seedNotificationTables);
+    await runInitStep("initializeNotificationPreferences", initializeNotificationPreferences);
+    await runInitStep("addFavoritesColumn", addFavoritesColumn);
+    await runInitStep("addAchievementRewards", addAchievementRewards);
+    await runInitStep("addAchievementSeasonColumn", addAchievementSeasonColumn);
+    await runInitStep("createCardClashPlayerSettingsTable", createCardClashPlayerSettingsTable);
+    await runInitStep("createCardClashFavoritesTable", createCardClashFavoritesTable);
+
     // Add performance indexes (CRITICAL for query speed)
-    await addPerformanceIndexes();
-    
-    await seedCommunityTables();
-    await seedMatchesMilestoneColumns();
-    await seedCardFavorites();
-    await seedDrillCompletions();
-    await seedBossBattleProgress();
-    await seedBoardCurseBest();
-    await seedBoardCurseRecords();
-    await seedDoublesTables();
-    await seedShiftWars();
-    await seedPractice();
-    await seedMaster501();
-    await seedMatchParticipants();
-    await seedShadowBotAchievements();
-    await seedTourSystem();
-    await seedGameTypes();
-    await seedAchievements();
-    await seedRealData();
+    await runInitStep("addPerformanceIndexes", addPerformanceIndexes);
+    await runInitStep("addPerformanceIndexes2", addPerformanceIndexes2);
+
+    await runInitStep("seedCommunityTables", seedCommunityTables);
+    await runInitStep("seedMatchesMilestoneColumns", seedMatchesMilestoneColumns);
+    await runInitStep("seedCardFavorites", seedCardFavorites);
+    await runInitStep("seedDrillCompletions", seedDrillCompletions);
+    await runInitStep("seedBossBattleProgress", seedBossBattleProgress);
+    await runInitStep("seedBoardCurseBest", seedBoardCurseBest);
+    await runInitStep("seedBoardCurseRecords", seedBoardCurseRecords);
+    await runInitStep("seedDoublesTables", seedDoublesTables);
+    await runInitStep("seedShiftWars", seedShiftWars);
+    await runInitStep("seedPractice", seedPractice);
+    await runInitStep("seedMaster501", seedMaster501);
+    await runInitStep("seedMatchParticipants", seedMatchParticipants);
+    await runInitStep("seedShadowBotAchievements", seedShadowBotAchievements);
+    await runInitStep("seedTourSystem", seedTourSystem);
+    await runInitStep("seedGameTypes", seedGameTypes);
+    await runInitStep("seedAchievements", seedAchievements);
+    await runInitStep("seedRealData", seedRealData);
     // Must run after seedDoublesTables/seedShiftWars/seedRealData: it gives
     // Doubles and Shift Wars their own season row (re-parenting Doubles'
     // current teams onto it) and needs both those tables and a real active
     // singles season to already exist.
-    await addSeasonLeagueType();
-    await maybeAutoResetLeagueSeasons();
-    await seedPlayoffMatches();
-    await maybeAutoResetLeagueSeasons();
-    
+    await runInitStep("addSeasonLeagueType", addSeasonLeagueType);
+    await runInitStep("maybeAutoResetLeagueSeasons", maybeAutoResetLeagueSeasons);
+    await runInitStep("seedPlayoffMatches", seedPlayoffMatches);
+
     // Initialize scheduled systems
     initializeCoachTipsScheduler();
     initializeFeaturedCardScheduler();
     initializeSeasonResetScheduler();
-    await seedSessions();
-    await seedUsers();
-    await seedTitles();
+    await runInitStep("seedSessions", seedSessions);
+    await runInitStep("seedUsers", seedUsers);
+    await runInitStep("seedTitles", seedTitles);
     void sweepAllPlayerTitles(); // grant any titles earned via existing achievements
-    
+
     // Initialize Card Clash season auto-check
     try {
       const { checkAndEndSeasonIfNeeded } = await import("./services/card-clash-season-rewards");
@@ -1119,7 +1133,7 @@ async function init() {
     } catch (err) {
       logger.warn({ err }, "Card Clash season auto-check failed (non-blocking)");
     }
-    
+
     logger.info("Startup init complete");
   } catch (err) {
     logger.error({ err }, "Startup init failed");

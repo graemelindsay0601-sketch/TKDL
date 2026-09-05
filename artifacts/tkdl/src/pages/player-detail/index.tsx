@@ -2,7 +2,7 @@ import { useGetPlayerStats, getGetPlayerStatsQueryKey } from "@workspace/api-cli
 import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare, Sparkles, Building2, Pin, Layers, Users, Ghost } from "lucide-react";
 import { useAuth } from "@/context/auth";
 import {
@@ -202,6 +202,62 @@ export default function PlayerDetail() {
     });
   }, [playerId]);
 
+  // Achievement-grid derived data — hoisted above the early returns below and
+  // memoized (this file otherwise has zero useMemo anywhere, despite ~1900
+  // lines: these were previously plain consts recomputed on every render,
+  // including every toggle of achTab/achFilter/showAllAch). None of this
+  // depends on `stats`/`player`, only on shadowAchs/tourAchs/achProgress
+  // (state, set once the achievement fetches resolve) and the three filter/
+  // tab/toggle state values below — so it's safe to compute unconditionally
+  // here, before `stats` is known to exist, without changing behavior.
+  const normalizedBotAchs = useMemo(() => shadowAchs.map((a: any) => ({
+    ...a,
+    id: `bot_${a.key}`,
+    isUnlocked: a.unlocked,
+    currentProgress: a.currentValue,
+    hidden: false,
+    category: "Shadow Bot",
+    _pinSystem: "shadow-bot",
+  })), [shadowAchs]);
+  const normalizedTourAchs = useMemo(() => tourAchs
+    .map((a: any) => ({
+      ...a,
+      id: `tour_${a.key}`,
+      isUnlocked: a.unlocked,
+      unlockedAt: a.awardedAt,
+      currentProgress: a.unlocked ? 1 : 0,
+      criteriaValue: 1,
+      progressPct: a.unlocked ? 100 : 0,
+      hidden: false,
+      rarity: a.gamerscore >= 100 ? "Legendary" : a.gamerscore >= 50 ? "Epic" : a.gamerscore >= 25 ? "Rare" : "Common",
+      _pinSystem: "tour",
+    })), [tourAchs]);
+
+  // Same "core" system tag for both — M501 achievements live in the same
+  // achievements table as league ones, just filtered client-side by key
+  // prefix, and the pinned-achievements API only knows the two apart by key.
+  const leagueAchs = useMemo(() => achProgress.filter((a: any) => !a.key?.startsWith("M501_")).map((a: any) => ({ ...a, _pinSystem: "core" })), [achProgress]);
+  const m501Achs   = useMemo(() => achProgress.filter((a: any) =>  a.key?.startsWith("M501_")).map((a: any) => ({ ...a, _pinSystem: "core" })), [achProgress]);
+  const achSourceMap: Record<string, any[]> = useMemo(() => ({
+    all:    [...leagueAchs, ...m501Achs, ...normalizedBotAchs, ...normalizedTourAchs],
+    league: leagueAchs,
+    m501:   m501Achs,
+    bot:    normalizedBotAchs,
+    tour:   normalizedTourAchs,
+  }), [leagueAchs, m501Achs, normalizedBotAchs, normalizedTourAchs]);
+  const activeAchs = useMemo(() => achSourceMap[achTab] ?? achSourceMap.league, [achSourceMap, achTab]);
+
+  const unlockedCount = useMemo(() => activeAchs.filter((a: any) => a.isUnlocked).length, [activeAchs]);
+  const closeCount = useMemo(() => activeAchs.filter((a: any) => !a.isUnlocked && (a.progressPct ?? 0) >= 50).length, [activeAchs]);
+
+  const filteredAch = useMemo(() => activeAchs.filter((a: any) => {
+    if (achFilter === "unlocked") return a.isUnlocked;
+    if (achFilter === "locked") return !a.isUnlocked && !a.hidden;
+    if (achFilter === "close") return !a.isUnlocked && (a.progressPct ?? 0) >= 50;
+    return true;
+  }), [activeAchs, achFilter]);
+  const displayedAch = useMemo(() => showAllAch ? filteredAch : filteredAch.slice(0, 18), [showAllAch, filteredAch]);
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -228,53 +284,6 @@ export default function PlayerDetail() {
 
   const totalGames = player.careerGamesPlayed ?? 0;
   const winRate = totalGames > 0 ? Math.round(((player.careerWins ?? 0) / totalGames) * 100) : 0;
-  const normalizedBotAchs = shadowAchs.map((a: any) => ({
-    ...a,
-    id: `bot_${a.key}`,
-    isUnlocked: a.unlocked,
-    currentProgress: a.currentValue,
-    hidden: false,
-    category: "Shadow Bot",
-    _pinSystem: "shadow-bot",
-  }));
-  const normalizedTourAchs = tourAchs
-    .map((a: any) => ({
-      ...a,
-      id: `tour_${a.key}`,
-      isUnlocked: a.unlocked,
-      unlockedAt: a.awardedAt,
-      currentProgress: a.unlocked ? 1 : 0,
-      criteriaValue: 1,
-      progressPct: a.unlocked ? 100 : 0,
-      hidden: false,
-      rarity: a.gamerscore >= 100 ? "Legendary" : a.gamerscore >= 50 ? "Epic" : a.gamerscore >= 25 ? "Rare" : "Common",
-      _pinSystem: "tour",
-    }));
-
-  // Same "core" system tag for both — M501 achievements live in the same
-  // achievements table as league ones, just filtered client-side by key
-  // prefix, and the pinned-achievements API only knows the two apart by key.
-  const leagueAchs = achProgress.filter((a: any) => !a.key?.startsWith("M501_")).map((a: any) => ({ ...a, _pinSystem: "core" }));
-  const m501Achs   = achProgress.filter((a: any) =>  a.key?.startsWith("M501_")).map((a: any) => ({ ...a, _pinSystem: "core" }));
-  const achSourceMap: Record<string, any[]> = {
-    all:    [...leagueAchs, ...m501Achs, ...normalizedBotAchs, ...normalizedTourAchs],
-    league: leagueAchs,
-    m501:   m501Achs,
-    bot:    normalizedBotAchs,
-    tour:   normalizedTourAchs,
-  };
-  const activeAchs = achSourceMap[achTab] ?? achSourceMap.league;
-
-  const unlockedCount = activeAchs.filter((a: any) => a.isUnlocked).length;
-  const closeCount = activeAchs.filter((a: any) => !a.isUnlocked && (a.progressPct ?? 0) >= 50).length;
-
-  const filteredAch = activeAchs.filter((a: any) => {
-    if (achFilter === "unlocked") return a.isUnlocked;
-    if (achFilter === "locked") return !a.isUnlocked && !a.hidden;
-    if (achFilter === "close") return !a.isUnlocked && (a.progressPct ?? 0) >= 50;
-    return true;
-  });
-  const displayedAch = showAllAch ? filteredAch : filteredAch.slice(0, 18);
 
   const isOwnProfile = !!user && user.playerId === playerId;
   const isPinned = (system: string, key: string) => pins.some(p => p.system === system && p.key === key);

@@ -182,6 +182,7 @@ export default function Admin() {
   const handleEditMatch = async () => {
     if (!editingMatchId || !editMatchForm.winnerId || !editMatchForm.loserId) return;
     if (editMatchForm.winnerId === editMatchForm.loserId) return;
+    const originalMatch = matches?.find(m => m.id === editingMatchId);
     setEditMatchLoading(true);
     try {
       const res = await fetch(`/api/admin/matches/${editingMatchId}`, {
@@ -195,6 +196,15 @@ export default function Admin() {
         setEditingMatchId(null);
         queryClient.invalidateQueries({ queryKey: getListMatchesQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetLeaderboardQueryKey() });
+        const affectedPlayerIds = new Set<number>([
+          editMatchForm.winnerId,
+          editMatchForm.loserId,
+          ...(originalMatch ? [originalMatch.winnerId, originalMatch.loserId] : []),
+        ]);
+        affectedPlayerIds.forEach(id => {
+          queryClient.invalidateQueries({ queryKey: getGetPlayerStatsQueryKey(id) });
+          queryClient.invalidateQueries({ queryKey: getGetPlayerQueryKey(id) });
+        });
       } else {
         toast({ title: "Error", description: data.error, variant: "destructive" });
       }

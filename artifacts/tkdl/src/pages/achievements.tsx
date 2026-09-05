@@ -1,5 +1,5 @@
 import { useListAchievements } from "@workspace/api-client-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Lock, Star, Users, Trophy, Medal, CircuitBoard } from "lucide-react";
 import { format } from "date-fns";
 import { AchievementRewardModal } from "../components/AchievementRewardModal";
@@ -124,35 +124,35 @@ function LeagueTab({ openAchievementModal }: { openAchievementModal: (a: any) =>
   const [sort, setSort]                 = useState<Sort>("Default");
   const [hoveredId, setHoveredId]       = useState<number | null>(null);
 
-  const base = [...(achievements ?? [])];
+  const base = useMemo(() => [...(achievements ?? [])], [achievements]);
 
-  const filtered = base.filter(a => {
+  const filtered = useMemo(() => base.filter(a => {
     const isHidden = !!(a as any).hidden;
     const effectiveRarity = isHidden ? "Hidden" : a.rarity;
     const rMatch = rarityFilter === "All" || effectiveRarity === rarityFilter;
     const cMatch = catFilter === "All" || (a as any).category === catFilter;
     return rMatch && cMatch;
-  });
+  }), [base, rarityFilter, catFilter]);
 
-  const sorted = [...filtered].sort((a, b) => {
+  const sorted = useMemo(() => [...filtered].sort((a, b) => {
     if (sort === "Most Unlocked") return ((b as any).unlockedCount ?? 0) - ((a as any).unlockedCount ?? 0);
     if (sort === "Hardest")       return ((a as any).unlockedCount ?? 0) - ((b as any).unlockedCount ?? 0);
     const ao = RARITY_META[(a as any).hidden ? "Hidden" : a.rarity]?.order ?? 99;
     const bo = RARITY_META[(b as any).hidden ? "Hidden" : b.rarity]?.order ?? 99;
     if (ao !== bo) return ao - bo;
     return (a.name ?? "").localeCompare(b.name ?? "");
-  });
+  }), [filtered, sort]);
 
-  const counts = achievements ? {
+  const counts = useMemo(() => achievements ? {
     Mythic:    achievements.filter(a => a.rarity === "Mythic" && !(a as any).hidden).length,
     Legendary: achievements.filter(a => a.rarity === "Legendary" && !(a as any).hidden).length,
     Epic:      achievements.filter(a => a.rarity === "Epic" && !(a as any).hidden).length,
     Rare:      achievements.filter(a => a.rarity === "Rare" && !(a as any).hidden).length,
     Common:    achievements.filter(a => a.rarity === "Common" && !(a as any).hidden).length,
     Hidden:    achievements.filter(a => !!(a as any).hidden).length,
-  } : null;
+  } : null, [achievements]);
 
-  const totalUnlocked = achievements?.reduce((acc, a) => acc + ((a as any).unlockedCount ?? 0), 0) ?? 0;
+  const totalUnlocked = useMemo(() => achievements?.reduce((acc, a) => acc + ((a as any).unlockedCount ?? 0), 0) ?? 0, [achievements]);
 
   return (
     <div className="space-y-5">

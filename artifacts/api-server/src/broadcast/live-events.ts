@@ -267,12 +267,52 @@ export type LivePayload = {
   invalidSegmentIds: string[];
 };
 
+// ── Throttling the one genuinely expensive case ─────────────────────────
+// This file's own header above explains why the common case (nothing new
+// since cutoffStart) is cheap on every poll. The case it doesn't cover: once
+// a match HAS been played since the last published Edition's dataCutoff,
+// every subsequent poll — from every connected viewer, roughly every
+// livePollSeconds — re-runs the real LEAGUE family for that match's season,
+// including the Title Predictor's simulationCount Monte Carlo run, for as
+// long as cutoffStart stays put (up to a full day under singleDailyEpisode).
+// Concurrent viewers polling within a few seconds of each other are, in that
+// window, asking the identical question — same cutoffStart, same "now" to
+// within a few seconds. This throttle collapses those into one real call to
+// detectAndUpdateStories() per cache window, sharing the in-flight promise
+// across concurrent callers, rather than caching getLivePayload()'s return
+// value itself — leaders/tickerItems/overlays/invalidSegmentIds below still
+// read the database fresh on every single call, so this changes nothing
+// about correctness or freshness of the actual response, only how often the
+// expensive detection+prediction side effect it depends on actually runs.
+// A newly published Edition changes cutoffStart, which changes the cache key,
+// so a fresh Edition always gets a fresh detection run with no explicit
+// invalidation needed.
+const LIVE_DETECT_THROTTLE_MS = 10_000;
+let throttledDetectRun: { cutoffStartMs: number; bucket: number; promise: Promise<unknown> } | null = null;
+
+function throttledDetectAndUpdateStories(cutoffStart: Date, now: Date): Promise<unknown> {
+  const cutoffStartMs = cutoffStart.getTime();
+  const bucket = Math.floor(now.getTime() / LIVE_DETECT_THROTTLE_MS);
+  if (throttledDetectRun && throttledDetectRun.cutoffStartMs === cutoffStartMs && throttledDetectRun.bucket === bucket) {
+    return throttledDetectRun.promise;
+  }
+  const promise = detectAndUpdateStories({ cutoffStart, cutoffEnd: now }).catch((err) => {
+    // Don't let a failed run poison the throttle window for every other
+    // concurrent/subsequent caller — clear it so the next call gets a fresh attempt.
+    if (throttledDetectRun?.promise === promise) throttledDetectRun = null;
+    throw err;
+  });
+  throttledDetectRun = { cutoffStartMs, bucket, promise };
+  return promise;
+}
+
 export async function getLivePayload(now: Date = new Date()): Promise<LivePayload> {
   const previous = await latestPublishedEdition();
   const cutoffStart = previous?.dataCutoff ?? new Date(0); // "beginningOfRelevantHistory" — same convention as edition-engine.ts's own first-ever-build case
 
-  // See this file's own header for why this stays cheap on every poll.
-  await detectAndUpdateStories({ cutoffStart, cutoffEnd: now });
+  // See this file's own header, and the throttle above, for why this stays
+  // cheap on every poll even once there's real new activity to detect.
+  await throttledDetectAndUpdateStories(cutoffStart, now);
 
   const [recentMatches, freshStories] = await Promise.all([
     loadRecentMatches(cutoffStart, now),

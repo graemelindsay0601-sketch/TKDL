@@ -4,7 +4,7 @@ import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
 import { Link, useSearch } from "wouter";
 import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal, Zap, Users, Building2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSettings } from "@/hooks/use-settings";
 
 type Mode = "season" | "doubles" | "shiftwars" | "career" | "achievements" | "bot" | "tour" | "master501" | "records";
@@ -482,11 +482,11 @@ export default function Standings() {
 
   const isLoading = { season: seasonLoading, career: careerLoading, achievements: achLoading, bot: botLoading, tour: tourLoading, master501: m501Loading, records: recordsLoading, doubles: doublesLoading, shiftwars: shiftWarsLoading }[mode];
 
-  const active     = leaderboard?.filter(e => e.status !== "ELIMINATED") ?? [];
-  const eliminated = leaderboard?.filter(e => e.status === "ELIMINATED") ?? [];
-  const maxElo     = Math.max(...(leaderboard ?? []).map(e => e.elo), 1100);
+  const active     = useMemo(() => leaderboard?.filter(e => e.status !== "ELIMINATED") ?? [], [leaderboard]);
+  const eliminated = useMemo(() => leaderboard?.filter(e => e.status === "ELIMINATED") ?? [], [leaderboard]);
+  const maxElo     = useMemo(() => Math.max(...(leaderboard ?? []).map(e => e.elo), 1100), [leaderboard]);
   const careerRows = (careerData ?? []) as any[];
-  const maxCarElo  = Math.max(...careerRows.map(e => e.elo), 1100);
+  const maxCarElo  = useMemo(() => Math.max(...careerRows.map(e => e.elo), 1100), [careerRows]);
   const achRows    = (achData  ?? []) as any[];
   const botRows    = (botData  ?? []) as any[];
   const tourRows   = (tourData ?? []) as any[];

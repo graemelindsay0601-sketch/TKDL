@@ -23,11 +23,12 @@ router.get("/stats/summary", async (_req, res): Promise<void> => {
 
   let currentSeasonMatches = 0;
   if (currentSeason) {
-    const m = await db.select({ id: matchesTable.id }).from(matchesTable).where(eq(matchesTable.seasonId, currentSeason.id));
-    currentSeasonMatches = m.length;
+    const [{ value: seasonMatchCount }] = await db.select({ value: count() }).from(matchesTable)
+      .where(eq(matchesTable.seasonId, currentSeason.id));
+    currentSeasonMatches = seasonMatchCount;
   }
 
-  const allMatches = await db.select({ id: matchesTable.id }).from(matchesTable);
+  const [{ value: totalMatches }] = await db.select({ value: count() }).from(matchesTable);
   const sorted = [...activePlayers]
     .filter(p => p.status !== "ELIMINATED")
     .sort((a, b) => b.points - a.points || b.elo - a.elo);
@@ -60,7 +61,7 @@ router.get("/stats/summary", async (_req, res): Promise<void> => {
     totalPlayers: activePlayers.length,
     activePlayers: activePlayers.filter(p => p.status === "ACTIVE").length,
     eliminatedCount,
-    totalMatches: allMatches.length,
+    totalMatches,
     currentSeasonMatches,
     currentSeasonName: currentSeason?.name ?? "No active season",
     currentLeader,

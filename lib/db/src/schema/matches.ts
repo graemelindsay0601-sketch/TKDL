@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, index, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -28,6 +28,14 @@ export const matchesTable = pgTable("matches", {
   loser180s:               integer("loser_180s"),
   loserCheckoutAttempts:   integer("loser_checkout_attempts"),
   loserCheckoutHits:       integer("loser_checkout_hits"),
+  // Was the winner's points total lower than the loser's immediately before
+  // this match (an "underdog" win)? Computed and stored at write time
+  // (matches.ts) because points before the match aren't otherwise
+  // reconstructable later — points are a running total with no other
+  // per-match snapshot. Used by achievements.ts to count TACTICAL/GENIUS
+  // ("win N times as underdog") accurately instead of inferring the count
+  // from whether a lower-tier achievement was already granted.
+  wasUpsetWin:             boolean("was_upset_win").notNull().default(false),
 }, (t) => [
   index("matches_season_id_idx").on(t.seasonId),
   index("matches_winner_id_idx").on(t.winnerId),
@@ -42,6 +50,7 @@ export const insertMatchSchema = createInsertSchema(matchesTable).omit({
   loserName: true,
   eloChange: true,
   seasonId: true,
+  wasUpsetWin: true,
 });
 
 export type InsertMatch = z.infer<typeof insertMatchSchema>;

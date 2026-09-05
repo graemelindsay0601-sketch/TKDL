@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Swords, ChevronDown, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,7 @@ export function GameTypesManager() {
     setLoading(false);
   };
 
-  useState(() => { void load(); });
+  useEffect(() => { void load(); }, []);
 
   const toggle = async (id: number, enabled: boolean) => {
     setGameTypes(prev => prev.map(g => g.id === id ? { ...g, enabled } : g));

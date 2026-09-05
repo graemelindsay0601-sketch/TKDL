@@ -5,6 +5,7 @@ import { playerDailyChallenges, playerWeeklyChallenges, dailyChallenges, weeklyC
 import { eq, and, gte, lt } from "drizzle-orm";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { paramStr } from "../lib/http";
+import { getIsoWeekKey } from "../lib/iso-week";
 
 const router = Router();
 
@@ -207,14 +208,10 @@ router.post("/admin/weekly/bonus/:playerId", verifyAdminPin, async (req: Request
       return;
     }
 
-    // Calculate ISO week number
-    const today = new Date();
-    const date = new Date(today.getTime());
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() + 4 - (date.getDay() || 7));
-    const yearStart = new Date(date.getFullYear(), 0, 1);
-    const weekNumber = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-    
+    // Year-qualified ISO week key (e.g. 202601) — avoids colliding with a
+    // stale same-numbered week from a prior year (see lib/iso-week.ts).
+    const weekNumber = getIsoWeekKey(new Date());
+
     // Create player challenge entry
     const [created] = await db
       .insert(playerWeeklyChallenges)

@@ -246,14 +246,20 @@ router.patch("/seasons/:id/playoff/:matchId", requireAdminSession, async (req, r
   const parsed = PlayoffMatchBody.partial().safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const sets: string[] = [];
-  const vals: any[] = [];
-  if (parsed.data.winnerId !== undefined) { sets.push(`winner_id = $${sets.length+1}`); vals.push(parsed.data.winnerId); }
-  if (parsed.data.notes !== undefined) { sets.push(`notes = $${sets.length+1}`); vals.push(parsed.data.notes); }
-  if (parsed.data.round !== undefined) { sets.push(`round = $${sets.length+1}`); vals.push(parsed.data.round); }
-  if (sets.length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
+  // Only touch the columns actually present in the request — this used to
+  // build a `sets`/`vals` pair for exactly that purpose and then never use
+  // it, instead always running `SET winner_id = ${... ?? null}` below, so
+  // patching just `notes` (with `winnerId` omitted) silently wiped out an
+  // already-recorded winner. Build the actual SET clause from whichever
+  // fields were sent, same partial-update pattern as PATCH /players/:id.
+  const updates: Record<string, unknown> = {};
+  if (parsed.data.winnerId !== undefined) updates.winner_id = parsed.data.winnerId;
+  if (parsed.data.notes    !== undefined) updates.notes     = parsed.data.notes;
+  if (parsed.data.round    !== undefined) updates.round     = parsed.data.round;
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
 
-  await db.execute(sql`UPDATE playoff_matches SET winner_id = ${parsed.data.winnerId ?? null} WHERE id = ${matchId} AND season_id = ${params.data.id}`);
+  const setClauses = Object.entries(updates).map(([col, val]) => sql`${sql.identifier(col)} = ${val}`);
+  await db.execute(sql`UPDATE playoff_matches SET ${sql.join(setClauses, sql`, `)} WHERE id = ${matchId} AND season_id = ${params.data.id}`);
 
   // Crown champion if final match has winner
   if (parsed.data.winnerId && (parsed.data.round === "final" || !parsed.data.round)) {

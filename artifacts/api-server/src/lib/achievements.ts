@@ -347,6 +347,15 @@ export async function retroactiveSweep(): Promise<{ granted: number; playersChec
     // Detonator — a 100+ point Elo swing win, retroactively from stored matches.
     if (wins.some(m => (m.eloChange ?? 0) >= 100)) await grantIfNotHas(pid, "DETONATOR");
 
+    // TACTICAL/GENIUS — 1st/3rd upset win, counted from the stored
+    // was_upset_win flag (see routes/matches.ts). Historical matches from
+    // before that column existed are simply false — there's no way to
+    // recover points-before-match for them — so this only catches upset
+    // wins going forward, same as the live path in checkMatchAchievements.
+    const upsetWinsCount = wins.filter(m => m.wasUpsetWin).length;
+    if (upsetWinsCount >= 1) await grantIfNotHas(pid, "TACTICAL");
+    if (upsetWinsCount >= 3) await grantIfNotHas(pid, "GENIUS");
+
     // Win streaks (from stored longest)
     if (player.longestWinStreak >= 3)  await grantIfNotHas(pid, "HEAT_CHECK");
     if (player.longestWinStreak >= 5)  await grantIfNotHas(pid, "HOT_STREAK");
@@ -694,15 +703,18 @@ export async function checkMatchAchievements(
       if (player.eliminationsCount >= 10) await grantIfNotHas(playerId, "NIGHTMARE");
     }
 
-    // Upset win — winner had fewer points than loser before match
+    // Upset win — winner had fewer points than loser before match.
+    // TACTICAL (1st upset win) and GENIUS (3rd upset win) are both counted
+    // from the actual was_upset_win flag stored on each match row (set at
+    // insert time in this same route), not inferred from whether TACTICAL
+    // was already granted — that indirect check made GENIUS fire on the 2nd
+    // upset win instead of the 3rd, since TACTICAL is already held after the
+    // 1st.
     if (winnerPointsBefore < loserPointsBefore) {
-      // grantIfNotHas returns true when newly granted, false when already held.
-      // If TACTICAL was already held before this match, this is at least a 2nd upset win.
-      const tacticalNewlyGranted = await grantIfNotHas(playerId, "TACTICAL");
-      if (!tacticalNewlyGranted) {
-        // Already had TACTICAL → this is a subsequent upset win → grant GENIUS
-        await grantIfNotHas(playerId, "GENIUS");
-      }
+      const upsetWins = await db.select({ id: matchesTable.id }).from(matchesTable)
+        .where(and(eq(matchesTable.winnerId, playerId), eq(matchesTable.wasUpsetWin, true)));
+      if (upsetWins.length >= 1) await grantIfNotHas(playerId, "TACTICAL");
+      if (upsetWins.length >= 3) await grantIfNotHas(playerId, "GENIUS");
     }
 
     // Phoenix — win with only 1 point left (loser had 1 point before)

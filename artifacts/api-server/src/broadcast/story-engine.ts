@@ -95,6 +95,7 @@ import { predictSinglesMatch, buildGameTypeCohort } from "./match-predictor";
 import { predictSinglesTitle } from "./title-predictor";
 import { predictDoublesMatch, getDoublesTeamRoster, resolveShiftWarsSeasonForCutoff } from "./team-match-predictor";
 import { predictDoublesTitle, predictShiftWarsTitle } from "./team-title-predictor";
+import { getBroadcastConfig } from "./config.ts";
 import { daysRemainingInMonth } from "./title-predictor-math";
 import {
   smoothedRate, PRIOR_GAMES, scoringEvents, scoringRate30, percentileRank, MIN_CHECKOUT_ATTEMPTS,
@@ -1249,7 +1250,7 @@ export async function resetSeasonReviewForLeague(leagueType: LeagueType): Promis
  * types that are ABOUT a season having just ended, so they're handled on
  * their own here.
  */
-async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cutoffStart: Date, cutoffEnd: Date): Promise<LeagueGatherResult> {
+async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cutoffStart: Date, cutoffEnd: Date, simulationCount: number): Promise<LeagueGatherResult> {
   const [season] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, seasonId)).limit(1);
   if (!season) return { candidates: [], confidence: 0, storyTypesRun: [] };
 
@@ -1285,7 +1286,7 @@ async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cut
   let confidence: number;
   if (leagueType === "singles") {
     const [prediction, players] = await Promise.all([
-      predictSinglesTitle(seasonId, { cutoff: cutoffEnd }),
+      predictSinglesTitle(seasonId, { cutoff: cutoffEnd, simulationCount }),
       db.select({ id: playersTable.id, points: playersTable.points }).from(playersTable).where(eq(playersTable.isActive, true)),
     ]);
     const pointsById = new Map(players.map(p => [p.id, p.points]));
@@ -1293,7 +1294,7 @@ async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cut
     confidence = prediction.confidence;
   } else if (leagueType === "doubles") {
     const [prediction, teams] = await Promise.all([
-      predictDoublesTitle(seasonId, { cutoff: cutoffEnd }),
+      predictDoublesTitle(seasonId, { cutoff: cutoffEnd, simulationCount }),
       db.execute(sql`SELECT id, points, is_eliminated FROM doubles_teams WHERE season_id = ${seasonId}`).then(r => r.rows as { id: number; points: number; is_eliminated: boolean }[]),
     ]);
     const teamById = new Map(teams.map(t => [t.id, t]));
@@ -1301,7 +1302,7 @@ async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cut
     confidence = prediction.confidence;
   } else {
     const [prediction, teams] = await Promise.all([
-      predictShiftWarsTitle({ cutoff: cutoffEnd, seasonId }),
+      predictShiftWarsTitle({ cutoff: cutoffEnd, seasonId, simulationCount }),
       db.execute(sql`SELECT id, points FROM shift_wars_teams`).then(r => r.rows as { id: number; points: number }[]),
     ]);
     const teamById = new Map(teams.map(t => [t.id, t]));
@@ -1673,6 +1674,11 @@ export type DetectAndUpdateStoriesResult = {
 export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoffEnd?: Date }): Promise<DetectAndUpdateStoriesResult> {
   const cutoffEnd = opts?.cutoffEnd ?? new Date();
   const cutoffStart = opts?.cutoffStart ?? await resolveCutoffStart();
+  // Read once per batch, not once per league/season below — admin-configurable
+  // (broadcast_simulation_count), same read-once-per-call convention this
+  // file's own header ("TITLE PREDICTOR CACHING") already documents for the
+  // predictor runs themselves.
+  const { simulationCount } = await getBroadcastConfig();
 
   matchRowCache.clear();
 
@@ -1852,7 +1858,7 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
     const seasonIds = await relevantSeasonIdsForLeague(leagueType, matchSeasonIds, cutoffStart, cutoffEnd);
 
     for (const seasonId of seasonIds) {
-      const result = await processLeagueFamily(leagueType, seasonId, cutoffStart, cutoffEnd);
+      const result = await processLeagueFamily(leagueType, seasonId, cutoffStart, cutoffEnd, simulationCount);
       const detectedKeysByType = new Map<string, Set<string>>();
       for (const candidate of result.candidates) {
         const { row } = await recordUpsert(candidate, result.confidence, seasonId);

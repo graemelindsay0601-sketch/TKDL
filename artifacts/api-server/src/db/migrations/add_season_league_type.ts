@@ -84,16 +84,31 @@ export async function addSeasonLeagueType() {
     // firing before a single match was played (exactly what happened in
     // August). A real season always has at least one recorded win/loss
     // across the 3 teams, so this can never touch a genuine result.
-    const deleted = await db.execute(sql`
-      DELETE FROM shift_wars_season_history
-      WHERE season_id IN (
-        SELECT season_id FROM shift_wars_season_history
-        GROUP BY season_id
-        HAVING SUM(wins) = 0 AND SUM(losses) = 0
-      )
-    `);
-    if ((deleted.rowCount ?? 0) > 0) {
-      logger.info({ rows: deleted.rowCount }, "Removed Shift Wars season-history snapshot(s) with zero games played");
+    //
+    // This is one-time cleanup for that specific August incident, not an
+    // ongoing invariant to re-enforce every boot — cheaply check whether any
+    // qualifying snapshot still exists before paying for the GROUP BY/DELETE
+    // below, the same "check first, act only if needed" guard used for the
+    // Doubles/Shift Wars season cutover above.
+    const [zeroGameSeason] = (await db.execute(sql`
+      SELECT season_id FROM shift_wars_season_history
+      GROUP BY season_id
+      HAVING SUM(wins) = 0 AND SUM(losses) = 0
+      LIMIT 1
+    `)).rows as { season_id: number }[];
+
+    if (zeroGameSeason) {
+      const deleted = await db.execute(sql`
+        DELETE FROM shift_wars_season_history
+        WHERE season_id IN (
+          SELECT season_id FROM shift_wars_season_history
+          GROUP BY season_id
+          HAVING SUM(wins) = 0 AND SUM(losses) = 0
+        )
+      `);
+      if ((deleted.rowCount ?? 0) > 0) {
+        logger.info({ rows: deleted.rowCount }, "Removed Shift Wars season-history snapshot(s) with zero games played");
+      }
     }
 
     logger.info("Season league_type column + per-league cutover ready");

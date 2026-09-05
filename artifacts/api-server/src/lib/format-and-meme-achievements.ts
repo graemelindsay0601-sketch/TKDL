@@ -208,13 +208,19 @@ const VARIETY: AchievementDef[] = [
 ];
 
 // ─── New match/season achievements ───────────────────────────────────────────
+// UNDERDOG_SPECIAL, LUCKY_SOB_MASSIVE, REVERSAL, UNBEATABLE_VS_ONE and
+// REGULAR_PLAYER used to be redefined here with different criteria/text than
+// their original definitions in achievements.ts — since seedAchievements()
+// upserts by key in file-iteration order, this second copy silently
+// overwrote the first copy's stored description/criteria on every boot,
+// leaving the catalog out of sync with the code that actually grants each
+// one (checkMatchAchievements/checkStatAchievements in achievements.ts,
+// which reads the ORIGINAL definitions' criteria). Removed as stale
+// duplicates — the achievements.ts definitions are the ones that match the
+// real grant logic. NEMESIS_RELATIONSHIP is the sole definition for that
+// key (not duplicated), so it stays.
 const NEW_CAREER: AchievementDef[] = [
-  { key:"UNDERDOG_SPECIAL",      name:"🐕 Underdog Special",      description:"Beat an opponent with 100+ higher Elo",             icon:"🐕", rarity:"Rare",      category:"Career",   hidden:false, priority:40, criteriaType:"ELO_UPSET_WIN",        criteriaValue:100, engineType:"MATCH_EVENT" , coinReward: 35, packReward: "SINGLE"},
-  { key:"LUCKY_SOB_MASSIVE",     name:"🍀 Lucky SOB",             description:"Beat an opponent with 150+ higher Elo",             icon:"🍀", rarity:"Epic",      category:"Career",   hidden:true,  priority:60, criteriaType:"ELO_UPSET_WIN",        criteriaValue:150, engineType:"MATCH_EVENT" , coinReward: 75, packReward: "SINGLE"},
-  { key:"REVERSAL",              name:"🔄 The Reversal",          description:"Beat your most-played opponent twice in a row",     icon:"🔄", rarity:"Rare",      category:"Rivalry",  hidden:false, priority:40, criteriaType:"NEMESIS_REVERSAL",     criteriaValue:1,   engineType:"MATCH_EVENT" , coinReward: 35, packReward: "SINGLE"},
   { key:"NEMESIS_RELATIONSHIP",  name:"😤 Nemesis",               description:"Play the same opponent 10+ times",                  icon:"😤", rarity:"Rare",      category:"Rivalry",  hidden:false, priority:40, criteriaType:"H2H_MATCH_COUNT",      criteriaValue:10,  engineType:"SEASON_EVENT" , coinReward: 35, packReward: "SINGLE"},
-  { key:"UNBEATABLE_VS_ONE",     name:"🔒 Unbeatable vs One",     description:"Win 3+ in a row vs same opponent this season",      icon:"🔒", rarity:"Epic",      category:"Rivalry",  hidden:false, priority:60, criteriaType:"STREAK_VS_OPPONENT",   criteriaValue:3,   engineType:"SEASON_EVENT" , coinReward: 75, packReward: "SINGLE"},
-  { key:"REGULAR_PLAYER",        name:"📅 Regular Player",        description:"Play at least once per week for 20+ weeks",         icon:"📅", rarity:"Legendary", category:"Career",   hidden:false, priority:80, criteriaType:"WEEKLY_CONSISTENCY",   criteriaValue:20,  engineType:"SEASON_EVENT" , coinReward: 150, packReward: "FIVE"},
 ];
 
 export const FORMAT_AND_MEME_ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [

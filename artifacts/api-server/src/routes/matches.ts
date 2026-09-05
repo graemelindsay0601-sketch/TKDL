@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { eq, desc, and, sql, or } from "drizzle-orm";
-import { db, playersTable, matchesTable, seasonsTable } from "@workspace/db";
+import { eq, desc, and, sql, or, inArray } from "drizzle-orm";
+import { db, playersTable, matchesTable, seasonsTable, matchParticipantsTable } from "@workspace/db";
 import { invalidateProgressCache } from "./players";
 import { z } from "zod";
-import { applyEloChange, calcTier } from "../lib/elo";
+import { applyEloChange, calcTier, ELO_FLOOR } from "../lib/elo";
 import { validateStake, applyWager } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { checkMatchAchievements, checkStatAchievements } from "../lib/achievements";
@@ -19,20 +19,22 @@ const SubmitMatchBody = z.object({
   stake:                   z.number().int().min(1), // Rules minimum is 1 — see wager.ts validateStake for why 0 has no legitimate case here.
   gameType:                z.string().optional().default("501"),
   notes:                   z.string().optional(),
-  winnerDarts:             z.number().int().optional(),
-  winner100s:              z.number().int().optional(),
-  winner140s:              z.number().int().optional(),
-  winner170s:              z.number().int().optional(),
-  winner180s:              z.number().int().optional(),
-  winnerCheckoutAttempts:  z.number().int().optional(),
-  winnerCheckoutHits:      z.number().int().optional(),
-  loserDarts:              z.number().int().optional(),
-  loser100s:               z.number().int().optional(),
-  loser140s:               z.number().int().optional(),
-  loser170s:               z.number().int().optional(),
-  loser180s:               z.number().int().optional(),
-  loserCheckoutAttempts:   z.number().int().optional(),
-  loserCheckoutHits:       z.number().int().optional(),
+  // Per-leg stats — all counts, so none of them can legitimately be
+  // negative, and a checkout can't record more hits than attempts.
+  winnerDarts:             z.number().int().nonnegative().optional(),
+  winner100s:              z.number().int().nonnegative().optional(),
+  winner140s:              z.number().int().nonnegative().optional(),
+  winner170s:              z.number().int().nonnegative().optional(),
+  winner180s:              z.number().int().nonnegative().optional(),
+  winnerCheckoutAttempts:  z.number().int().nonnegative().optional(),
+  winnerCheckoutHits:      z.number().int().nonnegative().optional(),
+  loserDarts:              z.number().int().nonnegative().optional(),
+  loser100s:               z.number().int().nonnegative().optional(),
+  loser140s:               z.number().int().nonnegative().optional(),
+  loser170s:               z.number().int().nonnegative().optional(),
+  loser180s:               z.number().int().nonnegative().optional(),
+  loserCheckoutAttempts:   z.number().int().nonnegative().optional(),
+  loserCheckoutHits:       z.number().int().nonnegative().optional(),
   // Card Clash integration: cards used in this match, keyed by winner/loser
   // (not player1/player2) so cards get consumed from — and coins awarded
   // to — whichever player actually equipped them.
@@ -46,7 +48,13 @@ const SubmitMatchBody = z.object({
       badCards:  z.array(z.object({ id: z.string(), name: z.string() })).optional().default([]),
     }).optional().default({ goodCards: [], badCards: [] }),
   }).optional(),
-});
+}).refine(
+  d => d.winnerCheckoutHits === undefined || d.winnerCheckoutAttempts === undefined || d.winnerCheckoutHits <= d.winnerCheckoutAttempts,
+  { message: "winnerCheckoutHits cannot exceed winnerCheckoutAttempts", path: ["winnerCheckoutHits"] },
+).refine(
+  d => d.loserCheckoutHits === undefined || d.loserCheckoutAttempts === undefined || d.loserCheckoutHits <= d.loserCheckoutAttempts,
+  { message: "loserCheckoutHits cannot exceed loserCheckoutAttempts", path: ["loserCheckoutHits"] },
+);
 
 const ListMatchesQuery = z.object({
   limit:    z.coerce.number().int().positive().max(500).optional().default(20),
@@ -177,6 +185,7 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
         loser180s:              loser180s ?? null,
         loserCheckoutAttempts:  loserCheckoutAttempts ?? null,
         loserCheckoutHits:      loserCheckoutHits ?? null,
+        wasUpsetWin:            w.points < l.points,
       }).returning();
 
       await tx.update(playersTable).set({
@@ -456,17 +465,42 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
   const [loser]  = await db.select().from(playersTable).where(eq(playersTable.id, match.loserId));
   if (!winner || !loser) { res.status(404).json({ error: "Player not found" }); return; }
 
-  // All of this — delete the match, recompute streaks, revert both players'
-  // stats, decrement the season counter — used to run as separate unguarded
-  // statements. A crash or DB error partway through (e.g. after the match
-  // row was gone but before the winner's stats were reverted) would leave
-  // the league in a half-reverted state with no record of what happened,
-  // since the match that would explain the discrepancy is already deleted.
-  await db.transaction(async (tx) => {
-    // Delete the record first
-    await tx.delete(matchesTable).where(eq(matchesTable.id, id));
+  // Team matches (gameType team_501 / multi_killer, submitted via
+  // team-matches.ts) record every player involved in match_participants —
+  // matchesTable.winnerId/loserId here are only the two team "captains".
+  // Reversing just those two captains at a flat `stake` used to leave every
+  // other participant's points/elo/streak changes uncorrected (and their
+  // participant rows orphaned once the match row was gone), and even got
+  // the captain's own share wrong for uneven teams — team-matches.ts pays
+  // each WINNING player an uneven per-player SHARE of the pot (see the
+  // comment there), never a flat `stake`. Look up every participant and
+  // reverse each one's own share, reconstructed with the exact same
+  // pot-splitting math the forward path used.
+  const participants = await db.select().from(matchParticipantsTable)
+    .where(eq(matchParticipantsTable.matchId, id));
 
-    // Recalculate current streaks from remaining matches for a player
+  // All of this — delete the match, recompute streaks, revert every
+  // affected player's stats, decrement the season counter — used to run as
+  // separate unguarded statements. A crash or DB error partway through
+  // (e.g. after the match row was gone but before the winner's stats were
+  // reverted) would leave the league in a half-reverted state with no
+  // record of what happened, since the match that would explain the
+  // discrepancy is already deleted.
+  await db.transaction(async (tx) => {
+    // Delete the match record and its participant rows together — leaving
+    // participant rows behind once the match is gone orphans them with
+    // nothing left to explain what they refer to.
+    await tx.delete(matchesTable).where(eq(matchesTable.id, id));
+    if (participants.length > 0) {
+      await tx.delete(matchParticipantsTable).where(eq(matchParticipantsTable.matchId, id));
+    }
+
+    // Recalculate current streaks from remaining matches for a player. Only
+    // accurate for players who show up directly as a matchesTable
+    // winner/loser — i.e. singles matches, and a team match's captain. A
+    // team match's non-captain participants are never recorded in
+    // `matches` at all, so their streaks can't be recomputed this way —
+    // handled (left untouched) in the team-match branch below.
     const calcStreak = async (pid: number) => {
       const remaining = await tx.select().from(matchesTable)
         .where(or(eq(matchesTable.winnerId, pid), eq(matchesTable.loserId, pid)))
@@ -481,38 +515,118 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
       return firstWon ? { winStreak: count, lossStreak: 0 } : { winStreak: 0, lossStreak: count };
     };
 
-    const [wStreak, lStreak] = await Promise.all([calcStreak(match.winnerId), calcStreak(match.loserId)]);
+    if (participants.length > 0) {
+      // ── Team match: reverse every participant's own recorded change ────
+      const winnerParticipants = participants.filter(p => p.team === "winner").sort((a, b) => a.position - b.position);
+      const loserParticipants  = participants.filter(p => p.team === "loser").sort((a, b) => a.position - b.position);
 
-    // Did this match cause the loser's elimination?
-    const restoredLoserPoints = loser.points + match.stake;
-    const loserWasEliminated  = loser.status === "ELIMINATED" && restoredLoserPoints > 0;
+      // Same pot-splitting math team-matches.ts used when paying winners
+      // out of what the losing side actually staked — see that file's
+      // comment for why a flat `stake` per winner is wrong for uneven teams.
+      const pot = match.stake * loserParticipants.length;
+      const baseShare = Math.floor(pot / winnerParticipants.length);
+      const remainder = pot - baseShare * winnerParticipants.length;
+      const winnerShares = winnerParticipants.map((_, i) => baseShare + (i < remainder ? 1 : 0));
 
-    // Revert winner
-    await tx.update(playersTable).set({
-      elo:               Math.max(800, winner.elo - match.eloChange),
-      points:            Math.max(0, winner.points - match.stake),
-      seasonWins:        Math.max(0, winner.seasonWins - 1),
-      seasonGamesPlayed: Math.max(0, winner.seasonGamesPlayed - 1),
-      careerWins:        Math.max(0, winner.careerWins - 1),
-      careerGamesPlayed: Math.max(0, winner.careerGamesPlayed - 1),
-      careerPoints:      winner.careerPoints - match.stake,
-      currentWinStreak:  wStreak.winStreak,
-      currentLossStreak: wStreak.lossStreak,
-      ...(loserWasEliminated ? { eliminationsCount: Math.max(0, winner.eliminationsCount - 1) } : {}),
-    }).where(eq(playersTable.id, match.winnerId));
+      const allPlayerIds = [...winnerParticipants, ...loserParticipants].map(p => p.playerId);
+      const allPlayerRows = await tx.select().from(playersTable).where(inArray(playersTable.id, allPlayerIds));
+      const playerById = new Map(allPlayerRows.map(p => [p.id, p]));
 
-    // Revert loser
-    await tx.update(playersTable).set({
-      elo:               loser.elo + match.eloChange,
-      points:            restoredLoserPoints,
-      seasonLosses:      Math.max(0, loser.seasonLosses - 1),
-      seasonGamesPlayed: Math.max(0, loser.seasonGamesPlayed - 1),
-      careerLosses:      Math.max(0, loser.careerLosses - 1),
-      careerGamesPlayed: Math.max(0, loser.careerGamesPlayed - 1),
-      currentWinStreak:  lStreak.winStreak,
-      currentLossStreak: lStreak.lossStreak,
-      ...(loserWasEliminated ? { status: "ACTIVE" } : {}),
-    }).where(eq(playersTable.id, match.loserId));
+      // Did any losing participant get eliminated by this match? The
+      // forward path bumps every winner's eliminationsCount once per
+      // eliminated loser on the losing team, so mirror that going back.
+      const eliminatedLoserIds = new Set<number>();
+      for (const lp of loserParticipants) {
+        const p = playerById.get(lp.playerId);
+        if (!p) continue; // player deleted since — nothing to revert for them
+        if (p.status === "ELIMINATED" && p.points + match.stake > 0) eliminatedLoserIds.add(p.id);
+      }
+      const anyLoserWasEliminated = eliminatedLoserIds.size > 0;
+
+      for (let i = 0; i < winnerParticipants.length; i++) {
+        const wp = winnerParticipants[i];
+        const p = playerById.get(wp.playerId);
+        if (!p) continue;
+        const share = winnerShares[i];
+        const streak = wp.position === 0 ? await calcStreak(p.id) : null;
+        await tx.update(playersTable).set({
+          elo:               Math.max(ELO_FLOOR, p.elo - match.eloChange),
+          points:            Math.max(0, p.points - share),
+          seasonWins:        Math.max(0, p.seasonWins - 1),
+          seasonGamesPlayed: Math.max(0, p.seasonGamesPlayed - 1),
+          careerWins:        Math.max(0, p.careerWins - 1),
+          careerGamesPlayed: Math.max(0, p.careerGamesPlayed - 1),
+          careerPoints:      p.careerPoints - share,
+          // Non-captain participants aren't recorded in `matches`, so their
+          // streak can't be recomputed from match history the way the
+          // captain's (position 0) can — left untouched rather than guessed.
+          ...(wp.position === 0 ? { currentWinStreak: streak!.winStreak, currentLossStreak: streak!.lossStreak } : {}),
+          ...(anyLoserWasEliminated ? { eliminationsCount: Math.max(0, p.eliminationsCount - 1) } : {}),
+        }).where(eq(playersTable.id, p.id));
+      }
+
+      for (const lp of loserParticipants) {
+        const p = playerById.get(lp.playerId);
+        if (!p) continue;
+        const restoredPoints = p.points + match.stake;
+        const wasEliminated = eliminatedLoserIds.has(p.id);
+        const streak = lp.position === 0 ? await calcStreak(p.id) : null;
+        await tx.update(playersTable).set({
+          // The forward path clamps a loser's Elo loss at ELO_FLOOR, so a
+          // participant already at (or pushed to) the floor had less than
+          // the nominal `eloChange` actually taken from them — blindly
+          // adding the full amount back would over-credit them. We can't
+          // recover the exact pre-match value once it's been floor-clamped,
+          // so leave them at the floor rather than risk crediting more than
+          // they legitimately lost; otherwise the subtraction was never
+          // clamped and reversing it is exact.
+          elo:               p.elo > ELO_FLOOR ? p.elo + match.eloChange : ELO_FLOOR,
+          points:            restoredPoints,
+          seasonLosses:      Math.max(0, p.seasonLosses - 1),
+          seasonGamesPlayed: Math.max(0, p.seasonGamesPlayed - 1),
+          careerLosses:      Math.max(0, p.careerLosses - 1),
+          careerGamesPlayed: Math.max(0, p.careerGamesPlayed - 1),
+          careerPoints:      p.careerPoints - match.stake,
+          ...(lp.position === 0 ? { currentWinStreak: streak!.winStreak, currentLossStreak: streak!.lossStreak } : {}),
+          ...(wasEliminated ? { status: "ACTIVE" } : {}),
+        }).where(eq(playersTable.id, p.id));
+      }
+    } else {
+      // ── Regular 1v1 match: revert the two recorded players ─────────────
+      const [wStreak, lStreak] = await Promise.all([calcStreak(match.winnerId), calcStreak(match.loserId)]);
+
+      // Did this match cause the loser's elimination?
+      const restoredLoserPoints = loser.points + match.stake;
+      const loserWasEliminated  = loser.status === "ELIMINATED" && restoredLoserPoints > 0;
+
+      // Revert winner
+      await tx.update(playersTable).set({
+        elo:               Math.max(ELO_FLOOR, winner.elo - match.eloChange),
+        points:            Math.max(0, winner.points - match.stake),
+        seasonWins:        Math.max(0, winner.seasonWins - 1),
+        seasonGamesPlayed: Math.max(0, winner.seasonGamesPlayed - 1),
+        careerWins:        Math.max(0, winner.careerWins - 1),
+        careerGamesPlayed: Math.max(0, winner.careerGamesPlayed - 1),
+        careerPoints:      winner.careerPoints - match.stake,
+        currentWinStreak:  wStreak.winStreak,
+        currentLossStreak: wStreak.lossStreak,
+        ...(loserWasEliminated ? { eliminationsCount: Math.max(0, winner.eliminationsCount - 1) } : {}),
+      }).where(eq(playersTable.id, match.winnerId));
+
+      // Revert loser — see the team-match branch above for why this isn't
+      // always an exact `loser.elo + match.eloChange`.
+      await tx.update(playersTable).set({
+        elo:               loser.elo > ELO_FLOOR ? loser.elo + match.eloChange : ELO_FLOOR,
+        points:            restoredLoserPoints,
+        seasonLosses:      Math.max(0, loser.seasonLosses - 1),
+        seasonGamesPlayed: Math.max(0, loser.seasonGamesPlayed - 1),
+        careerLosses:      Math.max(0, loser.careerLosses - 1),
+        careerGamesPlayed: Math.max(0, loser.careerGamesPlayed - 1),
+        currentWinStreak:  lStreak.winStreak,
+        currentLossStreak: lStreak.lossStreak,
+        ...(loserWasEliminated ? { status: "ACTIVE" } : {}),
+      }).where(eq(playersTable.id, match.loserId));
+    }
 
     // Decrement season match count
     await tx.update(seasonsTable).set({

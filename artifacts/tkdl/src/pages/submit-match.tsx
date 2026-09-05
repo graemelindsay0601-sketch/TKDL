@@ -7,6 +7,7 @@ import {
   getListMatchesQueryKey,
   getGetPlayerStatsQueryKey,
   getGetPlayerQueryKey,
+  getListPlayersQueryKey,
 } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -626,6 +627,7 @@ function TeamModeSubmitSection({ onExit }: { onExit: () => void }) {
       queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetRecentActivityQueryKey() });
       queryClient.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
       for (const id of involvedIds) {
         queryClient.invalidateQueries({ queryKey: getGetPlayerStatsQueryKey(id) });
         queryClient.invalidateQueries({ queryKey: getGetPlayerQueryKey(id) });
@@ -920,6 +922,7 @@ export default function SubmitMatch() {
           queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetRecentActivityQueryKey() });
           queryClient.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetPlayerStatsQueryKey(values.winnerId) });
           queryClient.invalidateQueries({ queryKey: getGetPlayerStatsQueryKey(values.loserId) });
           queryClient.invalidateQueries({ queryKey: getGetPlayerQueryKey(values.winnerId) });

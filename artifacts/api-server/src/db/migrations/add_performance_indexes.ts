@@ -38,12 +38,16 @@ export async function addPerformanceIndexes() {
   // This prevents app crash on missing tables
 
   const indexes = [
-    {
-      name: "idx_player_achievements_unique",
-      query: sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_player_achievements_unique
-          ON player_achievements(player_id, achievement_id)`,
-      description: "player_achievements (unique player_id, achievement_id)",
-    },
+    // NOTE: no unique index is (re-)created here on
+    // player_achievements(player_id, achievement_id) — addAchievementSeasonColumn()
+    // (add_achievement_season_column.ts) intentionally dropped that 2-column
+    // unique index and replaced it with the 3-column
+    // idx_player_achievements_unique_seasonal on (player_id, achievement_id,
+    // season_id) so seasonal achievements can be re-earned each season.
+    // Recreating the old 2-column unique index here would silently undo that
+    // fix on every boot. The seasonal unique index already serves this
+    // file's performance-index purpose (a unique index is also a lookup
+    // index), so nothing further is needed for this table.
     {
       name: "idx_card_clash_matches_player_1_id",
       query: sql`CREATE INDEX IF NOT EXISTS idx_card_clash_matches_player_1_id 

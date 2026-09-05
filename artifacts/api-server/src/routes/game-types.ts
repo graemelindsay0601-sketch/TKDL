@@ -9,6 +9,7 @@ router.get("/game-types", async (_req, res): Promise<void> => {
   const rows = await db.select().from(gameTypesTable)
     .where(eq(gameTypesTable.enabled, true))
     .orderBy(asc(gameTypesTable.sortOrder));
+  res.set("Cache-Control", "public, max-age=300");
   res.json(rows);
 });
 

@@ -62,7 +62,16 @@ export const TITLE_DEFINITIONS: TitleDef[] = [
   { key:"TITLE_PROFESSIONAL",     title:"The Professional",   description:"Play 200 career games",                             rarity:"Epic",      category:"league",    icon:"💼", requiresAchievement:"PROFESSIONAL" },
   { key:"TITLE_PREDATOR",         title:"The Predator",       description:"Hunt down opponents relentlessly",                  rarity:"Epic",      category:"league",    icon:"🦅", requiresAchievement:"PREDATOR" },
   { key:"TITLE_CONQUEROR",        title:"The Conqueror",      description:"Dominate across all formats",                       rarity:"Epic",      category:"league",    icon:"🏆", requiresAchievement:"CONQUEROR" },
-  { key:"TITLE_ASSASSIN",         title:"The Assassin",       description:"Clinical and ruthless",                             rarity:"Legendary", category:"league",    icon:"🗡️", requiresAchievement:"ASSASSIN" },
+  // TITLE_ASSASSIN (requiresAchievement: "ASSASSIN") removed — ASSASSIN was
+  // "eliminate N top-ranked opponents" and was permanently retired in
+  // achievements.ts's seedAchievements() (deleted from the DB, no grant
+  // path ever existed for it — see the comment above its old definition
+  // spot in achievements.ts). There's no successor key: GIANT_KILLER/
+  // KING_SLAYER/CONQUEROR are about beating top-ranked players, not
+  // eliminating them, and PREDATOR is "eliminate the same player twice"
+  // with no top-ranked requirement, so none of them mean the same thing.
+  // Repointing to any of those would silently change what the title
+  // represents, so it's removed instead of left permanently unearnable.
   { key:"TITLE_KILBIRNIE_LION",   title:"Kilbirnie Lion",     description:"The pride of Kilbirnie",                            rarity:"Legendary", category:"league",    icon:"🦁", requiresAchievement:"KILBIRNIE_LION" },
   { key:"TITLE_LEGEND",           title:"Legend",             description:"A true legend of the league",                       rarity:"Legendary", category:"league",    icon:"⭐", requiresAchievement:"LEGEND" },
   { key:"TITLE_HALL_OF_FAME",     title:"Hall of Fame",       description:"Inducted into the TKDL Hall of Fame",               rarity:"Legendary", category:"league",    icon:"🏛️", requiresAchievement:"HALL_OF_FAME" },
