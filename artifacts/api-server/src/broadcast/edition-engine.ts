@@ -55,7 +55,10 @@ import { maybeAutoResetLeagueSeasons } from "../lib/seasonReset.ts";
 import {
   manualEpisodeSlotKey, rebuildAttemptSlotKey, resolveLogicalSlot, type ResolvedSlot,
 } from "./edition-slots.ts";
-import { detectAndUpdateStories, collectNewAndActiveStories, collectUnairedActiveSeasonCatchUpStories, resolveClosedLeagueSeasons, markSeasonsReviewed, collectSeasonHighlights } from "./story-engine.ts";
+import {
+  detectAndUpdateStories, collectNewAndActiveStories, collectUnairedActiveSeasonCatchUpStories,
+  collectActiveSeasonSweepStories, resolveClosedLeagueSeasons, markSeasonsReviewed, collectSeasonHighlights,
+} from "./story-engine.ts";
 import { directorSelect, selectProgrammeMode, type RunningOrderEntry } from "./director.ts";
 import { treatmentForScore } from "./story-engine-math.ts";
 import { selectSeasonReviewRunningOrder } from "./director-season-review.ts";
@@ -716,18 +719,30 @@ async function buildEdition(params: {
   /** Producer-only recovery: cover active-season matches that have never
    * appeared in a published programme before returning to normal selection. */
   seasonCatchUp?: boolean;
+  /** Producer-only clean sweep: rebuild every active-season match from this
+   * instant without treating any previous Edition as coverage. */
+  seasonSweepStart?: Date;
 }): Promise<BroadcastEdition | null> {
-  const { claimedRow, previous, now: cutoffEnd, config, seedSlotKey = claimedRow.slotKey, adminForced = false, seasonCatchUp = false } = params;
+  const {
+    claimedRow, previous, now: cutoffEnd, config, seedSlotKey = claimedRow.slotKey,
+    adminForced = false, seasonCatchUp = false, seasonSweepStart,
+  } = params;
 
   // Appendix C.1: "cutoffStart = previous?.dataCutoff ?? beginningOfRelevantHistory".
   // Omitting cutoffStart entirely for a genuinely first-ever build lets
   // story-engine.ts's own resolveCutoffStart() apply ITS default (new Date(0)
   // when broadcast_stories is empty) — exactly "beginningOfRelevantHistory".
-  const storyState = previous
+  const storyState = seasonSweepStart
+    ? await detectAndUpdateStories({ cutoffStart: seasonSweepStart, cutoffEnd })
+    : previous
     ? await detectAndUpdateStories({ cutoffStart: previous.dataCutoff, cutoffEnd })
     : await detectAndUpdateStories({ cutoffEnd });
 
-  const catchUpPool = seasonCatchUp ? await collectUnairedActiveSeasonCatchUpStories(cutoffEnd) : [];
+  const catchUpPool = seasonSweepStart
+    ? await collectActiveSeasonSweepStories(seasonSweepStart, cutoffEnd)
+    : seasonCatchUp
+      ? await collectUnairedActiveSeasonCatchUpStories(cutoffEnd)
+      : [];
   const isSeasonCatchUp = catchUpPool.length > 0;
   let pool = isSeasonCatchUp ? catchUpPool : await collectNewAndActiveStories(cutoffEnd);
   if (isSeasonCatchUp) {
@@ -1306,6 +1321,64 @@ export async function createManualBroadcastEpisode(now: Date = new Date()): Prom
     console.error(`edition-engine: producer episode failed for slot ${slotKey}:`, err);
     const [failed] = await db
       .update(broadcastEditionsTable)
+      .set({ status: "FAILED", diagnostic })
+      .where(eq(broadcastEditionsTable.id, claimedRow.id))
+      .returning();
+    return { attempt: failed ?? { ...claimedRow, status: "FAILED", diagnostic }, edition: previous };
+  }
+}
+
+/**
+ * Creates one immutable, complete active-season programme from a
+ * producer-selected boundary. It never deletes source or broadcast history,
+ * and viewers retain the previous published Edition if this attempt fails.
+ */
+export async function createBroadcastCleanSweep(
+  start: Date,
+  now: Date = new Date(),
+): Promise<CreateManualEpisodeResult> {
+  if (!Number.isFinite(start.getTime()) || start >= now) {
+    throw new Error("The clean-sweep start must be a valid time before now");
+  }
+  if (now.getTime() - start.getTime() > 93 * 24 * 60 * 60 * 1000) {
+    throw new Error("The clean-sweep start cannot be more than 93 days ago");
+  }
+
+  const config = await getBroadcastConfig();
+  await maybeAutoResetLeagueSeasons();
+  const previous = await latestPublishedEdition();
+  const slotKey = `season-sweep:${start.toISOString().slice(0, 10)}:${now.toISOString()}:${randomUUID()}`;
+  const [claimedRow] = await db.insert(broadcastEditionsTable).values({
+    slotKey,
+    slotType: "manual",
+    scheduledFor: now,
+    dataCutoff: now,
+    status: "BUILDING",
+    changeScore: 0,
+    programmeVersion: config.programmeVersion,
+    programme: null,
+    diagnostic: null,
+    publishedAt: null,
+  }).returning();
+  if (!claimedRow) throw new Error("Could not create the clean-sweep Edition");
+
+  try {
+    const edition = await buildEdition({
+      claimedRow,
+      previous,
+      now,
+      config,
+      adminForced: true,
+      seasonCatchUp: true,
+      seasonSweepStart: start,
+    });
+    const [attempt] = await db.select().from(broadcastEditionsTable)
+      .where(eq(broadcastEditionsTable.id, claimedRow.id)).limit(1);
+    return { attempt: attempt ?? claimedRow, edition };
+  } catch (err) {
+    const diagnostic = err instanceof Error ? err.message : String(err);
+    console.error(`edition-engine: clean sweep failed for slot ${slotKey}:`, err);
+    const [failed] = await db.update(broadcastEditionsTable)
       .set({ status: "FAILED", diagnostic })
       .where(eq(broadcastEditionsTable.id, claimedRow.id))
       .returning();

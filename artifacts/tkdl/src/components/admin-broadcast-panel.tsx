@@ -91,6 +91,8 @@ export default function AdminBroadcastPanel() {
   const [loading, setLoading]       = useState(true);
   const [regenerating, setRegenerating] = useState(false);
   const [creatingEpisode, setCreatingEpisode] = useState(false);
+  const [cleanSweeping, setCleanSweeping] = useState(false);
+  const [sweepStartDate, setSweepStartDate] = useState("2026-09-01");
   const [message, setMessage]       = useState("");
   const [msgType, setMsgType]       = useState<"success" | "error">("success");
   const [profiles, setProfiles] = useState<Record<ProgrammeMode, ProgrammeProfile> | null>(null);
@@ -154,6 +156,35 @@ export default function AdminBroadcastPanel() {
       toast("New episode failed", "error");
     } finally {
       setCreatingEpisode(false);
+    }
+  };
+
+  const cleanSweep = async () => {
+    const confirmed = window.confirm(
+      `Build one complete TKDL LIVE programme covering every active-season match from ${sweepStartDate} through now?\n\nMatch and season data will not be deleted. The new programme will replace the currently live Edition if it builds successfully.`
+    );
+    if (!confirmed) return;
+    try {
+      setCleanSweeping(true);
+      const r = await fetch("/api/admin/broadcast/clean-sweep", {
+        method: "POST",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({ startDate: sweepStartDate }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        const diagnostic = d.attempt?.diagnostic ? ` ${d.attempt.diagnostic}` : "";
+        const retained = d.retainedEditionId ? ` Edition #${d.retainedEditionId} stays live.` : "";
+        toast(`${d.error ?? "Clean sweep failed."}${retained}${diagnostic}`, "error");
+      } else {
+        const runtime = typeof d.edition.runtimeSeconds === "number" ? ` · ${formatRuntime(d.edition.runtimeSeconds)}` : "";
+        toast(`✅ Clean Sweep #${d.edition.id} is live · ${d.edition.matchResults} match results${runtime}`, "success");
+      }
+      loadStatus();
+    } catch {
+      toast("Clean sweep failed", "error");
+    } finally {
+      setCleanSweeping(false);
     }
   };
 
@@ -230,18 +261,35 @@ export default function AdminBroadcastPanel() {
                   </div>
                 )}
               </div>
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                <label style={{ display: "grid", gap: "3px", fontSize: "10px", color: D.sub }}>
+                  Clean sweep start
+                  <input
+                    type="date"
+                    value={sweepStartDate}
+                    onChange={event => setSweepStartDate(event.target.value)}
+                    disabled={cleanSweeping || creatingEpisode || regenerating}
+                    style={{ background: "rgba(0,0,0,.25)", border: `1px solid ${D.border}`, borderRadius: "6px", color: D.text, padding: "6px 8px" }}
+                  />
+                </label>
+                <button
+                  onClick={cleanSweep}
+                  disabled={cleanSweeping || creatingEpisode || regenerating || !sweepStartDate}
+                  style={{ padding: "12px 22px", borderRadius: "8px", border: `1px solid ${D.warn}55`, background: cleanSweeping ? `${D.warn}33` : `${D.warn}18`, color: D.warn, cursor: cleanSweeping || creatingEpisode || regenerating ? "default" : "pointer", fontWeight: 800, fontSize: "13px", letterSpacing: "0.04em", whiteSpace: "nowrap" }}
+                >
+                  {cleanSweeping ? "Sweeping…" : "Clean Sweep"}
+                </button>
                 <button
                   onClick={createEpisode}
-                  disabled={creatingEpisode || regenerating}
-                  style={{ padding: "12px 22px", borderRadius: "8px", border: "none", background: creatingEpisode ? `${D.success}33` : `${D.success}22`, color: D.success, cursor: creatingEpisode || regenerating ? "default" : "pointer", fontWeight: 800, fontSize: "13px", letterSpacing: "0.04em", whiteSpace: "nowrap" }}
+                  disabled={creatingEpisode || regenerating || cleanSweeping}
+                  style={{ padding: "12px 22px", borderRadius: "8px", border: "none", background: creatingEpisode ? `${D.success}33` : `${D.success}22`, color: D.success, cursor: creatingEpisode || regenerating || cleanSweeping ? "default" : "pointer", fontWeight: 800, fontSize: "13px", letterSpacing: "0.04em", whiteSpace: "nowrap" }}
                 >
                   {creatingEpisode ? "Producing…" : "● Create New Episode"}
                 </button>
                 <button
                   onClick={regenerate}
-                  disabled={regenerating || creatingEpisode}
-                  style={{ padding: "12px 22px", borderRadius: "8px", border: "none", background: regenerating ? `${D.info}33` : `${D.info}22`, color: D.info, cursor: regenerating || creatingEpisode ? "default" : "pointer", fontWeight: 800, fontSize: "13px", letterSpacing: "0.04em", whiteSpace: "nowrap" }}
+                  disabled={regenerating || creatingEpisode || cleanSweeping}
+                  style={{ padding: "12px 22px", borderRadius: "8px", border: "none", background: regenerating ? `${D.info}33` : `${D.info}22`, color: D.info, cursor: regenerating || creatingEpisode || cleanSweeping ? "default" : "pointer", fontWeight: 800, fontSize: "13px", letterSpacing: "0.04em", whiteSpace: "nowrap" }}
                 >
                   {regenerating ? "Rebuilding…" : "↻ Rebuild Current Slot"}
                 </button>
@@ -342,7 +390,7 @@ export default function AdminBroadcastPanel() {
       )}
 
       <div style={{ marginTop: "1.5rem", padding: "14px 16px", background: D.card, border: `1px solid ${D.border}`, borderRadius: "10px", fontSize: "12px", color: D.sub, lineHeight: 1.6 }}>
-        <strong style={{ color: D.success }}>Create New Episode</strong> produces a distinct manual Edition with a fresh running order and presenter treatment. Open TKDL LIVE screens pick it up on the existing live poll. <strong style={{ color: D.info }}>Rebuild Current Slot</strong> is the deterministic recovery tool for the current scheduled slot and never takes the last published programme offline while it works. Closed-season results are reserved for one explicit Season Review; ordinary new-season programmes use the active season.
+        <strong style={{ color: D.warn }}>Clean Sweep</strong> deliberately ignores previous broadcast coverage and produces one complete results programme from the selected date through now. It does not delete match, season, story, or Edition records, and the previous Edition stays live if the sweep fails. After a successful sweep, <strong style={{ color: D.success }}>Create New Episode</strong> and <strong style={{ color: D.info }}>Rebuild Current Slot</strong> return to normal incremental updates.
       </div>
     </div>
   );

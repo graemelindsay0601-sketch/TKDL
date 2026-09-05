@@ -8,7 +8,8 @@ import { getFeatureStatus, isFeatureAvailable, FEATURES } from "../services/feat
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { paramStr } from "../lib/http";
 import {
-  createManualBroadcastEpisode, ensureCurrentBroadcastEdition, forceRebuildCurrentEdition, latestPublishedEdition, isEditionProgramme,
+  createBroadcastCleanSweep, createManualBroadcastEpisode, ensureCurrentBroadcastEdition,
+  forceRebuildCurrentEdition, latestPublishedEdition, isEditionProgramme,
 } from "../broadcast/edition-engine";
 import { getLivePayload } from "../broadcast/live-events";
 import { diagnoseSeasonHighlights, resetSeasonReviewForLeague } from "../broadcast/story-engine";
@@ -342,6 +343,56 @@ router.post("/admin/broadcast/episodes", requireAdminSession, async (_req, res):
       return;
     }
 
+    res.status(201).json({ edition: attempt });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+router.post("/admin/broadcast/clean-sweep", requireAdminSession, async (req, res): Promise<void> => {
+  const startDate = typeof req.body?.startDate === "string" ? req.body.startDate : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+    res.status(400).json({ error: "startDate must use YYYY-MM-DD" });
+    return;
+  }
+
+  // Include the complete selected calendar day. The one-hour BST edge is
+  // deliberately widened rather than risk missing a just-after-midnight match;
+  // active-season filtering prevents this from pulling prior-season content.
+  const start = new Date(`${startDate}T00:00:00.000Z`);
+  if (!Number.isFinite(start.getTime())) {
+    res.status(400).json({ error: "startDate is not a valid calendar date" });
+    return;
+  }
+  start.setUTCHours(start.getUTCHours() - 1);
+
+  try {
+    const result = await createBroadcastCleanSweep(start);
+    const attemptProgramme = isEditionProgramme(result.attempt.programme) ? result.attempt.programme : null;
+    const runtimeSeconds = attemptProgramme ? totalEstimatedSecondsForProgramme(attemptProgramme) : null;
+    const matchResults = attemptProgramme
+      ? attemptProgramme.segments.filter(segment => segment.storyId !== null && segment.facts?.playedAt).length
+      : 0;
+    const attempt = {
+      id: result.attempt.id,
+      slotKey: result.attempt.slotKey,
+      status: result.attempt.status,
+      diagnostic: result.attempt.diagnostic,
+      publishedAt: result.attempt.publishedAt?.toISOString() ?? null,
+      mode: attemptProgramme ? programmeModeOf(attemptProgramme) : null,
+      runtimeSeconds,
+      runtimeBand: runtimeSeconds === null ? null : classifyEditionLength(runtimeSeconds),
+      matchResults,
+      startDate,
+    };
+    if (result.attempt.status !== "PUBLISHED") {
+      res.status(422).json({
+        error: "The clean sweep did not clear the quality gate. The previous published Edition remains live.",
+        attempt,
+        retainedEditionId: result.edition?.id ?? null,
+      });
+      return;
+    }
     res.status(201).json({ edition: attempt });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });

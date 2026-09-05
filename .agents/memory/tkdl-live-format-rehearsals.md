@@ -14,3 +14,9 @@ For any producer-triggered update with uncovered matches, use a fixed sports-res
 **Why:** Ordinary results could previously vanish when they did not meet a notable-story threshold or when the Director hit its normal story/runtime caps. Headline playback then repeated selected body stories, while busy result days could crowd out both the updated table and app discovery.
 
 **How to apply:** Always create a low-priority baseline result for a completed match, merge notable detectors into that match's single visible segment, bypass ordinary caps for uncovered-match catch-up, place the movement table immediately after all result segments, and rotate spotlights by least prior full airings rather than random choice.
+
+A deliberate clean sweep is a separate producer operation from ordinary slot rebuilds. It must preserve matches, seasons, stories, and prior Editions; ignore prior broadcast coverage only while assembling one complete active-season programme from the selected boundary; and publish atomically over the last good Edition.
+
+**Why:** Incremental detection and uncovered-match recovery are intentionally conservative. They cannot reliably express the producer's stronger instruction to reread an entire date range as one fresh editorial baseline, and overloading the normal rebuild button would make a broad replay too easy to trigger accidentally.
+
+**How to apply:** Require an explicit date and producer confirmation. Re-run detection across that complete window, select every active-season match in the window regardless of previous airings, retain the previous published Edition on any failure, and let later Create/Rebuild operations resume normal incremental coverage from the successful sweep.

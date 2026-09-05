@@ -2053,3 +2053,38 @@ export async function collectUnairedActiveSeasonCatchUpStories(cutoffEnd: Date):
       : !coveredMatchKeys.has(`${story.leagueType}:${story.anchorMatchId}`),
   );
 }
+
+/**
+ * Producer recovery pool for a deliberate clean sweep. Unlike the ordinary
+ * catch-up collector above, this intentionally ignores every previous
+ * Edition's coverage and returns the complete active-season editorial pool
+ * from `start` through `cutoffEnd`. Match-anchored stories are date-filtered
+ * by their verified playedAt fact; current table/form/league stories are
+ * included so the sweep can finish with the present-day state.
+ *
+ * This does not delete matches, stories, Editions, or season data. Publishing
+ * the resulting Edition simply establishes a new complete coverage baseline
+ * for later incremental builds.
+ */
+export async function collectActiveSeasonSweepStories(start: Date, cutoffEnd: Date): Promise<BroadcastStory[]> {
+  const activeSeasons = await db.select({ id: seasonsTable.id })
+    .from(seasonsTable)
+    .where(eq(seasonsTable.isActive, true));
+  const seasonIds = activeSeasons.map(season => season.id);
+  if (seasonIds.length === 0) return [];
+
+  return db.select().from(broadcastStoriesTable)
+    .where(and(
+      inArray(broadcastStoriesTable.seasonId, seasonIds),
+      lte(broadcastStoriesTable.updatedAt, cutoffEnd),
+      or(
+        isNull(broadcastStoriesTable.anchorMatchId),
+        and(
+          sql`NULLIF(${broadcastStoriesTable.facts}->>'playedAt', '') IS NOT NULL`,
+          sql`(${broadcastStoriesTable.facts}->>'playedAt')::timestamptz >= ${start}`,
+          sql`(${broadcastStoriesTable.facts}->>'playedAt')::timestamptz <= ${cutoffEnd}`,
+        ),
+      ),
+    ))
+    .orderBy(desc(broadcastStoriesTable.score), asc(broadcastStoriesTable.id));
+}
