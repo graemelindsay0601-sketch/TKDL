@@ -16,26 +16,26 @@ function segment(id: string, overrides: Partial<Segment> = {}): Segment {
 }
 
 describe("buildPlaylist", () => {
-  test("Show Bible v1 §4 order: opening first, then headlines, then the rest of the body", () => {
+  test("opens first and removes headline repetitions of body topics", () => {
     const opening = segment("slot-1", { type: "opening", storyId: null });
     const mainStory = segment("slot-3", { type: "UPSET" });
     const closing = segment("slot-11", { type: "closing", storyId: null });
-    const headline1 = segment("slot-2a", { type: "headline_ticker" });
-    const headline2 = segment("slot-2b", { type: "headline_ticker" });
+    const headline1 = segment("slot-2a", { type: "headline_ticker", storyId: 1 });
+    const headline2 = segment("slot-2b", { type: "headline_ticker", storyId: 2 });
 
     const playlist = buildPlaylist([headline1, headline2], [opening, mainStory, closing]);
 
-    assert.deepEqual(playlist.map(s => s.id), ["slot-1", "slot-2a", "slot-2b", "slot-3", "slot-11"]);
+    assert.deepEqual(playlist.map(s => s.id), ["slot-1", "slot-2b", "slot-3", "slot-11"]);
   });
 
-  test("an older cached Edition with no opening segment falls back to headlines-then-body", () => {
+  test("an older cached Edition with no opening still removes a repeated headline", () => {
     const mainStory = segment("slot-2");
     const closing = segment("slot-10", { type: "closing", storyId: null });
     const headline1 = segment("slot-1a", { type: "headline_ticker" });
 
     const playlist = buildPlaylist([headline1], [mainStory, closing]);
 
-    assert.deepEqual(playlist.map(s => s.id), ["slot-1a", "slot-2", "slot-10"]);
+    assert.deepEqual(playlist.map(s => s.id), ["slot-2", "slot-10"]);
   });
 
   test("no headlines at all still puts opening first", () => {

@@ -700,7 +700,7 @@ async function processSinglesMatch(ctx: SinglesBatchContext, match: NewSinglesMa
 
   const resultFacts: SinglesResultMatchFacts = {
     matchId: match.id, playedAt: match.playedAt, winnerId: match.winnerId, loserId: match.loserId, stake: entry.stake,
-    winnerBefore: entry.winnerBefore, loserBefore: entry.loserBefore, loserAfter: entry.loserAfter,
+    winnerBefore: entry.winnerBefore, winnerAfter: entry.winnerAfter, loserBefore: entry.loserBefore, loserAfter: entry.loserAfter,
     winnerProbability: prediction.pA,
     h2hBeforeMatch,
     wasLoserLeaderBefore: leaderBefore,
@@ -1389,6 +1389,7 @@ async function processDoublesMatch(match: NewDoublesMatch): Promise<DoublesMatch
 
   const facts: DoublesMatchResultFacts = {
     matchId: match.id, playedAt: match.playedAt, winnerTeamId: match.winnerTeamId, loserTeamId: match.loserTeamId,
+    winnerBefore: entry.winnerBefore, winnerAfter: entry.winnerAfter,
     loserBefore: ctx.loserBefore, loserAfter: entry.loserAfter,
     winnerProbability: prediction.pA,
   };

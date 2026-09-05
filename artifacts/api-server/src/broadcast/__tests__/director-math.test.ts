@@ -505,7 +505,7 @@ describe("evaluateQualityGate", () => {
     const segments = [
       segment({ id: "a", purpose: "main_story", storyId: 1, importance: "headline_ticker" }),
       segment({ id: "b", purpose: "second_major_story", storyId: 2, importance: "headline_ticker" }),
-      segment({ id: "c", purpose: "form_h2h_or_stats", storyId: 3, importance: "headline_ticker" }),
+      segment({ id: "c", purpose: "form_h2h_or_spotlight", storyId: 3, importance: "headline_ticker" }),
       segment({ id: "d", purpose: "supporting_story_or_checkin", storyId: 4, importance: "headline_ticker" }),
     ];
     assert.equal(evaluateQualityGate({ ...baseInput, segments }).pass, true);

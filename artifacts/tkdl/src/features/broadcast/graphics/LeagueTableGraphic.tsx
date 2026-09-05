@@ -26,6 +26,51 @@ export function LeagueTableGraphic({ leagueType, data, compact }: { leagueType: 
   const leagueAccent = leagueType ? LEAGUE_ACCENT[leagueType] : accent;
   const big = !compact;
 
+  const movementRows = Array.isArray(data.rows)
+    ? data.rows.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
+    : [];
+  if (movementRows.length > 0) {
+    return (
+      <BigPanel accent={accent} fill>
+        <BigPanelHeader icon="📊" kind="Table After Results" leagueType={leagueType} accent={accent} />
+        <div className="w-full overflow-hidden rounded-lg border border-white/10">
+          <div
+            className="grid items-center gap-2 bg-white/10 px-3 py-2 text-[0.62rem] font-black uppercase tracking-[0.12em] text-white/55"
+            style={{ gridTemplateColumns: "2rem minmax(0,1fr) 2.8rem 2.8rem 3.2rem" }}
+          >
+            <span>Pos</span><span>Player</span><span>W</span><span>L</span><span>Pts</span>
+          </div>
+          {movementRows.map((row, index) => {
+            const name = typeof row.name === "string" ? row.name : "Unknown";
+            const afterPosition = typeof row.afterPosition === "number" ? row.afterPosition : index + 1;
+            const beforePosition = typeof row.beforePosition === "number" ? row.beforePosition : afterPosition;
+            const movement = row.movement === "up" || row.movement === "down" ? row.movement : "same";
+            const arrow = movement === "up" ? "▲" : movement === "down" ? "▼" : "—";
+            const movementColour = movement === "up" ? "#22c55e" : movement === "down" ? "#ff3b5c" : "rgba(255,255,255,0.38)";
+            return (
+              <div
+                key={`${name}-${afterPosition}`}
+                className="grid items-center gap-2 border-t border-white/10 px-3 py-2"
+                style={{ gridTemplateColumns: "2rem minmax(0,1fr) 2.8rem 2.8rem 3.2rem" }}
+              >
+                <span className="font-black text-white">{afterPosition}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-black uppercase" style={{ color: leagueAccent }}>{name}</span>
+                  <span className="text-[0.7rem] font-black" style={{ color: movementColour }} aria-label={`${name} moved ${movement}`}>
+                    {arrow}{beforePosition !== afterPosition ? Math.abs(beforePosition - afterPosition) : ""}
+                  </span>
+                </span>
+                <span className="font-bold text-white/80">{typeof row.wins === "number" ? row.wins : "—"}</span>
+                <span className="font-bold text-white/80">{typeof row.losses === "number" ? row.losses : "—"}</span>
+                <span className="font-black" style={{ color: accent }}>{typeof row.points === "number" ? row.points : "—"}</span>
+              </div>
+            );
+          })}
+        </div>
+      </BigPanel>
+    );
+  }
+
   const kickoffSeasonName = str(data, "seasonName");
   const kickoffEntrantCount = num(data, "entrantCount");
   if (kickoffSeasonName) {

@@ -47,7 +47,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
   db,
-  broadcastEditionsTable, broadcastStoriesTable, broadcastMemoryTable, seasonsTable,
+  broadcastEditionsTable, broadcastStoriesTable, broadcastMemoryTable, seasonsTable, playersTable,
   type BroadcastEdition, type EditionStatus, type LeagueType, type BroadcastStory,
 } from "@workspace/db";
 import { getBroadcastConfig, type BroadcastConfig } from "./config.ts";
@@ -116,6 +116,169 @@ function buildFixedDialogue(pair: { a: string; b: string }): ProgrammeSegment["d
     { speaker: "A", text: pair.a, holdSeconds: dialogueHoldSeconds(pair.a) },
     { speaker: "B", text: pair.b, holdSeconds: dialogueHoldSeconds(pair.b) },
   ];
+}
+
+type LeaderboardMovementRow = {
+  id: number;
+  name: string;
+  beforePosition: number;
+  afterPosition: number;
+  movement: "up" | "down" | "same";
+  points: number;
+  wins: number;
+  losses: number;
+};
+
+function positionsById(rows: { id: number; points: number; elo: number; eliminated: boolean }[]): Map<number, number> {
+  const ordered = [...rows].sort((a, b) =>
+    Number(a.eliminated) - Number(b.eliminated)
+    || b.points - a.points
+    || b.elo - a.elo
+    || a.id - b.id
+  );
+  return new Map(ordered.map((row, index) => [row.id, index + 1]));
+}
+
+/** Builds the sports-show table beat from the same baseline result stories
+ * that make up the catch-up rundown. Reversing each participant to their
+ * earliest verified pre-match points makes the arrows describe this update's
+ * results, even if an earlier failed/rebuilt Edition already wrote a title
+ * snapshot after those matches. */
+async function buildCatchUpLeaderboardSegments(pool: readonly BroadcastStory[]): Promise<ProgrammeSegment[]> {
+  const result: ProgrammeSegment[] = [];
+
+  const singlesResults = pool
+    .filter(story => story.storyType === "MATCH_RESULT")
+    .sort((a, b) => Date.parse(String(a.facts.playedAt)) - Date.parse(String(b.facts.playedAt)) || a.id - b.id);
+  if (singlesResults.length > 0) {
+    const current = await db.select({
+      id: playersTable.id,
+      name: playersTable.name,
+      points: playersTable.points,
+      wins: playersTable.seasonWins,
+      losses: playersTable.seasonLosses,
+      elo: playersTable.elo,
+      status: playersTable.status,
+    }).from(playersTable).where(eq(playersTable.isActive, true));
+
+    const beforePoints = new Map(current.map(row => [row.id, row.points]));
+    const firstSeen = new Set<number>();
+    for (const story of singlesResults) {
+      const facts = story.facts;
+      const winnerId = Number(facts.winnerId);
+      const loserId = Number(facts.loserId);
+      if (!firstSeen.has(winnerId) && Number.isFinite(Number(facts.winnerPointsBefore))) {
+        beforePoints.set(winnerId, Number(facts.winnerPointsBefore));
+        firstSeen.add(winnerId);
+      }
+      if (!firstSeen.has(loserId) && Number.isFinite(Number(facts.loserPointsBefore))) {
+        beforePoints.set(loserId, Number(facts.loserPointsBefore));
+        firstSeen.add(loserId);
+      }
+    }
+
+    const beforePositions = positionsById(current.map(row => ({
+      id: row.id, points: beforePoints.get(row.id) ?? row.points, elo: row.elo, eliminated: false,
+    })));
+    const afterPositions = positionsById(current.map(row => ({
+      id: row.id, points: row.points, elo: row.elo, eliminated: row.status === "ELIMINATED",
+    })));
+    const rows: LeaderboardMovementRow[] = [...current]
+      .sort((a, b) => (afterPositions.get(a.id) ?? 999) - (afterPositions.get(b.id) ?? 999))
+      .map(row => {
+        const beforePosition = beforePositions.get(row.id) ?? afterPositions.get(row.id) ?? 1;
+        const afterPosition = afterPositions.get(row.id) ?? beforePosition;
+        return {
+          id: row.id, name: row.name, beforePosition, afterPosition,
+          movement: afterPosition < beforePosition ? "up" : afterPosition > beforePosition ? "down" : "same",
+          points: row.points, wins: row.wins, losses: row.losses,
+        };
+      });
+
+    const count = new Set(singlesResults.map(story => story.anchorMatchId)).size;
+    result.push({
+      slot: 7,
+      purpose: "leaderboard_after_results",
+      importance: "utility",
+      storyId: null,
+      supportingStoryIds: [],
+      storyType: null,
+      leagueType: "singles",
+      lifecycleAtBroadcast: null,
+      dialogue: buildFixedDialogue({
+        a: `Those ${count === 1 ? "result has" : `${count} results have`} changed the Singles picture. Here is the table after the matches.`,
+        b: "Green arrows for the climbers, red for the players pushed down — this is where everyone stands now.",
+      }),
+      validityRules: [],
+      facts: { rows, resultCount: count },
+      graphicKind: "LeagueTableGraphic",
+    });
+  }
+
+  const doublesResults = pool
+    .filter(story => story.storyType === "PAIR_RESULT")
+    .sort((a, b) => Date.parse(String(a.facts.playedAt)) - Date.parse(String(b.facts.playedAt)) || a.id - b.id);
+  if (doublesResults.length > 0) {
+    const current = (await db.execute(sql`
+      SELECT id, team_name, points, wins, losses, elo, is_eliminated
+      FROM doubles_teams
+      WHERE season_id IN (
+        SELECT id FROM seasons WHERE league_type = 'doubles' AND is_active = true
+      )
+    `)).rows as { id: number; team_name: string; points: number; wins: number; losses: number; elo: number; is_eliminated: boolean }[];
+    const beforePoints = new Map(current.map(row => [row.id, row.points]));
+    const firstSeen = new Set<number>();
+    for (const story of doublesResults) {
+      const facts = story.facts;
+      const winnerId = Number(facts.winnerTeamId);
+      const loserId = Number(facts.loserTeamId);
+      if (!firstSeen.has(winnerId) && Number.isFinite(Number(facts.winnerPointsBefore))) {
+        beforePoints.set(winnerId, Number(facts.winnerPointsBefore));
+        firstSeen.add(winnerId);
+      }
+      if (!firstSeen.has(loserId) && Number.isFinite(Number(facts.loserPointsBefore))) {
+        beforePoints.set(loserId, Number(facts.loserPointsBefore));
+        firstSeen.add(loserId);
+      }
+    }
+    const beforePositions = positionsById(current.map(row => ({
+      id: row.id, points: beforePoints.get(row.id) ?? row.points, elo: row.elo, eliminated: false,
+    })));
+    const afterPositions = positionsById(current.map(row => ({
+      id: row.id, points: row.points, elo: row.elo, eliminated: row.is_eliminated,
+    })));
+    const rows: LeaderboardMovementRow[] = [...current]
+      .sort((a, b) => (afterPositions.get(a.id) ?? 999) - (afterPositions.get(b.id) ?? 999))
+      .map(row => {
+        const beforePosition = beforePositions.get(row.id) ?? afterPositions.get(row.id) ?? 1;
+        const afterPosition = afterPositions.get(row.id) ?? beforePosition;
+        return {
+          id: row.id, name: row.team_name, beforePosition, afterPosition,
+          movement: afterPosition < beforePosition ? "up" : afterPosition > beforePosition ? "down" : "same",
+          points: row.points, wins: row.wins, losses: row.losses,
+        };
+      });
+    const count = new Set(doublesResults.map(story => story.anchorMatchId)).size;
+    result.push({
+      slot: 8,
+      purpose: "leaderboard_after_results",
+      importance: "utility",
+      storyId: null,
+      supportingStoryIds: [],
+      storyType: null,
+      leagueType: "doubles",
+      lifecycleAtBroadcast: null,
+      dialogue: buildFixedDialogue({
+        a: `Now the Doubles table after ${count === 1 ? "that result" : `${count} new results`}.`,
+        b: "The arrows show exactly who moved and who was pushed the other way.",
+      }),
+      validityRules: [],
+      facts: { rows, resultCount: count },
+      graphicKind: "LeagueTableGraphic",
+    });
+  }
+
+  return result;
 }
 
 /**
@@ -451,6 +614,26 @@ async function buildSegmentForEntry(entry: RunningOrderEntry, ctx: SegmentBuildC
   if (dialogue.length === 0 && entry.treatment !== "supporting") {
     dialogue = await attempt("supporting");
   }
+  if (dialogue.length === 0 && story.anchorMatchId !== null) {
+    const baseline = [story, ...entry.group.supporting].find(candidate =>
+      candidate.storyType === "MATCH_RESULT" || candidate.storyType === "PAIR_RESULT"
+    );
+    if (baseline) {
+      const facts = await buildTemplateFacts(baseline.leagueType, baseline.facts);
+      const winnerName = String(facts.winnerName ?? facts.winnerTeamName ?? "The winner");
+      const loserName = String(facts.loserName ?? facts.loserTeamName ?? "their opponent");
+      dialogue = buildFixedDialogue({
+        a: `${winnerName} beats ${loserName} in the confirmed result.`,
+        b: "That one is in the books, and we will show what it did to the table.",
+      }).map((turn, index) => ({
+        ...turn,
+        sentiment: "neutral" as const,
+        phraseId: `fallback-result-${story.leagueType}-${story.anchorMatchId}-${index}`,
+        intent: index === 0 ? "quick_fact" : "quick_reaction",
+        beat: index === 0 ? "setup" as const : "reaction" as const,
+      }));
+    }
+  }
   if (dialogue.length === 0) return null;
 
   // See buildGraphicFacts's own header: graphic.data needs every id-shaped
@@ -546,7 +729,16 @@ async function buildEdition(params: {
 
   const catchUpPool = seasonCatchUp ? await collectUnairedActiveSeasonCatchUpStories(cutoffEnd) : [];
   const isSeasonCatchUp = catchUpPool.length > 0;
-  const pool = isSeasonCatchUp ? catchUpPool : await collectNewAndActiveStories(cutoffEnd);
+  let pool = isSeasonCatchUp ? catchUpPool : await collectNewAndActiveStories(cutoffEnd);
+  if (isSeasonCatchUp) {
+    const spotlightCandidates = (await collectNewAndActiveStories(cutoffEnd))
+      .filter(story => story.storyType === "FEATURE_SPOTLIGHT")
+      .sort((a, b) => a.fullCount - b.fullCount || (a.lastFullEditionId ?? 0) - (b.lastFullEditionId ?? 0) || a.id - b.id);
+    const requiredSpotlight = spotlightCandidates[0];
+    if (requiredSpotlight && !pool.some(story => story.id === requiredSpotlight.id)) {
+      pool = [...pool, requiredSpotlight];
+    }
+  }
   const mergedForChangeScore = mergeStoriesByAnchorAndNarrative(pool);
   const newMatchCount = storyState.newMatchesProcessed.singles + storyState.newMatchesProcessed.doubles + storyState.newMatchesProcessed.shiftWars;
   const changeScore = editionChangeScore({
@@ -640,14 +832,6 @@ async function buildEdition(params: {
       pacing: config.programmeProfiles[programmeMode],
     }).runningOrder;
     if (isSeasonCatchUp) {
-      const representedMatches = new Set<string>();
-      runningOrder = runningOrder.filter(entry => {
-        if (!entry.group || entry.purpose === "headlines" || entry.group.primary.anchorMatchId === null) return true;
-        const key = `${entry.group.primary.leagueType}:${entry.group.primary.anchorMatchId}`;
-        if (representedMatches.has(key)) return false;
-        representedMatches.add(key);
-        return true;
-      });
       const allMatchGroups = mergeStoriesByAnchorAndNarrative(pool)
         .filter(group => group.primary.anchorMatchId !== null)
         .sort((a, b) => {
@@ -655,19 +839,41 @@ async function buildEdition(params: {
           const bTime = Date.parse(String(b.primary.facts.playedAt ?? b.primary.detectedAt));
           return aTime - bTime || a.primary.id - b.primary.id;
         });
-      const closingIndex = runningOrder.findIndex(entry => entry.purpose === "closing");
-      for (const group of allMatchGroups) {
-        const key = `${group.primary.leagueType}:${group.primary.anchorMatchId}`;
-        if (representedMatches.has(key)) continue;
-        runningOrder.splice(closingIndex < 0 ? runningOrder.length : runningOrder.length - 1, 0, {
+      const opening = runningOrder.find(entry => entry.purpose === "opening") ?? {
+        slot: 1, purpose: "opening" as const, group: null, treatment: "supporting" as const, carryForwardState: null,
+      };
+      const closing = runningOrder.find(entry => entry.purpose === "closing") ?? {
+        slot: 11, purpose: "closing" as const, group: null, treatment: "supporting" as const, carryForwardState: null,
+      };
+      const matchEntries: RunningOrderEntry[] = allMatchGroups.map(group => ({
           slot: 6,
           purpose: "supporting_story_or_checkin",
           group,
           treatment: treatmentForScore(group.primary.score),
           carryForwardState: null,
-        });
-        representedMatches.add(key);
-      }
+      }));
+      const aggregateEntries = runningOrder.filter(entry =>
+        entry.group !== null
+        && entry.group.primary.anchorMatchId === null
+        && entry.purpose !== "headlines"
+        && entry.purpose !== "opening"
+        && entry.purpose !== "closing"
+        && entry.group.primary.storyType !== "FEATURE_SPOTLIGHT"
+      );
+      const spotlightGroup = mergeStoriesByAnchorAndNarrative(pool)
+        .find(group => group.primary.storyType === "FEATURE_SPOTLIGHT");
+      const spotlightEntry: RunningOrderEntry[] = spotlightGroup ? [{
+        slot: 9,
+        purpose: "form_h2h_or_spotlight",
+        group: spotlightGroup,
+        treatment: "supporting",
+        carryForwardState: null,
+      }] : [];
+      // Catch-up Editions are intentionally structured like a sports results
+      // programme: sign-on, every result, analysis, one rotating mode prompt,
+      // then the sign-off. Headline teases are omitted here so the same result
+      // is not immediately spoken twice.
+      runningOrder = [opening, ...matchEntries, ...aggregateEntries, ...spotlightEntry, closing];
     }
   }
 
@@ -728,11 +934,12 @@ async function buildEdition(params: {
   const bodyStoryCount = () => segments.filter(s =>
     s.storyId !== null && s.purpose !== "headlines" && s.purpose !== "closing"
   ).length;
-  const minimumRuntime = config.programmeProfiles[programmeMode].estimatedRuntimeSeconds.min;
+  const ordinaryProgrammeMode = programmeMode === "SEASON_REVIEW" ? "MAGAZINE" : programmeMode;
+  const minimumRuntime = config.programmeProfiles[ordinaryProgrammeMode].estimatedRuntimeSeconds.min;
   const needsReserve = () =>
     meaningfulCount() < 4
     || totalEstimatedSecondsForProgramme({ mode: programmeMode, segments }) < minimumRuntime;
-  const storySegmentCap = config.programmeProfiles[programmeMode].maxStorySegments;
+  const storySegmentCap = config.programmeProfiles[ordinaryProgrammeMode].maxStorySegments;
   if (closedLeagueSeasons.length === 0 && needsReserve()) {
     for (let pass = 0; pass < 3 && needsReserve() && bodyStoryCount() < storySegmentCap; pass++) {
       const reservePool = pool.filter(story => !attemptedStoryIds.has(story.id));
@@ -741,8 +948,8 @@ async function buildEdition(params: {
         pool: reservePool,
         previousProgramme,
         slotKey: `${seedSlotKey}:reserve:${pass}`,
-        mode: programmeMode,
-        pacing: config.programmeProfiles[programmeMode],
+        mode: ordinaryProgrammeMode,
+        pacing: config.programmeProfiles[ordinaryProgrammeMode],
       }).runningOrder;
       const reserveEntries = reserveOrder.filter(entry =>
         entry.group !== null
@@ -762,6 +969,24 @@ async function buildEdition(params: {
         if (!needsReserve() || bodyStoryCount() >= storySegmentCap) break;
       }
     }
+  }
+
+  if (isSeasonCatchUp) {
+    const leaderboards = await buildCatchUpLeaderboardSegments(pool);
+    const opening = segments.filter(segment => segment.purpose === "opening");
+    const matchSegments = segments.filter(segment => {
+      if (segment.storyId === null) return false;
+      const story = pool.find(candidate => candidate.id === segment.storyId);
+      return story?.anchorMatchId !== null && story?.anchorMatchId !== undefined;
+    });
+    const aggregateSegments = segments.filter(segment =>
+      segment.purpose !== "opening"
+      && segment.purpose !== "headlines"
+      && segment.purpose !== "closing"
+      && !matchSegments.includes(segment)
+    );
+    const closing = segments.filter(segment => segment.purpose === "closing");
+    segments.splice(0, segments.length, ...opening, ...matchSegments, ...leaderboards, ...aggregateSegments, ...closing);
   }
 
   const selectedStoriesById = new Map<number, BroadcastStory>();
@@ -789,7 +1014,7 @@ async function buildEdition(params: {
   const qualityInput: QualityGateInput = {
     segments: qualityGateSegments,
     // Tied to whether THIS build actually IS a Season Review (closedLeagueSeasons.length > 0), not the coarser seasonBoundaryEventOccurred window — a Season Review built on a regenerate long after the close-instant window has passed still needs this exemption exactly as much as the one built the same minute the season closed.
-    isChampionOrSeasonBoundarySpecial: seasonBoundaryEventOccurred || closedLeagueSeasons.length > 0,
+    isChampionOrSeasonBoundarySpecial: seasonBoundaryEventOccurred || closedLeagueSeasons.length > 0 || isSeasonCatchUp,
     hasFactsOutsideCutoffSnapshot: cutoffViolations.length > 0,
     hasInvalidFutureMatchLanguage: hasFutureMatchLanguage(segments),
     hasUnresolvedPlaceholders: hasUnresolvedPlaceholderText(segments),
@@ -813,7 +1038,7 @@ async function buildEdition(params: {
       : [];
   }));
   const missingCatchUpMatches = [...catchUpExpectedMatchKeys].filter(key => !catchUpRenderedMatchKeys.has(key));
-  const runtimeReason = programmeMode !== "SEASON_REVIEW"
+  const runtimeReason = programmeMode !== "SEASON_REVIEW" && !isSeasonCatchUp
     && !isRuntimeWithinProgrammeMode(programmeMode, runtimeSeconds, config.programmeProfiles)
     ? `runtime ${runtimeSeconds}s is outside ${programmeMode} target ${config.programmeProfiles[programmeMode].estimatedRuntimeSeconds.min}-${config.programmeProfiles[programmeMode].estimatedRuntimeSeconds.max}s`
     : null;
@@ -1004,7 +1229,7 @@ export async function forceRebuildCurrentEdition(now: Date = new Date()): Promis
 
   try {
     const edition = await buildEdition({
-      claimedRow, previous, now, config, adminForced: true, seedSlotKey: slot.slotKey,
+      claimedRow, previous, now, config, adminForced: true, seedSlotKey: slot.slotKey, seasonCatchUp: true,
     });
     const [attempt] = await db
       .select()

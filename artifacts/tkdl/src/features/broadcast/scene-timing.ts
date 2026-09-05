@@ -23,8 +23,11 @@ import type { DialogueTurn, LiveOverlayItem, Segment } from "./types";
 /**
  * Stitches CurrentEdition's two lists into the one ordered playlist the
  * player actually walks — Show Bible v1 §4's own running order: the fixed
- * "opening" sign-on airs FIRST, then the top-of-show headline tease (up to
- * 3 segments, `headlines`), then the rest of the programme body. `opening`
+ * "opening" sign-on airs FIRST, then any headline whose story is not already
+ * covered in the body, then the programme topics and close. The Director's
+ * usual headline rows are teasers for those same body stories; replaying both
+ * made viewers hear near-identical facts twice, so matching storyIds are
+ * deliberately de-duplicated here. `opening`
  * is the one segment `segments` carries ahead of the headline tease
  * (routes/broadcast.ts only pulls `purpose === "headlines"` out into its
  * own list — everything else, including the fixed opening sign-on, stays
@@ -39,8 +42,12 @@ import type { DialogueTurn, LiveOverlayItem, Segment } from "./types";
  */
 export function buildPlaylist(headlines: readonly Segment[], segments: readonly Segment[]): Segment[] {
   const opening = segments.find(s => s.type === "opening");
-  if (!opening) return [...headlines, ...segments];
-  return [opening, ...headlines, ...segments.filter(s => s !== opening)];
+  const bodyStoryIds = new Set(segments.flatMap(segment => segment.storyId === null ? [] : [segment.storyId]));
+  const nonRepeatingHeadlines = headlines.filter(headline =>
+    headline.storyId === null || !bodyStoryIds.has(headline.storyId)
+  );
+  if (!opening) return [...nonRepeatingHeadlines, ...segments];
+  return [opening, ...nonRepeatingHeadlines, ...segments.filter(s => s !== opening)];
 }
 
 /**

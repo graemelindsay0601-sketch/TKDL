@@ -85,8 +85,8 @@ describe("detectPairEliminated (Appendix A: team reaches zero)", () => {
 });
 
 describe("detectDoublesMatchStories", () => {
-  test("an unremarkable match triggers nothing", () => {
-    assert.deepEqual(detectDoublesMatchStories(matchFacts()), []);
+  test("an unremarkable match still produces its baseline result", () => {
+    assert.deepEqual(detectDoublesMatchStories(matchFacts()).map(story => story.storyType), ["PAIR_RESULT"]);
   });
 
   test("a low-probability winner whose opponent gets eliminated triggers both", () => {
@@ -96,7 +96,7 @@ describe("detectDoublesMatchStories", () => {
       loserAfter: teamState({ points: 0, isEliminated: true }),
     });
     const types = detectDoublesMatchStories(facts).map(s => s.storyType).sort();
-    assert.deepEqual(types, ["PAIR_ELIMINATED", "PAIR_UPSET"]);
+    assert.deepEqual(types, ["PAIR_ELIMINATED", "PAIR_RESULT", "PAIR_UPSET"]);
   });
 });
 

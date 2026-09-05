@@ -34,6 +34,7 @@ export type SinglesResultMatchFacts = {
   loserId: number;
   stake: number;
   winnerBefore: SinglesPlayerState;
+  winnerAfter?: SinglesPlayerState;
   loserBefore: SinglesPlayerState;
   loserAfter: SinglesPlayerState;
   /** Pre-match probability of the actual winner winning (0..1), from predictSinglesMatch's pA with playerAId = winnerId. */
@@ -108,6 +109,37 @@ function subjects(facts: SinglesResultMatchFacts): string[] {
 
 function matchIdentityFacts(facts: SinglesResultMatchFacts) {
   return { matchId: facts.matchId, playedAt: facts.playedAt.toISOString() };
+}
+
+/** Every completed match is news, even when none of the exceptional-result
+ * detectors below fires. Kept deliberately low-scoring so a genuine upset,
+ * elimination or milestone remains the primary narrative for the match. */
+export function detectMatchResult(facts: SinglesResultMatchFacts): StoryCandidate {
+  return {
+    storyType: "MATCH_RESULT",
+    leagueType: "singles",
+    subjectKeys: subjects(facts),
+    anchorMatchId: facts.matchId,
+    sentiment: "neutral",
+    tags: ["result", "baseline"],
+    facts: {
+      ...matchIdentityFacts(facts),
+      winnerId: facts.winnerId,
+      loserId: facts.loserId,
+      stake: facts.stake,
+      winnerPointsBefore: facts.winnerBefore.points,
+      winnerPointsAfter: facts.winnerAfter?.points ?? facts.winnerBefore.points + facts.stake,
+      loserPointsBefore: facts.loserBefore.points,
+      loserPointsAfter: facts.loserAfter.points,
+    },
+    components: {
+      competitiveImportance: Math.min(6, Math.max(1, facts.stake)),
+      unexpectedness: 0,
+      historicalSignificance: 0,
+      performanceAnomaly: 0,
+      entertainmentValue: 1,
+    },
+  };
 }
 
 // ── UPSET / MAJOR_UPSET / MODEL_SHOCK ────────────────────────────────────
@@ -354,5 +386,8 @@ export const RESULT_DETECTORS = [
 ] as const satisfies readonly ((facts: SinglesResultMatchFacts) => StoryCandidate | null)[];
 
 export function detectResultStories(facts: SinglesResultMatchFacts): StoryCandidate[] {
-  return RESULT_DETECTORS.map(detector => detector(facts)).filter((c): c is StoryCandidate => c !== null);
+  return [
+    detectMatchResult(facts),
+    ...RESULT_DETECTORS.map(detector => detector(facts)).filter((c): c is StoryCandidate => c !== null),
+  ];
 }

@@ -40,6 +40,12 @@ export async function addFeatureSpotlights() {
       { key: "tour", name: "TKDL Tour", blurb: "A multi stop knockout tournament mode you can run outside the regular league." },
       { key: "hall_of_fame", name: "Hall of Fame", blurb: "All time records and milestone holders across every league in one place." },
       { key: "shadow_league", name: "Shadow League", blurb: "A simulated league table built entirely from Shadow Bot results." },
+      { key: "practice_games", name: "Practice Games", blurb: "More than sixty darts games are available in Practice, with solo, local and bot options." },
+      { key: "bot_opponents", name: "Bot Opponents", blurb: "Play a quick match against a bot at a level that suits you and build towards the next step up." },
+      { key: "shadow_bot", name: "Shadow Bot", blurb: "Create a bot from your recorded performances and see how your darts profile develops." },
+      { key: "achievements", name: "Achievements", blurb: "Track league, practice and career challenges and see which targets are closest to completion." },
+      { key: "head_to_head", name: "Head to Head", blurb: "Compare any two players across their full meeting history before the next match." },
+      { key: "community", name: "Community", blurb: "Share league moments, catch up with other players and keep the club conversation going." },
     ];
     for (const row of seedRows) {
       await db.execute(sql`

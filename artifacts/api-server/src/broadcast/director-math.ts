@@ -361,7 +361,11 @@ export type RunningOrderSlotPurpose =
   // when a league's season closes) uses it for each of the season's own
   // real storylines it features, several per Edition rather than the one
   // slot every other purpose here is confined to.
-  | "season_highlight";
+  | "season_highlight"
+  /** Results-update utility shown immediately after the completed-match
+   * rundown. It carries a full before/after standings payload rather than
+   * borrowing one detector story's narrower league facts. */
+  | "leaderboard_after_results";
 
 export type RunningOrderSlotTemplate = { slot: number; purpose: RunningOrderSlotPurpose; required: boolean };
 
@@ -411,6 +415,10 @@ export type ProgrammeSegment = {
   validityRules: ValidityRule[];
   /** This story's own broadcast_stories.facts at build time — null only for the two fixed utility segments, which have no story behind them at all. Carried onto the persisted segment (rather than re-fetched later) for the same reason lifecycleAtBroadcast is: 14.5's own `graphic: { kind, data }` needs exactly these already-fact-firewalled numbers to build a segment's data graphic, and re-reading broadcast_stories at serialization time would risk showing a LATER, live-updated version of facts the dialogue itself never actually spoke — api-shapes.ts (routes/broadcast.ts's own serialization layer) reads this field directly rather than re-querying. */
   facts: Record<string, unknown> | null;
+  /** Explicit graphic override for a utility section with verified facts but
+   * no broadcast_stories row of its own. Ordinary story segments derive their
+   * graphic from storyType in api-shapes.ts. */
+  graphicKind?: "LeagueTableGraphic";
 };
 
 export const PROGRAMME_MODES = ["NEWS", "BALANCED", "MAGAZINE", "SEASON_REVIEW"] as const;

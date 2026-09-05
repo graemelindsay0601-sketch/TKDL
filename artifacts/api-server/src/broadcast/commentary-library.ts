@@ -120,6 +120,24 @@ function ph(
 // three copies of one template, since the actual WORDING should escalate.
 // ════════════════════════════════════════════════════════════════════════
 
+const MATCH_RESULT_REQUIRES = ["winnerId", "loserId"];
+const MATCH_RESULT_PHRASES: Phrase[] = [
+  ph("MATCH_RESULT.qf.1", "A", "quick_fact", "{{winnerName}} beats {{loserName}} in the latest Singles result.", "neutral", { requires: MATCH_RESULT_REQUIRES }),
+  ph("MATCH_RESULT.qf.2", "A", "quick_fact", "Another result is in: {{winnerName}} gets the win over {{loserName}}.", "neutral", { requires: MATCH_RESULT_REQUIRES }),
+  ph("MATCH_RESULT.qf.3", "A", "quick_fact", "{{winnerName}} has the points in the book after beating {{loserName}}.", "neutral", { requires: MATCH_RESULT_REQUIRES }),
+  ph("MATCH_RESULT.qr.1", "B", "quick_reaction", "Job done — and that one matters when we put the new table up.", "neutral", { requires: MATCH_RESULT_REQUIRES }),
+  ph("MATCH_RESULT.qr.2", "B", "quick_reaction", "{{loserName}} will want the chance to answer that quickly.", "neutral", { requires: MATCH_RESULT_REQUIRES }),
+  ph("MATCH_RESULT.qr.3", "B", "quick_reaction", "No need to dress it up — {{winnerName}} got it over the line.", "positive", { requires: MATCH_RESULT_REQUIRES }),
+  ph("MATCH_RESULT.fact.1", "A", "fact", "{{winnerName}} takes the result against {{loserName}}.", "neutral", { requires: MATCH_RESULT_REQUIRES }),
+  ph("MATCH_RESULT.fact.2", "A", "fact", "The confirmed result has {{winnerName}} beating {{loserName}}.", "neutral", { requires: MATCH_RESULT_REQUIRES }),
+  ph("MATCH_RESULT.reaction.1", "B", "reaction", "That is another result that changes the shape of the standings.", "neutral", { requires: MATCH_RESULT_REQUIRES }),
+  ph("MATCH_RESULT.reaction.2", "B", "reaction", "One name moves forward, the other has work to do.", "neutral", { requires: MATCH_RESULT_REQUIRES }),
+  ph("MATCH_RESULT.context.1", "A", "context", "We will show exactly what that did to the table after the full results rundown.", "neutral", { requires: MATCH_RESULT_REQUIRES }),
+  ph("MATCH_RESULT.context.2", "A", "context", "The wider consequence becomes clear when we compare the table before and after.", "neutral", { requires: MATCH_RESULT_REQUIRES }),
+  ph("MATCH_RESULT.closer.1", "B", "closer", "Result logged. On to the next one.", "neutral", { requires: MATCH_RESULT_REQUIRES }),
+  ph("MATCH_RESULT.closer.2", "B", "closer", "That is in the books — keep the results coming.", "positive", { requires: MATCH_RESULT_REQUIRES }),
+];
+
 const UPSET_REQUIRES = ["winnerId", "loserId", "winnerProbability"];
 
 const UPSET_PHRASES: Phrase[] = [
@@ -1202,6 +1220,18 @@ ph("PAIR_UPSET.close.2", "B", "disagree_close", "Call it chemistry, call it nerv
 ph("PAIR_UPSET.close.3", "B", "disagree_close", "Numbers can argue all they like — the scoreboard's already settled it.", "positive", { requires: PAIR_UPSET_REQUIRES, tone: "personality" }),
 ];
 
+const PAIR_RESULT_REQUIRES = ["winnerTeamId", "loserTeamId"];
+const PAIR_RESULT_PHRASES: Phrase[] = [
+  ph("PAIR_RESULT.qf.1", "A", "quick_fact", "{{winnerTeamName}} beats {{loserTeamName}} in the latest Doubles result.", "neutral", { requires: PAIR_RESULT_REQUIRES }),
+  ph("PAIR_RESULT.qf.2", "A", "quick_fact", "The Doubles board has moved: {{winnerTeamName}} gets past {{loserTeamName}}.", "neutral", { requires: PAIR_RESULT_REQUIRES }),
+  ph("PAIR_RESULT.qr.1", "B", "quick_reaction", "A useful win, and now we get to see what it did to the table.", "positive", { requires: PAIR_RESULT_REQUIRES }),
+  ph("PAIR_RESULT.qr.2", "B", "quick_reaction", "{{loserTeamName}} will be looking for a response next time out.", "neutral", { requires: PAIR_RESULT_REQUIRES }),
+  ph("PAIR_RESULT.fact.1", "A", "fact", "{{winnerTeamName}} takes the Doubles result over {{loserTeamName}}.", "neutral", { requires: PAIR_RESULT_REQUIRES }),
+  ph("PAIR_RESULT.reaction.1", "B", "reaction", "That keeps the Doubles standings moving.", "neutral", { requires: PAIR_RESULT_REQUIRES }),
+  ph("PAIR_RESULT.context.1", "A", "context", "We will place it in the updated table after the results.", "neutral", { requires: PAIR_RESULT_REQUIRES }),
+  ph("PAIR_RESULT.closer.1", "B", "closer", "Another one in the books.", "neutral", { requires: PAIR_RESULT_REQUIRES }),
+];
+
 const PAIR_ELIMINATED_REQUIRES = ["winnerTeamId", "loserTeamId"];
 const PAIR_ELIMINATED_PHRASES: Phrase[] = [
   ph("PAIR_ELIMINATED.qf.1", "A", "quick_fact", "{{loserTeamName}} are out, beaten by {{winnerTeamName}}.", "negative", { requires: PAIR_ELIMINATED_REQUIRES }),
@@ -1725,6 +1755,7 @@ ph("BANTER.a.45", "A", "banter", "Right, let's get back to it — there's more h
 
 // ── Assembly ───────────────────────────────────────────────────────────
 export const COMMENTARY_LIBRARY: Partial<Record<StoryType, Phrase[]>> = {
+  MATCH_RESULT: MATCH_RESULT_PHRASES,
   UPSET: UPSET_PHRASES,
   MAJOR_UPSET: MAJOR_UPSET_PHRASES,
   MODEL_SHOCK: MODEL_SHOCK_PHRASES,
@@ -1772,6 +1803,7 @@ export const COMMENTARY_LIBRARY: Partial<Record<StoryType, Phrase[]>> = {
   "180_MILESTONE": MILESTONE_180_PHRASES,
   ELIMINATION_MILESTONE: ELIMINATION_MILESTONE_PHRASES,
 
+  PAIR_RESULT: PAIR_RESULT_PHRASES,
   UNBEATEN_PAIR: UNBEATEN_PAIR_PHRASES,
   PAIR_SURGE: PAIR_SURGE_PHRASES,
   PAIR_UPSET: PAIR_UPSET_PHRASES,
