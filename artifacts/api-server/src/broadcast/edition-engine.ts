@@ -644,6 +644,7 @@ async function buildEdition(params: {
   };
 
   const segments: ProgrammeSegment[] = [];
+  const attemptedStoryIds = new Set<number>();
   for (const entry of runningOrder) {
     // 11.1's required "closing" sign-off (always present, slot 11) — handled
     // before the `!entry.group` branch below because, unlike every other
@@ -673,8 +674,58 @@ async function buildEdition(params: {
       });
       continue;
     }
+    attemptedStoryIds.add(entry.group.primary.id);
     const segment = await buildSegmentForEntry(entry, segCtx);
     if (segment) segments.push(segment);
+  }
+
+  // Commentary eligibility is deliberately stricter than story eligibility:
+  // a Director pick can have valid facts yet exhaust every suitable phrase.
+  // Do not let those silent render drops turn a busy match day into a one-story
+  // programme. Re-run the Director against unattempted candidates and use its
+  // body picks as deterministic reserves until the quality gate has four real
+  // segments, reaches the mode's minimum runtime, or exhausts the configured
+  // story-segment budget / genuinely usable pool.
+  const meaningfulCount = () => segments.filter(s =>
+    s.storyId !== null && s.purpose !== "headlines" && s.purpose !== "opening" && s.purpose !== "closing"
+  ).length;
+  const bodyStoryCount = () => segments.filter(s =>
+    s.storyId !== null && s.purpose !== "headlines" && s.purpose !== "closing"
+  ).length;
+  const minimumRuntime = config.programmeProfiles[programmeMode].estimatedRuntimeSeconds.min;
+  const needsReserve = () =>
+    meaningfulCount() < 4
+    || totalEstimatedSecondsForProgramme({ mode: programmeMode, segments }) < minimumRuntime;
+  const storySegmentCap = config.programmeProfiles[programmeMode].maxStorySegments;
+  if (closedLeagueSeasons.length === 0 && needsReserve()) {
+    for (let pass = 0; pass < 3 && needsReserve() && bodyStoryCount() < storySegmentCap; pass++) {
+      const reservePool = pool.filter(story => !attemptedStoryIds.has(story.id));
+      if (reservePool.length === 0) break;
+      const reserveOrder = directorSelect({
+        pool: reservePool,
+        previousProgramme,
+        slotKey: `${seedSlotKey}:reserve:${pass}`,
+        mode: programmeMode,
+        pacing: config.programmeProfiles[programmeMode],
+      }).runningOrder;
+      const reserveEntries = reserveOrder.filter(entry =>
+        entry.group !== null
+        && entry.purpose !== "headlines"
+        && entry.purpose !== "opening"
+        && entry.purpose !== "closing"
+      );
+      if (reserveEntries.length === 0) break;
+      for (const entry of reserveEntries) {
+        if (!entry.group || attemptedStoryIds.has(entry.group.primary.id)) continue;
+        attemptedStoryIds.add(entry.group.primary.id);
+        const segment = await buildSegmentForEntry(entry, segCtx);
+        if (segment) {
+          segments.push(segment);
+          runningOrder.push(entry);
+        }
+        if (!needsReserve() || bodyStoryCount() >= storySegmentCap) break;
+      }
+    }
   }
 
   const selectedStoriesById = new Map<number, BroadcastStory>();
@@ -761,11 +812,12 @@ async function buildEdition(params: {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// 16.3 ensureCurrentBroadcastEdition — the lazy slot check, top to bottom
+// 16.3 ensureCurrentBroadcastEdition — idempotent slot check, top to bottom
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * The full 8-step lazy slot check, verbatim against 16.3:
+ * The full 8-step slot check. It is called both by the background scheduler
+ * and by viewer requests; database slot ownership makes repeated calls safe:
  *   1. resolve latest logical slot in Europe/London
  *   2. ensure monthly season state is current
  *   3. if slot row already PUBLISHED/SKIPPED -> return current published edition

@@ -475,18 +475,29 @@ export type NewMatchesWindow = {
  * scanning here — it has zero real matches today, so there's nothing yet
  * for this gap to have silently swallowed.
  */
-async function neverScannedActiveSeasonIds(leagueType: "singles" | "doubles"): Promise<Set<number>> {
+async function seasonsWithUncoveredMatches(leagueType: "singles" | "doubles"): Promise<Set<number>> {
+  const matchTable = leagueType === "singles" ? sql`matches` : sql`doubles_matches`;
   const rows = (await db.execute(sql`
     SELECT s.id FROM seasons s
     WHERE s.league_type = ${leagueType} AND s.is_active = true
-      AND NOT EXISTS (SELECT 1 FROM broadcast_stories bs WHERE bs.season_id = s.id)
+      AND EXISTS (
+        SELECT 1
+        FROM ${matchTable} m
+        WHERE m.season_id = s.id
+          AND NOT EXISTS (
+            SELECT 1
+            FROM broadcast_stories bs
+            WHERE bs.season_id = s.id
+              AND bs.facts ->> 'matchId' = m.id::text
+          )
+      )
   `)).rows as { id: number }[];
   return new Set(rows.map(r => r.id));
 }
 
 async function loadNewMatchesSince(cutoffStart: Date, cutoffEnd: Date): Promise<NewMatchesWindow> {
-  const catchUpSingles = await neverScannedActiveSeasonIds("singles");
-  const catchUpDoubles = await neverScannedActiveSeasonIds("doubles");
+  const catchUpSingles = await seasonsWithUncoveredMatches("singles");
+  const catchUpDoubles = await seasonsWithUncoveredMatches("doubles");
 
   const singlesRows = await db
     .select({ id: matchesTable.id, seasonId: matchesTable.seasonId, playedAt: matchesTable.playedAt, winnerId: matchesTable.winnerId, loserId: matchesTable.loserId, gameType: matchesTable.gameType })

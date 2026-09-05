@@ -160,10 +160,9 @@ export function resolveLogicalSlot(now: Date, config: SlotTimesConfig, recursion
 
 /**
  * The slot AFTER the one resolveLogicalSlot() would currently return — 14.4's
- * `channel.nextLogicalSlot`, so the frontend can show "next update due" even
- * though nothing schedules a build to actually fire at that instant (16.3's
- * whole design is lazy: the NEXT real Edition is only ever built by whichever
- * request happens to land after this instant, not by a timer). Mirrors
+ * `channel.nextLogicalSlot`, so the frontend can show "next update due".
+ * The API's background scheduler calls the idempotent slot check after this
+ * instant; viewer requests also call it as a safety net. Mirrors
  * resolveLogicalSlot's own structure for today's three candidates, sorted
  * earliest-first, picking the first one strictly AFTER `now`.
  *

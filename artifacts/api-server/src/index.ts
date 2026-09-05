@@ -1,5 +1,6 @@
 import app, { initApp } from "./app";
 import { logger } from "./lib/logger";
+import { ensureCurrentBroadcastEdition } from "./broadcast/edition-engine";
 
 const rawPort = process.env["PORT"];
 
@@ -10,6 +11,25 @@ if (!rawPort) {
 }
 
 const port = Number(rawPort);
+const BROADCAST_SCHEDULER_INTERVAL_MS = 60_000;
+
+function startBroadcastScheduler() {
+  let running = false;
+  const check = async () => {
+    if (running) return;
+    running = true;
+    try {
+      await ensureCurrentBroadcastEdition();
+    } catch (err) {
+      logger.error({ err }, "Scheduled broadcast edition check failed");
+    } finally {
+      running = false;
+    }
+  };
+  void check();
+  const timer = setInterval(() => void check(), BROADCAST_SCHEDULER_INTERVAL_MS);
+  timer.unref();
+}
 
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
@@ -29,6 +49,7 @@ async function start() {
           reject(err);
         } else {
           logger.info({ port }, "Server listening");
+          startBroadcastScheduler();
           resolve();
         }
       });
