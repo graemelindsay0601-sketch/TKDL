@@ -51,9 +51,17 @@ describe("mergeStoriesByAnchorAndNarrative", () => {
     const c = story({ anchorMatchId: 200, score: 50 });
     const groups = mergeStoriesByAnchorAndNarrative([a, b, c]);
     assert.equal(groups.length, 2);
-    const group100 = groups.find(g => g.groupKey === "match:100")!;
+    const group100 = groups.find(g => g.groupKey === "singles:match:100")!;
     assert.equal(group100.primary.id, a.id);
     assert.deepEqual(group100.supporting.map(s => s.id), [b.id]);
+  });
+
+  test("keeps equal match ids from different league tables separate", () => {
+    const singles = story({ id: 10, leagueType: "singles", anchorMatchId: 100 });
+    const doubles = story({ id: 11, leagueType: "doubles", anchorMatchId: 100 });
+    const groups = mergeStoriesByAnchorAndNarrative([singles, doubles]);
+    assert.equal(groups.length, 2);
+    assert.deepEqual(groups.map(g => g.groupKey).sort(), ["doubles:match:100", "singles:match:100"]);
   });
 
   test("groups subject-anchored stories (no anchorMatchId) sharing the exact same subject-key set", () => {

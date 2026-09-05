@@ -75,6 +75,7 @@ import {
   seasonsTable,
   seasonStandingsTable,
   broadcastStoriesTable,
+  broadcastEditionsTable,
   broadcastPredictionSnapshotsTable,
   type LeagueType,
   type BroadcastStory,
@@ -1985,4 +1986,69 @@ export async function collectNewAndActiveStories(cutoffEnd: Date, leagueType?: L
   )!);
   if (leagueType) conditions.push(eq(broadcastStoriesTable.leagueType, leagueType));
   return db.select().from(broadcastStoriesTable).where(and(...conditions)).orderBy(desc(broadcastStoriesTable.score));
+}
+
+/**
+ * One-off active-season recovery pool based on what viewers have actually
+ * received. A detected story does not count as coverage until its primary or
+ * supporting id appears in a PUBLISHED programme. If any active-season match
+ * remains unaired, return one full active-season pool so the catch-up Director
+ * can combine every missing result with current table/form analysis.
+ */
+export async function collectUnairedActiveSeasonCatchUpStories(cutoffEnd: Date): Promise<BroadcastStory[]> {
+  const activeSeasons = await db.select({ id: seasonsTable.id })
+    .from(seasonsTable)
+    .where(eq(seasonsTable.isActive, true));
+  const seasonIds = activeSeasons.map(s => s.id);
+  if (seasonIds.length === 0) return [];
+
+  const candidates = await db.select().from(broadcastStoriesTable)
+    .where(and(
+      inArray(broadcastStoriesTable.seasonId, seasonIds),
+      lte(broadcastStoriesTable.updatedAt, cutoffEnd),
+    ))
+    .orderBy(desc(broadcastStoriesTable.score), asc(broadcastStoriesTable.id));
+
+  const published = await db.select({ programme: broadcastEditionsTable.programme })
+    .from(broadcastEditionsTable)
+    .where(eq(broadcastEditionsTable.status, "PUBLISHED"));
+  const airedIds = new Set<number>();
+  for (const row of published) {
+    const segments = (row.programme as { segments?: unknown } | null)?.segments;
+    if (!Array.isArray(segments)) continue;
+    for (const value of segments) {
+      if (!value || typeof value !== "object") continue;
+      const segment = value as { storyId?: unknown; supportingStoryIds?: unknown };
+      if (typeof segment.storyId === "number") airedIds.add(segment.storyId);
+      if (Array.isArray(segment.supportingStoryIds)) {
+        for (const id of segment.supportingStoryIds) if (typeof id === "number") airedIds.add(id);
+      }
+    }
+  }
+
+  const airedStories = airedIds.size === 0
+    ? []
+    : await db.select({
+        id: broadcastStoriesTable.id,
+        leagueType: broadcastStoriesTable.leagueType,
+        anchorMatchId: broadcastStoriesTable.anchorMatchId,
+      })
+      .from(broadcastStoriesTable)
+      .where(inArray(broadcastStoriesTable.id, [...airedIds]));
+  const coveredMatchKeys = new Set(
+    airedStories
+      .filter(story => story.anchorMatchId !== null)
+      .map(story => `${story.leagueType}:${story.anchorMatchId}`),
+  );
+  const hasUncoveredMatch = candidates.some(story =>
+    story.anchorMatchId !== null
+    && !coveredMatchKeys.has(`${story.leagueType}:${story.anchorMatchId}`),
+  );
+  if (!hasUncoveredMatch) return [];
+
+  return candidates.filter(story =>
+    story.anchorMatchId === null
+      ? !airedIds.has(story.id)
+      : !coveredMatchKeys.has(`${story.leagueType}:${story.anchorMatchId}`),
+  );
 }

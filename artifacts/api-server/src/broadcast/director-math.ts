@@ -51,7 +51,8 @@ import { shuffle } from "./seeded-rng.ts";
 // not something this function can retrofit from data that isn't there.
 
 export type MergedStoryGroup = {
-  /** "match:<id>" or "subjects:<sorted,keys>" — stable and useful for logging/debugging, not persisted anywhere. */
+  /** "<league>:match:<id>" or "subjects:<sorted,keys>" — match ids live in
+   * separate league tables, so league identity is required to avoid collisions. */
   groupKey: string;
   /** The highest-scoring story in the group — this is the one narrative a segment gets built around. */
   primary: BroadcastStory;
@@ -59,8 +60,8 @@ export type MergedStoryGroup = {
   supporting: BroadcastStory[];
 };
 
-function mergeGroupKey(story: Pick<BroadcastStory, "anchorMatchId" | "subjectKeys">): string {
-  if (story.anchorMatchId !== null) return `match:${story.anchorMatchId}`;
+function mergeGroupKey(story: Pick<BroadcastStory, "leagueType" | "anchorMatchId" | "subjectKeys">): string {
+  if (story.anchorMatchId !== null) return `${story.leagueType}:match:${story.anchorMatchId}`;
   return `subjects:${[...story.subjectKeys].sort().join(",")}`;
 }
 

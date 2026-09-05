@@ -55,8 +55,9 @@ import { maybeAutoResetLeagueSeasons } from "../lib/seasonReset.ts";
 import {
   manualEpisodeSlotKey, rebuildAttemptSlotKey, resolveLogicalSlot, type ResolvedSlot,
 } from "./edition-slots.ts";
-import { detectAndUpdateStories, collectNewAndActiveStories, resolveClosedLeagueSeasons, markSeasonsReviewed, collectSeasonHighlights } from "./story-engine.ts";
+import { detectAndUpdateStories, collectNewAndActiveStories, collectUnairedActiveSeasonCatchUpStories, resolveClosedLeagueSeasons, markSeasonsReviewed, collectSeasonHighlights } from "./story-engine.ts";
 import { directorSelect, selectProgrammeMode, type RunningOrderEntry } from "./director.ts";
+import { treatmentForScore } from "./story-engine-math.ts";
 import { selectSeasonReviewRunningOrder } from "./director-season-review.ts";
 import {
   editionChangeScore, newlyCreatedGroupTreatments, isForcedRefresh, mergeStoriesByAnchorAndNarrative,
@@ -529,8 +530,11 @@ async function buildEdition(params: {
   seedSlotKey?: string;
   /** True only from forceRebuildCurrentEdition() (the admin regenerate endpoint, task 134) — threads straight into isForcedRefresh's own `adminForced` input, bypassing the change-score threshold exactly the way 14.2's "Force build current/manual Edition for testing" describes. Defaults false for the ordinary lazy-check path (ensureCurrentBroadcastEdition), which has no such admin request to honour. */
   adminForced?: boolean;
+  /** Producer-only recovery: cover active-season matches that have never
+   * appeared in a published programme before returning to normal selection. */
+  seasonCatchUp?: boolean;
 }): Promise<BroadcastEdition | null> {
-  const { claimedRow, previous, now: cutoffEnd, config, seedSlotKey = claimedRow.slotKey, adminForced = false } = params;
+  const { claimedRow, previous, now: cutoffEnd, config, seedSlotKey = claimedRow.slotKey, adminForced = false, seasonCatchUp = false } = params;
 
   // Appendix C.1: "cutoffStart = previous?.dataCutoff ?? beginningOfRelevantHistory".
   // Omitting cutoffStart entirely for a genuinely first-ever build lets
@@ -540,7 +544,9 @@ async function buildEdition(params: {
     ? await detectAndUpdateStories({ cutoffStart: previous.dataCutoff, cutoffEnd })
     : await detectAndUpdateStories({ cutoffEnd });
 
-  const pool = await collectNewAndActiveStories(cutoffEnd);
+  const catchUpPool = seasonCatchUp ? await collectUnairedActiveSeasonCatchUpStories(cutoffEnd) : [];
+  const isSeasonCatchUp = catchUpPool.length > 0;
+  const pool = isSeasonCatchUp ? catchUpPool : await collectNewAndActiveStories(cutoffEnd);
   const mergedForChangeScore = mergeStoriesByAnchorAndNarrative(pool);
   const newMatchCount = storyState.newMatchesProcessed.singles + storyState.newMatchesProcessed.doubles + storyState.newMatchesProcessed.shiftWars;
   const changeScore = editionChangeScore({
@@ -633,6 +639,36 @@ async function buildEdition(params: {
       mode: programmeMode,
       pacing: config.programmeProfiles[programmeMode],
     }).runningOrder;
+    if (isSeasonCatchUp) {
+      const representedMatches = new Set<string>();
+      runningOrder = runningOrder.filter(entry => {
+        if (!entry.group || entry.purpose === "headlines" || entry.group.primary.anchorMatchId === null) return true;
+        const key = `${entry.group.primary.leagueType}:${entry.group.primary.anchorMatchId}`;
+        if (representedMatches.has(key)) return false;
+        representedMatches.add(key);
+        return true;
+      });
+      const allMatchGroups = mergeStoriesByAnchorAndNarrative(pool)
+        .filter(group => group.primary.anchorMatchId !== null)
+        .sort((a, b) => {
+          const aTime = Date.parse(String(a.primary.facts.playedAt ?? a.primary.detectedAt));
+          const bTime = Date.parse(String(b.primary.facts.playedAt ?? b.primary.detectedAt));
+          return aTime - bTime || a.primary.id - b.primary.id;
+        });
+      const closingIndex = runningOrder.findIndex(entry => entry.purpose === "closing");
+      for (const group of allMatchGroups) {
+        const key = `${group.primary.leagueType}:${group.primary.anchorMatchId}`;
+        if (representedMatches.has(key)) continue;
+        runningOrder.splice(closingIndex < 0 ? runningOrder.length : runningOrder.length - 1, 0, {
+          slot: 6,
+          purpose: "supporting_story_or_checkin",
+          group,
+          treatment: treatmentForScore(group.primary.score),
+          carryForwardState: null,
+        });
+        representedMatches.add(key);
+      }
+    }
   }
 
   const negativeJokesThisEdition = new Map<string, number>();
@@ -1017,7 +1053,7 @@ export async function createManualBroadcastEpisode(now: Date = new Date()): Prom
   }
 
   try {
-    const edition = await buildEdition({ claimedRow, previous, now, config, adminForced: true });
+    const edition = await buildEdition({ claimedRow, previous, now, config, adminForced: true, seasonCatchUp: true });
     const [attempt] = await db
       .select()
       .from(broadcastEditionsTable)
