@@ -43,6 +43,7 @@
 // hasInvalidFutureMatchLanguage) as cheap, genuine double-checks over the
 // final rendered text — not the primary enforcement mechanism, which lives
 // one layer down, but a real safety net per 17's own reliability table.
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
   db,
@@ -51,7 +52,9 @@ import {
 } from "@workspace/db";
 import { getBroadcastConfig, type BroadcastConfig } from "./config.ts";
 import { maybeAutoResetLeagueSeasons } from "../lib/seasonReset.ts";
-import { resolveLogicalSlot, type ResolvedSlot } from "./edition-slots.ts";
+import {
+  manualEpisodeSlotKey, rebuildAttemptSlotKey, resolveLogicalSlot, type ResolvedSlot,
+} from "./edition-slots.ts";
 import { detectAndUpdateStories, collectNewAndActiveStories, resolveClosedLeagueSeasons, markSeasonsReviewed, collectSeasonHighlights } from "./story-engine.ts";
 import { directorSelect, selectProgrammeMode, type RunningOrderEntry } from "./director.ts";
 import { selectSeasonReviewRunningOrder } from "./director-season-review.ts";
@@ -521,10 +524,13 @@ async function buildEdition(params: {
   previous: BroadcastEdition | null;
   now: Date;
   config: BroadcastConfig;
+  /** Stable Director/commentary seed. Copy-on-write rebuild attempts have a
+   * unique database slotKey but intentionally retain the logical slot's seed. */
+  seedSlotKey?: string;
   /** True only from forceRebuildCurrentEdition() (the admin regenerate endpoint, task 134) — threads straight into isForcedRefresh's own `adminForced` input, bypassing the change-score threshold exactly the way 14.2's "Force build current/manual Edition for testing" describes. Defaults false for the ordinary lazy-check path (ensureCurrentBroadcastEdition), which has no such admin request to honour. */
   adminForced?: boolean;
 }): Promise<BroadcastEdition | null> {
-  const { claimedRow, previous, now: cutoffEnd, config, adminForced = false } = params;
+  const { claimedRow, previous, now: cutoffEnd, config, seedSlotKey = claimedRow.slotKey, adminForced = false } = params;
 
   // Appendix C.1: "cutoffStart = previous?.dataCutoff ?? beginningOfRelevantHistory".
   // Omitting cutoffStart entirely for a genuinely first-ever build lets
@@ -623,7 +629,7 @@ async function buildEdition(params: {
     runningOrder = directorSelect({
       pool,
       previousProgramme,
-      slotKey: claimedRow.slotKey,
+      slotKey: seedSlotKey,
       mode: programmeMode,
       pacing: config.programmeProfiles[programmeMode],
     }).runningOrder;
@@ -632,7 +638,7 @@ async function buildEdition(params: {
   const negativeJokesThisEdition = new Map<string, number>();
   const globalFullSegmentCounter = { value: await getGlobalFullSegmentCounter() };
   const segCtx: SegmentBuildContext = {
-    editionId: claimedRow.id, slotKey: claimedRow.slotKey, commentaryVersion: config.commentaryVersion,
+    editionId: claimedRow.id, slotKey: seedSlotKey, commentaryVersion: config.commentaryVersion,
     banterLevel: config.banterLevel, programmeMode, editorialCutoff: cutoffEnd,
     phraseIdsUsedThisBuild: new Set<string>(), negativeJokesThisEdition, globalFullSegmentCounter,
   };
@@ -645,7 +651,7 @@ async function buildEdition(params: {
     // coming up" attachment) WITHOUT that meaning "render this as a full
     // segment about that story" — see buildClosingSegment's own header.
     if (entry.purpose === "closing") {
-      segments.push(await buildClosingSegment(entry, claimedRow.slotKey, config));
+      segments.push(await buildClosingSegment(entry, seedSlotKey, config));
       continue;
     }
     if (!entry.group) {
@@ -656,7 +662,7 @@ async function buildEdition(params: {
       // its own line pool; everything else (only "what_to_watch" in
       // practice) keeps the original fallback pool.
       const fallbackOptions = entry.purpose === "opening" ? OPENING_DIALOGUE_OPTIONS[programmeMode] : WHAT_TO_WATCH_FALLBACK_OPTIONS;
-      const rng = commentaryRng(claimedRow.slotKey, `utility:${entry.purpose}`, config.commentaryVersion);
+      const rng = commentaryRng(seedSlotKey, `utility:${entry.purpose}`, config.commentaryVersion);
       segments.push({
         slot: entry.slot, purpose: entry.purpose, importance: "utility",
         storyId: null, supportingStoryIds: [], storyType: null, leagueType: null, lifecycleAtBroadcast: null,
@@ -779,7 +785,9 @@ export async function ensureCurrentBroadcastEdition(now: Date = new Date()): Pro
 
   const claim = await claimBuildOwnership(slot, now, config.programmeVersion);
   if (claim.kind === "terminal") {
-    return claim.row.status === "PUBLISHED" ? claim.row : latestPublishedEdition();
+    // A producer-created manual Edition or copy-on-write rebuild can be newer
+    // than this scheduled slot row. Always serve the latest publication.
+    return latestPublishedEdition();
   }
   if (claim.kind === "building_elsewhere") {
     return latestPublishedEdition();
@@ -807,7 +815,7 @@ export async function ensureCurrentBroadcastEdition(now: Date = new Date()): Pro
 // ═══════════════════════════════════════════════════════════════════════
 
 export type ForceRebuildResult =
-  | { kind: "built"; edition: BroadcastEdition | null }
+  | { kind: "built"; edition: BroadcastEdition | null; attempt: BroadcastEdition }
   /** The current slot is already BUILDING (an ordinary lazy check landed on it at the same moment) — reclaiming it here would race two builds against the same row, so this defers rather than doing that; the caller should just tell the admin to retry shortly. */
   | { kind: "already_building" };
 
@@ -818,8 +826,10 @@ export type ForceRebuildResult =
  * (16.4's own concurrency contract) — an admin explicitly asking to
  * regenerate wants a fresh build even when the current slot is already
  * PUBLISHED or SKIPPED, which claimBuildOwnership() would otherwise treat as
- * terminal and refuse to touch. This claims the row unconditionally instead
- * (short of a genuine concurrent BUILDING race, handled above) and always
+ * terminal and refuse to touch. A PUBLISHED row is never demoted: its rebuild
+ * uses a copy-on-write attempt row while retaining the logical slot as the
+ * deterministic Director/commentary seed. Terminal non-published rows can be
+ * safely reclaimed with a compare-and-set update. The function always
  * passes adminForced: true into buildEdition(), so the change-score
  * threshold from 10.1 never blocks an admin's own explicit request.
  *
@@ -844,13 +854,36 @@ export async function forceRebuildCurrentEdition(now: Date = new Date()): Promis
   let claimedRow: BroadcastEdition;
   if (existing) {
     if (existing.status === "BUILDING") return { kind: "already_building" };
-    const [reclaimed] = await db
-      .update(broadcastEditionsTable)
-      .set({ status: "BUILDING" satisfies EditionStatus })
-      .where(eq(broadcastEditionsTable.id, existing.id))
-      .returning();
-    if (!reclaimed) return { kind: "already_building" }; // lost a race to a concurrent request between the read above and this UPDATE
-    claimedRow = reclaimed;
+    if (existing.status === "PUBLISHED") {
+      const [attempt] = await db
+        .insert(broadcastEditionsTable)
+        .values({
+          slotKey: rebuildAttemptSlotKey(slot.slotKey, randomUUID()),
+          slotType: existing.slotType,
+          scheduledFor: existing.scheduledFor,
+          dataCutoff: now,
+          status: "BUILDING",
+          changeScore: 0,
+          programmeVersion: config.programmeVersion,
+          programme: null,
+          diagnostic: null,
+          publishedAt: null,
+        })
+        .returning();
+      if (!attempt) throw new Error("Could not create the broadcast rebuild attempt");
+      claimedRow = attempt;
+    } else {
+      const [reclaimed] = await db
+        .update(broadcastEditionsTable)
+        .set({ status: "BUILDING" satisfies EditionStatus })
+        .where(and(
+          eq(broadcastEditionsTable.id, existing.id),
+          eq(broadcastEditionsTable.status, existing.status),
+        ))
+        .returning();
+      if (!reclaimed) return { kind: "already_building" };
+      claimedRow = reclaimed;
+    }
   } else {
     const [inserted] = await db
       .insert(broadcastEditionsTable)
@@ -866,8 +899,15 @@ export async function forceRebuildCurrentEdition(now: Date = new Date()): Promis
   }
 
   try {
-    const edition = await buildEdition({ claimedRow, previous, now, config, adminForced: true });
-    return { kind: "built", edition };
+    const edition = await buildEdition({
+      claimedRow, previous, now, config, adminForced: true, seedSlotKey: slot.slotKey,
+    });
+    const [attempt] = await db
+      .select()
+      .from(broadcastEditionsTable)
+      .where(eq(broadcastEditionsTable.id, claimedRow.id))
+      .limit(1);
+    return { kind: "built", edition, attempt: attempt ?? claimedRow };
   } catch (err) {
     console.error(`edition-engine: admin-forced rebuild failed for slot ${slot.slotKey}:`, err);
     try {
@@ -878,6 +918,68 @@ export async function forceRebuildCurrentEdition(now: Date = new Date()): Promis
     } catch (markFailedErr) {
       console.error(`edition-engine: failed to mark slot ${slot.slotKey} as FAILED after an admin-forced rebuild error:`, markFailedErr);
     }
-    return { kind: "built", edition: previous };
+    const failedAttempt = { ...claimedRow, status: "FAILED" as const, diagnostic: err instanceof Error ? err.message : String(err) };
+    return { kind: "built", edition: previous, attempt: failedAttempt };
+  }
+}
+
+export type CreateManualEpisodeResult = {
+  /** The unique manual Edition row created for this producer request. */
+  attempt: BroadcastEdition;
+  /** The Edition viewers should keep receiving. This is the new attempt when
+   * it publishes, or the previous published Edition when the new attempt
+   * fails its quality gate. */
+  edition: BroadcastEdition | null;
+};
+
+/**
+ * Creates a genuinely new producer-triggered episode rather than reclaiming
+ * the current scheduled slot. The timestamped manual slot key gives the
+ * Director and Commentary Engine a fresh deterministic seed while preserving
+ * reproducibility for this exact Edition.
+ */
+export async function createManualBroadcastEpisode(now: Date = new Date()): Promise<CreateManualEpisodeResult> {
+  const config = await getBroadcastConfig();
+  await maybeAutoResetLeagueSeasons();
+
+  const previous = await latestPublishedEdition();
+  const slotKey = manualEpisodeSlotKey(now, randomUUID());
+  const [claimedRow] = await db
+    .insert(broadcastEditionsTable)
+    .values({
+      slotKey,
+      slotType: "manual",
+      scheduledFor: now,
+      dataCutoff: now,
+      status: "BUILDING",
+      changeScore: 0,
+      programmeVersion: config.programmeVersion,
+      programme: null,
+      diagnostic: null,
+      publishedAt: null,
+    })
+    .returning();
+
+  if (!claimedRow) {
+    throw new Error("Could not create the manual broadcast Edition");
+  }
+
+  try {
+    const edition = await buildEdition({ claimedRow, previous, now, config, adminForced: true });
+    const [attempt] = await db
+      .select()
+      .from(broadcastEditionsTable)
+      .where(eq(broadcastEditionsTable.id, claimedRow.id))
+      .limit(1);
+    return { attempt: attempt ?? claimedRow, edition };
+  } catch (err) {
+    const diagnostic = err instanceof Error ? err.message : String(err);
+    console.error(`edition-engine: producer episode failed for slot ${slotKey}:`, err);
+    const [failed] = await db
+      .update(broadcastEditionsTable)
+      .set({ status: "FAILED", diagnostic })
+      .where(eq(broadcastEditionsTable.id, claimedRow.id))
+      .returning();
+    return { attempt: failed ?? { ...claimedRow, status: "FAILED", diagnostic }, edition: previous };
   }
 }

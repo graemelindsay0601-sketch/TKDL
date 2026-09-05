@@ -1957,11 +1957,11 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
 export async function collectNewAndActiveStories(cutoffEnd: Date, leagueType?: LeagueType): Promise<BroadcastStory[]> {
   const conditions = [inArray(broadcastStoriesTable.lifecycle, ["NEW", "HOT", "ACTIVE", "COOLING"] as const)];
   conditions.push(lte(broadcastStoriesTable.updatedAt, cutoffEnd));
-  // Once a Season Review has aired, that season's match/form/performance
-  // rows are archive context rather than current programme candidates. Keep
-  // CHAMPION and SEASON_RECAP available as durable summary stories, while
-  // filtering the rest at collection time so older databases with NEW
-  // catch-up rows cannot manufacture a fresh ordinary Edition.
+  // Once a season closes, its ordinary match/form/performance rows are
+  // archive context rather than current-programme candidates. A pending
+  // Season Review gets its real highlights through collectSeasonHighlights()
+  // instead of this ordinary pool. Keep only CHAMPION and SEASON_RECAP here
+  // as deliberate backward-looking summary items.
   conditions.push(or(
     isNull(broadcastStoriesTable.seasonId),
     inArray(broadcastStoriesTable.storyType, ["CHAMPION", "SEASON_RECAP"]),
@@ -1969,7 +1969,7 @@ export async function collectNewAndActiveStories(cutoffEnd: Date, leagueType?: L
       SELECT 1
       FROM ${seasonsTable}
       WHERE ${seasonsTable.id} = ${broadcastStoriesTable.seasonId}
-        AND ${seasonsTable.broadcastReviewedAt} IS NOT NULL
+        AND ${seasonsTable.isActive} = false
     )`,
   )!);
   if (leagueType) conditions.push(eq(broadcastStoriesTable.leagueType, leagueType));

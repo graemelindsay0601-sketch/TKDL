@@ -8,7 +8,7 @@ import { getFeatureStatus, isFeatureAvailable, FEATURES } from "../services/feat
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { paramStr } from "../lib/http";
 import {
-  ensureCurrentBroadcastEdition, forceRebuildCurrentEdition, latestPublishedEdition, isEditionProgramme,
+  createManualBroadcastEpisode, ensureCurrentBroadcastEdition, forceRebuildCurrentEdition, latestPublishedEdition, isEditionProgramme,
 } from "../broadcast/edition-engine";
 import { getLivePayload } from "../broadcast/live-events";
 import { diagnoseSeasonHighlights, resetSeasonReviewForLeague } from "../broadcast/story-engine";
@@ -290,17 +290,59 @@ router.post("/admin/broadcast/regenerate", requireAdminSession, async (_req, res
       res.status(409).json({ error: "This slot is already being built by another request — try again shortly" });
       return;
     }
-    if (!result.edition) {
-      res.json({ edition: null, message: "No previous Edition exists and this rebuild still could not clear the quality gate — see GET /api/admin/broadcast/status diagnostics for why." });
+    const attemptProgramme = isEditionProgramme(result.attempt.programme) ? result.attempt.programme : null;
+    const attempt = {
+      id: result.attempt.id,
+      slotKey: result.attempt.slotKey,
+      status: result.attempt.status,
+      changeScore: result.attempt.changeScore,
+      diagnostic: result.attempt.diagnostic,
+      publishedAt: result.attempt.publishedAt?.toISOString() ?? null,
+      mode: attemptProgramme ? programmeModeOf(attemptProgramme) : null,
+      runtimeSeconds: attemptProgramme ? totalEstimatedSecondsForProgramme(attemptProgramme) : null,
+      runtimeBand: attemptProgramme ? classifyEditionLength(totalEstimatedSecondsForProgramme(attemptProgramme)) : null,
+    };
+    if (result.attempt.status !== "PUBLISHED") {
+      res.status(422).json({
+        error: "The rebuild did not clear the quality gate. The previous published Edition remains live.",
+        attempt,
+        retainedEditionId: result.edition?.id ?? null,
+      });
       return;
     }
-    res.json({
-      edition: {
-        id: result.edition.id, slotKey: result.edition.slotKey, status: result.edition.status,
-        changeScore: result.edition.changeScore, diagnostic: result.edition.diagnostic,
-        publishedAt: result.edition.publishedAt?.toISOString() ?? null,
-      },
-    });
+    res.json({ edition: attempt });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+router.post("/admin/broadcast/episodes", requireAdminSession, async (_req, res): Promise<void> => {
+  try {
+    const result = await createManualBroadcastEpisode();
+    const attemptProgramme = isEditionProgramme(result.attempt.programme) ? result.attempt.programme : null;
+    const runtimeSeconds = attemptProgramme ? totalEstimatedSecondsForProgramme(attemptProgramme) : null;
+    const attempt = {
+      id: result.attempt.id,
+      slotKey: result.attempt.slotKey,
+      status: result.attempt.status,
+      changeScore: result.attempt.changeScore,
+      diagnostic: result.attempt.diagnostic,
+      publishedAt: result.attempt.publishedAt?.toISOString() ?? null,
+      mode: attemptProgramme ? programmeModeOf(attemptProgramme) : null,
+      runtimeSeconds,
+      runtimeBand: runtimeSeconds === null ? null : classifyEditionLength(runtimeSeconds),
+    };
+
+    if (result.attempt.status !== "PUBLISHED") {
+      res.status(422).json({
+        error: "The new episode did not clear the quality gate. The previous published Edition remains live.",
+        attempt,
+        retainedEditionId: result.edition?.id ?? null,
+      });
+      return;
+    }
+
+    res.status(201).json({ edition: attempt });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }

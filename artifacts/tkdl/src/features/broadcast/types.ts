@@ -90,6 +90,9 @@ export type LiveOverlayItem = {
 };
 
 export type LivePayload = {
+  /** Lets the existing live poll hand open players over to a producer-created
+   * Edition without adding a second polling loop that could trigger builds. */
+  currentEditionId: number | null;
   leaders: LiveLeaders;
   tickerItems: LiveTickerItem[];
   overlays: LiveOverlayItem[];

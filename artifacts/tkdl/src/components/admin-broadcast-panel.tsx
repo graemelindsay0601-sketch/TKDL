@@ -90,6 +90,7 @@ export default function AdminBroadcastPanel() {
   const [status, setStatus]         = useState<BroadcastAdminStatus | null>(null);
   const [loading, setLoading]       = useState(true);
   const [regenerating, setRegenerating] = useState(false);
+  const [creatingEpisode, setCreatingEpisode] = useState(false);
   const [message, setMessage]       = useState("");
   const [msgType, setMsgType]       = useState<"success" | "error">("success");
   const [profiles, setProfiles] = useState<Record<ProgrammeMode, ProgrammeProfile> | null>(null);
@@ -123,14 +124,37 @@ export default function AdminBroadcastPanel() {
       if (r.status === 409) {
         toast("Already building this slot right now — try again in a moment", "error");
       } else if (!r.ok) {
-        toast(d.error ?? "Regenerate failed", "error");
+        const retained = d.retainedEditionId ? ` Edition #${d.retainedEditionId} stays live.` : "";
+        toast(`${d.error ?? "Rebuild failed."}${retained}`, "error");
       } else if (!d.edition) {
         toast(d.message ?? "Still couldn't clear the quality gate — check the diagnostics below", "error");
       } else {
-        toast(`✅ Edition #${d.edition.id} rebuilt — status ${d.edition.status}`, d.edition.status === "PUBLISHED" ? "success" : "error");
+        const runtime = typeof d.edition.runtimeSeconds === "number" ? ` · ${formatRuntime(d.edition.runtimeSeconds)}` : "";
+        toast(`✅ Edition #${d.edition.id} rebuilt · ${d.edition.mode ?? "Programme"}${runtime}`, "success");
       }
       loadStatus();
     } catch { toast("Regenerate failed", "error"); } finally { setRegenerating(false); }
+  };
+
+  const createEpisode = async () => {
+    try {
+      setCreatingEpisode(true);
+      const r = await fetch("/api/admin/broadcast/episodes", { method: "POST", headers: getAdminHeaders() });
+      const d = await r.json();
+      if (!r.ok) {
+        const diagnostic = d.attempt?.diagnostic ? ` ${d.attempt.diagnostic}` : "";
+        const retained = d.retainedEditionId ? ` Edition #${d.retainedEditionId} stays live.` : "";
+        toast(`${d.error ?? "New episode failed."}${retained}${diagnostic}`, "error");
+      } else {
+        const runtime = typeof d.edition.runtimeSeconds === "number" ? ` · ${formatRuntime(d.edition.runtimeSeconds)}` : "";
+        toast(`✅ New Episode #${d.edition.id} is live · ${d.edition.mode ?? "Programme"}${runtime}`, "success");
+      }
+      loadStatus();
+    } catch {
+      toast("New episode failed", "error");
+    } finally {
+      setCreatingEpisode(false);
+    }
   };
 
   const updateProfile = (mode: ProgrammeMode, update: (profile: ProgrammeProfile) => ProgrammeProfile) => {
@@ -173,7 +197,7 @@ export default function AdminBroadcastPanel() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", flexWrap: "wrap", gap: "12px" }}>
         <div>
           <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 900, letterSpacing: "0.08em" }}>📺 TKDL LIVE BROADCAST</h2>
-          <p style={{ margin: "4px 0 0", fontSize: "12px", color: D.sub }}>Force a fresh Edition to build right now instead of waiting for the next time slot</p>
+          <p style={{ margin: "4px 0 0", fontSize: "12px", color: D.sub }}>Produce a new live show, or rebuild the current slot for diagnostics</p>
         </div>
         <button onClick={loadStatus} style={{ padding: "7px 14px", borderRadius: "8px", border: `1px solid ${D.border}`, background: D.card, color: D.sub, cursor: "pointer", fontSize: "12px", fontWeight: 600 }}>↻ Refresh</button>
       </div>
@@ -206,13 +230,22 @@ export default function AdminBroadcastPanel() {
                   </div>
                 )}
               </div>
-              <button
-                onClick={regenerate}
-                disabled={regenerating}
-                style={{ padding: "12px 22px", borderRadius: "8px", border: "none", background: regenerating ? `${D.info}33` : `${D.info}22`, color: D.info, cursor: regenerating ? "default" : "pointer", fontWeight: 800, fontSize: "13px", letterSpacing: "0.04em", whiteSpace: "nowrap" }}
-              >
-                {regenerating ? "Building…" : "⚡ Regenerate Now"}
-              </button>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button
+                  onClick={createEpisode}
+                  disabled={creatingEpisode || regenerating}
+                  style={{ padding: "12px 22px", borderRadius: "8px", border: "none", background: creatingEpisode ? `${D.success}33` : `${D.success}22`, color: D.success, cursor: creatingEpisode || regenerating ? "default" : "pointer", fontWeight: 800, fontSize: "13px", letterSpacing: "0.04em", whiteSpace: "nowrap" }}
+                >
+                  {creatingEpisode ? "Producing…" : "● Create New Episode"}
+                </button>
+                <button
+                  onClick={regenerate}
+                  disabled={regenerating || creatingEpisode}
+                  style={{ padding: "12px 22px", borderRadius: "8px", border: "none", background: regenerating ? `${D.info}33` : `${D.info}22`, color: D.info, cursor: regenerating || creatingEpisode ? "default" : "pointer", fontWeight: 800, fontSize: "13px", letterSpacing: "0.04em", whiteSpace: "nowrap" }}
+                >
+                  {regenerating ? "Rebuilding…" : "↻ Rebuild Current Slot"}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -309,7 +342,7 @@ export default function AdminBroadcastPanel() {
       )}
 
       <div style={{ marginTop: "1.5rem", padding: "14px 16px", background: D.card, border: `1px solid ${D.border}`, borderRadius: "10px", fontSize: "12px", color: D.sub, lineHeight: 1.6 }}>
-        A time slot that gets <strong style={{ color: D.warn }}>SKIPPED</strong> (too little changed) or <strong style={{ color: D.danger }}>FAILED</strong> (couldn't build a clean programme) is normally left alone until the next slot boundary — ordinary page loads never retry it. <strong style={{ color: D.info }}>Regenerate Now</strong> forces a fresh attempt immediately, ignoring the "not enough changed" threshold, so you can get an Edition live right after fixing whatever caused the last one to fail.
+        <strong style={{ color: D.success }}>Create New Episode</strong> produces a distinct manual Edition with a fresh running order and presenter treatment. Open TKDL LIVE screens pick it up on the existing live poll. <strong style={{ color: D.info }}>Rebuild Current Slot</strong> is the deterministic recovery tool for the current scheduled slot and never takes the last published programme offline while it works. Closed-season results are reserved for one explicit Season Review; ordinary new-season programmes use the active season.
       </div>
     </div>
   );

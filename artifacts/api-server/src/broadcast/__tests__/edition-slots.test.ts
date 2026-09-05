@@ -17,7 +17,10 @@
  */
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { resolveLogicalSlot, resolveNextLogicalSlot, type SlotTimesConfig } from "../edition-slots.ts";
+import {
+  manualEpisodeSlotKey, rebuildAttemptSlotKey, resolveLogicalSlot, resolveNextLogicalSlot,
+  type SlotTimesConfig,
+} from "../edition-slots.ts";
 
 const DEFAULT_CONFIG: SlotTimesConfig = {
   middayTime: "11:30", eveningTime: "19:00", nightTime: "00:00", timezone: "Europe/London", singleDailyEpisode: false,
@@ -175,5 +178,27 @@ describe("singleDailyEpisode: true — the day collapses to one guaranteed episo
       assert.equal(result.slotType, "night");
       assert.match(result.slotKey, /^\d{4}-\d{2}-\d{2}:night$/);
     }
+  });
+});
+
+describe("producer attempt slot identities", () => {
+  test("two manual requests at the same millisecond remain distinct", () => {
+    const now = new Date("2026-09-05T08:00:00.123Z");
+    assert.notEqual(manualEpisodeSlotKey(now, "request-a"), manualEpisodeSlotKey(now, "request-b"));
+  });
+
+  test("manual identity is stable for the exact same request", () => {
+    const now = new Date("2026-09-05T08:00:00.123Z");
+    assert.equal(
+      manualEpisodeSlotKey(now, "request-a"),
+      "manual:2026-09-05T08:00:00.123Z:request-a",
+    );
+  });
+
+  test("rebuild attempts retain the original logical slot in their identity", () => {
+    assert.equal(
+      rebuildAttemptSlotKey("2026-09-05:night", "request-a"),
+      "rebuild:2026-09-05:night:request-a",
+    );
   });
 });
