@@ -45,6 +45,7 @@ export function detectPairResult(facts: DoublesMatchResultFacts): StoryCandidate
     sentiment: "neutral",
     tags: ["result", "baseline"],
     facts: {
+      resultKind: "doubles",
       matchId: facts.matchId,
       playedAt: facts.playedAt.toISOString(),
       winnerTeamId: facts.winnerTeamId,

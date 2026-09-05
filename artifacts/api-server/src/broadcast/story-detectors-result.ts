@@ -123,6 +123,7 @@ export function detectMatchResult(facts: SinglesResultMatchFacts): StoryCandidat
     sentiment: "neutral",
     tags: ["result", "baseline"],
     facts: {
+      resultKind: "singles",
       ...matchIdentityFacts(facts),
       winnerId: facts.winnerId,
       loserId: facts.loserId,

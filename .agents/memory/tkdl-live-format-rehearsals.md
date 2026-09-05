@@ -1,0 +1,16 @@
+---
+name: TKDL LIVE format rehearsals
+description: Durable rules for validating programme modes, runtime profiles, reviewed-season lifecycle, and rebuild behaviour.
+---
+
+Calibrate ordinary programme pacing from natural, quality-gated output. Do not pad dialogue to satisfy an aspirational runtime, and do not change a format profile until the candidate pool has the correct editorial provenance. Track active-season catch-up per unaired match, not by story-row existence, and keep scheduled generation independent of viewer traffic.
+
+**Why:** Historical catch-up results discovered during development initially looked like current competitive activity, which produced the wrong format and false urgency. Once reviewed-season match/form/performance stories were treated as archive context, the quiet pool produced a genuine feature-led Magazine programme. Reversible fresh-story fixtures then validated Balanced and News independently. Repeated failed rebuilds also showed that same-Edition phrase and story counters must not progressively consume their own deterministic pool. A later real match day showed that one existing season story could disable catch-up for other missed matches, while a request-only slot check could miss scheduled episodes entirely.
+
+**How to apply:** After a Season Review airs, keep champion/recap summaries available but do not let the reviewed season's ordinary stories drive a new programme. Rehearse one fresh concise storyline for Balanced and multiple fresh headline-worthy storylines for News. Use copied story-layer fixtures with full state restoration rather than changing match or season data. Compare configured runtime bands at whole-second display precision, keep same-Edition usage updates idempotent, recover every active-season match not represented by a primary or supporting story in a PUBLISHED programme, qualify match identity by league plus ID, and run idempotent slot checks on a server timer with viewer requests only as a safety net.
+
+For any producer-triggered update with uncovered matches, use a fixed sports-results structure: opening, every uncovered result once in chronological order, before/after table movement, relevant form/performance analysis, one least-aired app or mode spotlight, then closing. A match is the unit of coverage even when several detectors describe it, and a headline must not replay a topic that the body already covers.
+
+**Why:** Ordinary results could previously vanish when they did not meet a notable-story threshold or when the Director hit its normal story/runtime caps. Headline playback then repeated selected body stories, while busy result days could crowd out both the updated table and app discovery.
+
+**How to apply:** Always create a low-priority baseline result for a completed match, merge notable detectors into that match's single visible segment, bypass ordinary caps for uncovered-match catch-up, place the movement table immediately after all result segments, and rotate spotlights by least prior full airings rather than random choice.

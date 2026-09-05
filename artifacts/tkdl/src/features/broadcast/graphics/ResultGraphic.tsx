@@ -1,4 +1,5 @@
-// TKDL LIVE — ResultGraphic (GRAPHIC_KIND_BY_STORY_TYPE: ELIMINATION,
+// TKDL LIVE — ResultGraphic (GRAPHIC_KIND_BY_STORY_TYPE: MATCH_RESULT,
+// PAIR_RESULT, ELIMINATION,
 // DROUGHT_ENDED, CLINICAL_FINISHING, DOUBLE_TROUBLE, SCORING_POWER,
 // SCORING_WITHOUT_FINISHING, SEASON_BEST, PERSONAL_BEST,
 // CAREER_MATCH_MILESTONE, CAREER_WIN_MILESTONE, 180_MILESTONE,
@@ -46,6 +47,49 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
   const leagueAccent = leagueType ? LEAGUE_ACCENT[leagueType] : ACCENT;
   const subject = str(data, "playerName") ?? str(data, "winnerName") ?? str(data, "entityName");
   const big = !compact;
+
+  // MATCH_RESULT / PAIR_RESULT — the guaranteed, factual result card used
+  // when a completed match has no more dramatic detector to lead with.
+  // `resultKind` distinguishes these baseline stories from ELIMINATION and
+  // PAIR_ELIMINATED, which deliberately use stronger red consequence styling.
+  const resultKind = str(data, "resultKind");
+  if (resultKind === "singles" || resultKind === "doubles") {
+    const winner = str(data, resultKind === "doubles" ? "winnerTeamName" : "winnerName");
+    const loser = str(data, resultKind === "doubles" ? "loserTeamName" : "loserName");
+    const winnerBefore = num(data, "winnerPointsBefore");
+    const winnerAfter = num(data, "winnerPointsAfter");
+    const loserBefore = num(data, "loserPointsBefore");
+    const loserAfter = num(data, "loserPointsAfter");
+    const movement = winnerBefore !== null && winnerAfter !== null && loserBefore !== null && loserAfter !== null
+      ? `${winnerBefore} → ${winnerAfter} pts · ${loserBefore} → ${loserAfter} pts`
+      : null;
+    if (winner && loser) {
+      if (big) {
+        return (
+          <BigPanel accent={leagueAccent} fill={false}>
+            <BigPanelHeader icon="✓" kind="Confirmed Result" leagueType={leagueType} accent={leagueAccent} />
+            <div className="flex items-baseline gap-3">
+              <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "1.7rem" }}>{winner}</span>
+              <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "0.9rem" }}>beat</span>
+              <span className="font-bold uppercase truncate" style={{ color: "rgba(255,255,255,0.72)", fontSize: "1.4rem" }}>{loser}</span>
+            </div>
+            {movement && <BigLine>{movement}</BigLine>}
+          </BigPanel>
+        );
+      }
+      return (
+        <Panel accent={leagueAccent} compact>
+          <PanelTag icon="✓" kind="Confirmed Result" leagueType={leagueType} accent={leagueAccent} compact />
+          <div className="flex items-baseline gap-2">
+            <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "0.95rem" }}>{winner}</span>
+            <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "0.66rem" }}>beat</span>
+            <span className="font-bold uppercase truncate" style={{ color: "rgba(255,255,255,0.72)", fontSize: "0.85rem" }}>{loser}</span>
+          </div>
+          {movement && <PanelLine>{movement}</PanelLine>}
+        </Panel>
+      );
+    }
+  }
 
   // SEASON_BEST / PERSONAL_BEST — a verified record claim.
   const metric = str(data, "metric");
