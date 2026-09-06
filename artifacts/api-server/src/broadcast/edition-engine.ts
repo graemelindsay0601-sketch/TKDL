@@ -1095,6 +1095,7 @@ async function buildEdition(params: {
       )),
       db.select({
         id: broadcastStoriesTable.id, storyType: broadcastStoriesTable.storyType,
+        score: broadcastStoriesTable.score,
         anchorMatchId: broadcastStoriesTable.anchorMatchId, facts: broadcastStoriesTable.facts,
       }).from(broadcastStoriesTable).where(and(
         eq(broadcastStoriesTable.leagueType, "singles"),

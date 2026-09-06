@@ -23,6 +23,7 @@ export type EditorialMatch = {
 export type EditorialStory = {
   id: number;
   storyType: string;
+  score?: number;
   anchorMatchId: number | null;
   facts: Record<string, unknown>;
 };
@@ -86,6 +87,7 @@ export function buildEditorialFeatures(params: {
     .filter(match => match.playedAt <= params.cutoff)
     .sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime() || a.id - b.id);
   const features: Feature[] = [];
+  const matchesById = new Map(completed.map(match => [match.id, match]));
 
   if (active.length > 0) {
     const lowest = active[0];
@@ -136,11 +138,23 @@ export function buildEditorialFeatures(params: {
     })
     .filter((value): value is NonNullable<typeof value> => value !== null);
   const weeklySwings = new Map<number, number>();
+  const weeklyPaths = new Map<number, { lowestBefore: number; finalAfter: number }>();
   for (const result of weeklyResultFacts) {
     const winnerId = Number(result.story.facts.winnerId);
     const loserId = Number(result.story.facts.loserId);
     if (Number.isFinite(winnerId)) weeklySwings.set(winnerId, (weeklySwings.get(winnerId) ?? 0) + result.after[0] - result.before[0]);
     if (Number.isFinite(loserId)) weeklySwings.set(loserId, (weeklySwings.get(loserId) ?? 0) + result.after[1] - result.before[1]);
+    for (const [id, before, after] of [
+      [winnerId, result.before[0], result.after[0]],
+      [loserId, result.before[1], result.after[1]],
+    ] as const) {
+      if (!Number.isFinite(id)) continue;
+      const path = weeklyPaths.get(id);
+      weeklyPaths.set(id, {
+        lowestBefore: Math.min(path?.lowestBefore ?? before, before),
+        finalAfter: after,
+      });
+    }
   }
   const biggestGain = [...weeklySwings].filter(([id]) => names.has(id)).sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
   const biggestFall = [...weeklySwings].filter(([id]) => names.has(id)).sort((a, b) => a[1] - b[1] || a[0] - b[0])[0];
@@ -155,6 +169,18 @@ export function buildEditorialFeatures(params: {
       },
     });
   }
+  const escape = [...weeklyPaths]
+    .filter(([id, path]) => names.has(id) && path.lowestBefore <= 5 && path.finalAfter >= path.lowestBefore + 3)
+    .sort((a, b) => (b[1].finalAfter - b[1].lowestBefore) - (a[1].finalAfter - a[1].lowestBefore) || a[0] - b[0])[0];
+  if (escape) features.push({
+    key: "escape-act", purpose: "form_h2h_or_spotlight",
+    lineA: `Escape Act: ${names.get(escape[0])} was at ${escape[1].lowestBefore} points in the verified weekly snapshots and has since reached ${escape[1].finalAfter}.`,
+    lineB: "That is confirmed movement away from the zero-point line, not an estimated recovery.",
+    facts: {
+      featureTitle: "Escape Act", playerId: escape[0], playerName: names.get(escape[0]),
+      dangerPoint: escape[1].lowestBefore, recoveredTo: escape[1].finalAfter,
+    },
+  });
 
   const upsetTypes = new Set(["UPSET", "MAJOR_UPSET", "MODEL_SHOCK"]);
   const upsetCounts = new Map<number, number>();
@@ -169,6 +195,28 @@ export function buildEditorialFeatures(params: {
     lineB: "That label comes from verified upset detections; it makes no claim about an unavailable historical rating position.",
     facts: { featureTitle: "Upset Hunter", playerId: upsetLeader[0], playerName: names.get(upsetLeader[0]), upsetStories: upsetLeader[1] },
   });
+  const weeklyUpsets = params.stories
+    .filter(story => upsetTypes.has(story.storyType)
+      && story.anchorMatchId !== null
+      && (matchesById.get(story.anchorMatchId)?.playedAt.getTime() ?? Number.POSITIVE_INFINITY) >= weekStart.getTime()
+      && (matchesById.get(story.anchorMatchId)?.playedAt.getTime() ?? Number.POSITIVE_INFINITY) <= params.cutoff.getTime())
+    .sort((a, b) => {
+      const probabilityDifference = Number(a.facts.winnerProbability) - Number(b.facts.winnerProbability);
+      return (Number.isFinite(probabilityDifference) ? probabilityDifference : 0)
+        || (b.score ?? 0) - (a.score ?? 0)
+        || a.id - b.id;
+    });
+  const shock = weeklyUpsets[0];
+  if (shock) {
+    const winnerName = names.get(Number(shock.facts.winnerId));
+    const match = shock.anchorMatchId === null ? null : matchesById.get(shock.anchorMatchId);
+    if (winnerName && match) features.push({
+      key: "shock-week", purpose: "lighter_or_archive_or_callback",
+      lineA: `Shock of the Week: ${winnerName}'s win carries the strongest verified upset signal since Monday.`,
+      lineB: `The persisted detector classified it as ${shock.storyType.replaceAll("_", " ").toLowerCase()}; this award adds no new probability claim.`,
+      facts: { featureTitle: "Shock of the Week", playerId: Number(shock.facts.winnerId), playerName: winnerName, matchId: match.id, detector: shock.storyType },
+    });
+  }
 
   const pressure = new Map<number, { wins: number; losses: number }>();
   for (const story of params.stories.filter(story => story.storyType === "HIGH_STAKE_WIN" || story.storyType === "HIGH_STAKE_LOSS")) {
@@ -185,6 +233,24 @@ export function buildEditorialFeatures(params: {
     lineA: `Pressure Player: ${names.get(pressureLeader[0])} has ${pressureLeader[1].wins} verified high-stake ${pressureLeader[1].wins === 1 ? "win" : "wins"}.`,
     lineB: `The same persisted record shows ${pressureLeader[1].losses} high-stake ${pressureLeader[1].losses === 1 ? "loss" : "losses"}.`,
     facts: { featureTitle: "Pressure Player", playerId: pressureLeader[0], playerName: names.get(pressureLeader[0]), highStakeWins: pressureLeader[1].wins, highStakeLosses: pressureLeader[1].losses },
+  });
+  const performanceTypes = new Set(["CLINICAL_FINISHING", "DOUBLE_TROUBLE", "SCORING_POWER", "SCORING_WITHOUT_FINISHING", "SEASON_BEST", "PERSONAL_BEST"]);
+  const performance = params.stories
+    .filter(story => performanceTypes.has(story.storyType)
+      && story.anchorMatchId !== null
+      && (matchesById.get(story.anchorMatchId)?.playedAt.getTime() ?? Number.POSITIVE_INFINITY) >= weekStart.getTime()
+      && (matchesById.get(story.anchorMatchId)?.playedAt.getTime() ?? Number.POSITIVE_INFINITY) <= params.cutoff.getTime())
+    .filter(story => names.has(Number(story.facts.playerId)))
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.id - b.id)[0];
+  if (performance) features.push({
+    key: "performance-week", purpose: "form_h2h_or_spotlight",
+    lineA: `Performance of the Week: ${names.get(Number(performance.facts.playerId))} owns the highest-scoring verified performance story since Monday.`,
+    lineB: `The detector was ${performance.storyType.replaceAll("_", " ").toLowerCase()}; missing checkout or scoring fields are never treated as zero.`,
+    facts: {
+      featureTitle: "Performance of the Week", playerId: Number(performance.facts.playerId),
+      playerName: names.get(Number(performance.facts.playerId)), detector: performance.storyType,
+      detectorScore: performance.score ?? 0,
+    },
   });
 
   const stakes = completed.filter(match => match.stake > 0).map(match => match.stake);
@@ -268,7 +334,10 @@ export function buildEditorialFeatures(params: {
   if (features.length === 0) return [];
   const start = stableIndex(params.rotationKey, features.length);
   const rotated = [...features.slice(start), ...features.slice(0, start)];
-  const selected = rotated.slice(0, params.broad ? Math.min(8, features.length) : 1);
+  // A producer-triggered catch-up/clean sweep is deliberately the complete
+  // editorial reset: include every feature whose evidence gate passed.
+  // Ordinary scheduled Editions still rotate one desk at a time.
+  const selected = params.broad ? rotated : rotated.slice(0, 1);
   return selected.map((feature, index) => {
     const a = turn(feature.lineA);
     const b = { ...turn(feature.lineB), speaker: "B" as const };

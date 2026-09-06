@@ -25,6 +25,7 @@ function broad(representedMatchIds = new Set<number>()) {
       { id: 101, storyType: "MODEL_SHOCK", anchorMatchId: 11, facts: { winnerId: 3 } },
       { id: 102, storyType: "HIGH_STAKE_WIN", anchorMatchId: 11, facts: { winnerId: 3 } },
       { id: 103, storyType: "HIGH_STAKE_LOSS", anchorMatchId: 11, facts: { loserId: 1 } },
+      { id: 104, storyType: "SCORING_POWER", score: 77, anchorMatchId: 11, facts: { playerId: 3 } },
     ],
     cutoff,
     rotationKey: "week-37",
@@ -73,5 +74,11 @@ describe("recurring editorial features", () => {
       assert.match(opinion.dialogue.map(turn => turn.text).join(" "), /Host opinion/i);
       assert.match(opinion.dialogue.map(turn => turn.text).join(" "), /not a recommendation/i);
     }
+  });
+
+  test("weekly performance award uses persisted detector score and match timing", () => {
+    const award = broad().find(segment => segment.facts?.featureTitle === "Performance of the Week");
+    assert.equal(award?.facts?.playerName, "Charlie");
+    assert.equal(award?.facts?.detectorScore, 77);
   });
 });
