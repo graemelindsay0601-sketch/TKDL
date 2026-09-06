@@ -602,6 +602,10 @@ ph("RIVALRY.context.2", "A", "context", "History offers no real steer here — i
 ph("RIVALRY.context.3", "A", "context", "A history this close usually means a style match-up, not one player being simply better.", "neutral", { requires: RIVALRY_REQUIRES }),
 ph("RIVALRY.closer.2", "B", "closer", "Set your alarm for the next one of these.", "neutral", { requires: RIVALRY_REQUIRES }),
 ph("RIVALRY.closer.3", "B", "closer", "Toss a coin — genuinely, that's about as good a guide as any.", "neutral", { requires: RIVALRY_REQUIRES }),
+ph("RIVALRY.model.1", "A", "model_context", "{{aWins}}-{{bWins}} across {{gamesPlayed}} meetings gives neither player a decisive historical edge, so recent sharpness has to carry more weight than the full history.", "neutral", { requires: RIVALRY_REQUIRES }),
+ph("RIVALRY.contrary.1", "B", "contrary_opinion", "I'm making the call anyway — {{playerAName}} for me next time. In a matchup this close, I trust them to edge the next one.", "neutral", { requires: RIVALRY_REQUIRES }),
+ph("RIVALRY.evidence.1", "A", "evidence", "The evidence is the {{aWins}}-{{bWins}} split across {{gamesPlayed}} meetings — enough resistance on both sides to make that a host's pick rather than a certainty.", "neutral", { requires: RIVALRY_REQUIRES }),
+ph("RIVALRY.close.1", "B", "disagree_close", "Absolutely my pick — and if {{playerBName}} proves me wrong, you can replay this bit next show.", "neutral", { requires: RIVALRY_REQUIRES, tone: "personality" }),
 ];
 
 const RIVALRY_SWING_REQUIRES = ["careerLeaderPlayerId", "recentLeaderPlayerId", "recentWindowSize", "aWins", "bWins"];

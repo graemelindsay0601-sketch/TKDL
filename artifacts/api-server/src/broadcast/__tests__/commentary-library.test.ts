@@ -60,6 +60,17 @@ describe("COMMENTARY_LIBRARY coverage", () => {
     });
     assert.deepEqual(missingQuickHit, []);
   });
+
+  test("every H2H story can sustain the locked Chalky/Ton prediction-debate blueprint", () => {
+    const requiredIntents = ["model_context", "contrary_opinion", "evidence", "disagree_close"];
+    const missing = H2H_STORY_TYPES.flatMap(storyType => {
+      const intents = new Set((COMMENTARY_LIBRARY[storyType] ?? []).map(phrase => phrase.intent));
+      return requiredIntents
+        .filter(intent => !intents.has(intent))
+        .map(intent => `${storyType}:${intent}`);
+    });
+    assert.deepEqual(missing, []);
+  });
 });
 
 describe("17.2 record-claim compliance", () => {

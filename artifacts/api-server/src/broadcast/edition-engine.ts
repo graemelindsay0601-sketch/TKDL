@@ -47,7 +47,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
   db,
-  broadcastEditionsTable, broadcastStoriesTable, broadcastMemoryTable, seasonsTable, playersTable,
+  broadcastEditionsTable, broadcastStoriesTable, broadcastMemoryTable, seasonsTable, playersTable, matchesTable,
   type BroadcastEdition, type EditionStatus, type LeagueType, type BroadcastStory,
 } from "@workspace/db";
 import { getBroadcastConfig, type BroadcastConfig } from "./config.ts";
@@ -72,8 +72,13 @@ import { renderConversation, buildGraphicFacts, buildTemplateFacts, type Dialogu
 import { commentaryRng, dialogueHoldSeconds, interpolateTemplate } from "./commentary-math.ts";
 import { CLOSING_TEASE_TEMPLATES, hasClosingTease } from "./closing-tease-math.ts";
 import { pickFrom } from "./seeded-rng.ts";
-import type { StoryType, Treatment } from "./story-types.ts";
+import {
+  ARCHIVE_STORY_TYPES, DOUBLES_STORY_TYPES, FORM_STORY_TYPES, H2H_STORY_TYPES,
+  LEAGUE_STORY_TYPES, PERFORMANCE_STORY_TYPES, SHIFT_WARS_STORY_TYPES,
+  type StoryFamily, type StoryType, type Treatment,
+} from "./story-types.ts";
 import { validateStoryFactCutoffs } from "./cutoff-snapshot-math.ts";
+import { buildEditorialFeatures } from "./editorial-features.ts";
 
 // ── Fixed utility dialogue (11.1's required "opening" and "closing" slots,
 // and slot 10's own documented no-LEAGUE-story fallback — see director.ts's
@@ -199,6 +204,21 @@ async function buildCatchUpLeaderboardSegments(pool: readonly BroadcastStory[]):
       });
 
     const count = new Set(singlesResults.map(story => story.anchorMatchId)).size;
+    const eliminatedIds = new Set(pool
+      .filter(story => story.storyType === "ELIMINATION")
+      .map(story => Number(story.facts.loserId))
+      .filter(Number.isFinite));
+    const eliminatedNames = current
+      .filter(row => eliminatedIds.has(row.id))
+      .map(row => row.name);
+    const dangerPlayer = current
+      .filter(row => row.status !== "ELIMINATED" && row.points > 0)
+      .sort((a, b) => a.points - b.points || a.name.localeCompare(b.name))[0];
+    const consequenceLine = eliminatedNames.length > 0
+      ? `${eliminatedNames.join(" and ")} ${eliminatedNames.length === 1 ? "has" : "have"} hit zero and ${eliminatedNames.length === 1 ? "is" : "are"} eliminated.${dangerPlayer ? ` ${dangerPlayer.name} is now closest to the danger zone on ${dangerPlayer.points} points.` : ""}`
+      : dangerPlayer
+        ? `${dangerPlayer.name} is closest to the danger zone on ${dangerPlayer.points} points — one heavy wager can change a season quickly.`
+        : "Green arrows mark the climbers and red marks the players pushed down.";
     result.push({
       slot: 7,
       purpose: "leaderboard_after_results",
@@ -210,7 +230,7 @@ async function buildCatchUpLeaderboardSegments(pool: readonly BroadcastStory[]):
       lifecycleAtBroadcast: null,
       dialogue: buildFixedDialogue({
         a: `Those ${count === 1 ? "result has" : `${count} results have`} changed the Singles picture. Here is the table after the matches.`,
-        b: "Green arrows for the climbers, red for the players pushed down — this is where everyone stands now.",
+        b: consequenceLine,
       }),
       validityRules: [],
       facts: { rows, resultCount: count },
@@ -610,6 +630,11 @@ async function buildSegmentForEntry(entry: RunningOrderEntry, ctx: SegmentBuildC
       editorialCutoff: ctx.editorialCutoff,
       phraseIdsUsedThisBuild: ctx.phraseIdsUsedThisBuild,
       isHeadlineTease,
+      preferredBlueprint: !isHeadlineTease
+        && (H2H_STORY_TYPES as readonly string[]).includes(story.storyType)
+        && treatment === "major"
+        ? "DISAGREEMENT"
+        : undefined,
     });
   }
 
@@ -867,14 +892,57 @@ async function buildEdition(params: {
           treatment: treatmentForScore(group.primary.score),
           carryForwardState: null,
       }));
-      const aggregateEntries = runningOrder.filter(entry =>
-        entry.group !== null
-        && entry.group.primary.anchorMatchId === null
-        && entry.purpose !== "headlines"
-        && entry.purpose !== "opening"
-        && entry.purpose !== "closing"
-        && entry.group.primary.storyType !== "FEATURE_SPOTLIGHT"
-      );
+      const familyForStory = (storyType: StoryType): StoryFamily | null => {
+        if ((H2H_STORY_TYPES as readonly string[]).includes(storyType)) return "H2H";
+        if ((FORM_STORY_TYPES as readonly string[]).includes(storyType)) return "FORM";
+        if ((LEAGUE_STORY_TYPES as readonly string[]).includes(storyType)) return "LEAGUE";
+        if ((PERFORMANCE_STORY_TYPES as readonly string[]).includes(storyType)) return "PERFORMANCE";
+        if ((DOUBLES_STORY_TYPES as readonly string[]).includes(storyType)) return "DOUBLES";
+        if ((SHIFT_WARS_STORY_TYPES as readonly string[]).includes(storyType)) return "SHIFT_WARS";
+        if ((ARCHIVE_STORY_TYPES as readonly string[]).includes(storyType)) return "ARCHIVE";
+        return null;
+      };
+      const aggregateGroups = mergeStoriesByAnchorAndNarrative(pool)
+        .filter(group =>
+          group.primary.anchorMatchId === null
+          && group.primary.storyType !== "FEATURE_SPOTLIGHT"
+        );
+      const selectedAggregateGroups = new Set<number>();
+      const aggregateEntries: RunningOrderEntry[] = [];
+      const usedSubjectKeys = new Set<string>();
+      const addAggregate = (family: StoryFamily, limit: number, treatment: Treatment = "supporting") => {
+        const candidates = aggregateGroups
+          .filter(group =>
+            !selectedAggregateGroups.has(group.primary.id)
+            && familyForStory(group.primary.storyType) === family
+            && group.primary.subjectKeys.every(subject => !usedSubjectKeys.has(subject))
+          )
+          .sort((a, b) => b.primary.score - a.primary.score || a.primary.id - b.primary.id)
+          .slice(0, limit);
+        for (const group of candidates) {
+          selectedAggregateGroups.add(group.primary.id);
+          for (const subject of group.primary.subjectKeys) usedSubjectKeys.add(subject);
+          aggregateEntries.push({
+            slot: family === "LEAGUE" || family === "H2H" ? 5 : 7,
+            purpose: family === "LEAGUE" || family === "H2H"
+              ? "analysis_or_predictor"
+              : "form_h2h_or_spotlight",
+            group,
+            // The primary H2H/form item is the host prediction desk: use the
+            // full evidence/counter-opinion treatment so Chalky and Ton make
+            // and challenge a pick rather than merely reciting the numbers.
+            treatment,
+            carryForwardState: null,
+          });
+        }
+      };
+      addAggregate("LEAGUE", 2);
+      addAggregate("FORM", 2, "major");
+      addAggregate("H2H", 1, "major");
+      addAggregate("PERFORMANCE", 1, "major");
+      addAggregate("DOUBLES", 1);
+      addAggregate("SHIFT_WARS", 1);
+      addAggregate("ARCHIVE", 1);
       const spotlightGroup = mergeStoriesByAnchorAndNarrative(pool)
         .find(group => group.primary.storyType === "FEATURE_SPOTLIGHT");
       const spotlightEntry: RunningOrderEntry[] = spotlightGroup ? [{
@@ -1003,6 +1071,59 @@ async function buildEdition(params: {
     const closing = segments.filter(segment => segment.purpose === "closing");
     segments.splice(0, segments.length, ...opening, ...matchSegments, ...leaderboards, ...aggregateSegments, ...closing);
   }
+
+  // Recurring editorial desk features are snapshot-derived utility segments,
+  // not new story rows. Keep ordinary programmes focused with one rotating
+  // feature; catch-up/clean-sweep programmes may carry a broader set.
+  // Persisted result stories remain the sole result narrative for a match:
+  // represented match ids are excluded from Points Swing, while the other
+  // features describe aggregates/current state rather than replaying winners.
+  if (closedLeagueSeasons.length === 0) {
+    const [editorialPlayers, editorialMatches, editorialStories] = await Promise.all([
+      db.select({
+        id: playersTable.id, name: playersTable.name, points: playersTable.points,
+        wins: playersTable.seasonWins, losses: playersTable.seasonLosses, status: playersTable.status,
+        eliminationsCount: playersTable.eliminationsCount,
+      }).from(playersTable).where(eq(playersTable.isActive, true)),
+      db.select({
+        id: matchesTable.id, winnerId: matchesTable.winnerId, loserId: matchesTable.loserId,
+        winnerName: matchesTable.winnerName, loserName: matchesTable.loserName,
+        stake: matchesTable.stake, playedAt: matchesTable.playedAt,
+      }).from(matchesTable).where(and(
+        sql`${matchesTable.playedAt} <= ${cutoffEnd}`,
+        sql`${matchesTable.seasonId} IN (SELECT id FROM seasons WHERE league_type = 'singles' AND is_active = true)`,
+      )),
+      db.select({
+        id: broadcastStoriesTable.id, storyType: broadcastStoriesTable.storyType,
+        anchorMatchId: broadcastStoriesTable.anchorMatchId, facts: broadcastStoriesTable.facts,
+      }).from(broadcastStoriesTable).where(and(
+        eq(broadcastStoriesTable.leagueType, "singles"),
+        sql`${broadcastStoriesTable.detectedAt} <= ${cutoffEnd}`,
+        sql`${broadcastStoriesTable.seasonId} IN (SELECT id FROM seasons WHERE league_type = 'singles' AND is_active = true)`,
+      )),
+    ]);
+    const representedMatchIds = new Set<number>();
+    for (const segment of segments) {
+      if (segment.storyId === null) continue;
+      const source = pool.find(story => story.id === segment.storyId);
+      if (source?.anchorMatchId !== null && source?.anchorMatchId !== undefined) {
+        representedMatchIds.add(source.anchorMatchId);
+      }
+    }
+    const editorial = buildEditorialFeatures({
+      players: editorialPlayers,
+      matches: editorialMatches,
+      stories: editorialStories,
+      cutoff: cutoffEnd,
+      rotationKey: seedSlotKey,
+      broad: isSeasonCatchUp,
+      representedMatchIds,
+    });
+    const closingIndex = segments.findIndex(segment => segment.purpose === "closing");
+    if (closingIndex >= 0) segments.splice(closingIndex, 0, ...editorial);
+    else segments.push(...editorial);
+  }
+  segments.forEach((segment, index) => { segment.slot = index + 1; });
 
   const selectedStoriesById = new Map<number, BroadcastStory>();
   for (const entry of runningOrder) {

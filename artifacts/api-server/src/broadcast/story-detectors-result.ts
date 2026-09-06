@@ -237,6 +237,10 @@ export function detectElimination(facts: SinglesResultMatchFacts): StoryCandidat
     facts: {
       ...matchIdentityFacts(facts), winnerId: facts.winnerId, loserId: facts.loserId,
       stake: facts.stake,
+      winnerPointsBefore: facts.winnerBefore.points,
+      winnerPointsAfter: facts.winnerAfter?.points ?? facts.winnerBefore.points + facts.stake,
+      loserPointsBefore: facts.loserBefore.points,
+      loserPointsAfter: facts.loserAfter.points,
     },
     components: { ...baseComponents(facts), historicalSignificance: 0, entertainmentValue: 2 },
   };

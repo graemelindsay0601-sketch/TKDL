@@ -20,3 +20,9 @@ A deliberate clean sweep is a separate producer operation from ordinary slot reb
 **Why:** Incremental detection and uncovered-match recovery are intentionally conservative. They cannot reliably express the producer's stronger instruction to reread an entire date range as one fresh editorial baseline, and overloading the normal rebuild button would make a broad replay too easy to trigger accidentally.
 
 **How to apply:** Require an explicit date and producer confirmation. Re-run detection across that complete window, select every active-season match in the window regardless of previous airings, retain the previous published Edition on any failure, and let later Create/Rebuild operations resume normal incremental coverage from the successful sweep.
+
+Recurring magazine desks must be derived from verified snapshots and rotate in ordinary Editions; a clean sweep may carry a broader bounded set. Elimination always outranks every other narrative from the same match, while prediction picks remain labelled host opinions.
+
+**Why:** The points-wager format loses its defining stakes if a zero-point knockout can survive only as silent supporting metadata. Conversely, risk profiles, weekly awards, points movement, and hypothetical wagers become misleading when historical balances or samples are incomplete.
+
+**How to apply:** Announce the transition to zero in the result and revisit its table consequence immediately afterward. Use exact before/after snapshots for points movement, persisted detector counts for upset/high-stake records, current balances for legal wager bounds, and omit any desk whose required evidence is unavailable. Editorial aggregate desks never own a result story ID.

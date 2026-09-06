@@ -88,6 +88,19 @@ export async function seedBroadcastSettings(): Promise<void> {
       eq(settingsTable.key, "broadcast_balanced_profile"),
       eq(settingsTable.value, legacyBalancedProfile),
     ));
+  const compactBalancedProfile = JSON.stringify({
+    maxHeadlineTeases: 2,
+    maxStorySegments: 6,
+    estimatedRuntimeSeconds: { min: 105, max: 360 },
+    contentMix: ["news", "analysis", "feature", "news", "analysis", "feature"],
+  });
+  await db
+    .update(settingsTable)
+    .set({ value: BROADCAST_SETTING_DEFAULTS.broadcast_balanced_profile, updatedAt: new Date() })
+    .where(and(
+      eq(settingsTable.key, "broadcast_balanced_profile"),
+      eq(settingsTable.value, compactBalancedProfile),
+    ));
 
   const legacyMagazineProfile = JSON.stringify({
     maxHeadlineTeases: 1,
@@ -101,6 +114,19 @@ export async function seedBroadcastSettings(): Promise<void> {
     .where(and(
       eq(settingsTable.key, "broadcast_magazine_profile"),
       eq(settingsTable.value, legacyMagazineProfile),
+    ));
+  const compactMagazineProfile = JSON.stringify({
+    maxHeadlineTeases: 1,
+    maxStorySegments: 5,
+    estimatedRuntimeSeconds: { min: 100, max: 420 },
+    contentMix: ["feature", "analysis", "feature", "news", "feature"],
+  });
+  await db
+    .update(settingsTable)
+    .set({ value: BROADCAST_SETTING_DEFAULTS.broadcast_magazine_profile, updatedAt: new Date() })
+    .where(and(
+      eq(settingsTable.key, "broadcast_magazine_profile"),
+      eq(settingsTable.value, compactMagazineProfile),
     ));
 }
 

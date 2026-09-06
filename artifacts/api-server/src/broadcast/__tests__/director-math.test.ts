@@ -101,6 +101,15 @@ describe("mergeStoriesByAnchorAndNarrative", () => {
     assert.equal(groups[0].primary.id, Math.min(a.id, b.id));
   });
 
+  test("an elimination always owns its match narrative even when another detector scores higher", () => {
+    const upset = story({ id: 90, anchorMatchId: 901, storyType: "MAJOR_UPSET", score: 92 });
+    const elimination = story({ id: 91, anchorMatchId: 901, storyType: "ELIMINATION", score: 55 });
+    const baseline = story({ id: 92, anchorMatchId: 901, storyType: "MATCH_RESULT", score: 15 });
+    const [group] = mergeStoriesByAnchorAndNarrative([upset, elimination, baseline]);
+    assert.equal(group.primary.storyType, "ELIMINATION");
+    assert.deepEqual(group.supporting.map(item => item.storyType), ["MAJOR_UPSET", "MATCH_RESULT"]);
+  });
+
   test("empty input returns no groups", () => {
     assert.deepEqual(mergeStoriesByAnchorAndNarrative([]), []);
   });

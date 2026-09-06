@@ -248,6 +248,8 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
   if (winnerName && loserName) {
     const endedLossStreak = num(data, "endedLossStreak");
     const stake = num(data, "stake");
+    const loserPointsBefore = num(data, "loserPointsBefore");
+    const loserPointsAfter = num(data, "loserPointsAfter");
     const droughtEnded = endedLossStreak !== null;
     const tone = droughtEnded ? "#22c55e" : "#ff005c";
     if (big) {
@@ -261,6 +263,9 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
           </div>
           {droughtEnded && <BigLine>Ended a {endedLossStreak}-match losing run</BigLine>}
           {!droughtEnded && stake !== null && <BigLine>{stake} points on the line</BigLine>}
+           {!droughtEnded && loserPointsBefore !== null && loserPointsAfter === 0 && (
+             <BigLine>{loserName}: {loserPointsBefore} → 0 points · eliminated</BigLine>
+           )}
         </BigPanel>
       );
     }
@@ -274,6 +279,9 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
         </div>
         {droughtEnded && <PanelLine>Ended a {endedLossStreak}-match losing run</PanelLine>}
         {!droughtEnded && stake !== null && <PanelLine>{stake} points on the line</PanelLine>}
+        {!droughtEnded && loserPointsBefore !== null && loserPointsAfter === 0 && (
+          <PanelLine>{loserName}: {loserPointsBefore} → 0 · eliminated</PanelLine>
+        )}
       </Panel>
     );
   }

@@ -297,7 +297,17 @@ export function directorSelect(params: {
   function place(slot: number, purpose: RunningOrderSlotPurpose, pick: RankedCandidate | null): void {
     if (!pick) return;
     commit(pick, ctx);
-    entries.push({ slot, purpose, group: pick.group, treatment: pick.treatment, carryForwardState: pick.carryForwardState });
+    const isPredictionDesk = purpose === "analysis_or_predictor"
+      && storyFamily(pick.group.primary) === "H2H";
+    entries.push({
+      slot,
+      purpose,
+      group: pick.group,
+      // A head-to-head selected for the predictor desk should sound like a
+      // proper host debate, not a two-line stat readout.
+      treatment: isPredictionDesk ? "major" : pick.treatment,
+      carryForwardState: pick.carryForwardState,
+    });
   }
 
   // Slot 3 — main_story: the single highest-priority candidate — unfiltered
@@ -426,16 +436,25 @@ export function directorSelect(params: {
   // story-detectors-filler.ts) — several of THOSE in one Edition is
   // exactly the Quiet Edition's "archive, spotlight, ..." row read
   // plurally, with no old-season content involved at all. So the bonus
-  // loop below is FILLER-only: slot 9's own pick above still gets first
-  // claim on the ONE ARCHIVE story an Edition may ever carry (unchanged
-  // from before this fix), and only the leftover FILLER pool backs a
-  // thin Edition up further — never a second old season. Mirrors slot 2's
-  // headline entries' own "many entries, one purpose" shape (same slot
-  // number and purpose, one segment each) and is capped so it can never
-  // turn a single quiet story into a padded-out show pretending to be busy.
-  const MIN_REAL_ENTRIES_BEFORE_BACKFILL = 4;
-  const MAX_BONUS_LIGHTER_ENTRIES = 3;
-  for (let bonusCount = 0; entries.length < MIN_REAL_ENTRIES_BEFORE_BACKFILL && bonusCount < MAX_BONUS_LIGHTER_ENTRIES; bonusCount++) {
+  // loop below still limits ARCHIVE to the one slot above, but no longer
+  // treats live statistical analysis as disposable just because the news
+  // cycle is quiet. Spend unused current FORM/H2H/PERFORMANCE/LEAGUE,
+  // Doubles and Shift Wars stories first, up to the producer's story cap;
+  // only then use present-tense FILLER. This creates a real magazine middle
+  // — form, matchup debate, table/predictor, feature — instead of padding
+  // the programme with several unrelated promos.
+  const ANALYSIS_FAMILIES = new Set(["FORM", "H2H", "PERFORMANCE", "LEAGUE", "DOUBLES", "SHIFT_WARS"]);
+  while (entries.length < pacing.maxStorySegments) {
+    const analysisPick = pickForSlot(ranked, c => ANALYSIS_FAMILIES.has(storyFamily(c.group.primary)), ctx);
+    if (!analysisPick) break;
+    const family = storyFamily(analysisPick.group.primary);
+    place(
+      family === "LEAGUE" || family === "H2H" ? 5 : 7,
+      family === "LEAGUE" || family === "H2H" ? "analysis_or_predictor" : "form_h2h_or_spotlight",
+      analysisPick,
+    );
+  }
+  while (entries.length < pacing.maxStorySegments) {
     const bonusLighterPick = pickForSlot(ranked, c => storyFamily(c.group.primary) === "FILLER", ctx);
     if (!bonusLighterPick) break;
     place(9, "lighter_or_archive_or_callback", bonusLighterPick);

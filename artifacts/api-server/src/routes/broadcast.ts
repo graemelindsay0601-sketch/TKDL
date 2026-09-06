@@ -373,6 +373,9 @@ router.post("/admin/broadcast/clean-sweep", requireAdminSession, async (req, res
     const matchResults = attemptProgramme
       ? attemptProgramme.segments.filter(segment => segment.storyId !== null && segment.facts?.playedAt).length
       : 0;
+    const editorialFeatures = attemptProgramme
+      ? attemptProgramme.segments.filter(segment => typeof segment.facts?.featureTitle === "string").length
+      : 0;
     const attempt = {
       id: result.attempt.id,
       slotKey: result.attempt.slotKey,
@@ -383,6 +386,7 @@ router.post("/admin/broadcast/clean-sweep", requireAdminSession, async (req, res
       runtimeSeconds,
       runtimeBand: runtimeSeconds === null ? null : classifyEditionLength(runtimeSeconds),
       matchResults,
+      editorialFeatures,
       startDate,
     };
     if (result.attempt.status !== "PUBLISHED") {

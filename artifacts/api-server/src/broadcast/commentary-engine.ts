@@ -384,6 +384,8 @@ export type RenderConversationParams = {
   phraseIdsUsedThisBuild: Set<string>;
   /** True only for slot-2 teases, which may mirror their promised body story. */
   isHeadlineTease: boolean;
+  /** Optional editorial lock for named recurring desks such as the H2H prediction debate. */
+  preferredBlueprint?: BlueprintName;
 };
 
 /**
@@ -407,7 +409,7 @@ export async function renderConversation(params: RenderConversationParams): Prom
   const {
     storyType, leagueType, facts, primarySubjectKey, treatment, slotKey, storyKey,
     commentaryVersion, editionId, banterContext, banterLevel, programmeMode,
-    editorialCutoff, phraseIdsUsedThisBuild, isHeadlineTease,
+    editorialCutoff, phraseIdsUsedThisBuild, isHeadlineTease, preferredBlueprint,
   } = params;
   const family = familyForStoryType(storyType);
   const isMatchResult = family === "RESULT" || (family === "DOUBLES" && typeof facts.matchId === "number");
@@ -451,7 +453,10 @@ export async function renderConversation(params: RenderConversationParams): Prom
 
   const viableBlueprints: BlueprintName[] = [];
   const turnsByBlueprint = new Map<BlueprintName, BlueprintTurn[]>();
-  for (const name of blueprintNamesForTreatment(treatment)) {
+  const permittedBlueprints = preferredBlueprint
+    ? blueprintNamesForTreatment(treatment).filter(name => name === preferredBlueprint)
+    : blueprintNamesForTreatment(treatment);
+  for (const name of permittedBlueprints) {
     const turns = resolveTurnsForTreatment(treatment, BLUEPRINTS[name]);
     const requiredTurns = turns.filter(t => !t.optional);
     const satisfiable = requiredTurns.every(

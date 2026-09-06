@@ -81,7 +81,16 @@ export function mergeStoriesByAnchorAndNarrative(stories: readonly BroadcastStor
 
   const result: MergedStoryGroup[] = [];
   for (const [groupKey, members] of groups) {
-    const [primary, ...supporting] = [...members].sort(byScoreThenId);
+    const [primary, ...supporting] = [...members].sort((a, b) => {
+      // Reaching zero is the defining consequence of a points-wager match.
+      // It must own the spoken/visual narrative even when the same result
+      // also triggers a numerically higher-scoring upset, record or streak.
+      // Otherwise ELIMINATION survives only as an invisible supporting id.
+      const aElimination = a.storyType === "ELIMINATION" || a.storyType === "PAIR_ELIMINATED";
+      const bElimination = b.storyType === "ELIMINATION" || b.storyType === "PAIR_ELIMINATED";
+      if (aElimination !== bElimination) return aElimination ? -1 : 1;
+      return byScoreThenId(a, b);
+    });
     result.push({ groupKey, primary, supporting });
   }
   // Highest-scoring group first — a stable, useful default order for any
@@ -418,7 +427,8 @@ export type ProgrammeSegment = {
   /** Explicit graphic override for a utility section with verified facts but
    * no broadcast_stories row of its own. Ordinary story segments derive their
    * graphic from storyType in api-shapes.ts. */
-  graphicKind?: "LeagueTableGraphic";
+  graphicKind?: "LeagueTableGraphic" | "TitlePredictorGraphic" | "MatchContextGraphic"
+    | "HeadToHeadGraphic" | "FormWatchGraphic" | "WagerGraphic" | "ResultGraphic";
 };
 
 export const PROGRAMME_MODES = ["NEWS", "BALANCED", "MAGAZINE", "SEASON_REVIEW"] as const;
@@ -449,15 +459,15 @@ export const PROGRAMME_PACING_RULES: Record<OrdinaryProgrammeMode, ProgrammePaci
   },
   BALANCED: {
     maxHeadlineTeases: 2,
-    maxStorySegments: 6,
+    maxStorySegments: 7,
     estimatedRuntimeSeconds: { min: 105, max: 360 },
-    contentMix: ["news", "analysis", "feature", "news", "analysis", "feature"],
+    contentMix: ["news", "analysis", "feature", "news", "analysis", "feature", "analysis"],
   },
   MAGAZINE: {
     maxHeadlineTeases: 1,
-    maxStorySegments: 5,
+    maxStorySegments: 7,
     estimatedRuntimeSeconds: { min: 100, max: 420 },
-    contentMix: ["feature", "analysis", "feature", "news", "feature"],
+    contentMix: ["feature", "analysis", "feature", "analysis", "news", "feature", "analysis"],
   },
 };
 

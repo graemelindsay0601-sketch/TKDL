@@ -178,7 +178,8 @@ export default function AdminBroadcastPanel() {
         toast(`${d.error ?? "Clean sweep failed."}${retained}${diagnostic}`, "error");
       } else {
         const runtime = typeof d.edition.runtimeSeconds === "number" ? ` · ${formatRuntime(d.edition.runtimeSeconds)}` : "";
-        toast(`✅ Clean Sweep #${d.edition.id} is live · ${d.edition.matchResults} match results${runtime}`, "success");
+        const features = typeof d.edition.editorialFeatures === "number" ? ` · ${d.edition.editorialFeatures} editorial desks` : "";
+        toast(`✅ Clean Sweep #${d.edition.id} is live · ${d.edition.matchResults} match results${features}${runtime}`, "success");
       }
       loadStatus();
     } catch {
@@ -390,7 +391,7 @@ export default function AdminBroadcastPanel() {
       )}
 
       <div style={{ marginTop: "1.5rem", padding: "14px 16px", background: D.card, border: `1px solid ${D.border}`, borderRadius: "10px", fontSize: "12px", color: D.sub, lineHeight: 1.6 }}>
-        <strong style={{ color: D.warn }}>Clean Sweep</strong> deliberately ignores previous broadcast coverage and produces one complete results programme from the selected date through now. It does not delete match, season, story, or Edition records, and the previous Edition stays live if the sweep fails. After a successful sweep, <strong style={{ color: D.success }}>Create New Episode</strong> and <strong style={{ color: D.info }}>Rebuild Current Slot</strong> return to normal incremental updates.
+        <strong style={{ color: D.warn }}>Clean Sweep</strong> is a complete editorial reset from the selected date through now. It deliberately ignores previous match airtime, rebuilds every eligible result, recalculates the expanded analysis mix, and adds the broader rotating editorial desks supported by the current data. It does not delete match, season, story, or Edition records, and the previous Edition stays live unless the replacement clears its full quality gate. After a successful sweep, <strong style={{ color: D.success }}>Create New Episode</strong> and <strong style={{ color: D.info }}>Rebuild Current Slot</strong> return to normal incremental updates.
       </div>
     </div>
   );

@@ -116,14 +116,14 @@ describe("mode-specific running orders", () => {
     assert.equal(body[3].group?.primary.storyType, "UPSET");
     assert.equal(body[4].group?.primary.storyType, "WIN_STREAK");
     assert.equal(result.filter(e => e.purpose === "headlines").length, 2);
-    assert.deepEqual(PROGRAMME_PACING_RULES.BALANCED.contentMix, ["news", "analysis", "feature", "news", "analysis", "feature"]);
+    assert.deepEqual(PROGRAMME_PACING_RULES.BALANCED.contentMix, ["news", "analysis", "feature", "news", "analysis", "feature", "analysis"]);
   });
 
   test("MAGAZINE opens on a feature premise and has the loosest runtime band", () => {
     const result = order("MAGAZINE");
     assert.equal(result.find(e => e.purpose === "main_story")?.group?.primary.storyType, "FEATURE_SPOTLIGHT");
     assert.equal(result.filter(e => e.purpose === "headlines").length, 1);
-    assert.equal(result.filter(e => e.group && e.purpose !== "headlines" && e.purpose !== "closing").length <= 6, true);
+    assert.equal(result.filter(e => e.group && e.purpose !== "headlines" && e.purpose !== "closing").length <= 8, true);
     assert.deepEqual(PROGRAMME_PACING_RULES.MAGAZINE.estimatedRuntimeSeconds, { min: 100, max: 420 });
   });
 
@@ -159,5 +159,28 @@ describe("mode-specific running orders", () => {
     assert.equal(body[0].group?.primary.storyType, "LAST_MEETING");
     assert.equal(isRuntimeWithinProgrammeMode("BALANCED", 180, { ...PROGRAMME_PACING_RULES, BALANCED: pacing }), true);
     assert.equal(isRuntimeWithinProgrammeMode("BALANCED", 300, { ...PROGRAMME_PACING_RULES, BALANCED: pacing }), false);
+  });
+
+  test("uses live statistical topics before filler to make a quiet show substantive", () => {
+    const pool = [
+      story({ id: 21, storyType: "FEATURE_SPOTLIGHT", score: 55, subjectKeys: ["feature:1"] }),
+      story({ id: 22, storyType: "TITLE_RACE", score: 50, subjectKeys: ["table:1"] }),
+      story({ id: 23, storyType: "WIN_STREAK", score: 48, subjectKeys: ["player:1"] }),
+      story({ id: 24, storyType: "ABOVE_BASELINE", score: 45, subjectKeys: ["player:2"] }),
+      story({ id: 25, storyType: "H2H_DOMINANCE", score: 44, subjectKeys: ["h2h:1:2"] }),
+      story({ id: 26, storyType: "LAST_MEETING", score: 40, subjectKeys: ["archive:1:2"] }),
+      story({ id: 27, storyType: "SHADOW_BOT_PROMO", score: 35, subjectKeys: ["feature:shadow"] }),
+    ];
+    const result = directorSelect({
+      pool, previousProgramme: null, slotKey: "quiet-rich", mode: "MAGAZINE",
+    }).runningOrder;
+    const bodyTypes = result
+      .filter(entry => entry.group && !["headlines", "what_to_watch", "closing"].includes(entry.purpose))
+      .map(entry => entry.group!.primary.storyType);
+    assert.equal(bodyTypes.length, 7);
+    assert.ok(bodyTypes.includes("WIN_STREAK"));
+    assert.ok(bodyTypes.includes("ABOVE_BASELINE"));
+    assert.ok(bodyTypes.includes("H2H_DOMINANCE"));
+    assert.ok(bodyTypes.includes("TITLE_RACE"));
   });
 });
