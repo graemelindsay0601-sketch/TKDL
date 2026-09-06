@@ -81,4 +81,11 @@ describe("recurring editorial features", () => {
     assert.equal(award?.facts?.playerName, "Charlie");
     assert.equal(award?.facts?.detectorScore, 77);
   });
+
+  test("presenter dialogue never exposes internal labels or awkward hyphenated compounds", () => {
+    const spokenText = broad().flatMap(segment => segment.dialogue.map(turn => turn.text)).join(" ");
+    assert.doesNotMatch(spokenText, /\b[A-Z]+_[A-Z_]+\b/);
+    assert.doesNotMatch(spokenText, /\b(?:high-stake|highest-scoring|zero-point|before-and-after|\d+-match)\b/i);
+    assert.doesNotMatch(spokenText, /\b(?:persisted detector|the detector was|weekly snapshots)\b/i);
+  });
 });

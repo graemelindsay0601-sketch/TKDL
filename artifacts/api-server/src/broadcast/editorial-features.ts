@@ -64,6 +64,24 @@ function median(values: readonly number[]): number {
   return ordered.length % 2 ? ordered[middle] : (ordered[middle - 1] + ordered[middle]) / 2;
 }
 
+function performanceDescription(storyType: string): string {
+  const descriptions: Record<string, string> = {
+    CLINICAL_FINISHING: "clinical finishing",
+    DOUBLE_TROUBLE: "a difficult night on the doubles",
+    SCORING_POWER: "strong scoring",
+    SCORING_WITHOUT_FINISHING: "strong scoring without the finishing return",
+    SEASON_BEST: "a season best",
+    PERSONAL_BEST: "a personal best",
+  };
+  return descriptions[storyType] ?? "a notable performance";
+}
+
+function upsetDescription(storyType: string): string {
+  if (storyType === "MAJOR_UPSET") return "a major upset";
+  if (storyType === "MODEL_SHOCK") return "a result the numbers strongly favoured the other way";
+  return "an upset";
+}
+
 /**
  * Builds recurring desk features only from the supplied cutoff snapshot.
  * Ordinary programmes receive one rotating feature; recovery programmes can
@@ -116,7 +134,7 @@ export function buildEditorialFeatures(params: {
     features.push({
       key: "wager-week", purpose: "lighter_or_archive_or_callback", graphicKind: "WagerGraphic",
       lineA: `Wager of the Week: the largest verified stake since Monday is ${largest.stake} points.`,
-      lineB: `That stake was recorded in ${largest.winnerName} against ${largest.loserName}; this is a size award, not another result call.`,
+      lineB: `It came when ${largest.winnerName} played ${largest.loserName}. This award is about the size of the wager, not another result call.`,
       facts: {
         featureTitle: "Wager of the Week", matchId: largest.id, stake: largest.stake,
         winnerName: largest.winnerName, loserName: largest.loserName,
@@ -161,8 +179,8 @@ export function buildEditorialFeatures(params: {
   if (biggestGain && biggestFall && (biggestGain[1] > 0 || biggestFall[1] < 0)) {
     features.push({
       key: "points-swing", purpose: "analysis_or_predictor",
-      lineA: `Points Swing: since Monday, ${names.get(biggestGain[0])} has the biggest verified net gain at ${biggestGain[1] > 0 ? "+" : ""}${biggestGain[1]} points.`,
-      lineB: `${names.get(biggestFall[0])} has the largest verified net fall at ${biggestFall[1]} points. This aggregates the recorded before-and-after snapshots rather than replaying the results.`,
+      lineA: `Points Swing: since Monday, ${names.get(biggestGain[0])} has made the biggest gain, adding ${Math.abs(biggestGain[1])} points.`,
+      lineB: `${names.get(biggestFall[0])} has the largest fall, losing ${Math.abs(biggestFall[1])} points overall. That comes from the recorded points changes, rather than another replay of the results.`,
       facts: {
         featureTitle: "Points Swing", gainingPlayerId: biggestGain[0], gainingPlayerName: names.get(biggestGain[0]),
         netGain: biggestGain[1], fallingPlayerId: biggestFall[0], fallingPlayerName: names.get(biggestFall[0]), netFall: biggestFall[1],
@@ -174,8 +192,8 @@ export function buildEditorialFeatures(params: {
     .sort((a, b) => (b[1].finalAfter - b[1].lowestBefore) - (a[1].finalAfter - a[1].lowestBefore) || a[0] - b[0])[0];
   if (escape) features.push({
     key: "escape-act", purpose: "form_h2h_or_spotlight",
-    lineA: `Escape Act: ${names.get(escape[0])} was at ${escape[1].lowestBefore} points in the verified weekly snapshots and has since reached ${escape[1].finalAfter}.`,
-    lineB: "That is confirmed movement away from the zero-point line, not an estimated recovery.",
+    lineA: `Escape Act: ${names.get(escape[0])} was down to ${escape[1].lowestBefore} points this week and has since reached ${escape[1].finalAfter}.`,
+    lineB: "That is confirmed movement away from elimination danger, not an estimated recovery.",
     facts: {
       featureTitle: "Escape Act", playerId: escape[0], playerName: names.get(escape[0]),
       dangerPoint: escape[1].lowestBefore, recoveredTo: escape[1].finalAfter,
@@ -191,8 +209,8 @@ export function buildEditorialFeatures(params: {
   const upsetLeader = [...upsetCounts].filter(([id]) => names.has(id)).sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
   if (upsetLeader) features.push({
     key: "upset-hunter", purpose: "form_h2h_or_spotlight",
-    lineA: `Upset Hunter: ${names.get(upsetLeader[0])} has ${upsetLeader[1]} persisted upset ${upsetLeader[1] === 1 ? "story" : "stories"} this season.`,
-    lineB: "That label comes from verified upset detections; it makes no claim about an unavailable historical rating position.",
+    lineA: `Upset Hunter: ${names.get(upsetLeader[0])} has produced ${upsetLeader[1]} ${upsetLeader[1] === 1 ? "upset" : "upsets"} this season.`,
+    lineB: "Those were results where the available evidence favoured the opponent.",
     facts: { featureTitle: "Upset Hunter", playerId: upsetLeader[0], playerName: names.get(upsetLeader[0]), upsetStories: upsetLeader[1] },
   });
   const weeklyUpsets = params.stories
@@ -212,8 +230,8 @@ export function buildEditorialFeatures(params: {
     const match = shock.anchorMatchId === null ? null : matchesById.get(shock.anchorMatchId);
     if (winnerName && match) features.push({
       key: "shock-week", purpose: "lighter_or_archive_or_callback",
-      lineA: `Shock of the Week: ${winnerName}'s win carries the strongest verified upset signal since Monday.`,
-      lineB: `The persisted detector classified it as ${shock.storyType.replaceAll("_", " ").toLowerCase()}; this award adds no new probability claim.`,
+      lineA: `Shock of the Week: ${winnerName}'s win was the biggest verified surprise since Monday.`,
+      lineB: `The match was ${upsetDescription(shock.storyType)}. The award does not add a new probability claim.`,
       facts: { featureTitle: "Shock of the Week", playerId: Number(shock.facts.winnerId), playerName: winnerName, matchId: match.id, detector: shock.storyType },
     });
   }
@@ -230,8 +248,8 @@ export function buildEditorialFeatures(params: {
     .sort((a, b) => b[1].wins - a[1].wins || a[1].losses - b[1].losses || a[0] - b[0])[0];
   if (pressureLeader) features.push({
     key: "pressure-player", purpose: "form_h2h_or_spotlight",
-    lineA: `Pressure Player: ${names.get(pressureLeader[0])} has ${pressureLeader[1].wins} verified high-stake ${pressureLeader[1].wins === 1 ? "win" : "wins"}.`,
-    lineB: `The same persisted record shows ${pressureLeader[1].losses} high-stake ${pressureLeader[1].losses === 1 ? "loss" : "losses"}.`,
+    lineA: `Pressure Player: ${names.get(pressureLeader[0])} has ${pressureLeader[1].wins} ${pressureLeader[1].wins === 1 ? "win" : "wins"} when plenty of points were at stake.`,
+    lineB: `They also have ${pressureLeader[1].losses} ${pressureLeader[1].losses === 1 ? "loss" : "losses"} in those high pressure matches.`,
     facts: { featureTitle: "Pressure Player", playerId: pressureLeader[0], playerName: names.get(pressureLeader[0]), highStakeWins: pressureLeader[1].wins, highStakeLosses: pressureLeader[1].losses },
   });
   const performanceTypes = new Set(["CLINICAL_FINISHING", "DOUBLE_TROUBLE", "SCORING_POWER", "SCORING_WITHOUT_FINISHING", "SEASON_BEST", "PERSONAL_BEST"]);
@@ -244,8 +262,8 @@ export function buildEditorialFeatures(params: {
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.id - b.id)[0];
   if (performance) features.push({
     key: "performance-week", purpose: "form_h2h_or_spotlight",
-    lineA: `Performance of the Week: ${names.get(Number(performance.facts.playerId))} owns the highest-scoring verified performance story since Monday.`,
-    lineB: `The detector was ${performance.storyType.replaceAll("_", " ").toLowerCase()}; missing checkout or scoring fields are never treated as zero.`,
+    lineA: `Performance of the Week: ${names.get(Number(performance.facts.playerId))} produced the best verified display since Monday.`,
+    lineB: `The reason was ${performanceDescription(performance.storyType)}. We only make that call when the supporting figures are available.`,
     facts: {
       featureTitle: "Performance of the Week", playerId: Number(performance.facts.playerId),
       playerName: names.get(Number(performance.facts.playerId)), detector: performance.storyType,
@@ -268,8 +286,8 @@ export function buildEditorialFeatures(params: {
     .sort((a, b) => b.average - a.average || a.id - b.id)[0];
   if (riskLeader) features.push({
     key: "risk-profile", purpose: "form_h2h_or_spotlight", graphicKind: "WagerGraphic",
-    lineA: `Risk Profile: ${names.get(riskLeader.id)} has the highest observed average stake among players with at least three matches, at ${riskLeader.average.toFixed(1)} points.`,
-    lineB: `Their ${riskLeader.values.length}-match observed range is ${Math.min(...riskLeader.values)} to ${Math.max(...riskLeader.values)} points. It describes wagers played, not personality.`,
+    lineA: `Risk Profile: ${names.get(riskLeader.id)} has the highest average wager among players with at least three matches, at ${riskLeader.average.toFixed(1)} points.`,
+    lineB: `Across those ${riskLeader.values.length} matches, the wagers range from ${Math.min(...riskLeader.values)} to ${Math.max(...riskLeader.values)} points. That describes the matches played, not the player's personality.`,
     facts: {
       featureTitle: "Risk Profile", playerId: riskLeader.id, playerName: names.get(riskLeader.id),
       sampleSize: riskLeader.values.length, averageStake: riskLeader.average,
@@ -283,7 +301,7 @@ export function buildEditorialFeatures(params: {
   if (eliminationLeader) features.push({
     key: "elimination-leader", purpose: "form_h2h_or_spotlight",
     lineA: `Elimination Leader: ${eliminationLeader.name} has recorded ${eliminationLeader.eliminationsCount} career ${eliminationLeader.eliminationsCount === 1 ? "knockout" : "knockouts"}.`,
-    lineB: "That is the persisted elimination count — a measure of confirmed knockouts, not a claim about historical table position.",
+    lineB: "That count includes confirmed knockouts only.",
     facts: { featureTitle: "Elimination Leader", playerId: eliminationLeader.id, playerName: eliminationLeader.name, eliminations: eliminationLeader.eliminationsCount },
   });
 
@@ -317,7 +335,7 @@ export function buildEditorialFeatures(params: {
     const leader = table[0];
     features.push({
       key: "season-story", purpose: "analysis_or_predictor", graphicKind: "LeagueTableGraphic",
-      lineA: `Season Story So Far: ${leader.name} leads the current table on ${leader.points} points with a ${leader.wins}-${leader.losses} record.`,
+      lineA: `Season Story So Far: ${leader.name} leads the current table on ${leader.points} points, with ${leader.wins} ${leader.wins === 1 ? "win" : "wins"} and ${leader.losses} ${leader.losses === 1 ? "loss" : "losses"}.`,
       lineB: `${active.length} of ${params.players.length} players remain active. Those are current status, form and table facts only.`,
       facts: {
         featureTitle: "Season Story So Far", leaderId: leader.id, leaderName: leader.name,
