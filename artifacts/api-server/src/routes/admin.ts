@@ -89,29 +89,37 @@ router.patch("/admin/seasons/:id/standings/:playerId", async (req, res): Promise
 
   const { position, wins, losses, points, elo, isChampion } = parsed.data;
 
-  const existing = await db.select().from(seasonStandingsTable)
-    .where(and(eq(seasonStandingsTable.seasonId, seasonId), eq(seasonStandingsTable.playerId, playerId)));
+  // Whole sequence in one transaction — a crash partway through used to be
+  // able to leave the season with two players marked champion, or the
+  // season row's championId pointing at someone season_standings no longer
+  // agrees is champion. The upsert itself used to be a plain check-then-
+  // insert with no unique constraint backing it (two admins editing the
+  // same row at once, or a double-submit, could both see "no existing row"
+  // and both insert) — now a single atomic INSERT ... ON CONFLICT DO
+  // UPDATE against the (season_id, player_id) unique index added in
+  // add_season_standings_unique.ts for lib/seasonReset.ts's own snapshot
+  // insert.
+  await db.transaction(async (tx) => {
+    await tx.insert(seasonStandingsTable)
+      .values({ seasonId, playerId, position, wins, losses, points, elo, isChampion: isChampion ?? false })
+      .onConflictDoUpdate({
+        target: [seasonStandingsTable.seasonId, seasonStandingsTable.playerId],
+        set: { position, wins, losses, points, elo, ...(isChampion !== undefined ? { isChampion } : {}) },
+      });
 
-  if (existing.length > 0) {
-    await db.update(seasonStandingsTable)
-      .set({ position, wins, losses, points, elo, ...(isChampion !== undefined ? { isChampion } : {}) })
-      .where(and(eq(seasonStandingsTable.seasonId, seasonId), eq(seasonStandingsTable.playerId, playerId)));
-  } else {
-    await db.insert(seasonStandingsTable).values({ seasonId, playerId, position, wins, losses, points, elo, isChampion: isChampion ?? false });
-  }
-
-  if (isChampion) {
-    const [player] = await db.select().from(playersTable).where(eq(playersTable.id, playerId));
-    if (player) {
-      await db.update(seasonsTable).set({ championId: playerId, championName: player.name }).where(eq(seasonsTable.id, seasonId));
+    if (isChampion) {
+      const [player] = await tx.select().from(playersTable).where(eq(playersTable.id, playerId));
+      if (player) {
+        await tx.update(seasonsTable).set({ championId: playerId, championName: player.name }).where(eq(seasonsTable.id, seasonId));
+      }
+      await tx.update(seasonStandingsTable)
+        .set({ isChampion: false })
+        .where(and(eq(seasonStandingsTable.seasonId, seasonId)));
+      await tx.update(seasonStandingsTable)
+        .set({ isChampion: true })
+        .where(and(eq(seasonStandingsTable.seasonId, seasonId), eq(seasonStandingsTable.playerId, playerId)));
     }
-    await db.update(seasonStandingsTable)
-      .set({ isChampion: false })
-      .where(and(eq(seasonStandingsTable.seasonId, seasonId)));
-    await db.update(seasonStandingsTable)
-      .set({ isChampion: true })
-      .where(and(eq(seasonStandingsTable.seasonId, seasonId), eq(seasonStandingsTable.playerId, playerId)));
-  }
+  });
 
   res.json({ ok: true });
 });
@@ -153,97 +161,130 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
   const { winnerId, loserId, notes } = parsed.data;
   if (winnerId === loserId) { res.status(400).json({ error: "Winner and loser must be different" }); return; }
 
-  const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, matchId));
-  if (!match) { res.status(404).json({ error: "Match not found" }); return; }
+  // A cheap, unlocked early-reject for an obviously bad request — not safe
+  // to build the actual writes from. This route reverts the match's old
+  // stat effects and reapplies the new ones across up to 4 distinct
+  // players plus the match row itself, previously as several separate
+  // unguarded statements: a crash partway through (e.g. after some
+  // players' stats were reverted but before the match row was updated to
+  // reflect it) left stats inconsistent with the match record, with
+  // nothing to explain the discrepancy. The transaction below re-reads the
+  // match and every involved player FOR UPDATE (match first, then players
+  // in a fixed id order, to avoid deadlocking against another concurrent
+  // edit) and recomputes every derived value from that locked state.
+  const [matchPreCheck] = await db.select().from(matchesTable).where(eq(matchesTable.id, matchId));
+  if (!matchPreCheck) { res.status(404).json({ error: "Match not found" }); return; }
 
-  const stake = parsed.data.stake ?? match.stake;
+  class MatchEditConflictError extends Error {}
 
-  const allIds = [...new Set([match.winnerId, match.loserId, winnerId, loserId])];
-  const rows = await db.select().from(playersTable).where(inArray(playersTable.id, allIds));
-  if (rows.length < allIds.length) { res.status(404).json({ error: "One or more players not found" }); return; }
+  let result: { updated: typeof matchesTable.$inferSelect; newEloChange: number };
+  try {
+    result = await db.transaction(async (tx) => {
+      const [match] = await tx.select().from(matchesTable).where(eq(matchesTable.id, matchId)).for("update");
+      if (!match) throw new MatchEditConflictError("Match not found");
 
-  const pm = new Map(rows.map(p => [p.id, { ...p }]));
+      const stake = parsed.data.stake ?? match.stake;
 
-  const origW = pm.get(match.winnerId)!;
-  const origL = pm.get(match.loserId)!;
+      const allIds = [...new Set([match.winnerId, match.loserId, winnerId, loserId])].sort((a, b) => a - b);
+      const lockedRows: (typeof playersTable.$inferSelect)[] = [];
+      for (const id of allIds) {
+        const [row] = await tx.select().from(playersTable).where(eq(playersTable.id, id)).for("update");
+        if (!row) throw new MatchEditConflictError("One or more players not found");
+        lockedRows.push(row);
+      }
 
-  const loserWasElim = origL.status === "ELIMINATED" && (origL.points + match.stake) > 0;
+      const pm = new Map(lockedRows.map(p => [p.id, { ...p }]));
 
-  origW.elo               = Math.max(800, origW.elo - match.eloChange);
-  origW.points            = Math.max(0, origW.points - match.stake);
-  origW.seasonWins        = Math.max(0, origW.seasonWins - 1);
-  origW.seasonGamesPlayed = Math.max(0, origW.seasonGamesPlayed - 1);
-  origW.careerWins        = Math.max(0, origW.careerWins - 1);
-  origW.careerGamesPlayed = Math.max(0, origW.careerGamesPlayed - 1);
-  origW.careerPoints      = origW.careerPoints - match.stake;
+      const origW = pm.get(match.winnerId)!;
+      const origL = pm.get(match.loserId)!;
 
-  origL.elo               = origL.elo + match.eloChange;
-  origL.points            = origL.points + match.stake;
-  origL.seasonLosses      = Math.max(0, origL.seasonLosses - 1);
-  origL.seasonGamesPlayed = Math.max(0, origL.seasonGamesPlayed - 1);
-  origL.careerLosses      = Math.max(0, origL.careerLosses - 1);
-  origL.careerGamesPlayed = Math.max(0, origL.careerGamesPlayed - 1);
-  if (loserWasElim) {
-    origL.status = "ACTIVE";
-    origW.eliminationsCount = Math.max(0, origW.eliminationsCount - 1);
+      const loserWasElim = origL.status === "ELIMINATED" && (origL.points + match.stake) > 0;
+
+      origW.elo               = Math.max(800, origW.elo - match.eloChange);
+      origW.points            = Math.max(0, origW.points - match.stake);
+      origW.seasonWins        = Math.max(0, origW.seasonWins - 1);
+      origW.seasonGamesPlayed = Math.max(0, origW.seasonGamesPlayed - 1);
+      origW.careerWins        = Math.max(0, origW.careerWins - 1);
+      origW.careerGamesPlayed = Math.max(0, origW.careerGamesPlayed - 1);
+      origW.careerPoints      = origW.careerPoints - match.stake;
+
+      origL.elo               = origL.elo + match.eloChange;
+      origL.points            = origL.points + match.stake;
+      origL.seasonLosses      = Math.max(0, origL.seasonLosses - 1);
+      origL.seasonGamesPlayed = Math.max(0, origL.seasonGamesPlayed - 1);
+      origL.careerLosses      = Math.max(0, origL.careerLosses - 1);
+      origL.careerGamesPlayed = Math.max(0, origL.careerGamesPlayed - 1);
+      if (loserWasElim) {
+        origL.status = "ACTIVE";
+        origW.eliminationsCount = Math.max(0, origW.eliminationsCount - 1);
+      }
+
+      const newW = pm.get(winnerId)!;
+      const newL = pm.get(loserId)!;
+
+      const { newWinnerElo, newLoserElo, change: newEloChange } = applyEloChange(newW.elo, newL.elo);
+      const newLoserPts    = Math.max(0, newL.points - stake);
+      const newLoserElim   = newLoserPts === 0;
+
+      newW.elo               = newWinnerElo;
+      newW.points            = newW.points + stake;
+      newW.seasonWins        = newW.seasonWins + 1;
+      newW.seasonGamesPlayed = newW.seasonGamesPlayed + 1;
+      newW.careerWins        = newW.careerWins + 1;
+      newW.careerGamesPlayed = newW.careerGamesPlayed + 1;
+      newW.careerPoints      = newW.careerPoints + stake;
+
+      newL.elo               = newLoserElo;
+      newL.points            = newLoserPts;
+      newL.seasonLosses      = newL.seasonLosses + 1;
+      newL.seasonGamesPlayed = newL.seasonGamesPlayed + 1;
+      newL.careerLosses      = newL.careerLosses + 1;
+      newL.careerGamesPlayed = newL.careerGamesPlayed + 1;
+      newL.careerPoints      = newL.careerPoints - stake;
+      if (newLoserElim) {
+        newL.status = "ELIMINATED";
+        newW.eliminationsCount = newW.eliminationsCount + 1;
+      }
+
+      for (const p of pm.values()) {
+        await tx.update(playersTable).set({
+          elo:               p.elo,
+          points:            p.points,
+          seasonWins:        p.seasonWins,
+          seasonLosses:      p.seasonLosses,
+          seasonGamesPlayed: p.seasonGamesPlayed,
+          careerWins:        p.careerWins,
+          careerLosses:      p.careerLosses,
+          careerGamesPlayed: p.careerGamesPlayed,
+          careerPoints:      p.careerPoints,
+          status:            p.status,
+          eliminationsCount: p.eliminationsCount,
+        }).where(eq(playersTable.id, p.id));
+      }
+
+      const newWPlayer = pm.get(winnerId)!;
+      const newLPlayer = pm.get(loserId)!;
+      const [updated] = await tx.update(matchesTable).set({
+        winnerId,
+        loserId,
+        winnerName: newWPlayer.name,
+        loserName:  newLPlayer.name,
+        eloChange:  newEloChange,
+        stake,
+        ...(notes !== undefined ? { notes } : {}),
+      }).where(eq(matchesTable.id, matchId)).returning();
+
+      return { updated, newEloChange };
+    });
+  } catch (err) {
+    if (err instanceof MatchEditConflictError) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    throw err;
   }
 
-  const newW = pm.get(winnerId)!;
-  const newL = pm.get(loserId)!;
-
-  const { newWinnerElo, newLoserElo, change: newEloChange } = applyEloChange(newW.elo, newL.elo);
-  const newLoserPts    = Math.max(0, newL.points - stake);
-  const newLoserElim   = newLoserPts === 0;
-
-  newW.elo               = newWinnerElo;
-  newW.points            = newW.points + stake;
-  newW.seasonWins        = newW.seasonWins + 1;
-  newW.seasonGamesPlayed = newW.seasonGamesPlayed + 1;
-  newW.careerWins        = newW.careerWins + 1;
-  newW.careerGamesPlayed = newW.careerGamesPlayed + 1;
-  newW.careerPoints      = newW.careerPoints + stake;
-
-  newL.elo               = newLoserElo;
-  newL.points            = newLoserPts;
-  newL.seasonLosses      = newL.seasonLosses + 1;
-  newL.seasonGamesPlayed = newL.seasonGamesPlayed + 1;
-  newL.careerLosses      = newL.careerLosses + 1;
-  newL.careerGamesPlayed = newL.careerGamesPlayed + 1;
-  newL.careerPoints      = newL.careerPoints - stake;
-  if (newLoserElim) {
-    newL.status = "ELIMINATED";
-    newW.eliminationsCount = newW.eliminationsCount + 1;
-  }
-
-  for (const p of pm.values()) {
-    await db.update(playersTable).set({
-      elo:               p.elo,
-      points:            p.points,
-      seasonWins:        p.seasonWins,
-      seasonLosses:      p.seasonLosses,
-      seasonGamesPlayed: p.seasonGamesPlayed,
-      careerWins:        p.careerWins,
-      careerLosses:      p.careerLosses,
-      careerGamesPlayed: p.careerGamesPlayed,
-      careerPoints:      p.careerPoints,
-      status:            p.status,
-      eliminationsCount: p.eliminationsCount,
-    }).where(eq(playersTable.id, p.id));
-  }
-
-  const newWPlayer = pm.get(winnerId)!;
-  const newLPlayer = pm.get(loserId)!;
-  const [updated] = await db.update(matchesTable).set({
-    winnerId,
-    loserId,
-    winnerName: newWPlayer.name,
-    loserName:  newLPlayer.name,
-    eloChange:  newEloChange,
-    stake,
-    ...(notes !== undefined ? { notes } : {}),
-  }).where(eq(matchesTable.id, matchId)).returning();
-
-  res.json({ match: updated, eloChange: newEloChange });
+  res.json({ match: result.updated, eloChange: result.newEloChange });
 });
 
 // ── Delete player (cascade all related data) ──────────────────────────────────

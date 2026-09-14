@@ -115,27 +115,34 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
 
     const bestSeconds = didWin ? sanitizeSeconds(elapsedSeconds) : null;
 
-    await db.execute(sql`
-      INSERT INTO boss_battle_stats (player_id, boss_id, attempts, wins, best_seconds)
-      VALUES (${pid}, ${bossId}, 1, ${didWin ? 1 : 0}, ${bestSeconds})
-      ON CONFLICT (player_id, boss_id) DO UPDATE SET
-        attempts     = boss_battle_stats.attempts + 1,
-        wins         = boss_battle_stats.wins + ${didWin ? 1 : 0},
-        best_seconds = CASE
-          WHEN ${bestSeconds}::int IS NULL THEN boss_battle_stats.best_seconds
-          WHEN boss_battle_stats.best_seconds IS NULL THEN ${bestSeconds}
-          WHEN ${bestSeconds}::int < boss_battle_stats.best_seconds THEN ${bestSeconds}
-          ELSE boss_battle_stats.best_seconds
-        END
-    `);
-
-    if (didWin) {
-      await db.execute(sql`
-        INSERT INTO boss_battle_progress (player_id, boss_id)
-        VALUES (${pid}, ${bossId})
-        ON CONFLICT (player_id, boss_id) DO NOTHING
+    // Both statements below are individually safe via ON CONFLICT, but they
+    // used to run as two separate round-trips — a crash or lost connection
+    // between them could leave a win's stats incremented without the
+    // corresponding ladder unlock recorded (or vice versa). One transaction
+    // makes them succeed or fail together.
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`
+        INSERT INTO boss_battle_stats (player_id, boss_id, attempts, wins, best_seconds)
+        VALUES (${pid}, ${bossId}, 1, ${didWin ? 1 : 0}, ${bestSeconds})
+        ON CONFLICT (player_id, boss_id) DO UPDATE SET
+          attempts     = boss_battle_stats.attempts + 1,
+          wins         = boss_battle_stats.wins + ${didWin ? 1 : 0},
+          best_seconds = CASE
+            WHEN ${bestSeconds}::int IS NULL THEN boss_battle_stats.best_seconds
+            WHEN boss_battle_stats.best_seconds IS NULL THEN ${bestSeconds}
+            WHEN ${bestSeconds}::int < boss_battle_stats.best_seconds THEN ${bestSeconds}
+            ELSE boss_battle_stats.best_seconds
+          END
       `);
-    }
+
+      if (didWin) {
+        await tx.execute(sql`
+          INSERT INTO boss_battle_progress (player_id, boss_id)
+          VALUES (${pid}, ${bossId})
+          ON CONFLICT (player_id, boss_id) DO NOTHING
+        `);
+      }
+    });
 
     res.json({ success: true });
   } catch (err) {

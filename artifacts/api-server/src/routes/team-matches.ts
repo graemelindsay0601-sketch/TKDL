@@ -2,7 +2,7 @@ import { Router } from "express";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable, matchParticipantsTable } from "@workspace/db";
 import { z } from "zod";
-import { calcEloChange, ELO_FLOOR } from "../lib/elo";
+import { calcEloChange } from "../lib/elo";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 
 const TeamMatchBody = z.object({
@@ -65,27 +65,35 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
     return;
   }
 
-  // Fetch all players (cheap, unlocked early reject — same reasoning as
-  // matches.ts: fine for rejecting obviously bad requests, but not safe to
-  // build the actual writes from, so this is re-read FOR UPDATE below).
+  // Fetch all players — a cheap, unlocked early-reject for obviously bad
+  // requests (not-found, already-eliminated, stake beyond balance). Not
+  // safe to build the actual writes from: two team matches sharing a
+  // player, submitted close together, could both read the same starting
+  // elo/points/streak here and the second write would silently clobber the
+  // first match's stat gains — the same class of race matches.ts/doubles.ts
+  // already guard against. The transaction below re-reads every involved
+  // player FOR UPDATE (in a fixed id order, to avoid two concurrent
+  // transactions deadlocking on each other's locks), re-validates
+  // elimination/stake against that locked state, and recomputes every
+  // derived value from it.
   const allPlayers = await db.select().from(playersTable)
     .where(sql`${playersTable.id} = ANY(ARRAY[${sql.join(allIds.map(id => sql`${id}`), sql`, `)}]::int[])`);
 
   const byId = new Map(allPlayers.map(p => [p.id, p]));
-  const winnerPlayers = winnerIds.map(id => byId.get(id)).filter(Boolean) as typeof allPlayers;
-  const loserPlayers  = loserIds.map(id  => byId.get(id)).filter(Boolean) as typeof allPlayers;
+  const winnerPlayersPreCheck = winnerIds.map(id => byId.get(id)).filter(Boolean) as typeof allPlayers;
+  const loserPlayersPreCheck  = loserIds.map(id  => byId.get(id)).filter(Boolean) as typeof allPlayers;
 
-  if (winnerPlayers.length !== winnerIds.length) {
+  if (winnerPlayersPreCheck.length !== winnerIds.length) {
     res.status(400).json({ error: "One or more winning players not found" });
     return;
   }
-  if (loserPlayers.length !== loserIds.length) {
+  if (loserPlayersPreCheck.length !== loserIds.length) {
     res.status(400).json({ error: "One or more losing players not found" });
     return;
   }
 
   // Check no eliminated players
-  for (const p of [...winnerPlayers, ...loserPlayers]) {
+  for (const p of [...winnerPlayersPreCheck, ...loserPlayersPreCheck]) {
     if (p.status === "ELIMINATED") {
       res.status(400).json({ error: `${p.name} is eliminated and cannot play` });
       return;
@@ -93,7 +101,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
   }
 
   // Validate stake — must not exceed any player's balance
-  for (const p of [...winnerPlayers, ...loserPlayers]) {
+  for (const p of [...winnerPlayersPreCheck, ...loserPlayersPreCheck]) {
     if (stake > p.points) {
       res.status(400).json({ error: `Stake (${stake}) exceeds ${p.name}'s balance (${p.points})` });
       return;
@@ -110,17 +118,6 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
     return;
   }
 
-  // Everything from here on reads every involved player's row, computes new
-  // balances in JS, then writes them back — same race matches.ts/doubles.ts/
-  // shift-wars.ts were previously patched for: two team matches submitted
-  // close together that share even one player (e.g. that player is on both
-  // matches' rosters) could both read the same starting elo/points/streak
-  // and the second write would silently clobber the first match's stat
-  // gains. Re-select every player FOR UPDATE inside the transaction — in a
-  // fixed ascending-id order, so two concurrent team-match submissions with
-  // overlapping rosters lock rows in the same order and can't deadlock on
-  // each other — and recompute every derived value from that locked,
-  // authoritative state instead of the cheap pre-transaction read above.
   class TeamMatchConflictError extends Error {}
 
   let match: typeof matchesTable.$inferSelect;
@@ -130,19 +127,22 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
 
   try {
     const result = await db.transaction(async (tx) => {
+      // Lock every involved player in a fixed, deterministic order (sorted
+      // by id) regardless of which team they're on — this is what keeps
+      // two overlapping team matches from deadlocking on each other's locks.
       const sortedIds = [...allIds].sort((a, b) => a - b);
-      const lockedRows = await tx.select().from(playersTable)
-        .where(sql`${playersTable.id} = ANY(ARRAY[${sql.join(sortedIds.map(id => sql`${id}`), sql`, `)}]::int[])`)
-        .orderBy(playersTable.id)
-        .for("update");
-
-      const lockedById = new Map(lockedRows.map(p => [p.id, p]));
+      const lockedById = new Map<number, typeof allPlayers[number]>();
+      for (const id of sortedIds) {
+        const [row] = await tx.select().from(playersTable).where(eq(playersTable.id, id)).for("update");
+        if (!row) throw new TeamMatchConflictError("One or more players not found");
+        lockedById.set(id, row);
+      }
       const winnerPlayers = winnerIds.map(id => lockedById.get(id)!);
       const loserPlayers  = loserIds.map(id  => lockedById.get(id)!);
 
-      // Re-validate against the locked, up-to-the-moment state — the
-      // pre-transaction checks above could be stale by the time the lock
-      // is acquired.
+      // Re-validate against the locked, authoritative state — a concurrent
+      // match resolved between the pre-check above and this lock could have
+      // eliminated a player or changed their balance.
       for (const p of [...winnerPlayers, ...loserPlayers]) {
         if (p.status === "ELIMINATED") throw new TeamMatchConflictError(`${p.name} is eliminated and cannot play`);
       }
@@ -153,7 +153,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
       // ELO: use average team ELO, apply same change to all individuals
       const avgWinnerElo = Math.round(winnerPlayers.reduce((s, p) => s + p.elo, 0) / winnerPlayers.length);
       const avgLoserElo  = Math.round(loserPlayers.reduce((s, p)  => s + p.elo, 0) / loserPlayers.length);
-      const eloChange = calcEloChange(avgWinnerElo, avgLoserElo);
+      const lockedEloChange = calcEloChange(avgWinnerElo, avgLoserElo);
 
       const winnerName = winnerPlayers.map(p => p.name).join(" & ");
       const loserName  = loserPlayers.map(p  => p.name).join(" & ");
@@ -166,7 +166,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
         winnerName,
         loserName,
         stake,
-        eloChange,
+        eloChange:  lockedEloChange,
         gameType:   gameType ?? "team_501",
         notes:      notes ?? null,
       }).returning();
@@ -200,7 +200,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
       for (let i = 0; i < winnerPlayers.length; i++) {
         const p = winnerPlayers[i];
         const share = winnerShares[i];
-        const newElo = p.elo + eloChange;
+        const newElo = p.elo + lockedEloChange;
         const newPoints = p.points + share;
         const newWinStreak = p.currentWinStreak + 1;
         await tx.update(playersTable).set({
@@ -226,7 +226,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
         const eliminated = newPoints === 0;
         const newLossStreak = p.currentLossStreak + 1;
         await tx.update(playersTable).set({
-          elo:               Math.max(ELO_FLOOR, p.elo - eloChange),
+          elo:               Math.max(800, p.elo - lockedEloChange),
           points:            newPoints,
           seasonLosses:      p.seasonLosses + 1,
           seasonGamesPlayed: p.seasonGamesPlayed + 1,
@@ -252,13 +252,16 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
         }
       }
 
-      // Update season match count
+      // Database-side increment, not activeSeason.totalMatches + 1 — that
+      // outer read happened before any lock, and two team matches with
+      // entirely non-overlapping players (so no row-lock contention between
+      // them) can still race on this shared counter.
       await tx.update(seasonsTable).set({
-        totalMatches: activeSeason.totalMatches + 1,
+        totalMatches: sql`${seasonsTable.totalMatches} + 1`,
       }).where(eq(seasonsTable.id, activeSeason.id));
 
       const txWinnerResults = winnerPlayers.map((p, i) => ({ id: p.id, share: winnerShares[i] }));
-      return { match: newMatch, eloChange, loserResults: txLoserResults, winnerResults: txWinnerResults };
+      return { match: newMatch, eloChange: lockedEloChange, loserResults: txLoserResults, winnerResults: txWinnerResults };
     });
 
     match         = result.match;

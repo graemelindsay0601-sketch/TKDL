@@ -128,6 +128,12 @@ router.post("/admin/users", requireAdminSession, async (req, res): Promise<void>
   const [player] = await db.select().from(playersTable).where(eq(playersTable.id, parsed.data.playerId));
   if (!player) { res.status(404).json({ error: "Player not found" }); return; }
 
+  // A cheap, unlocked early-reject for the common case — not safe to build
+  // the actual insert from: two admins (or a double-submit) could both
+  // pass this check for the same player and both insert, giving one
+  // player two accounts, since nothing previously stopped it. The insert
+  // below is the real guard, via the player_id unique index added in
+  // add_users_player_id_unique.ts.
   const existing = await db.select().from(usersTable).where(eq(usersTable.playerId, parsed.data.playerId));
   if (existing.length > 0) { res.status(400).json({ error: "This player already has an account" }); return; }
 
@@ -141,7 +147,16 @@ router.post("/admin/users", requireAdminSession, async (req, res): Promise<void>
     passwordHash: hash,
     playerId:     parsed.data.playerId,
     isAdmin:      parsed.data.isAdmin,
-  }).returning({ id: usersTable.id, username: usersTable.username, playerId: usersTable.playerId, isAdmin: usersTable.isAdmin });
+  })
+    .onConflictDoNothing({ target: usersTable.playerId })
+    .returning({ id: usersTable.id, username: usersTable.username, playerId: usersTable.playerId, isAdmin: usersTable.isAdmin });
+
+  if (!user) {
+    // Lost the race between the pre-check above and this insert — another
+    // request for the same player committed first.
+    res.status(400).json({ error: "This player already has an account" });
+    return;
+  }
 
   logger.info({ userId: user.id, username: user.username }, "Account created");
   res.status(201).json({ ...user, playerName: player.name });

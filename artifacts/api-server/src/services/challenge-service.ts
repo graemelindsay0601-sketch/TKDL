@@ -4,10 +4,9 @@ import {
   playerDailyChallenges,
   weeklyChallenges,
   playerWeeklyChallenges,
-  playerCurrencyTable,
 } from "@workspace/db/schema";
-import { eq, and, gte, lte, isNull } from "drizzle-orm";
-import { getIsoWeekKey } from "../lib/iso-week";
+import { eq, and, gte, lte, isNull, sql } from "drizzle-orm";
+import { addCoinsToPlayer } from "./card-shop-service";
 
 export interface ChallengeProgress {
   id: number;
@@ -89,10 +88,13 @@ export const challengeService = {
    * Get this week's weekly challenges for a player
    */
   async getWeeklyChallengesForPlayer(playerId: number): Promise<ChallengeProgress[]> {
-    // Year-qualified ISO week key (e.g. 202601) — a bare 1-53 week number
-    // would collide with the same week number from a prior year at every
-    // year boundary, matching a stale row instead of starting a fresh one.
-    const weekNumber = getIsoWeekKey(new Date());
+    // Calculate ISO week number
+    const today = new Date();
+    const date = new Date(today.getTime());
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + 4 - (date.getDay() || 7));
+    const yearStart = new Date(date.getFullYear(), 0, 1);
+    const weekNumber = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 
     // Get all active weekly challenge definitions
     const challenges = await db.query.weeklyChallenges.findMany({
@@ -203,24 +205,33 @@ export const challengeService = {
         playerChallenge = created;
         newlyCompleted = nowCompleted;
       } else {
-        // Update progress
-        const wasCompleted = playerChallenge.is_completed;
-        const newProgress = (playerChallenge.progress || 0) + incrementBy;
-        const isCompleted = newProgress >= challengeDef.requirement_value;
+        // Atomic UPDATE...WHERE guard, same shape as challenge-manager.ts's
+        // matching fix: two concurrent progress updates for the same
+        // challenge (e.g. two game-result calls landing close together)
+        // used to both read the same starting progress/is_completed in JS
+        // and both conclude "just completed," double-awarding coins.
+        // Guarding on `is_completed = false` means only the update that
+        // actually flips it can ever see itself as the one that "just
+        // completed" it — a concurrent second call simply matches zero rows
+        // and no-ops rather than re-awarding.
+        const result = await db.execute(sql`
+          UPDATE player_daily_challenges
+          SET progress = progress + ${incrementBy},
+              is_completed = (progress + ${incrementBy}) >= ${challengeDef.requirement_value},
+              completed_at = CASE WHEN (progress + ${incrementBy}) >= ${challengeDef.requirement_value} THEN NOW() ELSE NULL END,
+              updated_at = NOW()
+          WHERE id = ${playerChallenge.id} AND is_completed = false
+          RETURNING *
+        `);
+        const updatedRow = result.rows[0] as typeof playerDailyChallenges.$inferSelect | undefined;
 
-        const [updated] = await db
-          .update(playerDailyChallenges)
-          .set({
-            progress: newProgress,
-            is_completed: isCompleted,
-            completed_at: isCompleted && !wasCompleted ? new Date() : playerChallenge.completed_at,
-            updated_at: new Date(),
-          })
-          .where(eq(playerDailyChallenges.id, playerChallenge.id))
-          .returning();
-
-        playerChallenge = updated;
-        newlyCompleted = isCompleted && !wasCompleted;
+        if (updatedRow) {
+          playerChallenge = updatedRow;
+          newlyCompleted = updatedRow.is_completed;
+        }
+        // else: already completed (by this call or a concurrent one) —
+        // playerChallenge stays as the pre-update row, newlyCompleted stays
+        // false. Nothing to award.
       }
 
       // If newly completed, award coins
@@ -249,8 +260,13 @@ export const challengeService = {
     incrementBy: number = 1
   ): Promise<{ completed: boolean; coinsAwarded: number }> {
     try {
-      // Year-qualified ISO week key — see getWeeklyChallengesForPlayer above.
-      const weekNumber = getIsoWeekKey(new Date());
+      // Calculate ISO week number
+      const today = new Date();
+      const date = new Date(today.getTime());
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() + 4 - (date.getDay() || 7));
+      const yearStart = new Date(date.getFullYear(), 0, 1);
+      const weekNumber = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 
       // Get challenge definition
       const challengeDef = await db.query.weeklyChallenges.findFirst({
@@ -294,24 +310,23 @@ export const challengeService = {
         playerChallenge = created;
         newlyCompleted = nowCompleted;
       } else {
-        // Update progress
-        const wasCompleted = playerChallenge.is_completed;
-        const newProgress = (playerChallenge.progress || 0) + incrementBy;
-        const isCompleted = newProgress >= challengeDef.requirement_value;
+        // Same atomic UPDATE...WHERE guard as updateDailyProgress above —
+        // see that method's comment for the full race it closes.
+        const result = await db.execute(sql`
+          UPDATE player_weekly_challenges
+          SET progress = progress + ${incrementBy},
+              is_completed = (progress + ${incrementBy}) >= ${challengeDef.requirement_value},
+              completed_at = CASE WHEN (progress + ${incrementBy}) >= ${challengeDef.requirement_value} THEN NOW() ELSE NULL END,
+              updated_at = NOW()
+          WHERE id = ${playerChallenge.id} AND is_completed = false
+          RETURNING *
+        `);
+        const updatedRow = result.rows[0] as typeof playerWeeklyChallenges.$inferSelect | undefined;
 
-        const [updated] = await db
-          .update(playerWeeklyChallenges)
-          .set({
-            progress: newProgress,
-            is_completed: isCompleted,
-            completed_at: isCompleted && !wasCompleted ? new Date() : playerChallenge.completed_at,
-            updated_at: new Date(),
-          })
-          .where(eq(playerWeeklyChallenges.id, playerChallenge.id))
-          .returning();
-
-        playerChallenge = updated;
-        newlyCompleted = isCompleted && !wasCompleted;
+        if (updatedRow) {
+          playerChallenge = updatedRow;
+          newlyCompleted = updatedRow.is_completed;
+        }
       }
 
       // If newly completed, award coins
@@ -333,27 +348,19 @@ export const challengeService = {
 
   /**
    * Award coins to player (fire-and-forget)
+   *
+   * Used to do its own read-then-write on playerCurrencyTable (read the
+   * current balance into JS, write back balance + amount) — the same class
+   * of lost-update race as the one just fixed in updateDailyProgress/
+   * updateWeeklyProgress above, and one this app already has a real atomic
+   * fix for. Delegates to addCoinsToPlayer instead, the app's one atomic
+   * increment-in-place currency update (a single onConflictDoUpdate with a
+   * SQL increment expression) — also picks up lifetimeCoinsEarned tracking
+   * for these coins, which this method never updated before.
    */
   async awardCoins(playerId: number, amount: number): Promise<void> {
     try {
-      const currency = await db.query.playerCurrencyTable.findFirst({
-        where: eq(playerCurrencyTable.playerId, playerId),
-      });
-
-      if (!currency) {
-        await db.insert(playerCurrencyTable).values({
-          playerId,
-          cardPoints: amount,
-        });
-      } else {
-        await db
-          .update(playerCurrencyTable)
-          .set({
-            cardPoints: (currency.cardPoints || 0) + amount,
-            updatedAt: new Date(),
-          })
-          .where(eq(playerCurrencyTable.playerId, playerId));
-      }
+      await addCoinsToPlayer(playerId, amount);
     } catch (error) {
       console.error(`[CardClash] Failed to award ${amount} coins to player ${playerId}:`, error);
     }

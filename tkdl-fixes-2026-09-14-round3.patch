@@ -1,0 +1,770 @@
+diff --git a/artifacts/api-server/src/app.ts b/artifacts/api-server/src/app.ts
+index e8a6cca..685639e 100644
+--- a/artifacts/api-server/src/app.ts
++++ b/artifacts/api-server/src/app.ts
+@@ -30,6 +30,11 @@ import { addBroadcastStorySeasonId } from "./db/migrations/add_broadcast_story_s
+ import { backfillBroadcastStorySeasonId } from "./db/migrations/backfill_broadcast_story_season_id";
+ import { addSeasonBroadcastReviewedAt } from "./db/migrations/add_season_broadcast_reviewed_at";
+ import { addFeatureSpotlights } from "./db/migrations/add_feature_spotlights";
++import { addBroadcastAdminBuildLock } from "./db/migrations/add_broadcast_admin_build_lock";
++import { addPracticeSessionIdempotencyKey } from "./db/migrations/add_practice_session_idempotency_key";
++import { addSeasonStandingsUnique } from "./db/migrations/add_season_standings_unique";
++import { addSeasonResetLock } from "./db/migrations/add_season_reset_lock";
++import { addUsersPlayerIdUnique } from "./db/migrations/add_users_player_id_unique";
+ import { seedBroadcastSettings } from "./broadcast/config";
+ import { seedCardDefinitions } from "./services/card-definitions-service";
+ import { challengeService } from "./services/challenge-service";
+@@ -1040,90 +1045,112 @@ async function seedUsers() {
+   }
+ }
+ 
++/**
++ * Runs one startup step in isolation: a failure here is logged and init()
++ * moves on to the next step, instead of the failure propagating out of
++ * init() entirely. Without this, initApp() below rethrows any escaped error
++ * up to index.ts's start(), which calls process.exit(1) before ever
++ * listening — meaning a single bad step (a transient DDL lock timeout on
++ * one migration, a seed hiccup) takes down the ENTIRE server on deploy,
++ * not just that one step. That's a strictly worse failure mode than the
++ * "server looks healthy but some tables are missing" problem index.ts's own
++ * comment is guarding against — this restores per-step isolation so that
++ * guard only fires on something actually catastrophic (e.g. the database
++ * itself unreachable), not on any one of the ~40 individual steps below.
++ */
++async function runInitStep(name: string, fn: () => Promise<unknown> | unknown): Promise<void> {
++  try {
++    await fn();
++  } catch (err) {
++    logger.error({ err, step: name }, `Startup step "${name}" failed — continuing with the rest of init()`);
++  }
++}
++
+ async function init() {
+-  await seedSettings();
+-    await initializeCardTables();
+-    await ensureCardClashAchievementTables();
+-    await initializeFeatureFlags();
+-    await addTkdlLiveBroadcastTables();
+-    await addBroadcastStorySeasonId();
+-    await addSeasonBroadcastReviewedAt();
+-    await addFeatureSpotlights();
+-    await seedBroadcastSettings();
+-    await seedCardDefinitions();
+-    await initializeFeaturedCardShopTables();
+-    
+-    // Initialize featured card shop - rotate featured cards daily
+-    try {
+-      const { rotateFeatureCards } = await import("./services/featured-card-shop-service");
+-      await rotateFeatureCards();
+-    } catch (err) {
+-      logger.warn({ err }, "Failed to initialize featured card shop (non-critical)");
+-    }
+-    
+-    await addDailyChallengeKeyColumn();
+-    await addLongestLossStreakColumn();
+-    await addCareerBiggestPointsFallColumn();
+-    await challengeService.seedDefaultChallenges();
+-    await challengeService.seedComprehensivePool();
+-    await seedNotificationTables();
+-    await initializeNotificationPreferences();
+-    await addFavoritesColumn();
+-    await addAchievementRewards();
+-    await addAchievementSeasonColumn();
+-    await createCardClashPlayerSettingsTable();
+-    await createCardClashFavoritesTable();
+-    
+-    // Add performance indexes (CRITICAL for query speed)
+-    await addPerformanceIndexes();
+-    
+-    await seedCommunityTables();
+-    await seedMatchesMilestoneColumns();
+-    await seedCardFavorites();
+-    await seedDrillCompletions();
+-    await seedBossBattleProgress();
+-    await seedBoardCurseBest();
+-    await seedBoardCurseRecords();
+-    await seedDoublesTables();
+-    await seedShiftWars();
+-    await seedPractice();
+-    await seedMaster501();
+-    await seedMatchParticipants();
+-    await seedShadowBotAchievements();
+-    await seedTourSystem();
+-    await seedGameTypes();
+-    await seedAchievements();
+-    await seedRealData();
+-    // The backfill reads doubles_matches, so it must run after
+-    // seedDoublesTables has created that fresh-database dependency.
+-    await backfillBroadcastStorySeasonId();
+-    // Must run after seedDoublesTables/seedShiftWars/seedRealData: it gives
+-    // Doubles and Shift Wars their own season row (re-parenting Doubles'
+-    // current teams onto it) and needs both those tables and a real active
+-    // singles season to already exist.
+-    await addSeasonLeagueType();
+-    await maybeAutoResetLeagueSeasons();
+-    await seedPlayoffMatches();
+-    await maybeAutoResetLeagueSeasons();
+-    
+-    // Initialize scheduled systems
+-    initializeCoachTipsScheduler();
+-    initializeFeaturedCardScheduler();
+-    initializeSeasonResetScheduler();
+-    await seedSessions();
+-    await seedUsers();
+-    await seedTitles();
+-    void sweepAllPlayerTitles(); // grant any titles earned via existing achievements
+-    
+-    // Initialize Card Clash season auto-check
+-    try {
+-      const { checkAndEndSeasonIfNeeded } = await import("./services/card-clash-season-rewards");
+-      await checkAndEndSeasonIfNeeded();
+-    } catch (err) {
+-      logger.warn({ err }, "Card Clash season auto-check failed (non-blocking)");
+-    }
+-    
+-    logger.info("Startup init complete");
++  await runInitStep("seedSettings", seedSettings);
++  await runInitStep("initializeCardTables", initializeCardTables);
++  await runInitStep("ensureCardClashAchievementTables", ensureCardClashAchievementTables);
++  await runInitStep("initializeFeatureFlags", initializeFeatureFlags);
++  await runInitStep("addTkdlLiveBroadcastTables", addTkdlLiveBroadcastTables);
++  await runInitStep("addBroadcastStorySeasonId", addBroadcastStorySeasonId);
++  await runInitStep("addSeasonBroadcastReviewedAt", addSeasonBroadcastReviewedAt);
++  await runInitStep("addFeatureSpotlights", addFeatureSpotlights);
++  await runInitStep("addBroadcastAdminBuildLock", addBroadcastAdminBuildLock);
++  await runInitStep("addPracticeSessionIdempotencyKey", addPracticeSessionIdempotencyKey);
++  await runInitStep("addSeasonStandingsUnique", addSeasonStandingsUnique);
++  await runInitStep("addSeasonResetLock", addSeasonResetLock);
++  await runInitStep("addUsersPlayerIdUnique", addUsersPlayerIdUnique);
++  await runInitStep("seedBroadcastSettings", seedBroadcastSettings);
++  await runInitStep("seedCardDefinitions", seedCardDefinitions);
++  await runInitStep("initializeFeaturedCardShopTables", initializeFeaturedCardShopTables);
++
++  // Initialize featured card shop - rotate featured cards daily
++  await runInitStep("rotateFeatureCards", async () => {
++    const { rotateFeatureCards } = await import("./services/featured-card-shop-service");
++    await rotateFeatureCards();
++  });
++
++  await runInitStep("addDailyChallengeKeyColumn", addDailyChallengeKeyColumn);
++  await runInitStep("addLongestLossStreakColumn", addLongestLossStreakColumn);
++  await runInitStep("addCareerBiggestPointsFallColumn", addCareerBiggestPointsFallColumn);
++  await runInitStep("seedDefaultChallenges", () => challengeService.seedDefaultChallenges());
++  await runInitStep("seedComprehensivePool", () => challengeService.seedComprehensivePool());
++  await runInitStep("seedNotificationTables", seedNotificationTables);
++  await runInitStep("initializeNotificationPreferences", initializeNotificationPreferences);
++  await runInitStep("addFavoritesColumn", addFavoritesColumn);
++  await runInitStep("addAchievementRewards", addAchievementRewards);
++  await runInitStep("addAchievementSeasonColumn", addAchievementSeasonColumn);
++  await runInitStep("createCardClashPlayerSettingsTable", createCardClashPlayerSettingsTable);
++  await runInitStep("createCardClashFavoritesTable", createCardClashFavoritesTable);
++
++  // Add performance indexes (CRITICAL for query speed)
++  await runInitStep("addPerformanceIndexes", addPerformanceIndexes);
++
++  await runInitStep("seedCommunityTables", seedCommunityTables);
++  await runInitStep("seedMatchesMilestoneColumns", seedMatchesMilestoneColumns);
++  await runInitStep("seedCardFavorites", seedCardFavorites);
++  await runInitStep("seedDrillCompletions", seedDrillCompletions);
++  await runInitStep("seedBossBattleProgress", seedBossBattleProgress);
++  await runInitStep("seedBoardCurseBest", seedBoardCurseBest);
++  await runInitStep("seedBoardCurseRecords", seedBoardCurseRecords);
++  await runInitStep("seedDoublesTables", seedDoublesTables);
++  await runInitStep("seedShiftWars", seedShiftWars);
++  await runInitStep("seedPractice", seedPractice);
++  await runInitStep("seedMaster501", seedMaster501);
++  await runInitStep("seedMatchParticipants", seedMatchParticipants);
++  await runInitStep("seedShadowBotAchievements", seedShadowBotAchievements);
++  await runInitStep("seedTourSystem", seedTourSystem);
++  await runInitStep("seedGameTypes", seedGameTypes);
++  await runInitStep("seedAchievements", seedAchievements);
++  await runInitStep("seedRealData", seedRealData);
++  // The backfill reads doubles_matches, so it must run after
++  // seedDoublesTables has created that fresh-database dependency.
++  await runInitStep("backfillBroadcastStorySeasonId", backfillBroadcastStorySeasonId);
++  // Must run after seedDoublesTables/seedShiftWars/seedRealData: it gives
++  // Doubles and Shift Wars their own season row (re-parenting Doubles'
++  // current teams onto it) and needs both those tables and a real active
++  // singles season to already exist.
++  await runInitStep("addSeasonLeagueType", addSeasonLeagueType);
++  await runInitStep("maybeAutoResetLeagueSeasons", maybeAutoResetLeagueSeasons);
++  await runInitStep("seedPlayoffMatches", seedPlayoffMatches);
++
++  // Initialize scheduled systems
++  await runInitStep("initializeCoachTipsScheduler", initializeCoachTipsScheduler);
++  await runInitStep("initializeFeaturedCardScheduler", initializeFeaturedCardScheduler);
++  await runInitStep("initializeSeasonResetScheduler", initializeSeasonResetScheduler);
++  await runInitStep("seedSessions", seedSessions);
++  await runInitStep("seedUsers", seedUsers);
++  await runInitStep("seedTitles", seedTitles);
++  void sweepAllPlayerTitles().catch((err) => // grant any titles earned via existing achievements — fire-and-forget, but caught so a rejection can't become an unhandled crash
++    logger.error({ err }, "sweepAllPlayerTitles failed (non-blocking)"));
++
++  // Initialize Card Clash season auto-check
++  await runInitStep("checkAndEndSeasonIfNeeded", async () => {
++    const { checkAndEndSeasonIfNeeded } = await import("./services/card-clash-season-rewards");
++    await checkAndEndSeasonIfNeeded();
++  });
++
++  logger.info("Startup init complete");
+ }
+ 
+ export async function initApp() {
+diff --git a/artifacts/api-server/src/db/migrations/add_users_player_id_unique.ts b/artifacts/api-server/src/db/migrations/add_users_player_id_unique.ts
+new file mode 100644
+index 0000000..4503eee
+--- /dev/null
++++ b/artifacts/api-server/src/db/migrations/add_users_player_id_unique.ts
+@@ -0,0 +1,33 @@
++import { sql } from "drizzle-orm";
++import { db } from "@workspace/db";
++import { logger } from "../../lib/logger";
++
++/**
++ * users.player_id had no unique constraint — POST /admin/users
++ * (routes/auth.ts) checked "does this player already have an account?"
++ * with a plain SELECT, then inserted, with nothing stopping two admins
++ * (or a double-submit) from both passing that check for the same player
++ * and both inserting, giving one player two accounts. Adds the missing
++ * constraint so the route's INSERT can use ON CONFLICT DO NOTHING as a
++ * real guard instead of just trusting the race never happens.
++ *
++ * Deliberately does NOT auto-delete any pre-existing duplicate (unlike the
++ * equivalent season_standings fix) — a duplicate user account carries its
++ * own password hash, admin flag and login history, and picking one to
++ * silently delete on boot risks locking someone out or dropping an admin
++ * grant. If a duplicate already exists, this index creation simply fails
++ * and is logged (per this codebase's per-statement migration convention)
++ * rather than thrown — safe to leave for an admin to resolve by hand,
++ * and the fix still takes effect for every account created from here on.
++ */
++export async function addUsersPlayerIdUnique(): Promise<void> {
++  try {
++    await db.execute(sql`
++      CREATE UNIQUE INDEX IF NOT EXISTS users_player_id_unique
++      ON users (player_id)
++    `);
++    logger.info("users.player_id unique index ready");
++  } catch (err) {
++    logger.error({ err }, "Failed to create users_player_id_unique");
++  }
++}
+diff --git a/artifacts/api-server/src/routes/admin.ts b/artifacts/api-server/src/routes/admin.ts
+index f3e856d..39d6f2a 100644
+--- a/artifacts/api-server/src/routes/admin.ts
++++ b/artifacts/api-server/src/routes/admin.ts
+@@ -89,29 +89,37 @@ router.patch("/admin/seasons/:id/standings/:playerId", async (req, res): Promise
+ 
+   const { position, wins, losses, points, elo, isChampion } = parsed.data;
+ 
+-  const existing = await db.select().from(seasonStandingsTable)
+-    .where(and(eq(seasonStandingsTable.seasonId, seasonId), eq(seasonStandingsTable.playerId, playerId)));
+-
+-  if (existing.length > 0) {
+-    await db.update(seasonStandingsTable)
+-      .set({ position, wins, losses, points, elo, ...(isChampion !== undefined ? { isChampion } : {}) })
+-      .where(and(eq(seasonStandingsTable.seasonId, seasonId), eq(seasonStandingsTable.playerId, playerId)));
+-  } else {
+-    await db.insert(seasonStandingsTable).values({ seasonId, playerId, position, wins, losses, points, elo, isChampion: isChampion ?? false });
+-  }
+-
+-  if (isChampion) {
+-    const [player] = await db.select().from(playersTable).where(eq(playersTable.id, playerId));
+-    if (player) {
+-      await db.update(seasonsTable).set({ championId: playerId, championName: player.name }).where(eq(seasonsTable.id, seasonId));
++  // Whole sequence in one transaction — a crash partway through used to be
++  // able to leave the season with two players marked champion, or the
++  // season row's championId pointing at someone season_standings no longer
++  // agrees is champion. The upsert itself used to be a plain check-then-
++  // insert with no unique constraint backing it (two admins editing the
++  // same row at once, or a double-submit, could both see "no existing row"
++  // and both insert) — now a single atomic INSERT ... ON CONFLICT DO
++  // UPDATE against the (season_id, player_id) unique index added in
++  // add_season_standings_unique.ts for lib/seasonReset.ts's own snapshot
++  // insert.
++  await db.transaction(async (tx) => {
++    await tx.insert(seasonStandingsTable)
++      .values({ seasonId, playerId, position, wins, losses, points, elo, isChampion: isChampion ?? false })
++      .onConflictDoUpdate({
++        target: [seasonStandingsTable.seasonId, seasonStandingsTable.playerId],
++        set: { position, wins, losses, points, elo, ...(isChampion !== undefined ? { isChampion } : {}) },
++      });
++
++    if (isChampion) {
++      const [player] = await tx.select().from(playersTable).where(eq(playersTable.id, playerId));
++      if (player) {
++        await tx.update(seasonsTable).set({ championId: playerId, championName: player.name }).where(eq(seasonsTable.id, seasonId));
++      }
++      await tx.update(seasonStandingsTable)
++        .set({ isChampion: false })
++        .where(and(eq(seasonStandingsTable.seasonId, seasonId)));
++      await tx.update(seasonStandingsTable)
++        .set({ isChampion: true })
++        .where(and(eq(seasonStandingsTable.seasonId, seasonId), eq(seasonStandingsTable.playerId, playerId)));
+     }
+-    await db.update(seasonStandingsTable)
+-      .set({ isChampion: false })
+-      .where(and(eq(seasonStandingsTable.seasonId, seasonId)));
+-    await db.update(seasonStandingsTable)
+-      .set({ isChampion: true })
+-      .where(and(eq(seasonStandingsTable.seasonId, seasonId), eq(seasonStandingsTable.playerId, playerId)));
+-  }
++  });
+ 
+   res.json({ ok: true });
+ });
+@@ -153,97 +161,130 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
+   const { winnerId, loserId, notes } = parsed.data;
+   if (winnerId === loserId) { res.status(400).json({ error: "Winner and loser must be different" }); return; }
+ 
+-  const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, matchId));
+-  if (!match) { res.status(404).json({ error: "Match not found" }); return; }
+-
+-  const stake = parsed.data.stake ?? match.stake;
+-
+-  const allIds = [...new Set([match.winnerId, match.loserId, winnerId, loserId])];
+-  const rows = await db.select().from(playersTable).where(inArray(playersTable.id, allIds));
+-  if (rows.length < allIds.length) { res.status(404).json({ error: "One or more players not found" }); return; }
+-
+-  const pm = new Map(rows.map(p => [p.id, { ...p }]));
+-
+-  const origW = pm.get(match.winnerId)!;
+-  const origL = pm.get(match.loserId)!;
+-
+-  const loserWasElim = origL.status === "ELIMINATED" && (origL.points + match.stake) > 0;
+-
+-  origW.elo               = Math.max(800, origW.elo - match.eloChange);
+-  origW.points            = Math.max(0, origW.points - match.stake);
+-  origW.seasonWins        = Math.max(0, origW.seasonWins - 1);
+-  origW.seasonGamesPlayed = Math.max(0, origW.seasonGamesPlayed - 1);
+-  origW.careerWins        = Math.max(0, origW.careerWins - 1);
+-  origW.careerGamesPlayed = Math.max(0, origW.careerGamesPlayed - 1);
+-  origW.careerPoints      = origW.careerPoints - match.stake;
+-
+-  origL.elo               = origL.elo + match.eloChange;
+-  origL.points            = origL.points + match.stake;
+-  origL.seasonLosses      = Math.max(0, origL.seasonLosses - 1);
+-  origL.seasonGamesPlayed = Math.max(0, origL.seasonGamesPlayed - 1);
+-  origL.careerLosses      = Math.max(0, origL.careerLosses - 1);
+-  origL.careerGamesPlayed = Math.max(0, origL.careerGamesPlayed - 1);
+-  if (loserWasElim) {
+-    origL.status = "ACTIVE";
+-    origW.eliminationsCount = Math.max(0, origW.eliminationsCount - 1);
+-  }
+-
+-  const newW = pm.get(winnerId)!;
+-  const newL = pm.get(loserId)!;
+-
+-  const { newWinnerElo, newLoserElo, change: newEloChange } = applyEloChange(newW.elo, newL.elo);
+-  const newLoserPts    = Math.max(0, newL.points - stake);
+-  const newLoserElim   = newLoserPts === 0;
+-
+-  newW.elo               = newWinnerElo;
+-  newW.points            = newW.points + stake;
+-  newW.seasonWins        = newW.seasonWins + 1;
+-  newW.seasonGamesPlayed = newW.seasonGamesPlayed + 1;
+-  newW.careerWins        = newW.careerWins + 1;
+-  newW.careerGamesPlayed = newW.careerGamesPlayed + 1;
+-  newW.careerPoints      = newW.careerPoints + stake;
+-
+-  newL.elo               = newLoserElo;
+-  newL.points            = newLoserPts;
+-  newL.seasonLosses      = newL.seasonLosses + 1;
+-  newL.seasonGamesPlayed = newL.seasonGamesPlayed + 1;
+-  newL.careerLosses      = newL.careerLosses + 1;
+-  newL.careerGamesPlayed = newL.careerGamesPlayed + 1;
+-  newL.careerPoints      = newL.careerPoints - stake;
+-  if (newLoserElim) {
+-    newL.status = "ELIMINATED";
+-    newW.eliminationsCount = newW.eliminationsCount + 1;
+-  }
+-
+-  for (const p of pm.values()) {
+-    await db.update(playersTable).set({
+-      elo:               p.elo,
+-      points:            p.points,
+-      seasonWins:        p.seasonWins,
+-      seasonLosses:      p.seasonLosses,
+-      seasonGamesPlayed: p.seasonGamesPlayed,
+-      careerWins:        p.careerWins,
+-      careerLosses:      p.careerLosses,
+-      careerGamesPlayed: p.careerGamesPlayed,
+-      careerPoints:      p.careerPoints,
+-      status:            p.status,
+-      eliminationsCount: p.eliminationsCount,
+-    }).where(eq(playersTable.id, p.id));
++  // A cheap, unlocked early-reject for an obviously bad request — not safe
++  // to build the actual writes from. This route reverts the match's old
++  // stat effects and reapplies the new ones across up to 4 distinct
++  // players plus the match row itself, previously as several separate
++  // unguarded statements: a crash partway through (e.g. after some
++  // players' stats were reverted but before the match row was updated to
++  // reflect it) left stats inconsistent with the match record, with
++  // nothing to explain the discrepancy. The transaction below re-reads the
++  // match and every involved player FOR UPDATE (match first, then players
++  // in a fixed id order, to avoid deadlocking against another concurrent
++  // edit) and recomputes every derived value from that locked state.
++  const [matchPreCheck] = await db.select().from(matchesTable).where(eq(matchesTable.id, matchId));
++  if (!matchPreCheck) { res.status(404).json({ error: "Match not found" }); return; }
++
++  class MatchEditConflictError extends Error {}
++
++  let result: { updated: typeof matchesTable.$inferSelect; newEloChange: number };
++  try {
++    result = await db.transaction(async (tx) => {
++      const [match] = await tx.select().from(matchesTable).where(eq(matchesTable.id, matchId)).for("update");
++      if (!match) throw new MatchEditConflictError("Match not found");
++
++      const stake = parsed.data.stake ?? match.stake;
++
++      const allIds = [...new Set([match.winnerId, match.loserId, winnerId, loserId])].sort((a, b) => a - b);
++      const lockedRows: (typeof playersTable.$inferSelect)[] = [];
++      for (const id of allIds) {
++        const [row] = await tx.select().from(playersTable).where(eq(playersTable.id, id)).for("update");
++        if (!row) throw new MatchEditConflictError("One or more players not found");
++        lockedRows.push(row);
++      }
++
++      const pm = new Map(lockedRows.map(p => [p.id, { ...p }]));
++
++      const origW = pm.get(match.winnerId)!;
++      const origL = pm.get(match.loserId)!;
++
++      const loserWasElim = origL.status === "ELIMINATED" && (origL.points + match.stake) > 0;
++
++      origW.elo               = Math.max(800, origW.elo - match.eloChange);
++      origW.points            = Math.max(0, origW.points - match.stake);
++      origW.seasonWins        = Math.max(0, origW.seasonWins - 1);
++      origW.seasonGamesPlayed = Math.max(0, origW.seasonGamesPlayed - 1);
++      origW.careerWins        = Math.max(0, origW.careerWins - 1);
++      origW.careerGamesPlayed = Math.max(0, origW.careerGamesPlayed - 1);
++      origW.careerPoints      = origW.careerPoints - match.stake;
++
++      origL.elo               = origL.elo + match.eloChange;
++      origL.points            = origL.points + match.stake;
++      origL.seasonLosses      = Math.max(0, origL.seasonLosses - 1);
++      origL.seasonGamesPlayed = Math.max(0, origL.seasonGamesPlayed - 1);
++      origL.careerLosses      = Math.max(0, origL.careerLosses - 1);
++      origL.careerGamesPlayed = Math.max(0, origL.careerGamesPlayed - 1);
++      if (loserWasElim) {
++        origL.status = "ACTIVE";
++        origW.eliminationsCount = Math.max(0, origW.eliminationsCount - 1);
++      }
++
++      const newW = pm.get(winnerId)!;
++      const newL = pm.get(loserId)!;
++
++      const { newWinnerElo, newLoserElo, change: newEloChange } = applyEloChange(newW.elo, newL.elo);
++      const newLoserPts    = Math.max(0, newL.points - stake);
++      const newLoserElim   = newLoserPts === 0;
++
++      newW.elo               = newWinnerElo;
++      newW.points            = newW.points + stake;
++      newW.seasonWins        = newW.seasonWins + 1;
++      newW.seasonGamesPlayed = newW.seasonGamesPlayed + 1;
++      newW.careerWins        = newW.careerWins + 1;
++      newW.careerGamesPlayed = newW.careerGamesPlayed + 1;
++      newW.careerPoints      = newW.careerPoints + stake;
++
++      newL.elo               = newLoserElo;
++      newL.points            = newLoserPts;
++      newL.seasonLosses      = newL.seasonLosses + 1;
++      newL.seasonGamesPlayed = newL.seasonGamesPlayed + 1;
++      newL.careerLosses      = newL.careerLosses + 1;
++      newL.careerGamesPlayed = newL.careerGamesPlayed + 1;
++      newL.careerPoints      = newL.careerPoints - stake;
++      if (newLoserElim) {
++        newL.status = "ELIMINATED";
++        newW.eliminationsCount = newW.eliminationsCount + 1;
++      }
++
++      for (const p of pm.values()) {
++        await tx.update(playersTable).set({
++          elo:               p.elo,
++          points:            p.points,
++          seasonWins:        p.seasonWins,
++          seasonLosses:      p.seasonLosses,
++          seasonGamesPlayed: p.seasonGamesPlayed,
++          careerWins:        p.careerWins,
++          careerLosses:      p.careerLosses,
++          careerGamesPlayed: p.careerGamesPlayed,
++          careerPoints:      p.careerPoints,
++          status:            p.status,
++          eliminationsCount: p.eliminationsCount,
++        }).where(eq(playersTable.id, p.id));
++      }
++
++      const newWPlayer = pm.get(winnerId)!;
++      const newLPlayer = pm.get(loserId)!;
++      const [updated] = await tx.update(matchesTable).set({
++        winnerId,
++        loserId,
++        winnerName: newWPlayer.name,
++        loserName:  newLPlayer.name,
++        eloChange:  newEloChange,
++        stake,
++        ...(notes !== undefined ? { notes } : {}),
++      }).where(eq(matchesTable.id, matchId)).returning();
++
++      return { updated, newEloChange };
++    });
++  } catch (err) {
++    if (err instanceof MatchEditConflictError) {
++      res.status(404).json({ error: err.message });
++      return;
++    }
++    throw err;
+   }
+ 
+-  const newWPlayer = pm.get(winnerId)!;
+-  const newLPlayer = pm.get(loserId)!;
+-  const [updated] = await db.update(matchesTable).set({
+-    winnerId,
+-    loserId,
+-    winnerName: newWPlayer.name,
+-    loserName:  newLPlayer.name,
+-    eloChange:  newEloChange,
+-    stake,
+-    ...(notes !== undefined ? { notes } : {}),
+-  }).where(eq(matchesTable.id, matchId)).returning();
+-
+-  res.json({ match: updated, eloChange: newEloChange });
++  res.json({ match: result.updated, eloChange: result.newEloChange });
+ });
+ 
+ // ── Delete player (cascade all related data) ──────────────────────────────────
+diff --git a/artifacts/api-server/src/routes/auth.ts b/artifacts/api-server/src/routes/auth.ts
+index c7e6560..8a06d03 100644
+--- a/artifacts/api-server/src/routes/auth.ts
++++ b/artifacts/api-server/src/routes/auth.ts
+@@ -128,6 +128,12 @@ router.post("/admin/users", requireAdminSession, async (req, res): Promise<void>
+   const [player] = await db.select().from(playersTable).where(eq(playersTable.id, parsed.data.playerId));
+   if (!player) { res.status(404).json({ error: "Player not found" }); return; }
+ 
++  // A cheap, unlocked early-reject for the common case — not safe to build
++  // the actual insert from: two admins (or a double-submit) could both
++  // pass this check for the same player and both insert, giving one
++  // player two accounts, since nothing previously stopped it. The insert
++  // below is the real guard, via the player_id unique index added in
++  // add_users_player_id_unique.ts.
+   const existing = await db.select().from(usersTable).where(eq(usersTable.playerId, parsed.data.playerId));
+   if (existing.length > 0) { res.status(400).json({ error: "This player already has an account" }); return; }
+ 
+@@ -141,7 +147,16 @@ router.post("/admin/users", requireAdminSession, async (req, res): Promise<void>
+     passwordHash: hash,
+     playerId:     parsed.data.playerId,
+     isAdmin:      parsed.data.isAdmin,
+-  }).returning({ id: usersTable.id, username: usersTable.username, playerId: usersTable.playerId, isAdmin: usersTable.isAdmin });
++  })
++    .onConflictDoNothing({ target: usersTable.playerId })
++    .returning({ id: usersTable.id, username: usersTable.username, playerId: usersTable.playerId, isAdmin: usersTable.isAdmin });
++
++  if (!user) {
++    // Lost the race between the pre-check above and this insert — another
++    // request for the same player committed first.
++    res.status(400).json({ error: "This player already has an account" });
++    return;
++  }
+ 
+   logger.info({ userId: user.id, username: user.username }, "Account created");
+   res.status(201).json({ ...user, playerName: player.name });
+diff --git a/artifacts/api-server/src/routes/boss-battles.ts b/artifacts/api-server/src/routes/boss-battles.ts
+index 55a8754..aaaa0ea 100644
+--- a/artifacts/api-server/src/routes/boss-battles.ts
++++ b/artifacts/api-server/src/routes/boss-battles.ts
+@@ -115,27 +115,34 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
+ 
+     const bestSeconds = didWin ? sanitizeSeconds(elapsedSeconds) : null;
+ 
+-    await db.execute(sql`
+-      INSERT INTO boss_battle_stats (player_id, boss_id, attempts, wins, best_seconds)
+-      VALUES (${pid}, ${bossId}, 1, ${didWin ? 1 : 0}, ${bestSeconds})
+-      ON CONFLICT (player_id, boss_id) DO UPDATE SET
+-        attempts     = boss_battle_stats.attempts + 1,
+-        wins         = boss_battle_stats.wins + ${didWin ? 1 : 0},
+-        best_seconds = CASE
+-          WHEN ${bestSeconds}::int IS NULL THEN boss_battle_stats.best_seconds
+-          WHEN boss_battle_stats.best_seconds IS NULL THEN ${bestSeconds}
+-          WHEN ${bestSeconds}::int < boss_battle_stats.best_seconds THEN ${bestSeconds}
+-          ELSE boss_battle_stats.best_seconds
+-        END
+-    `);
+-
+-    if (didWin) {
+-      await db.execute(sql`
+-        INSERT INTO boss_battle_progress (player_id, boss_id)
+-        VALUES (${pid}, ${bossId})
+-        ON CONFLICT (player_id, boss_id) DO NOTHING
++    // Both statements below are individually safe via ON CONFLICT, but they
++    // used to run as two separate round-trips — a crash or lost connection
++    // between them could leave a win's stats incremented without the
++    // corresponding ladder unlock recorded (or vice versa). One transaction
++    // makes them succeed or fail together.
++    await db.transaction(async (tx) => {
++      await tx.execute(sql`
++        INSERT INTO boss_battle_stats (player_id, boss_id, attempts, wins, best_seconds)
++        VALUES (${pid}, ${bossId}, 1, ${didWin ? 1 : 0}, ${bestSeconds})
++        ON CONFLICT (player_id, boss_id) DO UPDATE SET
++          attempts     = boss_battle_stats.attempts + 1,
++          wins         = boss_battle_stats.wins + ${didWin ? 1 : 0},
++          best_seconds = CASE
++            WHEN ${bestSeconds}::int IS NULL THEN boss_battle_stats.best_seconds
++            WHEN boss_battle_stats.best_seconds IS NULL THEN ${bestSeconds}
++            WHEN ${bestSeconds}::int < boss_battle_stats.best_seconds THEN ${bestSeconds}
++            ELSE boss_battle_stats.best_seconds
++          END
+       `);
+-    }
++
++      if (didWin) {
++        await tx.execute(sql`
++          INSERT INTO boss_battle_progress (player_id, boss_id)
++          VALUES (${pid}, ${bossId})
++          ON CONFLICT (player_id, boss_id) DO NOTHING
++        `);
++      }
++    });
+ 
+     res.json({ success: true });
+   } catch (err) {
+diff --git a/artifacts/api-server/src/routes/seasons.ts b/artifacts/api-server/src/routes/seasons.ts
+index 5acfe43..a7a2c9e 100644
+--- a/artifacts/api-server/src/routes/seasons.ts
++++ b/artifacts/api-server/src/routes/seasons.ts
+@@ -2,7 +2,7 @@ import { Router } from "express";
+ import { eq, and, desc, sql } from "drizzle-orm";
+ import { db, seasonsTable, playersTable, seasonStandingsTable } from "@workspace/db";
+ import { z } from "zod";
+-import { performSeasonReset, performDoublesSeasonReset, performShiftWarsSeasonReset } from "../lib/seasonReset";
++import { performSeasonReset, performDoublesSeasonReset, performShiftWarsSeasonReset, SeasonResetLockedError } from "../lib/seasonReset";
+ import { calcTier } from "../lib/elo";
+ import { computeIdentity } from "../lib/identity";
+ import { requireAdminSession } from "../middleware/requireAdminSession";
+@@ -48,8 +48,13 @@ router.get("/seasons/current", async (req, res): Promise<void> => {
+ router.post("/seasons/reset", requireAdminSession, async (req, res): Promise<void> => {
+   const parsed = ResetSeasonBody.safeParse(req.body ?? {});
+   const overrideName = parsed.success ? parsed.data.name : undefined;
+-  const newSeason = await performSeasonReset(overrideName);
+-  res.status(201).json(newSeason);
++  try {
++    const newSeason = await performSeasonReset(overrideName);
++    res.status(201).json(newSeason);
++  } catch (err) {
++    if (err instanceof SeasonResetLockedError) { res.status(409).json({ error: err.message }); return; }
++    throw err;
++  }
+ });
+ 
+ // Doubles and Shift Wars each get their own manual reset trigger now that
+@@ -57,15 +62,25 @@ router.post("/seasons/reset", requireAdminSession, async (req, res): Promise<voi
+ router.post("/seasons/doubles/reset", requireAdminSession, async (req, res): Promise<void> => {
+   const parsed = ResetSeasonBody.safeParse(req.body ?? {});
+   const overrideName = parsed.success ? parsed.data.name : undefined;
+-  const newSeason = await performDoublesSeasonReset(overrideName);
+-  res.status(201).json(newSeason);
++  try {
++    const newSeason = await performDoublesSeasonReset(overrideName);
++    res.status(201).json(newSeason);
++  } catch (err) {
++    if (err instanceof SeasonResetLockedError) { res.status(409).json({ error: err.message }); return; }
++    throw err;
++  }
+ });
+ 
+ router.post("/seasons/shift-wars/reset", requireAdminSession, async (req, res): Promise<void> => {
+   const parsed = ResetSeasonBody.safeParse(req.body ?? {});
+   const overrideName = parsed.success ? parsed.data.name : undefined;
+-  const newSeason = await performShiftWarsSeasonReset(overrideName);
+-  res.status(201).json(newSeason);
++  try {
++    const newSeason = await performShiftWarsSeasonReset(overrideName);
++    res.status(201).json(newSeason);
++  } catch (err) {
++    if (err instanceof SeasonResetLockedError) { res.status(409).json({ error: err.message }); return; }
++    throw err;
++  }
+ });
+ 
+ router.get("/seasons/:id/mvp", async (req, res): Promise<void> => {
+@@ -220,21 +235,32 @@ router.post("/seasons/:id/playoff", requireAdminSession, async (req, res): Promi
+   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+ 
+   const { player1Id, player2Id, winnerId, round, gameType, notes } = parsed.data;
+-  const [row] = await db.execute(
+-    sql`INSERT INTO playoff_matches (season_id, player1_id, player2_id, winner_id, round, game_type, notes)
+-        VALUES (${params.data.id}, ${player1Id}, ${player2Id}, ${winnerId ?? null}, ${round}, ${gameType}, ${notes ?? null})
+-        RETURNING *`
+-  ) as any;
+-
+-  // If we have a winner and this is the final, crown them as season champion
+-  if (winnerId && round === "final") {
+-    await db.update(seasonsTable)
+-      .set({ championId: winnerId, playoffPending: false } as any)
+-      .where(eq(seasonsTable.id, params.data.id));
+-    // Update standings isChampion
+-    await db.execute(sql`UPDATE season_standings SET is_champion = false WHERE season_id = ${params.data.id}`);
+-    await db.execute(sql`UPDATE season_standings SET is_champion = true WHERE season_id = ${params.data.id} AND player_id = ${winnerId}`);
+-  }
++
++  // Recording the match and — when it's the deciding final — crowning the
++  // champion (season row + standings) as one transaction: these used to be
++  // several separate unguarded statements, so a crash partway through
++  // could leave the season row's championId set with season_standings not
++  // yet agreeing, or vice versa. Admin-only and a narrow window, but the
++  // same fix shape as everywhere else this session.
++  const row = await db.transaction(async (tx) => {
++    const [inserted] = await tx.execute(
++      sql`INSERT INTO playoff_matches (season_id, player1_id, player2_id, winner_id, round, game_type, notes)
++          VALUES (${params.data.id}, ${player1Id}, ${player2Id}, ${winnerId ?? null}, ${round}, ${gameType}, ${notes ?? null})
++          RETURNING *`
++    ) as any;
++
++    // If we have a winner and this is the final, crown them as season champion
++    if (winnerId && round === "final") {
++      await tx.update(seasonsTable)
++        .set({ championId: winnerId, playoffPending: false } as any)
++        .where(eq(seasonsTable.id, params.data.id));
++      // Update standings isChampion
++      await tx.execute(sql`UPDATE season_standings SET is_champion = false WHERE season_id = ${params.data.id}`);
++      await tx.execute(sql`UPDATE season_standings SET is_champion = true WHERE season_id = ${params.data.id} AND player_id = ${winnerId}`);
++    }
++
++    return inserted;
++  });
+ 
+   res.status(201).json(row);
+ });
+@@ -253,17 +279,23 @@ router.patch("/seasons/:id/playoff/:matchId", requireAdminSession, async (req, r
+   if (parsed.data.round !== undefined) { sets.push(`round = $${sets.length+1}`); vals.push(parsed.data.round); }
+   if (sets.length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
+ 
+-  await db.execute(sql`UPDATE playoff_matches SET winner_id = ${parsed.data.winnerId ?? null} WHERE id = ${matchId} AND season_id = ${params.data.id}`);
+-
+-  // Crown champion if final match has winner
+-  if (parsed.data.winnerId && (parsed.data.round === "final" || !parsed.data.round)) {
+-    const [match] = (await db.execute(sql`SELECT round FROM playoff_matches WHERE id = ${matchId}`)).rows as any[];
+-    if (match?.round === "final") {
+-      await db.update(seasonsTable).set({ championId: parsed.data.winnerId, playoffPending: false } as any).where(eq(seasonsTable.id, params.data.id));
+-      await db.execute(sql`UPDATE season_standings SET is_champion = false WHERE season_id = ${params.data.id}`);
+-      await db.execute(sql`UPDATE season_standings SET is_champion = true WHERE season_id = ${params.data.id} AND player_id = ${parsed.data.winnerId}`);
++  // Same transactional fix as POST /seasons/:id/playoff above — recording
++  // the winner and any resulting champion-crowning as one unit, so a crash
++  // partway through can't leave the season row and season_standings
++  // disagreeing about who's champion.
++  await db.transaction(async (tx) => {
++    await tx.execute(sql`UPDATE playoff_matches SET winner_id = ${parsed.data.winnerId ?? null} WHERE id = ${matchId} AND season_id = ${params.data.id}`);
++
++    // Crown champion if final match has winner
++    if (parsed.data.winnerId && (parsed.data.round === "final" || !parsed.data.round)) {
++      const [match] = (await tx.execute(sql`SELECT round FROM playoff_matches WHERE id = ${matchId}`)).rows as any[];
++      if (match?.round === "final") {
++        await tx.update(seasonsTable).set({ championId: parsed.data.winnerId, playoffPending: false } as any).where(eq(seasonsTable.id, params.data.id));
++        await tx.execute(sql`UPDATE season_standings SET is_champion = false WHERE season_id = ${params.data.id}`);
++        await tx.execute(sql`UPDATE season_standings SET is_champion = true WHERE season_id = ${params.data.id} AND player_id = ${parsed.data.winnerId}`);
++      }
+     }
+-  }
++  });
+ 
+   res.json({ ok: true });
+ });

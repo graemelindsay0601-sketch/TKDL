@@ -5,7 +5,7 @@ import {
   weeklyChallenges,
   playerWeeklyChallenges,
 } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { addCoinsToPlayer } from "./card-shop-service.ts";
 import { giveCardToPlayer } from "./card-shop-service.ts";
 import { getIsoWeekNumber } from "../lib/iso-week.ts";
@@ -152,85 +152,65 @@ export const challengeManager = {
       score_threshold: (gameResult.score ?? 0) >= 100, // Example threshold
     };
 
-    // Update daily challenges
-    const dailyPlayerChallenges = await db
-      .select()
-      .from(playerDailyChallenges)
-      .innerJoin(
-        dailyChallenges,
-        eq(playerDailyChallenges.challenge_id, dailyChallenges.id)
-      )
-      .where(
-        and(
-          eq(playerDailyChallenges.player_id, playerId),
-          eq(playerDailyChallenges.is_completed, false)
-        )
-      );
+    // Which requirement_types this game result actually satisfies — used
+    // below to scope the atomic updates to just the matching challenges.
+    const matchingTypes = Object.entries(requirementMappings)
+      .filter(([, matches]) => matches)
+      .map(([type]) => type);
+    if (matchingTypes.length === 0) return;
 
-    for (const { player_daily_challenges, daily_challenges } of dailyPlayerChallenges) {
-      if (requirementMappings[daily_challenges.requirement_type]) {
-        const newProgress = player_daily_challenges.progress + 1;
-        const isCompleted = newProgress >= daily_challenges.requirement_value;
+    // Atomic per-row UPDATE...FROM...RETURNING: increments progress and
+    // flips is_completed/completed_at in the database in one statement,
+    // guarded by `is_completed = false`. The old code read progress into
+    // JS, decided completion from that snapshot, then wrote it back with a
+    // plain UPDATE — two calls for the same player racing close together
+    // (e.g. two games finishing at once) could both read the same starting
+    // progress, both conclude "just completed," and both award the coins.
+    // Postgres re-checks an UPDATE's WHERE clause against the committed row
+    // after acquiring its lock, so once the first of two concurrent updates
+    // commits with is_completed = true, the second's `is_completed = false`
+    // guard no longer matches and it affects zero rows for that challenge —
+    // same idempotency-via-atomic-UPDATE-WHERE-guard shape as
+    // master501.ts's/tour.ts's run-completion fixes, applied per row here
+    // instead of per run.
+    const dailyCompletions = (await db.execute(sql`
+      UPDATE player_daily_challenges pdc
+      SET progress = pdc.progress + 1,
+          is_completed = (pdc.progress + 1) >= dc.requirement_value,
+          completed_at = CASE WHEN (pdc.progress + 1) >= dc.requirement_value THEN NOW() ELSE NULL END,
+          updated_at = NOW()
+      FROM daily_challenges dc
+      WHERE pdc.challenge_id = dc.id
+        AND pdc.player_id = ${playerId}
+        AND pdc.is_completed = false
+        AND dc.requirement_type = ANY(${matchingTypes}::text[])
+      RETURNING pdc.is_completed AS is_completed, dc.reward_coins AS reward_coins, dc.reward_pack_tokens AS reward_pack_tokens
+    `)).rows as { is_completed: boolean; reward_coins: number; reward_pack_tokens: number | null }[];
 
-        await db
-          .update(playerDailyChallenges)
-          .set({
-            progress: newProgress,
-            is_completed: isCompleted,
-            completed_at: isCompleted ? new Date() : null,
-            updated_at: new Date(),
-          })
-          .where(eq(playerDailyChallenges.id, player_daily_challenges.id));
-
-        // Award rewards if completed
-        if (isCompleted) {
-          await this.awardRewards(
-            playerId,
-            daily_challenges.reward_coins,
-            daily_challenges.reward_pack_tokens || 0
-          );
-        }
+    for (const row of dailyCompletions) {
+      if (row.is_completed) {
+        await this.awardRewards(playerId, row.reward_coins, row.reward_pack_tokens ?? 0);
       }
     }
 
     // Update weekly challenges (same logic)
-    const weeklyPlayerChallenges = await db
-      .select()
-      .from(playerWeeklyChallenges)
-      .innerJoin(
-        weeklyChallenges,
-        eq(playerWeeklyChallenges.challenge_id, weeklyChallenges.id)
-      )
-      .where(
-        and(
-          eq(playerWeeklyChallenges.player_id, playerId),
-          eq(playerWeeklyChallenges.is_completed, false)
-        )
-      );
+    const weeklyCompletions = (await db.execute(sql`
+      UPDATE player_weekly_challenges pwc
+      SET progress = pwc.progress + 1,
+          is_completed = (pwc.progress + 1) >= wc.requirement_value,
+          completed_at = CASE WHEN (pwc.progress + 1) >= wc.requirement_value THEN NOW() ELSE NULL END,
+          updated_at = NOW()
+      FROM weekly_challenges wc
+      WHERE pwc.challenge_id = wc.id
+        AND pwc.player_id = ${playerId}
+        AND pwc.is_completed = false
+        AND wc.requirement_type = ANY(${matchingTypes}::text[])
+      RETURNING pwc.is_completed AS is_completed, wc.reward_coins AS reward_coins, wc.reward_pack_tokens AS reward_pack_tokens
+    `)).rows as { is_completed: boolean; reward_coins: number; reward_pack_tokens: number | null }[];
 
-    for (const { player_weekly_challenges, weekly_challenges } of weeklyPlayerChallenges) {
-      if (requirementMappings[weekly_challenges.requirement_type]) {
-        const newProgress = player_weekly_challenges.progress + 1;
-        const isCompleted = newProgress >= weekly_challenges.requirement_value;
-
-        await db
-          .update(playerWeeklyChallenges)
-          .set({
-            progress: newProgress,
-            is_completed: isCompleted,
-            completed_at: isCompleted ? new Date() : null,
-            updated_at: new Date(),
-          })
-          .where(eq(playerWeeklyChallenges.id, player_weekly_challenges.id));
-
-        // Award rewards if completed
-        if (isCompleted) {
-          await this.awardRewards(
-            playerId,
-            weekly_challenges.reward_coins,
-            weekly_challenges.reward_pack_tokens || 0
-          );
-        }
+    for (const row of weeklyCompletions) {
+      if (row.is_completed) {
+        await this.awardRewards(playerId, row.reward_coins, row.reward_pack_tokens ?? 0);
       }
     }
   },

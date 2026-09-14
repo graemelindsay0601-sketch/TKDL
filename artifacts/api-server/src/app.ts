@@ -31,6 +31,10 @@ import { backfillBroadcastStorySeasonId } from "./db/migrations/backfill_broadca
 import { addSeasonBroadcastReviewedAt } from "./db/migrations/add_season_broadcast_reviewed_at";
 import { addFeatureSpotlights } from "./db/migrations/add_feature_spotlights";
 import { addBroadcastAdminBuildLock } from "./db/migrations/add_broadcast_admin_build_lock";
+import { addPracticeSessionIdempotencyKey } from "./db/migrations/add_practice_session_idempotency_key";
+import { addSeasonStandingsUnique } from "./db/migrations/add_season_standings_unique";
+import { addSeasonResetLock } from "./db/migrations/add_season_reset_lock";
+import { addUsersPlayerIdUnique } from "./db/migrations/add_users_player_id_unique";
 import { seedBroadcastSettings } from "./broadcast/config";
 import { seedCardDefinitions } from "./services/card-definitions-service";
 import { challengeService } from "./services/challenge-service";
@@ -1072,6 +1076,10 @@ async function init() {
   await runInitStep("addSeasonBroadcastReviewedAt", addSeasonBroadcastReviewedAt);
   await runInitStep("addFeatureSpotlights", addFeatureSpotlights);
   await runInitStep("addBroadcastAdminBuildLock", addBroadcastAdminBuildLock);
+  await runInitStep("addPracticeSessionIdempotencyKey", addPracticeSessionIdempotencyKey);
+  await runInitStep("addSeasonStandingsUnique", addSeasonStandingsUnique);
+  await runInitStep("addSeasonResetLock", addSeasonResetLock);
+  await runInitStep("addUsersPlayerIdUnique", addUsersPlayerIdUnique);
   await runInitStep("seedBroadcastSettings", seedBroadcastSettings);
   await runInitStep("seedCardDefinitions", seedCardDefinitions);
   await runInitStep("initializeFeaturedCardShopTables", initializeFeaturedCardShopTables);

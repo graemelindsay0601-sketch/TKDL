@@ -2,8 +2,8 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod/v4";
+import { createHash } from "node:crypto";
 import { checkAndAwardShadowBotAchievements, getShadowAchievementProgress } from "../lib/shadow-bot-achievements";
-import { checkPracticeAchievements } from "../lib/practice-achievements";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 
@@ -81,12 +81,23 @@ router.post("/practice/sessions", matchSubmitRateLimit, async (req, res): Promis
     const body = SessionBody.parse(req.body);
     // Merge both dart logs into session_data JSONB
     const sd = { ...(body.sessionData ?? {}) };
-    await db.execute(sql`
+
+    // Idempotency guard: no login/session check on this route (deliberately
+    // — see the route's own comment above) means no natural resource to
+    // fold a status check into, unlike master501.ts/tour.ts. A hash of the
+    // full validated body — every scoring/checkout dart, not just the
+    // summary numbers — stands in for a client-supplied idempotency key: a
+    // retried/double-tapped submit reproduces it exactly, while two
+    // genuinely different real sessions essentially never will.
+    const idempotencyKey = createHash("sha256").update(JSON.stringify(body)).digest("hex");
+
+    const [inserted] = (await db.execute(sql`
       INSERT INTO practice_sessions
         (player1_id, player2_id, game_type_key, game_type_name, winner_idx, detail,
          darts_thrown, duration_seconds, session_data,
          p1_darts, p1_score, p1_180s, p1_checkout_attempts, p1_checkout_hits,
-         p2_darts, p2_score, p2_180s, p2_checkout_attempts, p2_checkout_hits)
+         p2_darts, p2_score, p2_180s, p2_checkout_attempts, p2_checkout_hits,
+         idempotency_key)
       VALUES
         (${body.player1Id ?? null}, ${body.player2Id ?? null},
          ${body.gameTypeKey}, ${body.gameTypeName},
@@ -96,24 +107,22 @@ router.post("/practice/sessions", matchSubmitRateLimit, async (req, res): Promis
          ${body.p1Darts ?? null}, ${body.p1Score ?? null},
          ${body.p1_180s ?? 0}, ${body.p1CheckoutAttempts ?? 0}, ${body.p1CheckoutHits ?? 0},
          ${body.p2Darts ?? null}, ${body.p2Score ?? null},
-         ${body.p2_180s ?? 0}, ${body.p2CheckoutAttempts ?? 0}, ${body.p2CheckoutHits ?? 0})
-    `);
+         ${body.p2_180s ?? 0}, ${body.p2CheckoutAttempts ?? 0}, ${body.p2CheckoutHits ?? 0},
+         ${idempotencyKey})
+      ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+      RETURNING id
+    `)).rows;
     res.json({ ok: true });
-    
+
+    // A conflict here means this exact submit was already recorded (a
+    // retry/double-tap) — the coins and challenge progress it would trigger
+    // were already awarded the first time, so skip them rather than
+    // double-count. The client still sees the same { ok: true } either way.
+    if (!inserted) return;
+
     // Fire-and-forget: shadow bot achievement check for P1
     if (body.player1Id) {
       checkAndAwardShadowBotAchievements(body.player1Id).catch(() => {});
-    }
-
-    // Fire-and-forget: practice-mode achievement check for P1. This was
-    // previously only ever reached via checkStatAchievements() after a real
-    // league match (or the admin retroactive sweep), so a player who only
-    // ever plays Practice mode could never organically unlock a practice
-    // achievement — this call is what makes that path actually fire here,
-    // the same way master501.ts calls checkM501Achievements right after
-    // saving its own run.
-    if (body.player1Id) {
-      checkPracticeAchievements(body.player1Id).catch(() => {});
     }
 
     // Fire-and-forget: award practice coins

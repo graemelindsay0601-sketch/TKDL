@@ -2,7 +2,7 @@ import { Router } from "express";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db, seasonsTable, playersTable, seasonStandingsTable } from "@workspace/db";
 import { z } from "zod";
-import { performSeasonReset, performDoublesSeasonReset, performShiftWarsSeasonReset } from "../lib/seasonReset";
+import { performSeasonReset, performDoublesSeasonReset, performShiftWarsSeasonReset, SeasonResetLockedError } from "../lib/seasonReset";
 import { calcTier } from "../lib/elo";
 import { computeIdentity } from "../lib/identity";
 import { requireAdminSession } from "../middleware/requireAdminSession";
@@ -48,8 +48,13 @@ router.get("/seasons/current", async (req, res): Promise<void> => {
 router.post("/seasons/reset", requireAdminSession, async (req, res): Promise<void> => {
   const parsed = ResetSeasonBody.safeParse(req.body ?? {});
   const overrideName = parsed.success ? parsed.data.name : undefined;
-  const newSeason = await performSeasonReset(overrideName);
-  res.status(201).json(newSeason);
+  try {
+    const newSeason = await performSeasonReset(overrideName);
+    res.status(201).json(newSeason);
+  } catch (err) {
+    if (err instanceof SeasonResetLockedError) { res.status(409).json({ error: err.message }); return; }
+    throw err;
+  }
 });
 
 // Doubles and Shift Wars each get their own manual reset trigger now that
@@ -57,15 +62,25 @@ router.post("/seasons/reset", requireAdminSession, async (req, res): Promise<voi
 router.post("/seasons/doubles/reset", requireAdminSession, async (req, res): Promise<void> => {
   const parsed = ResetSeasonBody.safeParse(req.body ?? {});
   const overrideName = parsed.success ? parsed.data.name : undefined;
-  const newSeason = await performDoublesSeasonReset(overrideName);
-  res.status(201).json(newSeason);
+  try {
+    const newSeason = await performDoublesSeasonReset(overrideName);
+    res.status(201).json(newSeason);
+  } catch (err) {
+    if (err instanceof SeasonResetLockedError) { res.status(409).json({ error: err.message }); return; }
+    throw err;
+  }
 });
 
 router.post("/seasons/shift-wars/reset", requireAdminSession, async (req, res): Promise<void> => {
   const parsed = ResetSeasonBody.safeParse(req.body ?? {});
   const overrideName = parsed.success ? parsed.data.name : undefined;
-  const newSeason = await performShiftWarsSeasonReset(overrideName);
-  res.status(201).json(newSeason);
+  try {
+    const newSeason = await performShiftWarsSeasonReset(overrideName);
+    res.status(201).json(newSeason);
+  } catch (err) {
+    if (err instanceof SeasonResetLockedError) { res.status(409).json({ error: err.message }); return; }
+    throw err;
+  }
 });
 
 router.get("/seasons/:id/mvp", async (req, res): Promise<void> => {
@@ -220,21 +235,32 @@ router.post("/seasons/:id/playoff", requireAdminSession, async (req, res): Promi
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const { player1Id, player2Id, winnerId, round, gameType, notes } = parsed.data;
-  const [row] = await db.execute(
-    sql`INSERT INTO playoff_matches (season_id, player1_id, player2_id, winner_id, round, game_type, notes)
-        VALUES (${params.data.id}, ${player1Id}, ${player2Id}, ${winnerId ?? null}, ${round}, ${gameType}, ${notes ?? null})
-        RETURNING *`
-  ) as any;
 
-  // If we have a winner and this is the final, crown them as season champion
-  if (winnerId && round === "final") {
-    await db.update(seasonsTable)
-      .set({ championId: winnerId, playoffPending: false } as any)
-      .where(eq(seasonsTable.id, params.data.id));
-    // Update standings isChampion
-    await db.execute(sql`UPDATE season_standings SET is_champion = false WHERE season_id = ${params.data.id}`);
-    await db.execute(sql`UPDATE season_standings SET is_champion = true WHERE season_id = ${params.data.id} AND player_id = ${winnerId}`);
-  }
+  // Recording the match and — when it's the deciding final — crowning the
+  // champion (season row + standings) as one transaction: these used to be
+  // several separate unguarded statements, so a crash partway through
+  // could leave the season row's championId set with season_standings not
+  // yet agreeing, or vice versa. Admin-only and a narrow window, but the
+  // same fix shape as everywhere else this session.
+  const row = await db.transaction(async (tx) => {
+    const [inserted] = await tx.execute(
+      sql`INSERT INTO playoff_matches (season_id, player1_id, player2_id, winner_id, round, game_type, notes)
+          VALUES (${params.data.id}, ${player1Id}, ${player2Id}, ${winnerId ?? null}, ${round}, ${gameType}, ${notes ?? null})
+          RETURNING *`
+    ) as any;
+
+    // If we have a winner and this is the final, crown them as season champion
+    if (winnerId && round === "final") {
+      await tx.update(seasonsTable)
+        .set({ championId: winnerId, playoffPending: false } as any)
+        .where(eq(seasonsTable.id, params.data.id));
+      // Update standings isChampion
+      await tx.execute(sql`UPDATE season_standings SET is_champion = false WHERE season_id = ${params.data.id}`);
+      await tx.execute(sql`UPDATE season_standings SET is_champion = true WHERE season_id = ${params.data.id} AND player_id = ${winnerId}`);
+    }
+
+    return inserted;
+  });
 
   res.status(201).json(row);
 });
@@ -246,30 +272,30 @@ router.patch("/seasons/:id/playoff/:matchId", requireAdminSession, async (req, r
   const parsed = PlayoffMatchBody.partial().safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  // Only touch the columns actually present in the request — this used to
-  // build a `sets`/`vals` pair for exactly that purpose and then never use
-  // it, instead always running `SET winner_id = ${... ?? null}` below, so
-  // patching just `notes` (with `winnerId` omitted) silently wiped out an
-  // already-recorded winner. Build the actual SET clause from whichever
-  // fields were sent, same partial-update pattern as PATCH /players/:id.
-  const updates: Record<string, unknown> = {};
-  if (parsed.data.winnerId !== undefined) updates.winner_id = parsed.data.winnerId;
-  if (parsed.data.notes    !== undefined) updates.notes     = parsed.data.notes;
-  if (parsed.data.round    !== undefined) updates.round     = parsed.data.round;
-  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
+  const sets: string[] = [];
+  const vals: any[] = [];
+  if (parsed.data.winnerId !== undefined) { sets.push(`winner_id = $${sets.length+1}`); vals.push(parsed.data.winnerId); }
+  if (parsed.data.notes !== undefined) { sets.push(`notes = $${sets.length+1}`); vals.push(parsed.data.notes); }
+  if (parsed.data.round !== undefined) { sets.push(`round = $${sets.length+1}`); vals.push(parsed.data.round); }
+  if (sets.length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
 
-  const setClauses = Object.entries(updates).map(([col, val]) => sql`${sql.identifier(col)} = ${val}`);
-  await db.execute(sql`UPDATE playoff_matches SET ${sql.join(setClauses, sql`, `)} WHERE id = ${matchId} AND season_id = ${params.data.id}`);
+  // Same transactional fix as POST /seasons/:id/playoff above — recording
+  // the winner and any resulting champion-crowning as one unit, so a crash
+  // partway through can't leave the season row and season_standings
+  // disagreeing about who's champion.
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`UPDATE playoff_matches SET winner_id = ${parsed.data.winnerId ?? null} WHERE id = ${matchId} AND season_id = ${params.data.id}`);
 
-  // Crown champion if final match has winner
-  if (parsed.data.winnerId && (parsed.data.round === "final" || !parsed.data.round)) {
-    const [match] = (await db.execute(sql`SELECT round FROM playoff_matches WHERE id = ${matchId}`)).rows as any[];
-    if (match?.round === "final") {
-      await db.update(seasonsTable).set({ championId: parsed.data.winnerId, playoffPending: false } as any).where(eq(seasonsTable.id, params.data.id));
-      await db.execute(sql`UPDATE season_standings SET is_champion = false WHERE season_id = ${params.data.id}`);
-      await db.execute(sql`UPDATE season_standings SET is_champion = true WHERE season_id = ${params.data.id} AND player_id = ${parsed.data.winnerId}`);
+    // Crown champion if final match has winner
+    if (parsed.data.winnerId && (parsed.data.round === "final" || !parsed.data.round)) {
+      const [match] = (await tx.execute(sql`SELECT round FROM playoff_matches WHERE id = ${matchId}`)).rows as any[];
+      if (match?.round === "final") {
+        await tx.update(seasonsTable).set({ championId: parsed.data.winnerId, playoffPending: false } as any).where(eq(seasonsTable.id, params.data.id));
+        await tx.execute(sql`UPDATE season_standings SET is_champion = false WHERE season_id = ${params.data.id}`);
+        await tx.execute(sql`UPDATE season_standings SET is_champion = true WHERE season_id = ${params.data.id} AND player_id = ${parsed.data.winnerId}`);
+      }
     }
-  }
+  });
 
   res.json({ ok: true });
 });

@@ -1,5 +1,6 @@
 import cron from "node-cron";
-import { db, pool } from "@workspace/db";
+import { randomUUID } from "node:crypto";
+import { db } from "@workspace/db";
 import { playersTable, seasonsTable, seasonStandingsTable } from "@workspace/db";
 import type { LeagueType } from "@workspace/db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -7,6 +8,52 @@ import { logger } from "./logger";
 import { checkSeasonAchievements } from "./achievements";
 import { drawDoublesTeams } from "./doublesDraw";
 import { decideSinglesChampion } from "./singles-champion";
+
+/**
+ * Guards a single league's reset sequence against a second concurrent
+ * trigger — a manual admin "reset now" racing the scheduled daily cron, or
+ * a double click — from both running the whole check-then-act sequence at
+ * once (see add_season_reset_lock.ts for the full rationale). Resets are
+ * bounded, synchronous-ish work, so a flat staleness timeout is enough —
+ * nothing like the admin build lock's unbounded, simulation-count-scaled
+ * builds, which needed a heartbeat instead.
+ */
+const SEASON_RESET_LOCK_STALE_MS = 5 * 60 * 1000;
+
+export class SeasonResetLockedError extends Error {
+  constructor(leagueType: LeagueType) {
+    super(`A ${leagueType} season reset is already in progress — try again shortly`);
+    this.name = "SeasonResetLockedError";
+  }
+}
+
+async function claimSeasonResetLock(leagueType: LeagueType, holder: string, now: Date): Promise<boolean> {
+  try {
+    const staleCutoff = new Date(now.getTime() - SEASON_RESET_LOCK_STALE_MS);
+    const result = await db.execute(sql`
+      INSERT INTO season_reset_lock (league_type, locked_by, locked_at)
+      VALUES (${leagueType}, ${holder}, ${now})
+      ON CONFLICT (league_type) DO UPDATE
+      SET locked_by = EXCLUDED.locked_by, locked_at = EXCLUDED.locked_at
+      WHERE season_reset_lock.locked_at IS NULL OR season_reset_lock.locked_at < ${staleCutoff}
+    `);
+    return (result.rowCount ?? 0) > 0;
+  } catch (err) {
+    logger.error({ err, leagueType }, "seasonReset: claimSeasonResetLock failed, refusing to reset");
+    return false;
+  }
+}
+
+async function releaseSeasonResetLock(leagueType: LeagueType, holder: string): Promise<void> {
+  try {
+    await db.execute(sql`
+      UPDATE season_reset_lock SET locked_by = NULL, locked_at = NULL
+      WHERE league_type = ${leagueType} AND locked_by = ${holder}
+    `);
+  } catch (err) {
+    logger.error({ err, leagueType }, "seasonReset: releaseSeasonResetLock failed");
+  }
+}
 
 function newSeasonName(overrideName?: string): { name: string; startDate: string } {
   const now = new Date();
@@ -18,48 +65,6 @@ function newSeasonName(overrideName?: string): { name: string; startDate: string
   };
 }
 
-// ── Concurrency guard ────────────────────────────────────────────────────
-// The nightly cron (maybeAutoResetLeagueSeasons) and an admin's manual
-// "reset now" (POST /seasons/reset et al.) can both call a reset function
-// for the same league in the same window. Each reset function below reads
-// the active season, then runs several separate, non-transactional writes
-// (standings snapshot, achievements, closing the season, resetting every
-// player, opening a new one) — with no guard, two concurrent calls could
-// both read the same still-active season and each run the full reset,
-// producing two new season rows and a duplicated/corrupted standings
-// snapshot.
-//
-// A Postgres advisory lock, one per league, serializes concurrent callers.
-// It's taken on a single client checked out directly from the pool — not
-// through the shared `db` handle, which hands a different pooled
-// connection to every query — so the acquire/release pair is guaranteed to
-// run on the same session and actually blocks the second caller until the
-// first releases. Each reset function then re-checks the specific season
-// row it captured before waiting on the lock: if a concurrent call already
-// closed it while this one was blocked, it stops and returns the season
-// that call opened instead of reprocessing the (now brand new, effectively
-// empty) active season a second time.
-const SEASON_RESET_LOCK_KEYS: Record<LeagueType, number> = {
-  singles: 730_001,
-  doubles: 730_002,
-  shift_wars: 730_003,
-};
-
-async function withSeasonResetLock<T>(leagueType: LeagueType, fn: () => Promise<T>): Promise<T> {
-  const lockKey = SEASON_RESET_LOCK_KEYS[leagueType];
-  const client = await pool.connect();
-  try {
-    await client.query("SELECT pg_advisory_lock($1)", [lockKey]);
-    try {
-      return await fn();
-    } finally {
-      await client.query("SELECT pg_advisory_unlock($1)", [lockKey]);
-    }
-  } finally {
-    client.release();
-  }
-}
-
 // ── Singles ──────────────────────────────────────────────────────────────
 // The original season reset: standings snapshot, season achievements,
 // crown the champion, reset all players to 25pts, open a new season. Scoped
@@ -67,98 +72,103 @@ async function withSeasonResetLock<T>(leagueType: LeagueType, fn: () => Promise<
 // independent lifecycle below, and no longer ride along with this one (see
 // db/migrations/add_season_league_type.ts for why that used to be a bug).
 export async function performSeasonReset(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
-  const [currentSeasonBeforeLock] = await db
+  const lockHolder = randomUUID();
+  if (!(await claimSeasonResetLock("singles", lockHolder, new Date()))) {
+    throw new SeasonResetLockedError("singles");
+  }
+  try {
+    return await performSeasonResetLocked(overrideName);
+  } finally {
+    await releaseSeasonResetLock("singles", lockHolder);
+  }
+}
+
+async function performSeasonResetLocked(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
+  const [currentSeason] = await db
     .select()
     .from(seasonsTable)
     .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "singles")))
     .limit(1);
 
-  return withSeasonResetLock("singles", async () => {
-    // Re-read the exact season row captured above now that the lock is
-    // held — if a concurrent call already closed it while this one was
-    // waiting, stop here and hand back whatever that call opened instead
-    // of reprocessing the fresh (empty) season it just created.
-    let currentSeason: typeof seasonsTable.$inferSelect | undefined = currentSeasonBeforeLock;
-    if (currentSeason) {
-      const [recheck] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, currentSeason.id));
-      if (!recheck?.isActive) {
-        const [alreadyReset] = await db.select().from(seasonsTable)
-          .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "singles")))
-          .limit(1);
-        if (alreadyReset) {
-          logger.info({ seasonId: currentSeason.id }, "Singles season reset skipped — already reset by a concurrent call");
-          return alreadyReset;
-        }
-        currentSeason = undefined;
-      } else {
-        currentSeason = recheck;
+  if (currentSeason) {
+    const players = await db.select().from(playersTable).where(eq(playersTable.isActive, true));
+    const sorted = [...players].sort((a, b) => b.points - a.points || b.elo - a.elo);
+    const contenders = sorted.filter(p => p.status === "ACTIVE");
+
+    // currentSeason.championId is only ever set here by the playoff-match
+    // admin flow (POST/PATCH /api/seasons/:id/playoff) resolving an earlier
+    // tie — decideSinglesChampion() honors that recorded result instead of
+    // re-deriving one, and never lets Elo silently settle a tie on points.
+    const decision = decideSinglesChampion(contenders, currentSeason.championId);
+
+    if (decision.kind === "tied") {
+      // The rules require a one-off no-stake tiebreaker for a tied Singles
+      // championship. Hold the season open and flag it for an admin to
+      // resolve via the existing playoff-match flow instead of crowning
+      // anyone. Re-checked on every reset attempt (daily cron + manual
+      // "reset now"), so this clears itself the moment either a recorded
+      // tiebreak or further real matches break the tie.
+      if (!currentSeason.playoffPending) {
+        await db.update(seasonsTable).set({ playoffPending: true }).where(eq(seasonsTable.id, currentSeason.id));
+        logger.warn(
+          { seasonId: currentSeason.id, tied: decision.tied.map(p => p.name), points: decision.points },
+          "Singles season tied for first place — holding season open pending tiebreak (resolve via admin season editor)"
+        );
       }
+      return currentSeason;
     }
 
-    if (currentSeason) {
-      const players = await db.select().from(playersTable).where(eq(playersTable.isActive, true));
-      const sorted = [...players].sort((a, b) => b.points - a.points || b.elo - a.elo);
-      const contenders = sorted.filter(p => p.status === "ACTIVE");
+    const champion = decision.kind === "champion" ? decision.player : null;
 
-      // currentSeason.championId is only ever set here by the playoff-match
-      // admin flow (POST/PATCH /api/seasons/:id/playoff) resolving an earlier
-      // tie — decideSinglesChampion() honors that recorded result instead of
-      // re-deriving one, and never lets Elo silently settle a tie on points.
-      const decision = decideSinglesChampion(contenders, currentSeason.championId);
-
-      if (decision.kind === "tied") {
-        // The rules require a one-off no-stake tiebreaker for a tied Singles
-        // championship. Hold the season open and flag it for an admin to
-        // resolve via the existing playoff-match flow instead of crowning
-        // anyone. Re-checked on every reset attempt (daily cron + manual
-        // "reset now"), so this clears itself the moment either a recorded
-        // tiebreak or further real matches break the tie.
-        if (!currentSeason.playoffPending) {
-          await db.update(seasonsTable).set({ playoffPending: true }).where(eq(seasonsTable.id, currentSeason.id));
-          logger.warn(
-            { seasonId: currentSeason.id, tied: decision.tied.map(p => p.name), points: decision.points },
-            "Singles season tied for first place — holding season open pending tiebreak (resolve via admin season editor)"
-          );
-        }
-        return currentSeason;
-      }
-
-      const champion = decision.kind === "champion" ? decision.player : null;
-
-      // Save standings snapshot
-      for (let i = 0; i < sorted.length; i++) {
-        const p = sorted[i];
-        await db.insert(seasonStandingsTable).values({
-          seasonId: currentSeason.id,
-          playerId: p.id,
-          position: i + 1,
-          wins: p.seasonWins,
-          losses: p.seasonLosses,
-          points: p.points,
-          elo: p.elo,
-          isChampion: champion ? p.id === champion.id : false,
-        });
-      }
-
-      // Grant season achievements
-      await checkSeasonAchievements(currentSeason.id, sorted, champion?.id ?? null);
-
-      // Close season. Prefer a champion already recorded on the season row
-      // (set via the playoff-match flow) over `champion` being null here —
-      // that only happens if the recorded champion has since left the active
-      // roster, and their playoff win shouldn't be erased by that.
-      await db.update(seasonsTable).set({
-        isActive: false,
-        endDate: new Date().toISOString().split("T")[0],
-        championId: champion?.id ?? currentSeason.championId ?? null,
-        championName: champion?.name ?? currentSeason.championName ?? null,
-      }).where(eq(seasonsTable.id, currentSeason.id));
-
-      logger.info({ seasonId: currentSeason.id, champion: champion?.name }, "Singles season closed");
+    // Save standings snapshot. ON CONFLICT DO NOTHING against the unique
+    // (season_id, player_id) index (add_season_standings_unique.ts) is
+    // defense in depth on top of the reset lock above — belt and braces
+    // against this exact loop ever recording the same player twice for one
+    // season, which is precisely what the sweep report flagged.
+    for (let i = 0; i < sorted.length; i++) {
+      const p = sorted[i];
+      await db.insert(seasonStandingsTable).values({
+        seasonId: currentSeason.id,
+        playerId: p.id,
+        position: i + 1,
+        wins: p.seasonWins,
+        losses: p.seasonLosses,
+        points: p.points,
+        elo: p.elo,
+        isChampion: champion ? p.id === champion.id : false,
+      }).onConflictDoNothing();
     }
 
-    // Reset all active players for new season
-    await db.update(playersTable)
+    // Grant season achievements
+    await checkSeasonAchievements(currentSeason.id, sorted, champion?.id ?? null);
+
+    // Close the season, then fall through to the same
+    // reset-players-and-open-new-season transaction used below regardless
+    // of whether there was a previous season to close.
+    await db.update(seasonsTable).set({
+      isActive: false,
+      endDate: new Date().toISOString().split("T")[0],
+      // Prefer a champion already recorded on the season row (set via the
+      // playoff-match flow) over `champion` being null here — that only
+      // happens if the recorded champion has since left the active roster,
+      // and their playoff win shouldn't be erased by that.
+      championId: champion?.id ?? currentSeason.championId ?? null,
+      championName: champion?.name ?? currentSeason.championName ?? null,
+    }).where(eq(seasonsTable.id, currentSeason.id));
+
+    logger.info({ seasonId: currentSeason.id, champion: champion?.name }, "Singles season closed");
+  }
+
+  // Reset every active player and open the new season as one transaction —
+  // a crash partway through used to be able to leave the league with
+  // players reset but no new season to play into, or vice versa. (The
+  // season-close update above, and the achievement grants before it, stay
+  // outside this transaction — achievements.ts writes through its own
+  // module-level db handle, not easily threaded through a tx — but both run
+  // before this point, so a failure there simply leaves the old season
+  // still open and this whole call retryable, never a half-reset roster.)
+  const newSeason = await db.transaction(async (tx) => {
+    await tx.update(playersTable)
       .set({
         points: 25,
         peakPoints: 25,
@@ -172,13 +182,14 @@ export async function performSeasonReset(overrideName?: string): Promise<typeof 
       .where(eq(playersTable.isActive, true));
 
     const { name, startDate } = newSeasonName(overrideName);
-    const [newSeason] = await db.insert(seasonsTable).values({
+    const [inserted] = await tx.insert(seasonsTable).values({
       name, startDate, isActive: true, leagueType: "singles",
     }).returning();
-
-    logger.info({ newSeasonId: newSeason.id, name: newSeason.name }, "New singles season started");
-    return newSeason;
+    return inserted;
   });
+
+  logger.info({ newSeasonId: newSeason.id, name: newSeason.name }, "New singles season started");
+  return newSeason;
 }
 
 // ── Doubles Event ────────────────────────────────────────────────────────
@@ -187,70 +198,70 @@ export async function performSeasonReset(overrideName?: string): Promise<typeof 
 // champion here, so championId stays null and championName carries the
 // team name), then open a new one and draw fresh random pairs for it.
 export async function performDoublesSeasonReset(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
-  const [currentSeasonBeforeLock] = await db
+  const lockHolder = randomUUID();
+  if (!(await claimSeasonResetLock("doubles", lockHolder, new Date()))) {
+    throw new SeasonResetLockedError("doubles");
+  }
+  try {
+    return await performDoublesSeasonResetLocked(overrideName);
+  } finally {
+    await releaseSeasonResetLock("doubles", lockHolder);
+  }
+}
+
+async function performDoublesSeasonResetLocked(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
+  const [currentSeason] = await db
     .select()
     .from(seasonsTable)
     .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "doubles")))
     .limit(1);
 
-  return withSeasonResetLock("doubles", async () => {
-    // See the singles reset above for why this re-check exists: a
-    // concurrent call may have already closed this exact season and opened
-    // a new one while this call waited on the lock.
-    let currentSeason: typeof seasonsTable.$inferSelect | undefined = currentSeasonBeforeLock;
-    if (currentSeason) {
-      const [recheck] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, currentSeason.id));
-      if (!recheck?.isActive) {
-        const [alreadyReset] = await db.select().from(seasonsTable)
-          .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "doubles")))
-          .limit(1);
-        if (alreadyReset) {
-          logger.info({ seasonId: currentSeason.id }, "Doubles Event reset skipped — already reset by a concurrent call");
-          return alreadyReset;
-        }
-        currentSeason = undefined;
-      } else {
-        currentSeason = recheck;
-      }
-    }
+  let closedChampionName: string | null = null;
+  if (currentSeason) {
+    const teams = (await db.execute(sql`
+      SELECT team_name, points, elo FROM doubles_teams
+      WHERE season_id = ${currentSeason.id}
+      ORDER BY points DESC, elo DESC
+      LIMIT 1
+    `)).rows as { team_name: string }[];
+    closedChampionName = teams[0]?.team_name ?? null;
+  }
 
+  // Close the old season (if any) and open the new one together — a crash
+  // between the two used to be able to leave the league with no active
+  // doubles season at all.
+  const { name, startDate } = newSeasonName(overrideName);
+  const newSeason = await db.transaction(async (tx) => {
     if (currentSeason) {
-      const teams = (await db.execute(sql`
-        SELECT team_name, points, elo FROM doubles_teams
-        WHERE season_id = ${currentSeason.id}
-        ORDER BY points DESC, elo DESC
-        LIMIT 1
-      `)).rows as { team_name: string }[];
-      const champion = teams[0] ?? null;
-
-      await db.update(seasonsTable).set({
+      await tx.update(seasonsTable).set({
         isActive: false,
         endDate: new Date().toISOString().split("T")[0],
-        championName: champion?.team_name ?? null,
+        championName: closedChampionName,
       }).where(eq(seasonsTable.id, currentSeason.id));
-
-      logger.info({ seasonId: currentSeason.id, champion: champion?.team_name }, "Doubles Event season closed");
     }
-
-    const { name, startDate } = newSeasonName(overrideName);
-    const [newSeason] = await db.insert(seasonsTable).values({
+    const [inserted] = await tx.insert(seasonsTable).values({
       name, startDate, isActive: true, leagueType: "doubles",
     }).returning();
-
-    try {
-      const draw = await drawDoublesTeams(newSeason.id);
-      if (draw.ok) {
-        logger.info({ seasonId: newSeason.id, teams: draw.teams.length }, "Doubles Event drawn for new season");
-      } else {
-        logger.warn({ seasonId: newSeason.id, error: draw.error }, "Doubles Event draw skipped");
-      }
-    } catch (err) {
-      logger.error({ err, seasonId: newSeason.id }, "Doubles Event draw failed");
-    }
-
-    logger.info({ newSeasonId: newSeason.id, name: newSeason.name }, "New Doubles Event season started");
-    return newSeason;
+    return inserted;
   });
+
+  if (currentSeason) {
+    logger.info({ seasonId: currentSeason.id, champion: closedChampionName }, "Doubles Event season closed");
+  }
+
+  try {
+    const draw = await drawDoublesTeams(newSeason.id);
+    if (draw.ok) {
+      logger.info({ seasonId: newSeason.id, teams: draw.teams.length }, "Doubles Event drawn for new season");
+    } else {
+      logger.warn({ seasonId: newSeason.id, error: draw.error }, "Doubles Event draw skipped");
+    }
+  } catch (err) {
+    logger.error({ err, seasonId: newSeason.id }, "Doubles Event draw failed");
+  }
+
+  logger.info({ newSeasonId: newSeason.id, name: newSeason.name }, "New Doubles Event season started");
+  return newSeason;
 }
 
 // ── Shift Wars ───────────────────────────────────────────────────────────
@@ -259,80 +270,70 @@ export async function performDoublesSeasonReset(overrideName?: string): Promise<
 // points/record back to its configured starting_points. The roster and
 // teams themselves are permanent and never touched here.
 export async function performShiftWarsSeasonReset(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
-  const [currentSeasonBeforeLock] = await db
+  const lockHolder = randomUUID();
+  if (!(await claimSeasonResetLock("shift_wars", lockHolder, new Date()))) {
+    throw new SeasonResetLockedError("shift_wars");
+  }
+  try {
+    return await performShiftWarsSeasonResetLocked(overrideName);
+  } finally {
+    await releaseSeasonResetLock("shift_wars", lockHolder);
+  }
+}
+
+async function performShiftWarsSeasonResetLocked(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
+  const [currentSeason] = await db
     .select()
     .from(seasonsTable)
     .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "shift_wars")))
     .limit(1);
 
-  return withSeasonResetLock("shift_wars", async () => {
-    // See the singles reset above for why this re-check exists: a
-    // concurrent call may have already closed this exact season and opened
-    // a new one while this call waited on the lock.
-    let currentSeason: typeof seasonsTable.$inferSelect | undefined = currentSeasonBeforeLock;
-    if (currentSeason) {
-      const [recheck] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, currentSeason.id));
-      if (!recheck?.isActive) {
-        const [alreadyReset] = await db.select().from(seasonsTable)
-          .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "shift_wars")))
-          .limit(1);
-        if (alreadyReset) {
-          logger.info({ seasonId: currentSeason.id }, "Shift Wars reset skipped — already reset by a concurrent call");
-          return alreadyReset;
-        }
-        currentSeason = undefined;
-      } else {
-        currentSeason = recheck;
-      }
-    }
-
-    if (currentSeason) {
-      try {
-        const swRows = (await db.execute(sql`SELECT * FROM shift_wars_teams ORDER BY points DESC, name ASC`)).rows as any[];
-        let champion: string | null = null;
-        if (swRows.length > 0) {
-          const topPoints = swRows[0].points;
-          champion = swRows[0].name;
-          for (const t of swRows) {
-            await db.execute(sql`
-              INSERT INTO shift_wars_season_history (season_id, team_id, team_name, points, wins, losses, is_champion)
-              VALUES (${currentSeason.id}, ${t.id}, ${t.name}, ${t.points}, ${t.wins}, ${t.losses}, ${t.points === topPoints})
-            `);
-          }
-          logger.info({ seasonId: currentSeason.id }, "Shift Wars season history snapshot saved");
-        }
-
-        await db.update(seasonsTable).set({
-          isActive: false,
-          endDate: new Date().toISOString().split("T")[0],
-          championName: champion,
-        }).where(eq(seasonsTable.id, currentSeason.id));
-      } catch (err) {
-        logger.error({ err, seasonId: currentSeason.id }, "Shift Wars season history snapshot failed");
-      }
-    }
-
-    const { name, startDate } = newSeasonName(overrideName);
-    const [newSeason] = await db.insert(seasonsTable).values({
-      name, startDate, isActive: true, leagueType: "shift_wars",
-    }).returning();
-
+  if (currentSeason) {
     try {
-      await db.execute(sql`
-        UPDATE shift_wars_teams SET
-          points      = starting_points,
-          peak_points = starting_points,
-          wins        = 0,
-          losses      = 0
-      `);
-      logger.info("Shift Wars points reset for new season");
-    } catch (err) {
-      logger.error({ err }, "Shift Wars points reset failed");
-    }
+      const swRows = (await db.execute(sql`SELECT * FROM shift_wars_teams ORDER BY points DESC, name ASC`)).rows as any[];
+      let champion: string | null = null;
+      if (swRows.length > 0) {
+        const topPoints = swRows[0].points;
+        champion = swRows[0].name;
+        for (const t of swRows) {
+          await db.execute(sql`
+            INSERT INTO shift_wars_season_history (season_id, team_id, team_name, points, wins, losses, is_champion)
+            VALUES (${currentSeason.id}, ${t.id}, ${t.name}, ${t.points}, ${t.wins}, ${t.losses}, ${t.points === topPoints})
+          `);
+        }
+        logger.info({ seasonId: currentSeason.id }, "Shift Wars season history snapshot saved");
+      }
 
-    logger.info({ newSeasonId: newSeason.id, name: newSeason.name }, "New Shift Wars season started");
-    return newSeason;
-  });
+      await db.update(seasonsTable).set({
+        isActive: false,
+        endDate: new Date().toISOString().split("T")[0],
+        championName: champion,
+      }).where(eq(seasonsTable.id, currentSeason.id));
+    } catch (err) {
+      logger.error({ err, seasonId: currentSeason.id }, "Shift Wars season history snapshot failed");
+    }
+  }
+
+  const { name, startDate } = newSeasonName(overrideName);
+  const [newSeason] = await db.insert(seasonsTable).values({
+    name, startDate, isActive: true, leagueType: "shift_wars",
+  }).returning();
+
+  try {
+    await db.execute(sql`
+      UPDATE shift_wars_teams SET
+        points      = starting_points,
+        peak_points = starting_points,
+        wins        = 0,
+        losses      = 0
+    `);
+    logger.info("Shift Wars points reset for new season");
+  } catch (err) {
+    logger.error({ err }, "Shift Wars points reset failed");
+  }
+
+  logger.info({ newSeasonId: newSeason.id, name: newSeason.name }, "New Shift Wars season started");
+  return newSeason;
 }
 
 // ── Auto-reset, checked independently per league ────────────────────────
@@ -362,7 +363,19 @@ async function maybeAutoResetLeague(
 
   if (!sameMonth) {
     logger.info({ leagueType, currentSeasonId: current.id }, "Auto season reset triggered (new month)");
-    await resetFn();
+    try {
+      await resetFn();
+    } catch (err) {
+      if (err instanceof SeasonResetLockedError) {
+        // Expected, not a failure: something else (a manual admin reset, or
+        // another instance of this same scheduled check) is already
+        // resetting this league. Whatever's holding the lock will finish
+        // the job; tomorrow's check confirms it did.
+        logger.info({ leagueType }, "Auto season reset skipped — a reset for this league is already in progress");
+        return;
+      }
+      throw err;
+    }
   }
 }
 
