@@ -227,12 +227,22 @@ router.patch("/master501/runs/:runId", matchSubmitRateLimit, async (req, res): P
 
     const legsFormatVal = getM501Config(run.tier as number, run.round as number)?.legs ?? 5;
 
-    await db.execute(sql`
+    // Guarded on result IS NULL so this UPDATE only ever "wins" once for a
+    // given run — a retried or double-submitted PATCH (flaky network, a
+    // double-tap on a shared kiosk device) would otherwise re-log a second
+    // practice_sessions row below and re-run the coin/achievement/challenge
+    // awards further down, double-counting all of it. rowCount tells us
+    // whether THIS call was the one that actually recorded the result.
+    const updateResult = await db.execute(sql`
       UPDATE master501_runs
       SET legs_won = ${legsWon}, legs_lost = ${legsLost},
           result = ${result}, completed_at = NOW()
-      WHERE id = ${runId}
+      WHERE id = ${runId} AND result IS NULL
     `);
+    if ((updateResult.rowCount ?? 0) === 0) {
+      res.status(409).json({ error: "This run's result has already been recorded" });
+      return;
+    }
 
     // Also log a practice_sessions row for this run — this was silently
     // missing before (a real gap a user report named directly: "you were

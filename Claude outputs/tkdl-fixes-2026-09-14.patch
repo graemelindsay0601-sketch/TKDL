@@ -1,0 +1,2876 @@
+diff --git a/artifacts/api-server/src/app.ts b/artifacts/api-server/src/app.ts
+index e8a6cca..244e11c 100644
+--- a/artifacts/api-server/src/app.ts
++++ b/artifacts/api-server/src/app.ts
+@@ -30,6 +30,7 @@ import { addBroadcastStorySeasonId } from "./db/migrations/add_broadcast_story_s
+ import { backfillBroadcastStorySeasonId } from "./db/migrations/backfill_broadcast_story_season_id";
+ import { addSeasonBroadcastReviewedAt } from "./db/migrations/add_season_broadcast_reviewed_at";
+ import { addFeatureSpotlights } from "./db/migrations/add_feature_spotlights";
++import { addBroadcastAdminBuildLock } from "./db/migrations/add_broadcast_admin_build_lock";
+ import { seedBroadcastSettings } from "./broadcast/config";
+ import { seedCardDefinitions } from "./services/card-definitions-service";
+ import { challengeService } from "./services/challenge-service";
+@@ -1040,90 +1041,108 @@ async function seedUsers() {
+   }
+ }
+ 
++/**
++ * Runs one startup step in isolation: a failure here is logged and init()
++ * moves on to the next step, instead of the failure propagating out of
++ * init() entirely. Without this, initApp() below rethrows any escaped error
++ * up to index.ts's start(), which calls process.exit(1) before ever
++ * listening — meaning a single bad step (a transient DDL lock timeout on
++ * one migration, a seed hiccup) takes down the ENTIRE server on deploy,
++ * not just that one step. That's a strictly worse failure mode than the
++ * "server looks healthy but some tables are missing" problem index.ts's own
++ * comment is guarding against — this restores per-step isolation so that
++ * guard only fires on something actually catastrophic (e.g. the database
++ * itself unreachable), not on any one of the ~40 individual steps below.
++ */
++async function runInitStep(name: string, fn: () => Promise<unknown> | unknown): Promise<void> {
++  try {
++    await fn();
++  } catch (err) {
++    logger.error({ err, step: name }, `Startup step "${name}" failed — continuing with the rest of init()`);
++  }
++}
++
+ async function init() {
+-  await seedSettings();
+-    await initializeCardTables();
+-    await ensureCardClashAchievementTables();
+-    await initializeFeatureFlags();
+-    await addTkdlLiveBroadcastTables();
+-    await addBroadcastStorySeasonId();
+-    await addSeasonBroadcastReviewedAt();
+-    await addFeatureSpotlights();
+-    await seedBroadcastSettings();
+-    await seedCardDefinitions();
+-    await initializeFeaturedCardShopTables();
+-    
+-    // Initialize featured card shop - rotate featured cards daily
+-    try {
+-      const { rotateFeatureCards } = await import("./services/featured-card-shop-service");
+-      await rotateFeatureCards();
+-    } catch (err) {
+-      logger.warn({ err }, "Failed to initialize featured card shop (non-critical)");
+-    }
+-    
+-    await addDailyChallengeKeyColumn();
+-    await addLongestLossStreakColumn();
+-    await addCareerBiggestPointsFallColumn();
+-    await challengeService.seedDefaultChallenges();
+-    await challengeService.seedComprehensivePool();
+-    await seedNotificationTables();
+-    await initializeNotificationPreferences();
+-    await addFavoritesColumn();
+-    await addAchievementRewards();
+-    await addAchievementSeasonColumn();
+-    await createCardClashPlayerSettingsTable();
+-    await createCardClashFavoritesTable();
+-    
+-    // Add performance indexes (CRITICAL for query speed)
+-    await addPerformanceIndexes();
+-    
+-    await seedCommunityTables();
+-    await seedMatchesMilestoneColumns();
+-    await seedCardFavorites();
+-    await seedDrillCompletions();
+-    await seedBossBattleProgress();
+-    await seedBoardCurseBest();
+-    await seedBoardCurseRecords();
+-    await seedDoublesTables();
+-    await seedShiftWars();
+-    await seedPractice();
+-    await seedMaster501();
+-    await seedMatchParticipants();
+-    await seedShadowBotAchievements();
+-    await seedTourSystem();
+-    await seedGameTypes();
+-    await seedAchievements();
+-    await seedRealData();
+-    // The backfill reads doubles_matches, so it must run after
+-    // seedDoublesTables has created that fresh-database dependency.
+-    await backfillBroadcastStorySeasonId();
+-    // Must run after seedDoublesTables/seedShiftWars/seedRealData: it gives
+-    // Doubles and Shift Wars their own season row (re-parenting Doubles'
+-    // current teams onto it) and needs both those tables and a real active
+-    // singles season to already exist.
+-    await addSeasonLeagueType();
+-    await maybeAutoResetLeagueSeasons();
+-    await seedPlayoffMatches();
+-    await maybeAutoResetLeagueSeasons();
+-    
+-    // Initialize scheduled systems
+-    initializeCoachTipsScheduler();
+-    initializeFeaturedCardScheduler();
+-    initializeSeasonResetScheduler();
+-    await seedSessions();
+-    await seedUsers();
+-    await seedTitles();
+-    void sweepAllPlayerTitles(); // grant any titles earned via existing achievements
+-    
+-    // Initialize Card Clash season auto-check
+-    try {
+-      const { checkAndEndSeasonIfNeeded } = await import("./services/card-clash-season-rewards");
+-      await checkAndEndSeasonIfNeeded();
+-    } catch (err) {
+-      logger.warn({ err }, "Card Clash season auto-check failed (non-blocking)");
+-    }
+-    
+-    logger.info("Startup init complete");
++  await runInitStep("seedSettings", seedSettings);
++  await runInitStep("initializeCardTables", initializeCardTables);
++  await runInitStep("ensureCardClashAchievementTables", ensureCardClashAchievementTables);
++  await runInitStep("initializeFeatureFlags", initializeFeatureFlags);
++  await runInitStep("addTkdlLiveBroadcastTables", addTkdlLiveBroadcastTables);
++  await runInitStep("addBroadcastStorySeasonId", addBroadcastStorySeasonId);
++  await runInitStep("addSeasonBroadcastReviewedAt", addSeasonBroadcastReviewedAt);
++  await runInitStep("addFeatureSpotlights", addFeatureSpotlights);
++  await runInitStep("addBroadcastAdminBuildLock", addBroadcastAdminBuildLock);
++  await runInitStep("seedBroadcastSettings", seedBroadcastSettings);
++  await runInitStep("seedCardDefinitions", seedCardDefinitions);
++  await runInitStep("initializeFeaturedCardShopTables", initializeFeaturedCardShopTables);
++
++  // Initialize featured card shop - rotate featured cards daily
++  await runInitStep("rotateFeatureCards", async () => {
++    const { rotateFeatureCards } = await import("./services/featured-card-shop-service");
++    await rotateFeatureCards();
++  });
++
++  await runInitStep("addDailyChallengeKeyColumn", addDailyChallengeKeyColumn);
++  await runInitStep("addLongestLossStreakColumn", addLongestLossStreakColumn);
++  await runInitStep("addCareerBiggestPointsFallColumn", addCareerBiggestPointsFallColumn);
++  await runInitStep("seedDefaultChallenges", () => challengeService.seedDefaultChallenges());
++  await runInitStep("seedComprehensivePool", () => challengeService.seedComprehensivePool());
++  await runInitStep("seedNotificationTables", seedNotificationTables);
++  await runInitStep("initializeNotificationPreferences", initializeNotificationPreferences);
++  await runInitStep("addFavoritesColumn", addFavoritesColumn);
++  await runInitStep("addAchievementRewards", addAchievementRewards);
++  await runInitStep("addAchievementSeasonColumn", addAchievementSeasonColumn);
++  await runInitStep("createCardClashPlayerSettingsTable", createCardClashPlayerSettingsTable);
++  await runInitStep("createCardClashFavoritesTable", createCardClashFavoritesTable);
++
++  // Add performance indexes (CRITICAL for query speed)
++  await runInitStep("addPerformanceIndexes", addPerformanceIndexes);
++
++  await runInitStep("seedCommunityTables", seedCommunityTables);
++  await runInitStep("seedMatchesMilestoneColumns", seedMatchesMilestoneColumns);
++  await runInitStep("seedCardFavorites", seedCardFavorites);
++  await runInitStep("seedDrillCompletions", seedDrillCompletions);
++  await runInitStep("seedBossBattleProgress", seedBossBattleProgress);
++  await runInitStep("seedBoardCurseBest", seedBoardCurseBest);
++  await runInitStep("seedBoardCurseRecords", seedBoardCurseRecords);
++  await runInitStep("seedDoublesTables", seedDoublesTables);
++  await runInitStep("seedShiftWars", seedShiftWars);
++  await runInitStep("seedPractice", seedPractice);
++  await runInitStep("seedMaster501", seedMaster501);
++  await runInitStep("seedMatchParticipants", seedMatchParticipants);
++  await runInitStep("seedShadowBotAchievements", seedShadowBotAchievements);
++  await runInitStep("seedTourSystem", seedTourSystem);
++  await runInitStep("seedGameTypes", seedGameTypes);
++  await runInitStep("seedAchievements", seedAchievements);
++  await runInitStep("seedRealData", seedRealData);
++  // The backfill reads doubles_matches, so it must run after
++  // seedDoublesTables has created that fresh-database dependency.
++  await runInitStep("backfillBroadcastStorySeasonId", backfillBroadcastStorySeasonId);
++  // Must run after seedDoublesTables/seedShiftWars/seedRealData: it gives
++  // Doubles and Shift Wars their own season row (re-parenting Doubles'
++  // current teams onto it) and needs both those tables and a real active
++  // singles season to already exist.
++  await runInitStep("addSeasonLeagueType", addSeasonLeagueType);
++  await runInitStep("maybeAutoResetLeagueSeasons", maybeAutoResetLeagueSeasons);
++  await runInitStep("seedPlayoffMatches", seedPlayoffMatches);
++
++  // Initialize scheduled systems
++  await runInitStep("initializeCoachTipsScheduler", initializeCoachTipsScheduler);
++  await runInitStep("initializeFeaturedCardScheduler", initializeFeaturedCardScheduler);
++  await runInitStep("initializeSeasonResetScheduler", initializeSeasonResetScheduler);
++  await runInitStep("seedSessions", seedSessions);
++  await runInitStep("seedUsers", seedUsers);
++  await runInitStep("seedTitles", seedTitles);
++  void sweepAllPlayerTitles().catch((err) => // grant any titles earned via existing achievements — fire-and-forget, but caught so a rejection can't become an unhandled crash
++    logger.error({ err }, "sweepAllPlayerTitles failed (non-blocking)"));
++
++  // Initialize Card Clash season auto-check
++  await runInitStep("checkAndEndSeasonIfNeeded", async () => {
++    const { checkAndEndSeasonIfNeeded } = await import("./services/card-clash-season-rewards");
++    await checkAndEndSeasonIfNeeded();
++  });
++
++  logger.info("Startup init complete");
+ }
+ 
+ export async function initApp() {
+diff --git a/artifacts/api-server/src/broadcast/__tests__/editorial-features.test.ts b/artifacts/api-server/src/broadcast/__tests__/editorial-features.test.ts
+index d220494..cd87177 100644
+--- a/artifacts/api-server/src/broadcast/__tests__/editorial-features.test.ts
++++ b/artifacts/api-server/src/broadcast/__tests__/editorial-features.test.ts
+@@ -45,13 +45,63 @@ describe("recurring editorial features", () => {
+   });
+ 
+   test("points swing aggregates snapshots without owning or repeating a result story", () => {
+-    const segments = broad(new Set([11]));
++    const segments = broad();
+     const swing = segments.find(segment => segment.facts?.featureTitle === "Points Swing");
+     assert.equal(swing?.facts?.netGain, 9);
+     assert.equal(swing?.facts?.netFall, -9);
+     assert.ok(segments.every(segment => segment.storyId === null));
+   });
+ 
++  test("points swing excludes a match that already has its own dedicated result segment", () => {
++    // Match 11 (Charlie beat Alpha) already carries a persisted MATCH_RESULT
++    // story with its own dedicated segment elsewhere in the programme — this
++    // desk's Points Swing shouldn't re-narrate it. Match 10 (Alpha beat
++    // Bravo) has no such segment, so it's the only one representedMatchIds
++    // should leave in the aggregate.
++    const segments = buildEditorialFeatures({
++      players, matches,
++      stories: [
++        { id: 100, storyType: "MATCH_RESULT", anchorMatchId: 11, facts: { winnerId: 3, loserId: 1, playedAt: "2026-09-08T18:00:00Z", winnerPointsBefore: 4, winnerPointsAfter: 13, loserPointsBefore: 49, loserPointsAfter: 40 } },
++        { id: 105, storyType: "MATCH_RESULT", anchorMatchId: 10, facts: { winnerId: 1, loserId: 2, playedAt: "2026-09-07T18:00:00Z", winnerPointsBefore: 30, winnerPointsAfter: 34, loserPointsBefore: 23, loserPointsAfter: 19 } },
++      ],
++      cutoff,
++      rotationKey: "week-37",
++      broad: true,
++      representedMatchIds: new Set([11]),
++    });
++    const swing = segments.find(segment => segment.facts?.featureTitle === "Points Swing");
++    assert.equal(swing?.facts?.gainingPlayerName, "Alpha");
++    assert.equal(swing?.facts?.netGain, 4);
++    assert.equal(swing?.facts?.fallingPlayerName, "Bravo");
++    assert.equal(swing?.facts?.netFall, -4);
++    assert.ok(segments.every(segment => segment.storyId === null));
++  });
++
++  test("escape act tracks a player's full weekly points trajectory even when one of their matches is already represented", () => {
++    // Escape Act needs every match's points movement to report an accurate
++    // low point and final total for the week — unlike Points Swing, it
++    // isn't exempted by representedMatchIds, since excluding a match here
++    // would silently corrupt the trajectory rather than avoid a duplicate
++    // narrative. Match 11 (the earlier, lower-points match) is the one
++    // marked represented; if it were wrongly excluded from the trajectory
++    // too, the danger point below would read 5, not 2.
++    const segments = buildEditorialFeatures({
++      players, matches,
++      stories: [
++        { id: 100, storyType: "MATCH_RESULT", anchorMatchId: 11, facts: { winnerId: 3, loserId: 5, playedAt: "2026-09-07T10:00:00Z", winnerPointsBefore: 2, winnerPointsAfter: 5, loserPointsBefore: 30, loserPointsAfter: 27 } },
++        { id: 106, storyType: "MATCH_RESULT", anchorMatchId: 12, facts: { winnerId: 3, loserId: 2, playedAt: "2026-09-09T09:00:00Z", winnerPointsBefore: 5, winnerPointsAfter: 15, loserPointsBefore: 24, loserPointsAfter: 14 } },
++      ],
++      cutoff,
++      rotationKey: "week-37",
++      broad: true,
++      representedMatchIds: new Set([11]),
++    });
++    const escape = segments.find(segment => segment.facts?.featureTitle === "Escape Act");
++    assert.equal(escape?.facts?.playerName, "Charlie");
++    assert.equal(escape?.facts?.dangerPoint, 2);
++    assert.equal(escape?.facts?.recoveredTo, 15);
++  });
++
+   test("ordinary rotation is bounded and deterministic", () => {
+     const first = buildEditorialFeatures({
+       players, matches, stories: [], cutoff, rotationKey: "ordinary-slot", broad: false,
+diff --git a/artifacts/api-server/src/broadcast/config-math.ts b/artifacts/api-server/src/broadcast/config-math.ts
+index ab3b8cc..7ac7ad3 100644
+--- a/artifacts/api-server/src/broadcast/config-math.ts
++++ b/artifacts/api-server/src/broadcast/config-math.ts
+@@ -32,6 +32,19 @@ export const BROADCAST_SETTING_KEYS = [
+ ] as const;
+ export type BroadcastSettingKey = (typeof BROADCAST_SETTING_KEYS)[number];
+ 
++/**
++ * broadcast_simulation_count feeds directly, uncapped, into title-predictor.ts's
++ * and team-title-predictor.ts's Monte Carlo loops (`for (sim = 0; sim < simulationCount...)`),
++ * which run synchronously inside every Edition build (and, via story-engine.ts's
++ * LEAGUE family, potentially on every live-poll detection pass too). The
++ * setting previously had no upper bound at all — only `>= 1` — so an
++ * admin-entered typo (an extra zero or two) could make a single build's
++ * predictor run pathologically slow with no server-side guard. 50,000 is a
++ * generous 20x the 2,500 default — enough headroom for anyone who genuinely
++ * wants materially better precision, while still bounding the worst case.
++ */
++export const MAX_BROADCAST_SIMULATION_COUNT = 50_000;
++
+ /** Every default value exactly as listed in section 16.1's own table. */
+ export const BROADCAST_SETTING_DEFAULTS: Record<BroadcastSettingKey, string> = {
+   broadcast_midday_time: "11:30",
+@@ -132,11 +145,12 @@ export function parseHHMM(key: BroadcastSettingKey, raw: string): string {
+   return raw;
+ }
+ 
+-/** `min` defaults to 1 (most of these settings are counts/thresholds that make no sense at 0); banterLevel is the one caller that passes 0, since a "quietest" tone level is a legitimate setting. */
+-export function parseSettingInt(key: BroadcastSettingKey, raw: string, min = 1): number {
++/** `min` defaults to 1 (most of these settings are counts/thresholds that make no sense at 0); banterLevel is the one caller that passes 0, since a "quietest" tone level is a legitimate setting. `max` defaults to unbounded; broadcast_simulation_count is the one caller that passes a real ceiling (see MAX_BROADCAST_SIMULATION_COUNT). */
++export function parseSettingInt(key: BroadcastSettingKey, raw: string, min = 1, max = Infinity): number {
+   const n = Number(raw);
+-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < min) {
+-    return Number(warnAndFallback(key, raw, `expected an integer >= ${min}`));
++  if (!Number.isFinite(n) || !Number.isInteger(n) || n < min || n > max) {
++    const bound = n > max ? `<= ${max}` : `>= ${min}`;
++    return Number(warnAndFallback(key, raw, `expected an integer ${bound}`));
+   }
+   return n;
+ }
+@@ -172,8 +186,10 @@ export function validateBroadcastSettingValue(key: BroadcastSettingKey, raw: str
+     return raw === "0" || raw === "1" ? null : "must be \"0\" or \"1\"";
+   }
+   const min = key === "broadcast_banter_level" ? 0 : 1;
++  const max = key === "broadcast_simulation_count" ? MAX_BROADCAST_SIMULATION_COUNT : Infinity;
+   const n = Number(raw);
+   if (!Number.isFinite(n) || !Number.isInteger(n) || n < min) return `must be an integer >= ${min}`;
++  if (n > max) return `must be an integer <= ${max}`;
+   return null;
+ }
+ 
+@@ -185,7 +201,7 @@ export function resolveBroadcastConfig(raw: (key: BroadcastSettingKey) => string
+     nightTime: parseHHMM("broadcast_night_time", raw("broadcast_night_time")),
+     timezone: raw("broadcast_timezone") || BROADCAST_SETTING_DEFAULTS.broadcast_timezone,
+     changeThreshold: parseSettingInt("broadcast_change_threshold", raw("broadcast_change_threshold")),
+-    simulationCount: parseSettingInt("broadcast_simulation_count", raw("broadcast_simulation_count")),
++    simulationCount: parseSettingInt("broadcast_simulation_count", raw("broadcast_simulation_count"), 1, MAX_BROADCAST_SIMULATION_COUNT),
+     livePollSeconds: parseSettingInt("broadcast_live_poll_seconds", raw("broadcast_live_poll_seconds")),
+     banterLevel: parseSettingInt("broadcast_banter_level", raw("broadcast_banter_level"), 0),
+     commentaryVersion: parseSettingInt("broadcast_commentary_version", raw("broadcast_commentary_version")),
+diff --git a/artifacts/api-server/src/broadcast/edition-engine.ts b/artifacts/api-server/src/broadcast/edition-engine.ts
+index d0011b2..6d7feee 100644
+--- a/artifacts/api-server/src/broadcast/edition-engine.ts
++++ b/artifacts/api-server/src/broadcast/edition-engine.ts
+@@ -484,6 +484,108 @@ async function claimBuildOwnership(slot: ResolvedSlot, now: Date, programmeVersi
+   return { kind: "building_elsewhere" };
+ }
+ 
++// ═══════════════════════════════════════════════════════════════════════
++// Admin build lock — mutual exclusion between the three producer-triggered
++// build actions (regenerate / create episode / clean sweep)
++// ═══════════════════════════════════════════════════════════════════════
++
++/**
++ * Each of forceRebuildCurrentEdition/createManualBroadcastEpisode/
++ * createBroadcastCleanSweep mints its own always-unique slot_key
++ * specifically so it never collides with the scheduled path's logical slot
++ * — but that also means none of the three collide with EACH OTHER, or with
++ * a second concurrent call to themselves. This is a separate, dedicated
++ * single-row lock (see add_broadcast_admin_build_lock.ts's own header for
++ * why it isn't just broadcast_editions' own slot_key uniqueness) that all
++ * three claim before doing any real work and release when they're done,
++ * whether they succeed or fail.
++ *
++ * Stale-reclaim mirrors claimBuildOwnership()'s own FAILED-reclaim: a
++ * process that crashed mid-build without reaching its release would
++ * otherwise leave every future admin build action permanently refused.
++ *
++ * The stale check is heartbeat-based, not "how long since the lock was
++ * claimed": a real build's own duration scales with the admin-configurable
++ * broadcast_simulation_count (up to MAX_BROADCAST_SIMULATION_COUNT,
++ * config-math.ts) and the number of active league/season combinations
++ * processLeagueFamily runs the Title Predictor for, sequentially, in
++ * story-engine.ts — there's no fixed upper bound on a legitimately slow
++ * build. A flat "claimed more than N minutes ago = stale" timeout would
++ * have to either be short enough to fight a real slow build (a second
++ * admin action reclaiming the lock mid-build — exactly the bug this lock
++ * exists to prevent) or long enough that a genuinely crashed holder blocks
++ * every admin action for an uncomfortably long time. Refreshing locked_at
++ * on a heartbeat while the build is actually running decouples the two:
++ * staleness now means "this holder stopped heartbeating," which is a much
++ * tighter and still-safe signal regardless of how long the build itself
++ * takes.
++ */
++const ADMIN_BUILD_LOCK_HEARTBEAT_MS = 2 * 60 * 1000;
++const ADMIN_BUILD_LOCK_STALE_MS = 3 * ADMIN_BUILD_LOCK_HEARTBEAT_MS; // a few missed heartbeats, not just one, before assuming the holder is gone
++
++async function claimAdminBuildLock(holder: string, now: Date): Promise<boolean> {
++  try {
++    const staleCutoff = new Date(now.getTime() - ADMIN_BUILD_LOCK_STALE_MS);
++    const result = await db.execute(sql`
++      UPDATE broadcast_admin_build_lock
++      SET locked_by = ${holder}, locked_at = ${now}
++      WHERE id = 1 AND (locked_by IS NULL OR locked_at < ${staleCutoff})
++    `);
++    return (result.rowCount ?? 0) > 0;
++  } catch (err) {
++    // Missing table (migration hasn't run yet), connection hiccup, etc. —
++    // fail closed: refuse the build rather than risk running it unguarded.
++    // A real DB outage would fail buildEdition() itself moments later
++    // anyway, so this doesn't hide anything; it just fails at the safer
++    // point.
++    console.error("edition-engine: claimAdminBuildLock failed, refusing to build:", err);
++    return false;
++  }
++}
++
++/** Keeps a held lock's locked_at fresh for as long as a build actually runs — see the lock's own header on why staleness is heartbeat-based rather than a flat claim-time timeout. Call stopAdminBuildLockHeartbeat with the returned handle in the same finally block that releases the lock. */
++function startAdminBuildLockHeartbeat(holder: string): NodeJS.Timeout {
++  const handle = setInterval(() => {
++    void db.execute(sql`
++      UPDATE broadcast_admin_build_lock
++      SET locked_at = ${new Date()}
++      WHERE id = 1 AND locked_by = ${holder}
++    `).catch(err => {
++      // Best-effort — a missed heartbeat just brings this holder closer to
++      // the stale threshold above; it doesn't need to abort the build.
++      console.error("edition-engine: admin build lock heartbeat failed:", err);
++    });
++  }, ADMIN_BUILD_LOCK_HEARTBEAT_MS);
++  handle.unref?.(); // never keeps the process alive on its own
++  return handle;
++}
++
++function stopAdminBuildLockHeartbeat(handle: NodeJS.Timeout): void {
++  clearInterval(handle);
++}
++
++async function releaseAdminBuildLock(holder: string): Promise<void> {
++  try {
++    await db.execute(sql`
++      UPDATE broadcast_admin_build_lock
++      SET locked_by = NULL, locked_at = NULL
++      WHERE id = 1 AND locked_by = ${holder}
++    `);
++  } catch (err) {
++    // Best-effort — worst case this holder's lock sits until the stale
++    // timeout above reclaims it.
++    console.error("edition-engine: releaseAdminBuildLock failed:", err);
++  }
++}
++
++/** Thrown by the two admin build actions with no "already busy" result kind of their own (createManualBroadcastEpisode/createBroadcastCleanSweep) when the admin build lock is already held; routes/broadcast.ts catches this specifically and returns 409. forceRebuildCurrentEdition doesn't need this — it already has an "already_building" ForceRebuildResult kind to reuse. */
++export class AdminBuildLockedError extends Error {
++  constructor() {
++    super("Another producer build is already in progress — try again shortly");
++    this.name = "AdminBuildLockedError";
++  }
++}
++
+ // ═══════════════════════════════════════════════════════════════════════
+ // 10.1 change score inputs — has a season boundary event occurred this batch?
+ // ═══════════════════════════════════════════════════════════════════════
+@@ -914,7 +1016,7 @@ async function buildEdition(params: {
+         const candidates = aggregateGroups
+           .filter(group =>
+             !selectedAggregateGroups.has(group.primary.id)
+-            && familyForStory(group.primary.storyType) === family
++            && familyForStory(group.primary.storyType as StoryType) === family
+             && group.primary.subjectKeys.every(subject => !usedSubjectKeys.has(subject))
+           )
+           .sort((a, b) => b.primary.score - a.primary.score || a.primary.id - b.primary.id)
+@@ -1309,83 +1411,96 @@ export type ForceRebuildResult =
+  * natural change-score-driven rebuild.
+  */
+ export async function forceRebuildCurrentEdition(now: Date = new Date()): Promise<ForceRebuildResult> {
+-  const config = await getBroadcastConfig();
+-  const slot = resolveLogicalSlot(now, { middayTime: config.middayTime, eveningTime: config.eveningTime, nightTime: config.nightTime, timezone: config.timezone, singleDailyEpisode: config.singleDailyEpisode });
+-
+-  await maybeAutoResetLeagueSeasons();
+-
+-  const previous = await latestPublishedEdition();
+-  const [existing] = await db.select().from(broadcastEditionsTable).where(eq(broadcastEditionsTable.slotKey, slot.slotKey)).limit(1);
++  // Guards against a second concurrent admin action (regenerate/create
++  // episode/clean sweep) racing this one — see the admin build lock's own
++  // header above. Reuses this function's existing "already_building" result
++  // kind rather than throwing, since the route already handles that case.
++  const lockHolder = randomUUID();
++  if (!(await claimAdminBuildLock(lockHolder, now))) return { kind: "already_building" };
++  const lockHeartbeat = startAdminBuildLockHeartbeat(lockHolder);
+ 
+-  let claimedRow: BroadcastEdition;
+-  if (existing) {
+-    if (existing.status === "BUILDING") return { kind: "already_building" };
+-    if (existing.status === "PUBLISHED") {
+-      const [attempt] = await db
++  try {
++    const config = await getBroadcastConfig();
++    const slot = resolveLogicalSlot(now, { middayTime: config.middayTime, eveningTime: config.eveningTime, nightTime: config.nightTime, timezone: config.timezone, singleDailyEpisode: config.singleDailyEpisode });
++
++    await maybeAutoResetLeagueSeasons();
++
++    const previous = await latestPublishedEdition();
++    const [existing] = await db.select().from(broadcastEditionsTable).where(eq(broadcastEditionsTable.slotKey, slot.slotKey)).limit(1);
++
++    let claimedRow: BroadcastEdition;
++    if (existing) {
++      if (existing.status === "BUILDING") return { kind: "already_building" };
++      if (existing.status === "PUBLISHED") {
++        const [attempt] = await db
++          .insert(broadcastEditionsTable)
++          .values({
++            slotKey: rebuildAttemptSlotKey(slot.slotKey, randomUUID()),
++            slotType: existing.slotType,
++            scheduledFor: existing.scheduledFor,
++            dataCutoff: now,
++            status: "BUILDING",
++            changeScore: 0,
++            programmeVersion: config.programmeVersion,
++            programme: null,
++            diagnostic: null,
++            publishedAt: null,
++          })
++          .returning();
++        if (!attempt) throw new Error("Could not create the broadcast rebuild attempt");
++        claimedRow = attempt;
++      } else {
++        const [reclaimed] = await db
++          .update(broadcastEditionsTable)
++          .set({ status: "BUILDING" satisfies EditionStatus })
++          .where(and(
++            eq(broadcastEditionsTable.id, existing.id),
++            eq(broadcastEditionsTable.status, existing.status),
++          ))
++          .returning();
++        if (!reclaimed) return { kind: "already_building" };
++        claimedRow = reclaimed;
++      }
++    } else {
++      const [inserted] = await db
+         .insert(broadcastEditionsTable)
+         .values({
+-          slotKey: rebuildAttemptSlotKey(slot.slotKey, randomUUID()),
+-          slotType: existing.slotType,
+-          scheduledFor: existing.scheduledFor,
+-          dataCutoff: now,
+-          status: "BUILDING",
+-          changeScore: 0,
+-          programmeVersion: config.programmeVersion,
+-          programme: null,
+-          diagnostic: null,
+-          publishedAt: null,
++          slotKey: slot.slotKey, slotType: slot.slotType, scheduledFor: slot.scheduledFor,
++          dataCutoff: now, status: "BUILDING", changeScore: 0, programmeVersion: config.programmeVersion,
++          programme: null, diagnostic: null, publishedAt: null,
+         })
++        .onConflictDoNothing({ target: broadcastEditionsTable.slotKey })
+         .returning();
+-      if (!attempt) throw new Error("Could not create the broadcast rebuild attempt");
+-      claimedRow = attempt;
+-    } else {
+-      const [reclaimed] = await db
+-        .update(broadcastEditionsTable)
+-        .set({ status: "BUILDING" satisfies EditionStatus })
+-        .where(and(
+-          eq(broadcastEditionsTable.id, existing.id),
+-          eq(broadcastEditionsTable.status, existing.status),
+-        ))
+-        .returning();
+-      if (!reclaimed) return { kind: "already_building" };
+-      claimedRow = reclaimed;
++      if (!inserted) return { kind: "already_building" }; // lost the INSERT race to a concurrent request
++      claimedRow = inserted;
+     }
+-  } else {
+-    const [inserted] = await db
+-      .insert(broadcastEditionsTable)
+-      .values({
+-        slotKey: slot.slotKey, slotType: slot.slotType, scheduledFor: slot.scheduledFor,
+-        dataCutoff: now, status: "BUILDING", changeScore: 0, programmeVersion: config.programmeVersion,
+-        programme: null, diagnostic: null, publishedAt: null,
+-      })
+-      .onConflictDoNothing({ target: broadcastEditionsTable.slotKey })
+-      .returning();
+-    if (!inserted) return { kind: "already_building" }; // lost the INSERT race to a concurrent request
+-    claimedRow = inserted;
+-  }
+ 
+-  try {
+-    const edition = await buildEdition({
+-      claimedRow, previous, now, config, adminForced: true, seedSlotKey: slot.slotKey, seasonCatchUp: true,
+-    });
+-    const [attempt] = await db
+-      .select()
+-      .from(broadcastEditionsTable)
+-      .where(eq(broadcastEditionsTable.id, claimedRow.id))
+-      .limit(1);
+-    return { kind: "built", edition, attempt: attempt ?? claimedRow };
+-  } catch (err) {
+-    console.error(`edition-engine: admin-forced rebuild failed for slot ${slot.slotKey}:`, err);
+     try {
+-      await db
+-        .update(broadcastEditionsTable)
+-        .set({ status: "FAILED", diagnostic: err instanceof Error ? err.message : String(err) })
+-        .where(eq(broadcastEditionsTable.id, claimedRow.id));
+-    } catch (markFailedErr) {
+-      console.error(`edition-engine: failed to mark slot ${slot.slotKey} as FAILED after an admin-forced rebuild error:`, markFailedErr);
++      const edition = await buildEdition({
++        claimedRow, previous, now, config, adminForced: true, seedSlotKey: slot.slotKey, seasonCatchUp: true,
++      });
++      const [attempt] = await db
++        .select()
++        .from(broadcastEditionsTable)
++        .where(eq(broadcastEditionsTable.id, claimedRow.id))
++        .limit(1);
++      return { kind: "built", edition, attempt: attempt ?? claimedRow };
++    } catch (err) {
++      console.error(`edition-engine: admin-forced rebuild failed for slot ${slot.slotKey}:`, err);
++      try {
++        await db
++          .update(broadcastEditionsTable)
++          .set({ status: "FAILED", diagnostic: err instanceof Error ? err.message : String(err) })
++          .where(eq(broadcastEditionsTable.id, claimedRow.id));
++      } catch (markFailedErr) {
++        console.error(`edition-engine: failed to mark slot ${slot.slotKey} as FAILED after an admin-forced rebuild error:`, markFailedErr);
++      }
++      const failedAttempt = { ...claimedRow, status: "FAILED" as const, diagnostic: err instanceof Error ? err.message : String(err) };
++      return { kind: "built", edition: previous, attempt: failedAttempt };
+     }
+-    const failedAttempt = { ...claimedRow, status: "FAILED" as const, diagnostic: err instanceof Error ? err.message : String(err) };
+-    return { kind: "built", edition: previous, attempt: failedAttempt };
++  } finally {
++    stopAdminBuildLockHeartbeat(lockHeartbeat);
++    await releaseAdminBuildLock(lockHolder);
+   }
+ }
+ 
+@@ -1405,48 +1520,62 @@ export type CreateManualEpisodeResult = {
+  * reproducibility for this exact Edition.
+  */
+ export async function createManualBroadcastEpisode(now: Date = new Date()): Promise<CreateManualEpisodeResult> {
+-  const config = await getBroadcastConfig();
+-  await maybeAutoResetLeagueSeasons();
+-
+-  const previous = await latestPublishedEdition();
+-  const slotKey = manualEpisodeSlotKey(now, randomUUID());
+-  const [claimedRow] = await db
+-    .insert(broadcastEditionsTable)
+-    .values({
+-      slotKey,
+-      slotType: "manual",
+-      scheduledFor: now,
+-      dataCutoff: now,
+-      status: "BUILDING",
+-      changeScore: 0,
+-      programmeVersion: config.programmeVersion,
+-      programme: null,
+-      diagnostic: null,
+-      publishedAt: null,
+-    })
+-    .returning();
+-
+-  if (!claimedRow) {
+-    throw new Error("Could not create the manual broadcast Edition");
+-  }
++  // Guards against a second concurrent admin action racing this one — see
++  // the admin build lock's own header above. This function's result type
++  // has no "already busy" kind of its own (unlike forceRebuildCurrentEdition),
++  // so it throws a distinguishable error instead; routes/broadcast.ts
++  // catches it and returns 409.
++  const lockHolder = randomUUID();
++  if (!(await claimAdminBuildLock(lockHolder, now))) throw new AdminBuildLockedError();
++  const lockHeartbeat = startAdminBuildLockHeartbeat(lockHolder);
+ 
+   try {
+-    const edition = await buildEdition({ claimedRow, previous, now, config, adminForced: true, seasonCatchUp: true });
+-    const [attempt] = await db
+-      .select()
+-      .from(broadcastEditionsTable)
+-      .where(eq(broadcastEditionsTable.id, claimedRow.id))
+-      .limit(1);
+-    return { attempt: attempt ?? claimedRow, edition };
+-  } catch (err) {
+-    const diagnostic = err instanceof Error ? err.message : String(err);
+-    console.error(`edition-engine: producer episode failed for slot ${slotKey}:`, err);
+-    const [failed] = await db
+-      .update(broadcastEditionsTable)
+-      .set({ status: "FAILED", diagnostic })
+-      .where(eq(broadcastEditionsTable.id, claimedRow.id))
++    const config = await getBroadcastConfig();
++    await maybeAutoResetLeagueSeasons();
++
++    const previous = await latestPublishedEdition();
++    const slotKey = manualEpisodeSlotKey(now, randomUUID());
++    const [claimedRow] = await db
++      .insert(broadcastEditionsTable)
++      .values({
++        slotKey,
++        slotType: "manual",
++        scheduledFor: now,
++        dataCutoff: now,
++        status: "BUILDING",
++        changeScore: 0,
++        programmeVersion: config.programmeVersion,
++        programme: null,
++        diagnostic: null,
++        publishedAt: null,
++      })
+       .returning();
+-    return { attempt: failed ?? { ...claimedRow, status: "FAILED", diagnostic }, edition: previous };
++
++    if (!claimedRow) {
++      throw new Error("Could not create the manual broadcast Edition");
++    }
++
++    try {
++      const edition = await buildEdition({ claimedRow, previous, now, config, adminForced: true, seasonCatchUp: true });
++      const [attempt] = await db
++        .select()
++        .from(broadcastEditionsTable)
++        .where(eq(broadcastEditionsTable.id, claimedRow.id))
++        .limit(1);
++      return { attempt: attempt ?? claimedRow, edition };
++    } catch (err) {
++      const diagnostic = err instanceof Error ? err.message : String(err);
++      console.error(`edition-engine: producer episode failed for slot ${slotKey}:`, err);
++      const [failed] = await db
++        .update(broadcastEditionsTable)
++        .set({ status: "FAILED", diagnostic })
++        .where(eq(broadcastEditionsTable.id, claimedRow.id))
++        .returning();
++      return { attempt: failed ?? { ...claimedRow, status: "FAILED", diagnostic }, edition: previous };
++    }
++  } finally {
++    stopAdminBuildLockHeartbeat(lockHeartbeat);
++    await releaseAdminBuildLock(lockHolder);
+   }
+ }
+ 
+@@ -1466,44 +1595,56 @@ export async function createBroadcastCleanSweep(
+     throw new Error("The clean-sweep start cannot be more than 93 days ago");
+   }
+ 
+-  const config = await getBroadcastConfig();
+-  await maybeAutoResetLeagueSeasons();
+-  const previous = await latestPublishedEdition();
+-  const slotKey = `season-sweep:${start.toISOString().slice(0, 10)}:${now.toISOString()}:${randomUUID()}`;
+-  const [claimedRow] = await db.insert(broadcastEditionsTable).values({
+-    slotKey,
+-    slotType: "manual",
+-    scheduledFor: now,
+-    dataCutoff: now,
+-    status: "BUILDING",
+-    changeScore: 0,
+-    programmeVersion: config.programmeVersion,
+-    programme: null,
+-    diagnostic: null,
+-    publishedAt: null,
+-  }).returning();
+-  if (!claimedRow) throw new Error("Could not create the clean-sweep Edition");
++  // Guards against a second concurrent admin action racing this one — see
++  // the admin build lock's own header above, and createManualBroadcastEpisode's
++  // matching comment on why this throws rather than returning a result kind.
++  const lockHolder = randomUUID();
++  if (!(await claimAdminBuildLock(lockHolder, now))) throw new AdminBuildLockedError();
++  const lockHeartbeat = startAdminBuildLockHeartbeat(lockHolder);
+ 
+   try {
+-    const edition = await buildEdition({
+-      claimedRow,
+-      previous,
+-      now,
+-      config,
+-      adminForced: true,
+-      seasonCatchUp: true,
+-      seasonSweepStart: start,
+-    });
+-    const [attempt] = await db.select().from(broadcastEditionsTable)
+-      .where(eq(broadcastEditionsTable.id, claimedRow.id)).limit(1);
+-    return { attempt: attempt ?? claimedRow, edition };
+-  } catch (err) {
+-    const diagnostic = err instanceof Error ? err.message : String(err);
+-    console.error(`edition-engine: clean sweep failed for slot ${slotKey}:`, err);
+-    const [failed] = await db.update(broadcastEditionsTable)
+-      .set({ status: "FAILED", diagnostic })
+-      .where(eq(broadcastEditionsTable.id, claimedRow.id))
+-      .returning();
+-    return { attempt: failed ?? { ...claimedRow, status: "FAILED", diagnostic }, edition: previous };
++    const config = await getBroadcastConfig();
++    await maybeAutoResetLeagueSeasons();
++    const previous = await latestPublishedEdition();
++    const slotKey = `season-sweep:${start.toISOString().slice(0, 10)}:${now.toISOString()}:${randomUUID()}`;
++    const [claimedRow] = await db.insert(broadcastEditionsTable).values({
++      slotKey,
++      slotType: "manual",
++      scheduledFor: now,
++      dataCutoff: now,
++      status: "BUILDING",
++      changeScore: 0,
++      programmeVersion: config.programmeVersion,
++      programme: null,
++      diagnostic: null,
++      publishedAt: null,
++    }).returning();
++    if (!claimedRow) throw new Error("Could not create the clean-sweep Edition");
++
++    try {
++      const edition = await buildEdition({
++        claimedRow,
++        previous,
++        now,
++        config,
++        adminForced: true,
++        seasonCatchUp: true,
++        seasonSweepStart: start,
++      });
++      const [attempt] = await db.select().from(broadcastEditionsTable)
++        .where(eq(broadcastEditionsTable.id, claimedRow.id)).limit(1);
++      return { attempt: attempt ?? claimedRow, edition };
++    } catch (err) {
++      const diagnostic = err instanceof Error ? err.message : String(err);
++      console.error(`edition-engine: clean sweep failed for slot ${slotKey}:`, err);
++      const [failed] = await db.update(broadcastEditionsTable)
++        .set({ status: "FAILED", diagnostic })
++        .where(eq(broadcastEditionsTable.id, claimedRow.id))
++        .returning();
++      return { attempt: failed ?? { ...claimedRow, status: "FAILED", diagnostic }, edition: previous };
++    }
++  } finally {
++    stopAdminBuildLockHeartbeat(lockHeartbeat);
++    await releaseAdminBuildLock(lockHolder);
+   }
+ }
+diff --git a/artifacts/api-server/src/broadcast/editorial-features.ts b/artifacts/api-server/src/broadcast/editorial-features.ts
+index ee19d18..db84122 100644
+--- a/artifacts/api-server/src/broadcast/editorial-features.ts
++++ b/artifacts/api-server/src/broadcast/editorial-features.ts
+@@ -154,14 +154,30 @@ export function buildEditorialFeatures(params: {
+       if (![...before, ...after].every(Number.isFinite)) return null;
+       return { story, before, after };
+     })
+-    .filter((value): value is NonNullable<typeof value> => value !== null);
++    .filter((value): value is NonNullable<typeof value> => value !== null)
++    // The underlying query (edition-engine.ts) carries no ORDER BY, and the
++    // fold below tracks each player's lowest-before/final-after points
++    // across the week — that's only correct if results are folded in the
++    // order they were actually played, so sort chronologically here rather
++    // than trust the query's incidental row order.
++    .sort((a, b) => Date.parse(String(a.story.facts.playedAt)) - Date.parse(String(b.story.facts.playedAt)) || a.story.id - b.story.id);
+   const weeklySwings = new Map<number, number>();
+   const weeklyPaths = new Map<number, { lowestBefore: number; finalAfter: number }>();
+   for (const result of weeklyResultFacts) {
+     const winnerId = Number(result.story.facts.winnerId);
+     const loserId = Number(result.story.facts.loserId);
+-    if (Number.isFinite(winnerId)) weeklySwings.set(winnerId, (weeklySwings.get(winnerId) ?? 0) + result.after[0] - result.before[0]);
+-    if (Number.isFinite(loserId)) weeklySwings.set(loserId, (weeklySwings.get(loserId) ?? 0) + result.after[1] - result.before[1]);
++    // Points Swing only: a match already carrying its own dedicated result
++    // segment (representedMatchIds, from edition-engine.ts) shouldn't also
++    // be re-narrated here. Escape Act's path-tracking below is deliberately
++    // exempt from this guard — it needs every match's points movement to
++    // report an accurate weekly trajectory, not just the ones that happen
++    // to lack their own segment.
++    const alreadyRepresented = result.story.anchorMatchId !== null
++      && (params.representedMatchIds?.has(result.story.anchorMatchId) ?? false);
++    if (!alreadyRepresented) {
++      if (Number.isFinite(winnerId)) weeklySwings.set(winnerId, (weeklySwings.get(winnerId) ?? 0) + result.after[0] - result.before[0]);
++      if (Number.isFinite(loserId)) weeklySwings.set(loserId, (weeklySwings.get(loserId) ?? 0) + result.after[1] - result.before[1]);
++    }
+     for (const [id, before, after] of [
+       [winnerId, result.before[0], result.after[0]],
+       [loserId, result.before[1], result.after[1]],
+@@ -325,7 +341,11 @@ export function buildEditorialFeatures(params: {
+         key: "what-wager", purpose: "lighter_or_archive_or_callback", graphicKind: "WagerGraphic",
+         lineA: `Host opinion — What Would You Wager? In a purely hypothetical match between ${first.name} and ${second.name}, Chalky's number would be ${opinion}.`,
+         lineB: `The legal maximum from their current balances is ${legalMax}. This is presenter opinion, not a recommendation or a fixture announcement.`,
+-        facts: { featureTitle: "What Would You Wager?", labelledAs: "host opinion", playerIds: [first.id, second.id], stake: opinion, opinionStake: opinion, legalMaximum: legalMax },
++        facts: {
++          featureTitle: "What Would You Wager?", labelledAs: "host opinion",
++          playerIds: [first.id, second.id], firstPlayerName: first.name, secondPlayerName: second.name,
++          stake: opinion, opinionStake: opinion, legalMaximum: legalMax,
++        },
+       });
+     }
+   }
+diff --git a/artifacts/api-server/src/broadcast/live-events.ts b/artifacts/api-server/src/broadcast/live-events.ts
+index bd4ad2e..7cd9dd7 100644
+--- a/artifacts/api-server/src/broadcast/live-events.ts
++++ b/artifacts/api-server/src/broadcast/live-events.ts
+@@ -268,12 +268,52 @@ export type LivePayload = {
+   invalidSegmentIds: string[];
+ };
+ 
++// ── Throttling the one genuinely expensive case ─────────────────────────
++// This file's own header above explains why the common case (nothing new
++// since cutoffStart) is cheap on every poll. The case it doesn't cover: once
++// a match HAS been played since the last published Edition's dataCutoff,
++// every subsequent poll — from every connected viewer, roughly every
++// livePollSeconds — re-runs the real LEAGUE family for that match's season,
++// including the Title Predictor's simulationCount Monte Carlo run, for as
++// long as cutoffStart stays put (up to a full day under singleDailyEpisode).
++// Concurrent viewers polling within a few seconds of each other are, in that
++// window, asking the identical question — same cutoffStart, same "now" to
++// within a few seconds. This throttle collapses those into one real call to
++// detectAndUpdateStories() per cache window, sharing the in-flight promise
++// across concurrent callers, rather than caching getLivePayload()'s return
++// value itself — leaders/tickerItems/overlays/invalidSegmentIds below still
++// read the database fresh on every single call, so this changes nothing
++// about correctness or freshness of the actual response, only how often the
++// expensive detection+prediction side effect it depends on actually runs.
++// A newly published Edition changes cutoffStart, which changes the cache key,
++// so a fresh Edition always gets a fresh detection run with no explicit
++// invalidation needed.
++const LIVE_DETECT_THROTTLE_MS = 10_000;
++let throttledDetectRun: { cutoffStartMs: number; bucket: number; promise: Promise<unknown> } | null = null;
++
++function throttledDetectAndUpdateStories(cutoffStart: Date, now: Date): Promise<unknown> {
++  const cutoffStartMs = cutoffStart.getTime();
++  const bucket = Math.floor(now.getTime() / LIVE_DETECT_THROTTLE_MS);
++  if (throttledDetectRun && throttledDetectRun.cutoffStartMs === cutoffStartMs && throttledDetectRun.bucket === bucket) {
++    return throttledDetectRun.promise;
++  }
++  const promise = detectAndUpdateStories({ cutoffStart, cutoffEnd: now }).catch((err) => {
++    // Don't let a failed run poison the throttle window for every other
++    // concurrent/subsequent caller — clear it so the next call gets a fresh attempt.
++    if (throttledDetectRun?.promise === promise) throttledDetectRun = null;
++    throw err;
++  });
++  throttledDetectRun = { cutoffStartMs, bucket, promise };
++  return promise;
++}
++
+ export async function getLivePayload(now: Date = new Date()): Promise<LivePayload> {
+   const previous = await latestPublishedEdition();
+   const cutoffStart = previous?.dataCutoff ?? new Date(0); // "beginningOfRelevantHistory" — same convention as edition-engine.ts's own first-ever-build case
+ 
+-  // See this file's own header for why this stays cheap on every poll.
+-  await detectAndUpdateStories({ cutoffStart, cutoffEnd: now });
++  // See this file's own header, and the throttle above, for why this stays
++  // cheap on every poll even once there's real new activity to detect.
++  await throttledDetectAndUpdateStories(cutoffStart, now);
+ 
+   const [recentMatches, freshStories] = await Promise.all([
+     loadRecentMatches(cutoffStart, now),
+diff --git a/artifacts/api-server/src/broadcast/story-engine.ts b/artifacts/api-server/src/broadcast/story-engine.ts
+index 7c2526d..a5cbd99 100644
+--- a/artifacts/api-server/src/broadcast/story-engine.ts
++++ b/artifacts/api-server/src/broadcast/story-engine.ts
+@@ -96,6 +96,7 @@ import { predictSinglesMatch, buildGameTypeCohort } from "./match-predictor";
+ import { predictSinglesTitle } from "./title-predictor";
+ import { predictDoublesMatch, getDoublesTeamRoster, resolveShiftWarsSeasonForCutoff } from "./team-match-predictor";
+ import { predictDoublesTitle, predictShiftWarsTitle } from "./team-title-predictor";
++import { getBroadcastConfig } from "./config.ts";
+ import { daysRemainingInMonth } from "./title-predictor-math";
+ import {
+   smoothedRate, PRIOR_GAMES, scoringEvents, scoringRate30, percentileRank, MIN_CHECKOUT_ATTEMPTS,
+@@ -124,6 +125,7 @@ import { detectArchiveH2HStories, detectSeasonComparison, type ArchiveH2HFacts,
+ import { detectShadowBotPromo, detectPracticeActivity, detectFeatureSpotlight, type PracticeActivityFacts } from "./story-detectors-filler";
+ import { listEnabledFeatureSpotlights } from "./feature-spotlight-registry";
+ import { factsWithSnapshotCutoff } from "./cutoff-snapshot-math";
++import { logger } from "../lib/logger";
+ 
+ const MODEL_VERSION = "story-engine-v1";
+ const DEFAULT_GAME_TYPE = "501";
+@@ -1267,7 +1269,7 @@ export async function resetSeasonReviewForLeague(leagueType: LeagueType): Promis
+  * types that are ABOUT a season having just ended, so they're handled on
+  * their own here.
+  */
+-async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cutoffStart: Date, cutoffEnd: Date): Promise<LeagueGatherResult> {
++async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cutoffStart: Date, cutoffEnd: Date, simulationCount: number): Promise<LeagueGatherResult> {
+   const [season] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, seasonId)).limit(1);
+   if (!season) return { candidates: [], confidence: 0, storyTypesRun: [] };
+ 
+@@ -1303,7 +1305,7 @@ async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cut
+   let confidence: number;
+   if (leagueType === "singles") {
+     const [prediction, players] = await Promise.all([
+-      predictSinglesTitle(seasonId, { cutoff: cutoffEnd }),
++      predictSinglesTitle(seasonId, { cutoff: cutoffEnd, simulationCount }),
+       db.select({ id: playersTable.id, points: playersTable.points }).from(playersTable).where(eq(playersTable.isActive, true)),
+     ]);
+     const pointsById = new Map(players.map(p => [p.id, p.points]));
+@@ -1311,7 +1313,7 @@ async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cut
+     confidence = prediction.confidence;
+   } else if (leagueType === "doubles") {
+     const [prediction, teams] = await Promise.all([
+-      predictDoublesTitle(seasonId, { cutoff: cutoffEnd }),
++      predictDoublesTitle(seasonId, { cutoff: cutoffEnd, simulationCount }),
+       db.execute(sql`SELECT id, points, is_eliminated FROM doubles_teams WHERE season_id = ${seasonId}`).then(r => r.rows as { id: number; points: number; is_eliminated: boolean }[]),
+     ]);
+     const teamById = new Map(teams.map(t => [t.id, t]));
+@@ -1319,7 +1321,7 @@ async function processLeagueFamily(leagueType: LeagueType, seasonId: number, cut
+     confidence = prediction.confidence;
+   } else {
+     const [prediction, teams] = await Promise.all([
+-      predictShiftWarsTitle({ cutoff: cutoffEnd, seasonId }),
++      predictShiftWarsTitle({ cutoff: cutoffEnd, seasonId, simulationCount }),
+       db.execute(sql`SELECT id, points FROM shift_wars_teams`).then(r => r.rows as { id: number; points: number }[]),
+     ]);
+     const teamById = new Map(teams.map(t => [t.id, t]));
+@@ -1692,6 +1694,11 @@ export type DetectAndUpdateStoriesResult = {
+ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoffEnd?: Date }): Promise<DetectAndUpdateStoriesResult> {
+   const cutoffEnd = opts?.cutoffEnd ?? new Date();
+   const cutoffStart = opts?.cutoffStart ?? await resolveCutoffStart();
++  // Read once per batch, not once per league/season below — admin-configurable
++  // (broadcast_simulation_count), same read-once-per-call convention this
++  // file's own header ("TITLE PREDICTOR CACHING") already documents for the
++  // predictor runs themselves.
++  const { simulationCount } = await getBroadcastConfig();
+ 
+   matchRowCache.clear();
+ 
+@@ -1730,13 +1737,36 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
+     const pairKey = [match.winnerId, match.loserId].sort((a, b) => a - b).join(":");
+     playedPairsThisBatch.set(pairKey, { a: match.winnerId, b: match.loserId });
+ 
+-    const scored = await processSinglesMatch(ctx, match);
+-    for (const { candidate, confidence } of scored) {
+-      const { row } = await recordUpsert(candidate, confidence, match.seasonId);
+-      if (familyForStoryType(candidate.storyType) === "RESULT" && treatmentForScore(row.score) === "major") {
+-        majorStoryPlayers.add(match.winnerId);
+-        majorStoryPlayers.add(match.loserId);
++    // Isolated per match: none of story-engine's per-match loops used to be
++    // individually try/caught, so one bad match (a predictor failure, a
++    // missing timeline entry) threw all the way out of
++    // detectAndUpdateStories() — losing every OTHER match still left in this
++    // loop, plus every later family (FORM, H2H, LEAGUE, Doubles, Shift Wars)
++    // that never got a chance to run this batch. Worse, resolveCutoffStart()
++    // derives the next batch's window from MAX(updated_at) across
++    // broadcast_stories, not from a per-match watermark — so if any EARLIER
++    // match in this same loop already upserted a story before the crash
++    // (very likely once this batch's cutoffEnd shows up on the DB at all,
++    // e.g. via FORM further below), the next run's cutoffStart jumps straight
++    // to this batch's cutoffEnd regardless of how it ended, silently
++    // excluding the crashing match (and, on a first-ever build, potentially
++    // a whole unprocessed tail of historical matches) from ever being
++    // retried. Catching here can't fix that watermark's coarse granularity,
++    // but it does shrink the blast radius from "everything after the first
++    // crash, indefinitely" down to "just this one logged match" — the same
++    // isolate-and-continue approach already used for app.ts's init() steps
++    // and this codebase's per-statement migrations.
++    try {
++      const scored = await processSinglesMatch(ctx, match);
++      for (const { candidate, confidence } of scored) {
++        const { row } = await recordUpsert(candidate, confidence, match.seasonId);
++        if (familyForStoryType(candidate.storyType) === "RESULT" && treatmentForScore(row.score) === "major") {
++          majorStoryPlayers.add(match.winnerId);
++          majorStoryPlayers.add(match.loserId);
++        }
+       }
++    } catch (err) {
++      logger.error({ err, matchId: match.id }, "processSinglesMatch failed — skipping this match's RESULT/PERFORMANCE/MILESTONE stories, continuing with the rest of the batch");
+     }
+   }
+ 
+@@ -1821,8 +1851,13 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
+     teams.add(match.winnerTeamId);
+     teams.add(match.loserTeamId);
+ 
+-    const { candidates, confidence } = await processDoublesMatch(match);
+-    for (const candidate of candidates) await recordUpsert(candidate, confidence, match.seasonId);
++    // Same per-match isolation as the Singles loop above, same reasoning.
++    try {
++      const { candidates, confidence } = await processDoublesMatch(match);
++      for (const candidate of candidates) await recordUpsert(candidate, confidence, match.seasonId);
++    } catch (err) {
++      logger.error({ err, matchId: match.id }, "processDoublesMatch failed — skipping this match's PAIR_UPSET/PAIR_ELIMINATED stories, continuing with the rest of the batch");
++    }
+   }
+ 
+   // ── Doubles: UNBEATEN_PAIR/PAIR_SURGE (subject-anchored, one team) ──────
+@@ -1871,7 +1906,7 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
+     const seasonIds = await relevantSeasonIdsForLeague(leagueType, matchSeasonIds, cutoffStart, cutoffEnd);
+ 
+     for (const seasonId of seasonIds) {
+-      const result = await processLeagueFamily(leagueType, seasonId, cutoffStart, cutoffEnd);
++      const result = await processLeagueFamily(leagueType, seasonId, cutoffStart, cutoffEnd, simulationCount);
+       const detectedKeysByType = new Map<string, Set<string>>();
+       for (const candidate of result.candidates) {
+         const { row } = await recordUpsert(candidate, result.confidence, seasonId);
+diff --git a/artifacts/api-server/src/db/migrations/add_broadcast_story_season_id.ts b/artifacts/api-server/src/db/migrations/add_broadcast_story_season_id.ts
+index 03f10dc..7583652 100644
+--- a/artifacts/api-server/src/db/migrations/add_broadcast_story_season_id.ts
++++ b/artifacts/api-server/src/db/migrations/add_broadcast_story_season_id.ts
+@@ -27,18 +27,27 @@ import { logger } from "../../lib/logger";
+  * (detectedAt inside the season's own date range) for exactly those older
+  * rows, so this migration doesn't need one.
+  */
++// Each statement is isolated (rather than one try/catch around the whole
++// function) so a failure on one — e.g. the table itself not existing yet on
++// a fresh/partially-initialized database — can't also block the other,
++// independent statement from running. Matches this codebase's established
++// per-statement migration convention (see add_performance_indexes.ts).
+ export async function addBroadcastStorySeasonId() {
+   try {
+     await db.execute(sql`
+       ALTER TABLE broadcast_stories ADD COLUMN IF NOT EXISTS season_id INTEGER
+     `);
++  } catch (err) {
++    logger.error({ err }, "Failed to add broadcast_stories.season_id column");
++  }
++
++  try {
+     await db.execute(sql`
+       CREATE INDEX IF NOT EXISTS broadcast_stories_season_id_idx ON broadcast_stories(season_id)
+     `);
+-    logger.info("broadcast_stories.season_id column ready");
+-    return true;
+   } catch (err) {
+-    logger.error({ err }, "Failed to add broadcast_stories.season_id column");
+-    throw err;
++    logger.error({ err }, "Failed to create broadcast_stories_season_id_idx");
+   }
++
++  logger.info("broadcast_stories.season_id column step complete");
+ }
+diff --git a/artifacts/api-server/src/db/migrations/add_feature_spotlights.ts b/artifacts/api-server/src/db/migrations/add_feature_spotlights.ts
+index 7f195ff..93dfcb9 100644
+--- a/artifacts/api-server/src/db/migrations/add_feature_spotlights.ts
++++ b/artifacts/api-server/src/db/migrations/add_feature_spotlights.ts
+@@ -31,34 +31,43 @@ export async function addFeatureSpotlights() {
+         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+       )
+     `);
++  } catch (err) {
++    logger.error({ err }, "Failed to create broadcast_feature_spotlights table");
++    // Nothing below can succeed without the table — stop here, but don't throw.
++    return;
++  }
+ 
+-    const seedRows: { key: string; name: string; blurb: string }[] = [
+-      { key: "card_clash", name: "Card Clash", blurb: "Collect player cards and battle them head to head from the main menu." },
+-      { key: "boss_battle", name: "Boss Battle", blurb: "A scaling checkout challenge you can take on solo or with mates." },
+-      { key: "board_curse", name: "Board Curse", blurb: "A curveball ruleset that flips your usual scoring, good for a laugh on a practice night." },
+-      { key: "master501", name: "Master 501", blurb: "A structured 501 training mode built for sharpening your finishing." },
+-      { key: "tour", name: "TKDL Tour", blurb: "A multi stop knockout tournament mode you can run outside the regular league." },
+-      { key: "hall_of_fame", name: "Hall of Fame", blurb: "All time records and milestone holders across every league in one place." },
+-      { key: "shadow_league", name: "Shadow League", blurb: "A simulated league table built entirely from Shadow Bot results." },
+-      { key: "practice_games", name: "Practice Games", blurb: "More than sixty darts games are available in Practice, with solo, local and bot options." },
+-      { key: "bot_opponents", name: "Bot Opponents", blurb: "Play a quick match against a bot at a level that suits you and build towards the next step up." },
+-      { key: "shadow_bot", name: "Shadow Bot", blurb: "Create a bot from your recorded performances and see how your darts profile develops." },
+-      { key: "achievements", name: "Achievements", blurb: "Track league, practice and career challenges and see which targets are closest to completion." },
+-      { key: "head_to_head", name: "Head to Head", blurb: "Compare any two players across their full meeting history before the next match." },
+-      { key: "community", name: "Community", blurb: "Share league moments, catch up with other players and keep the club conversation going." },
+-    ];
+-    for (const row of seedRows) {
++  const seedRows: { key: string; name: string; blurb: string }[] = [
++    { key: "card_clash", name: "Card Clash", blurb: "Collect player cards and battle them head to head from the main menu." },
++    { key: "boss_battle", name: "Boss Battle", blurb: "A scaling checkout challenge you can take on solo or with mates." },
++    { key: "board_curse", name: "Board Curse", blurb: "A curveball ruleset that flips your usual scoring, good for a laugh on a practice night." },
++    { key: "master501", name: "Master 501", blurb: "A structured 501 training mode built for sharpening your finishing." },
++    { key: "tour", name: "TKDL Tour", blurb: "A multi stop knockout tournament mode you can run outside the regular league." },
++    { key: "hall_of_fame", name: "Hall of Fame", blurb: "All time records and milestone holders across every league in one place." },
++    { key: "shadow_league", name: "Shadow League", blurb: "A simulated league table built entirely from Shadow Bot results." },
++    { key: "practice_games", name: "Practice Games", blurb: "More than sixty darts games are available in Practice, with solo, local and bot options." },
++    { key: "bot_opponents", name: "Bot Opponents", blurb: "Play a quick match against a bot at a level that suits you and build towards the next step up." },
++    { key: "shadow_bot", name: "Shadow Bot", blurb: "Create a bot from your recorded performances and see how your darts profile develops." },
++    { key: "achievements", name: "Achievements", blurb: "Track league, practice and career challenges and see which targets are closest to completion." },
++    { key: "head_to_head", name: "Head to Head", blurb: "Compare any two players across their full meeting history before the next match." },
++    { key: "community", name: "Community", blurb: "Share league moments, catch up with other players and keep the club conversation going." },
++  ];
++  // Each row inserted independently so one bad row (shouldn't happen — these
++  // are fixed literals — but a future edit could introduce one) can't stop
++  // the rest of the seed list from being inserted.
++  let seeded = 0;
++  for (const row of seedRows) {
++    try {
+       await db.execute(sql`
+         INSERT INTO broadcast_feature_spotlights (feature_key, feature_name, blurb)
+         VALUES (${row.key}, ${row.name}, ${row.blurb})
+         ON CONFLICT (feature_key) DO NOTHING
+       `);
++      seeded++;
++    } catch (err) {
++      logger.error({ err, featureKey: row.key }, "Failed to seed broadcast_feature_spotlights row");
+     }
+-
+-    logger.info("broadcast_feature_spotlights ready");
+-    return true;
+-  } catch (err) {
+-    logger.error({ err }, "Failed to create broadcast_feature_spotlights");
+-    throw err;
+   }
++
++  logger.info({ seeded, total: seedRows.length }, "broadcast_feature_spotlights ready");
+ }
+diff --git a/artifacts/api-server/src/db/migrations/add_purchase_date.ts b/artifacts/api-server/src/db/migrations/add_purchase_date.ts
+deleted file mode 100644
+index 568b71c..0000000
+--- a/artifacts/api-server/src/db/migrations/add_purchase_date.ts
++++ /dev/null
+@@ -1,34 +0,0 @@
+-/**
+- * Migration: Add purchase_date to player_cards
+- * 
+- * Tracks when each player acquired each card
+- * Allows historical card collection viewing
+- * Supports "New" badge for recently acquired cards
+- */
+-
+-import { Knex } from 'knex';
+-
+-export async function up(knex: Knex): Promise<void> {
+-  // Check if column already exists
+-  const hasColumn = await knex.schema.hasColumn('player_cards', 'purchase_date');
+-
+-  if (!hasColumn) {
+-    await knex.schema.alterTable('player_cards', (table) => {
+-      // Add purchase_date column with default to current time for existing rows
+-      table.timestamp('purchase_date').notNullable().defaultTo(knex.fn.now());
+-    });
+-
+-    console.log('✅ Added purchase_date column to player_cards');
+-  } else {
+-    console.log('⚠️  purchase_date column already exists');
+-  }
+-}
+-
+-export async function down(knex: Knex): Promise<void> {
+-  // Rollback: remove the column
+-  await knex.schema.alterTable('player_cards', (table) => {
+-    table.dropColumn('purchase_date');
+-  });
+-
+-  console.log('✅ Removed purchase_date column from player_cards');
+-}
+diff --git a/artifacts/api-server/src/db/migrations/add_season_broadcast_reviewed_at.ts b/artifacts/api-server/src/db/migrations/add_season_broadcast_reviewed_at.ts
+index 0f3f539..f7e918c 100644
+--- a/artifacts/api-server/src/db/migrations/add_season_broadcast_reviewed_at.ts
++++ b/artifacts/api-server/src/db/migrations/add_season_broadcast_reviewed_at.ts
+@@ -36,9 +36,9 @@ export async function addSeasonBroadcastReviewedAt() {
+       ALTER TABLE seasons ADD COLUMN IF NOT EXISTS broadcast_reviewed_at TIMESTAMPTZ
+     `);
+     logger.info("seasons.broadcast_reviewed_at column ready");
+-    return true;
+   } catch (err) {
++    // Logged, not rethrown — a failure here shouldn't be able to prevent
++    // whatever startup step runs next (see app.ts's runInitStep).
+     logger.error({ err }, "Failed to add seasons.broadcast_reviewed_at column");
+-    throw err;
+   }
+ }
+diff --git a/artifacts/api-server/src/db/migrations/add_tkdl_live_broadcast.ts b/artifacts/api-server/src/db/migrations/add_tkdl_live_broadcast.ts
+index c2d30cf..e0c3e45 100644
+--- a/artifacts/api-server/src/db/migrations/add_tkdl_live_broadcast.ts
++++ b/artifacts/api-server/src/db/migrations/add_tkdl_live_broadcast.ts
+@@ -12,103 +12,111 @@ import { logger } from "../../lib/logger";
+  * tables — every broadcast table here is either broadcast-only state or a
+  * stored snapshot of a prediction that was already computed once.
+  */
+-export async function addTkdlLiveBroadcastTables() {
++// Each statement runs in its own try/catch (rather than one wrapper around
++// the whole function) so, e.g., a hiccup creating broadcast_memory can't
++// also prevent broadcast_editions/broadcast_stories/broadcast_prediction_
++// snapshots — three independent tables — from being created. Matches this
++// codebase's established per-statement migration convention (see
++// add_performance_indexes.ts).
++async function runStep(description: string, fn: () => Promise<unknown>): Promise<void> {
+   try {
+-    await db.execute(sql`
+-      CREATE TABLE IF NOT EXISTS broadcast_editions (
+-        id SERIAL PRIMARY KEY,
+-        slot_key TEXT UNIQUE NOT NULL,
+-        slot_type TEXT NOT NULL,
+-        scheduled_for TIMESTAMP WITH TIME ZONE NOT NULL,
+-        data_cutoff TIMESTAMP WITH TIME ZONE NOT NULL,
+-        status TEXT NOT NULL,
+-        change_score INTEGER NOT NULL DEFAULT 0,
+-        programme_version INTEGER NOT NULL DEFAULT 1,
+-        programme JSONB,
+-        diagnostic TEXT,
+-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+-        published_at TIMESTAMP WITH TIME ZONE
+-      )
+-    `);
++    await fn();
++  } catch (err) {
++    logger.error({ err }, `Failed: ${description}`);
++  }
++}
+ 
+-    await db.execute(sql`
+-      CREATE TABLE IF NOT EXISTS broadcast_stories (
+-        id SERIAL PRIMARY KEY,
+-        story_key TEXT UNIQUE NOT NULL,
+-        league_type TEXT NOT NULL,
+-        story_type TEXT NOT NULL,
+-        subject_keys JSONB NOT NULL,
+-        anchor_match_id INTEGER,
+-        detected_at TIMESTAMP WITH TIME ZONE NOT NULL,
+-        updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+-        resolved_at TIMESTAMP WITH TIME ZONE,
+-        lifecycle TEXT NOT NULL,
+-        score INTEGER NOT NULL,
+-        confidence REAL NOT NULL,
+-        sentiment TEXT NOT NULL,
+-        facts JSONB NOT NULL,
+-        tags JSONB NOT NULL,
+-        last_full_edition_id INTEGER,
+-        last_headline_edition_id INTEGER,
+-        full_count INTEGER NOT NULL DEFAULT 0,
+-        headline_count INTEGER NOT NULL DEFAULT 0
+-      )
+-    `);
+-    // Every real caller filters/orders by these — see story-engine.ts's own
+-    // "find existing story by key" and "active stories for this league"
+-    // queries.
+-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_broadcast_stories_lifecycle ON broadcast_stories(lifecycle)`);
+-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_broadcast_stories_league_type ON broadcast_stories(league_type)`);
+-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_broadcast_stories_anchor_match_id ON broadcast_stories(anchor_match_id)`);
+-    // Facts created before provenance tracking shipped were persisted at
+-    // updated_at. Backfill that timestamp once so the new fail-closed quality
+-    // gate can safely assess existing active stories.
+-    await db.execute(sql`
+-      UPDATE broadcast_stories
+-      SET facts = jsonb_set(
+-        COALESCE(facts, '{}'::jsonb),
+-        '{__snapshotCutoff}',
+-        to_jsonb(updated_at),
+-        true
+-      )
+-      WHERE NOT COALESCE(facts, '{}'::jsonb) ? '__snapshotCutoff'
+-    `);
++export async function addTkdlLiveBroadcastTables() {
++  await runStep("create broadcast_editions", () => db.execute(sql`
++    CREATE TABLE IF NOT EXISTS broadcast_editions (
++      id SERIAL PRIMARY KEY,
++      slot_key TEXT UNIQUE NOT NULL,
++      slot_type TEXT NOT NULL,
++      scheduled_for TIMESTAMP WITH TIME ZONE NOT NULL,
++      data_cutoff TIMESTAMP WITH TIME ZONE NOT NULL,
++      status TEXT NOT NULL,
++      change_score INTEGER NOT NULL DEFAULT 0,
++      programme_version INTEGER NOT NULL DEFAULT 1,
++      programme JSONB,
++      diagnostic TEXT,
++      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
++      published_at TIMESTAMP WITH TIME ZONE
++    )
++  `));
+ 
+-    await db.execute(sql`
+-      CREATE TABLE IF NOT EXISTS broadcast_prediction_snapshots (
+-        id SERIAL PRIMARY KEY,
+-        snapshot_type TEXT NOT NULL,
+-        league_type TEXT NOT NULL,
+-        season_id INTEGER,
+-        match_id INTEGER,
+-        edition_id INTEGER,
+-        generated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+-        model_version TEXT NOT NULL,
+-        payload JSONB NOT NULL
+-      )
+-    `);
++  await runStep("create broadcast_stories", () => db.execute(sql`
++    CREATE TABLE IF NOT EXISTS broadcast_stories (
++      id SERIAL PRIMARY KEY,
++      story_key TEXT UNIQUE NOT NULL,
++      league_type TEXT NOT NULL,
++      story_type TEXT NOT NULL,
++      subject_keys JSONB NOT NULL,
++      anchor_match_id INTEGER,
++      detected_at TIMESTAMP WITH TIME ZONE NOT NULL,
++      updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
++      resolved_at TIMESTAMP WITH TIME ZONE,
++      lifecycle TEXT NOT NULL,
++      score INTEGER NOT NULL,
++      confidence REAL NOT NULL,
++      sentiment TEXT NOT NULL,
++      facts JSONB NOT NULL,
++      tags JSONB NOT NULL,
++      last_full_edition_id INTEGER,
++      last_headline_edition_id INTEGER,
++      full_count INTEGER NOT NULL DEFAULT 0,
++      headline_count INTEGER NOT NULL DEFAULT 0
++    )
++  `));
++  // Every real caller filters/orders by these — see story-engine.ts's own
++  // "find existing story by key" and "active stories for this league"
++  // queries.
++  await runStep("create idx_broadcast_stories_lifecycle", () => db.execute(sql`CREATE INDEX IF NOT EXISTS idx_broadcast_stories_lifecycle ON broadcast_stories(lifecycle)`));
++  await runStep("create idx_broadcast_stories_league_type", () => db.execute(sql`CREATE INDEX IF NOT EXISTS idx_broadcast_stories_league_type ON broadcast_stories(league_type)`));
++  await runStep("create idx_broadcast_stories_anchor_match_id", () => db.execute(sql`CREATE INDEX IF NOT EXISTS idx_broadcast_stories_anchor_match_id ON broadcast_stories(anchor_match_id)`));
++  // Facts created before provenance tracking shipped were persisted at
++  // updated_at. Backfill that timestamp once so the new fail-closed quality
++  // gate can safely assess existing active stories.
++  await runStep("backfill broadcast_stories.facts.__snapshotCutoff", () => db.execute(sql`
++    UPDATE broadcast_stories
++    SET facts = jsonb_set(
++      COALESCE(facts, '{}'::jsonb),
++      '{__snapshotCutoff}',
++      to_jsonb(updated_at),
++      true
++    )
++    WHERE NOT COALESCE(facts, '{}'::jsonb) ? '__snapshotCutoff'
++  `));
+ 
+-    await db.execute(sql`
+-      CREATE TABLE IF NOT EXISTS broadcast_memory (
+-        id SERIAL PRIMARY KEY,
+-        memory_type TEXT NOT NULL,
+-        memory_key TEXT NOT NULL,
+-        subject_key TEXT,
+-        last_used_at TIMESTAMP WITH TIME ZONE NOT NULL,
+-        last_edition_id INTEGER,
+-        usage_count INTEGER NOT NULL DEFAULT 1,
+-        payload JSONB
+-      )
+-    `);
+-    await db.execute(sql`
+-      CREATE UNIQUE INDEX IF NOT EXISTS idx_broadcast_memory_type_key_subject
+-      ON broadcast_memory(memory_type, memory_key, subject_key)
+-    `);
++  await runStep("create broadcast_prediction_snapshots", () => db.execute(sql`
++    CREATE TABLE IF NOT EXISTS broadcast_prediction_snapshots (
++      id SERIAL PRIMARY KEY,
++      snapshot_type TEXT NOT NULL,
++      league_type TEXT NOT NULL,
++      season_id INTEGER,
++      match_id INTEGER,
++      edition_id INTEGER,
++      generated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
++      model_version TEXT NOT NULL,
++      payload JSONB NOT NULL
++    )
++  `));
+ 
+-    logger.info("TKDL LIVE broadcast tables ready");
+-    return true;
+-  } catch (err) {
+-    logger.error({ err }, "Failed to create TKDL LIVE broadcast tables");
+-    throw err;
+-  }
++  await runStep("create broadcast_memory", () => db.execute(sql`
++    CREATE TABLE IF NOT EXISTS broadcast_memory (
++      id SERIAL PRIMARY KEY,
++      memory_type TEXT NOT NULL,
++      memory_key TEXT NOT NULL,
++      subject_key TEXT,
++      last_used_at TIMESTAMP WITH TIME ZONE NOT NULL,
++      last_edition_id INTEGER,
++      usage_count INTEGER NOT NULL DEFAULT 1,
++      payload JSONB
++    )
++  `));
++  await runStep("create idx_broadcast_memory_type_key_subject", () => db.execute(sql`
++    CREATE UNIQUE INDEX IF NOT EXISTS idx_broadcast_memory_type_key_subject
++    ON broadcast_memory(memory_type, memory_key, subject_key)
++  `));
++
++  logger.info("TKDL LIVE broadcast tables ready");
+ }
+diff --git a/artifacts/api-server/src/db/migrations/backfill_broadcast_story_season_id.ts b/artifacts/api-server/src/db/migrations/backfill_broadcast_story_season_id.ts
+index b00f383..14fe5a2 100644
+--- a/artifacts/api-server/src/db/migrations/backfill_broadcast_story_season_id.ts
++++ b/artifacts/api-server/src/db/migrations/backfill_broadcast_story_season_id.ts
+@@ -70,9 +70,17 @@ import { logger } from "../../lib/logger";
+  * loadNewMatchesSince — these story-type constants are our own fixed code,
+  * never user input, so this is safe construction, not injection risk.
+  */
+-export async function backfillBroadcastStorySeasonId(): Promise<boolean> {
++// Each step below is isolated in its own try/catch (rather than one
++// try/catch around the whole function) so, e.g., a problem with the Doubles
++// backfill can't also block the independent Singles backfill or Step 2's
++// per-league loop. Matches this codebase's established per-statement
++// migration convention (see add_performance_indexes.ts) — worth being
++// extra careful about here specifically, given this file's own header
++// documents a past incident where exactly this kind of all-or-nothing
++// wrapper took down every startup step listed after it.
++export async function backfillBroadcastStorySeasonId(): Promise<void> {
++  // Step 1 — Singles: anchor_match_id -> matches.season_id.
+   try {
+-    // Step 1 — Singles: anchor_match_id -> matches.season_id.
+     await db.execute(sql`
+       UPDATE broadcast_stories bs
+       SET season_id = m.season_id
+@@ -82,8 +90,12 @@ export async function backfillBroadcastStorySeasonId(): Promise<boolean> {
+         AND bs.anchor_match_id IS NOT NULL
+         AND bs.anchor_match_id = m.id
+     `);
++  } catch (err) {
++    logger.error({ err }, "Failed to backfill broadcast_stories.season_id (Singles, Step 1)");
++  }
+ 
+-    // Step 1 — Doubles: anchor_match_id -> doubles_matches.season_id.
++  // Step 1 — Doubles: anchor_match_id -> doubles_matches.season_id.
++  try {
+     await db.execute(sql`
+       UPDATE broadcast_stories bs
+       SET season_id = dm.season_id
+@@ -93,29 +105,33 @@ export async function backfillBroadcastStorySeasonId(): Promise<boolean> {
+         AND bs.anchor_match_id IS NOT NULL
+         AND bs.anchor_match_id = dm.id
+     `);
++  } catch (err) {
++    logger.error({ err }, "Failed to backfill broadcast_stories.season_id (Doubles, Step 1)");
++  }
+ 
+-    // Shift Wars has no equivalent Step 1: shift_wars_matches carries no
+-    // season_id column to backfill from (see header). Zero broadcast_stories
+-    // rows exist for it today anyway, so there's nothing this gap has
+-    // silently missed — Step 2 below is this league's only path, same as
+-    // it always was.
++  // Shift Wars has no equivalent Step 1: shift_wars_matches carries no
++  // season_id column to backfill from (see header). Zero broadcast_stories
++  // rows exist for it today anyway, so there's nothing this gap has
++  // silently missed — Step 2 below is this league's only path, same as
++  // it always was.
+ 
+-    // Step 2 — remaining subject-anchored rows, only the eligible types,
+-    // only when exactly one closed season exists for that league.
+-    const ELIGIBLE_TYPES_BY_LEAGUE: Record<string, string[]> = {
+-      singles: [
+-        "UPSET", "MAJOR_UPSET", "MODEL_SHOCK", "HIGH_STAKE_WIN", "HIGH_STAKE_LOSS",
+-        "ELIMINATION", "LEADER_BEATEN", "STREAK_BREAKER", "DROUGHT_ENDED", "FIRST_H2H_WIN", "REVENGE",
+-        "WIN_STREAK", "LOSS_STREAK", "FORM_REVERSAL", "QUIET_CLIMBER", "FREEFALL", "ABOVE_BASELINE",
+-        "H2H_DOMINANCE", "RIVALRY", "RIVALRY_SWING",
+-        "CLINICAL_FINISHING", "DOUBLE_TROUBLE", "SCORING_POWER", "SCORING_WITHOUT_FINISHING", "SEASON_BEST", "PERSONAL_BEST",
+-        "CAREER_MATCH_MILESTONE", "CAREER_WIN_MILESTONE", "180_MILESTONE", "ELIMINATION_MILESTONE",
+-      ],
+-      doubles: ["UNBEATEN_PAIR", "PAIR_SURGE", "PAIR_UPSET", "PAIR_ELIMINATED"],
+-      shift_wars: ["SHIFT_LEAD_CHANGE", "SHIFT_MOMENTUM", "SHIFT_COMEBACK", "SHIFT_DOMINANCE"],
+-    };
++  // Step 2 — remaining subject-anchored rows, only the eligible types,
++  // only when exactly one closed season exists for that league.
++  const ELIGIBLE_TYPES_BY_LEAGUE: Record<string, string[]> = {
++    singles: [
++      "UPSET", "MAJOR_UPSET", "MODEL_SHOCK", "HIGH_STAKE_WIN", "HIGH_STAKE_LOSS",
++      "ELIMINATION", "LEADER_BEATEN", "STREAK_BREAKER", "DROUGHT_ENDED", "FIRST_H2H_WIN", "REVENGE",
++      "WIN_STREAK", "LOSS_STREAK", "FORM_REVERSAL", "QUIET_CLIMBER", "FREEFALL", "ABOVE_BASELINE",
++      "H2H_DOMINANCE", "RIVALRY", "RIVALRY_SWING",
++      "CLINICAL_FINISHING", "DOUBLE_TROUBLE", "SCORING_POWER", "SCORING_WITHOUT_FINISHING", "SEASON_BEST", "PERSONAL_BEST",
++      "CAREER_MATCH_MILESTONE", "CAREER_WIN_MILESTONE", "180_MILESTONE", "ELIMINATION_MILESTONE",
++    ],
++    doubles: ["UNBEATEN_PAIR", "PAIR_SURGE", "PAIR_UPSET", "PAIR_ELIMINATED"],
++    shift_wars: ["SHIFT_LEAD_CHANGE", "SHIFT_MOMENTUM", "SHIFT_COMEBACK", "SHIFT_DOMINANCE"],
++  };
+ 
+-    for (const [leagueType, types] of Object.entries(ELIGIBLE_TYPES_BY_LEAGUE)) {
++  for (const [leagueType, types] of Object.entries(ELIGIBLE_TYPES_BY_LEAGUE)) {
++    try {
+       const typesLiteral = `{${types.map(t => `"${t}"`).join(",")}}`;
+       await db.execute(sql`
+         UPDATE broadcast_stories bs
+@@ -131,12 +147,10 @@ export async function backfillBroadcastStorySeasonId(): Promise<boolean> {
+           AND bs.story_type = ANY(${typesLiteral}::text[])
+           AND (SELECT COUNT(*) FROM seasons WHERE league_type = ${leagueType} AND is_active = false) = 1
+       `);
++    } catch (err) {
++      logger.error({ err, leagueType }, "Failed to backfill broadcast_stories.season_id (Step 2)");
+     }
+-
+-    logger.info("broadcast_stories.season_id backfill complete");
+-    return true;
+-  } catch (err) {
+-    logger.error({ err }, "Failed to backfill broadcast_stories.season_id");
+-    throw err;
+   }
++
++  logger.info("broadcast_stories.season_id backfill complete");
+ }
+diff --git a/artifacts/api-server/src/lib/achievement-rewards.ts b/artifacts/api-server/src/lib/achievement-rewards.ts
+deleted file mode 100644
+index b5fcaaa..0000000
+--- a/artifacts/api-server/src/lib/achievement-rewards.ts
++++ /dev/null
+@@ -1,562 +0,0 @@
+-// AUTO-GENERATED: Comprehensive Achievement Rewards for 510 achievements
+-// This mapping covers ALL achievements across the entire TKDL project
+-// Generated from extraction of all achievement definition files
+-
+-export const COMPREHENSIVE_ACHIEVEMENT_REWARDS: Record<string, AchievementReward> = {
+-  // Common (105 achievements)
+-  BOT_100_DARTS: { coinReward: 20 },
+-  BOT_180_2: { coinReward: 25 },
+-  BOT_180_3: { coinReward: 30 },
+-  BOT_180_5: { coinReward: 35 },
+-  BOT_180_7: { coinReward: 40 },
+-  BOT_500_DARTS: { coinReward: 20 },
+-  BOT_5_SESSIONS: { coinReward: 25 },
+-  BOT_ACC_10: { coinReward: 30 },
+-  BOT_ACC_15: { coinReward: 35 },
+-  BOT_ACC_20: { coinReward: 40 },
+-  BOT_ACC_5: { coinReward: 20 },
+-  BOT_AMATEUR: { coinReward: 25 },
+-  BOT_BOOTS_UP: { coinReward: 30 },
+-  BOT_CA_1: { coinReward: 35 },
+-  BOT_CA_10: { coinReward: 40 },
+-  BOT_CA_20: { coinReward: 20 },
+-  BOT_CA_5: { coinReward: 25 },
+-  BOT_CH_10: { coinReward: 30 },
+-  BOT_CH_2: { coinReward: 35 },
+-  BOT_CH_3: { coinReward: 40 },
+-  BOT_CH_5: { coinReward: 20 },
+-  BOT_CH_7: { coinReward: 25 },
+-  BOT_D_150: { coinReward: 30 },
+-  BOT_D_200: { coinReward: 35 },
+-  BOT_D_25: { coinReward: 40 },
+-  BOT_D_250: { coinReward: 20 },
+-  BOT_D_300: { coinReward: 25 },
+-  BOT_D_400: { coinReward: 30 },
+-  BOT_D_50: { coinReward: 35 },
+-  BOT_D_600: { coinReward: 40 },
+-  BOT_D_750: { coinReward: 20 },
+-  BOT_FIRST_180: { coinReward: 25 },
+-  BOT_FIRST_FINISH: { coinReward: 30 },
+-  BOT_FIRST_SESSION: { coinReward: 35 },
+-  BOT_GM_1: { coinReward: 40 },
+-  BOT_GM_2: { coinReward: 20 },
+-  BOT_GM_5: { coinReward: 25 },
+-  BOT_SC_100: { coinReward: 30 },
+-  BOT_SC_1500: { coinReward: 35 },
+-  BOT_SC_1K: { coinReward: 40 },
+-  BOT_SC_250: { coinReward: 20 },
+-  BOT_SC_2500: { coinReward: 25 },
+-  BOT_SC_2K: { coinReward: 30 },
+-  BOT_SC_500: { coinReward: 35 },
+-  BOT_S_10: { coinReward: 40 },
+-  BOT_S_12: { coinReward: 20 },
+-  BOT_S_15: { coinReward: 25 },
+-  BOT_S_2: { coinReward: 30 },
+-  BOT_S_3: { coinReward: 35 },
+-  BOT_S_7: { coinReward: 40 },
+-  BOT_VERSATILE: { coinReward: 20 },
+-  BRONZE_BLOODED: { coinReward: 25 },
+-  CC_COLLECTOR_10: { coinReward: 30 },
+-  CC_FIRST_MATCH: { coinReward: 35 },
+-  CC_FIRST_WIN: { coinReward: 40 },
+-  CC_PACKS_5: { coinReward: 20 },
+-  CC_PACK_OPENER: { coinReward: 25 },
+-  CC_STREAK_3: { coinReward: 30 },
+-  CC_WIN_5: { coinReward: 35 },
+-  CENTURY_POINTS: { coinReward: 40 },
+-  CLIMBER: { coinReward: 20 },
+-  DUELIST: { coinReward: 25 },
+-  FIGHTER: { coinReward: 30 },
+-  FIRST_BLOOD: { coinReward: 35 },
+-  HEAT_CHECK: { coinReward: 40 },
+-  JUNE_WARRIOR: { coinReward: 20 },
+-  M501_180_THREE: { coinReward: 25 },
+-  M501_AVG_65: { coinReward: 30 },
+-  M501_AVG_70: { coinReward: 35 },
+-  M501_CO_FIVE: { coinReward: 40 },
+-  M501_DARTS_100: { coinReward: 20 },
+-  M501_DARTS_500: { coinReward: 25 },
+-  M501_FIRST_180: { coinReward: 30 },
+-  M501_FIRST_CO: { coinReward: 35 },
+-  M501_FIRST_WIN: { coinReward: 40 },
+-  M501_REACH_T2: { coinReward: 20 },
+-  M501_RUNS_25: { coinReward: 25 },
+-  M501_STREAK_2: { coinReward: 30 },
+-  M501_T1_RUNS_10: { coinReward: 35 },
+-  M501_T1_RUNS_5: { coinReward: 40 },
+-  M501_T1_WINS_5: { coinReward: 20 },
+-  M501_T2_RUNS_5: { coinReward: 25 },
+-  M501_TEN_RUNS: { coinReward: 30 },
+-  M501_WIN_10: { coinReward: 35 },
+-  M501_WIN_15: { coinReward: 40 },
+-  M501_WIN_2: { coinReward: 20 },
+-  M501_WIN_3: { coinReward: 25 },
+-  M501_WIN_5: { coinReward: 30 },
+-  M501_WIN_T1R1: { coinReward: 35 },
+-  M501_WIN_T1R2: { coinReward: 40 },
+-  M501_WIN_T2R1: { coinReward: 20 },
+-  MOMENTUM: { coinReward: 25 },
+-  PRACTICE_301_WINS_5: { coinReward: 30 },
+-  PRACTICE_ALL_CHECKOUTS_5: { coinReward: 35 },
+-  PRACTICE_BOT_LEVEL_5_WINS_1: { coinReward: 40 },
+-  PRACTICE_CRICKET_WINS_3: { coinReward: 20 },
+-  PRACTICE_KILLER_WINS_3: { coinReward: 25 },
+-  PRACTICE_TOTAL_180S_5: { coinReward: 30 },
+-  PRACTICE_TOTAL_SESSIONS_10: { coinReward: 35 },
+-  PRACTICE_TOTAL_WINS_5: { coinReward: 40 },
+-  PRACTICE_WIN_STREAK_3: { coinReward: 20 },
+-  PRACTICE_X01_DOUBLE_OUT_WINS_5: { coinReward: 25 },
+-  RIVALRY_DEFINED: { coinReward: 30 },
+-  SEASON_STARTER: { coinReward: 35 },
+-  WARMED_UP: { coinReward: 40 },
+-
+-  // Rare (136 achievements)
+-  ALL_IN_WIN: { coinReward: 50, packReward: 'SINGLE' },
+-  BOT_10K_SCORE: { coinReward: 60, packReward: 'SINGLE' },
+-  BOT_180_15: { coinReward: 75, packReward: 'SINGLE' },
+-  BOT_180_20: { coinReward: 80, packReward: 'SINGLE' },
+-  BOT_180_25: { coinReward: 100, packReward: 'SINGLE' },
+-  BOT_180_30: { coinReward: 50, packReward: 'SINGLE' },
+-  BOT_20_SESSIONS: { coinReward: 60, packReward: 'SINGLE' },
+-  BOT_25_FINISHES: { coinReward: 75, packReward: 'SINGLE' },
+-  BOT_2K_DARTS: { coinReward: 80, packReward: 'SINGLE' },
+-  BOT_50_SESSIONS: { coinReward: 100, packReward: 'SINGLE' },
+-  BOT_5K_DARTS: { coinReward: 50, packReward: 'SINGLE' },
+-  BOT_ACC_25: { coinReward: 60, packReward: 'SINGLE' },
+-  BOT_ACC_30: { coinReward: 75, packReward: 'SINGLE' },
+-  BOT_ACC_40: { coinReward: 80, packReward: 'SINGLE' },
+-  BOT_ALL_ROUNDER: { coinReward: 100, packReward: 'SINGLE' },
+-  BOT_CA_100: { coinReward: 50, packReward: 'SINGLE' },
+-  BOT_CA_30: { coinReward: 60, packReward: 'SINGLE' },
+-  BOT_CA_50: { coinReward: 75, packReward: 'SINGLE' },
+-  BOT_CA_75: { coinReward: 80, packReward: 'SINGLE' },
+-  BOT_CH_15: { coinReward: 100, packReward: 'SINGLE' },
+-  BOT_CH_20: { coinReward: 50, packReward: 'SINGLE' },
+-  BOT_CH_30: { coinReward: 60, packReward: 'SINGLE' },
+-  BOT_CH_50: { coinReward: 75, packReward: 'SINGLE' },
+-  BOT_CLUB: { coinReward: 80, packReward: 'SINGLE' },
+-  BOT_D_1250: { coinReward: 100, packReward: 'SINGLE' },
+-  BOT_D_1500: { coinReward: 50, packReward: 'SINGLE' },
+-  BOT_D_1K: { coinReward: 60, packReward: 'SINGLE' },
+-  BOT_D_2500: { coinReward: 75, packReward: 'SINGLE' },
+-  BOT_D_3K: { coinReward: 80, packReward: 'SINGLE' },
+-  BOT_D_4K: { coinReward: 100, packReward: 'SINGLE' },
+-  BOT_GM_10: { coinReward: 50, packReward: 'SINGLE' },
+-  BOT_POLYMATH: { coinReward: 60, packReward: 'SINGLE' },
+-  BOT_SC_15K: { coinReward: 75, packReward: 'SINGLE' },
+-  BOT_SC_3K: { coinReward: 80, packReward: 'SINGLE' },
+-  BOT_SC_5K: { coinReward: 100, packReward: 'SINGLE' },
+-  BOT_SC_7500: { coinReward: 50, packReward: 'SINGLE' },
+-  BOT_S_25: { coinReward: 60, packReward: 'SINGLE' },
+-  BOT_S_30: { coinReward: 75, packReward: 'SINGLE' },
+-  BOT_S_40: { coinReward: 80, packReward: 'SINGLE' },
+-  BOT_S_60: { coinReward: 100, packReward: 'SINGLE' },
+-  BOT_S_75: { coinReward: 50, packReward: 'SINGLE' },
+-  BOT_TEN_180S: { coinReward: 60, packReward: 'SINGLE' },
+-  BULLSEYE: { coinReward: 75, packReward: 'SINGLE' },
+-  CC_COLLECTOR_25: { coinReward: 80, packReward: 'SINGLE' },
+-  CC_LEGENDARY_CARD: { coinReward: 100, packReward: 'SINGLE' },
+-  CC_PACKS_10: { coinReward: 50, packReward: 'SINGLE' },
+-  CC_STREAK_7: { coinReward: 60, packReward: 'SINGLE' },
+-  CC_WIN_10: { coinReward: 75, packReward: 'SINGLE' },
+-  COLD_SNAP: { coinReward: 80, packReward: 'SINGLE' },
+-  COLLAPSING: { coinReward: 100, packReward: 'SINGLE' },
+-  COLLECTOR: { coinReward: 50, packReward: 'SINGLE' },
+-  CRICKET_KING: { coinReward: 60, packReward: 'SINGLE' },
+-  DOUBLE_TROUBLE: { coinReward: 75, packReward: 'SINGLE' },
+-  ELO_1050: { coinReward: 80, packReward: 'SINGLE' },
+-  FIRST_BLOOD_SEASON: { coinReward: 100, packReward: 'SINGLE' },
+-  FIVE_O_ONE: { coinReward: 50, packReward: 'SINGLE' },
+-  FREEFALL: { coinReward: 60, packReward: 'SINGLE' },
+-  GAMBLER: { coinReward: 75, packReward: 'SINGLE' },
+-  GHOST: { coinReward: 80, packReward: 'SINGLE' },
+-  HIGH_ROLLER: { coinReward: 100, packReward: 'SINGLE' },
+-  HISTORIAN: { coinReward: 50, packReward: 'SINGLE' },
+-  LUNCH_LEGEND: { coinReward: 60, packReward: 'SINGLE' },
+-  M501_180_FIVE: { coinReward: 75, packReward: 'SINGLE' },
+-  M501_180_TEN: { coinReward: 80, packReward: 'SINGLE' },
+-  M501_AVG_75: { coinReward: 100, packReward: 'SINGLE' },
+-  M501_AVG_80: { coinReward: 50, packReward: 'SINGLE' },
+-  M501_AVG_85: { coinReward: 60, packReward: 'SINGLE' },
+-  M501_BINGE_3: { coinReward: 75, packReward: 'SINGLE' },
+-  M501_CHALLENGER_CLEAR: { coinReward: 80, packReward: 'SINGLE' },
+-  M501_CO_TEN: { coinReward: 100, packReward: 'SINGLE' },
+-  M501_CO_TWENTYFIVE: { coinReward: 50, packReward: 'SINGLE' },
+-  M501_DARTS_1000: { coinReward: 60, packReward: 'SINGLE' },
+-  M501_FIFTY_RUNS: { coinReward: 75, packReward: 'SINGLE' },
+-  M501_FLAWLESS_5: { coinReward: 80, packReward: 'SINGLE' },
+-  M501_HEAT: { coinReward: 100, packReward: 'SINGLE' },
+-  M501_LAST_GASP: { coinReward: 50, packReward: 'SINGLE' },
+-  M501_MATCH_3_CO: { coinReward: 60, packReward: 'SINGLE' },
+-  M501_PRO_CLEAR: { coinReward: 75, packReward: 'SINGLE' },
+-  M501_REACH_T3: { coinReward: 80, packReward: 'SINGLE' },
+-  M501_STREAK_4: { coinReward: 100, packReward: 'SINGLE' },
+-  M501_T1_RUNS_20: { coinReward: 50, packReward: 'SINGLE' },
+-  M501_T1_WINS_10: { coinReward: 60, packReward: 'SINGLE' },
+-  M501_T1_WINS_20: { coinReward: 75, packReward: 'SINGLE' },
+-  M501_T2_RUNS_10: { coinReward: 80, packReward: 'SINGLE' },
+-  M501_T2_RUNS_20: { coinReward: 100, packReward: 'SINGLE' },
+-  M501_T2_WINS_10: { coinReward: 50, packReward: 'SINGLE' },
+-  M501_T2_WINS_5: { coinReward: 60, packReward: 'SINGLE' },
+-  M501_T3_RUNS_10: { coinReward: 75, packReward: 'SINGLE' },
+-  M501_T3_RUNS_5: { coinReward: 80, packReward: 'SINGLE' },
+-  M501_WIN_20: { coinReward: 100, packReward: 'SINGLE' },
+-  M501_WIN_25: { coinReward: 50, packReward: 'SINGLE' },
+-  M501_WIN_30: { coinReward: 60, packReward: 'SINGLE' },
+-  M501_WIN_40: { coinReward: 75, packReward: 'SINGLE' },
+-  M501_WIN_50: { coinReward: 80, packReward: 'SINGLE' },
+-  M501_WIN_T2R2: { coinReward: 100, packReward: 'SINGLE' },
+-  M501_WIN_T3R1: { coinReward: 50, packReward: 'SINGLE' },
+-  M501_WIN_T3R2: { coinReward: 60, packReward: 'SINGLE' },
+-  MOST_ACTIVE: { coinReward: 75, packReward: 'SINGLE' },
+-  NEMESIS_RELATIONSHIP: { coinReward: 80, packReward: 'SINGLE' },
+-  PAY_DAY: { coinReward: 100, packReward: 'SINGLE' },
+-  PRACTICE_100_PLUS_CHECKOUT_1: { coinReward: 50, packReward: 'SINGLE' },
+-  PRACTICE_301_WINS_15: { coinReward: 60, packReward: 'SINGLE' },
+-  PRACTICE_ALL_CHECKOUTS_15: { coinReward: 75, packReward: 'SINGLE' },
+-  PRACTICE_BEAT_LUCA_3: { coinReward: 80, packReward: 'SINGLE' },
+-  PRACTICE_BEAT_LUKE_3: { coinReward: 100, packReward: 'SINGLE' },
+-  PRACTICE_BEAT_MIKKEL_3: { coinReward: 50, packReward: 'SINGLE' },
+-  PRACTICE_BEAT_PERRY_3: { coinReward: 60, packReward: 'SINGLE' },
+-  PRACTICE_BOT_LEVEL_5_WINS_3: { coinReward: 75, packReward: 'SINGLE' },
+-  PRACTICE_CRICKET_WINS_10: { coinReward: 80, packReward: 'SINGLE' },
+-  PRACTICE_KILLER_WINS_10: { coinReward: 100, packReward: 'SINGLE' },
+-  PRACTICE_TOTAL_180S_15: { coinReward: 50, packReward: 'SINGLE' },
+-  PRACTICE_TOTAL_SESSIONS_25: { coinReward: 60, packReward: 'SINGLE' },
+-  PRACTICE_TOTAL_WINS_15: { coinReward: 75, packReward: 'SINGLE' },
+-  PRACTICE_WIN_STREAK_5: { coinReward: 80, packReward: 'SINGLE' },
+-  PRACTICE_X01_DOUBLE_OUT_WINS_15: { coinReward: 100, packReward: 'SINGLE' },
+-  PRECISION: { coinReward: 50, packReward: 'SINGLE' },
+-  PROFESSIONAL: { coinReward: 60, packReward: 'SINGLE' },
+-  RED_HOT: { coinReward: 75, packReward: 'SINGLE' },
+-  REVERSAL: { coinReward: 80, packReward: 'SINGLE' },
+-  RISING_STAR: { coinReward: 100, packReward: 'SINGLE' },
+-  RISK_TAKER: { coinReward: 50, packReward: 'SINGLE' },
+-  ROCKET_START: { coinReward: 60, packReward: 'SINGLE' },
+-  ROCK_SOLID: { coinReward: 75, packReward: 'SINGLE' },
+-  SHOWMAN: { coinReward: 80, packReward: 'SINGLE' },
+-  SILVER_STANDARD: { coinReward: 100, packReward: 'SINGLE' },
+-  STREAK_MACHINE: { coinReward: 50, packReward: 'SINGLE' },
+-  TACTICAL: { coinReward: 60, packReward: 'SINGLE' },
+-  TARGET_LOCKED: { coinReward: 75, packReward: 'SINGLE' },
+-  THE_HUNTER: { coinReward: 80, packReward: 'SINGLE' },
+-  THREE_O_ONE: { coinReward: 100, packReward: 'SINGLE' },
+-  TKDL_ORIGINAL: { coinReward: 50, packReward: 'SINGLE' },
+-  TREBLE_MASTER: { coinReward: 60, packReward: 'SINGLE' },
+-  TWO_HUNDRED: { coinReward: 75, packReward: 'SINGLE' },
+-  UNDERDOG_SPECIAL: { coinReward: 80, packReward: 'SINGLE' },
+-  VETERAN: { coinReward: 100, packReward: 'SINGLE' },
+-  WIN_COLLECTOR: { coinReward: 50, packReward: 'SINGLE' },
+-
+-  // Epic (135 achievements)
+-  ASSASSIN: { coinReward: 100, packReward: 'SINGLE' },
+-  BOT_100K_SCORE: { coinReward: 125, packReward: 'FIVE' },
+-  BOT_100_180S: { coinReward: 150, packReward: 'SINGLE' },
+-  BOT_100_FINISHES: { coinReward: 175, packReward: 'FIVE' },
+-  BOT_100_SESSIONS: { coinReward: 200, packReward: 'SINGLE' },
+-  BOT_15K_DARTS: { coinReward: 100, packReward: 'FIVE' },
+-  BOT_180_150: { coinReward: 125, packReward: 'SINGLE' },
+-  BOT_180_75: { coinReward: 150, packReward: 'FIVE' },
+-  BOT_200_SESSIONS: { coinReward: 175, packReward: 'SINGLE' },
+-  BOT_50_180S: { coinReward: 200, packReward: 'FIVE' },
+-  BOT_ACC_50: { coinReward: 100, packReward: 'SINGLE' },
+-  BOT_ACC_60: { coinReward: 125, packReward: 'FIVE' },
+-  BOT_ACC_70: { coinReward: 150, packReward: 'SINGLE' },
+-  BOT_ACC_75: { coinReward: 175, packReward: 'FIVE' },
+-  BOT_CA_150: { coinReward: 200, packReward: 'SINGLE' },
+-  BOT_CA_200: { coinReward: 100, packReward: 'FIVE' },
+-  BOT_CA_300: { coinReward: 125, packReward: 'SINGLE' },
+-  BOT_CH_150: { coinReward: 150, packReward: 'FIVE' },
+-  BOT_CH_200: { coinReward: 175, packReward: 'SINGLE' },
+-  BOT_CH_75: { coinReward: 200, packReward: 'FIVE' },
+-  BOT_COUNTY: { coinReward: 100, packReward: 'SINGLE' },
+-  BOT_D_10K: { coinReward: 125, packReward: 'FIVE' },
+-  BOT_D_12500: { coinReward: 150, packReward: 'SINGLE' },
+-  BOT_D_20K: { coinReward: 175, packReward: 'FIVE' },
+-  BOT_D_6K: { coinReward: 200, packReward: 'SINGLE' },
+-  BOT_D_7500: { coinReward: 100, packReward: 'FIVE' },
+-  BOT_FORMAT_MASTER: { coinReward: 125, packReward: 'SINGLE' },
+-  BOT_GM_15: { coinReward: 150, packReward: 'FIVE' },
+-  BOT_GM_25: { coinReward: 175, packReward: 'SINGLE' },
+-  BOT_GM_30: { coinReward: 200, packReward: 'FIVE' },
+-  BOT_SC_150K: { coinReward: 100, packReward: 'SINGLE' },
+-  BOT_SC_25K: { coinReward: 125, packReward: 'FIVE' },
+-  BOT_SC_50K: { coinReward: 150, packReward: 'SINGLE' },
+-  BOT_SC_75K: { coinReward: 175, packReward: 'FIVE' },
+-  BOT_S_125: { coinReward: 200, packReward: 'SINGLE' },
+-  BOT_S_150: { coinReward: 100, packReward: 'FIVE' },
+-  BOT_S_175: { coinReward: 125, packReward: 'SINGLE' },
+-  CC_COLLECTOR_50: { coinReward: 150, packReward: 'FIVE' },
+-  CC_PACKS_25: { coinReward: 175, packReward: 'SINGLE' },
+-  CC_STREAK_30: { coinReward: 200, packReward: 'FIVE' },
+-  CC_WIN_25: { coinReward: 100, packReward: 'SINGLE' },
+-  COMEBACK_KING: { coinReward: 125, packReward: 'FIVE' },
+-  COMPLETE_COLLECTOR: { coinReward: 150, packReward: 'SINGLE' },
+-  CONQUEROR: { coinReward: 175, packReward: 'FIVE' },
+-  DETONATOR: { coinReward: 200, packReward: 'SINGLE' },
+-  DOUBLED_DOWN: { coinReward: 100, packReward: 'FIVE' },
+-  ELIMINATOR: { coinReward: 125, packReward: 'SINGLE' },
+-  ELO_1200: { coinReward: 150, packReward: 'FIVE' },
+-  FORTRESS: { coinReward: 175, packReward: 'SINGLE' },
+-  FORTRESS_KING: { coinReward: 200, packReward: 'FIVE' },
+-  FROZEN_OUT: { coinReward: 100, packReward: 'SINGLE' },
+-  GAME_HOPPER_10: { coinReward: 125, packReward: 'FIVE' },
+-  GENIUS: { coinReward: 150, packReward: 'SINGLE' },
+-  GIANT_KILLER: { coinReward: 175, packReward: 'FIVE' },
+-  GOLDEN_ERA: { coinReward: 200, packReward: 'SINGLE' },
+-  GRAVE_DIGGER: { coinReward: 100, packReward: 'FIVE' },
+-  HIGH_STAKES_LIFE: { coinReward: 125, packReward: 'SINGLE' },
+-  HOT_HAND: { coinReward: 150, packReward: 'FIVE' },
+-  HOT_STREAK: { coinReward: 175, packReward: 'SINGLE' },
+-  IRON_WALL: { coinReward: 200, packReward: 'FIVE' },
+-  KILBIRNIE_LION: { coinReward: 100, packReward: 'SINGLE' },
+-  KING_SLAYER: { coinReward: 125, packReward: 'FIVE' },
+-  LONE_WOLF: { coinReward: 150, packReward: 'SINGLE' },
+-  LUCKY_SOB_MASSIVE: { coinReward: 175, packReward: 'FIVE' },
+-  M501_180_TWENTY: { coinReward: 200, packReward: 'SINGLE' },
+-  M501_AVG_90: { coinReward: 100, packReward: 'FIVE' },
+-  M501_AVG_95: { coinReward: 125, packReward: 'SINGLE' },
+-  M501_BINGE_5: { coinReward: 150, packReward: 'FIVE' },
+-  M501_CENTURY_RUNS: { coinReward: 175, packReward: 'SINGLE' },
+-  M501_CO_FIFTY: { coinReward: 200, packReward: 'FIVE' },
+-  M501_CO_HUNDRED: { coinReward: 100, packReward: 'SINGLE' },
+-  M501_CO_RATE: { coinReward: 125, packReward: 'FIVE' },
+-  M501_CO_RATE_60: { coinReward: 150, packReward: 'SINGLE' },
+-  M501_DARTS_5000: { coinReward: 175, packReward: 'FIVE' },
+-  M501_FLAWLESS_9: { coinReward: 200, packReward: 'SINGLE' },
+-  M501_GRAND_PRIX_CLEAR: { coinReward: 100, packReward: 'FIVE' },
+-  M501_LAST_GASP_5: { coinReward: 125, packReward: 'SINGLE' },
+-  M501_MARATHON_3: { coinReward: 150, packReward: 'FIVE' },
+-  M501_MATCH_3_180S: { coinReward: 175, packReward: 'SINGLE' },
+-  M501_MATCH_5_CO: { coinReward: 200, packReward: 'FIVE' },
+-  M501_ON_FIRE: { coinReward: 100, packReward: 'SINGLE' },
+-  M501_PREMIER_CLEAR: { coinReward: 125, packReward: 'FIVE' },
+-  M501_REACH_T4: { coinReward: 150, packReward: 'SINGLE' },
+-  M501_REACH_T5: { coinReward: 175, packReward: 'FIVE' },
+-  M501_RUNS_200: { coinReward: 200, packReward: 'SINGLE' },
+-  M501_STREAK_7: { coinReward: 100, packReward: 'FIVE' },
+-  M501_T2_WINS_20: { coinReward: 125, packReward: 'SINGLE' },
+-  M501_T3_RUNS_20: { coinReward: 150, packReward: 'FIVE' },
+-  M501_T3_WINS_10: { coinReward: 175, packReward: 'SINGLE' },
+-  M501_T3_WINS_20: { coinReward: 200, packReward: 'FIVE' },
+-  M501_T3_WINS_5: { coinReward: 100, packReward: 'SINGLE' },
+-  M501_T4_RUNS_10: { coinReward: 125, packReward: 'FIVE' },
+-  M501_T4_RUNS_20: { coinReward: 150, packReward: 'SINGLE' },
+-  M501_T4_RUNS_5: { coinReward: 175, packReward: 'FIVE' },
+-  M501_T4_WINS_10: { coinReward: 200, packReward: 'SINGLE' },
+-  M501_T4_WINS_5: { coinReward: 100, packReward: 'FIVE' },
+-  M501_T5_RUNS_10: { coinReward: 125, packReward: 'SINGLE' },
+-  M501_T5_RUNS_5: { coinReward: 150, packReward: 'FIVE' },
+-  M501_T5_WINS_5: { coinReward: 175, packReward: 'SINGLE' },
+-  M501_WIN_100: { coinReward: 200, packReward: 'FIVE' },
+-  M501_WIN_150: { coinReward: 100, packReward: 'SINGLE' },
+-  M501_WIN_75: { coinReward: 125, packReward: 'FIVE' },
+-  M501_WIN_T4R1: { coinReward: 150, packReward: 'SINGLE' },
+-  M501_WIN_T4R2: { coinReward: 175, packReward: 'FIVE' },
+-  M501_WIN_T5R1: { coinReward: 200, packReward: 'SINGLE' },
+-  M501_WIN_T5R2: { coinReward: 100, packReward: 'FIVE' },
+-  MARATHON: { coinReward: 125, packReward: 'SINGLE' },
+-  METEOR: { coinReward: 150, packReward: 'FIVE' },
+-  NINE_TO_FIVE_SURVIVOR: { coinReward: 175, packReward: 'SINGLE' },
+-  POINTS_EMPIRE: { coinReward: 200, packReward: 'FIVE' },
+-  POINT_MASTER: { coinReward: 100, packReward: 'SINGLE' },
+-  PRACTICE_100_PLUS_CHECKOUT_5: { coinReward: 125, packReward: 'FIVE' },
+-  PRACTICE_301_WINS_30: { coinReward: 150, packReward: 'SINGLE' },
+-  PRACTICE_ALL_CHECKOUTS_30: { coinReward: 175, packReward: 'FIVE' },
+-  PRACTICE_BOT_LEVEL_10_WINS_5: { coinReward: 200, packReward: 'SINGLE' },
+-  PRACTICE_CRICKET_WINS_20: { coinReward: 100, packReward: 'FIVE' },
+-  PRACTICE_KILLER_WINS_20: { coinReward: 125, packReward: 'SINGLE' },
+-  PRACTICE_TOTAL_180S_30: { coinReward: 150, packReward: 'FIVE' },
+-  PRACTICE_TOTAL_SESSIONS_50: { coinReward: 175, packReward: 'SINGLE' },
+-  PRACTICE_TOTAL_WINS_30: { coinReward: 200, packReward: 'FIVE' },
+-  PRACTICE_TRIPLE_180_GAME: { coinReward: 100, packReward: 'SINGLE' },
+-  PRACTICE_WIN_STREAK_10: { coinReward: 125, packReward: 'FIVE' },
+-  PRACTICE_X01_DOUBLE_OUT_WINS_30: { coinReward: 150, packReward: 'SINGLE' },
+-  PREDATOR: { coinReward: 175, packReward: 'FIVE' },
+-  REAPER_SEASONAL: { coinReward: 200, packReward: 'SINGLE' },
+-  RIVAL_BREAKER: { coinReward: 100, packReward: 'FIVE' },
+-  SHARPSHOOTER_ACH: { coinReward: 125, packReward: 'SINGLE' },
+-  SHOCKWAVE: { coinReward: 150, packReward: 'FIVE' },
+-  SNAKE: { coinReward: 175, packReward: 'SINGLE' },
+-  SNIPER: { coinReward: 200, packReward: 'FIVE' },
+-  STORM_BRINGER: { coinReward: 100, packReward: 'SINGLE' },
+-  SURVIVOR_ACH: { coinReward: 125, packReward: 'FIVE' },
+-  TOXIC: { coinReward: 150, packReward: 'SINGLE' },
+-  UNBEATABLE_VS_ONE: { coinReward: 175, packReward: 'FIVE' },
+-  WORLD_TOUR: { coinReward: 200, packReward: 'SINGLE' },
+-
+-  // Legendary (85 achievements)
+-  BACK_TO_BACK_TITLE: { coinReward: 200, packReward: 'FIVE' },
+-  BLOOD_HUNTER: { coinReward: 250, packReward: 'TEN' },
+-  BOT_180_200: { coinReward: 300, packReward: 'FIVE' },
+-  BOT_180_300: { coinReward: 350, packReward: 'TEN' },
+-  BOT_1M_SCORE: { coinReward: 400, packReward: 'FIVE' },
+-  BOT_500_180S: { coinReward: 200, packReward: 'TEN' },
+-  BOT_500_FINISHES: { coinReward: 250, packReward: 'FIVE' },
+-  BOT_50K_DARTS: { coinReward: 300, packReward: 'TEN' },
+-  BOT_ACC_80: { coinReward: 350, packReward: 'FIVE' },
+-  BOT_ACC_85: { coinReward: 400, packReward: 'TEN' },
+-  BOT_CA_1K: { coinReward: 200, packReward: 'FIVE' },
+-  BOT_CA_500: { coinReward: 250, packReward: 'TEN' },
+-  BOT_CH_1K: { coinReward: 300, packReward: 'FIVE' },
+-  BOT_CH_300: { coinReward: 350, packReward: 'TEN' },
+-  BOT_CH_750: { coinReward: 400, packReward: 'FIVE' },
+-  BOT_D_100K: { coinReward: 200, packReward: 'TEN' },
+-  BOT_D_25K: { coinReward: 250, packReward: 'FIVE' },
+-  BOT_D_35K: { coinReward: 300, packReward: 'TEN' },
+-  BOT_D_75K: { coinReward: 350, packReward: 'FIVE' },
+-  BOT_GM_40: { coinReward: 400, packReward: 'TEN' },
+-  BOT_GM_50: { coinReward: 200, packReward: 'FIVE' },
+-  BOT_GM_62: { coinReward: 250, packReward: 'TEN' },
+-  BOT_PRO: { coinReward: 300, packReward: 'FIVE' },
+-  BOT_SC_2500K: { coinReward: 350, packReward: 'TEN' },
+-  BOT_SC_250K: { coinReward: 400, packReward: 'FIVE' },
+-  BOT_SC_500K: { coinReward: 200, packReward: 'TEN' },
+-  BOT_S_250: { coinReward: 250, packReward: 'FIVE' },
+-  BOT_S_300: { coinReward: 300, packReward: 'TEN' },
+-  BOT_S_400: { coinReward: 350, packReward: 'FIVE' },
+-  BOT_S_500: { coinReward: 400, packReward: 'TEN' },
+-  BREAKTHROUGH: { coinReward: 200, packReward: 'FIVE' },
+-  CC_COLLECTOR_ALL: { coinReward: 250, packReward: 'TEN' },
+-  CC_WIN_50: { coinReward: 300, packReward: 'FIVE' },
+-  CHAOS_AGENT: { coinReward: 350, packReward: 'TEN' },
+-  CONQUISTADOR: { coinReward: 400, packReward: 'FIVE' },
+-  CONSISTENT_ELITE: { coinReward: 200, packReward: 'TEN' },
+-  CROWNED: { coinReward: 250, packReward: 'FIVE' },
+-  DECORATED: { coinReward: 300, packReward: 'TEN' },
+-  ELO_1300: { coinReward: 350, packReward: 'FIVE' },
+-  GAME_HOPPER_20: { coinReward: 400, packReward: 'TEN' },
+-  ICE_COLD: { coinReward: 200, packReward: 'FIVE' },
+-  IMMORTAL: { coinReward: 250, packReward: 'TEN' },
+-  INFERNO: { coinReward: 300, packReward: 'FIVE' },
+-  JACK_OF_ALL: { coinReward: 350, packReward: 'TEN' },
+-  M501_180_FIFTY: { coinReward: 400, packReward: 'FIVE' },
+-  M501_180_HUNDRED: { coinReward: 200, packReward: 'TEN' },
+-  M501_AVG_100: { coinReward: 250, packReward: 'FIVE' },
+-  M501_AVG_105: { coinReward: 300, packReward: 'TEN' },
+-  M501_AVG_110: { coinReward: 350, packReward: 'FIVE' },
+-  M501_AVG_115: { coinReward: 400, packReward: 'TEN' },
+-  M501_AVG_120: { coinReward: 200, packReward: 'FIVE' },
+-  M501_BINGE_10: { coinReward: 250, packReward: 'TEN' },
+-  M501_CO_RATE_70: { coinReward: 300, packReward: 'FIVE' },
+-  M501_CO_TWOHUNDRED: { coinReward: 350, packReward: 'TEN' },
+-  M501_DARTS_10000: { coinReward: 400, packReward: 'FIVE' },
+-  M501_GRAND_SLAM: { coinReward: 200, packReward: 'TEN' },
+-  M501_LAST_GASP_10: { coinReward: 250, packReward: 'FIVE' },
+-  M501_MATCH_5_180S: { coinReward: 300, packReward: 'TEN' },
+-  M501_RUNS_300: { coinReward: 350, packReward: 'FIVE' },
+-  M501_RUNS_500: { coinReward: 400, packReward: 'TEN' },
+-  M501_STREAK_15: { coinReward: 200, packReward: 'FIVE' },
+-  M501_STREAK_20: { coinReward: 250, packReward: 'TEN' },
+-  M501_T4_WINS_20: { coinReward: 300, packReward: 'FIVE' },
+-  M501_T5_RUNS_20: { coinReward: 350, packReward: 'TEN' },
+-  M501_T5_WINS_10: { coinReward: 400, packReward: 'FIVE' },
+-  M501_T5_WINS_20: { coinReward: 200, packReward: 'TEN' },
+-  M501_UNSTOPPABLE: { coinReward: 250, packReward: 'FIVE' },
+-  M501_WIN_200: { coinReward: 300, packReward: 'TEN' },
+-  M501_WORLD_CHAMP: { coinReward: 350, packReward: 'FIVE' },
+-  MVP: { coinReward: 400, packReward: 'TEN' },
+-  PHOENIX: { coinReward: 200, packReward: 'FIVE' },
+-  PRACTICE_100_PLUS_CHECKOUT_10: { coinReward: 250, packReward: 'TEN' },
+-  PRACTICE_ALL_CHECKOUTS_60: { coinReward: 300, packReward: 'FIVE' },
+-  PRACTICE_BIG_FISH: { coinReward: 350, packReward: 'TEN' },
+-  PRACTICE_BOT_LEVEL_15_WINS_5: { coinReward: 400, packReward: 'FIVE' },
+-  PRACTICE_CRICKET_WINS_40: { coinReward: 200, packReward: 'TEN' },
+-  PRACTICE_PERFECT_SESSION: { coinReward: 250, packReward: 'FIVE' },
+-  PRACTICE_TOTAL_180S_60: { coinReward: 300, packReward: 'TEN' },
+-  PRACTICE_TOTAL_SESSIONS_100: { coinReward: 350, packReward: 'FIVE' },
+-  PRACTICE_TOTAL_WINS_60: { coinReward: 400, packReward: 'TEN' },
+-  PRACTICE_X01_DOUBLE_OUT_WINS_60: { coinReward: 200, packReward: 'FIVE' },
+-  REGULAR_PLAYER: { coinReward: 250, packReward: 'TEN' },
+-  SUPERSTAR: { coinReward: 300, packReward: 'FIVE' },
+-  SURVIVOR_ELITE: { coinReward: 350, packReward: 'TEN' },
+-  UNBREAKABLE: { coinReward: 400, packReward: 'FIVE' },
+-
+-  // Mythic (49 achievements)
+-  APOCALYPSE: { coinReward: 400, packReward: 'TEN' },
+-  ASCENDED: { coinReward: 500, packReward: 'TEN' },
+-  BOT_10M_SCORE: { coinReward: 600, packReward: 'TEN' },
+-  BOT_180_10K: { coinReward: 750, packReward: 'TEN' },
+-  BOT_180_1K: { coinReward: 1000, packReward: 'TEN' },
+-  BOT_180_2K: { coinReward: 400, packReward: 'TEN' },
+-  BOT_180_5K: { coinReward: 500, packReward: 'TEN' },
+-  BOT_180_750: { coinReward: 600, packReward: 'TEN' },
+-  BOT_5M_SCORE: { coinReward: 750, packReward: 'TEN' },
+-  BOT_ACC_90: { coinReward: 1000, packReward: 'TEN' },
+-  BOT_ACC_95: { coinReward: 400, packReward: 'TEN' },
+-  BOT_CA_2500: { coinReward: 500, packReward: 'TEN' },
+-  BOT_CA_5K: { coinReward: 600, packReward: 'TEN' },
+-  BOT_CH_10K: { coinReward: 750, packReward: 'TEN' },
+-  BOT_CH_2K: { coinReward: 1000, packReward: 'TEN' },
+-  BOT_CH_5K: { coinReward: 400, packReward: 'TEN' },
+-  BOT_D_1M: { coinReward: 500, packReward: 'TEN' },
+-  BOT_D_250K: { coinReward: 600, packReward: 'TEN' },
+-  BOT_D_500K: { coinReward: 750, packReward: 'TEN' },
+-  BOT_D_5M: { coinReward: 1000, packReward: 'TEN' },
+-  BOT_ELITE: { coinReward: 400, packReward: 'TEN' },
+-  BOT_GM_ALL: { coinReward: 500, packReward: 'TEN' },
+-  BOT_SC_100M: { coinReward: 600, packReward: 'TEN' },
+-  BOT_SC_1B: { coinReward: 750, packReward: 'TEN' },
+-  BOT_SC_25M: { coinReward: 1000, packReward: 'TEN' },
+-  BOT_SC_500M: { coinReward: 400, packReward: 'TEN' },
+-  BOT_SC_50M: { coinReward: 500, packReward: 'TEN' },
+-  BOT_S_1000: { coinReward: 600, packReward: 'TEN' },
+-  BOT_S_1500: { coinReward: 750, packReward: 'TEN' },
+-  BOT_S_2000: { coinReward: 1000, packReward: 'TEN' },
+-  BOT_S_750: { coinReward: 400, packReward: 'TEN' },
+-  DYNASTY: { coinReward: 500, packReward: 'TEN' },
+-  HALL_OF_FAME: { coinReward: 600, packReward: 'TEN' },
+-  LAST_MAN_STANDING: { coinReward: 750, packReward: 'TEN' },
+-  LEGEND: { coinReward: 1000, packReward: 'TEN' },
+-  MYSTIC: { coinReward: 400, packReward: 'TEN' },
+-  NIGHTMARE: { coinReward: 500, packReward: 'TEN' },
+-  PERFECT_RUN: { coinReward: 600, packReward: 'TEN' },
+-  PERFECT_SEASON: { coinReward: 750, packReward: 'TEN' },
+-  POINT_THIEF: { coinReward: 1000, packReward: 'TEN' },
+-  PRACTICE_ALL_CHECKOUTS_100: { coinReward: 400, packReward: 'TEN' },
+-  PRACTICE_BIG_FISH_5: { coinReward: 500, packReward: 'TEN' },
+-  PRACTICE_BOT_LEVEL_20_WINS_5: { coinReward: 600, packReward: 'TEN' },
+-  PRACTICE_TOTAL_180S_100: { coinReward: 750, packReward: 'TEN' },
+-  PRACTICE_TOTAL_WINS_100: { coinReward: 1000, packReward: 'TEN' },
+-  PRACTICE_X01_DOUBLE_OUT_WINS_100: { coinReward: 400, packReward: 'TEN' },
+-  UNTOUCHABLE: { coinReward: 500, packReward: 'TEN' },
+-  UNTOUCHABLE_PLUS: { coinReward: 600, packReward: 'TEN' },
+-  WARPATH: { coinReward: 750, packReward: 'TEN' },
+-
+-};
+-
+-// STATISTICS:
+-// Total Achievements: 510
+-// Total Coin Potential: 90,305
+-// Total Pack Potential: 1664 packs
+-// Common: 105 achievements
+-// Rare: 136 achievements
+-// Epic: 135 achievements
+-// Legendary: 85 achievements
+-// Mythic: 49 achievements
+-/**
+- * Achievement Reward Type Definition
+- */
+-export type AchievementReward = {
+-  coinReward?: number;
+-  packReward?: 'SINGLE' | 'FIVE' | 'TEN';
+-};
+-
+-/**
+- * Get reward for a specific achievement
+- */
+-export function getAchievementReward(achievementKey: string): AchievementReward {
+-  return COMPREHENSIVE_ACHIEVEMENT_REWARDS[achievementKey] || { coinReward: 25 };
+-}
+-
+-/**
+- * Calculate total pack tokens from pack type
+- * NOTE: 1 pack token = 1 pack purchase (regardless of type)
+- * SINGLE/FIVE/TEN are just the size of that 1 pack
+- */
+-export function packRewardToCount(packType?: 'SINGLE' | 'FIVE' | 'TEN'): number {
+-  if (!packType) return 0;
+-  // All pack types = 1 token to purchase 1 pack
+-  // (SINGLE=1 card, FIVE=5 cards, TEN=10 cards, but all cost 1 token)
+-  return packType ? 1 : 0;
+-}
+diff --git a/artifacts/api-server/src/routes/broadcast.ts b/artifacts/api-server/src/routes/broadcast.ts
+index 24dc962..a11e785 100644
+--- a/artifacts/api-server/src/routes/broadcast.ts
++++ b/artifacts/api-server/src/routes/broadcast.ts
+@@ -9,7 +9,7 @@ import { requireAdminSession } from "../middleware/requireAdminSession";
+ import { paramStr } from "../lib/http";
+ import {
+   createBroadcastCleanSweep, createManualBroadcastEpisode, ensureCurrentBroadcastEdition,
+-  forceRebuildCurrentEdition, latestPublishedEdition, isEditionProgramme,
++  forceRebuildCurrentEdition, latestPublishedEdition, isEditionProgramme, AdminBuildLockedError,
+ } from "../broadcast/edition-engine";
+ import { getLivePayload } from "../broadcast/live-events";
+ import { diagnoseSeasonHighlights, resetSeasonReviewForLeague } from "../broadcast/story-engine";
+@@ -345,6 +345,10 @@ router.post("/admin/broadcast/episodes", requireAdminSession, async (_req, res):
+ 
+     res.status(201).json({ edition: attempt });
+   } catch (err) {
++    if (err instanceof AdminBuildLockedError) {
++      res.status(409).json({ error: err.message });
++      return;
++    }
+     res.status(500).json({ error: errorMessage(err) });
+   }
+ });
+@@ -399,6 +403,10 @@ router.post("/admin/broadcast/clean-sweep", requireAdminSession, async (req, res
+     }
+     res.status(201).json({ edition: attempt });
+   } catch (err) {
++    if (err instanceof AdminBuildLockedError) {
++      res.status(409).json({ error: err.message });
++      return;
++    }
+     res.status(500).json({ error: errorMessage(err) });
+   }
+ });
+diff --git a/artifacts/api-server/src/routes/enhanced-features-routes.ts b/artifacts/api-server/src/routes/enhanced-features-routes.ts
+deleted file mode 100644
+index b98cfba..0000000
+--- a/artifacts/api-server/src/routes/enhanced-features-routes.ts
++++ /dev/null
+@@ -1,353 +0,0 @@
+-/**
+- * ENHANCED STATS & COACH API ROUTES
+- * All endpoints to be added to artifacts/api-server/src/routes/stats-detailed.ts
+- */
+-
+-// ===== STREAK ENDPOINTS =====
+-
+-/**
+- * GET /api/players/:id/streaks
+- * Returns current and best win/checkout streaks
+- * 
+- * Response:
+- * {
+- *   currentWinStreak: number,
+- *   bestWinStreak: number,
+- *   currentCheckoutStreak: number,
+- *   bestCheckoutStreak: number,
+- *   streakMilestones: string[], // ["🔥 5-game win streak!", ...]
+- *   lastMatchDate: Date
+- * }
+- */
+-export const getStreaks = async (req, res) => {
+-  const { id } = req.params;
+-  const streaks = await streakService.getStreakData(parseInt(id));
+-  res.json(streaks);
+-};
+-
+-// ===== DRILL PROGRESS ENDPOINTS =====
+-
+-/**
+- * POST /api/players/:id/drills/complete
+- * Record a completed drill session
+- * 
+- * Body:
+- * {
+- *   drillId: string,
+- *   drillTitle: string,
+- *   durationMinutes: number,
+- *   score: number (0-100),
+- *   difficulty: "easy" | "medium" | "hard" | "master",
+- *   notes?: string
+- * }
+- */
+-export const completeDrill = async (req, res) => {
+-  const { id } = req.params;
+-  const { drillId, drillTitle, durationMinutes, score, difficulty, notes } = req.body;
+-  
+-  const completion = await drillProgressService.completeDrill(
+-    parseInt(id),
+-    drillId,
+-    drillTitle,
+-    durationMinutes,
+-    score,
+-    difficulty,
+-    notes
+-  );
+-  res.json(completion);
+-};
+-
+-/**
+- * GET /api/players/:id/drills/stats
+- * Get drill progress stats for all drills player has done
+- * 
+- * Response:
+- * [
+- *   {
+- *     drillId: string,
+- *     drillTitle: string,
+- *     totalCompletions: number,
+- *     bestScore: number,
+- *     averageScore: number,
+- *     currentMastery: "novice" | "intermediate" | "proficient" | "mastered",
+- *     nextGoal: string,
+- *     improvementTrend: number // percentage
+- *   }
+- * ]
+- */
+-export const getDrillStats = async (req, res) => {
+-  const { id } = req.params;
+-  const stats = await drillProgressService.getPlayerDrillStats(parseInt(id));
+-  res.json(stats);
+-};
+-
+-/**
+- * GET /api/players/:id/drills/milestones
+- * Get drill-related achievement milestones
+- * 
+- * Response:
+- * [
+- *   {
+- *     name: "First Drill",
+- *     achieved: boolean,
+- *     progress: number (0-100),
+- *     description: string
+- *   }
+- * ]
+- */
+-export const getDrillMilestones = async (req, res) => {
+-  const { id } = req.params;
+-  const milestones = await drillProgressService.getPlayerDrillMilestones(parseInt(id));
+-  res.json(milestones);
+-};
+-
+-/**
+- * GET /api/players/:id/drills/adaptive
+- * Get adaptive difficulty progression for drills
+- * 
+- * Response:
+- * [
+- *   {
+- *     drillId: string,
+- *     drillTitle: string,
+- *     currentDifficulty: "easy" | "medium" | "hard" | "master",
+- *     mastery: number (0-100),
+- *     completedDifficulties: string[],
+- *     nextChallenge: string,
+- *     daysToNextLevel: number | null
+- *   }
+- * ]
+- */
+-export const getAdaptiveDifficulty = async (req, res) => {
+-  const { id } = req.params;
+-  const drills = await drillProgressService.getPlayerDrillStats(parseInt(id));
+-  
+-  const adaptive = drills.map(drill => ({
+-    drillId: drill.drillId,
+-    drillTitle: drill.drillTitle,
+-    currentDifficulty: drill.averageScore! >= 90 ? "master" : 
+-                       drill.averageScore! >= 75 ? "hard" :
+-                       drill.averageScore! >= 60 ? "medium" : "easy",
+-    mastery: drill.averageScore || 0,
+-    completedDifficulties: ["easy"], // TODO: query from DB
+-    nextChallenge: drill.nextGoal || "Complete this level",
+-    daysToNextLevel: Math.ceil(Math.random() * 14) // TODO: calculate from history
+-  }));
+-  
+-  res.json(adaptive);
+-};
+-
+-// ===== TIME OF DAY ENDPOINTS =====
+-
+-/**
+- * GET /api/players/:id/stats/time-of-day
+- * Get win rate analysis by hour of day
+- * 
+- * Response:
+- * [
+- *   {
+- *     hour: "9am-12pm",
+- *     matches: number,
+- *     wins: number,
+- *     winRate: number,
+- *     avgDarts: number,
+- *     avgCheckout: number
+- *   }
+- * ]
+- */
+-export const getTimeOfDayStats = async (req, res) => {
+-  const { id } = req.params;
+-  
+-  const result = await db.execute(drizzleSql`
+-    WITH matches_with_hour AS (
+-      SELECT
+-        EXTRACT(HOUR FROM played_at)::int as hour,
+-        winner_id = ${parseInt(id)} as won,
+-        CASE WHEN winner_id = ${parseInt(id)} THEN winner_darts ELSE loser_darts END as darts,
+-        CASE WHEN winner_id = ${parseInt(id)}
+-          THEN winner_checkout_hits::float / NULLIF(winner_checkout_attempts, 0)
+-          ELSE loser_checkout_hits::float / NULLIF(loser_checkout_attempts, 0)
+-        END as checkout_rate
+-      FROM matches
+-      WHERE winner_id = ${parseInt(id)} OR loser_id = ${parseInt(id)}
+-    ),
+-    hour_stats AS (
+-      SELECT
+-        CASE
+-          WHEN hour >= 9 AND hour < 12 THEN '9am-12pm'
+-          WHEN hour >= 12 AND hour < 15 THEN '12pm-3pm'
+-          WHEN hour >= 15 AND hour < 18 THEN '3pm-6pm'
+-          WHEN hour >= 18 AND hour < 21 THEN '6pm-9pm'
+-          ELSE 'Other'
+-        END as time_window,
+-        COUNT(*)::int as total_matches,
+-        COUNT(CASE WHEN won THEN 1 END)::int as wins,
+-        AVG(darts)::numeric as avg_darts,
+-        AVG(checkout_rate)::numeric as avg_checkout
+-      FROM matches_with_hour
+-      GROUP BY time_window
+-    )
+-    SELECT
+-      time_window as hour,
+-      total_matches as matches,
+-      wins,
+-      (wins::float / NULLIF(total_matches, 0))::numeric as win_rate,
+-      avg_darts,
+-      avg_checkout
+-    FROM hour_stats
+-    ORDER BY time_window
+-  `);
+-  
+-  res.json(result.rows);
+-};
+-
+-// ===== POST-MATCH ANALYSIS ENDPOINTS =====
+-
+-/**
+- * GET /api/matches/:matchId/analysis?playerId=:playerId
+- * Get detailed analysis of a completed match
+- * 
+- * Response:
+- * {
+- *   matchId: number,
+- *   playerId: number,
+- *   won: boolean,
+- *   opponent: { name, playerId, tier },
+- *   playerStats: { darts, checkout, checkoutAttempts, checkoutRate, _180s, eloChange },
+- *   opponentStats: { darts, checkout, checkoutAttempts, checkoutRate, _180s },
+- *   keyInsights: { strength, weakness, recommendation },
+- *   comparisonToYourAverage: [
+- *     { metric, yours, average, difference }
+- *   ]
+- * }
+- */
+-export const getMatchAnalysis = async (req, res) => {
+-  const { matchId } = req.params;
+-  const { playerId } = req.query;
+-  
+-  const analysis = await postMatchAnalysisService.analyzeMatch(
+-    parseInt(matchId),
+-    parseInt(playerId as string)
+-  );
+-  
+-  res.json(analysis);
+-};
+-
+-/**
+- * GET /api/players/:id/matches/recent
+- * Get recent matches for post-match analysis popup
+- * 
+- * Query params:
+- * - limit: number (default: 10)
+- * - showAnalyzed: boolean (show only unreviewed matches)
+- * 
+- * Response:
+- * [
+- *   {
+- *     id: number,
+- *     opponent: { id, name },
+- *     won: boolean,
+- *     played_at: Date,
+- *     analyzed: boolean
+- *   }
+- * ]
+- */
+-export const getRecentMatches = async (req, res) => {
+-  const { id } = req.params;
+-  const { limit = 10, showAnalyzed = false } = req.query;
+-  
+-  const result = await db.execute(drizzleSql`
+-    SELECT
+-      m.id,
+-      CASE WHEN winner_id = ${parseInt(id)} THEN loser_id ELSE winner_id END as opponent_id,
+-      p.name as opponent_name,
+-      winner_id = ${parseInt(id)} as won,
+-      m.played_at,
+-      COALESCE(m.match_analysis_viewed, false) as analyzed
+-    FROM matches m
+-    JOIN players p ON (
+-      CASE WHEN m.winner_id = ${parseInt(id)} THEN m.loser_id ELSE m.winner_id END = p.id
+-    )
+-    WHERE winner_id = ${parseInt(id)} OR loser_id = ${parseInt(id)}
+-    ${showAnalyzed ? drizzleSql`AND NOT COALESCE(m.match_analysis_viewed, false)` : drizzleSql``}
+-    ORDER BY m.played_at DESC
+-    LIMIT ${parseInt(limit as string)}
+-  `);
+-  
+-  res.json(result.rows);
+-};
+-
+-// ===== HELPER: CALCULATE NEXT DRILL RECOMMENDATION =====
+-
+-/**
+- * POST /api/players/:id/drills/next-recommendation
+- * Get AI-powered recommendation for next drill based on performance
+- * 
+- * Body (optional):
+- * {
+- *   recentMatchId?: number (if just finished a match)
+- * }
+- * 
+- * Response:
+- * {
+- *   type: "new" | "improve",
+- *   drill: { id, title, focus, duration },
+- *   reason: string,
+- *   priority: "critical" | "high" | "normal"
+- * }
+- */
+-export const getNextDrillRecommendation = async (req, res) => {
+-  const { id } = req.params;
+-  const { recentMatchId } = req.body;
+-  
+-  const coachData = await practiceService.getCoachFeedback(parseInt(id));
+-  const recommendation = await drillProgressService.getNextDrillRecommendation(
+-    parseInt(id),
+-    coachData.drills || []
+-  );
+-  
+-  res.json(recommendation);
+-};
+-
+-// ===== EXPORTS FOR ROUTE REGISTRATION =====
+-
+-export default {
+-  // Streaks
+-  getStreaks,
+-  
+-  // Drill Progress
+-  completeDrill,
+-  getDrillStats,
+-  getDrillMilestones,
+-  getAdaptiveDifficulty,
+-  getNextDrillRecommendation,
+-  
+-  // Time of Day
+-  getTimeOfDayStats,
+-  
+-  // Post-Match Analysis
+-  getMatchAnalysis,
+-  getRecentMatches,
+-};
+-
+-/**
+- * ROUTE REGISTRATION
+- * Add these to artifacts/api-server/src/routes/stats-detailed.ts:
+- * 
+- * // Streaks
+- * router.get('/players/:id/streaks', getStreaks);
+- * 
+- * // Drill Progress
+- * router.post('/players/:id/drills/complete', completeDrill);
+- * router.get('/players/:id/drills/stats', getDrillStats);
+- * router.get('/players/:id/drills/milestones', getDrillMilestones);
+- * router.get('/players/:id/drills/adaptive', getAdaptiveDifficulty);
+- * router.post('/players/:id/drills/next-recommendation', getNextDrillRecommendation);
+- * 
+- * // Time of Day
+- * router.get('/players/:id/stats/time-of-day', getTimeOfDayStats);
+- * 
+- * // Post-Match Analysis
+- * router.get('/matches/:matchId/analysis', getMatchAnalysis);
+- * router.get('/players/:id/matches/recent', getRecentMatches);
+- */
+diff --git a/artifacts/api-server/src/routes/master501.ts b/artifacts/api-server/src/routes/master501.ts
+index 1c754fd..a30d324 100644
+--- a/artifacts/api-server/src/routes/master501.ts
++++ b/artifacts/api-server/src/routes/master501.ts
+@@ -227,12 +227,22 @@ router.patch("/master501/runs/:runId", matchSubmitRateLimit, async (req, res): P
+ 
+     const legsFormatVal = getM501Config(run.tier as number, run.round as number)?.legs ?? 5;
+ 
+-    await db.execute(sql`
++    // Guarded on result IS NULL so this UPDATE only ever "wins" once for a
++    // given run — a retried or double-submitted PATCH (flaky network, a
++    // double-tap on a shared kiosk device) would otherwise re-log a second
++    // practice_sessions row below and re-run the coin/achievement/challenge
++    // awards further down, double-counting all of it. rowCount tells us
++    // whether THIS call was the one that actually recorded the result.
++    const updateResult = await db.execute(sql`
+       UPDATE master501_runs
+       SET legs_won = ${legsWon}, legs_lost = ${legsLost},
+           result = ${result}, completed_at = NOW()
+-      WHERE id = ${runId}
++      WHERE id = ${runId} AND result IS NULL
+     `);
++    if ((updateResult.rowCount ?? 0) === 0) {
++      res.status(409).json({ error: "This run's result has already been recorded" });
++      return;
++    }
+ 
+     // Also log a practice_sessions row for this run — this was silently
+     // missing before (a real gap a user report named directly: "you were
+diff --git a/artifacts/api-server/src/routes/tour.ts b/artifacts/api-server/src/routes/tour.ts
+index 4c84285..21c5d7d 100644
+--- a/artifacts/api-server/src/routes/tour.ts
++++ b/artifacts/api-server/src/routes/tour.ts
+@@ -395,11 +395,23 @@ router.patch("/tour/runs/:runId", matchSubmitRateLimit, async (req, res): Promis
+ 
+     const newStatus = result.won ? "completed" : result.eliminated ? "eliminated" : "active";
+ 
+-    await db.execute(sql`
++    // The initial `run.status !== "active"` check above and this UPDATE
++    // aren't atomic with each other — two concurrent/retried PATCHes for the
++    // same run can both read "active" and both reach here. Making the
++    // status transition itself the atomic guard (same idempotency pattern
++    // as master501.ts's run-result PATCH) ensures only one of them actually
++    // advances the run and falls through to the trophy/coin/achievement
++    // awards below; a loser gets a plain 409 rather than double-counted
++    // rewards.
++    const advanceResult = await db.execute(sql`
+       UPDATE player_tour_runs
+       SET bracket = ${JSON.stringify(result.bracket)}::jsonb, status = ${newStatus}, updated_at = NOW()
+-      WHERE id = ${runId}
++      WHERE id = ${runId} AND status = 'active'
+     `);
++    if ((advanceResult.rowCount ?? 0) === 0) {
++      res.status(409).json({ error: "This run has already been advanced" });
++      return;
++    }
+ 
+     // Award trophy if won
+     if (result.won) {
+diff --git a/artifacts/tkdl/src/features/broadcast/BroadcastPlayer.tsx b/artifacts/tkdl/src/features/broadcast/BroadcastPlayer.tsx
+index 5b32c74..0dff232 100644
+--- a/artifacts/tkdl/src/features/broadcast/BroadcastPlayer.tsx
++++ b/artifacts/tkdl/src/features/broadcast/BroadcastPlayer.tsx
+@@ -62,6 +62,12 @@ import type { CurrentEdition, LiveOverlayItem, LiveTickerItem, Segment } from ".
+ // for hours.
+ const CLOCK_TICK_MS = 500;
+ 
++// How often to ask for a fresh Edition while nothing's playable at all (see
++// the "nothing playable" effect below) — generous enough not to hammer the
++// lazy-build endpoint (16.3) while a real fix is rolled out, frequent enough
++// a kiosk screen doesn't sit blank for long once one lands.
++const EMPTY_EDITION_RETRY_MS = 5000;
++
+ // Used only by the two early-return states below (loading / no Edition yet)
+ // — the main runtime's own background is StudioSet.tsx's StudioBackdrop.
+ const SHELL_STYLE = {
+@@ -201,13 +207,29 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
+ 
+   const lastLoopRef = useRef(0);
+   useEffect(() => {
+-    if (totalMs === 0) { refetchEdition(); return; } // nothing playable at all (e.g. every segment invalidated) — keep asking
+     if (loopCount > lastLoopRef.current) {
+       lastLoopRef.current = loopCount;
+       refetchEdition();
+     }
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, [loopCount, totalMs]);
++  }, [loopCount]);
++
++  // Nothing playable at all (e.g. an Edition loaded with zero segments, or
++  // every segment got invalidated) — keep asking for a real one. This used
++  // to be a one-shot refetch folded into the effect above, keyed on
++  // [loopCount, totalMs]: if the retry's own response was ALSO empty —
++  // same edition id, or a different one that's still empty — both loopCount
++  // and totalMs stayed at 0, so that effect's dependencies never changed
++  // and it would never fire again, leaving the player stuck blank
++  // indefinitely after exactly one retry. Polling on a timer for as long as
++  // totalMs stays 0 doesn't have that failure mode — it keeps asking
++  // regardless of whether the last response changed anything.
++  useEffect(() => {
++    if (totalMs !== 0) return;
++    refetchEdition();
++    const id = setInterval(refetchEdition, EMPTY_EDITION_RETRY_MS);
++    return () => clearInterval(id);
++  }, [totalMs, refetchEdition]);
+ 
+   const [overlayQueue, setOverlayQueue] = useState<LiveOverlayItem[]>([]);
+   const [queuedActiveOverlay, setQueuedActiveOverlay] = useState<LiveOverlayItem | null>(null);
+diff --git a/artifacts/tkdl/src/features/broadcast/graphics/LeagueTableGraphic.tsx b/artifacts/tkdl/src/features/broadcast/graphics/LeagueTableGraphic.tsx
+index 0dec5f3..374732a 100644
+--- a/artifacts/tkdl/src/features/broadcast/graphics/LeagueTableGraphic.tsx
++++ b/artifacts/tkdl/src/features/broadcast/graphics/LeagueTableGraphic.tsx
+@@ -30,9 +30,14 @@ export function LeagueTableGraphic({ leagueType, data, compact }: { leagueType:
+     ? data.rows.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
+     : [];
+   if (movementRows.length > 0) {
++    // The four editorial-desk features that share this rows-shaped branch
++    // (Survival Watch, Survivors Remaining, Power Five, Season Story So Far)
++    // carry their own featureTitle; the genuine post-match leaderboard story
++    // doesn't set one, so it keeps the "Table After Results" fallback.
++    const rowsHeader = str(data, "featureTitle") ?? "Table After Results";
+     return (
+       <BigPanel accent={accent} fill>
+-        <BigPanelHeader icon="📊" kind="Table After Results" leagueType={leagueType} accent={accent} />
++        <BigPanelHeader icon="📊" kind={rowsHeader} leagueType={leagueType} accent={accent} />
+         <div className="w-full overflow-hidden rounded-lg border border-white/10">
+           <div
+             className="grid items-center gap-2 bg-white/10 px-3 py-2 text-[0.62rem] font-black uppercase tracking-[0.12em] text-white/55"
+diff --git a/artifacts/tkdl/src/features/broadcast/graphics/WagerGraphic.tsx b/artifacts/tkdl/src/features/broadcast/graphics/WagerGraphic.tsx
+index 4f18d90..a75fa0c 100644
+--- a/artifacts/tkdl/src/features/broadcast/graphics/WagerGraphic.tsx
++++ b/artifacts/tkdl/src/features/broadcast/graphics/WagerGraphic.tsx
+@@ -19,8 +19,17 @@ const ACCENT = "#22c55e";
+ export function WagerGraphic({ leagueType, data, compact }: { leagueType: LeagueType | null; data: GraphicData; compact?: boolean }) {
+   const leagueAccent = leagueType ? LEAGUE_ACCENT[leagueType] : ACCENT;
+   const big = !compact;
++  // Editorial-desk features sharing this graphic (Risk Profile, What Would
++  // You Wager?) carry their own featureTitle and their own identity shape —
++  // a single subject, or a hypothetical pairing with no winner — unlike the
++  // genuine HIGH_STAKE_WIN/LOSS stories' winnerName/loserName, so both are
++  // read here rather than assuming every facts payload is a real result.
++  const header = str(data, "featureTitle") ?? "The Wager";
+   const winner = str(data, "winnerName");
+   const loser = str(data, "loserName");
++  const soloPlayer = str(data, "playerName");
++  const firstPlayer = str(data, "firstPlayerName");
++  const secondPlayer = str(data, "secondPlayerName");
+   const stake = num(data, "stake");
+   const threshold = num(data, "highStakeThreshold");
+ 
+@@ -28,14 +37,14 @@ export function WagerGraphic({ leagueType, data, compact }: { leagueType: League
+     if (big) {
+       return (
+         <BigPanel accent={ACCENT} fill={false}>
+-          <BigPanelHeader icon="💰" kind="The Wager" leagueType={leagueType} accent={ACCENT} />
++          <BigPanelHeader icon="💰" kind={header} leagueType={leagueType} accent={ACCENT} />
+           <BigLine>No stake data for this story.</BigLine>
+         </BigPanel>
+       );
+     }
+     return (
+       <Panel accent={ACCENT} compact>
+-        <PanelTag icon="💰" kind="The Wager" leagueType={leagueType} accent={ACCENT} compact />
++        <PanelTag icon="💰" kind={header} leagueType={leagueType} accent={ACCENT} compact />
+         <PanelLine>No stake data for this story.</PanelLine>
+       </Panel>
+     );
+@@ -43,12 +52,13 @@ export function WagerGraphic({ leagueType, data, compact }: { leagueType: League
+ 
+   const overThreshold = threshold !== null && threshold > 0 ? Math.min(stake / (threshold * 2), 1) : undefined;
+   const hasBar = overThreshold !== undefined && threshold !== null;
++  const stakeLabel = soloPlayer ? "Average Wager" : "Points Staked";
+ 
+   if (big) {
+     return (
+       <BigPanel accent={ACCENT} fill={hasBar}>
+-        <BigPanelHeader icon="💰" kind="The Wager" leagueType={leagueType} accent={ACCENT} />
+-        <BigHeroNumber value={String(stake)} label="Points Staked" accent={ACCENT} />
++        <BigPanelHeader icon="💰" kind={header} leagueType={leagueType} accent={ACCENT} />
++        <BigHeroNumber value={String(stake)} label={stakeLabel} accent={ACCENT} />
+         {winner && loser && (
+           <div className="bug-chip-in flex items-baseline gap-3" style={{ animationDelay: "160ms" }}>
+             <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "1.1rem" }}>{winner}</span>
+@@ -56,6 +66,18 @@ export function WagerGraphic({ leagueType, data, compact }: { leagueType: League
+             <span className="font-bold uppercase truncate" style={{ color: "rgba(255,255,255,0.55)", fontSize: "1.1rem" }}>{loser}</span>
+           </div>
+         )}
++        {!winner && soloPlayer && (
++          <div className="bug-chip-in" style={{ animationDelay: "160ms" }}>
++            <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "1.1rem" }}>{soloPlayer}</span>
++          </div>
++        )}
++        {!winner && !soloPlayer && firstPlayer && secondPlayer && (
++          <div className="bug-chip-in flex items-baseline gap-3" style={{ animationDelay: "160ms" }}>
++            <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "1.1rem" }}>{firstPlayer}</span>
++            <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.9rem" }}>vs</span>
++            <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "1.1rem" }}>{secondPlayer}</span>
++          </div>
++        )}
+         {hasBar && (
+           <BigRow label="Vs High-Stake Line" valueLabel={`${threshold}+`} fraction={overThreshold!} accent={ACCENT} delay={3} />
+         )}
+@@ -65,8 +87,8 @@ export function WagerGraphic({ leagueType, data, compact }: { leagueType: League
+ 
+   return (
+     <Panel accent={ACCENT} compact>
+-      <PanelTag icon="💰" kind="The Wager" leagueType={leagueType} accent={ACCENT} compact />
+-      <div className="badge-pop-in font-black tabular-nums" style={{ color: ACCENT, fontSize: "1.9rem" }}>{stake}<span className="uppercase font-bold ml-2" style={{ color: "rgba(255,255,255,0.55)", fontSize: "0.6rem", letterSpacing: "0.06em" }}>Points Staked</span></div>
++      <PanelTag icon="💰" kind={header} leagueType={leagueType} accent={ACCENT} compact />
++      <div className="badge-pop-in font-black tabular-nums" style={{ color: ACCENT, fontSize: "1.9rem" }}>{stake}<span className="uppercase font-bold ml-2" style={{ color: "rgba(255,255,255,0.55)", fontSize: "0.6rem", letterSpacing: "0.06em" }}>{stakeLabel}</span></div>
+       {winner && loser && (
+         <div className="bug-chip-in flex items-baseline gap-2" style={{ animationDelay: "160ms" }}>
+           <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "0.72rem" }}>{winner}</span>
+@@ -74,6 +96,18 @@ export function WagerGraphic({ leagueType, data, compact }: { leagueType: League
+           <span className="font-bold uppercase truncate" style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.72rem" }}>{loser}</span>
+         </div>
+       )}
++      {!winner && soloPlayer && (
++        <div className="bug-chip-in" style={{ animationDelay: "160ms" }}>
++          <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "0.72rem" }}>{soloPlayer}</span>
++        </div>
++      )}
++      {!winner && !soloPlayer && firstPlayer && secondPlayer && (
++        <div className="bug-chip-in flex items-baseline gap-2" style={{ animationDelay: "160ms" }}>
++          <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "0.72rem" }}>{firstPlayer}</span>
++          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.66rem" }}>vs</span>
++          <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "0.72rem" }}>{secondPlayer}</span>
++        </div>
++      )}
+       {hasBar && (
+         <PanelBar label="Vs High-Stake Line" valueLabel={`${threshold}+`} fraction={overThreshold!} accent={ACCENT} compact />
+       )}
+diff --git a/lib/db/src/migrations/featured-card-shop.ts b/lib/db/src/migrations/featured-card-shop.ts
+deleted file mode 100644
+index 6214815..0000000
+--- a/lib/db/src/migrations/featured-card-shop.ts
++++ /dev/null
+@@ -1,66 +0,0 @@
+-import { sql } from "drizzle-orm";
+-import type { Database } from "./index";
+-
+-/**
+- * Migration: Create featured card shop tables
+- * Adds tables for daily rotating featured cards and purchase tracking
+- */
+-export async function migrateFeatureCardShop(db: Database) {
+-  console.log("[MIGRATION] Creating featured card shop tables...");
+-
+-  try {
+-    // Create featured_card_shop table
+-    await db.execute(sql`
+-      CREATE TABLE IF NOT EXISTS featured_card_shop (
+-        id SERIAL PRIMARY KEY,
+-        card_id INTEGER NOT NULL REFERENCES card_definitions(id),
+-        slot_number INTEGER NOT NULL,
+-        price_coins INTEGER NOT NULL,
+-        rotation_date TIMESTAMP WITH TIME ZONE NOT NULL,
+-        is_active BOOLEAN NOT NULL DEFAULT true,
+-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+-        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+-      )
+-    `);
+-
+-    // Create index on rotation_date for efficient queries
+-    await db.execute(sql`
+-      CREATE INDEX IF NOT EXISTS idx_featured_card_shop_rotation_date
+-      ON featured_card_shop(rotation_date)
+-    `);
+-
+-    // Create index on is_active
+-    await db.execute(sql`
+-      CREATE INDEX IF NOT EXISTS idx_featured_card_shop_is_active
+-      ON featured_card_shop(is_active)
+-    `);
+-
+-    // Create shop_purchase_history table
+-    await db.execute(sql`
+-      CREATE TABLE IF NOT EXISTS shop_purchase_history (
+-        id SERIAL PRIMARY KEY,
+-        player_id INTEGER NOT NULL REFERENCES players(id),
+-        card_id INTEGER NOT NULL REFERENCES card_definitions(id),
+-        slot_number INTEGER NOT NULL,
+-        price_coins INTEGER NOT NULL,
+-        purchased_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+-      )
+-    `);
+-
+-    // Create indexes for purchase history
+-    await db.execute(sql`
+-      CREATE INDEX IF NOT EXISTS idx_shop_purchase_history_player_id
+-      ON shop_purchase_history(player_id)
+-    `);
+-
+-    await db.execute(sql`
+-      CREATE INDEX IF NOT EXISTS idx_shop_purchase_history_purchased_at
+-      ON shop_purchase_history(purchased_at)
+-    `);
+-
+-    console.log("[MIGRATION] ✅ Featured card shop tables created successfully");
+-  } catch (error) {
+-    console.error("[MIGRATION] ❌ Failed to create featured card shop tables:", error);
+-    throw error;
+-  }
+-}
+diff --git a/artifacts/api-server/src/db/migrations/add_broadcast_admin_build_lock.ts b/artifacts/api-server/src/db/migrations/add_broadcast_admin_build_lock.ts
+new file mode 100644
+index 0000000..401f8a6
+--- /dev/null
++++ b/artifacts/api-server/src/db/migrations/add_broadcast_admin_build_lock.ts
+@@ -0,0 +1,60 @@
++import { sql } from "drizzle-orm";
++import { db } from "@workspace/db";
++import { logger } from "../../lib/logger";
++
++/**
++ * A single-row mutual-exclusion lock for the three admin-triggered producer
++ * build actions (regenerate / create episode / clean sweep — edition-
++ * engine.ts's forceRebuildCurrentEdition/createManualBroadcastEpisode/
++ * createBroadcastCleanSweep). Each of those mints its own always-unique
++ * slot_key (rebuildAttemptSlotKey/manualEpisodeSlotKey/a bespoke
++ * "season-sweep:..." string, all suffixed with randomUUID()) specifically so
++ * it never collides with the scheduled path's own logical slot — but that
++ * also means none of the three ever collide with EACH OTHER, or with a
++ * second concurrent call to themselves. Two overlapping admin clicks (two
++ * tabs, two admins, a slow double-click before the button disables) could
++ * previously run two full buildEdition() calls at once, racing to publish.
++ *
++ * Deliberately a NEW table rather than reusing broadcast_editions' own
++ * slot_key uniqueness (16.4's claimBuildOwnership): that table's rows are
++ * real Edition history, read by admin listings and latestPublishedEdition()
++ * alike, and a permanent sentinel lock row there would leak into both. This
++ * table exists purely to be raced over.
++ *
++ * id is pinned to 1 by the CHECK constraint, so there's never more than one
++ * row to contend for. A held-but-abandoned lock (the process crashed
++ * mid-build, never reaching its own release) self-heals: edition-engine.ts's
++ * claimAdminBuildLock() reclaims any lock whose locked_at is older than a
++ * generous timeout, rather than leaving every future admin build action
++ * permanently blocked by one dead process.
++ */
++export async function addBroadcastAdminBuildLock(): Promise<void> {
++  try {
++    await db.execute(sql`
++      CREATE TABLE IF NOT EXISTS broadcast_admin_build_lock (
++        id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
++        locked_by TEXT,
++        locked_at TIMESTAMPTZ
++      )
++    `);
++  } catch (err) {
++    // Logged, not rethrown — a failure here shouldn't be able to prevent
++    // whatever startup step runs next (see app.ts's runInitStep). Worst
++    // case, the three admin actions below fall back to their pre-fix
++    // behaviour (claimAdminBuildLock treats a missing table as "couldn't
++    // claim, refuse" rather than crashing — see its own comment).
++    logger.error({ err }, "Failed to create broadcast_admin_build_lock table");
++    return;
++  }
++
++  try {
++    await db.execute(sql`
++      INSERT INTO broadcast_admin_build_lock (id, locked_by, locked_at)
++      VALUES (1, NULL, NULL)
++      ON CONFLICT (id) DO NOTHING
++    `);
++    logger.info("broadcast_admin_build_lock ready");
++  } catch (err) {
++    logger.error({ err }, "Failed to seed broadcast_admin_build_lock's single row");
++  }
++}

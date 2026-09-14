@@ -30,16 +30,8 @@
 // against director.ts's own source) — this pseudocode step is already fully
 // covered by the detectAndUpdateStories() call below, not a gap.
 //
-// ── Why "playersWithRepeatedNegativeBanterInCooldown" and
-// "hasFactsOutsideCutoffSnapshot" are always empty/false below, not stubs ───
-// Both are structural guarantees of the layers underneath, not values this
-// file merely defaults for convenience:
-//   - hasFactsOutsideCutoffSnapshot: buildTemplateFacts() (commentary-
-//     engine.ts) derives every interpolated fact solely from a story's own
-//     persisted `facts` column, itself populated at the exact cutoffEnd this
-//     same batch's detectAndUpdateStories() call used. No code path in this
-//     pipeline can produce a fact from outside that snapshot.
-//   - playersWithRepeatedNegativeBanterInCooldown: 12.7's hard gates are
+// ── Why "playersWithRepeatedNegativeBanterInCooldown" is empty below ─────
+// 12.7's hard gates are
 //     enforced INSIDE commentary-engine.ts's eligiblePhrasesForTurn() before
 //     a phrase is ever selectable, using the real per-subject banterContext
 //     this file computes (buildBanterContext, from broadcast_memory's
@@ -51,29 +43,42 @@
 // hasInvalidFutureMatchLanguage) as cheap, genuine double-checks over the
 // final rendered text — not the primary enforcement mechanism, which lives
 // one layer down, but a real safety net per 17's own reliability table.
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
   db,
-  broadcastEditionsTable, broadcastStoriesTable, broadcastMemoryTable, seasonsTable,
+  broadcastEditionsTable, broadcastStoriesTable, broadcastMemoryTable, seasonsTable, playersTable, matchesTable,
   type BroadcastEdition, type EditionStatus, type LeagueType, type BroadcastStory,
 } from "@workspace/db";
 import { getBroadcastConfig, type BroadcastConfig } from "./config.ts";
 import { maybeAutoResetLeagueSeasons } from "../lib/seasonReset.ts";
-import { resolveLogicalSlot, type ResolvedSlot } from "./edition-slots.ts";
-import { detectAndUpdateStories, collectNewAndActiveStories, resolveClosedLeagueSeasons, markSeasonsReviewed, collectSeasonHighlights } from "./story-engine.ts";
-import { directorSelect, type RunningOrderEntry } from "./director.ts";
+import {
+  manualEpisodeSlotKey, rebuildAttemptSlotKey, resolveLogicalSlot, type ResolvedSlot,
+} from "./edition-slots.ts";
+import {
+  detectAndUpdateStories, collectNewAndActiveStories, collectUnairedActiveSeasonCatchUpStories,
+  collectActiveSeasonSweepStories, resolveClosedLeagueSeasons, markSeasonsReviewed, collectSeasonHighlights,
+} from "./story-engine.ts";
+import { directorSelect, selectProgrammeMode, type RunningOrderEntry } from "./director.ts";
+import { treatmentForScore } from "./story-engine-math.ts";
 import { selectSeasonReviewRunningOrder } from "./director-season-review.ts";
 import {
   editionChangeScore, newlyCreatedGroupTreatments, isForcedRefresh, mergeStoriesByAnchorAndNarrative,
-  evaluateQualityGate, programmeSegmentId,
-  type EditionProgramme, type ProgrammeSegment, type QualityGateInput, type QualityGateSegment,
+  evaluateQualityGate, programmeSegmentId, totalEstimatedSecondsForProgramme, isRuntimeWithinProgrammeMode,
+  type EditionProgramme, type ProgrammeSegment, type QualityGateInput, type QualityGateSegment, type ProgrammeMode,
 } from "./director-math.ts";
 import { validityRulesForStory } from "./live-events-math.ts";
 import { renderConversation, buildGraphicFacts, buildTemplateFacts, type DialogueTurn, type BanterContext } from "./commentary-engine.ts";
 import { commentaryRng, dialogueHoldSeconds, interpolateTemplate } from "./commentary-math.ts";
 import { CLOSING_TEASE_TEMPLATES, hasClosingTease } from "./closing-tease-math.ts";
 import { pickFrom } from "./seeded-rng.ts";
-import type { StoryType, Treatment } from "./story-types.ts";
+import {
+  ARCHIVE_STORY_TYPES, DOUBLES_STORY_TYPES, FORM_STORY_TYPES, H2H_STORY_TYPES,
+  LEAGUE_STORY_TYPES, PERFORMANCE_STORY_TYPES, SHIFT_WARS_STORY_TYPES,
+  type StoryFamily, type StoryType, type Treatment,
+} from "./story-types.ts";
+import { validateStoryFactCutoffs } from "./cutoff-snapshot-math.ts";
+import { buildEditorialFeatures } from "./editorial-features.ts";
 
 // ── Fixed utility dialogue (11.1's required "opening" and "closing" slots,
 // and slot 10's own documented no-LEAGUE-story fallback — see director.ts's
@@ -83,11 +88,24 @@ import type { StoryType, Treatment } from "./story-types.ts";
 // hand-written, finished lines rather than anything templated, picked with
 // the same seeded-per-Edition RNG every other piece of commentary uses so a
 // viewer doesn't hear the identical line every single Edition.
-const OPENING_DIALOGUE_OPTIONS: readonly { a: string; b: string }[] = [
-  { a: "Welcome to TKDL LIVE — plenty to get through from Kilbirnie tonight.", b: "Let's get straight into it." },
-  { a: "Evening, and welcome back to TKDL LIVE.", b: "No shortage of talking points since the last Edition." },
-  { a: "Welcome in — TKDL LIVE is on air, and there's been movement across the league.", b: "Let's not waste any time, then." },
-];
+const OPENING_DIALOGUE_OPTIONS: Record<ProgrammeMode, readonly { a: string; b: string }[]> = {
+  NEWS: [
+    { a: "Welcome to TKDL LIVE. This is a News Edition, and the board has moved.", b: "Results first, questions afterwards. Let's get into it." },
+    { a: "TKDL LIVE is on air with a proper stack of league news.", b: "No warm-up needed tonight. Start with the result everyone is talking about." },
+  ],
+  BALANCED: [
+    { a: "Welcome to TKDL LIVE. We have league movement, analysis, and a little more from around TKDL.", b: "A bit of everything, then — but the main story leads." },
+    { a: "TKDL LIVE is back with a Balanced Edition from across the league.", b: "News at the top, features later. That sounds like a decent programme to me." },
+  ],
+  MAGAZINE: [
+    { a: "Welcome to TKDL LIVE. The match board is quiet, so tonight we are going beyond the table.", b: "Players, practice, history and whatever else deserves a proper look. Much better than inventing a crisis." },
+    { a: "This is a Magazine Edition of TKDL LIVE — fewer breaking results, more of the stories around them.", b: "Which means you finally let me finish a point without shouting 'breaking news' over it." },
+  ],
+  SEASON_REVIEW: [
+    { a: "Welcome to the TKDL LIVE Season Review.", b: "The titles are settled. Now we can work out how it really happened." },
+    { a: "TKDL LIVE is on air for the final word on the season.", b: "Champions, turning points, and a few predictions we may want quietly deleted." },
+  ],
+};
 
 const CLOSING_DIALOGUE_OPTIONS: readonly { a: string; b: string }[] = [
   { a: "That's everything from Kilbirnie for this Edition.", b: "We'll have the next update as soon as there's something worth saying." },
@@ -106,6 +124,184 @@ function buildFixedDialogue(pair: { a: string; b: string }): ProgrammeSegment["d
     { speaker: "A", text: pair.a, holdSeconds: dialogueHoldSeconds(pair.a) },
     { speaker: "B", text: pair.b, holdSeconds: dialogueHoldSeconds(pair.b) },
   ];
+}
+
+type LeaderboardMovementRow = {
+  id: number;
+  name: string;
+  beforePosition: number;
+  afterPosition: number;
+  movement: "up" | "down" | "same";
+  points: number;
+  wins: number;
+  losses: number;
+};
+
+function positionsById(rows: { id: number; points: number; elo: number; eliminated: boolean }[]): Map<number, number> {
+  const ordered = [...rows].sort((a, b) =>
+    Number(a.eliminated) - Number(b.eliminated)
+    || b.points - a.points
+    || b.elo - a.elo
+    || a.id - b.id
+  );
+  return new Map(ordered.map((row, index) => [row.id, index + 1]));
+}
+
+/** Builds the sports-show table beat from the same baseline result stories
+ * that make up the catch-up rundown. Reversing each participant to their
+ * earliest verified pre-match points makes the arrows describe this update's
+ * results, even if an earlier failed/rebuilt Edition already wrote a title
+ * snapshot after those matches. */
+async function buildCatchUpLeaderboardSegments(pool: readonly BroadcastStory[]): Promise<ProgrammeSegment[]> {
+  const result: ProgrammeSegment[] = [];
+
+  const singlesResults = pool
+    .filter(story => story.storyType === "MATCH_RESULT")
+    .sort((a, b) => Date.parse(String(a.facts.playedAt)) - Date.parse(String(b.facts.playedAt)) || a.id - b.id);
+  if (singlesResults.length > 0) {
+    const current = await db.select({
+      id: playersTable.id,
+      name: playersTable.name,
+      points: playersTable.points,
+      wins: playersTable.seasonWins,
+      losses: playersTable.seasonLosses,
+      elo: playersTable.elo,
+      status: playersTable.status,
+    }).from(playersTable).where(eq(playersTable.isActive, true));
+
+    const beforePoints = new Map(current.map(row => [row.id, row.points]));
+    const firstSeen = new Set<number>();
+    for (const story of singlesResults) {
+      const facts = story.facts;
+      const winnerId = Number(facts.winnerId);
+      const loserId = Number(facts.loserId);
+      if (!firstSeen.has(winnerId) && Number.isFinite(Number(facts.winnerPointsBefore))) {
+        beforePoints.set(winnerId, Number(facts.winnerPointsBefore));
+        firstSeen.add(winnerId);
+      }
+      if (!firstSeen.has(loserId) && Number.isFinite(Number(facts.loserPointsBefore))) {
+        beforePoints.set(loserId, Number(facts.loserPointsBefore));
+        firstSeen.add(loserId);
+      }
+    }
+
+    const beforePositions = positionsById(current.map(row => ({
+      id: row.id, points: beforePoints.get(row.id) ?? row.points, elo: row.elo, eliminated: false,
+    })));
+    const afterPositions = positionsById(current.map(row => ({
+      id: row.id, points: row.points, elo: row.elo, eliminated: row.status === "ELIMINATED",
+    })));
+    const rows: LeaderboardMovementRow[] = [...current]
+      .sort((a, b) => (afterPositions.get(a.id) ?? 999) - (afterPositions.get(b.id) ?? 999))
+      .map(row => {
+        const beforePosition = beforePositions.get(row.id) ?? afterPositions.get(row.id) ?? 1;
+        const afterPosition = afterPositions.get(row.id) ?? beforePosition;
+        return {
+          id: row.id, name: row.name, beforePosition, afterPosition,
+          movement: afterPosition < beforePosition ? "up" : afterPosition > beforePosition ? "down" : "same",
+          points: row.points, wins: row.wins, losses: row.losses,
+        };
+      });
+
+    const count = new Set(singlesResults.map(story => story.anchorMatchId)).size;
+    const eliminatedIds = new Set(pool
+      .filter(story => story.storyType === "ELIMINATION")
+      .map(story => Number(story.facts.loserId))
+      .filter(Number.isFinite));
+    const eliminatedNames = current
+      .filter(row => eliminatedIds.has(row.id))
+      .map(row => row.name);
+    const dangerPlayer = current
+      .filter(row => row.status !== "ELIMINATED" && row.points > 0)
+      .sort((a, b) => a.points - b.points || a.name.localeCompare(b.name))[0];
+    const consequenceLine = eliminatedNames.length > 0
+      ? `${eliminatedNames.join(" and ")} ${eliminatedNames.length === 1 ? "has" : "have"} hit zero and ${eliminatedNames.length === 1 ? "is" : "are"} eliminated.${dangerPlayer ? ` ${dangerPlayer.name} is now closest to the danger zone on ${dangerPlayer.points} points.` : ""}`
+      : dangerPlayer
+        ? `${dangerPlayer.name} is closest to the danger zone on ${dangerPlayer.points} points — one heavy wager can change a season quickly.`
+        : "Green arrows mark the climbers and red marks the players pushed down.";
+    result.push({
+      slot: 7,
+      purpose: "leaderboard_after_results",
+      importance: "utility",
+      storyId: null,
+      supportingStoryIds: [],
+      storyType: null,
+      leagueType: "singles",
+      lifecycleAtBroadcast: null,
+      dialogue: buildFixedDialogue({
+        a: `Those ${count === 1 ? "result has" : `${count} results have`} changed the Singles picture. Here is the table after the matches.`,
+        b: consequenceLine,
+      }),
+      validityRules: [],
+      facts: { rows, resultCount: count },
+      graphicKind: "LeagueTableGraphic",
+    });
+  }
+
+  const doublesResults = pool
+    .filter(story => story.storyType === "PAIR_RESULT")
+    .sort((a, b) => Date.parse(String(a.facts.playedAt)) - Date.parse(String(b.facts.playedAt)) || a.id - b.id);
+  if (doublesResults.length > 0) {
+    const current = (await db.execute(sql`
+      SELECT id, team_name, points, wins, losses, elo, is_eliminated
+      FROM doubles_teams
+      WHERE season_id IN (
+        SELECT id FROM seasons WHERE league_type = 'doubles' AND is_active = true
+      )
+    `)).rows as { id: number; team_name: string; points: number; wins: number; losses: number; elo: number; is_eliminated: boolean }[];
+    const beforePoints = new Map(current.map(row => [row.id, row.points]));
+    const firstSeen = new Set<number>();
+    for (const story of doublesResults) {
+      const facts = story.facts;
+      const winnerId = Number(facts.winnerTeamId);
+      const loserId = Number(facts.loserTeamId);
+      if (!firstSeen.has(winnerId) && Number.isFinite(Number(facts.winnerPointsBefore))) {
+        beforePoints.set(winnerId, Number(facts.winnerPointsBefore));
+        firstSeen.add(winnerId);
+      }
+      if (!firstSeen.has(loserId) && Number.isFinite(Number(facts.loserPointsBefore))) {
+        beforePoints.set(loserId, Number(facts.loserPointsBefore));
+        firstSeen.add(loserId);
+      }
+    }
+    const beforePositions = positionsById(current.map(row => ({
+      id: row.id, points: beforePoints.get(row.id) ?? row.points, elo: row.elo, eliminated: false,
+    })));
+    const afterPositions = positionsById(current.map(row => ({
+      id: row.id, points: row.points, elo: row.elo, eliminated: row.is_eliminated,
+    })));
+    const rows: LeaderboardMovementRow[] = [...current]
+      .sort((a, b) => (afterPositions.get(a.id) ?? 999) - (afterPositions.get(b.id) ?? 999))
+      .map(row => {
+        const beforePosition = beforePositions.get(row.id) ?? afterPositions.get(row.id) ?? 1;
+        const afterPosition = afterPositions.get(row.id) ?? beforePosition;
+        return {
+          id: row.id, name: row.team_name, beforePosition, afterPosition,
+          movement: afterPosition < beforePosition ? "up" : afterPosition > beforePosition ? "down" : "same",
+          points: row.points, wins: row.wins, losses: row.losses,
+        };
+      });
+    const count = new Set(doublesResults.map(story => story.anchorMatchId)).size;
+    result.push({
+      slot: 8,
+      purpose: "leaderboard_after_results",
+      importance: "utility",
+      storyId: null,
+      supportingStoryIds: [],
+      storyType: null,
+      leagueType: "doubles",
+      lifecycleAtBroadcast: null,
+      dialogue: buildFixedDialogue({
+        a: `Now the Doubles table after ${count === 1 ? "that result" : `${count} new results`}.`,
+        b: "The arrows show exactly who moved and who was pushed the other way.",
+      }),
+      validityRules: [],
+      facts: { rows, resultCount: count },
+      graphicKind: "LeagueTableGraphic",
+    });
+  }
+
+  return result;
 }
 
 /**
@@ -289,6 +485,108 @@ async function claimBuildOwnership(slot: ResolvedSlot, now: Date, programmeVersi
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// Admin build lock — mutual exclusion between the three producer-triggered
+// build actions (regenerate / create episode / clean sweep)
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Each of forceRebuildCurrentEdition/createManualBroadcastEpisode/
+ * createBroadcastCleanSweep mints its own always-unique slot_key
+ * specifically so it never collides with the scheduled path's logical slot
+ * — but that also means none of the three collide with EACH OTHER, or with
+ * a second concurrent call to themselves. This is a separate, dedicated
+ * single-row lock (see add_broadcast_admin_build_lock.ts's own header for
+ * why it isn't just broadcast_editions' own slot_key uniqueness) that all
+ * three claim before doing any real work and release when they're done,
+ * whether they succeed or fail.
+ *
+ * Stale-reclaim mirrors claimBuildOwnership()'s own FAILED-reclaim: a
+ * process that crashed mid-build without reaching its release would
+ * otherwise leave every future admin build action permanently refused.
+ *
+ * The stale check is heartbeat-based, not "how long since the lock was
+ * claimed": a real build's own duration scales with the admin-configurable
+ * broadcast_simulation_count (up to MAX_BROADCAST_SIMULATION_COUNT,
+ * config-math.ts) and the number of active league/season combinations
+ * processLeagueFamily runs the Title Predictor for, sequentially, in
+ * story-engine.ts — there's no fixed upper bound on a legitimately slow
+ * build. A flat "claimed more than N minutes ago = stale" timeout would
+ * have to either be short enough to fight a real slow build (a second
+ * admin action reclaiming the lock mid-build — exactly the bug this lock
+ * exists to prevent) or long enough that a genuinely crashed holder blocks
+ * every admin action for an uncomfortably long time. Refreshing locked_at
+ * on a heartbeat while the build is actually running decouples the two:
+ * staleness now means "this holder stopped heartbeating," which is a much
+ * tighter and still-safe signal regardless of how long the build itself
+ * takes.
+ */
+const ADMIN_BUILD_LOCK_HEARTBEAT_MS = 2 * 60 * 1000;
+const ADMIN_BUILD_LOCK_STALE_MS = 3 * ADMIN_BUILD_LOCK_HEARTBEAT_MS; // a few missed heartbeats, not just one, before assuming the holder is gone
+
+async function claimAdminBuildLock(holder: string, now: Date): Promise<boolean> {
+  try {
+    const staleCutoff = new Date(now.getTime() - ADMIN_BUILD_LOCK_STALE_MS);
+    const result = await db.execute(sql`
+      UPDATE broadcast_admin_build_lock
+      SET locked_by = ${holder}, locked_at = ${now}
+      WHERE id = 1 AND (locked_by IS NULL OR locked_at < ${staleCutoff})
+    `);
+    return (result.rowCount ?? 0) > 0;
+  } catch (err) {
+    // Missing table (migration hasn't run yet), connection hiccup, etc. —
+    // fail closed: refuse the build rather than risk running it unguarded.
+    // A real DB outage would fail buildEdition() itself moments later
+    // anyway, so this doesn't hide anything; it just fails at the safer
+    // point.
+    console.error("edition-engine: claimAdminBuildLock failed, refusing to build:", err);
+    return false;
+  }
+}
+
+/** Keeps a held lock's locked_at fresh for as long as a build actually runs — see the lock's own header on why staleness is heartbeat-based rather than a flat claim-time timeout. Call stopAdminBuildLockHeartbeat with the returned handle in the same finally block that releases the lock. */
+function startAdminBuildLockHeartbeat(holder: string): NodeJS.Timeout {
+  const handle = setInterval(() => {
+    void db.execute(sql`
+      UPDATE broadcast_admin_build_lock
+      SET locked_at = ${new Date()}
+      WHERE id = 1 AND locked_by = ${holder}
+    `).catch(err => {
+      // Best-effort — a missed heartbeat just brings this holder closer to
+      // the stale threshold above; it doesn't need to abort the build.
+      console.error("edition-engine: admin build lock heartbeat failed:", err);
+    });
+  }, ADMIN_BUILD_LOCK_HEARTBEAT_MS);
+  handle.unref?.(); // never keeps the process alive on its own
+  return handle;
+}
+
+function stopAdminBuildLockHeartbeat(handle: NodeJS.Timeout): void {
+  clearInterval(handle);
+}
+
+async function releaseAdminBuildLock(holder: string): Promise<void> {
+  try {
+    await db.execute(sql`
+      UPDATE broadcast_admin_build_lock
+      SET locked_by = NULL, locked_at = NULL
+      WHERE id = 1 AND locked_by = ${holder}
+    `);
+  } catch (err) {
+    // Best-effort — worst case this holder's lock sits until the stale
+    // timeout above reclaims it.
+    console.error("edition-engine: releaseAdminBuildLock failed:", err);
+  }
+}
+
+/** Thrown by the two admin build actions with no "already busy" result kind of their own (createManualBroadcastEpisode/createBroadcastCleanSweep) when the admin build lock is already held; routes/broadcast.ts catches this specifically and returns 409. forceRebuildCurrentEdition doesn't need this — it already has an "already_building" ForceRebuildResult kind to reuse. */
+export class AdminBuildLockedError extends Error {
+  constructor() {
+    super("Another producer build is already in progress — try again shortly");
+    this.name = "AdminBuildLockedError";
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // 10.1 change score inputs — has a season boundary event occurred this batch?
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -362,11 +660,17 @@ async function buildBanterContext(
 async function updateStoryUsageBookkeeping(storyId: number, editionId: number, kind: "full" | "headline"): Promise<void> {
   if (kind === "full") {
     await db.update(broadcastStoriesTable)
-      .set({ fullCount: sql`${broadcastStoriesTable.fullCount} + 1`, lastFullEditionId: editionId })
+      .set({
+        fullCount: sql`CASE WHEN ${broadcastStoriesTable.lastFullEditionId} = ${editionId} THEN ${broadcastStoriesTable.fullCount} ELSE ${broadcastStoriesTable.fullCount} + 1 END`,
+        lastFullEditionId: editionId,
+      })
       .where(eq(broadcastStoriesTable.id, storyId));
   } else {
     await db.update(broadcastStoriesTable)
-      .set({ headlineCount: sql`${broadcastStoriesTable.headlineCount} + 1`, lastHeadlineEditionId: editionId })
+      .set({
+        headlineCount: sql`CASE WHEN ${broadcastStoriesTable.lastHeadlineEditionId} = ${editionId} THEN ${broadcastStoriesTable.headlineCount} ELSE ${broadcastStoriesTable.headlineCount} + 1 END`,
+        lastHeadlineEditionId: editionId,
+      })
       .where(eq(broadcastStoriesTable.id, storyId));
   }
 }
@@ -380,6 +684,9 @@ type SegmentBuildContext = {
   slotKey: string;
   commentaryVersion: number;
   banterLevel: number;
+  programmeMode: ProgrammeMode;
+  editorialCutoff: Date;
+  phraseIdsUsedThisBuild: Set<string>;
   /** subjectKey -> negative-targeted jokes already used for it THIS Edition build — resets fresh on every call to buildEdition(), unlike the broadcast_memory-backed cross-Edition counters below. */
   negativeJokesThisEdition: Map<string, number>;
   globalFullSegmentCounter: { value: number };
@@ -421,12 +728,41 @@ async function buildSegmentForEntry(entry: RunningOrderEntry, ctx: SegmentBuildC
       editionId: ctx.editionId,
       banterContext,
       banterLevel: ctx.banterLevel,
+      programmeMode: ctx.programmeMode,
+      editorialCutoff: ctx.editorialCutoff,
+      phraseIdsUsedThisBuild: ctx.phraseIdsUsedThisBuild,
+      isHeadlineTease,
+      preferredBlueprint: !isHeadlineTease
+        && (H2H_STORY_TYPES as readonly string[]).includes(story.storyType)
+        && treatment === "major"
+        ? "DISAGREEMENT"
+        : undefined,
     });
   }
 
   let dialogue = await attempt(entry.treatment as Treatment);
   if (dialogue.length === 0 && entry.treatment !== "supporting") {
     dialogue = await attempt("supporting");
+  }
+  if (dialogue.length === 0 && story.anchorMatchId !== null) {
+    const baseline = [story, ...entry.group.supporting].find(candidate =>
+      candidate.storyType === "MATCH_RESULT" || candidate.storyType === "PAIR_RESULT"
+    );
+    if (baseline) {
+      const facts = await buildTemplateFacts(baseline.leagueType, baseline.facts);
+      const winnerName = String(facts.winnerName ?? facts.winnerTeamName ?? "The winner");
+      const loserName = String(facts.loserName ?? facts.loserTeamName ?? "their opponent");
+      dialogue = buildFixedDialogue({
+        a: `${winnerName} beats ${loserName} in the confirmed result.`,
+        b: "That one is in the books, and we will show what it did to the table.",
+      }).map((turn, index) => ({
+        ...turn,
+        sentiment: "neutral" as const,
+        phraseId: `fallback-result-${story.leagueType}-${story.anchorMatchId}-${index}`,
+        intent: index === 0 ? "quick_fact" : "quick_reaction",
+        beat: index === 0 ? "setup" as const : "reaction" as const,
+      }));
+    }
   }
   if (dialogue.length === 0) return null;
 
@@ -502,20 +838,49 @@ async function buildEdition(params: {
   previous: BroadcastEdition | null;
   now: Date;
   config: BroadcastConfig;
+  /** Stable Director/commentary seed. Copy-on-write rebuild attempts have a
+   * unique database slotKey but intentionally retain the logical slot's seed. */
+  seedSlotKey?: string;
   /** True only from forceRebuildCurrentEdition() (the admin regenerate endpoint, task 134) — threads straight into isForcedRefresh's own `adminForced` input, bypassing the change-score threshold exactly the way 14.2's "Force build current/manual Edition for testing" describes. Defaults false for the ordinary lazy-check path (ensureCurrentBroadcastEdition), which has no such admin request to honour. */
   adminForced?: boolean;
+  /** Producer-only recovery: cover active-season matches that have never
+   * appeared in a published programme before returning to normal selection. */
+  seasonCatchUp?: boolean;
+  /** Producer-only clean sweep: rebuild every active-season match from this
+   * instant without treating any previous Edition as coverage. */
+  seasonSweepStart?: Date;
 }): Promise<BroadcastEdition | null> {
-  const { claimedRow, previous, now: cutoffEnd, config, adminForced = false } = params;
+  const {
+    claimedRow, previous, now: cutoffEnd, config, seedSlotKey = claimedRow.slotKey,
+    adminForced = false, seasonCatchUp = false, seasonSweepStart,
+  } = params;
 
   // Appendix C.1: "cutoffStart = previous?.dataCutoff ?? beginningOfRelevantHistory".
   // Omitting cutoffStart entirely for a genuinely first-ever build lets
   // story-engine.ts's own resolveCutoffStart() apply ITS default (new Date(0)
   // when broadcast_stories is empty) — exactly "beginningOfRelevantHistory".
-  const storyState = previous
+  const storyState = seasonSweepStart
+    ? await detectAndUpdateStories({ cutoffStart: seasonSweepStart, cutoffEnd })
+    : previous
     ? await detectAndUpdateStories({ cutoffStart: previous.dataCutoff, cutoffEnd })
     : await detectAndUpdateStories({ cutoffEnd });
 
-  const pool = await collectNewAndActiveStories();
+  const catchUpPool = seasonSweepStart
+    ? await collectActiveSeasonSweepStories(seasonSweepStart, cutoffEnd)
+    : seasonCatchUp
+      ? await collectUnairedActiveSeasonCatchUpStories(cutoffEnd)
+      : [];
+  const isSeasonCatchUp = catchUpPool.length > 0;
+  let pool = isSeasonCatchUp ? catchUpPool : await collectNewAndActiveStories(cutoffEnd);
+  if (isSeasonCatchUp) {
+    const spotlightCandidates = (await collectNewAndActiveStories(cutoffEnd))
+      .filter(story => story.storyType === "FEATURE_SPOTLIGHT")
+      .sort((a, b) => a.fullCount - b.fullCount || (a.lastFullEditionId ?? 0) - (b.lastFullEditionId ?? 0) || a.id - b.id);
+    const requiredSpotlight = spotlightCandidates[0];
+    if (requiredSpotlight && !pool.some(story => story.id === requiredSpotlight.id)) {
+      pool = [...pool, requiredSpotlight];
+    }
+  }
   const mergedForChangeScore = mergeStoriesByAnchorAndNarrative(pool);
   const newMatchCount = storyState.newMatchesProcessed.singles + storyState.newMatchesProcessed.doubles + storyState.newMatchesProcessed.shiftWars;
   const changeScore = editionChangeScore({
@@ -563,7 +928,6 @@ async function buildEdition(params: {
   const forced = isForcedRefresh({
     seasonChampionOrResetEventOccurred: seasonBoundaryEventOccurred || closedLeagueSeasons.length > 0,
     noPublishedEditionExists: previous === null,
-    publishedEditionAgeHours: previous?.publishedAt ? (cutoffEnd.getTime() - previous.publishedAt.getTime()) / 3_600_000 : null,
     adminForced,
   });
 
@@ -585,12 +949,15 @@ async function buildEdition(params: {
   const previousProgramme = previous && isEditionProgramme(previous.programme) ? previous.programme : null;
 
   let runningOrder: RunningOrderEntry[];
+  let programmeMode: ProgrammeMode;
   if (closedLeagueSeasons.length > 0) {
+    programmeMode = "SEASON_REVIEW";
     const highlightsByLeague = new Map<LeagueType, BroadcastStory[]>();
     for (const closed of closedLeagueSeasons) {
       const highlights = await collectSeasonHighlights({
         leagueType: closed.leagueType, seasonId: closed.seasonId,
         seasonStart: closed.seasonStart, seasonEndExclusive: closed.seasonEndExclusive,
+        cutoffEnd,
         // Raised alongside director-season-review.ts's own MAX_HIGHLIGHTS_PER_LEAGUE (4 -> 6) — fetch enough real candidates that the per-subject diversity cap (story-engine.ts's collectSeasonHighlights) has real headroom to still hand back 6 after trimming, rather than starving that slice back down to fewer than the league actually has.
         limit: 12,
       });
@@ -598,17 +965,113 @@ async function buildEdition(params: {
     }
     runningOrder = selectSeasonReviewRunningOrder({ closedSeasons: closedLeagueSeasons, pool, highlightsByLeague });
   } else {
-    runningOrder = directorSelect({ pool, previousProgramme, slotKey: claimedRow.slotKey }).runningOrder;
+    programmeMode = selectProgrammeMode(pool, cutoffEnd);
+    runningOrder = directorSelect({
+      pool,
+      previousProgramme,
+      slotKey: seedSlotKey,
+      mode: programmeMode,
+      pacing: config.programmeProfiles[programmeMode],
+    }).runningOrder;
+    if (isSeasonCatchUp) {
+      const allMatchGroups = mergeStoriesByAnchorAndNarrative(pool)
+        .filter(group => group.primary.anchorMatchId !== null)
+        .sort((a, b) => {
+          const aTime = Date.parse(String(a.primary.facts.playedAt ?? a.primary.detectedAt));
+          const bTime = Date.parse(String(b.primary.facts.playedAt ?? b.primary.detectedAt));
+          return aTime - bTime || a.primary.id - b.primary.id;
+        });
+      const opening = runningOrder.find(entry => entry.purpose === "opening") ?? {
+        slot: 1, purpose: "opening" as const, group: null, treatment: "supporting" as const, carryForwardState: null,
+      };
+      const closing = runningOrder.find(entry => entry.purpose === "closing") ?? {
+        slot: 11, purpose: "closing" as const, group: null, treatment: "supporting" as const, carryForwardState: null,
+      };
+      const matchEntries: RunningOrderEntry[] = allMatchGroups.map(group => ({
+          slot: 6,
+          purpose: "supporting_story_or_checkin",
+          group,
+          treatment: treatmentForScore(group.primary.score),
+          carryForwardState: null,
+      }));
+      const familyForStory = (storyType: StoryType): StoryFamily | null => {
+        if ((H2H_STORY_TYPES as readonly string[]).includes(storyType)) return "H2H";
+        if ((FORM_STORY_TYPES as readonly string[]).includes(storyType)) return "FORM";
+        if ((LEAGUE_STORY_TYPES as readonly string[]).includes(storyType)) return "LEAGUE";
+        if ((PERFORMANCE_STORY_TYPES as readonly string[]).includes(storyType)) return "PERFORMANCE";
+        if ((DOUBLES_STORY_TYPES as readonly string[]).includes(storyType)) return "DOUBLES";
+        if ((SHIFT_WARS_STORY_TYPES as readonly string[]).includes(storyType)) return "SHIFT_WARS";
+        if ((ARCHIVE_STORY_TYPES as readonly string[]).includes(storyType)) return "ARCHIVE";
+        return null;
+      };
+      const aggregateGroups = mergeStoriesByAnchorAndNarrative(pool)
+        .filter(group =>
+          group.primary.anchorMatchId === null
+          && group.primary.storyType !== "FEATURE_SPOTLIGHT"
+        );
+      const selectedAggregateGroups = new Set<number>();
+      const aggregateEntries: RunningOrderEntry[] = [];
+      const usedSubjectKeys = new Set<string>();
+      const addAggregate = (family: StoryFamily, limit: number, treatment: Treatment = "supporting") => {
+        const candidates = aggregateGroups
+          .filter(group =>
+            !selectedAggregateGroups.has(group.primary.id)
+            && familyForStory(group.primary.storyType as StoryType) === family
+            && group.primary.subjectKeys.every(subject => !usedSubjectKeys.has(subject))
+          )
+          .sort((a, b) => b.primary.score - a.primary.score || a.primary.id - b.primary.id)
+          .slice(0, limit);
+        for (const group of candidates) {
+          selectedAggregateGroups.add(group.primary.id);
+          for (const subject of group.primary.subjectKeys) usedSubjectKeys.add(subject);
+          aggregateEntries.push({
+            slot: family === "LEAGUE" || family === "H2H" ? 5 : 7,
+            purpose: family === "LEAGUE" || family === "H2H"
+              ? "analysis_or_predictor"
+              : "form_h2h_or_spotlight",
+            group,
+            // The primary H2H/form item is the host prediction desk: use the
+            // full evidence/counter-opinion treatment so Chalky and Ton make
+            // and challenge a pick rather than merely reciting the numbers.
+            treatment,
+            carryForwardState: null,
+          });
+        }
+      };
+      addAggregate("LEAGUE", 2);
+      addAggregate("FORM", 2, "major");
+      addAggregate("H2H", 1, "major");
+      addAggregate("PERFORMANCE", 1, "major");
+      addAggregate("DOUBLES", 1);
+      addAggregate("SHIFT_WARS", 1);
+      addAggregate("ARCHIVE", 1);
+      const spotlightGroup = mergeStoriesByAnchorAndNarrative(pool)
+        .find(group => group.primary.storyType === "FEATURE_SPOTLIGHT");
+      const spotlightEntry: RunningOrderEntry[] = spotlightGroup ? [{
+        slot: 9,
+        purpose: "form_h2h_or_spotlight",
+        group: spotlightGroup,
+        treatment: "supporting",
+        carryForwardState: null,
+      }] : [];
+      // Catch-up Editions are intentionally structured like a sports results
+      // programme: sign-on, every result, analysis, one rotating mode prompt,
+      // then the sign-off. Headline teases are omitted here so the same result
+      // is not immediately spoken twice.
+      runningOrder = [opening, ...matchEntries, ...aggregateEntries, ...spotlightEntry, closing];
+    }
   }
 
   const negativeJokesThisEdition = new Map<string, number>();
   const globalFullSegmentCounter = { value: await getGlobalFullSegmentCounter() };
   const segCtx: SegmentBuildContext = {
-    editionId: claimedRow.id, slotKey: claimedRow.slotKey, commentaryVersion: config.commentaryVersion,
-    banterLevel: config.banterLevel, negativeJokesThisEdition, globalFullSegmentCounter,
+    editionId: claimedRow.id, slotKey: seedSlotKey, commentaryVersion: config.commentaryVersion,
+    banterLevel: config.banterLevel, programmeMode, editorialCutoff: cutoffEnd,
+    phraseIdsUsedThisBuild: new Set<string>(), negativeJokesThisEdition, globalFullSegmentCounter,
   };
 
   const segments: ProgrammeSegment[] = [];
+  const attemptedStoryIds = new Set<number>();
   for (const entry of runningOrder) {
     // 11.1's required "closing" sign-off (always present, slot 11) — handled
     // before the `!entry.group` branch below because, unlike every other
@@ -616,7 +1079,7 @@ async function buildEdition(params: {
     // coming up" attachment) WITHOUT that meaning "render this as a full
     // segment about that story" — see buildClosingSegment's own header.
     if (entry.purpose === "closing") {
-      segments.push(await buildClosingSegment(entry, claimedRow.slotKey, config));
+      segments.push(await buildClosingSegment(entry, seedSlotKey, config));
       continue;
     }
     if (!entry.group) {
@@ -626,8 +1089,8 @@ async function buildEdition(params: {
       // hand-written dialogue rather than anything templated. "opening" gets
       // its own line pool; everything else (only "what_to_watch" in
       // practice) keeps the original fallback pool.
-      const fallbackOptions = entry.purpose === "opening" ? OPENING_DIALOGUE_OPTIONS : WHAT_TO_WATCH_FALLBACK_OPTIONS;
-      const rng = commentaryRng(claimedRow.slotKey, `utility:${entry.purpose}`, config.commentaryVersion);
+      const fallbackOptions = entry.purpose === "opening" ? OPENING_DIALOGUE_OPTIONS[programmeMode] : WHAT_TO_WATCH_FALLBACK_OPTIONS;
+      const rng = commentaryRng(seedSlotKey, `utility:${entry.purpose}`, config.commentaryVersion);
       segments.push({
         slot: entry.slot, purpose: entry.purpose, importance: "utility",
         storyId: null, supportingStoryIds: [], storyType: null, leagueType: null, lifecycleAtBroadcast: null,
@@ -638,12 +1101,149 @@ async function buildEdition(params: {
       });
       continue;
     }
+    attemptedStoryIds.add(entry.group.primary.id);
     const segment = await buildSegmentForEntry(entry, segCtx);
     if (segment) segments.push(segment);
   }
 
+  // Commentary eligibility is deliberately stricter than story eligibility:
+  // a Director pick can have valid facts yet exhaust every suitable phrase.
+  // Do not let those silent render drops turn a busy match day into a one-story
+  // programme. Re-run the Director against unattempted candidates and use its
+  // body picks as deterministic reserves until the quality gate has four real
+  // segments, reaches the mode's minimum runtime, or exhausts the configured
+  // story-segment budget / genuinely usable pool.
+  const meaningfulCount = () => segments.filter(s =>
+    s.storyId !== null && s.purpose !== "headlines" && s.purpose !== "opening" && s.purpose !== "closing"
+  ).length;
+  const bodyStoryCount = () => segments.filter(s =>
+    s.storyId !== null && s.purpose !== "headlines" && s.purpose !== "closing"
+  ).length;
+  const ordinaryProgrammeMode = programmeMode === "SEASON_REVIEW" ? "MAGAZINE" : programmeMode;
+  const minimumRuntime = config.programmeProfiles[ordinaryProgrammeMode].estimatedRuntimeSeconds.min;
+  const needsReserve = () =>
+    meaningfulCount() < 4
+    || totalEstimatedSecondsForProgramme({ mode: programmeMode, segments }) < minimumRuntime;
+  const storySegmentCap = config.programmeProfiles[ordinaryProgrammeMode].maxStorySegments;
+  if (closedLeagueSeasons.length === 0 && needsReserve()) {
+    for (let pass = 0; pass < 3 && needsReserve() && bodyStoryCount() < storySegmentCap; pass++) {
+      const reservePool = pool.filter(story => !attemptedStoryIds.has(story.id));
+      if (reservePool.length === 0) break;
+      const reserveOrder = directorSelect({
+        pool: reservePool,
+        previousProgramme,
+        slotKey: `${seedSlotKey}:reserve:${pass}`,
+        mode: ordinaryProgrammeMode,
+        pacing: config.programmeProfiles[ordinaryProgrammeMode],
+      }).runningOrder;
+      const reserveEntries = reserveOrder.filter(entry =>
+        entry.group !== null
+        && entry.purpose !== "headlines"
+        && entry.purpose !== "opening"
+        && entry.purpose !== "closing"
+      );
+      if (reserveEntries.length === 0) break;
+      for (const entry of reserveEntries) {
+        if (!entry.group || attemptedStoryIds.has(entry.group.primary.id)) continue;
+        attemptedStoryIds.add(entry.group.primary.id);
+        const segment = await buildSegmentForEntry(entry, segCtx);
+        if (segment) {
+          segments.push(segment);
+          runningOrder.push(entry);
+        }
+        if (!needsReserve() || bodyStoryCount() >= storySegmentCap) break;
+      }
+    }
+  }
+
+  if (isSeasonCatchUp) {
+    const leaderboards = await buildCatchUpLeaderboardSegments(pool);
+    const opening = segments.filter(segment => segment.purpose === "opening");
+    const matchSegments = segments.filter(segment => {
+      if (segment.storyId === null) return false;
+      const story = pool.find(candidate => candidate.id === segment.storyId);
+      return story?.anchorMatchId !== null && story?.anchorMatchId !== undefined;
+    });
+    const aggregateSegments = segments.filter(segment =>
+      segment.purpose !== "opening"
+      && segment.purpose !== "headlines"
+      && segment.purpose !== "closing"
+      && !matchSegments.includes(segment)
+    );
+    const closing = segments.filter(segment => segment.purpose === "closing");
+    segments.splice(0, segments.length, ...opening, ...matchSegments, ...leaderboards, ...aggregateSegments, ...closing);
+  }
+
+  // Recurring editorial desk features are snapshot-derived utility segments,
+  // not new story rows. Keep ordinary programmes focused with one rotating
+  // feature; catch-up/clean-sweep programmes may carry a broader set.
+  // Persisted result stories remain the sole result narrative for a match:
+  // represented match ids are excluded from Points Swing, while the other
+  // features describe aggregates/current state rather than replaying winners.
+  if (closedLeagueSeasons.length === 0) {
+    const [editorialPlayers, editorialMatches, editorialStories] = await Promise.all([
+      db.select({
+        id: playersTable.id, name: playersTable.name, points: playersTable.points,
+        wins: playersTable.seasonWins, losses: playersTable.seasonLosses, status: playersTable.status,
+        eliminationsCount: playersTable.eliminationsCount,
+      }).from(playersTable).where(eq(playersTable.isActive, true)),
+      db.select({
+        id: matchesTable.id, winnerId: matchesTable.winnerId, loserId: matchesTable.loserId,
+        winnerName: matchesTable.winnerName, loserName: matchesTable.loserName,
+        stake: matchesTable.stake, playedAt: matchesTable.playedAt,
+      }).from(matchesTable).where(and(
+        sql`${matchesTable.playedAt} <= ${cutoffEnd}`,
+        sql`${matchesTable.seasonId} IN (SELECT id FROM seasons WHERE league_type = 'singles' AND is_active = true)`,
+      )),
+      db.select({
+        id: broadcastStoriesTable.id, storyType: broadcastStoriesTable.storyType,
+        score: broadcastStoriesTable.score,
+        anchorMatchId: broadcastStoriesTable.anchorMatchId, facts: broadcastStoriesTable.facts,
+      }).from(broadcastStoriesTable).where(and(
+        eq(broadcastStoriesTable.leagueType, "singles"),
+        sql`${broadcastStoriesTable.detectedAt} <= ${cutoffEnd}`,
+        sql`${broadcastStoriesTable.seasonId} IN (SELECT id FROM seasons WHERE league_type = 'singles' AND is_active = true)`,
+      )),
+    ]);
+    const representedMatchIds = new Set<number>();
+    for (const segment of segments) {
+      if (segment.storyId === null) continue;
+      const source = pool.find(story => story.id === segment.storyId);
+      if (source?.anchorMatchId !== null && source?.anchorMatchId !== undefined) {
+        representedMatchIds.add(source.anchorMatchId);
+      }
+    }
+    const editorial = buildEditorialFeatures({
+      players: editorialPlayers,
+      matches: editorialMatches,
+      stories: editorialStories,
+      cutoff: cutoffEnd,
+      rotationKey: seedSlotKey,
+      broad: isSeasonCatchUp,
+      representedMatchIds,
+    });
+    const closingIndex = segments.findIndex(segment => segment.purpose === "closing");
+    if (closingIndex >= 0) segments.splice(closingIndex, 0, ...editorial);
+    else segments.push(...editorial);
+  }
+  segments.forEach((segment, index) => { segment.slot = index + 1; });
+
+  const selectedStoriesById = new Map<number, BroadcastStory>();
+  for (const entry of runningOrder) {
+    if (!entry.group) continue;
+    selectedStoriesById.set(entry.group.primary.id, entry.group.primary);
+    for (const supporting of entry.group.supporting) {
+      selectedStoriesById.set(supporting.id, supporting);
+    }
+  }
+  const cutoffViolations = validateStoryFactCutoffs(
+    [...selectedStoriesById.values()],
+    cutoffEnd,
+  );
+
   const qualityGateSegments: QualityGateSegment[] = segments.map(seg => ({
-    id: programmeSegmentId(seg.slot),
+    id: programmeSegmentId(seg),
+    purpose: seg.purpose,
     leagueType: seg.leagueType,
     importance: seg.importance,
     sentiment: seg.storyId !== null ? (pool.find(s => s.id === seg.storyId)?.sentiment ?? null) : null,
@@ -653,16 +1253,47 @@ async function buildEdition(params: {
   const qualityInput: QualityGateInput = {
     segments: qualityGateSegments,
     // Tied to whether THIS build actually IS a Season Review (closedLeagueSeasons.length > 0), not the coarser seasonBoundaryEventOccurred window — a Season Review built on a regenerate long after the close-instant window has passed still needs this exemption exactly as much as the one built the same minute the season closed.
-    isChampionOrSeasonBoundarySpecial: seasonBoundaryEventOccurred || closedLeagueSeasons.length > 0,
-    hasFactsOutsideCutoffSnapshot: false, // structurally guaranteed — see this file's own header
+    isChampionOrSeasonBoundarySpecial: seasonBoundaryEventOccurred || closedLeagueSeasons.length > 0 || isSeasonCatchUp,
+    hasFactsOutsideCutoffSnapshot: cutoffViolations.length > 0,
     hasInvalidFutureMatchLanguage: hasFutureMatchLanguage(segments),
     hasUnresolvedPlaceholders: hasUnresolvedPlaceholderText(segments),
     hasDuplicateStoryIds: findDuplicateStoryIds(segments),
     playersWithRepeatedNegativeBanterInCooldown: [], // structurally guaranteed — see this file's own header
   };
 
-  const qualityResult = evaluateQualityGate(qualityInput);
-  const programme: EditionProgramme = { segments };
+  const programme: EditionProgramme = { mode: programmeMode, segments };
+  const baseQualityResult = evaluateQualityGate(qualityInput);
+  const runtimeSeconds = totalEstimatedSecondsForProgramme(programme);
+  const catchUpExpectedMatchKeys = isSeasonCatchUp
+    ? new Set(pool
+        .filter(story => story.anchorMatchId !== null)
+        .map(story => `${story.leagueType}:${story.anchorMatchId}`))
+    : new Set<string>();
+  const catchUpRenderedMatchKeys = new Set(segments.flatMap(segment => {
+    if (segment.storyId === null) return [];
+    const story = pool.find(candidate => candidate.id === segment.storyId);
+    return story?.anchorMatchId !== null && story?.anchorMatchId !== undefined
+      ? [`${story.leagueType}:${story.anchorMatchId}`]
+      : [];
+  }));
+  const missingCatchUpMatches = [...catchUpExpectedMatchKeys].filter(key => !catchUpRenderedMatchKeys.has(key));
+  const runtimeReason = programmeMode !== "SEASON_REVIEW" && !isSeasonCatchUp
+    && !isRuntimeWithinProgrammeMode(programmeMode, runtimeSeconds, config.programmeProfiles)
+    ? `runtime ${runtimeSeconds}s is outside ${programmeMode} target ${config.programmeProfiles[programmeMode].estimatedRuntimeSeconds.min}-${config.programmeProfiles[programmeMode].estimatedRuntimeSeconds.max}s`
+    : null;
+  const qualityReasons = [
+    ...(baseQualityResult.pass ? [] : baseQualityResult.reasons),
+    ...(cutoffViolations.length > 0
+      ? [`cutoff violations: ${cutoffViolations.map(v => `story ${v.storyId} ${v.reason}${v.timestamp ? ` (${v.timestamp})` : ""}`).join(", ")}`]
+      : []),
+    ...(missingCatchUpMatches.length > 0
+      ? [`season catch-up did not render every unaired match: ${missingCatchUpMatches.join(", ")}`]
+      : []),
+    ...(runtimeReason ? [runtimeReason] : []),
+  ];
+  const qualityResult = qualityReasons.length === 0
+    ? { pass: true as const }
+    : { pass: false as const, reasons: qualityReasons };
 
   if (qualityResult.pass) {
     const [published] = await db
@@ -697,11 +1328,12 @@ async function buildEdition(params: {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// 16.3 ensureCurrentBroadcastEdition — the lazy slot check, top to bottom
+// 16.3 ensureCurrentBroadcastEdition — idempotent slot check, top to bottom
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * The full 8-step lazy slot check, verbatim against 16.3:
+ * The full 8-step slot check. It is called both by the background scheduler
+ * and by viewer requests; database slot ownership makes repeated calls safe:
  *   1. resolve latest logical slot in Europe/London
  *   2. ensure monthly season state is current
  *   3. if slot row already PUBLISHED/SKIPPED -> return current published edition
@@ -721,7 +1353,9 @@ export async function ensureCurrentBroadcastEdition(now: Date = new Date()): Pro
 
   const claim = await claimBuildOwnership(slot, now, config.programmeVersion);
   if (claim.kind === "terminal") {
-    return claim.row.status === "PUBLISHED" ? claim.row : latestPublishedEdition();
+    // A producer-created manual Edition or copy-on-write rebuild can be newer
+    // than this scheduled slot row. Always serve the latest publication.
+    return latestPublishedEdition();
   }
   if (claim.kind === "building_elsewhere") {
     return latestPublishedEdition();
@@ -749,7 +1383,7 @@ export async function ensureCurrentBroadcastEdition(now: Date = new Date()): Pro
 // ═══════════════════════════════════════════════════════════════════════
 
 export type ForceRebuildResult =
-  | { kind: "built"; edition: BroadcastEdition | null }
+  | { kind: "built"; edition: BroadcastEdition | null; attempt: BroadcastEdition }
   /** The current slot is already BUILDING (an ordinary lazy check landed on it at the same moment) — reclaiming it here would race two builds against the same row, so this defers rather than doing that; the caller should just tell the admin to retry shortly. */
   | { kind: "already_building" };
 
@@ -760,8 +1394,10 @@ export type ForceRebuildResult =
  * (16.4's own concurrency contract) — an admin explicitly asking to
  * regenerate wants a fresh build even when the current slot is already
  * PUBLISHED or SKIPPED, which claimBuildOwnership() would otherwise treat as
- * terminal and refuse to touch. This claims the row unconditionally instead
- * (short of a genuine concurrent BUILDING race, handled above) and always
+ * terminal and refuse to touch. A PUBLISHED row is never demoted: its rebuild
+ * uses a copy-on-write attempt row while retaining the logical slot as the
+ * deterministic Director/commentary seed. Terminal non-published rows can be
+ * safely reclaimed with a compare-and-set update. The function always
  * passes adminForced: true into buildEdition(), so the change-score
  * threshold from 10.1 never blocks an admin's own explicit request.
  *
@@ -775,51 +1411,240 @@ export type ForceRebuildResult =
  * natural change-score-driven rebuild.
  */
 export async function forceRebuildCurrentEdition(now: Date = new Date()): Promise<ForceRebuildResult> {
-  const config = await getBroadcastConfig();
-  const slot = resolveLogicalSlot(now, { middayTime: config.middayTime, eveningTime: config.eveningTime, nightTime: config.nightTime, timezone: config.timezone, singleDailyEpisode: config.singleDailyEpisode });
-
-  await maybeAutoResetLeagueSeasons();
-
-  const previous = await latestPublishedEdition();
-  const [existing] = await db.select().from(broadcastEditionsTable).where(eq(broadcastEditionsTable.slotKey, slot.slotKey)).limit(1);
-
-  let claimedRow: BroadcastEdition;
-  if (existing) {
-    if (existing.status === "BUILDING") return { kind: "already_building" };
-    const [reclaimed] = await db
-      .update(broadcastEditionsTable)
-      .set({ status: "BUILDING" satisfies EditionStatus })
-      .where(eq(broadcastEditionsTable.id, existing.id))
-      .returning();
-    if (!reclaimed) return { kind: "already_building" }; // lost a race to a concurrent request between the read above and this UPDATE
-    claimedRow = reclaimed;
-  } else {
-    const [inserted] = await db
-      .insert(broadcastEditionsTable)
-      .values({
-        slotKey: slot.slotKey, slotType: slot.slotType, scheduledFor: slot.scheduledFor,
-        dataCutoff: now, status: "BUILDING", changeScore: 0, programmeVersion: config.programmeVersion,
-        programme: null, diagnostic: null, publishedAt: null,
-      })
-      .onConflictDoNothing({ target: broadcastEditionsTable.slotKey })
-      .returning();
-    if (!inserted) return { kind: "already_building" }; // lost the INSERT race to a concurrent request
-    claimedRow = inserted;
-  }
+  // Guards against a second concurrent admin action (regenerate/create
+  // episode/clean sweep) racing this one — see the admin build lock's own
+  // header above. Reuses this function's existing "already_building" result
+  // kind rather than throwing, since the route already handles that case.
+  const lockHolder = randomUUID();
+  if (!(await claimAdminBuildLock(lockHolder, now))) return { kind: "already_building" };
+  const lockHeartbeat = startAdminBuildLockHeartbeat(lockHolder);
 
   try {
-    const edition = await buildEdition({ claimedRow, previous, now, config, adminForced: true });
-    return { kind: "built", edition };
-  } catch (err) {
-    console.error(`edition-engine: admin-forced rebuild failed for slot ${slot.slotKey}:`, err);
-    try {
-      await db
-        .update(broadcastEditionsTable)
-        .set({ status: "FAILED", diagnostic: err instanceof Error ? err.message : String(err) })
-        .where(eq(broadcastEditionsTable.id, claimedRow.id));
-    } catch (markFailedErr) {
-      console.error(`edition-engine: failed to mark slot ${slot.slotKey} as FAILED after an admin-forced rebuild error:`, markFailedErr);
+    const config = await getBroadcastConfig();
+    const slot = resolveLogicalSlot(now, { middayTime: config.middayTime, eveningTime: config.eveningTime, nightTime: config.nightTime, timezone: config.timezone, singleDailyEpisode: config.singleDailyEpisode });
+
+    await maybeAutoResetLeagueSeasons();
+
+    const previous = await latestPublishedEdition();
+    const [existing] = await db.select().from(broadcastEditionsTable).where(eq(broadcastEditionsTable.slotKey, slot.slotKey)).limit(1);
+
+    let claimedRow: BroadcastEdition;
+    if (existing) {
+      if (existing.status === "BUILDING") return { kind: "already_building" };
+      if (existing.status === "PUBLISHED") {
+        const [attempt] = await db
+          .insert(broadcastEditionsTable)
+          .values({
+            slotKey: rebuildAttemptSlotKey(slot.slotKey, randomUUID()),
+            slotType: existing.slotType,
+            scheduledFor: existing.scheduledFor,
+            dataCutoff: now,
+            status: "BUILDING",
+            changeScore: 0,
+            programmeVersion: config.programmeVersion,
+            programme: null,
+            diagnostic: null,
+            publishedAt: null,
+          })
+          .returning();
+        if (!attempt) throw new Error("Could not create the broadcast rebuild attempt");
+        claimedRow = attempt;
+      } else {
+        const [reclaimed] = await db
+          .update(broadcastEditionsTable)
+          .set({ status: "BUILDING" satisfies EditionStatus })
+          .where(and(
+            eq(broadcastEditionsTable.id, existing.id),
+            eq(broadcastEditionsTable.status, existing.status),
+          ))
+          .returning();
+        if (!reclaimed) return { kind: "already_building" };
+        claimedRow = reclaimed;
+      }
+    } else {
+      const [inserted] = await db
+        .insert(broadcastEditionsTable)
+        .values({
+          slotKey: slot.slotKey, slotType: slot.slotType, scheduledFor: slot.scheduledFor,
+          dataCutoff: now, status: "BUILDING", changeScore: 0, programmeVersion: config.programmeVersion,
+          programme: null, diagnostic: null, publishedAt: null,
+        })
+        .onConflictDoNothing({ target: broadcastEditionsTable.slotKey })
+        .returning();
+      if (!inserted) return { kind: "already_building" }; // lost the INSERT race to a concurrent request
+      claimedRow = inserted;
     }
-    return { kind: "built", edition: previous };
+
+    try {
+      const edition = await buildEdition({
+        claimedRow, previous, now, config, adminForced: true, seedSlotKey: slot.slotKey, seasonCatchUp: true,
+      });
+      const [attempt] = await db
+        .select()
+        .from(broadcastEditionsTable)
+        .where(eq(broadcastEditionsTable.id, claimedRow.id))
+        .limit(1);
+      return { kind: "built", edition, attempt: attempt ?? claimedRow };
+    } catch (err) {
+      console.error(`edition-engine: admin-forced rebuild failed for slot ${slot.slotKey}:`, err);
+      try {
+        await db
+          .update(broadcastEditionsTable)
+          .set({ status: "FAILED", diagnostic: err instanceof Error ? err.message : String(err) })
+          .where(eq(broadcastEditionsTable.id, claimedRow.id));
+      } catch (markFailedErr) {
+        console.error(`edition-engine: failed to mark slot ${slot.slotKey} as FAILED after an admin-forced rebuild error:`, markFailedErr);
+      }
+      const failedAttempt = { ...claimedRow, status: "FAILED" as const, diagnostic: err instanceof Error ? err.message : String(err) };
+      return { kind: "built", edition: previous, attempt: failedAttempt };
+    }
+  } finally {
+    stopAdminBuildLockHeartbeat(lockHeartbeat);
+    await releaseAdminBuildLock(lockHolder);
+  }
+}
+
+export type CreateManualEpisodeResult = {
+  /** The unique manual Edition row created for this producer request. */
+  attempt: BroadcastEdition;
+  /** The Edition viewers should keep receiving. This is the new attempt when
+   * it publishes, or the previous published Edition when the new attempt
+   * fails its quality gate. */
+  edition: BroadcastEdition | null;
+};
+
+/**
+ * Creates a genuinely new producer-triggered episode rather than reclaiming
+ * the current scheduled slot. The timestamped manual slot key gives the
+ * Director and Commentary Engine a fresh deterministic seed while preserving
+ * reproducibility for this exact Edition.
+ */
+export async function createManualBroadcastEpisode(now: Date = new Date()): Promise<CreateManualEpisodeResult> {
+  // Guards against a second concurrent admin action racing this one — see
+  // the admin build lock's own header above. This function's result type
+  // has no "already busy" kind of its own (unlike forceRebuildCurrentEdition),
+  // so it throws a distinguishable error instead; routes/broadcast.ts
+  // catches it and returns 409.
+  const lockHolder = randomUUID();
+  if (!(await claimAdminBuildLock(lockHolder, now))) throw new AdminBuildLockedError();
+  const lockHeartbeat = startAdminBuildLockHeartbeat(lockHolder);
+
+  try {
+    const config = await getBroadcastConfig();
+    await maybeAutoResetLeagueSeasons();
+
+    const previous = await latestPublishedEdition();
+    const slotKey = manualEpisodeSlotKey(now, randomUUID());
+    const [claimedRow] = await db
+      .insert(broadcastEditionsTable)
+      .values({
+        slotKey,
+        slotType: "manual",
+        scheduledFor: now,
+        dataCutoff: now,
+        status: "BUILDING",
+        changeScore: 0,
+        programmeVersion: config.programmeVersion,
+        programme: null,
+        diagnostic: null,
+        publishedAt: null,
+      })
+      .returning();
+
+    if (!claimedRow) {
+      throw new Error("Could not create the manual broadcast Edition");
+    }
+
+    try {
+      const edition = await buildEdition({ claimedRow, previous, now, config, adminForced: true, seasonCatchUp: true });
+      const [attempt] = await db
+        .select()
+        .from(broadcastEditionsTable)
+        .where(eq(broadcastEditionsTable.id, claimedRow.id))
+        .limit(1);
+      return { attempt: attempt ?? claimedRow, edition };
+    } catch (err) {
+      const diagnostic = err instanceof Error ? err.message : String(err);
+      console.error(`edition-engine: producer episode failed for slot ${slotKey}:`, err);
+      const [failed] = await db
+        .update(broadcastEditionsTable)
+        .set({ status: "FAILED", diagnostic })
+        .where(eq(broadcastEditionsTable.id, claimedRow.id))
+        .returning();
+      return { attempt: failed ?? { ...claimedRow, status: "FAILED", diagnostic }, edition: previous };
+    }
+  } finally {
+    stopAdminBuildLockHeartbeat(lockHeartbeat);
+    await releaseAdminBuildLock(lockHolder);
+  }
+}
+
+/**
+ * Creates one immutable, complete active-season programme from a
+ * producer-selected boundary. It never deletes source or broadcast history,
+ * and viewers retain the previous published Edition if this attempt fails.
+ */
+export async function createBroadcastCleanSweep(
+  start: Date,
+  now: Date = new Date(),
+): Promise<CreateManualEpisodeResult> {
+  if (!Number.isFinite(start.getTime()) || start >= now) {
+    throw new Error("The clean-sweep start must be a valid time before now");
+  }
+  if (now.getTime() - start.getTime() > 93 * 24 * 60 * 60 * 1000) {
+    throw new Error("The clean-sweep start cannot be more than 93 days ago");
+  }
+
+  // Guards against a second concurrent admin action racing this one — see
+  // the admin build lock's own header above, and createManualBroadcastEpisode's
+  // matching comment on why this throws rather than returning a result kind.
+  const lockHolder = randomUUID();
+  if (!(await claimAdminBuildLock(lockHolder, now))) throw new AdminBuildLockedError();
+  const lockHeartbeat = startAdminBuildLockHeartbeat(lockHolder);
+
+  try {
+    const config = await getBroadcastConfig();
+    await maybeAutoResetLeagueSeasons();
+    const previous = await latestPublishedEdition();
+    const slotKey = `season-sweep:${start.toISOString().slice(0, 10)}:${now.toISOString()}:${randomUUID()}`;
+    const [claimedRow] = await db.insert(broadcastEditionsTable).values({
+      slotKey,
+      slotType: "manual",
+      scheduledFor: now,
+      dataCutoff: now,
+      status: "BUILDING",
+      changeScore: 0,
+      programmeVersion: config.programmeVersion,
+      programme: null,
+      diagnostic: null,
+      publishedAt: null,
+    }).returning();
+    if (!claimedRow) throw new Error("Could not create the clean-sweep Edition");
+
+    try {
+      const edition = await buildEdition({
+        claimedRow,
+        previous,
+        now,
+        config,
+        adminForced: true,
+        seasonCatchUp: true,
+        seasonSweepStart: start,
+      });
+      const [attempt] = await db.select().from(broadcastEditionsTable)
+        .where(eq(broadcastEditionsTable.id, claimedRow.id)).limit(1);
+      return { attempt: attempt ?? claimedRow, edition };
+    } catch (err) {
+      const diagnostic = err instanceof Error ? err.message : String(err);
+      console.error(`edition-engine: clean sweep failed for slot ${slotKey}:`, err);
+      const [failed] = await db.update(broadcastEditionsTable)
+        .set({ status: "FAILED", diagnostic })
+        .where(eq(broadcastEditionsTable.id, claimedRow.id))
+        .returning();
+      return { attempt: failed ?? { ...claimedRow, status: "FAILED", diagnostic }, edition: previous };
+    }
+  } finally {
+    stopAdminBuildLockHeartbeat(lockHeartbeat);
+    await releaseAdminBuildLock(lockHolder);
   }
 }

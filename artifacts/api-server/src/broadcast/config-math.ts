@@ -7,6 +7,12 @@
 // so it stays directly unit-testable the same way every other pure file in
 // this folder is. config.ts layers the actual settingsTable read/write on
 // top of the types and validation logic defined here.
+import {
+  PROGRAMME_PACING_RULES,
+  type OrdinaryProgrammeMode,
+  type ProgrammeContentBeat,
+  type ProgrammePacingRule,
+} from "./director-math.ts";
 
 export const BROADCAST_SETTING_KEYS = [
   "broadcast_midday_time",
@@ -20,8 +26,24 @@ export const BROADCAST_SETTING_KEYS = [
   "broadcast_commentary_version",
   "broadcast_programme_version",
   "broadcast_single_daily_episode",
+  "broadcast_news_profile",
+  "broadcast_balanced_profile",
+  "broadcast_magazine_profile",
 ] as const;
 export type BroadcastSettingKey = (typeof BROADCAST_SETTING_KEYS)[number];
+
+/**
+ * broadcast_simulation_count feeds directly, uncapped, into title-predictor.ts's
+ * and team-title-predictor.ts's Monte Carlo loops (`for (sim = 0; sim < simulationCount...)`),
+ * which run synchronously inside every Edition build (and, via story-engine.ts's
+ * LEAGUE family, potentially on every live-poll detection pass too). The
+ * setting previously had no upper bound at all — only `>= 1` — so an
+ * admin-entered typo (an extra zero or two) could make a single build's
+ * predictor run pathologically slow with no server-side guard. 50,000 is a
+ * generous 20x the 2,500 default — enough headroom for anyone who genuinely
+ * wants materially better precision, while still bounding the worst case.
+ */
+export const MAX_BROADCAST_SIMULATION_COUNT = 50_000;
 
 /** Every default value exactly as listed in section 16.1's own table. */
 export const BROADCAST_SETTING_DEFAULTS: Record<BroadcastSettingKey, string> = {
@@ -42,6 +64,9 @@ export const BROADCAST_SETTING_DEFAULTS: Record<BroadcastSettingKey, string> = {
   // looking midday/evening/night refreshes. "0" restores the legacy
   // three-slot-a-day cadence for anyone who wants it back.
   broadcast_single_daily_episode: "1",
+  broadcast_news_profile: JSON.stringify(PROGRAMME_PACING_RULES.NEWS),
+  broadcast_balanced_profile: JSON.stringify(PROGRAMME_PACING_RULES.BALANCED),
+  broadcast_magazine_profile: JSON.stringify(PROGRAMME_PACING_RULES.MAGAZINE),
 };
 
 export type BroadcastConfig = {
@@ -65,6 +90,7 @@ export type BroadcastConfig = {
   programmeVersion: number;
   /** When true (the default), the day has exactly one guaranteed episode (the "night" slot, fired at nightTime) instead of three separate midday/evening/night slots — see edition-slots.ts's own resolveLogicalSlot/resolveNextLogicalSlot for how this collapses slot resolution down to a single daily instant. */
   singleDailyEpisode: boolean;
+  programmeProfiles: Record<OrdinaryProgrammeMode, ProgrammePacingRule>;
 };
 
 function warnAndFallback(key: BroadcastSettingKey, raw: string, reason: string): string {
@@ -73,17 +99,58 @@ function warnAndFallback(key: BroadcastSettingKey, raw: string, reason: string):
 }
 
 const HHMM_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+const PROFILE_KEYS = {
+  broadcast_news_profile: "NEWS",
+  broadcast_balanced_profile: "BALANCED",
+  broadcast_magazine_profile: "MAGAZINE",
+} as const satisfies Partial<Record<BroadcastSettingKey, OrdinaryProgrammeMode>>;
+const CONTENT_BEATS = new Set<ProgrammeContentBeat>(["news", "analysis", "feature"]);
+const MAX_STORY_RUNTIME_SECONDS = 6 * 9;
+const MAX_HEADLINE_RUNTIME_SECONDS = 3 * 9;
+const MAX_UTILITY_RUNTIME_SECONDS = 3 * 2 * 9;
+
+export function parseProgrammeProfile(raw: string): ProgrammePacingRule | null {
+  try {
+    const value = JSON.parse(raw) as Record<string, unknown>;
+    const runtime = value?.estimatedRuntimeSeconds as Record<string, unknown> | undefined;
+    const mix = value?.contentMix;
+    if (!Number.isInteger(value?.maxHeadlineTeases) || (value.maxHeadlineTeases as number) < 0 || (value.maxHeadlineTeases as number) > 5) return null;
+    if (!Number.isInteger(value?.maxStorySegments) || (value.maxStorySegments as number) < 4 || (value.maxStorySegments as number) > 7) return null;
+    if ((value.maxHeadlineTeases as number) > (value.maxStorySegments as number)) return null;
+    if (!runtime || !Number.isInteger(runtime.min) || !Number.isInteger(runtime.max)
+      || (runtime.min as number) < 60 || (runtime.max as number) > 900 || (runtime.max as number) - (runtime.min as number) < 30) return null;
+    const maximumAchievableRuntime = (value.maxStorySegments as number) * MAX_STORY_RUNTIME_SECONDS
+      + (value.maxHeadlineTeases as number) * MAX_HEADLINE_RUNTIME_SECONDS
+      + MAX_UTILITY_RUNTIME_SECONDS;
+    if ((runtime.min as number) > maximumAchievableRuntime) return null;
+    if (!Array.isArray(mix) || mix.length !== value.maxStorySegments || !mix.every(beat => CONTENT_BEATS.has(beat as ProgrammeContentBeat))) return null;
+    return {
+      maxHeadlineTeases: value.maxHeadlineTeases as number,
+      maxStorySegments: value.maxStorySegments as number,
+      estimatedRuntimeSeconds: { min: runtime.min as number, max: runtime.max as number },
+      contentMix: mix as ProgrammeContentBeat[],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function resolveProgrammeProfile(key: keyof typeof PROFILE_KEYS, raw: string): ProgrammePacingRule {
+  return parseProgrammeProfile(raw)
+    ?? parseProgrammeProfile(warnAndFallback(key, raw, "not a valid programme profile"))!;
+}
 
 export function parseHHMM(key: BroadcastSettingKey, raw: string): string {
   if (!HHMM_PATTERN.test(raw)) return warnAndFallback(key, raw, "not a valid 24-hour HH:MM time");
   return raw;
 }
 
-/** `min` defaults to 1 (most of these settings are counts/thresholds that make no sense at 0); banterLevel is the one caller that passes 0, since a "quietest" tone level is a legitimate setting. */
-export function parseSettingInt(key: BroadcastSettingKey, raw: string, min = 1): number {
+/** `min` defaults to 1 (most of these settings are counts/thresholds that make no sense at 0); banterLevel is the one caller that passes 0, since a "quietest" tone level is a legitimate setting. `max` defaults to unbounded; broadcast_simulation_count is the one caller that passes a real ceiling (see MAX_BROADCAST_SIMULATION_COUNT). */
+export function parseSettingInt(key: BroadcastSettingKey, raw: string, min = 1, max = Infinity): number {
   const n = Number(raw);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < min) {
-    return Number(warnAndFallback(key, raw, `expected an integer >= ${min}`));
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < min || n > max) {
+    const bound = n > max ? `<= ${max}` : `>= ${min}`;
+    return Number(warnAndFallback(key, raw, `expected an integer ${bound}`));
   }
   return n;
 }
@@ -99,6 +166,11 @@ export function parseSettingInt(key: BroadcastSettingKey, raw: string, min = 1):
  * readable reason string when it isn't.
  */
 export function validateBroadcastSettingValue(key: BroadcastSettingKey, raw: string): string | null {
+  if (key in PROFILE_KEYS) {
+    return parseProgrammeProfile(raw)
+      ? null
+      : "must be a profile with 0-5 headline teases (no more than its story count), 4-7 story segments, an achievable 60-900 second runtime band at least 30 seconds wide, and one valid content-mix beat per story segment";
+  }
   if (key === "broadcast_midday_time" || key === "broadcast_evening_time" || key === "broadcast_night_time") {
     return HHMM_PATTERN.test(raw) ? null : "must be a 24-hour HH:MM time (e.g. \"19:00\")";
   }
@@ -114,8 +186,10 @@ export function validateBroadcastSettingValue(key: BroadcastSettingKey, raw: str
     return raw === "0" || raw === "1" ? null : "must be \"0\" or \"1\"";
   }
   const min = key === "broadcast_banter_level" ? 0 : 1;
+  const max = key === "broadcast_simulation_count" ? MAX_BROADCAST_SIMULATION_COUNT : Infinity;
   const n = Number(raw);
   if (!Number.isFinite(n) || !Number.isInteger(n) || n < min) return `must be an integer >= ${min}`;
+  if (n > max) return `must be an integer <= ${max}`;
   return null;
 }
 
@@ -127,11 +201,16 @@ export function resolveBroadcastConfig(raw: (key: BroadcastSettingKey) => string
     nightTime: parseHHMM("broadcast_night_time", raw("broadcast_night_time")),
     timezone: raw("broadcast_timezone") || BROADCAST_SETTING_DEFAULTS.broadcast_timezone,
     changeThreshold: parseSettingInt("broadcast_change_threshold", raw("broadcast_change_threshold")),
-    simulationCount: parseSettingInt("broadcast_simulation_count", raw("broadcast_simulation_count")),
+    simulationCount: parseSettingInt("broadcast_simulation_count", raw("broadcast_simulation_count"), 1, MAX_BROADCAST_SIMULATION_COUNT),
     livePollSeconds: parseSettingInt("broadcast_live_poll_seconds", raw("broadcast_live_poll_seconds")),
     banterLevel: parseSettingInt("broadcast_banter_level", raw("broadcast_banter_level"), 0),
     commentaryVersion: parseSettingInt("broadcast_commentary_version", raw("broadcast_commentary_version")),
     programmeVersion: parseSettingInt("broadcast_programme_version", raw("broadcast_programme_version")),
     singleDailyEpisode: raw("broadcast_single_daily_episode") !== "0",
+    programmeProfiles: {
+      NEWS: resolveProgrammeProfile("broadcast_news_profile", raw("broadcast_news_profile")),
+      BALANCED: resolveProgrammeProfile("broadcast_balanced_profile", raw("broadcast_balanced_profile")),
+      MAGAZINE: resolveProgrammeProfile("broadcast_magazine_profile", raw("broadcast_magazine_profile")),
+    },
   };
 }

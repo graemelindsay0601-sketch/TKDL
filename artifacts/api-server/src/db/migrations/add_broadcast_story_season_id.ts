@@ -27,18 +27,27 @@ import { logger } from "../../lib/logger";
  * (detectedAt inside the season's own date range) for exactly those older
  * rows, so this migration doesn't need one.
  */
+// Each statement is isolated (rather than one try/catch around the whole
+// function) so a failure on one — e.g. the table itself not existing yet on
+// a fresh/partially-initialized database — can't also block the other,
+// independent statement from running. Matches this codebase's established
+// per-statement migration convention (see add_performance_indexes.ts).
 export async function addBroadcastStorySeasonId() {
   try {
     await db.execute(sql`
       ALTER TABLE broadcast_stories ADD COLUMN IF NOT EXISTS season_id INTEGER
     `);
+  } catch (err) {
+    logger.error({ err }, "Failed to add broadcast_stories.season_id column");
+  }
+
+  try {
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS broadcast_stories_season_id_idx ON broadcast_stories(season_id)
     `);
-    logger.info("broadcast_stories.season_id column ready");
-    return true;
   } catch (err) {
-    logger.error({ err }, "Failed to add broadcast_stories.season_id column");
-    throw err;
+    logger.error({ err }, "Failed to create broadcast_stories_season_id_idx");
   }
+
+  logger.info("broadcast_stories.season_id column step complete");
 }

@@ -224,7 +224,7 @@ async function computeInvalidSegmentIds(programme: EditionProgramme | null, cach
   const invalid: string[] = [];
   for (const segment of programme.segments) {
     if (segment.validityRules.length === 0) continue; // utility segments — nothing to check, never invalid
-    if (!(await isSegmentStillValid(segment.validityRules, cache))) invalid.push(programmeSegmentId(segment.slot));
+    if (!(await isSegmentStillValid(segment.validityRules, cache))) invalid.push(programmeSegmentId(segment));
   }
   return invalid;
 }
@@ -261,6 +261,7 @@ function computeOverlays(freshStories: readonly BroadcastStory[], matchPlayedAtB
 export type LiveTickerItem = { matchId: number; leagueType: LeagueType; winnerId: number; loserId: number; playedAt: string };
 
 export type LivePayload = {
+  currentEditionId: number | null;
   leaders: LiveLeaders;
   tickerItems: LiveTickerItem[];
   overlays: LiveOverlayItem[];
@@ -329,6 +330,7 @@ export async function getLivePayload(now: Date = new Date()): Promise<LivePayloa
   ]);
 
   return {
+    currentEditionId: previous?.id ?? null,
     leaders,
     tickerItems: recentMatches.map(m => ({ matchId: m.matchId, leagueType: m.leagueType, winnerId: m.winnerId, loserId: m.loserId, playedAt: m.playedAt.toISOString() })),
     overlays: computeOverlays(freshStories, matchPlayedAtById, now),

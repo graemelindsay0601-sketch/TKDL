@@ -395,11 +395,23 @@ router.patch("/tour/runs/:runId", matchSubmitRateLimit, async (req, res): Promis
 
     const newStatus = result.won ? "completed" : result.eliminated ? "eliminated" : "active";
 
-    await db.execute(sql`
+    // The initial `run.status !== "active"` check above and this UPDATE
+    // aren't atomic with each other — two concurrent/retried PATCHes for the
+    // same run can both read "active" and both reach here. Making the
+    // status transition itself the atomic guard (same idempotency pattern
+    // as master501.ts's run-result PATCH) ensures only one of them actually
+    // advances the run and falls through to the trophy/coin/achievement
+    // awards below; a loser gets a plain 409 rather than double-counted
+    // rewards.
+    const advanceResult = await db.execute(sql`
       UPDATE player_tour_runs
       SET bracket = ${JSON.stringify(result.bracket)}::jsonb, status = ${newStatus}, updated_at = NOW()
-      WHERE id = ${runId}
+      WHERE id = ${runId} AND status = 'active'
     `);
+    if ((advanceResult.rowCount ?? 0) === 0) {
+      res.status(409).json({ error: "This run has already been advanced" });
+      return;
+    }
 
     // Award trophy if won
     if (result.won) {

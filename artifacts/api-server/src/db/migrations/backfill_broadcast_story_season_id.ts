@@ -70,9 +70,17 @@ import { logger } from "../../lib/logger";
  * loadNewMatchesSince — these story-type constants are our own fixed code,
  * never user input, so this is safe construction, not injection risk.
  */
-export async function backfillBroadcastStorySeasonId(): Promise<boolean> {
+// Each step below is isolated in its own try/catch (rather than one
+// try/catch around the whole function) so, e.g., a problem with the Doubles
+// backfill can't also block the independent Singles backfill or Step 2's
+// per-league loop. Matches this codebase's established per-statement
+// migration convention (see add_performance_indexes.ts) — worth being
+// extra careful about here specifically, given this file's own header
+// documents a past incident where exactly this kind of all-or-nothing
+// wrapper took down every startup step listed after it.
+export async function backfillBroadcastStorySeasonId(): Promise<void> {
+  // Step 1 — Singles: anchor_match_id -> matches.season_id.
   try {
-    // Step 1 — Singles: anchor_match_id -> matches.season_id.
     await db.execute(sql`
       UPDATE broadcast_stories bs
       SET season_id = m.season_id
@@ -82,8 +90,12 @@ export async function backfillBroadcastStorySeasonId(): Promise<boolean> {
         AND bs.anchor_match_id IS NOT NULL
         AND bs.anchor_match_id = m.id
     `);
+  } catch (err) {
+    logger.error({ err }, "Failed to backfill broadcast_stories.season_id (Singles, Step 1)");
+  }
 
-    // Step 1 — Doubles: anchor_match_id -> doubles_matches.season_id.
+  // Step 1 — Doubles: anchor_match_id -> doubles_matches.season_id.
+  try {
     await db.execute(sql`
       UPDATE broadcast_stories bs
       SET season_id = dm.season_id
@@ -93,29 +105,33 @@ export async function backfillBroadcastStorySeasonId(): Promise<boolean> {
         AND bs.anchor_match_id IS NOT NULL
         AND bs.anchor_match_id = dm.id
     `);
+  } catch (err) {
+    logger.error({ err }, "Failed to backfill broadcast_stories.season_id (Doubles, Step 1)");
+  }
 
-    // Shift Wars has no equivalent Step 1: shift_wars_matches carries no
-    // season_id column to backfill from (see header). Zero broadcast_stories
-    // rows exist for it today anyway, so there's nothing this gap has
-    // silently missed — Step 2 below is this league's only path, same as
-    // it always was.
+  // Shift Wars has no equivalent Step 1: shift_wars_matches carries no
+  // season_id column to backfill from (see header). Zero broadcast_stories
+  // rows exist for it today anyway, so there's nothing this gap has
+  // silently missed — Step 2 below is this league's only path, same as
+  // it always was.
 
-    // Step 2 — remaining subject-anchored rows, only the eligible types,
-    // only when exactly one closed season exists for that league.
-    const ELIGIBLE_TYPES_BY_LEAGUE: Record<string, string[]> = {
-      singles: [
-        "UPSET", "MAJOR_UPSET", "MODEL_SHOCK", "HIGH_STAKE_WIN", "HIGH_STAKE_LOSS",
-        "ELIMINATION", "LEADER_BEATEN", "STREAK_BREAKER", "DROUGHT_ENDED", "FIRST_H2H_WIN", "REVENGE",
-        "WIN_STREAK", "LOSS_STREAK", "FORM_REVERSAL", "QUIET_CLIMBER", "FREEFALL", "ABOVE_BASELINE",
-        "H2H_DOMINANCE", "RIVALRY", "RIVALRY_SWING",
-        "CLINICAL_FINISHING", "DOUBLE_TROUBLE", "SCORING_POWER", "SCORING_WITHOUT_FINISHING", "SEASON_BEST", "PERSONAL_BEST",
-        "CAREER_MATCH_MILESTONE", "CAREER_WIN_MILESTONE", "180_MILESTONE", "ELIMINATION_MILESTONE",
-      ],
-      doubles: ["UNBEATEN_PAIR", "PAIR_SURGE", "PAIR_UPSET", "PAIR_ELIMINATED"],
-      shift_wars: ["SHIFT_LEAD_CHANGE", "SHIFT_MOMENTUM", "SHIFT_COMEBACK", "SHIFT_DOMINANCE"],
-    };
+  // Step 2 — remaining subject-anchored rows, only the eligible types,
+  // only when exactly one closed season exists for that league.
+  const ELIGIBLE_TYPES_BY_LEAGUE: Record<string, string[]> = {
+    singles: [
+      "UPSET", "MAJOR_UPSET", "MODEL_SHOCK", "HIGH_STAKE_WIN", "HIGH_STAKE_LOSS",
+      "ELIMINATION", "LEADER_BEATEN", "STREAK_BREAKER", "DROUGHT_ENDED", "FIRST_H2H_WIN", "REVENGE",
+      "WIN_STREAK", "LOSS_STREAK", "FORM_REVERSAL", "QUIET_CLIMBER", "FREEFALL", "ABOVE_BASELINE",
+      "H2H_DOMINANCE", "RIVALRY", "RIVALRY_SWING",
+      "CLINICAL_FINISHING", "DOUBLE_TROUBLE", "SCORING_POWER", "SCORING_WITHOUT_FINISHING", "SEASON_BEST", "PERSONAL_BEST",
+      "CAREER_MATCH_MILESTONE", "CAREER_WIN_MILESTONE", "180_MILESTONE", "ELIMINATION_MILESTONE",
+    ],
+    doubles: ["UNBEATEN_PAIR", "PAIR_SURGE", "PAIR_UPSET", "PAIR_ELIMINATED"],
+    shift_wars: ["SHIFT_LEAD_CHANGE", "SHIFT_MOMENTUM", "SHIFT_COMEBACK", "SHIFT_DOMINANCE"],
+  };
 
-    for (const [leagueType, types] of Object.entries(ELIGIBLE_TYPES_BY_LEAGUE)) {
+  for (const [leagueType, types] of Object.entries(ELIGIBLE_TYPES_BY_LEAGUE)) {
+    try {
       const typesLiteral = `{${types.map(t => `"${t}"`).join(",")}}`;
       await db.execute(sql`
         UPDATE broadcast_stories bs
@@ -131,12 +147,10 @@ export async function backfillBroadcastStorySeasonId(): Promise<boolean> {
           AND bs.story_type = ANY(${typesLiteral}::text[])
           AND (SELECT COUNT(*) FROM seasons WHERE league_type = ${leagueType} AND is_active = false) = 1
       `);
+    } catch (err) {
+      logger.error({ err, leagueType }, "Failed to backfill broadcast_stories.season_id (Step 2)");
     }
-
-    logger.info("broadcast_stories.season_id backfill complete");
-    return true;
-  } catch (err) {
-    logger.error({ err }, "Failed to backfill broadcast_stories.season_id");
-    throw err;
   }
+
+  logger.info("broadcast_stories.season_id backfill complete");
 }

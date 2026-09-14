@@ -75,6 +75,7 @@ import {
   seasonsTable,
   seasonStandingsTable,
   broadcastStoriesTable,
+  broadcastEditionsTable,
   broadcastPredictionSnapshotsTable,
   type LeagueType,
   type BroadcastStory,
@@ -123,6 +124,8 @@ import { detectShiftWarsStories, type ShiftWarsStandingsFacts, type ShiftWarsTea
 import { detectArchiveH2HStories, detectSeasonComparison, type ArchiveH2HFacts, type SeasonComparisonFacts } from "./story-detectors-archive";
 import { detectShadowBotPromo, detectPracticeActivity, detectFeatureSpotlight, type PracticeActivityFacts } from "./story-detectors-filler";
 import { listEnabledFeatureSpotlights } from "./feature-spotlight-registry";
+import { factsWithSnapshotCutoff } from "./cutoff-snapshot-math";
+import { logger } from "../lib/logger";
 
 const MODEL_VERSION = "story-engine-v1";
 const DEFAULT_GAME_TYPE = "501";
@@ -269,7 +272,7 @@ async function upsertStoryCandidate(candidate: StoryCandidate, confidence: numbe
     score,
     confidence,
     sentiment: candidate.sentiment,
-    facts: candidate.facts,
+    facts: factsWithSnapshotCutoff(candidate.facts, now),
     tags: candidate.tags,
     lastFullEditionId: existing?.lastFullEditionId ?? null,
     lastHeadlineEditionId: existing?.lastHeadlineEditionId ?? null,
@@ -475,24 +478,36 @@ export type NewMatchesWindow = {
  * scanning here — it has zero real matches today, so there's nothing yet
  * for this gap to have silently swallowed.
  */
-async function neverScannedActiveSeasonIds(leagueType: "singles" | "doubles"): Promise<Set<number>> {
+async function seasonsWithUncoveredMatches(leagueType: "singles" | "doubles"): Promise<Set<number>> {
+  const matchTable = leagueType === "singles" ? sql`matches` : sql`doubles_matches`;
   const rows = (await db.execute(sql`
     SELECT s.id FROM seasons s
     WHERE s.league_type = ${leagueType} AND s.is_active = true
-      AND NOT EXISTS (SELECT 1 FROM broadcast_stories bs WHERE bs.season_id = s.id)
+      AND EXISTS (
+        SELECT 1
+        FROM ${matchTable} m
+        WHERE m.season_id = s.id
+          AND NOT EXISTS (
+            SELECT 1
+            FROM broadcast_stories bs
+            WHERE bs.season_id = s.id
+              AND bs.facts ->> 'matchId' = m.id::text
+          )
+      )
   `)).rows as { id: number }[];
   return new Set(rows.map(r => r.id));
 }
 
 async function loadNewMatchesSince(cutoffStart: Date, cutoffEnd: Date): Promise<NewMatchesWindow> {
-  const catchUpSingles = await neverScannedActiveSeasonIds("singles");
-  const catchUpDoubles = await neverScannedActiveSeasonIds("doubles");
+  const catchUpSingles = await seasonsWithUncoveredMatches("singles");
+  const catchUpDoubles = await seasonsWithUncoveredMatches("doubles");
 
   const singlesRows = await db
     .select({ id: matchesTable.id, seasonId: matchesTable.seasonId, playedAt: matchesTable.playedAt, winnerId: matchesTable.winnerId, loserId: matchesTable.loserId, gameType: matchesTable.gameType })
     .from(matchesTable)
     .where(and(
       SINGLES_ONLY,
+      lte(matchesTable.playedAt, cutoffEnd),
       or(
         and(gt(matchesTable.playedAt, cutoffStart), lte(matchesTable.playedAt, cutoffEnd)),
         catchUpSingles.size > 0 ? inArray(matchesTable.seasonId, [...catchUpSingles]) : sql`false`,
@@ -514,8 +529,11 @@ async function loadNewMatchesSince(cutoffStart: Date, cutoffEnd: Date): Promise<
   const catchUpDoublesLiteral = `{${[...catchUpDoubles].join(",")}}`;
   const doublesRows = (await db.execute(sql`
     SELECT id, played_at, winner_team_id, loser_team_id, season_id FROM doubles_matches
-    WHERE (played_at > ${cutoffStart} AND played_at <= ${cutoffEnd})
-       OR season_id = ANY(${catchUpDoublesLiteral}::int[])
+    WHERE played_at <= ${cutoffEnd}
+      AND (
+        played_at > ${cutoffStart}
+        OR season_id = ANY(${catchUpDoublesLiteral}::int[])
+      )
     ORDER BY played_at ASC, id ASC
   `)).rows as { id: number; played_at: string | Date; winner_team_id: number; loser_team_id: number; season_id: number }[];
 
@@ -684,7 +702,7 @@ async function processSinglesMatch(ctx: SinglesBatchContext, match: NewSinglesMa
 
   const resultFacts: SinglesResultMatchFacts = {
     matchId: match.id, playedAt: match.playedAt, winnerId: match.winnerId, loserId: match.loserId, stake: entry.stake,
-    winnerBefore: entry.winnerBefore, loserBefore: entry.loserBefore, loserAfter: entry.loserAfter,
+    winnerBefore: entry.winnerBefore, winnerAfter: entry.winnerAfter, loserBefore: entry.loserBefore, loserAfter: entry.loserAfter,
     winnerProbability: prediction.pA,
     h2hBeforeMatch,
     wasLoserLeaderBefore: leaderBefore,
@@ -1111,7 +1129,7 @@ const HIGHLIGHT_ELIGIBLE_FAMILIES: Record<LeagueType, StoryFamily[]> = {
  * gets a real reel rather than an empty one.
  */
 export async function collectSeasonHighlights(params: {
-  leagueType: LeagueType; seasonId: number; seasonStart: Date; seasonEndExclusive: Date; limit: number;
+  leagueType: LeagueType; seasonId: number; seasonStart: Date; seasonEndExclusive: Date; cutoffEnd: Date; limit: number;
 }): Promise<BroadcastStory[]> {
   const eligibleTypes = HIGHLIGHT_ELIGIBLE_FAMILIES[params.leagueType].flatMap(family => STORY_TYPES_BY_FAMILY[family]) as StoryType[];
   if (eligibleTypes.length === 0) return [];
@@ -1120,6 +1138,7 @@ export async function collectSeasonHighlights(params: {
     .where(and(
       eq(broadcastStoriesTable.leagueType, params.leagueType),
       inArray(broadcastStoriesTable.storyType, eligibleTypes),
+      lte(broadcastStoriesTable.updatedAt, params.cutoffEnd),
       or(
         eq(broadcastStoriesTable.seasonId, params.seasonId),
         and(isNull(broadcastStoriesTable.seasonId), gte(broadcastStoriesTable.detectedAt, params.seasonStart), lt(broadcastStoriesTable.detectedAt, params.seasonEndExclusive)),
@@ -1371,7 +1390,8 @@ async function processDoublesMatch(match: NewDoublesMatch): Promise<DoublesMatch
   if (!entry) return { candidates: [], confidence: 0 };
 
   const facts: DoublesMatchResultFacts = {
-    matchId: match.id, winnerTeamId: match.winnerTeamId, loserTeamId: match.loserTeamId,
+    matchId: match.id, playedAt: match.playedAt, winnerTeamId: match.winnerTeamId, loserTeamId: match.loserTeamId,
+    winnerBefore: entry.winnerBefore, winnerAfter: entry.winnerAfter,
     loserBefore: ctx.loserBefore, loserAfter: entry.loserAfter,
     winnerProbability: prediction.pA,
   };
@@ -1717,13 +1737,36 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
     const pairKey = [match.winnerId, match.loserId].sort((a, b) => a - b).join(":");
     playedPairsThisBatch.set(pairKey, { a: match.winnerId, b: match.loserId });
 
-    const scored = await processSinglesMatch(ctx, match);
-    for (const { candidate, confidence } of scored) {
-      const { row } = await recordUpsert(candidate, confidence, match.seasonId);
-      if (familyForStoryType(candidate.storyType) === "RESULT" && treatmentForScore(row.score) === "major") {
-        majorStoryPlayers.add(match.winnerId);
-        majorStoryPlayers.add(match.loserId);
+    // Isolated per match: none of story-engine's per-match loops used to be
+    // individually try/caught, so one bad match (a predictor failure, a
+    // missing timeline entry) threw all the way out of
+    // detectAndUpdateStories() — losing every OTHER match still left in this
+    // loop, plus every later family (FORM, H2H, LEAGUE, Doubles, Shift Wars)
+    // that never got a chance to run this batch. Worse, resolveCutoffStart()
+    // derives the next batch's window from MAX(updated_at) across
+    // broadcast_stories, not from a per-match watermark — so if any EARLIER
+    // match in this same loop already upserted a story before the crash
+    // (very likely once this batch's cutoffEnd shows up on the DB at all,
+    // e.g. via FORM further below), the next run's cutoffStart jumps straight
+    // to this batch's cutoffEnd regardless of how it ended, silently
+    // excluding the crashing match (and, on a first-ever build, potentially
+    // a whole unprocessed tail of historical matches) from ever being
+    // retried. Catching here can't fix that watermark's coarse granularity,
+    // but it does shrink the blast radius from "everything after the first
+    // crash, indefinitely" down to "just this one logged match" — the same
+    // isolate-and-continue approach already used for app.ts's init() steps
+    // and this codebase's per-statement migrations.
+    try {
+      const scored = await processSinglesMatch(ctx, match);
+      for (const { candidate, confidence } of scored) {
+        const { row } = await recordUpsert(candidate, confidence, match.seasonId);
+        if (familyForStoryType(candidate.storyType) === "RESULT" && treatmentForScore(row.score) === "major") {
+          majorStoryPlayers.add(match.winnerId);
+          majorStoryPlayers.add(match.loserId);
+        }
       }
+    } catch (err) {
+      logger.error({ err, matchId: match.id }, "processSinglesMatch failed — skipping this match's RESULT/PERFORMANCE/MILESTONE stories, continuing with the rest of the batch");
     }
   }
 
@@ -1808,8 +1851,13 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
     teams.add(match.winnerTeamId);
     teams.add(match.loserTeamId);
 
-    const { candidates, confidence } = await processDoublesMatch(match);
-    for (const candidate of candidates) await recordUpsert(candidate, confidence, match.seasonId);
+    // Same per-match isolation as the Singles loop above, same reasoning.
+    try {
+      const { candidates, confidence } = await processDoublesMatch(match);
+      for (const candidate of candidates) await recordUpsert(candidate, confidence, match.seasonId);
+    } catch (err) {
+      logger.error({ err, matchId: match.id }, "processDoublesMatch failed — skipping this match's PAIR_UPSET/PAIR_ELIMINATED stories, continuing with the rest of the batch");
+    }
   }
 
   // ── Doubles: UNBEATEN_PAIR/PAIR_SURGE (subject-anchored, one team) ──────
@@ -1954,8 +2002,124 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
  * live" — ordered by score so a caller can take the top N without
  * re-sorting.
  */
-export async function collectNewAndActiveStories(leagueType?: LeagueType): Promise<BroadcastStory[]> {
+export async function collectNewAndActiveStories(cutoffEnd: Date, leagueType?: LeagueType): Promise<BroadcastStory[]> {
   const conditions = [inArray(broadcastStoriesTable.lifecycle, ["NEW", "HOT", "ACTIVE", "COOLING"] as const)];
+  conditions.push(lte(broadcastStoriesTable.updatedAt, cutoffEnd));
+  // Once a season closes, its ordinary match/form/performance rows are
+  // archive context rather than current-programme candidates. A pending
+  // Season Review gets its real highlights through collectSeasonHighlights()
+  // instead of this ordinary pool. Keep only CHAMPION and SEASON_RECAP here
+  // as deliberate backward-looking summary items.
+  conditions.push(or(
+    isNull(broadcastStoriesTable.seasonId),
+    inArray(broadcastStoriesTable.storyType, ["CHAMPION", "SEASON_RECAP"]),
+    sql`NOT EXISTS (
+      SELECT 1
+      FROM ${seasonsTable}
+      WHERE ${seasonsTable.id} = ${broadcastStoriesTable.seasonId}
+        AND ${seasonsTable.isActive} = false
+    )`,
+  )!);
   if (leagueType) conditions.push(eq(broadcastStoriesTable.leagueType, leagueType));
   return db.select().from(broadcastStoriesTable).where(and(...conditions)).orderBy(desc(broadcastStoriesTable.score));
+}
+
+/**
+ * One-off active-season recovery pool based on what viewers have actually
+ * received. A detected story does not count as coverage until its primary or
+ * supporting id appears in a PUBLISHED programme. If any active-season match
+ * remains unaired, return one full active-season pool so the catch-up Director
+ * can combine every missing result with current table/form analysis.
+ */
+export async function collectUnairedActiveSeasonCatchUpStories(cutoffEnd: Date): Promise<BroadcastStory[]> {
+  const activeSeasons = await db.select({ id: seasonsTable.id })
+    .from(seasonsTable)
+    .where(eq(seasonsTable.isActive, true));
+  const seasonIds = activeSeasons.map(s => s.id);
+  if (seasonIds.length === 0) return [];
+
+  const candidates = await db.select().from(broadcastStoriesTable)
+    .where(and(
+      inArray(broadcastStoriesTable.seasonId, seasonIds),
+      lte(broadcastStoriesTable.updatedAt, cutoffEnd),
+    ))
+    .orderBy(desc(broadcastStoriesTable.score), asc(broadcastStoriesTable.id));
+
+  const published = await db.select({ programme: broadcastEditionsTable.programme })
+    .from(broadcastEditionsTable)
+    .where(eq(broadcastEditionsTable.status, "PUBLISHED"));
+  const airedIds = new Set<number>();
+  for (const row of published) {
+    const segments = (row.programme as { segments?: unknown } | null)?.segments;
+    if (!Array.isArray(segments)) continue;
+    for (const value of segments) {
+      if (!value || typeof value !== "object") continue;
+      const segment = value as { storyId?: unknown; supportingStoryIds?: unknown };
+      if (typeof segment.storyId === "number") airedIds.add(segment.storyId);
+      if (Array.isArray(segment.supportingStoryIds)) {
+        for (const id of segment.supportingStoryIds) if (typeof id === "number") airedIds.add(id);
+      }
+    }
+  }
+
+  const airedStories = airedIds.size === 0
+    ? []
+    : await db.select({
+        id: broadcastStoriesTable.id,
+        leagueType: broadcastStoriesTable.leagueType,
+        anchorMatchId: broadcastStoriesTable.anchorMatchId,
+      })
+      .from(broadcastStoriesTable)
+      .where(inArray(broadcastStoriesTable.id, [...airedIds]));
+  const coveredMatchKeys = new Set(
+    airedStories
+      .filter(story => story.anchorMatchId !== null)
+      .map(story => `${story.leagueType}:${story.anchorMatchId}`),
+  );
+  const hasUncoveredMatch = candidates.some(story =>
+    story.anchorMatchId !== null
+    && !coveredMatchKeys.has(`${story.leagueType}:${story.anchorMatchId}`),
+  );
+  if (!hasUncoveredMatch) return [];
+
+  return candidates.filter(story =>
+    story.anchorMatchId === null
+      ? !airedIds.has(story.id)
+      : !coveredMatchKeys.has(`${story.leagueType}:${story.anchorMatchId}`),
+  );
+}
+
+/**
+ * Producer recovery pool for a deliberate clean sweep. Unlike the ordinary
+ * catch-up collector above, this intentionally ignores every previous
+ * Edition's coverage and returns the complete active-season editorial pool
+ * from `start` through `cutoffEnd`. Match-anchored stories are date-filtered
+ * by their verified playedAt fact; current table/form/league stories are
+ * included so the sweep can finish with the present-day state.
+ *
+ * This does not delete matches, stories, Editions, or season data. Publishing
+ * the resulting Edition simply establishes a new complete coverage baseline
+ * for later incremental builds.
+ */
+export async function collectActiveSeasonSweepStories(start: Date, cutoffEnd: Date): Promise<BroadcastStory[]> {
+  const activeSeasons = await db.select({ id: seasonsTable.id })
+    .from(seasonsTable)
+    .where(eq(seasonsTable.isActive, true));
+  const seasonIds = activeSeasons.map(season => season.id);
+  if (seasonIds.length === 0) return [];
+
+  return db.select().from(broadcastStoriesTable)
+    .where(and(
+      inArray(broadcastStoriesTable.seasonId, seasonIds),
+      lte(broadcastStoriesTable.updatedAt, cutoffEnd),
+      or(
+        isNull(broadcastStoriesTable.anchorMatchId),
+        and(
+          sql`NULLIF(${broadcastStoriesTable.facts}->>'playedAt', '') IS NOT NULL`,
+          sql`(${broadcastStoriesTable.facts}->>'playedAt')::timestamptz >= ${start}`,
+          sql`(${broadcastStoriesTable.facts}->>'playedAt')::timestamptz <= ${cutoffEnd}`,
+        ),
+      ),
+    ))
+    .orderBy(desc(broadcastStoriesTable.score), asc(broadcastStoriesTable.id));
 }

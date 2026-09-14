@@ -36,9 +36,9 @@ export async function addSeasonBroadcastReviewedAt() {
       ALTER TABLE seasons ADD COLUMN IF NOT EXISTS broadcast_reviewed_at TIMESTAMPTZ
     `);
     logger.info("seasons.broadcast_reviewed_at column ready");
-    return true;
   } catch (err) {
+    // Logged, not rethrown — a failure here shouldn't be able to prevent
+    // whatever startup step runs next (see app.ts's runInitStep).
     logger.error({ err }, "Failed to add seasons.broadcast_reviewed_at column");
-    throw err;
   }
 }

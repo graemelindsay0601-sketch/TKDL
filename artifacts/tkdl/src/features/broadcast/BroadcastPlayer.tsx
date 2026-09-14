@@ -62,10 +62,16 @@ import type { CurrentEdition, LiveOverlayItem, LiveTickerItem, Segment } from ".
 // for hours.
 const CLOCK_TICK_MS = 500;
 
+// How often to ask for a fresh Edition while nothing's playable at all (see
+// the "nothing playable" effect below) — generous enough not to hammer the
+// lazy-build endpoint (16.3) while a real fix is rolled out, frequent enough
+// a kiosk screen doesn't sit blank for long once one lands.
+const EMPTY_EDITION_RETRY_MS = 5000;
+
 // Used only by the two early-return states below (loading / no Edition yet)
 // — the main runtime's own background is StudioSet.tsx's StudioBackdrop.
 const SHELL_STYLE = {
-  background: "radial-gradient(ellipse at 20% 20%, rgba(255,0,92,0.12) 0%, transparent 55%), radial-gradient(ellipse at 80% 80%, rgba(0,102,255,0.1) 0%, transparent 55%), #06040e",
+  background: "radial-gradient(ellipse at 20% 0%, rgba(255,0,92,0.15) 0%, transparent 55%), radial-gradient(ellipse at 80% 100%, rgba(0,102,255,0.15) 0%, transparent 55%), #040208",
   fontFamily: "Oswald, sans-serif",
 } as const;
 
@@ -128,9 +134,43 @@ type PlayerRuntimeProps = {
   namesByKey: ReadonlyMap<string, string>;
   seenIds: ReadonlySet<number>;
   markSeen: (storyId: number) => void;
+  previewActiveOverlay?: LiveOverlayItem | null;
 };
 
-function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalidSegmentIds, namesByKey, seenIds, markSeen }: PlayerRuntimeProps) {
+type BroadcastPlayerPreviewProps = {
+  edition: CurrentEdition;
+  tickerItems?: LiveTickerItem[];
+  namesByKey?: ReadonlyMap<string, string>;
+  activeOverlay?: LiveOverlayItem | null;
+};
+
+const EMPTY_IDS = new Set<string>();
+const EMPTY_STORY_IDS = new Set<number>();
+const EMPTY_NAMES = new Map<string, string>();
+const NOOP = () => {};
+
+/**
+ * Development review surface for the real player chrome and scene components.
+ * It deliberately bypasses data fetching, not product authentication: the
+ * route that mounts it only exists in Vite development builds.
+ */
+export function BroadcastPlayerPreview({ edition, tickerItems = [], namesByKey = EMPTY_NAMES, activeOverlay = null }: BroadcastPlayerPreviewProps) {
+  return (
+    <PlayerRuntime
+      edition={edition}
+      refetchEdition={NOOP}
+      overlays={[]}
+      tickerItems={tickerItems}
+      invalidSegmentIds={EMPTY_IDS}
+      namesByKey={namesByKey}
+      seenIds={EMPTY_STORY_IDS}
+      markSeen={NOOP}
+      previewActiveOverlay={activeOverlay}
+    />
+  );
+}
+
+function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalidSegmentIds, namesByKey, seenIds, markSeen, previewActiveOverlay }: PlayerRuntimeProps) {
   // buildPlaylist (scene-timing.ts) owns the actual running order — see its
   // own header for why opening/headlines/body get stitched in that specific
   // sequence and why it's a pure, separately-tested function rather than
@@ -167,16 +207,36 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
 
   const lastLoopRef = useRef(0);
   useEffect(() => {
-    if (totalMs === 0) { refetchEdition(); return; } // nothing playable at all (e.g. every segment invalidated) — keep asking
     if (loopCount > lastLoopRef.current) {
       lastLoopRef.current = loopCount;
       refetchEdition();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loopCount, totalMs]);
+  }, [loopCount]);
+
+  // Nothing playable at all (e.g. an Edition loaded with zero segments, or
+  // every segment got invalidated) — keep asking for a real one. This used
+  // to be a one-shot refetch folded into the effect above, keyed on
+  // [loopCount, totalMs]: if the retry's own response was ALSO empty —
+  // same edition id, or a different one that's still empty — both loopCount
+  // and totalMs stayed at 0, so that effect's dependencies never changed
+  // and it would never fire again, leaving the player stuck blank
+  // indefinitely after exactly one retry. Polling on a timer for as long as
+  // totalMs stays 0 doesn't have that failure mode — it keeps asking
+  // regardless of whether the last response changed anything.
+  useEffect(() => {
+    if (totalMs !== 0) return;
+    refetchEdition();
+    const id = setInterval(refetchEdition, EMPTY_EDITION_RETRY_MS);
+    return () => clearInterval(id);
+  }, [totalMs, refetchEdition]);
 
   const [overlayQueue, setOverlayQueue] = useState<LiveOverlayItem[]>([]);
-  const [activeOverlay, setActiveOverlay] = useState<LiveOverlayItem | null>(null);
+  const [queuedActiveOverlay, setQueuedActiveOverlay] = useState<LiveOverlayItem | null>(null);
+  // Development captures need the requested overlay immediately and for as
+  // long as the page stays open. Production still uses only the boundary-
+  // admitted queue below; the explicit preview value never enters that path.
+  const activeOverlay = previewActiveOverlay === undefined ? queuedActiveOverlay : previewActiveOverlay;
 
   // Merge fresh live overlays into the queue (11.4/11.5), dropping anything this browser session has already shown.
   useEffect(() => {
@@ -209,14 +269,16 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
     setOverlayQueue(q => {
       const popped = popReadyOverlay(q, boundary);
       if (!popped) return q;
-      setActiveOverlay(popped.overlay);
+      setQueuedActiveOverlay(popped.overlay);
       markSeen(popped.overlay.storyId);
       return popped.remainingQueue;
     });
   }, [position, activeOverlay, markSeen]);
 
   function dismissOverlay() {
-    setActiveOverlay(null); // the shared clock never paused, so this just uncovers wherever the programme already is
+    if (previewActiveOverlay === undefined) {
+      setQueuedActiveOverlay(null); // the shared clock never paused, so this just uncovers wherever the programme already is
+    }
   }
 
   const segment = position ? playlist[position.segmentIndex] ?? null : null;
@@ -244,6 +306,9 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
 
   const backdropVariant = segment?.scene === "breaking" ? "breaking" : segment?.scene === "champion" ? "champion" : "main";
 
+  const isTransition = position?.kind === "transition";
+  const sceneAnimationClass = isTransition ? "scene-exit" : "scene-enter";
+
   return (
     <div className="fixed inset-0 flex flex-col select-none" style={{ background: "#06040e", fontFamily: "Oswald, sans-serif" }}>
       <StudioBackdrop variant={backdropVariant} />
@@ -252,11 +317,15 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
         activeSpeaker={activeTurn ? (activeTurn.speaker as "A" | "B") : null}
         activeState={activeTurnState}
       />
-      <ShowTitleBar subtitle={cornerLabel} />
+      <div data-broadcast-region="title-bar">
+        <ShowTitleBar subtitle={`${edition.mode.replace("_", " ")} · ${cornerLabel}`} />
+      </div>
 
       <ScreenPanel framed={segment ? segment.scene !== "breaking" && segment.scene !== "champion" : true}>
         {segment && SceneComponent ? (
-          <SceneComponent key={segment.id} segment={segment} turnsPlayed={turnsPlayed} />
+          <div className={`w-full h-full flex flex-col min-h-0 flex-1 ${sceneAnimationClass}`}>
+            <SceneComponent key={segment.id} segment={segment} turnsPlayed={turnsPlayed} />
+          </div>
         ) : (
           <div className="flex-1" />
         )}
@@ -271,13 +340,13 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
           // screen instead of shrinking to fit (see that file's own header
           // for the full mechanism — a real user screenshot on a narrow
           // phone showed exactly this, text clipped off both edges).
-          <div className="lower-third-in" style={{ minWidth: 0, maxWidth: "100%" }} key={`${segment?.id}-${visible.length}`}>
+          <div className={isTransition ? "scene-exit" : "lower-third-in"} style={{ minWidth: 0, maxWidth: "100%" }} key={`${segment?.id}-${visible.length}`}>
             <LowerThird turn={activeTurn} previousTurn={previousTurn} />
           </div>
         )}
       </LowerThirdDock>
 
-      <div className="relative shrink-0" style={{ zIndex: 2 }}>
+      <div data-broadcast-region="ticker" className="relative shrink-0" style={{ zIndex: 2 }}>
         <LiveTicker items={tickerItems} namesByKey={namesByKey} />
       </div>
 
