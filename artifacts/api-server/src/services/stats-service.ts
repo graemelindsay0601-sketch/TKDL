@@ -14,16 +14,28 @@ const getDateFilter = (window: TimeWindow): Date => {
   }
 };
 
-// Categorize game types into M501, Tour, Practice, League
+// Categorize a practice_sessions row's game_type_key into M501 or Practice.
+//
+// Only two things ever write to practice_sessions: the Practice page
+// (practice.ts, real game_type_keys like "501_double_out", "cricket") and
+// M501's incidental all-zero-stats row (game_type_key === "master501",
+// written purely so PRACTICE_ACTIVITY/the M501 leaderboard can find it — see
+// master501.ts's comment). Tour and League never write here at all. The old
+// version fell through to "League" by default and matched "Practice" only
+// via an ILIKE-style substring check for "PRACTICE"/"SOLO" — but real
+// Practice-page keys never contain those substrings, so every genuine
+// practice session was silently mis-bucketed as "League" and getCategory-
+// Sessions(..., "Practice") / getSessionDetail always came back empty for
+// real sessions, while getCategorySessions(..., "League") wrongly listed
+// practice sessions that aren't League matches at all (League matches live
+// in the separate `matches` table, not here). Since this table only ever
+// holds those two kinds of rows, "master501 → M501, everything else →
+// Practice" is exhaustive and correct — no substring guessing needed.
 const categorizeGameType = (gameTypeKey: string): GameTypeCategory => {
   const key = gameTypeKey?.toUpperCase() || "";
-  
+
   if (key.includes("M501") || key.includes("MASTER")) return "M501";
-  if (key.includes("TOUR") || key.includes("CAREER")) return "Tour";
-  if (key.includes("PRACTICE") || key.includes("SOLO")) return "Practice";
-  
-  // Default to League for regular competitive games (501, cricket, etc)
-  return "League";
+  return "Practice";
 };
 
 const getGameTypeCategory = (gameType: string): GameTypeCategory => {
@@ -80,20 +92,32 @@ export const statsService = {
   },
 
   // Get detailed stats for a specific category (M501, Tour, Practice, League)
+  //
+  // M501 and Tour never write to the `matches` table at all — M501 runs live
+  // in master501_runs (+ a practice_sessions row with no per-dart stats, see
+  // master501.ts's own comment on why), and Tour runs live in
+  // player_tour_runs's bracket JSONB. Querying `matches` for those two
+  // categories (the old behavior here) always returned zero rows, so a
+  // player who'd genuinely played M501/Tour saw "0 matches, 0.0% win rate"
+  // regardless of their real record. Both are now sourced from their own
+  // tables below. Per-dart stats (darts thrown, 100s/140s/170s/180s,
+  // checkout hits/attempts) genuinely aren't tracked at that granularity for
+  // either mode, so those fields stay 0 rather than inventing numbers —
+  // same "fact firewall" this codebase already applies elsewhere (see
+  // master501.ts's PATCH /master501/runs/:runId comment).
   async getCategoryStats(playerId: number, category: GameTypeCategory, window: TimeWindow = "all") {
     try {
       const cutoff = getDateFilter(window);
-      
+
+      if (category === "M501") return await statsService.getM501CategoryStats(playerId, cutoff);
+      if (category === "Tour")  return await statsService.getTourCategoryStats(playerId, cutoff);
+
       let whereClause = "";
-      if (category === "M501") {
-        whereClause = `AND (game_type ILIKE '%M501%' OR game_type ILIKE '%MASTER%')`;
-      } else if (category === "Tour") {
-        whereClause = `AND (game_type ILIKE '%TOUR%' OR game_type ILIKE '%CAREER%')`;
-      } else if (category === "Practice") {
+      if (category === "Practice") {
         whereClause = `AND (game_type ILIKE '%PRACTICE%' OR game_type ILIKE '%SOLO%')`;
       } else {
         // League: everything else
-        whereClause = `AND game_type NOT ILIKE '%M501%' AND game_type NOT ILIKE '%MASTER%' 
+        whereClause = `AND game_type NOT ILIKE '%M501%' AND game_type NOT ILIKE '%MASTER%'
                         AND game_type NOT ILIKE '%TOUR%' AND game_type NOT ILIKE '%CAREER%'
                         AND game_type NOT ILIKE '%PRACTICE%' AND game_type NOT ILIKE '%SOLO%'`;
       }
@@ -120,17 +144,27 @@ export const statsService = {
           console.error("Match stats query error:", err);
           return { rows: [{ total_matches: 0, wins: 0, total_darts: 0, avg_darts: 0, total_100s: 0, total_140s: 0, total_170s: 0, total_180s: 0, checkout_hits: 0, checkout_attempts: 0 }] };
         }),
-        // Practice sessions (only for Practice category or general)
+        // Practice sessions (only for Practice category or general).
+        // Excludes game_type_key='master501' — M501 runs get their own
+        // practice_sessions row purely so story-engine.ts's PRACTICE_ACTIVITY
+        // detector and the M501 leaderboard can find them (see
+        // master501.ts's PATCH /master501/runs/:runId comment); without this
+        // exclusion those zero-darts rows were silently padding the Practice
+        // category's session count and dragging its per-session averages
+        // down, while M501 itself (sourced from master501_runs above)
+        // separately still showed its own real numbers — the two tabs
+        // visibly disagreed with each other.
         category === "Practice" ? db.execute(drizzleSql`
-          SELECT 
+          SELECT
             COUNT(*)::int as sessions,
             COALESCE(SUM(darts_thrown), 0)::int as total_darts_practice,
             COALESCE(SUM(p1_180s), 0)::int as total_180s,
             COALESCE(SUM(p1_checkout_hits), 0)::int as checkout_hits,
             COALESCE(AVG(p1_darts), 0)::numeric as avg_darts
-          FROM practice_sessions 
-          WHERE player1_id = ${playerId} 
+          FROM practice_sessions
+          WHERE player1_id = ${playerId}
             AND created_at >= ${cutoff}
+            AND game_type_key IS DISTINCT FROM 'master501'
         `).catch((err: any) => {
           console.error("Practice stats query error:", err);
           return { rows: [{ sessions: 0, total_darts_practice: 0, total_180s: 0, checkout_hits: 0, avg_darts: 0 }] };
@@ -175,24 +209,118 @@ export const statsService = {
     }
   },
 
-  // Get monthly trends for a category
-  async getCategoryTrends(playerId: number, category: GameTypeCategory) {
-    let whereClause = "";
-    if (category === "M501") {
-      whereClause = `AND (game_type ILIKE '%M501%' OR game_type ILIKE '%MASTER%')`;
-    } else if (category === "Tour") {
-      whereClause = `AND (game_type ILIKE '%TOUR%' OR game_type ILIKE '%CAREER%')`;
-    } else if (category === "Practice") {
-      whereClause = `AND (game_type ILIKE '%PRACTICE%' OR game_type ILIKE '%SOLO%')`;
-    } else {
-      whereClause = `AND game_type NOT ILIKE '%M501%' AND game_type NOT ILIKE '%MASTER%' 
-                      AND game_type NOT ILIKE '%TOUR%' AND game_type NOT ILIKE '%CAREER%'
-                      AND game_type NOT ILIKE '%PRACTICE%' AND game_type NOT ILIKE '%SOLO%'`;
+  // M501 category stats — sourced from master501_runs (each row is one
+  // completed-or-in-progress run through a tier/round ladder), not `matches`.
+  async getM501CategoryStats(playerId: number, cutoff: Date) {
+    const result = await db.execute(drizzleSql`
+      SELECT
+        COUNT(*) FILTER (WHERE result IS NOT NULL)::int AS total_matches,
+        COUNT(*) FILTER (WHERE result = 'win')::int AS wins
+      FROM master501_runs
+      WHERE player_id = ${playerId} AND started_at >= ${cutoff}
+    `).catch((err: any) => {
+      console.error("M501 stats query error:", err);
+      return { rows: [{ total_matches: 0, wins: 0 }] };
+    });
+    const row = result.rows[0] as any;
+    const totalMatches = row.total_matches || 0;
+    const wins = row.wins || 0;
+
+    return {
+      category: "M501" as const,
+      source: "competitive" as const,
+      matches: totalMatches,
+      wins,
+      losses: totalMatches - wins,
+      winRate: totalMatches ? wins / totalMatches : 0,
+      // Per-dart stats aren't recorded per M501 run (see the comment above
+      // getCategoryStats) — 0 here means "not tracked", not "none thrown".
+      totalDarts: 0, avgDartsPerMatch: 0,
+      total100s: 0, total140s: 0, total170s: 0, total180s: 0,
+      checkoutHits: 0, checkoutAttempts: 0, checkoutRate: 0,
+    };
+  },
+
+  // Tour category stats — sourced from player_tour_runs.bracket, the JSONB
+  // blob the bracket engine (lib/bracketEngine.ts) reads and advances; Tour
+  // never writes a row to `matches` at all. Knockout brackets store the
+  // player's results per-match inside rounds[].matches[] (found by
+  // p1Key/p2Key === "player"); Premier League brackets keep a running
+  // standings row per participant (`isPlayer` marks the player's own),
+  // covering the 9 group fixtures, plus a separate one-off final tracked via
+  // finalResult since the final isn't part of the group standings.
+  async getTourCategoryStats(playerId: number, cutoff: Date) {
+    const result = await db.execute(drizzleSql`
+      SELECT bracket FROM player_tour_runs
+      WHERE player_id = ${playerId} AND started_at >= ${cutoff}
+    `).catch((err: any) => {
+      console.error("Tour stats query error:", err);
+      return { rows: [] };
+    });
+
+    let totalMatches = 0;
+    let wins = 0;
+    for (const row of result.rows as any[]) {
+      const bracket = row.bracket;
+      if (!bracket) continue;
+
+      if (bracket.format === "knockout") {
+        for (const round of bracket.rounds ?? []) {
+          for (const m of round.matches ?? []) {
+            const playerInvolved = m.p1Key === "player" || m.p2Key === "player";
+            if (!playerInvolved || m.winnerKey == null) continue;
+            totalMatches++;
+            if (m.winnerKey === "player") wins++;
+          }
+        }
+      } else if (bracket.format === "premier_league") {
+        const standing = (bracket.standings ?? []).find((s: any) => s.isPlayer);
+        if (standing) {
+          totalMatches += standing.played || 0;
+          wins += standing.won || 0;
+        }
+        if (bracket.finalResult) {
+          totalMatches++;
+          if (bracket.finalResult === "win") wins++;
+        }
+      }
     }
+
+    return {
+      category: "Tour" as const,
+      source: "competitive" as const,
+      matches: totalMatches,
+      wins,
+      losses: totalMatches - wins,
+      winRate: totalMatches ? wins / totalMatches : 0,
+      // Per-dart stats aren't recorded per Tour leg either — see the M501
+      // method above for why these stay 0 rather than guessed at.
+      totalDarts: 0, avgDartsPerMatch: 0,
+      total100s: 0, total140s: 0, total170s: 0, total180s: 0,
+      checkoutHits: 0, checkoutAttempts: 0, checkoutRate: 0,
+    };
+  },
+
+  // Get monthly trends for a category.
+  //
+  // Same table split as getCategoryStats above: M501 and Tour never write to
+  // `matches`, so querying it for those two categories (the old behavior)
+  // always returned an empty trend line even once the headline stats were
+  // fixed to read master501_runs/player_tour_runs. Practice trends are left
+  // as-is (empty) for now — practice_sessions has no win/loss concept to
+  // chart against a "wins" trend line the same way competitive categories
+  // do, and no caller currently requests a Practice trend.
+  async getCategoryTrends(playerId: number, category: GameTypeCategory) {
+    if (category === "M501")  return await statsService.getM501CategoryTrends(playerId);
+    if (category === "Tour")  return await statsService.getTourCategoryTrends(playerId);
+
+    const whereClause = `AND game_type NOT ILIKE '%M501%' AND game_type NOT ILIKE '%MASTER%'
+                          AND game_type NOT ILIKE '%TOUR%' AND game_type NOT ILIKE '%CAREER%'
+                          AND game_type NOT ILIKE '%PRACTICE%' AND game_type NOT ILIKE '%SOLO%'`;
 
     const result = await db.execute(drizzleSql`
       WITH monthly_stats AS (
-        SELECT 
+        SELECT
           DATE_TRUNC('month', played_at)::DATE as month,
           COUNT(*)::int as matches,
           SUM(CASE WHEN winner_id = ${playerId} THEN 1 ELSE 0 END)::int as wins
@@ -214,18 +342,98 @@ export const statsService = {
     }));
   },
 
+  // M501 monthly trend — sourced from master501_runs, grouped by started_at.
+  async getM501CategoryTrends(playerId: number) {
+    const result = await db.execute(drizzleSql`
+      WITH monthly_stats AS (
+        SELECT
+          DATE_TRUNC('month', started_at)::DATE as month,
+          COUNT(*) FILTER (WHERE result IS NOT NULL)::int as matches,
+          COUNT(*) FILTER (WHERE result = 'win')::int as wins
+        FROM master501_runs
+        WHERE player_id = ${playerId}
+        GROUP BY DATE_TRUNC('month', started_at)
+        ORDER BY month DESC
+        LIMIT 12
+      )
+      SELECT * FROM monthly_stats ORDER BY month ASC
+    `).catch((err: any) => {
+      console.error("M501 trends query error:", err);
+      return { rows: [] };
+    });
+
+    return (result.rows as any[]).map(row => ({
+      month: new Date(row.month).toLocaleDateString("en-US", { month: "short", year: "numeric" }),
+      matches: row.matches,
+      wins: row.wins,
+      winRate: row.matches ? row.wins / row.matches : 0,
+    }));
+  },
+
+  // Tour monthly trend — sourced from player_tour_runs.bracket, the same
+  // knockout/premier_league walk getTourCategoryStats does above, just
+  // bucketed by the run's started_at month instead of summed across all time.
+  async getTourCategoryTrends(playerId: number) {
+    const result = await db.execute(drizzleSql`
+      SELECT DATE_TRUNC('month', started_at)::DATE as month, bracket
+      FROM player_tour_runs
+      WHERE player_id = ${playerId}
+    `).catch((err: any) => {
+      console.error("Tour trends query error:", err);
+      return { rows: [] };
+    });
+
+    const byMonth = new Map<string, { matches: number; wins: number }>();
+    for (const row of result.rows as any[]) {
+      const monthKey = new Date(row.month).toISOString();
+      const bracket = row.bracket;
+      if (!bracket) continue;
+
+      let matches = 0, wins = 0;
+      if (bracket.format === "knockout") {
+        for (const round of bracket.rounds ?? []) {
+          for (const m of round.matches ?? []) {
+            const playerInvolved = m.p1Key === "player" || m.p2Key === "player";
+            if (!playerInvolved || m.winnerKey == null) continue;
+            matches++;
+            if (m.winnerKey === "player") wins++;
+          }
+        }
+      } else if (bracket.format === "premier_league") {
+        const standing = (bracket.standings ?? []).find((s: any) => s.isPlayer);
+        if (standing) { matches += standing.played || 0; wins += standing.won || 0; }
+        if (bracket.finalResult) { matches++; if (bracket.finalResult === "win") wins++; }
+      }
+
+      const existing = byMonth.get(monthKey) ?? { matches: 0, wins: 0 };
+      existing.matches += matches;
+      existing.wins += wins;
+      byMonth.set(monthKey, existing);
+    }
+
+    return Array.from(byMonth.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([monthKey, { matches, wins }]) => ({
+        month: new Date(monthKey).toLocaleDateString("en-US", { month: "short", year: "numeric" }),
+        matches,
+        wins,
+        winRate: matches ? wins / matches : 0,
+      }));
+  },
+
   // Get dart profile for a category (from practice sessions)
   async getCategoryDartProfile(playerId: number, category: GameTypeCategory) {
-    // Same substring rules as categorizeGameType()/getGameTypeCategory() above,
-    // reimplemented in SQL so this query actually respects the requested category
-    // (the old version accepted the parameter and silently ignored it).
+    // Same "master501 → M501, everything else → Practice" split as
+    // categorizeGameType() above, reimplemented in SQL — practice_sessions
+    // only ever holds those two kinds of rows (Tour/League never write here),
+    // so a Tour or League request correctly matches nothing rather than
+    // guessing at a substring that was never going to appear.
     const categoryFilter =
       category === "M501"     ? drizzleSql`(game_type_key ILIKE '%M501%' OR game_type_key ILIKE '%MASTER%')` :
-      category === "Tour"     ? drizzleSql`(game_type_key ILIKE '%TOUR%' OR game_type_key ILIKE '%CAREER%')` :
-      category === "Practice" ? drizzleSql`(game_type_key ILIKE '%PRACTICE%' OR game_type_key ILIKE '%SOLO%')` :
-      /* League */               drizzleSql`(game_type_key NOT ILIKE '%M501%' AND game_type_key NOT ILIKE '%MASTER%'
-                                          AND game_type_key NOT ILIKE '%TOUR%' AND game_type_key NOT ILIKE '%CAREER%'
-                                          AND game_type_key NOT ILIKE '%PRACTICE%' AND game_type_key NOT ILIKE '%SOLO%')`;
+      category === "Practice" ? drizzleSql`(game_type_key NOT ILIKE '%M501%' AND game_type_key NOT ILIKE '%MASTER%')` :
+      /* Tour / League: never represented in practice_sessions */
+                                 drizzleSql`FALSE`;
 
     // Each dartLog entry is { seg, mult, val } — seg is the actual board segment
     // (1-20, or 25 for bull) the dart landed on; val is seg*mult (its point value).

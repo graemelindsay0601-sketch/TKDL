@@ -5,10 +5,10 @@ import {
   weeklyChallenges,
   playerWeeklyChallenges,
 } from "@workspace/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, gte, lt, sql } from "drizzle-orm";
 import { addCoinsToPlayer } from "./card-shop-service.ts";
 import { giveCardToPlayer } from "./card-shop-service.ts";
-import { getIsoWeekNumber } from "../lib/iso-week.ts";
+import { getIsoWeekNumber, getIsoWeekYear } from "../lib/iso-week.ts";
 
 export const challengeManager = {
   /**
@@ -159,6 +159,30 @@ export const challengeManager = {
       .map(([type]) => type);
     if (matchingTypes.length === 0) return;
 
+    // getDailyChallengesForPlayer/getWeeklyChallengesForPlayer (challenge-
+    // service.ts — what the player-facing Challenges screen actually reads)
+    // create a FRESH player_daily_challenges/player_weekly_challenges row
+    // whenever none exists for the current day/week, leaving any prior
+    // day's/week's incomplete row sitting in the table rather than deleting
+    // it. Without the date_assigned/week_number bounds below, this UPDATE
+    // matched every incomplete row for the player — today's AND every
+    // never-finished row from past days/weeks — so a single win could
+    // complete and pay out several stale challenges the player's screen no
+    // longer even shows. Bounding to "today"/"this ISO week" (the same
+    // windows those two read functions use) keeps this to the one row the
+    // player can actually see.
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const now = new Date();
+    const weekNumber = getIsoWeekNumber(now);
+    // week_number alone repeats every calendar year (week 12 of 2026 and
+    // week 12 of 2027 are both just "12") — see add_weekly_challenge_year.ts.
+    // Without also pinning week_year, this UPDATE's week_number match could
+    // silently complete/pay out a stale same-numbered week from a year ago.
+    const weekYear = getIsoWeekYear(now);
+
     // Atomic per-row UPDATE...FROM...RETURNING: increments progress and
     // flips is_completed/completed_at in the database in one statement,
     // guarded by `is_completed = false`. The old code read progress into
@@ -183,6 +207,7 @@ export const challengeManager = {
       WHERE pdc.challenge_id = dc.id
         AND pdc.player_id = ${playerId}
         AND pdc.is_completed = false
+        AND pdc.date_assigned >= ${today} AND pdc.date_assigned < ${tomorrow}
         AND dc.requirement_type = ANY(${matchingTypes}::text[])
       RETURNING pdc.is_completed AS is_completed, dc.reward_coins AS reward_coins, dc.reward_pack_tokens AS reward_pack_tokens
     `)).rows as { is_completed: boolean; reward_coins: number; reward_pack_tokens: number | null }[];
@@ -204,6 +229,8 @@ export const challengeManager = {
       WHERE pwc.challenge_id = wc.id
         AND pwc.player_id = ${playerId}
         AND pwc.is_completed = false
+        AND pwc.week_number = ${weekNumber}
+        AND pwc.week_year = ${weekYear}
         AND wc.requirement_type = ANY(${matchingTypes}::text[])
       RETURNING pwc.is_completed AS is_completed, wc.reward_coins AS reward_coins, wc.reward_pack_tokens AS reward_pack_tokens
     `)).rows as { is_completed: boolean; reward_coins: number; reward_pack_tokens: number | null }[];
@@ -249,13 +276,21 @@ export const challengeManager = {
     // TODO: Track reroll usage
     // For now, assume first reroll is free
 
-    // Delete current challenge assignment
+    // Delete current challenge assignment — scoped to TODAY's row only.
+    // This used to delete every row ever assigned for (playerId,
+    // challengeId) regardless of date (today/tomorrow were computed above
+    // but never actually used in the WHERE clause), so rerolling a daily
+    // challenge silently erased that player's entire history with this
+    // challenge — every past day's progress and completion record, not just
+    // the one row being rerolled.
     await db
       .delete(playerDailyChallenges)
       .where(
         and(
           eq(playerDailyChallenges.player_id, playerId),
-          eq(playerDailyChallenges.challenge_id, challengeId)
+          eq(playerDailyChallenges.challenge_id, challengeId),
+          gte(playerDailyChallenges.date_assigned, today),
+          lt(playerDailyChallenges.date_assigned, tomorrow)
         )
       );
 
@@ -267,13 +302,22 @@ export const challengeManager = {
    * Reroll a weekly challenge for a player
    */
   async rerollWeekly(playerId: number, challengeId: number) {
-    // Similar to daily but for weekly
+    // Same fix as rerollDaily above, scoped to THIS week's row only (by
+    // week_year + week_number together — see add_weekly_challenge_year.ts
+    // for why week_number alone isn't enough) instead of deleting every row
+    // ever assigned for this challenge across every past week.
+    const now = new Date();
+    const weekNumber = getIsoWeekNumber(now);
+    const weekYear = getIsoWeekYear(now);
+
     await db
       .delete(playerWeeklyChallenges)
       .where(
         and(
           eq(playerWeeklyChallenges.player_id, playerId),
-          eq(playerWeeklyChallenges.challenge_id, challengeId)
+          eq(playerWeeklyChallenges.challenge_id, challengeId),
+          eq(playerWeeklyChallenges.week_number, weekNumber),
+          eq(playerWeeklyChallenges.week_year, weekYear)
         )
       );
 

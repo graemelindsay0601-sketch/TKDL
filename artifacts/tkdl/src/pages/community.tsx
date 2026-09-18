@@ -110,16 +110,26 @@ function PlayerAvatar({ name, tier, size = 8 }: { name: string; tier: string; si
 // "tier_up", "tier_drop", with loserEliminated flagged inside a "match"
 // post) — this just surfaces it visually instead of adding new event types.
 const AUTO_EVENT_STYLES: Record<string, { color: string; icon: string; label: string }> = {
-  elimination: { color: "#ff005c", icon: "💀", label: "Elimination" },
-  match:       { color: "#22c55e", icon: "🎯", label: "Match" },
-  tier_up:     { color: "#ffd24a", icon: "🏆", label: "Tier Up" },
-  tier_drop:   { color: "#f97316", icon: "📉", label: "Tier Down" },
+  elimination:      { color: "#ff005c", icon: "💀", label: "Elimination" },
+  match:             { color: "#22c55e", icon: "🎯", label: "Match" },
+  tier_up:           { color: "#ffd24a", icon: "🏆", label: "Tier Up" },
+  tier_drop:         { color: "#f97316", icon: "📉", label: "Tier Down" },
+  // Doubles/Team Matches/Shift Wars results didn't post to the feed at all
+  // until routes/doubles.ts, team-matches.ts and shift-wars.ts each started
+  // calling createAutoPost — without their own entries here they still fell
+  // through to the generic "⚡ Auto" style below, indistinguishable from
+  // each other and from a singles match.
+  doubles_match:     { color: "#0066ff", icon: "🎯", label: "Doubles" },
+  team_match:        { color: "#38bdf8", icon: "👥", label: "Team Match" },
+  shift_wars_match:  { color: "#22c55e", icon: "🏬", label: "Shift Wars" },
 };
 
 function autoEventStyle(post: Post): { color: string; icon: string; label: string } | null {
   if (post.post_type !== "auto") return null;
-  const meta = (post.auto_meta ?? {}) as { type?: string; loserEliminated?: boolean };
+  const meta = (post.auto_meta ?? {}) as { type?: string; loserEliminated?: boolean; eliminatedIds?: number[] };
   if (meta.type === "match" && meta.loserEliminated) return AUTO_EVENT_STYLES.elimination;
+  if (meta.type === "doubles_match" && meta.loserEliminated) return AUTO_EVENT_STYLES.elimination;
+  if (meta.type === "team_match" && Array.isArray(meta.eliminatedIds) && meta.eliminatedIds.length > 0) return AUTO_EVENT_STYLES.elimination;
   if (meta.type && AUTO_EVENT_STYLES[meta.type]) return AUTO_EVENT_STYLES[meta.type];
   return { color: "#00e5a0", icon: "⚡", label: "Auto" };
 }

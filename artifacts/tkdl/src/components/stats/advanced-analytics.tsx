@@ -36,6 +36,13 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
   const [selectedView, setSelectedView] = useState<"overview" | "leaderboard" | "trends" | "formats">("overview");
   const [metrics, setMetrics] = useState<LeagueMetrics | null>(null);
   const [playerRanking, setPlayerRanking] = useState<PlayerStats[]>([]);
+  // Full leaderboard's rank/stats for `playerId`, independent of the top-15
+  // slice playerRanking keeps for display — this used to be the only thing
+  // the playerId prop was for, and nothing in this component ever actually
+  // read it, so the account page passed it in for no effect: no "you are
+  // ranked #N" callout, and no highlight on the player's own row when they
+  // weren't in the top 3/15.
+  const [myRank, setMyRank] = useState<{ rank: number; stats: PlayerStats } | null>(null);
   const [formatStats, setFormatStats] = useState<GameTypeStats[]>([]);
   const [monthlyTrends, setMonthlyTrends] = useState<MonthlyTrend[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +95,7 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
           };
 
           // Map leaderboard data to PlayerStats format
-          const realPlayers: PlayerStats[] = leaderboard.slice(0, 15).map((p: any) => ({
+          const toPlayerStats = (p: any): PlayerStats => ({
             playerId: p.playerId,
             playerName: p.playerName,
             matches: p.gamesPlayed || 0,
@@ -97,10 +104,22 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
             winRate: p.winRate || 0,
             eloRating: p.elo || 0,
             tier: p.tier || "Unranked",
-          }));
+          });
+          const realPlayers: PlayerStats[] = leaderboard.slice(0, 15).map(toPlayerStats);
 
           setMetrics(realMetrics);
           setPlayerRanking(realPlayers);
+
+          // Find this player's real rank/stats against the FULL leaderboard,
+          // not just the top-15 slice above — a mid-table or lower-ranked
+          // player would otherwise never see themselves reflected anywhere
+          // in this dashboard at all.
+          if (playerId != null) {
+            const idx = leaderboard.findIndex((p: any) => p.playerId === playerId);
+            setMyRank(idx >= 0 ? { rank: idx + 1, stats: toPlayerStats(leaderboard[idx]) } : null);
+          } else {
+            setMyRank(null);
+          }
         }
       } catch (err) {
         console.error("Failed to load analytics", err);
@@ -110,7 +129,7 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
     };
 
     fetchAnalytics();
-  }, []);
+  }, [playerId]);
 
   if (loading) {
     return <div style={{ padding: "40px", textAlign: "center", color: "rgba(255,255,255,0.5)" }}>Loading analytics...</div>;
@@ -173,6 +192,15 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
           unit=""
           color="#ffd24a"
         />
+        {myRank && (
+          <StatBox
+            icon={Award}
+            label="Your Rank"
+            value={`#${myRank.rank}`}
+            unit={`of ${metrics?.totalPlayers ?? ""}`}
+            color="#00e5a0"
+          />
+        )}
       </div>
 
       {/* Top Players */}
@@ -284,7 +312,10 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
           {playerRanking.map((player, idx) => (
             <tr key={player.playerId} style={{
               borderBottom: "1px solid rgba(255,255,255,0.05)",
-              background: idx < 3 ? "rgba(255,210,74,0.05)" : undefined,
+              background: player.playerId === playerId
+                ? "rgba(0,229,160,0.08)"
+                : idx < 3 ? "rgba(255,210,74,0.05)" : undefined,
+              outline: player.playerId === playerId ? "1px solid rgba(0,229,160,0.3)" : undefined,
             }}>
               <td style={{ padding: "10px 8px" }}>
                 <span style={{ fontSize: "14px", fontWeight: "700", color: idx === 0 ? "#ffd24a" : idx === 1 ? "#c0c0c0" : "#cd7f32" }}>
@@ -306,6 +337,19 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
           ))}
         </tbody>
       </table>
+      {myRank && myRank.rank > playerRanking.length && (
+        <div style={{
+          marginTop: "12px",
+          padding: "10px 12px",
+          background: "rgba(0,229,160,0.06)",
+          border: "1px solid rgba(0,229,160,0.2)",
+          borderRadius: "6px",
+          fontSize: "12px",
+          color: "rgba(255,255,255,0.8)",
+        }}>
+          You're ranked <strong style={{ color: "#00e5a0" }}>#{myRank.rank}</strong> — {myRank.stats.wins}W-{myRank.stats.losses}L, {(myRank.stats.winRate * 100).toFixed(1)}% win rate, {myRank.stats.eloRating} ELO
+        </div>
+      )}
     </div>
   );
 

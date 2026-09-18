@@ -15,20 +15,18 @@ export function getIsoWeekNumber(date: Date): number {
 }
 
 /**
- * A year-qualified ISO week key (e.g. 202601 for ISO week 1 of 2026),
- * suitable for storing in an integer "week number" column so it can't
- * collide across a year boundary the way a bare 1-53 week number can (week
- * 1 of a new year vs. a stale week 1 row from a prior year). Encodes as
- * isoYear * 100 + isoWeek — isoWeek never exceeds 53, so the two never
- * overlap. Uses the same Monday-start/Thursday-anchored ISO year as
- * getIsoWeekNumber (which late-December/early-January dates can belong to a
- * different calendar year than date.getFullYear() would suggest), not the
- * plain calendar year.
+ * The ISO-8601 week-YEAR for a given date — not always the same as
+ * date.getFullYear(). The two only diverge right at a year boundary: e.g.
+ * Dec 31, 2029 is a Monday whose ISO week is week 1 of 2030 (see this file's
+ * test suite), so getIsoWeekNumber(that date) === 1 and getFullYear() would
+ * wrongly say 2029. Pairing (getIsoWeekYear(d), getIsoWeekNumber(d)) is what
+ * actually uniquely identifies a week — week_number alone repeats every
+ * calendar year (week 12 of 2026 and week 12 of 2027 are both just "12"),
+ * which is exactly the bug this function exists to let callers avoid.
  */
-export function getIsoWeekKey(date: Date): number {
+export function getIsoWeekYear(date: Date): number {
   const d = new Date(date.getTime());
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-  const isoYear = d.getFullYear();
-  return isoYear * 100 + getIsoWeekNumber(date);
+  return d.getFullYear();
 }

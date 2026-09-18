@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { createNotification } from "../lib/communityNotify";
+import { authedWriteRateLimit } from "../middleware/writeRateLimit";
 
 const router = Router();
 
@@ -71,10 +72,10 @@ router.get("/community/posts", async (req, res): Promise<void> => {
 
     if (myPlayerId && posts.length > 0) {
       const ids = posts.map(p => p.id as number);
-      const idList = sql.raw(ids.join(","));
       const mr = await db.execute(sql`
         SELECT post_id, emoji FROM post_reactions
-        WHERE player_id = ${myPlayerId} AND post_id IN (${idList})
+        WHERE player_id = ${myPlayerId}
+          AND post_id = ANY(ARRAY[${sql.join(ids.map(id => sql`${id}`), sql`, `)}]::int[])
       `);
       for (const row of mr.rows as any[]) {
         (myReactions[row.post_id] ??= []).push(row.emoji);
@@ -112,7 +113,7 @@ router.get("/community/posts/pending", async (req, res): Promise<void> => {
 });
 
 // ── POST /community/posts ────────────────────────────────────────────────────
-router.post("/community/posts", async (req, res): Promise<void> => {
+router.post("/community/posts", authedWriteRateLimit, async (req, res): Promise<void> => {
   if (!await featureEnabled("community_enabled") && !sessionIsAdmin(req)) {
     res.status(503).json({ error: "Community feature not yet enabled" }); return;
   }
@@ -210,6 +211,15 @@ router.post("/community/posts/:id/reject", async (req, res): Promise<void> => {
 });
 
 // ── PATCH /community/posts/:id — owner or admin can edit content ─────────────
+// Auto-generated posts (post_type !== 'manual' — 180s, checkouts, elimination
+// announcements, doubles/team/shift-wars match posts, etc.) are records of
+// something that actually happened in a game; the "owner" is just whoever the
+// event happened to, not an author who wrote the content, so they should
+// never be able to rewrite one into arbitrary text. Only admins may touch
+// those. And when a player edits their own already-approved manual post, the
+// new content hasn't been moderated yet, so it goes back to 'pending' rather
+// than silently staying 'approved' with unreviewed text — same as a fresh
+// post, minus losing the comments/reactions already on it.
 router.patch("/community/posts/:id", async (req, res): Promise<void> => {
   const playerId = sessionPlayerId(req);
   const isAdmin  = sessionIsAdmin(req);
@@ -221,27 +231,56 @@ router.patch("/community/posts/:id", async (req, res): Promise<void> => {
   const { content } = req.body as { content?: string };
   if (!content?.trim()) { res.status(400).json({ error: "Content required" }); return; }
 
-  const post = (await db.execute(sql`SELECT player_id FROM community_posts WHERE id = ${id}`)).rows[0] as any;
+  const post = (await db.execute(sql`SELECT player_id, post_type, status FROM community_posts WHERE id = ${id}`)).rows[0] as any;
   if (!post) { res.status(404).json({ error: "Post not found" }); return; }
   if (!isAdmin && post.player_id !== playerId) { res.status(403).json({ error: "Not your post" }); return; }
+  if (!isAdmin && post.post_type !== "manual") {
+    res.status(403).json({ error: "Auto-generated posts can't be edited" }); return;
+  }
+
+  if (!isAdmin && post.status === "approved") {
+    await db.execute(sql`
+      UPDATE community_posts
+      SET content = ${content.trim()}, status = 'pending', approved_at = NULL
+      WHERE id = ${id}
+    `);
+    res.json({ ok: true, status: "pending" });
+    return;
+  }
 
   await db.execute(sql`UPDATE community_posts SET content = ${content.trim()} WHERE id = ${id}`);
   res.json({ ok: true });
 });
 
-// ── DELETE /community/posts/:id — admin ──────────────────────────────────────
+// ── DELETE /community/posts/:id — admin or own post ──────────────────────────
 router.delete("/community/posts/:id", async (req, res): Promise<void> => {
-  if (!sessionIsAdmin(req)) { res.status(403).json({ error: "Admin required" }); return; }
+  const isAdmin = sessionIsAdmin(req);
+  const playerId = sessionPlayerId(req);
+  if (!isAdmin && !playerId) { res.status(401).json({ error: "Login required" }); return; }
+
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  await db.execute(sql`DELETE FROM community_posts WHERE id = ${id}`);
+
+  // Admin can delete any post; players can only delete their own manual
+  // posts — deleting an auto-generated post (a record of something that
+  // actually happened, e.g. a 180 or a completed match) is left to admins,
+  // same reasoning as the PATCH endpoint above.
+  const result = isAdmin
+    ? await db.execute(sql`DELETE FROM community_posts WHERE id = ${id} RETURNING id`)
+    : await db.execute(sql`
+        DELETE FROM community_posts
+        WHERE id = ${id} AND player_id = ${playerId!} AND post_type = 'manual'
+        RETURNING id
+      `);
+
+  if (!result.rows.length) { res.status(404).json({ error: "Post not found or not yours" }); return; }
   res.json({ ok: true });
 });
 
 // ── POST /community/posts/:id/react ──────────────────────────────────────────
 const ALLOWED_EMOJI = ["👍", "❤️", "😂", "🎯", "🏆"];
 
-router.post("/community/posts/:id/react", async (req, res): Promise<void> => {
+router.post("/community/posts/:id/react", authedWriteRateLimit, async (req, res): Promise<void> => {
   if (!await featureEnabled("community_enabled") && !sessionIsAdmin(req)) {
     res.status(503).json({ error: "Community feature not yet enabled" }); return;
   }
@@ -256,23 +295,32 @@ router.post("/community/posts/:id/react", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid emoji", allowed: ALLOWED_EMOJI }); return;
   }
 
-  const existing = await db.execute(sql`
-    SELECT id FROM post_reactions
-    WHERE post_id = ${postId} AND player_id = ${playerId} AND emoji = ${emoji}
-  `);
-
-  if (existing.rows.length > 0) {
-    await db.execute(sql`
+  // Single statement toggle: the old code read (SELECT), then decided
+  // INSERT vs DELETE in JS — two concurrent taps (a double-tap, or two
+  // devices) could both see "not reacted yet" and both INSERT (harmless
+  // thanks to ON CONFLICT DO NOTHING, but then both think they "added" it),
+  // or both see "reacted" and both DELETE. Folding the whole toggle into one
+  // CTE means Postgres evaluates del/ins against a single consistent
+  // snapshot, so it's race-free without needing a transaction wrapper.
+  const toggled = await db.execute(sql`
+    WITH del AS (
       DELETE FROM post_reactions
       WHERE post_id = ${postId} AND player_id = ${playerId} AND emoji = ${emoji}
-    `);
-    res.json({ toggled: false });
-  } else {
-    await db.execute(sql`
+      RETURNING id
+    ), ins AS (
       INSERT INTO post_reactions (post_id, player_id, emoji)
-      VALUES (${postId}, ${playerId}, ${emoji})
-      ON CONFLICT DO NOTHING
-    `);
+      SELECT ${postId}, ${playerId}, ${emoji}
+      WHERE NOT EXISTS (SELECT 1 FROM del)
+      RETURNING id
+    )
+    SELECT
+      (SELECT COUNT(*) FROM del)::int AS deleted_count,
+      (SELECT COUNT(*) FROM ins)::int AS inserted_count
+  `);
+  const { inserted_count } = toggled.rows[0] as any;
+  const wasAdded = inserted_count > 0;
+
+  if (wasAdded) {
     const postRow = (await db.execute(sql`
       SELECT player_id FROM community_posts WHERE id = ${postId}
     `)).rows[0] as any;
@@ -287,14 +335,16 @@ router.post("/community/posts/:id/react", async (req, res): Promise<void> => {
         message: `${actor?.name ?? "Someone"} reacted ${emoji} to your post`,
       });
     }
-    res.json({ toggled: true });
   }
+  res.json({ toggled: wasAdded });
 });
 
 // ── GET /community/posts/:id/comments ────────────────────────────────────────
 router.get("/community/posts/:id/comments", async (req, res): Promise<void> => {
   const postId = Number(req.params.id);
   if (isNaN(postId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const limit  = Math.min(Number(req.query.limit)  || 20, 100);
+  const offset = Math.max(Number(req.query.offset) || 0,  0);
   const rows = await db.execute(sql`
     SELECT pc.id, pc.player_id, pl.name AS player_name,
            CASE WHEN pl.elo >= 1400 THEN 'Diamond'
@@ -307,6 +357,7 @@ router.get("/community/posts/:id/comments", async (req, res): Promise<void> => {
     JOIN players pl ON pl.id = pc.player_id
     WHERE pc.post_id = ${postId}
     ORDER BY pc.created_at ASC
+    LIMIT ${limit} OFFSET ${offset}
   `);
   res.json(rows.rows);
 });
@@ -344,7 +395,7 @@ router.delete("/community/posts/:id/comments/:commentId", async (req, res): Prom
 });
 
 // ── POST /community/posts/:id/comments ──────────────────────────────────────
-router.post("/community/posts/:id/comments", async (req, res): Promise<void> => {
+router.post("/community/posts/:id/comments", authedWriteRateLimit, async (req, res): Promise<void> => {
   if (!await featureEnabled("community_enabled") && !sessionIsAdmin(req)) {
     res.status(503).json({ error: "Community feature not yet enabled" }); return;
   }

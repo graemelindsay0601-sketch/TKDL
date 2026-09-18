@@ -33,6 +33,8 @@ import { addFeatureSpotlights } from "./db/migrations/add_feature_spotlights";
 import { addBroadcastAdminBuildLock } from "./db/migrations/add_broadcast_admin_build_lock";
 import { addPracticeSessionIdempotencyKey } from "./db/migrations/add_practice_session_idempotency_key";
 import { addSeasonStandingsUnique } from "./db/migrations/add_season_standings_unique";
+import { addSeasonalQuestsUnique } from "./db/migrations/add_seasonal_quests_unique";
+import { addWeeklyChallengeYear } from "./db/migrations/add_weekly_challenge_year";
 import { addSeasonResetLock } from "./db/migrations/add_season_reset_lock";
 import { addUsersPlayerIdUnique } from "./db/migrations/add_users_player_id_unique";
 import { seedBroadcastSettings } from "./broadcast/config";
@@ -1078,6 +1080,8 @@ async function init() {
   await runInitStep("addBroadcastAdminBuildLock", addBroadcastAdminBuildLock);
   await runInitStep("addPracticeSessionIdempotencyKey", addPracticeSessionIdempotencyKey);
   await runInitStep("addSeasonStandingsUnique", addSeasonStandingsUnique);
+  await runInitStep("addSeasonalQuestsUnique", addSeasonalQuestsUnique);
+  await runInitStep("addWeeklyChallengeYear", addWeeklyChallengeYear);
   await runInitStep("addSeasonResetLock", addSeasonResetLock);
   await runInitStep("addUsersPlayerIdUnique", addUsersPlayerIdUnique);
   await runInitStep("seedBroadcastSettings", seedBroadcastSettings);

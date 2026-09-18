@@ -18,7 +18,7 @@
  */
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { getIsoWeekNumber } from "../iso-week.ts";
+import { getIsoWeekNumber, getIsoWeekYear } from "../iso-week.ts";
 
 describe("getIsoWeekNumber", () => {
   test("January 1st, 2026 (a Thursday) is ISO week 1", () => {
@@ -45,5 +45,34 @@ describe("getIsoWeekNumber", () => {
     const thisWeek = getIsoWeekNumber(new Date(2026, 7, 24)); // Monday
     const nextWeek = getIsoWeekNumber(new Date(2026, 7, 31)); // the following Monday
     assert.equal(nextWeek, thisWeek + 1);
+  });
+});
+
+describe("getIsoWeekYear", () => {
+  test("matches the calendar year for an ordinary mid-year date", () => {
+    assert.equal(getIsoWeekYear(new Date(2026, 7, 24)), 2026);
+  });
+
+  test("Dec 31, 2029 (a Monday) belongs to ISO week-year 2030, not calendar year 2029", () => {
+    // Same date the getIsoWeekNumber suite uses to show it returns week 1 —
+    // this is the other half of that pairing: week_number alone is
+    // ambiguous (it repeats every year), so a caller needs (year, week)
+    // together to tell Dec 31 2029's "week 1" apart from Jan 2026's "week 1".
+    assert.equal(getIsoWeekYear(new Date(2029, 11, 31)), 2030);
+    assert.equal(getIsoWeekNumber(new Date(2029, 11, 31)), 1);
+  });
+
+  test("Jan 1, 2027 (a Friday) belongs to ISO week-year 2026, not calendar year 2027", () => {
+    // The mirror-image edge case: early January can belong to the tail end
+    // of the previous ISO year.
+    assert.equal(getIsoWeekYear(new Date(2027, 0, 1)), 2026);
+  });
+
+  test("every day within the same Mon-Sun week returns the same week-year", () => {
+    const monday = getIsoWeekYear(new Date(2026, 7, 24));
+    for (let i = 1; i <= 6; i++) {
+      const day = getIsoWeekYear(new Date(2026, 7, 24 + i));
+      assert.equal(day, monday, `day offset +${i} should share Monday's week-year`);
+    }
   });
 });

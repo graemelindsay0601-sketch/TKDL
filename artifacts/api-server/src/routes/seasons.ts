@@ -272,19 +272,32 @@ router.patch("/seasons/:id/playoff/:matchId", requireAdminSession, async (req, r
   const parsed = PlayoffMatchBody.partial().safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const sets: string[] = [];
-  const vals: any[] = [];
-  if (parsed.data.winnerId !== undefined) { sets.push(`winner_id = $${sets.length+1}`); vals.push(parsed.data.winnerId); }
-  if (parsed.data.notes !== undefined) { sets.push(`notes = $${sets.length+1}`); vals.push(parsed.data.notes); }
-  if (parsed.data.round !== undefined) { sets.push(`round = $${sets.length+1}`); vals.push(parsed.data.round); }
-  if (sets.length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
+  if (parsed.data.winnerId === undefined && parsed.data.notes === undefined && parsed.data.round === undefined) {
+    res.status(400).json({ error: "Nothing to update" }); return;
+  }
 
   // Same transactional fix as POST /seasons/:id/playoff above — recording
   // the winner and any resulting champion-crowning as one unit, so a crash
   // partway through can't leave the season row and season_standings
   // disagreeing about who's champion.
+  //
+  // This used to build a `sets`/`vals` array meant for a dynamic
+  // parameterized UPDATE (only touching whichever of winnerId/notes/round
+  // was actually sent) but then never used it — the real query below was
+  // hardcoded to always overwrite winner_id, and never touched notes/round
+  // at all. That meant PATCHing just {notes: "..."} or {round: "semi"}
+  // silently reset winner_id to NULL — un-recording a match's winner, and if
+  // that match was the deciding final, un-crowning the season champion the
+  // row previously reflected. COALESCE against the existing column value
+  // keeps a field whenever the request didn't include it.
   await db.transaction(async (tx) => {
-    await tx.execute(sql`UPDATE playoff_matches SET winner_id = ${parsed.data.winnerId ?? null} WHERE id = ${matchId} AND season_id = ${params.data.id}`);
+    await tx.execute(sql`
+      UPDATE playoff_matches SET
+        winner_id = COALESCE(${parsed.data.winnerId ?? null}, winner_id),
+        notes     = COALESCE(${parsed.data.notes ?? null}, notes),
+        round     = COALESCE(${parsed.data.round ?? null}, round)
+      WHERE id = ${matchId} AND season_id = ${params.data.id}
+    `);
 
     // Crown champion if final match has winner
     if (parsed.data.winnerId && (parsed.data.round === "final" || !parsed.data.round)) {

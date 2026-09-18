@@ -145,53 +145,17 @@ router.get("/players/:id/stats", async (req, res): Promise<void> => {
   const [player] = await db.select().from(playersTable).where(eq(playersTable.id, id));
   if (!player) { res.status(404).json({ error: "Player not found" }); return; }
 
-  // These five queries only depend on `id` (already known to exist) and not
-  // on one another's results, so they run concurrently instead of as
-  // sequential round-trips.
-  const [captainMatches, participantRows, standings, playerAchievements, allMatches] = await Promise.all([
-    // Recent matches (as captain or team participant)
-    db.select().from(matchesTable)
-      .where(or(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, id)))
-      .orderBy(desc(matchesTable.playedAt))
-      .limit(10),
+  // Recent matches (as captain or team participant)
+  const captainMatches = await db.select().from(matchesTable)
+    .where(or(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, id)))
+    .orderBy(desc(matchesTable.playedAt))
+    .limit(10);
 
-    // Find team matches where this player is a non-captain participant
-    db.select({
-      matchId: matchParticipantsTable.matchId,
-      team:    matchParticipantsTable.team,
-    }).from(matchParticipantsTable).where(eq(matchParticipantsTable.playerId, id)),
-
-    // Season history
-    db.select({
-      seasonId:   seasonStandingsTable.seasonId,
-      seasonName: seasonsTable.name,
-      position:   seasonStandingsTable.position,
-      wins:       seasonStandingsTable.wins,
-      losses:     seasonStandingsTable.losses,
-      points:     seasonStandingsTable.points,
-      elo:        seasonStandingsTable.elo,
-      isChampion: seasonStandingsTable.isChampion,
-    })
-      .from(seasonStandingsTable)
-      .innerJoin(seasonsTable, eq(seasonsTable.id, seasonStandingsTable.seasonId))
-      .where(eq(seasonStandingsTable.playerId, id))
-      .orderBy(seasonStandingsTable.seasonId),
-
-    // Achievements
-    db.select({
-      achievement: achievementsTable,
-      unlockedAt:  playerAchievementsTable.unlockedAt,
-    })
-      .from(playerAchievementsTable)
-      .innerJoin(achievementsTable, eq(achievementsTable.id, playerAchievementsTable.achievementId))
-      .where(eq(playerAchievementsTable.playerId, id))
-      .orderBy(playerAchievementsTable.unlockedAt),
-
-    // Head-to-head stats
-    db.select().from(matchesTable)
-      .where(or(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, id)))
-      .orderBy(matchesTable.playedAt),
-  ]);
+  // Find team matches where this player is a non-captain participant
+  const participantRows = await db.select({
+    matchId: matchParticipantsTable.matchId,
+    team:    matchParticipantsTable.team,
+  }).from(matchParticipantsTable).where(eq(matchParticipantsTable.playerId, id));
 
   const captainMatchIdSet = new Set(captainMatches.map(m => m.id));
   const participantTeamMap = new Map(participantRows.map(r => [r.matchId, r.team]));
@@ -199,33 +163,13 @@ router.get("/players/:id/stats", async (req, res): Promise<void> => {
     .filter(r => !captainMatchIdSet.has(r.matchId))
     .map(r => r.matchId);
 
-  // Opponent ids appearing in this player's match history — used to scope
-  // the name lookup below to just the players actually involved, instead of
-  // loading the entire players table.
-  const opponentIds = [...new Set(
-    allMatches
-      .map(m => (m.winnerId === id ? m.loserId : m.winnerId))
-      .filter(oid => oid !== id)
-  )];
-
-  // These two queries are independent of each other, so they also run
-  // concurrently. `participantMatches` depends on nonCaptainIds (derived
-  // above from captainMatches + participantRows), and the opponent lookup
-  // depends on opponentIds (derived above from allMatches) — both of which
-  // are now known.
-  const [participantMatches, opponentPlayers] = await Promise.all([
-    nonCaptainIds.length > 0
-      ? db.select().from(matchesTable)
-          .where(inArray(matchesTable.id, nonCaptainIds))
-          .orderBy(desc(matchesTable.playedAt))
-          .limit(10)
-      : Promise.resolve([] as typeof captainMatches),
-    opponentIds.length > 0
-      ? db.select({ id: playersTable.id, name: playersTable.name })
-          .from(playersTable)
-          .where(inArray(playersTable.id, opponentIds))
-      : Promise.resolve([] as { id: number; name: string }[]),
-  ]);
+  let participantMatches: typeof captainMatches = [];
+  if (nonCaptainIds.length > 0) {
+    participantMatches = await db.select().from(matchesTable)
+      .where(inArray(matchesTable.id, nonCaptainIds))
+      .orderBy(desc(matchesTable.playedAt))
+      .limit(10);
+  }
 
   const teamMatchIdSet = new Set(participantRows.map(r => r.matchId));
 
@@ -240,11 +184,42 @@ router.get("/players/:id/stats", async (req, res): Promise<void> => {
       return { ...m, isTeamMatch, isWin };
     });
 
+  // Season history
+  const standings = await db.select({
+    seasonId:   seasonStandingsTable.seasonId,
+    seasonName: seasonsTable.name,
+    position:   seasonStandingsTable.position,
+    wins:       seasonStandingsTable.wins,
+    losses:     seasonStandingsTable.losses,
+    points:     seasonStandingsTable.points,
+    elo:        seasonStandingsTable.elo,
+    isChampion: seasonStandingsTable.isChampion,
+  })
+    .from(seasonStandingsTable)
+    .innerJoin(seasonsTable, eq(seasonsTable.id, seasonStandingsTable.seasonId))
+    .where(eq(seasonStandingsTable.playerId, id))
+    .orderBy(seasonStandingsTable.seasonId);
+
+  // Achievements
+  const playerAchievements = await db.select({
+    achievement: achievementsTable,
+    unlockedAt:  playerAchievementsTable.unlockedAt,
+  })
+    .from(playerAchievementsTable)
+    .innerJoin(achievementsTable, eq(achievementsTable.id, playerAchievementsTable.achievementId))
+    .where(eq(playerAchievementsTable.playerId, id))
+    .orderBy(playerAchievementsTable.unlockedAt);
+
+  // Head-to-head stats
+  const allMatches = await db.select().from(matchesTable)
+    .where(or(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, id)))
+    .orderBy(matchesTable.playedAt);
   const h2h = new Map<number, {
     wins: number; losses: number; name: string;
     matches: Array<{ id: number; playedAt: Date; isWin: boolean; eloChange: number; stake: number; gameType: string }>;
   }>();
-  const nameMap = new Map(opponentPlayers.map(p => [p.id, p.name]));
+  const allPlayers = await db.select({ id: playersTable.id, name: playersTable.name }).from(playersTable);
+  const nameMap = new Map(allPlayers.map(p => [p.id, p.name]));
 
   for (const m of allMatches) {
     if (m.winnerId === id) {
@@ -855,14 +830,19 @@ router.get("/player/:id/cards/favorites", async (req, res): Promise<void> => {
   }
 });
 
-const ToggleCardFavoriteBody = z.object({ playerId: z.number().int().positive() });
-
 router.post("/cards/:cardId/favorite", async (req, res): Promise<void> => {
   const cardId = Number(req.params.cardId);
   if (isNaN(cardId)) { res.status(400).json({ error: "Invalid card id" }); return; }
-  const parsed = ToggleCardFavoriteBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: "playerId required" }); return; }
-  const { playerId } = parsed.data;
+
+  // This trusted a client-supplied playerId in the body with no session
+  // check at all — the one mutating route in this file missed by the
+  // ownership-check pass applied to its siblings (active-title above,
+  // notification-prefs below, pinned-achievements in achievements.ts).
+  // Anyone, even unauthenticated, could toggle favorites on any player's
+  // collection book. Same fix as those: take the player id from the
+  // session, not the request body.
+  const playerId = (req.session as any)?.playerId ?? null;
+  if (!playerId) { res.status(401).json({ error: "Login required" }); return; }
 
   try {
     const existing = await db.execute(sql`

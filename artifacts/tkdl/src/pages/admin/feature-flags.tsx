@@ -83,7 +83,7 @@ export function FeatureFlags() {
       <div className="px-5 py-4 space-y-5">
         {row("Live Scorer", "Show the in-game scorer in the nav for all players", liveScorer, setLiveScorer, "live_scorer_enabled", "Live Scorer enabled", "Live Scorer hidden")}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
-        {row("Community Feed", "Show the Community section in the nav and allow players to post", communityOn, setCommunityOn, "community_enabled", "Community enabled", "Community hidden")}
+        {row("Community Feed", "Show the Community section in the nav, allow players to post, and enable automatic match posts (180s, checkouts, eliminations, etc.)", communityOn, setCommunityOn, "community_enabled", "Community enabled", "Community hidden")}
         {row("Direct Messaging", "Allow players to send each other private messages via the Account page", messagingOn, setMessagingOn, "messaging_enabled", "Messaging enabled", "Messaging disabled")}
         {row("Notifications", "Fire in-app notifications for reactions, comments, messages, and match events", notificationsOn, setNotificationsOn, "notifications_enabled", "Notifications enabled", "Notifications disabled")}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />

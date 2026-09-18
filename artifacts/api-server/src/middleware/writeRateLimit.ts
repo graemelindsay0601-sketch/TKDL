@@ -35,3 +35,23 @@ export const bossBattleRateLimit = rateLimit({
   message: { error: "Too many boss battle results submitted too quickly — please wait a few minutes and try again" },
   skip: () => process.env.NODE_ENV !== "production",
 });
+
+/** Shared limiter for authenticated, no-per-action-cost write endpoints —
+ *  community posts/reactions/comments and direct messages so far. These are
+ *  authenticated (unlike the two above) but still cost nothing to fire, so a
+ *  compromised session or a buggy client loop could otherwise hammer the
+ *  feed or another player's inbox far faster than a real person. This is
+ *  sized generously above genuine human usage — reacting to a dozen posts,
+ *  firing off a burst of comments, or sending several DMs in a minute is
+ *  normal; hundreds per minute isn't. Named generically (not
+ *  communityWriteRateLimit) since it's shared across unrelated features —
+ *  reach for this one first for any new authenticated write route before
+ *  adding another near-identical limiter. */
+export const authedWriteRateLimit = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 200,                 // 200 actions per IP per window
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many actions too quickly — please wait a few minutes and try again" },
+  skip: () => process.env.NODE_ENV !== "production",
+});

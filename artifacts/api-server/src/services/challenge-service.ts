@@ -7,6 +7,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, and, gte, lte, isNull, sql } from "drizzle-orm";
 import { addCoinsToPlayer } from "./card-shop-service";
+import { getIsoWeekNumber, getIsoWeekYear } from "../lib/iso-week";
 
 export interface ChallengeProgress {
   id: number;
@@ -88,13 +89,9 @@ export const challengeService = {
    * Get this week's weekly challenges for a player
    */
   async getWeeklyChallengesForPlayer(playerId: number): Promise<ChallengeProgress[]> {
-    // Calculate ISO week number
-    const today = new Date();
-    const date = new Date(today.getTime());
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() + 4 - (date.getDay() || 7));
-    const yearStart = new Date(date.getFullYear(), 0, 1);
-    const weekNumber = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+    const now = new Date();
+    const weekNumber = getIsoWeekNumber(now);
+    const weekYear = getIsoWeekYear(now);
 
     // Get all active weekly challenge definitions
     const challenges = await db.query.weeklyChallenges.findMany({
@@ -105,11 +102,17 @@ export const challengeService = {
     const results: ChallengeProgress[] = [];
 
     for (const challenge of challenges) {
+      // Scoped by (week_year, week_number) together, not week_number alone —
+      // week_number alone repeats every calendar year (see
+      // add_weekly_challenge_year.ts), so without week_year this could find
+      // and reuse a completed row from the same week number a year+ ago
+      // instead of creating this week's fresh one.
       let playerChallenge = await db.query.playerWeeklyChallenges.findFirst({
         where: and(
           eq(playerWeeklyChallenges.player_id, playerId),
           eq(playerWeeklyChallenges.challenge_id, challenge.id),
-          eq(playerWeeklyChallenges.week_number, weekNumber)
+          eq(playerWeeklyChallenges.week_number, weekNumber),
+          eq(playerWeeklyChallenges.week_year, weekYear)
         ),
       });
 
@@ -124,6 +127,7 @@ export const challengeService = {
             progress: 0,
             is_completed: false,
             week_number: weekNumber,
+            week_year: weekYear,
           })
           .returning();
 
@@ -260,13 +264,9 @@ export const challengeService = {
     incrementBy: number = 1
   ): Promise<{ completed: boolean; coinsAwarded: number }> {
     try {
-      // Calculate ISO week number
-      const today = new Date();
-      const date = new Date(today.getTime());
-      date.setHours(0, 0, 0, 0);
-      date.setDate(date.getDate() + 4 - (date.getDay() || 7));
-      const yearStart = new Date(date.getFullYear(), 0, 1);
-      const weekNumber = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+      const now = new Date();
+      const weekNumber = getIsoWeekNumber(now);
+      const weekYear = getIsoWeekYear(now);
 
       // Get challenge definition
       const challengeDef = await db.query.weeklyChallenges.findFirst({
@@ -277,12 +277,14 @@ export const challengeService = {
         throw new Error(`Weekly challenge not found: ${challengeKey}`);
       }
 
-      // Get player's progress
+      // Get player's progress — scoped by (week_year, week_number) together,
+      // same reasoning as getWeeklyChallengesForPlayer above.
       let playerChallenge = await db.query.playerWeeklyChallenges.findFirst({
         where: and(
           eq(playerWeeklyChallenges.player_id, playerId),
           eq(playerWeeklyChallenges.challenge_key, challengeKey),
-          eq(playerWeeklyChallenges.week_number, weekNumber)
+          eq(playerWeeklyChallenges.week_number, weekNumber),
+          eq(playerWeeklyChallenges.week_year, weekYear)
         ),
       });
 
@@ -304,6 +306,7 @@ export const challengeService = {
             is_completed: nowCompleted,
             completed_at: nowCompleted ? new Date() : null,
             week_number: weekNumber,
+            week_year: weekYear,
           })
           .returning();
 

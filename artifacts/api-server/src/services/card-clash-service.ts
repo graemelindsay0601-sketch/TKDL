@@ -179,12 +179,18 @@ export async function recordCardUsedInMatch(
 
   if (!match[0]) throw new Error("Match not found");
 
-  const cardsUsed = JSON.parse(match[0].cardsUsedInMatch as string);
+  // cardsUsedInMatch is a Drizzle json() column — it reads back as a real
+  // array (Drizzle already JSON.parse's it) and writes serialize
+  // automatically (Drizzle already JSON.stringify's it), same as
+  // startCardClashMatch's `cardsUsedInMatch: [] as any` above. JSON.parse-ing
+  // it again here would throw on the real array Drizzle hands back (see the
+  // matching fix in finishCardClashMatch/deleteCardClashMatch below).
+  const cardsUsed = (match[0].cardsUsedInMatch as { cardId: string; usedBy: number; turn: number; timestamp: Date }[]) ?? [];
   cardsUsed.push({ cardId, usedBy, turn, timestamp: new Date() });
 
   await db
     .update(cardClashMatchesTable)
-    .set({ cardsUsedInMatch: JSON.stringify(cardsUsed) })
+    .set({ cardsUsedInMatch: cardsUsed })
     .where(eq(cardClashMatchesTable.id, matchId));
 }
 
@@ -300,7 +306,13 @@ export async function finishCardClashMatch(
         match[0].player1Id === winnerId ? winnerCardPoints : loserCardPoints,
       player2PointsEarned:
         match[0].player2Id === winnerId ? winnerCardPoints : loserCardPoints,
-      cardsUsedInMatch: JSON.stringify(cardsUsed),
+      // Real array in, real array out — cardsUsedInMatch is a json() column
+      // and Drizzle handles the serialization (see the comment in
+      // recordCardUsedInMatch above). Double-stringifying it here used to
+      // leave the column holding an escaped JSON string instead of an array,
+      // which is exactly what broke deleteCardClashMatch's JSON.parse below
+      // once a match had gone through this path.
+      cardsUsedInMatch: cardsUsed,
     })
     .where(eq(cardClashMatchesTable.id, matchId));
 
@@ -311,24 +323,37 @@ export async function finishCardClashMatch(
     { playerId: loser, amount: loserCoins },
   ]);
 
-  // Update challenge progress (fire and forget)
+  // Update challenge progress (fire and forget).
+  //
+  // Only "matches_5" / "weekly_wins_5" are credited directly here by their
+  // fixed challenge_key — the card-clash-specific "card_clash_wins_2" /
+  // "weekly_card_clash_3" calls that used to live here were REMOVED because
+  // they double-credited: the route handler (routes/card-clash.ts's
+  // POST /match/finish, right after this function returns) also calls
+  // challengeManager.updateProgressFromGameResult(), which increments every
+  // active daily/weekly challenge whose requirement_type is
+  // "card_clash_wins" — a set that already includes "card_clash_wins_2" and
+  // "weekly_card_clash_3" (see challenge-service.ts's seedDefaultChallenges)
+  // plus any rotating-pool Card Clash challenge (challengePool.ts). A single
+  // win was landing two +1s on the same fixed-key challenge (completing a
+  // 2-win challenge off one win, and paying its coins twice), while every
+  // OTHER game mode (matches.ts/practice.ts/tour.ts/master501.ts) only ever
+  // goes through that one requirement_type-based path. "matches_5" has no
+  // requirement_type overlap with challengeManager's mappings ("total_
+  // matches" vs. its "total_games_played"), so it stays here uncontested.
   try {
     const { challengeService } = await import("../services/challenge-service");
-    
+
     // Update daily challenges for winner
     await challengeService.updateDailyProgress(winnerId, "matches_5", 1);
-    await challengeService.updateDailyProgress(winnerId, "card_clash_wins_2", 1);
-    
+
     // Update daily challenges for loser
     await challengeService.updateDailyProgress(loser, "matches_5", 1);
-    await challengeService.updateDailyProgress(loser, "card_clash_wins_2", 0);
-    
+
     // Update weekly challenges
     await challengeService.updateWeeklyProgress(winnerId, "weekly_wins_5", 1);
-    await challengeService.updateWeeklyProgress(winnerId, "weekly_card_clash_3", 1);
-    
+
     await challengeService.updateWeeklyProgress(loser, "weekly_wins_5", 0);
-    await challengeService.updateWeeklyProgress(loser, "weekly_card_clash_3", 0);
 
     // Update seasonal quests
     const { seasonalQuestService } = await import("../services/seasonal-quest-service");
@@ -400,7 +425,14 @@ export async function deleteCardClashMatch(matchId: number) {
   // (see finishCardClashMatch). "Returning" them here would wrongly hand
   // the player an extra copy of a card they never lost.
   if (!match[0].isChaosMatch) {
-    const cardsUsed = JSON.parse(match[0].cardsUsedInMatch as string);
+    // cardsUsedInMatch is already a real array here (Drizzle json() column —
+    // see the comment in recordCardUsedInMatch above), never a JSON string.
+    // Re-parsing it threw for any match that had gone through
+    // finishCardClashMatch's now-fixed double-stringify, and for any
+    // in-progress/abandoned match (still holding the plain array
+    // startCardClashMatch inserted) — so admin-deleting exactly those
+    // matches 500'd instead of removing them.
+    const cardsUsed = (match[0].cardsUsedInMatch as { cardId: string; usedBy: number }[]) ?? [];
     for (const cardUsage of cardsUsed) {
       const realCardId = await resolveCardUuid(cardUsage.cardId);
       if (!realCardId) {

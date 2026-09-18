@@ -22,7 +22,8 @@ export const playerWeeklyChallenges = pgTable("player_weekly_challenges", {
   progress: integer("progress").notNull().default(0), // how many completed
   is_completed: boolean("is_completed").notNull().default(false),
   completed_at: timestamp("completed_at"),
-  week_number: integer("week_number").notNull(), // which week (0-53)
+  week_number: integer("week_number").notNull(), // ISO week number (1-53) — NOT unique across years on its own, see week_year
+  week_year: integer("week_year"), // ISO week-year pairing with week_number (see lib/iso-week.ts's getIsoWeekYear) — nullable for rows written before this column existed; add_weekly_challenge_year.ts backfills it
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

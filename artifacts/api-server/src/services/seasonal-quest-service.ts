@@ -5,7 +5,7 @@ import {
   playerCurrencyTable,
   cardClashSeasonsTable,
 } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 export interface SeasonalQuestProgress {
   id: number;
@@ -118,58 +118,48 @@ export const seasonalQuestService = {
         throw new Error(`Seasonal quest not found: ${questKey}`);
       }
 
-      // Get player's progress
-      let playerQuest = await db.query.playerSeasonalQuests.findFirst({
-        where: and(
-          eq(playerSeasonalQuests.player_id, playerId),
-          eq(playerSeasonalQuests.season_number, activeSeason.id),
-          eq(playerSeasonalQuests.quest_key, questKey)
-        ),
-      });
+      // Single atomic INSERT ... ON CONFLICT DO UPDATE instead of the old
+      // read-then-branch (findFirst, then a separate INSERT or UPDATE): two
+      // wins for the same player landing close together (a quick rematch, or
+      // a retried request) could both read "no row yet" and both INSERT
+      // (player_id, season_number, quest_key now has a unique index — see
+      // add_seasonal_quests_unique.ts — so the second one used to just
+      // error; before that migration it silently created a duplicate row),
+      // or both read the same starting progress and each write N+1 instead
+      // of N+2, losing an increment. Folding create-or-increment into one
+      // statement means Postgres evaluates it against a single consistent
+      // snapshot per call, so concurrent calls serialize correctly instead
+      // of racing — same shape as challenge-manager.ts's atomic progress
+      // UPDATE and card-clash-service.ts's ON CONFLICT card-grant pattern.
+      const [playerQuest] = await db.execute(sql`
+        INSERT INTO player_seasonal_quests
+          (player_id, season_number, quest_id, quest_key, progress, is_completed, completed_at, updated_at)
+        VALUES
+          (${playerId}, ${activeSeason.id}, ${questDef.id}, ${questKey}, ${incrementBy},
+           ${incrementBy >= questDef.requirement_value},
+           CASE WHEN ${incrementBy >= questDef.requirement_value} THEN NOW() ELSE NULL END,
+           NOW())
+        ON CONFLICT (player_id, season_number, quest_key) DO UPDATE SET
+          progress = player_seasonal_quests.progress + EXCLUDED.progress,
+          is_completed = (player_seasonal_quests.progress + EXCLUDED.progress) >= ${questDef.requirement_value},
+          completed_at = CASE
+            WHEN NOT player_seasonal_quests.is_completed
+                 AND (player_seasonal_quests.progress + EXCLUDED.progress) >= ${questDef.requirement_value}
+            THEN NOW()
+            ELSE player_seasonal_quests.completed_at
+          END,
+          updated_at = NOW()
+        RETURNING is_completed,
+                  (xmax = 0) AS was_insert,
+                  (completed_at = updated_at) AS completed_this_call
+      `).then(r => r.rows as any[]);
 
-      // Tracked separately from playerQuest itself, since playerQuest gets
-      // reassigned to the post-update row below — checking completed_at on
-      // that row afterward would always see it as already set.
-      let newlyCompleted = false;
-
-      if (!playerQuest) {
-        // Create if missing
-        const nowCompleted = incrementBy >= questDef.requirement_value;
-        const [created] = await db
-          .insert(playerSeasonalQuests)
-          .values({
-            player_id: playerId,
-            season_number: activeSeason.id,
-            quest_id: questDef.id,
-            quest_key: questKey,
-            progress: incrementBy,
-            is_completed: nowCompleted,
-            completed_at: nowCompleted ? new Date() : null,
-          })
-          .returning();
-
-        playerQuest = created;
-        newlyCompleted = nowCompleted;
-      } else {
-        // Update progress
-        const wasCompleted = playerQuest.is_completed;
-        const newProgress = (playerQuest.progress || 0) + incrementBy;
-        const isCompleted = newProgress >= questDef.requirement_value;
-
-        const [updated] = await db
-          .update(playerSeasonalQuests)
-          .set({
-            progress: newProgress,
-            is_completed: isCompleted,
-            completed_at: isCompleted && !wasCompleted ? new Date() : playerQuest.completed_at,
-            updated_at: new Date(),
-          })
-          .where(eq(playerSeasonalQuests.id, playerQuest.id))
-          .returning();
-
-        playerQuest = updated;
-        newlyCompleted = isCompleted && !wasCompleted;
-      }
+      // newlyCompleted: either this call inserted an already-complete row
+      // (incrementBy alone met the threshold on a brand-new quest), or the
+      // UPDATE branch's completed_at was just set to NOW() = updated_at
+      // (it only does that when the row wasn't already completed).
+      const newlyCompleted = playerQuest.is_completed &&
+        (playerQuest.was_insert || playerQuest.completed_this_call);
 
       // If newly completed, award coins
       let coinsAwarded = 0;

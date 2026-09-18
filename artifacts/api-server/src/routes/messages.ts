@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { createNotification } from "../lib/communityNotify";
+import { authedWriteRateLimit } from "../middleware/writeRateLimit";
 
 const router = Router();
 
@@ -100,7 +101,11 @@ router.get("/messages/:partnerId", async (req, res): Promise<void> => {
 });
 
 // ── POST /messages/:partnerId ────────────────────────────────────────────────
-router.post("/messages/:partnerId", async (req, res): Promise<void> => {
+// This and POST /messages below are authenticated but, like community posts/
+// reactions/comments, have no per-action cost — a compromised session or a
+// buggy client loop could otherwise flood another player with unlimited DMs
+// (each one also fires a push notification), so the same rate limit applies.
+router.post("/messages/:partnerId", authedWriteRateLimit, async (req, res): Promise<void> => {
   if (!await messagingEnabled()) {
     res.status(503).json({ error: "Messaging not yet enabled" }); return;
   }
@@ -138,7 +143,7 @@ router.post("/messages/:partnerId", async (req, res): Promise<void> => {
 });
 
 // ── POST /messages — send with receiverId in body (used by account.tsx) ──────
-router.post("/messages", async (req, res): Promise<void> => {
+router.post("/messages", authedWriteRateLimit, async (req, res): Promise<void> => {
   if (!await messagingEnabled()) {
     res.status(503).json({ error: "Messaging not yet enabled" }); return;
   }
