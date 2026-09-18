@@ -6,6 +6,7 @@ import { validateStake, applyWager } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { sendShiftWarsMatchResultNotification } from "../services/notificationService";
+import { createAutoPost } from "../lib/communityNotify";
 
 /**
  * Shift Wars — 3 fixed department teams (Fresh, Twilight, Shift Leader) competing
@@ -217,6 +218,20 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
         const winnerPlayerIds = roster.filter(p => p.shift_wars_team_id === winnerTeamId).map(p => p.id);
         const loserPlayerIds  = roster.filter(p => p.shift_wars_team_id === loserTeamId).map(p => p.id);
         await sendShiftWarsMatchResultNotification(winnerName, loserName, winnerPlayerIds, loserPlayerIds, stake);
+
+        // Auto community post. Shift Wars had the identical missing-post bug
+        // as Doubles/Team Matches — mirrors the "Auto community posts" block
+        // in matches.ts, posted under the first winning-team player since
+        // community_posts.player_id is a single-player FK and, like Doubles,
+        // there's no individual "submitter" for a team-vs-team result.
+        if (winnerPlayerIds.length > 0) {
+          await createAutoPost({
+            playerId:        winnerPlayerIds[0],
+            content:         `🎯 ${winnerName} defeated ${loserName} (+${stake} pts)`,
+            autoMeta:        { type: "shift_wars_match", matchId: match.id, winnerTeamId, loserTeamId, stake },
+            notifyPlayerIds: loserPlayerIds,
+          });
+        }
       } catch (err) {
         req.log?.error?.({ err }, "Failed to send Shift Wars match result notifications");
       }

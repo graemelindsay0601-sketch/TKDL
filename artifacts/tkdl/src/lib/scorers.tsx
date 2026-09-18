@@ -2,7 +2,7 @@
  * Game engine scorer components — each handles its own state + dart input.
  * All scorers receive: p1Name, p2Name, config (parsed from game_type), onWin(0|1, detail?), onAbandon
  */
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize } from "lucide-react";
 import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart } from "./bot-engine";
@@ -654,7 +654,16 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
 export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner }: {
   p1Name: string; p2Name: string;
-  config: { startingScore: number; doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; noTrebles?: boolean; legs?: number; bustResetTo?: number };
+  config: {
+    startingScore: number;
+    // Custom / Handicap: lets each player start on their own independent
+    // score (e.g. Player 1 on 501, Player 2 on 301) instead of the one
+    // shared `startingScore` every other X01 game type uses. Optional and
+    // additive — a config without these behaves exactly as before.
+    p1StartingScore?: number;
+    p2StartingScore?: number;
+    doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; noTrebles?: boolean; legs?: number; bustResetTo?: number
+  };
   botConfig?: BotConfig;
   onWin: (w: 0 | 1, detail?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
@@ -683,12 +692,23 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   topBanner?: React.ReactNode;
 }) {
   const safeTimeout = useSafeTimeout();
-  const { startingScore = 501, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo } = config;
+  const { startingScore = 501, p1StartingScore, p2StartingScore, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo } = config;
   const legs = legsProp ?? configLegs;
   const setsNeeded  = setsToWin > 0 ? Math.ceil(setsToWin / 2) : 0;
   const legsNeeded  = setsToWin > 0 ? Math.ceil(legsToWinSet / 2) : (legs ? Math.ceil(legs / 2) : 0);
 
-  const [scores, setScores]         = useState<[number, number]>([startingScore, startingScore]);
+  // Per-player starting scores — defaults both to the shared `startingScore`
+  // so every existing (non-handicap) game type behaves exactly as before;
+  // only a Custom/Handicap game type sets p1StartingScore/p2StartingScore to
+  // different values. Memoized so it's referentially stable for the
+  // dependency arrays below (a fresh array every render would otherwise
+  // recreate handleWin's callback on every render).
+  const startingScores = useMemo<[number, number]>(
+    () => [p1StartingScore ?? startingScore, p2StartingScore ?? startingScore],
+    [startingScore, p1StartingScore, p2StartingScore],
+  );
+
+  const [scores, setScores]         = useState<[number, number]>(startingScores);
   const [legWins, setLegWins]       = useState<[number, number]>([0, 0]);
   const [setWins, setSetWins]       = useState<[number, number]>([0, 0]);
   const [legHistory, setLegHistory] = useState<(0|1)[]>([]); // Track who won each leg (for conditional cards)
@@ -871,12 +891,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         // lost if this leg ended on the exact same dart that triggered it.
         const pending = pendingBoardMarkAdjustmentRef.current;
         if (pending[0] !== 0 || pending[1] !== 0) {
-          cardDebugLog("X01Scorer", "[CHAOS_LAB] Applying pending adjustment to new leg start", { pending, startingScore });
-          matchLoggerRef.current.log("chaos_lab_pending_applied_to_new_leg", { pending, startingScore });
+          cardDebugLog("X01Scorer", "[CHAOS_LAB] Applying pending adjustment to new leg start", { pending, startingScores });
+          matchLoggerRef.current.log("chaos_lab_pending_applied_to_new_leg", { pending, startingScores });
         }
         setScores([
-          clampX01RemainingAfterReduction(Math.max(0, startingScore - pending[0])),
-          clampX01RemainingAfterReduction(Math.max(0, startingScore - pending[1])),
+          clampX01RemainingAfterReduction(Math.max(0, startingScores[0] - pending[0])),
+          clampX01RemainingAfterReduction(Math.max(0, startingScores[1] - pending[1])),
         ]);
         pendingBoardMarkAdjustmentRef.current = [0, 0];
         if (isChaosLabMode) setActiveBoardMarks(prev => expireBoardMarksForLegEnd(prev)); // clears leg-wide rule-benders (Treble Curse, Double Trouble) at the actual leg boundary
@@ -899,7 +919,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           // a Chaos-mode draw of this card is detected too — Chaos Mode has
           // no persistent "equipped" state, only activeEffects.
           const opp: 0|1 = legWinner === 0 ? 1 : 0;
-          if (isCardClash && scores[opp] === startingScore) {
+          if (isCardClash && scores[opp] === startingScores[opp]) {
             const winnerCardsForShutout = legWinner === 0 ? p1Cards : p2Cards;
             const hasPerfectGame = winnerCardsForShutout.some((c: any) => c.name?.trim() === "Perfect Game")
               || activeEffects.some(e => e.status === "active" && e.affectsPlayer === legWinner && e.cardName === "Perfect Game");
@@ -1053,7 +1073,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   // close to tautologically true for any win and blind to a Chaos-mode
   // Perfect Game drawn mid-leg. Matches the deps CricketScorer's equivalent
   // resetForLeg already correctly includes for the same check.
-  }, [legs, legsNeeded, setsNeeded, setsToWin, legStarter, startingScore, doubleIn, onWin, onPracticeStats, setWins, isCardClash, scores, p1Cards, p2Cards, activeEffects]);
+  }, [legs, legsNeeded, setsNeeded, setsToWin, legStarter, startingScores, doubleIn, onWin, onPracticeStats, setWins, isCardClash, scores, p1Cards, p2Cards, activeEffects]);
 
   const handleDart = useCallback((dart: Dart) => {
     // Checkout Confidence grants one bonus 4th dart for the visit after a

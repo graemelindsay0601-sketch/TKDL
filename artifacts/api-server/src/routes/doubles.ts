@@ -6,6 +6,7 @@ import { applyEloChange, calcTier } from "../lib/elo";
 import { validateStake, applyWager } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { sendDoublesMatchResultNotification } from "../services/notificationService";
+import { createAutoPost } from "../lib/communityNotify";
 
 const GetSeasonParams = z.object({ id: z.coerce.number().int().positive() });
 
@@ -196,6 +197,24 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
       winnerPlayerIds, loserPlayerIds,
       stake, eloChange,
     );
+
+    // Auto community post (fire and forget — never delay the response).
+    // Doubles results never made it to the Community tab before this — this
+    // mirrors the "Auto community posts" block in matches.ts, adapted for a
+    // team-vs-team result (the post is authored under the first winning
+    // player, since community_posts.player_id is a single-player FK and
+    // doubles has no single "submitter" the way singles matches do).
+    void (async () => {
+      const parts: string[] = [`🎯 ${winnerTeamName} defeated ${loserTeamName} (+${eloChange} Elo, +${stake} pts)`];
+      if (loserEliminated) parts.push(`💀 ${loserTeamName} has been ELIMINATED!`);
+
+      await createAutoPost({
+        playerId:        winnerPlayerIds[0] ?? loserPlayerIds[0],
+        content:         parts.join(" · "),
+        autoMeta:        { type: "doubles_match", matchId: match.id, winnerTeamId, loserTeamId, eloChange, stake, loserEliminated },
+        notifyPlayerIds: loserPlayerIds,
+      });
+    })();
   } catch (err) {
     if (err instanceof DoublesConflictError) {
       res.status(400).json({ error: err.message });

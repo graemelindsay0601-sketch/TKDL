@@ -6,6 +6,7 @@ import { useCurrentPlayer } from "@/context/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users, Ghost, User, Target, Clock, X } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
+import { CustomHandicapCard, CUSTOM_HANDICAP_KEY } from "@/components/custom-handicap-picker";
 import { RulesModal } from "@/components/rules-modal";
 import { MatchStatsCard } from "@/components/match-stats-card";
 import {
@@ -450,6 +451,14 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           ))}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+          {/* Custom / Handicap — lets Player 1 and Player 2 (or Player 1 vs
+             a bot) start on independently typed scores (e.g. 501 v 301). */}
+          <CustomHandicapCard
+            accent="#a78bfa"
+            selected={selectedGame?.key === CUSTOM_HANDICAP_KEY}
+            onSelect={gt => setGame(gt)}
+            onClear={() => setGame(g => (g?.key === CUSTOM_HANDICAP_KEY ? null : g))}
+          />
           {tabGames.length === 0 && (
             <div className="col-span-2 text-center py-8 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
               No games in this category

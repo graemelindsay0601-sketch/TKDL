@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { useListPlayers, useSubmitMatch, getGetLeaderboardQueryKey, getGetStatsSummaryQueryKey, getGetRecentActivityQueryKey, getListMatchesQueryKey, getGetPlayerStatsQueryKey, getGetPlayerQueryKey, getListPlayersQueryKey } from "@workspace/api-client-react";
+import { useListPlayers, useSubmitMatch, getGetLeaderboardQueryKey, getGetStatsSummaryQueryKey, getGetRecentActivityQueryKey, getListMatchesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/hooks/use-settings";
 import { Swords, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, AlertCircle, User, Building2 } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
+import { CustomHandicapCard, CUSTOM_HANDICAP_KEY } from "@/components/custom-handicap-picker";
 import { RulesModal } from "@/components/rules-modal";
 import { MatchStatsCard } from "@/components/match-stats-card";
 import { CardEquipmentSelector } from "@/components/CardEquipmentSelector";
@@ -606,10 +607,21 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           </div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
+          {/* Custom / Handicap — head-to-head only; lets Player 1 and Player 2
+             start on independently typed scores (e.g. 501 v 301). */}
+          {format === "1v1" && (
+            <CustomHandicapCard
+              accent="#ff005c"
+              selected={selectedGame?.key === CUSTOM_HANDICAP_KEY}
+              onSelect={gt => setGame(gt)}
+              onClear={() => setGame(g => (g?.key === CUSTOM_HANDICAP_KEY ? null : g))}
+            />
+          )}
           {tabGames.length === 0
-            ? <div className="col-span-2 text-center py-8 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
+            ? (format === "1v1" ? null :
+              <div className="col-span-2 text-center py-8 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
                 {format === "killer-ffa" ? `No Killer game found for ${ffaCount} players` : "No games in this category"}
-              </div>
+              </div>)
             : tabGames.map(gt => (
                 <GameCard key={gt.key} gt={gt} selected={selectedGame?.key === gt.key}
                   onSelect={() => setGame(gt)} onRules={() => setRulesGame(gt)} />
@@ -814,12 +826,6 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         await qc.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
         await qc.invalidateQueries({ queryKey: getGetRecentActivityQueryKey() });
         await qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
-        await qc.invalidateQueries({ queryKey: getListPlayersQueryKey() });
-        const involvedPlayerIds = [...winnerTeam, ...loserTeam].map(p => p.id);
-        for (const id of involvedPlayerIds) {
-          await qc.invalidateQueries({ queryKey: getGetPlayerStatsQueryKey(id) });
-          await qc.invalidateQueries({ queryKey: getGetPlayerQueryKey(id) });
-        }
       }
       setSubmitted(true);
       toast({ title: "Match recorded!", description: `${winnerName} +${data.stake}pts` });

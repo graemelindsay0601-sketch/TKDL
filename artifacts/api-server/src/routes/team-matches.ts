@@ -4,6 +4,7 @@ import { db, playersTable, matchesTable, seasonsTable, matchParticipantsTable } 
 import { z } from "zod";
 import { calcEloChange } from "../lib/elo";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
+import { createAutoPost } from "../lib/communityNotify";
 
 const TeamMatchBody = z.object({
   winnerIds: z.array(z.number().int().positive()).min(1).max(6),
@@ -285,6 +286,25 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
     // "who got what" instead of assuming a flat stake per winner.
     winnerShares: winnerResults,
   });
+
+  // Auto community post (fire and forget — never delay the response). Team
+  // Matches never had any community-feed integration before this — mirrors
+  // the "Auto community posts" block in matches.ts, adapted for a
+  // multi-player team result (posted under the winning captain, i.e. the
+  // first winning player, since community_posts.player_id is a single-player
+  // FK and team matches have no single "submitter").
+  void (async () => {
+    const eliminatedIds = loserResults.filter(r => r.eliminated).map(r => r.id);
+    const parts: string[] = [`🎯 ${match.winnerName} defeated ${match.loserName} (+${eloChange} Elo, +${stake} pts)`];
+    if (eliminatedIds.length > 0) parts.push(`💀 ${match.loserName} has been ELIMINATED!`);
+
+    await createAutoPost({
+      playerId:        winnerIds[0],
+      content:         parts.join(" · "),
+      autoMeta:        { type: "team_match", matchId: match.id, winnerIds, loserIds, eloChange, stake, eliminatedIds },
+      notifyPlayerIds: loserIds,
+    });
+  })();
 });
 
 export default router;
