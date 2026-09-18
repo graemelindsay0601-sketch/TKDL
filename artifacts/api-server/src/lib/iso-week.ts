@@ -30,3 +30,28 @@ export function getIsoWeekYear(date: Date): number {
   d.setDate(d.getDate() + 4 - (d.getDay() || 7));
   return d.getFullYear();
 }
+
+/**
+ * A year-qualified ISO week key (e.g. 202601 for ISO week 1 of 2026),
+ * suitable for storing in an integer "week number" column so it can't
+ * collide across a year boundary the way a bare 1-53 week number can (week
+ * 1 of a new year vs. a stale week 1 row from a prior year). Encodes as
+ * isoYear * 100 + isoWeek — isoWeek never exceeds 53, so the two never
+ * overlap. Uses the same Monday-start/Thursday-anchored ISO year as
+ * getIsoWeekNumber (which late-December/early-January dates can belong to a
+ * different calendar year than date.getFullYear() would suggest), not the
+ * plain calendar year.
+ *
+ * Restored September 18th after a since-reverted edit briefly replaced this
+ * function with getIsoWeekYear above — the two aren't interchangeable:
+ * routes/challenges.ts stores this combined key directly in a "week number"
+ * column, while getIsoWeekYear exists for player_weekly_challenges, which
+ * has a separate week_number and week_year column pair instead. Both are
+ * genuinely in use; removing this one broke the production build (a
+ * "No matching export" bundling error, not a runtime error) for every
+ * deploy since, because routes/challenges.ts still imports it.
+ */
+export function getIsoWeekKey(date: Date): number {
+  const isoYear = getIsoWeekYear(date);
+  return isoYear * 100 + getIsoWeekNumber(date);
+}
