@@ -22,15 +22,56 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 
+/**
+ * Hardened September 18th: this previously ran the ALTER once and trusted
+ * it — but every read of `matches` (players.ts /stats, /elo-history,
+ * /career-journey, /achievement-progress, GET /matches) explicitly lists
+ * was_upset_win in its column set, so if this step ever failed silently
+ * (runInitStep in app.ts deliberately swallows startup-step failures so one
+ * bad migration can't take the whole server down) every one of those routes
+ * would 500 on every request, forever, until the column actually exists —
+ * exactly the production incident this fixes. Now it retries once on
+ * failure (covers a transient lock/connection hiccup) and, either way,
+ * explicitly re-checks information_schema afterwards and logs a clear,
+ * unambiguous PRESENT/MISSING line — so if this is ever wrong again, the
+ * very next deploy's logs say so in plain terms instead of staying silent.
+ */
+async function columnExists(): Promise<boolean> {
+  const result = await db.execute(sql`
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'matches' AND column_name = 'was_upset_win'
+  `);
+  return result.rows.length > 0;
+}
+
+async function attemptAdd(): Promise<void> {
+  await db.execute(sql`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS was_upset_win BOOLEAN NOT NULL DEFAULT false
+  `);
+}
+
 export async function addMatchWasUpsetWinColumn() {
   try {
-    await db.execute(sql`
-      ALTER TABLE matches
-      ADD COLUMN IF NOT EXISTS was_upset_win BOOLEAN NOT NULL DEFAULT false
-    `);
-    logger.info("✅ Added was_upset_win column to matches");
+    await attemptAdd();
   } catch (err) {
-    logger.error({ err }, "❌ Failed to add was_upset_win column to matches");
-    throw err;
+    logger.error({ err }, "❌ was_upset_win: first ALTER TABLE attempt failed — retrying once");
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await attemptAdd();
+    } catch (retryErr) {
+      logger.error({ err: retryErr }, "❌ was_upset_win: retry also failed — matches queries will 500 until this is resolved");
+    }
+  }
+
+  try {
+    const exists = await columnExists();
+    if (exists) {
+      logger.info("✅ matches.was_upset_win column confirmed PRESENT");
+    } else {
+      logger.error("🚨 matches.was_upset_win column confirmed MISSING after migration attempt — every query against matches will fail until this is fixed manually");
+    }
+  } catch (err) {
+    logger.error({ err }, "❌ Failed to verify matches.was_upset_win column existence");
   }
 }

@@ -12,6 +12,7 @@ import cacheMiddleware from "./middleware/cache";
 import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetLeagueSeasons, initializeSeasonResetScheduler } from "./lib/seasonReset";
 import { addPerformanceIndexes } from "./db/migrations/add_performance_indexes";
+import { addPerformanceIndexes2 } from "./db/migrations/add_performance_indexes_2";
 import { seedTourSystem } from "./lib/tourSeed";
 import { ensureCardClashAchievementTables } from "./lib/card-clash-achievements";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
@@ -25,6 +26,7 @@ import { up as createCardClashFavoritesTable } from "./db/migrations/add_card_cl
 import { addDailyChallengeKeyColumn } from "./db/migrations/add_daily_challenge_key";
 import { addLongestLossStreakColumn } from "./db/migrations/add_longest_loss_streak";
 import { addCareerBiggestPointsFallColumn } from "./db/migrations/add_career_biggest_points_fall";
+import { addMatchWasUpsetWinColumn } from "./db/migrations/add_match_was_upset_win";
 import { addTkdlLiveBroadcastTables } from "./db/migrations/add_tkdl_live_broadcast";
 import { addBroadcastStorySeasonId } from "./db/migrations/add_broadcast_story_season_id";
 import { backfillBroadcastStorySeasonId } from "./db/migrations/backfill_broadcast_story_season_id";
@@ -1097,6 +1099,15 @@ async function init() {
   await runInitStep("addDailyChallengeKeyColumn", addDailyChallengeKeyColumn);
   await runInitStep("addLongestLossStreakColumn", addLongestLossStreakColumn);
   await runInitStep("addCareerBiggestPointsFallColumn", addCareerBiggestPointsFallColumn);
+  // Restored September 18th — this step was accidentally dropped (import and
+  // registration both) by a September 14th commit, which meant the
+  // was_upset_win column was never actually added to `matches` in
+  // production. Every route that reads a full matches row (players.ts's
+  // /stats, /elo-history, /career-journey, /achievement-progress, and
+  // GET /matches) explicitly selects that column, so all of them have been
+  // failing with a 500 since the 14th. See add_match_was_upset_win.ts for
+  // the hardened version of the migration itself.
+  await runInitStep("addMatchWasUpsetWinColumn", addMatchWasUpsetWinColumn);
   await runInitStep("seedDefaultChallenges", () => challengeService.seedDefaultChallenges());
   await runInitStep("seedComprehensivePool", () => challengeService.seedComprehensivePool());
   await runInitStep("seedNotificationTables", seedNotificationTables);
@@ -1109,6 +1120,13 @@ async function init() {
 
   // Add performance indexes (CRITICAL for query speed)
   await runInitStep("addPerformanceIndexes", addPerformanceIndexes);
+  // Restored September 18th alongside addMatchWasUpsetWinColumn above — also
+  // dropped by the same September 14th commit. Adds the composite indexes
+  // that the matches-table query in players.ts (winner_id/loser_id +
+  // played_at) actually wants; harmless that it's been missing (no
+  // correctness impact, CREATE INDEX IF NOT EXISTS either way), just slower
+  // than it should be.
+  await runInitStep("addPerformanceIndexes2", addPerformanceIndexes2);
 
   await runInitStep("seedCommunityTables", seedCommunityTables);
   await runInitStep("seedMatchesMilestoneColumns", seedMatchesMilestoneColumns);
