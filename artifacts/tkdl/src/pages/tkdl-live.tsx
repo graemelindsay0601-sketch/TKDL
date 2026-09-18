@@ -23,7 +23,7 @@ type BroadcastStatus = {
 };
 
 const SHELL_STYLE: CSSProperties = {
-  background: "radial-gradient(ellipse at 20% 20%, rgba(255,0,92,0.12) 0%, transparent 55%), radial-gradient(ellipse at 80% 80%, rgba(0,102,255,0.1) 0%, transparent 55%), #06040e",
+  background: "radial-gradient(ellipse at 20% 0%, rgba(255,0,92,0.15) 0%, transparent 55%), radial-gradient(ellipse at 80% 100%, rgba(0,102,255,0.15) 0%, transparent 55%), #040208",
   fontFamily: "Oswald, sans-serif",
 };
 

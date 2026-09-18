@@ -97,6 +97,19 @@ export type SlotTimesConfig = {
   singleDailyEpisode: boolean;
 };
 
+/** A producer request gets its own immutable slot identity. `requestId` is
+ * supplied by the caller so this pure helper stays deterministic and directly
+ * testable while production can use a collision-resistant UUID. */
+export function manualEpisodeSlotKey(now: Date, requestId: string): string {
+  return `manual:${now.toISOString()}:${requestId}`;
+}
+
+/** Copy-on-write rebuild attempts keep the logical slot key as their seed but
+ * need a separate database identity so the published source row remains live. */
+export function rebuildAttemptSlotKey(logicalSlotKey: string, requestId: string): string {
+  return `rebuild:${logicalSlotKey}:${requestId}`;
+}
+
 /** The day's logical slot instants, in the configured timezone — three (midday/evening/night) normally, or just "night" alone when config.singleDailyEpisode collapses the day to one guaranteed episode (direct response to player feedback that three near-identical slots a day felt like "a constant same episode loop" rather than one thing to look forward to). Both resolveLogicalSlot and resolveNextLogicalSlot build their candidate list from this single place so the two functions can never disagree about how many slots a day has. */
 function daySlotCandidates(dateParts: DateParts, config: SlotTimesConfig): { slotType: Exclude<SlotType, "manual">; instant: Date }[] {
   if (config.singleDailyEpisode) {
@@ -147,10 +160,9 @@ export function resolveLogicalSlot(now: Date, config: SlotTimesConfig, recursion
 
 /**
  * The slot AFTER the one resolveLogicalSlot() would currently return — 14.4's
- * `channel.nextLogicalSlot`, so the frontend can show "next update due" even
- * though nothing schedules a build to actually fire at that instant (16.3's
- * whole design is lazy: the NEXT real Edition is only ever built by whichever
- * request happens to land after this instant, not by a timer). Mirrors
+ * `channel.nextLogicalSlot`, so the frontend can show "next update due".
+ * The API's background scheduler calls the idempotent slot check after this
+ * instant; viewer requests also call it as a safety net. Mirrors
  * resolveLogicalSlot's own structure for today's three candidates, sorted
  * earliest-first, picking the first one strictly AFTER `now`.
  *

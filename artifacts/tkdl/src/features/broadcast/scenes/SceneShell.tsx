@@ -13,14 +13,14 @@ export type SceneShellProps = {
   justify?: "start" | "center";
 };
 
-/** Reuses index.css's own existing `.fade-in-up` keyframe (already used elsewhere in this app for card entrances) so a new segment settling into view doesn't need a second, bespoke transition animation. */
+/** Outer wrapper crossfade is handled by BroadcastPlayer.tsx via .scene-enter/.scene-exit. This inner wrapper just handles padding. */
 export function SceneShell({ children, background, justify = "start" }: SceneShellProps) {
   const style: CSSProperties = {
     background: background ?? "transparent",
     justifyContent: justify === "center" ? "center" : "flex-start",
   };
   return (
-    <div className="fade-in-up flex-1 min-h-0 w-full flex flex-col overflow-hidden px-6 py-8 md:px-12 lg:px-16" style={style}>
+    <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden px-6 py-4 md:px-12 md:py-8 lg:px-16" style={style}>
       {children}
     </div>
   );
@@ -62,6 +62,7 @@ const HEADLINE_SIZE: Record<HeadlineTier, string> = {
 export function SceneHeadline({ children, tier = "quiet" }: { children: ReactNode; tier?: HeadlineTier }) {
   return (
     <h2
+      data-broadcast-headline
       className="font-black uppercase text-white"
       style={{
         fontFamily: "Oswald, sans-serif",

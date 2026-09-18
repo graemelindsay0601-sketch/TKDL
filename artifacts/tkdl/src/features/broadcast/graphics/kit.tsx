@@ -258,7 +258,7 @@ export function PanelFlag({ children, accent }: { children: ReactNode; accent: s
  * the same "big and dominant but not padded out with empty air" shape
  * the reference image's own "Shift Wars" hero-number panels have.
  */
-export function BigPanel({ accent, fill = true, children }: { accent: string; fill?: boolean; children: ReactNode }) {
+export function BigPanel({ accent, fill = true, dense = false, children }: { accent: string; fill?: boolean; dense?: boolean; children: ReactNode }) {
   return (
     <div
       className={`panel-slide-in flex-col min-w-0 ${fill ? "flex w-full" : "inline-flex"}`}
@@ -268,8 +268,8 @@ export function BigPanel({ accent, fill = true, children }: { accent: string; fi
         border: `1px solid ${withAlpha(accent, "50")}`,
         borderLeft: `7px solid ${accent}`,
         boxShadow: `0 0 0 1px rgba(255,255,255,0.04) inset, 0 28px 64px rgba(0,0,0,0.6), 0 0 46px ${withAlpha(accent, "26")}`,
-        padding: "26px 34px 30px 30px",
-        gap: 18,
+        padding: dense ? "12px 26px 14px 22px" : "26px 34px 30px 30px",
+        gap: dense ? 8 : 18,
         // `fill=false` used to size this panel purely to its own content via
         // a bare `minWidth: 380` floor with nothing capping the top end —
         // fine for a short hero number, but a long player/team name inside
@@ -319,21 +319,21 @@ export function BigHeroNumber({ value, label, accent }: { value: string; label: 
 }
 
 /** A single ranked table row — a numbered position chip, a name, and a thick glowing measured bar — the real shape of the reference image's standings/Title-Predictor rows, in place of v1's bare MeasureBar or v2's thin PanelBar. `rank` is optional (a two-name Dead Heat doesn't need position numbers). */
-export function BigRow({ rank, label, valueLabel, fraction, accent, delay = 0 }: { rank?: number; label: string; valueLabel: string; fraction: number; accent: string; delay?: number }) {
+export function BigRow({ rank, label, valueLabel, fraction, accent, delay = 0, dense = false }: { rank?: number; label: string; valueLabel: string; fraction: number; accent: string; delay?: number; dense?: boolean }) {
   const clamped = Math.max(0, Math.min(1, fraction));
   return (
-    <div className="bug-chip-in flex items-center gap-4" style={{ animationDelay: staggerDelay(delay) }}>
+    <div className={`bug-chip-in flex items-center ${dense ? "gap-3" : "gap-4"}`} style={{ animationDelay: staggerDelay(delay) }}>
       {rank !== undefined && (
-        <div className="flex items-center justify-center font-black shrink-0" style={{ width: 36, height: 36, background: withAlpha(accent, "1f"), border: `1px solid ${withAlpha(accent, "70")}`, color: accent, fontSize: "1.05rem" }}>
+        <div className="flex items-center justify-center font-black shrink-0" style={{ width: dense ? 30 : 36, height: dense ? 30 : 36, background: withAlpha(accent, "1f"), border: `1px solid ${withAlpha(accent, "70")}`, color: accent, fontSize: dense ? "0.95rem" : "1.05rem" }}>
           {rank}
         </div>
       )}
-      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+      <div className={`flex-1 min-w-0 flex flex-col ${dense ? "gap-1" : "gap-1.5"}`}>
         <div className="flex items-baseline justify-between gap-3">
-          <span className="font-bold uppercase truncate" style={{ color: "#fff", fontSize: "1.08rem" }}>{label}</span>
-          <span className="font-black tabular-nums shrink-0" style={{ color: accent, fontSize: "1.24rem" }}>{valueLabel}</span>
+          <span className="font-bold uppercase truncate" style={{ color: "#fff", fontSize: dense ? "1rem" : "1.08rem" }}>{label}</span>
+          <span className="font-black tabular-nums shrink-0" style={{ color: accent, fontSize: dense ? "1.1rem" : "1.24rem" }}>{valueLabel}</span>
         </div>
-        <div style={{ height: 12, background: "rgba(255,255,255,0.07)" }}>
+        <div style={{ height: dense ? 9 : 12, background: "rgba(255,255,255,0.07)" }}>
           <div className="bar-wipe h-full" style={{ width: `${clamped * 100}%`, background: `linear-gradient(90deg, ${accent}, ${withAlpha(accent, "aa")})`, boxShadow: `0 0 18px ${withAlpha(accent, "80")}` }} />
         </div>
       </div>
@@ -363,7 +363,12 @@ export function BigMove({ before, after, accent, improved }: { before: string; a
   return (
     <div className="bug-chip-in flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0">
       <span className="font-bold tabular-nums min-w-0" style={{ color: "rgba(255,255,255,0.35)", fontSize: "clamp(1.1rem, 4.5vw, 2.3rem)", lineHeight: 1.15, textDecoration: "line-through", textDecorationColor: "rgba(255,255,255,0.3)", overflowWrap: "anywhere" }}>{before}</span>
-      <span aria-hidden="true" className="shrink-0" style={{ color: accent, fontSize: "1.9rem" }}>{improved ? "↗" : "↘"}</span>
+      <span aria-hidden="true" className="shrink-0 flex items-center justify-center" style={{ color: accent, width: 36, height: 36 }}>
+        <svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{ transform: improved ? "rotate(-45deg)" : "rotate(45deg)" }}>
+          <line x1="5" y1="12" x2="19" y2="12" />
+          <polyline points="12 5 19 12 12 19" />
+        </svg>
+      </span>
       <span className="font-black tabular-nums min-w-0" style={{ color: accent, fontSize: "clamp(1.3rem, 6vw, 3.3rem)", lineHeight: 1.1, textShadow: `0 0 26px ${withAlpha(accent, "70")}`, overflowWrap: "anywhere" }}>{after}</span>
     </div>
   );

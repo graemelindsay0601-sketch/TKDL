@@ -3,8 +3,8 @@
  * Handles web push notifications, offline support, and caching
  */
 
-const CACHE_NAME = "tkdl-v2";
-const API_CACHE = "tkdl-api-v2";
+const CACHE_NAME = "tkdl-v3";
+const API_CACHE = "tkdl-api-v3";
 
 // Files to cache for offline support
 const STATIC_ASSETS = [
@@ -73,7 +73,35 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Static assets: cache-first with network fallback
+  // The application shell must be network-first. Cache-first navigation used
+  // to pin an old Vite entry module in development and could also keep a
+  // deployed browser on an obsolete index.html after a new release.
+  const isApplicationShell =
+    request.mode === "navigate" ||
+    url.pathname === "/" ||
+    url.pathname === "/index.html" ||
+    url.pathname.startsWith("/src/") ||
+    url.pathname.startsWith("/node_modules/");
+
+  if (isApplicationShell) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clonedResponse = response.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(request, clonedResponse));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => {
+          return cached || new Response("Network error", { status: 503 });
+        }))
+    );
+    return;
+  }
+
+  // Fingerprinted production assets and media: cache-first with network
+  // fallback. Their URLs change when their contents change.
   event.respondWith(
     caches.match(request).then((cached) => {
       return (

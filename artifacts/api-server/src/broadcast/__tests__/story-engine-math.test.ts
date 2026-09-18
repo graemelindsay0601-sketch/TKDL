@@ -18,6 +18,7 @@ import {
   treatmentForScore,
   freshnessMultiplier,
   freshnessComponent,
+  isFreshResultEventForNews,
   subjectKey,
   matchAnchoredStoryKey,
   subjectAnchoredStoryKey,
@@ -223,6 +224,21 @@ describe("freshnessMultiplier / freshnessComponent (9.5 half-life decay)", () =>
     const component = freshnessComponent(10_000, "result");
     assert.ok(component > 0);
     assert.ok(component < 0.001);
+  });
+});
+
+describe("isFreshResultEventForNews", () => {
+  const cutoff = new Date("2026-09-05T20:00:00Z");
+
+  test("accepts an event exactly 36 hours before the editorial cutoff", () => {
+    assert.equal(isFreshResultEventForNews("2026-09-04T08:00:00Z", cutoff), true);
+  });
+
+  test("rejects older, missing, malformed, and future event timestamps", () => {
+    assert.equal(isFreshResultEventForNews("2026-09-04T07:59:59Z", cutoff), false);
+    assert.equal(isFreshResultEventForNews(undefined, cutoff), false);
+    assert.equal(isFreshResultEventForNews("not-a-date", cutoff), false);
+    assert.equal(isFreshResultEventForNews("2026-09-05T20:00:01Z", cutoff), false);
   });
 });
 

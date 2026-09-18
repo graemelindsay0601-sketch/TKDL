@@ -1,5 +1,6 @@
 import app, { initApp } from "./app";
 import { logger } from "./lib/logger";
+import { ensureCurrentBroadcastEdition } from "./broadcast/edition-engine";
 
 const rawPort = process.env["PORT"];
 
@@ -10,6 +11,25 @@ if (!rawPort) {
 }
 
 const port = Number(rawPort);
+const BROADCAST_SCHEDULER_INTERVAL_MS = 60_000;
+
+function startBroadcastScheduler() {
+  let running = false;
+  const check = async () => {
+    if (running) return;
+    running = true;
+    try {
+      await ensureCurrentBroadcastEdition();
+    } catch (err) {
+      logger.error({ err }, "Scheduled broadcast edition check failed");
+    } finally {
+      running = false;
+    }
+  };
+  void check();
+  const timer = setInterval(() => void check(), BROADCAST_SCHEDULER_INTERVAL_MS);
+  timer.unref();
+}
 
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
@@ -17,7 +37,11 @@ if (Number.isNaN(port) || port <= 0) {
 
 async function start() {
   try {
-    // Start server first so health checks pass immediately
+    // Finish schema initialization before accepting traffic. Starting the
+    // listener first allowed a failed migration to leave the API apparently
+    // healthy while most routes returned missing-table errors.
+    await initApp();
+
     await new Promise<void>((resolve, reject) => {
       app.listen(port, (err) => {
         if (err) {
@@ -25,15 +49,10 @@ async function start() {
           reject(err);
         } else {
           logger.info({ port }, "Server listening");
+          startBroadcastScheduler();
           resolve();
         }
       });
-    });
-
-    // Initialize app in background (non-blocking)
-    // This allows Render health checks to pass while initialization completes
-    initApp().catch((err) => {
-      logger.error({ err }, "Background initialization failed (server already running)");
     });
   } catch (err) {
     logger.error({ err }, "Failed to start server");

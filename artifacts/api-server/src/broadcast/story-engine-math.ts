@@ -154,6 +154,29 @@ export function freshnessMultiplier(hoursSinceDetected: number, freshnessClass: 
   return Math.pow(0.5, Math.max(hoursSinceDetected, 0) / halfLife);
 }
 
+/** A result older than this is context, not breaking competition news. */
+export const NEWS_RESULT_FRESHNESS_HOURS = 36;
+
+/**
+ * Uses the underlying event timestamp rather than detector discovery time.
+ * Missing/malformed/future timestamps fail closed so an old catch-up import
+ * can never manufacture a News Edition merely because it was discovered now.
+ */
+export function isFreshResultEventForNews(
+  playedAt: unknown,
+  editorialCutoff: Date,
+  maxAgeHours = NEWS_RESULT_FRESHNESS_HOURS,
+): boolean {
+  const parsed = playedAt instanceof Date
+    ? playedAt
+    : typeof playedAt === "string" || typeof playedAt === "number"
+      ? new Date(playedAt)
+      : null;
+  if (!parsed || Number.isNaN(parsed.getTime()) || Number.isNaN(editorialCutoff.getTime())) return false;
+  const ageMs = editorialCutoff.getTime() - parsed.getTime();
+  return ageMs >= 0 && ageMs <= maxAgeHours * 60 * 60 * 1000;
+}
+
 export function freshnessComponent(hoursSinceDetected: number, freshnessClass: StoryFreshnessClass): number {
   return SCORE_MAX.freshness * freshnessMultiplier(hoursSinceDetected, freshnessClass);
 }

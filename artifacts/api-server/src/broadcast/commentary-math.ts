@@ -21,6 +21,8 @@ import type { Treatment } from "./story-types.ts";
 // phrase written without ever thinking about this field still behaves
 // exactly as if the doc's type were used unmodified.
 export type PhraseTone = "commentary" | "humour" | "personality";
+export type CommentaryMode = "NEWS" | "BALANCED" | "MAGAZINE" | "SEASON_REVIEW";
+export type EditorialBeat = "setup" | "reaction" | "counterpoint" | "punchline" | "handoff";
 
 export type Phrase = {
   id: string;
@@ -36,27 +38,27 @@ export type Phrase = {
 };
 
 // ── 12.4 Conversation blueprints ─────────────────────────────────────────
-export type BlueprintTurn = { speaker: "A" | "B"; intent: string; optional?: boolean };
+export type BlueprintTurn = { speaker: "A" | "B"; intent: string; beat: EditorialBeat; optional?: boolean };
 export type BlueprintName = "ANALYST_LEADS" | "PUNDIT_LEADS" | "AGREEMENT" | "DISAGREEMENT" | "CALLBACK" | "QUICK_HIT";
 export type Blueprint = { name: BlueprintName; turns: readonly BlueprintTurn[] };
 
 export const BLUEPRINTS: Record<BlueprintName, Blueprint> = {
   ANALYST_LEADS: { name: "ANALYST_LEADS", turns: [
-    { speaker: "A", intent: "fact" }, { speaker: "B", intent: "reaction" },
-    { speaker: "A", intent: "context" }, { speaker: "B", intent: "closer", optional: true },
+    { speaker: "A", intent: "fact", beat: "setup" }, { speaker: "B", intent: "reaction", beat: "reaction" },
+    { speaker: "A", intent: "context", beat: "counterpoint" }, { speaker: "B", intent: "closer", beat: "handoff", optional: true },
   ] },
   PUNDIT_LEADS: { name: "PUNDIT_LEADS", turns: [
-    { speaker: "B", intent: "observation" }, { speaker: "A", intent: "data_check" }, { speaker: "B", intent: "response" },
+    { speaker: "B", intent: "observation", beat: "setup" }, { speaker: "A", intent: "data_check", beat: "counterpoint" }, { speaker: "B", intent: "response", beat: "handoff" },
   ] },
   AGREEMENT: { name: "AGREEMENT", turns: [
-    { speaker: "A", intent: "performance_fact" }, { speaker: "B", intent: "credit" }, { speaker: "A", intent: "consequence" },
+    { speaker: "A", intent: "performance_fact", beat: "setup" }, { speaker: "B", intent: "credit", beat: "reaction" }, { speaker: "A", intent: "consequence", beat: "handoff" },
   ] },
   DISAGREEMENT: { name: "DISAGREEMENT", turns: [
-    { speaker: "A", intent: "model_context" }, { speaker: "B", intent: "contrary_opinion" },
-    { speaker: "A", intent: "evidence" }, { speaker: "B", intent: "disagree_close" },
+    { speaker: "A", intent: "model_context", beat: "setup" }, { speaker: "B", intent: "contrary_opinion", beat: "reaction" },
+    { speaker: "A", intent: "evidence", beat: "counterpoint" }, { speaker: "B", intent: "disagree_close", beat: "punchline" },
   ] },
   CALLBACK: { name: "CALLBACK", turns: [
-    { speaker: "A", intent: "callback_reference" }, { speaker: "B", intent: "admit_or_defend" }, { speaker: "A", intent: "current_evidence" },
+    { speaker: "A", intent: "callback_reference", beat: "setup" }, { speaker: "B", intent: "admit_or_defend", beat: "reaction" }, { speaker: "A", intent: "current_evidence", beat: "handoff" },
   ] },
   // Third turn added deliberately (was a bare 2-turn quick_fact/
   // quick_reaction pair — see the git history on this file for the
@@ -74,10 +76,58 @@ export const BLUEPRINTS: Record<BlueprintName, Blueprint> = {
   // always satisfiable regardless of broadcast_banter_level (fact-free,
   // never humour+negative at once).
   QUICK_HIT: { name: "QUICK_HIT", turns: [
-    { speaker: "A", intent: "quick_fact" }, { speaker: "B", intent: "quick_reaction" },
-    { speaker: "A", intent: "banter" },
+    { speaker: "A", intent: "quick_fact", beat: "setup" }, { speaker: "B", intent: "quick_reaction", beat: "reaction" },
+    { speaker: "A", intent: "banter", beat: "handoff" },
   ] },
 };
+
+/**
+ * Gives each format a recognisable energy without making a segment
+ * impossible: NEWS prefers measured commentary, MAGAZINE prefers presenter
+ * chemistry, while BALANCED and SEASON_REVIEW retain the full eligible pool.
+ * Selection remains deterministic because this only narrows the array before
+ * the existing seeded picker runs.
+ */
+export function preferredPhrasesForMode(phrases: readonly Phrase[], mode: CommentaryMode): Phrase[] {
+  if (mode === "NEWS") {
+    const measured = phrases.filter(p => (p.tone ?? "commentary") === "commentary");
+    return measured.length > 0 ? measured : [...phrases];
+  }
+  if (mode === "MAGAZINE") {
+    const conversational = phrases.filter(p => p.tone === "humour" || p.tone === "personality");
+    return conversational.length > 0 ? conversational : [...phrases];
+  }
+  return [...phrases];
+}
+
+const PRESENT_TIME_LANGUAGE = /\b(?:tonight|now|this week|at the minute|counting|fortnight|brewing|live sport)\b|plenty of (?:the|this) night still to come|twists lined up yet/i;
+
+/** Keeps closed-season highlights retrospective instead of making old results sound live. */
+export function isPhraseSafeForMode(phrase: Phrase, mode: CommentaryMode, forceRetrospective = false): boolean {
+  return (mode !== "SEASON_REVIEW" && !forceRetrospective) || !PRESENT_TIME_LANGUAGE.test(phrase.template);
+}
+
+export function formatCountedNoun(value: unknown, singular: string, plural: string): string | null {
+  return typeof value === "number" && Number.isFinite(value)
+    ? `${value} ${value === 1 ? singular : plural}`
+    : null;
+}
+
+export const COUNTED_LOSS_FACT_KEYS = [
+  "endedLossStreak",
+  "priorLossesToThisOpponent",
+  "consecutivePriorLosses",
+] as const;
+
+/** Prevents one exchange from recycling a phrase or piling jokes onto the same player/team. */
+export function isConversationPhraseAvailable(
+  phrase: Phrase,
+  usedPhraseIds: ReadonlySet<string>,
+  negativeTurnsAlreadyForSubject: number,
+): boolean {
+  if (usedPhraseIds.has(phrase.id)) return false;
+  return phrase.sentiment !== "negative" || negativeTurnsAlreadyForSubject === 0;
+}
 
 /**
  * 12.6: "Supporting story: 2 turns / Featured story: 3-4 turns / Major

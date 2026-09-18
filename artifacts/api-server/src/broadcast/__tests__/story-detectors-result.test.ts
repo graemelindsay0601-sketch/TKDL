@@ -308,8 +308,8 @@ describe("detectRevenge (Appendix A: reverses previous meeting; stronger if repe
 });
 
 describe("detectResultStories (runs the full RESULT family together)", () => {
-  test("a completely unremarkable match triggers nothing", () => {
-    assert.deepEqual(detectResultStories(baseFacts()), []);
+  test("a completely unremarkable match still produces its baseline result", () => {
+    assert.deepEqual(detectResultStories(baseFacts()).map(story => story.storyType), ["MATCH_RESULT"]);
   });
 
   test("a single dramatic match can trigger multiple story types at once (left for 9.6 merging to combine, not this file's job)", () => {
@@ -327,6 +327,6 @@ describe("detectResultStories (runs the full RESULT family together)", () => {
     // alongside MODEL_SHOCK/LEADER_BEATEN/STREAK_BREAKER — five independent
     // true facts about the same match, exactly what 9.6's merging step
     // exists to collapse into one primary narrative later.
-    assert.deepEqual(types, ["HIGH_STAKE_LOSS", "HIGH_STAKE_WIN", "LEADER_BEATEN", "MODEL_SHOCK", "STREAK_BREAKER"]);
+    assert.deepEqual(types, ["HIGH_STAKE_LOSS", "HIGH_STAKE_WIN", "LEADER_BEATEN", "MATCH_RESULT", "MODEL_SHOCK", "STREAK_BREAKER"]);
   });
 });

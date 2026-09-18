@@ -22,7 +22,11 @@ export function tierForSegment(segment: Segment): VisualTier {
 export function renderGraphic(segment: Segment, opts?: { compact?: boolean }) {
   if (!segment.graphic) return null;
   const GraphicComponent = GRAPHIC_COMPONENTS[segment.graphic.kind];
-  return <GraphicComponent leagueType={segment.leagueType} data={segment.graphic.data} compact={opts?.compact} />;
+  return (
+    <div data-broadcast-region="graphic" className="min-w-0 max-w-full">
+      <GraphicComponent leagueType={segment.leagueType} data={segment.graphic.data} compact={opts?.compact} />
+    </div>
+  );
 }
 
 /** A readable subject line for a segment that has no dialogue yet to lean on, or as a scene's own headline — "NEW_LEADER" -> "New Leader". Falls back to the segment's purpose-derived `type` field for the rare no-story segments (director.ts's own slot-9 fallback), which is already a plain word like "desk" rather than a SCREAMING_CASE story type. */

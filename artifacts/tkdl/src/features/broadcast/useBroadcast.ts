@@ -225,5 +225,13 @@ export function useBroadcast() {
   const invalidSegmentIds = useMemo(() => new Set(live.data?.invalidSegmentIds ?? []), [live.data]);
   const namesByKey = useEntityNames();
 
+  useEffect(() => {
+    const liveEditionId = live.data?.currentEditionId;
+    const loadedEditionId = edition.data?.edition?.id ?? null;
+    if (liveEditionId !== undefined && liveEditionId !== loadedEditionId) {
+      edition.refetch();
+    }
+  }, [edition.data?.edition?.id, edition.refetch, live.data?.currentEditionId]);
+
   return { edition, live, invalidSegmentIds, namesByKey };
 }

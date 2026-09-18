@@ -63,7 +63,7 @@ export function ChampionScene({ segment }: SceneProps) {
           {segment.leagueType ? `${LEAGUE_LABEL[segment.leagueType]} Champion` : "Champion"}
           {championInfo?.seasonName ? ` · ${championInfo.seasonName}` : ""}
         </div>
-        <h1 className="shimmer-gold font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(2.6rem, 7vw, 5rem)", lineHeight: 1, textWrap: "balance" }}>
+        <h1 data-broadcast-headline className="shimmer-gold font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(2.6rem, 7vw, 5rem)", lineHeight: 1, textWrap: "balance" }}>
           {championInfo?.championName ?? headlineFor(segment)}
         </h1>
       </div>

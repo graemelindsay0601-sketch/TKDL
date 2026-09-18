@@ -96,33 +96,29 @@ export function StudioBackdrop({ variant = "main" }: { variant?: StudioBackdropV
 // footprint.
 export function ShowTitleBar({ subtitle }: { subtitle: string }) {
   return (
-    <div className="relative shrink-0" style={{ zIndex: 2 }}>
+    <div className="relative shrink-0 w-full shadow-2xl" style={{ zIndex: 10 }}>
       <div
         className="flex items-center justify-between px-6 md:px-10"
         style={{
-          minHeight: 46,
-          // Real content sits in a 46px-tall bar; `env(safe-area-inset-top)`
-          // adds real device notch/status-bar room on top of that instead of
-          // eating into it — plain `0` everywhere that doesn't need it, so
-          // this changes nothing on desktop. Fixes the "TKDL LIVE"/status-
-          // bar collision a real user screenshot showed on a phone where
-          // this page draws edge-to-edge under the OS status bar.
+          minHeight: 48,
           paddingTop: "env(safe-area-inset-top)",
-          background: "linear-gradient(90deg, rgba(0,102,255,0.18) 0%, rgba(6,4,14,0.92) 42%, rgba(255,0,92,0.15) 100%)",
-          borderBottom: "1px solid rgba(255,255,255,0.07)",
+          background: "linear-gradient(90deg, rgba(255,0,92,0.95) 0%, rgba(6,4,14,0.98) 30%, rgba(6,4,14,0.98) 100%)",
+          borderBottom: "2px solid rgba(255,255,255,0.1)",
         }}
       >
-        <div className="flex items-center gap-2">
-          <span className="font-black uppercase text-white" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.02rem", letterSpacing: "0.01em" }}>
-            TKDL<span style={{ color: "#ff005c" }}>LIVE</span>
+        <div className="flex items-center gap-3">
+          <span className="font-black uppercase text-white drop-shadow-md" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.15rem", letterSpacing: "0.02em" }}>
+            TKDL<span style={{ color: "#ffd24a" }}>LIVE</span>
           </span>
-          <span className="live-dot" aria-hidden="true" />
+          <span className="live-dot shadow-lg" aria-hidden="true" style={{ background: "#ffd24a" }} />
         </div>
-        <span className="font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.64rem", letterSpacing: "0.16em", color: "rgba(255,255,255,0.55)" }}>
-          {subtitle}
-        </span>
+        <div className="flex items-center gap-4">
+          <span className="font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.75rem", letterSpacing: "0.2em", color: "rgba(255,255,255,0.7)" }}>
+            {subtitle}
+          </span>
+        </div>
       </div>
-      <div style={{ height: 2, background: "linear-gradient(90deg, #0066ff, #ff005c)" }} />
+      <div style={{ height: 3, background: "linear-gradient(90deg, #ff005c, #ffd24a, #0066ff)" }} />
     </div>
   );
 }
@@ -161,7 +157,7 @@ export type ScreenPanelProps = {
 export function ScreenPanel({ children, framed = true }: ScreenPanelProps) {
   if (!framed) {
     return (
-      <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden" style={{ zIndex: 1 }}>
+      <div data-broadcast-region="scene" className="relative flex-1 min-h-0 flex flex-col overflow-hidden" style={{ zIndex: 1 }}>
         {children}
       </div>
     );
@@ -193,7 +189,7 @@ export function ScreenPanel({ children, framed = true }: ScreenPanelProps) {
     // card in a wide empty box; this still keeps a real margin off the
     // frame edges at every breakpoint, just not one sized for a ~320-440px
     // v1/v2 card.
-    <div className="relative flex-1 min-h-0 flex items-start px-4 sm:px-10 md:px-16 lg:px-[8%] py-5 md:py-8" style={{ zIndex: 1 }}>
+    <div data-broadcast-region="scene" className="relative flex-1 min-h-0 flex items-start px-4 sm:px-10 md:px-16 lg:px-[8%] py-5 md:py-8" style={{ zIndex: 1 }}>
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {children}
       </div>
@@ -237,8 +233,8 @@ export function ScreenPanel({ children, framed = true }: ScreenPanelProps) {
 // need the same trade.
 const DESK_LINE: Record<StudioBackdropVariant, { bottomPct: number; align: "center" | "left"; gapPx: number; leftPadPct?: number; bustSize: "sm" | "md" }> = {
   champion: { bottomPct: 100 - 53, align: "center", gapPx: 64, bustSize: "md" },
-  main: { bottomPct: 100 - 68, align: "center", gapPx: 48, bustSize: "sm" },
-  breaking: { bottomPct: 100 - 67, align: "left", gapPx: 28, leftPadPct: 4, bustSize: "sm" },
+  main: { bottomPct: 100 - 68, align: "center", gapPx: 48, bustSize: "md" },
+  breaking: { bottomPct: 100 - 67, align: "left", gapPx: 28, leftPadPct: 4, bustSize: "md" },
 };
 
 export type PresenterOverlayProps = {
@@ -345,7 +341,7 @@ export function PresenterOverlay({ variant, activeSpeaker, activeState }: Presen
   const minBottomPct = naturalBottomPct * 0.6;
   const effectiveBottomPct = Math.max(2, minBottomPct, clearanceAdjustedBottomPct);
   return (
-    <div className="absolute inset-0" aria-hidden="true" style={{ zIndex: 2, pointerEvents: "none" }}>
+    <div data-broadcast-region="presenters" className="absolute inset-0" aria-hidden="true" style={{ zIndex: 2, pointerEvents: "none" }}>
       <div
         className="absolute flex items-end"
         style={{
@@ -380,7 +376,7 @@ export function PresenterOverlay({ variant, activeSpeaker, activeState }: Presen
 export function LowerThirdDock({ children }: { children?: ReactNode }) {
   if (!children) return null;
   return (
-    <div className="relative shrink-0 flex justify-center px-6 pb-3 pt-1 md:px-10" style={{ zIndex: 3 }}>
+    <div data-broadcast-region="lower-third" className="relative shrink-0 flex justify-center px-6 pb-3 pt-1 md:px-10" style={{ zIndex: 3 }}>
       {children}
     </div>
   );

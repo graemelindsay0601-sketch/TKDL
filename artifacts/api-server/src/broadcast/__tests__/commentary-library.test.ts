@@ -16,7 +16,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
   isRecordClaimCompliant, templatePlaceholderKeys,
-  scalarIdNameKey, arrayIdNamesJoinedKey, probabilityPctKey,
+  scalarIdNameKey, arrayIdNamesJoinedKey, probabilityPctKey, COUNTED_LOSS_FACT_KEYS,
   type Phrase,
 } from "../commentary-math.ts";
 import { COMMENTARY_LIBRARY, UNIVERSAL_CALLBACK_PHRASES, UNIVERSAL_BANTER_PHRASES, allLibraryPhrases } from "../commentary-library.ts";
@@ -59,6 +59,17 @@ describe("COMMENTARY_LIBRARY coverage", () => {
       return !phrases.some(p => p.intent === "quick_fact") || !phrases.some(p => p.intent === "quick_reaction");
     });
     assert.deepEqual(missingQuickHit, []);
+  });
+
+  test("every H2H story can sustain the locked Chalky/Ton prediction-debate blueprint", () => {
+    const requiredIntents = ["model_context", "contrary_opinion", "evidence", "disagree_close"];
+    const missing = H2H_STORY_TYPES.flatMap(storyType => {
+      const intents = new Set((COMMENTARY_LIBRARY[storyType] ?? []).map(phrase => phrase.intent));
+      return requiredIntents
+        .filter(intent => !intents.has(intent))
+        .map(intent => `${storyType}:${intent}`);
+    });
+    assert.deepEqual(missing, []);
   });
 });
 
@@ -118,6 +129,7 @@ describe("12.7 banned-topic language scan", () => {
 describe("template placeholders are always derivable from `requires`", () => {
   function derivableKeysFrom(requires: readonly string[]): Set<string> {
     const keys = new Set<string>(requires);
+    const countedLossKeys = new Set<string>(COUNTED_LOSS_FACT_KEYS);
     for (const key of requires) {
       const name = scalarIdNameKey(key);
       if (name) keys.add(name);
@@ -125,6 +137,7 @@ describe("template placeholders are always derivable from `requires`", () => {
       if (namesJoined) keys.add(namesJoined);
       const pct = probabilityPctKey(key);
       if (pct) keys.add(pct);
+      if (countedLossKeys.has(key)) keys.add(`${key}Label`);
     }
     return keys;
   }

@@ -47,6 +47,7 @@ export type Segment = {
 };
 
 export type SlotType = "midday" | "evening" | "night" | "manual";
+export type ProgrammeMode = "NEWS" | "BALANCED" | "MAGAZINE" | "SEASON_REVIEW";
 
 // ── 14.4 current-edition response ───────────────────────────────────────
 
@@ -57,6 +58,7 @@ export type CurrentEdition = {
   generatedAt: string;
   dataCutoff: string;
   title: string;
+  mode: ProgrammeMode;
   headlines: Segment[];
   segments: Segment[];
 };
@@ -88,6 +90,9 @@ export type LiveOverlayItem = {
 };
 
 export type LivePayload = {
+  /** Lets the existing live poll hand open players over to a producer-created
+   * Edition without adding a second polling loop that could trigger builds. */
+  currentEditionId: number | null;
   leaders: LiveLeaders;
   tickerItems: LiveTickerItem[];
   overlays: LiveOverlayItem[];

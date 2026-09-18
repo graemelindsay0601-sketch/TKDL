@@ -41,14 +41,24 @@ type RecentEdition = {
 };
 
 type StoryCount = { lifecycle: string; leagueType: string; count: number };
+type ProgrammeMode = "NEWS" | "BALANCED" | "MAGAZINE";
+type ContentBeat = "news" | "analysis" | "feature";
+type ProgrammeProfile = {
+  maxHeadlineTeases: number;
+  maxStorySegments: number;
+  estimatedRuntimeSeconds: { min: number; max: number };
+  contentMix: ContentBeat[];
+};
 
 type BroadcastAdminStatus = {
   recentEditions: RecentEdition[];
   currentPublished: { id: number; slotKey: string; changeScore: number; publishedAt: string | null } | null;
   storyCounts: StoryCount[];
   predictorDiagnostics: Record<string, { generatedAt: string; modelVersion: string } | null>;
-  config: Record<string, unknown>;
+  config: { programmeProfiles: Record<ProgrammeMode, ProgrammeProfile> } & Record<string, unknown>;
 };
+
+const PROGRAMME_MODES: ProgrammeMode[] = ["NEWS", "BALANCED", "MAGAZINE"];
 
 const STATUS_COLOR: Record<RecentEdition["status"], string> = {
   PUBLISHED: D.success,
@@ -80,8 +90,13 @@ export default function AdminBroadcastPanel() {
   const [status, setStatus]         = useState<BroadcastAdminStatus | null>(null);
   const [loading, setLoading]       = useState(true);
   const [regenerating, setRegenerating] = useState(false);
+  const [creatingEpisode, setCreatingEpisode] = useState(false);
+  const [cleanSweeping, setCleanSweeping] = useState(false);
+  const [sweepStartDate, setSweepStartDate] = useState("2026-09-01");
   const [message, setMessage]       = useState("");
   const [msgType, setMsgType]       = useState<"success" | "error">("success");
+  const [profiles, setProfiles] = useState<Record<ProgrammeMode, ProgrammeProfile> | null>(null);
+  const [savingProfiles, setSavingProfiles] = useState(false);
 
   useEffect(() => { loadStatus(); }, []);
 
@@ -95,7 +110,10 @@ export default function AdminBroadcastPanel() {
       setLoading(true);
       const r = await fetch("/api/admin/broadcast/status", { headers: getAdminHeaders() });
       const d = await r.json();
-      if (r.ok) setStatus(d);
+      if (r.ok) {
+        setStatus(d);
+        setProfiles(d.config.programmeProfiles);
+      }
       else toast(d.error ?? "Failed to load broadcast status", "error");
     } catch { toast("Failed to load broadcast status", "error"); } finally { setLoading(false); }
   };
@@ -108,14 +126,100 @@ export default function AdminBroadcastPanel() {
       if (r.status === 409) {
         toast("Already building this slot right now — try again in a moment", "error");
       } else if (!r.ok) {
-        toast(d.error ?? "Regenerate failed", "error");
+        const retained = d.retainedEditionId ? ` Edition #${d.retainedEditionId} stays live.` : "";
+        toast(`${d.error ?? "Rebuild failed."}${retained}`, "error");
       } else if (!d.edition) {
         toast(d.message ?? "Still couldn't clear the quality gate — check the diagnostics below", "error");
       } else {
-        toast(`✅ Edition #${d.edition.id} rebuilt — status ${d.edition.status}`, d.edition.status === "PUBLISHED" ? "success" : "error");
+        const runtime = typeof d.edition.runtimeSeconds === "number" ? ` · ${formatRuntime(d.edition.runtimeSeconds)}` : "";
+        toast(`✅ Edition #${d.edition.id} rebuilt · ${d.edition.mode ?? "Programme"}${runtime}`, "success");
       }
       loadStatus();
     } catch { toast("Regenerate failed", "error"); } finally { setRegenerating(false); }
+  };
+
+  const createEpisode = async () => {
+    try {
+      setCreatingEpisode(true);
+      const r = await fetch("/api/admin/broadcast/episodes", { method: "POST", headers: getAdminHeaders() });
+      const d = await r.json();
+      if (!r.ok) {
+        const diagnostic = d.attempt?.diagnostic ? ` ${d.attempt.diagnostic}` : "";
+        const retained = d.retainedEditionId ? ` Edition #${d.retainedEditionId} stays live.` : "";
+        toast(`${d.error ?? "New episode failed."}${retained}${diagnostic}`, "error");
+      } else {
+        const runtime = typeof d.edition.runtimeSeconds === "number" ? ` · ${formatRuntime(d.edition.runtimeSeconds)}` : "";
+        toast(`✅ New Episode #${d.edition.id} is live · ${d.edition.mode ?? "Programme"}${runtime}`, "success");
+      }
+      loadStatus();
+    } catch {
+      toast("New episode failed", "error");
+    } finally {
+      setCreatingEpisode(false);
+    }
+  };
+
+  const cleanSweep = async () => {
+    const confirmed = window.confirm(
+      `Build one complete TKDL LIVE programme covering every active-season match from ${sweepStartDate} through now?\n\nMatch and season data will not be deleted. The new programme will replace the currently live Edition if it builds successfully.`
+    );
+    if (!confirmed) return;
+    try {
+      setCleanSweeping(true);
+      const r = await fetch("/api/admin/broadcast/clean-sweep", {
+        method: "POST",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({ startDate: sweepStartDate }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        const diagnostic = d.attempt?.diagnostic ? ` ${d.attempt.diagnostic}` : "";
+        const retained = d.retainedEditionId ? ` Edition #${d.retainedEditionId} stays live.` : "";
+        toast(`${d.error ?? "Clean sweep failed."}${retained}${diagnostic}`, "error");
+      } else {
+        const runtime = typeof d.edition.runtimeSeconds === "number" ? ` · ${formatRuntime(d.edition.runtimeSeconds)}` : "";
+        const features = typeof d.edition.editorialFeatures === "number" ? ` · ${d.edition.editorialFeatures} editorial desks` : "";
+        toast(`✅ Clean Sweep #${d.edition.id} is live · ${d.edition.matchResults} match results${features}${runtime}`, "success");
+      }
+      loadStatus();
+    } catch {
+      toast("Clean sweep failed", "error");
+    } finally {
+      setCleanSweeping(false);
+    }
+  };
+
+  const updateProfile = (mode: ProgrammeMode, update: (profile: ProgrammeProfile) => ProgrammeProfile) => {
+    setProfiles(current => current ? { ...current, [mode]: update(current[mode]) } : current);
+  };
+
+  const saveProfiles = async () => {
+    if (!profiles) return;
+    try {
+      setSavingProfiles(true);
+      const r = await fetch("/api/admin/broadcast/settings", {
+        method: "PATCH",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({
+          broadcast_news_profile: JSON.stringify(profiles.NEWS),
+          broadcast_balanced_profile: JSON.stringify(profiles.BALANCED),
+          broadcast_magazine_profile: JSON.stringify(profiles.MAGAZINE),
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        const details = d.details ? Object.values(d.details).join("; ") : d.error;
+        toast(details ?? "Failed to save programme profiles", "error");
+        return;
+      }
+      setProfiles(d.config.programmeProfiles);
+      setStatus(current => current ? { ...current, config: d.config } : current);
+      toast("Programme profiles saved. They will apply to the next Edition.");
+    } catch {
+      toast("Failed to save programme profiles", "error");
+    } finally {
+      setSavingProfiles(false);
+    }
   };
 
   const latest = status?.recentEditions[0] ?? null;
@@ -125,7 +229,7 @@ export default function AdminBroadcastPanel() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", flexWrap: "wrap", gap: "12px" }}>
         <div>
           <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 900, letterSpacing: "0.08em" }}>📺 TKDL LIVE BROADCAST</h2>
-          <p style={{ margin: "4px 0 0", fontSize: "12px", color: D.sub }}>Force a fresh Edition to build right now instead of waiting for the next time slot</p>
+          <p style={{ margin: "4px 0 0", fontSize: "12px", color: D.sub }}>Produce a new live show, or rebuild the current slot for diagnostics</p>
         </div>
         <button onClick={loadStatus} style={{ padding: "7px 14px", borderRadius: "8px", border: `1px solid ${D.border}`, background: D.card, color: D.sub, cursor: "pointer", fontSize: "12px", fontWeight: 600 }}>↻ Refresh</button>
       </div>
@@ -158,15 +262,91 @@ export default function AdminBroadcastPanel() {
                   </div>
                 )}
               </div>
-              <button
-                onClick={regenerate}
-                disabled={regenerating}
-                style={{ padding: "12px 22px", borderRadius: "8px", border: "none", background: regenerating ? `${D.info}33` : `${D.info}22`, color: D.info, cursor: regenerating ? "default" : "pointer", fontWeight: 800, fontSize: "13px", letterSpacing: "0.04em", whiteSpace: "nowrap" }}
-              >
-                {regenerating ? "Building…" : "⚡ Regenerate Now"}
-              </button>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                <label style={{ display: "grid", gap: "3px", fontSize: "10px", color: D.sub }}>
+                  Clean sweep start
+                  <input
+                    type="date"
+                    value={sweepStartDate}
+                    onChange={event => setSweepStartDate(event.target.value)}
+                    disabled={cleanSweeping || creatingEpisode || regenerating}
+                    style={{ background: "rgba(0,0,0,.25)", border: `1px solid ${D.border}`, borderRadius: "6px", color: D.text, padding: "6px 8px" }}
+                  />
+                </label>
+                <button
+                  onClick={cleanSweep}
+                  disabled={cleanSweeping || creatingEpisode || regenerating || !sweepStartDate}
+                  style={{ padding: "12px 22px", borderRadius: "8px", border: `1px solid ${D.warn}55`, background: cleanSweeping ? `${D.warn}33` : `${D.warn}18`, color: D.warn, cursor: cleanSweeping || creatingEpisode || regenerating ? "default" : "pointer", fontWeight: 800, fontSize: "13px", letterSpacing: "0.04em", whiteSpace: "nowrap" }}
+                >
+                  {cleanSweeping ? "Sweeping…" : "Clean Sweep"}
+                </button>
+                <button
+                  onClick={createEpisode}
+                  disabled={creatingEpisode || regenerating || cleanSweeping}
+                  style={{ padding: "12px 22px", borderRadius: "8px", border: "none", background: creatingEpisode ? `${D.success}33` : `${D.success}22`, color: D.success, cursor: creatingEpisode || regenerating || cleanSweeping ? "default" : "pointer", fontWeight: 800, fontSize: "13px", letterSpacing: "0.04em", whiteSpace: "nowrap" }}
+                >
+                  {creatingEpisode ? "Producing…" : "● Create New Episode"}
+                </button>
+                <button
+                  onClick={regenerate}
+                  disabled={regenerating || creatingEpisode || cleanSweeping}
+                  style={{ padding: "12px 22px", borderRadius: "8px", border: "none", background: regenerating ? `${D.info}33` : `${D.info}22`, color: D.info, cursor: regenerating || creatingEpisode || cleanSweeping ? "default" : "pointer", fontWeight: 800, fontSize: "13px", letterSpacing: "0.04em", whiteSpace: "nowrap" }}
+                >
+                  {regenerating ? "Rebuilding…" : "↻ Rebuild Current Slot"}
+                </button>
+              </div>
             </div>
           </div>
+
+          {profiles && (
+            <div style={{ background: D.card, border: `1px solid ${D.border}`, borderRadius: "10px", padding: "18px", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "12px", flexWrap: "wrap", marginBottom: "14px" }}>
+                <div>
+                  <div style={{ fontSize: "12px", fontWeight: 800, letterSpacing: "0.06em" }}>PROGRAMME FORMAT CONTROLS</div>
+                  <div style={{ color: D.sub, fontSize: "11px", marginTop: "4px" }}>Tune pacing safely. Runtime must be 60–900 seconds with at least a 30-second range, and each content beat maps to one of 4–7 story segments.</div>
+                </div>
+                <button onClick={saveProfiles} disabled={savingProfiles} style={{ padding: "8px 14px", borderRadius: "8px", border: `1px solid ${D.info}55`, background: `${D.info}18`, color: D.info, cursor: savingProfiles ? "default" : "pointer", fontWeight: 800 }}>
+                  {savingProfiles ? "Saving…" : "Save Formats"}
+                </button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "12px" }}>
+                {PROGRAMME_MODES.map(mode => {
+                  const profile = profiles[mode];
+                  const maximumAchievableRuntime = profile.maxStorySegments * 6 * 9 + profile.maxHeadlineTeases * 3 * 9 + 3 * 2 * 9;
+                  const numberField = (label: string, value: number, min: number, max: number, onChange: (value: number) => void) => (
+                    <label style={{ display: "grid", gap: "4px", fontSize: "11px", color: D.sub }}>
+                      {label}
+                      <input type="number" min={min} max={max} value={value} onChange={e => onChange(Number(e.target.value))} style={{ background: "rgba(0,0,0,.25)", border: `1px solid ${D.border}`, borderRadius: "6px", color: D.text, padding: "7px" }} />
+                    </label>
+                  );
+                  return (
+                    <div key={mode} style={{ border: `1px solid ${D.border}`, borderRadius: "8px", padding: "12px" }}>
+                      <div style={{ fontWeight: 900, fontSize: "13px", marginBottom: "10px", color: mode === "NEWS" ? D.danger : mode === "BALANCED" ? D.info : D.warn }}>{mode}</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                        {numberField("Headline teases", profile.maxHeadlineTeases, 0, 5, value => updateProfile(mode, p => ({ ...p, maxHeadlineTeases: value })))}
+                        {numberField("Story segments", profile.maxStorySegments, 4, 7, value => updateProfile(mode, p => {
+                          const nextMix = Array.from({ length: value }, (_, i) => p.contentMix[i] ?? "feature");
+                          return { ...p, maxHeadlineTeases: Math.min(p.maxHeadlineTeases, value), maxStorySegments: value, contentMix: nextMix };
+                        }))}
+                        {numberField("Runtime min (sec)", profile.estimatedRuntimeSeconds.min, 60, maximumAchievableRuntime, value => updateProfile(mode, p => ({ ...p, estimatedRuntimeSeconds: { ...p.estimatedRuntimeSeconds, min: value } })))}
+                        {numberField("Runtime max (sec)", profile.estimatedRuntimeSeconds.max, profile.estimatedRuntimeSeconds.min + 30, 900, value => updateProfile(mode, p => ({ ...p, estimatedRuntimeSeconds: { ...p.estimatedRuntimeSeconds, max: value } })))}
+                      </div>
+                      <div style={{ marginTop: "10px", fontSize: "11px", color: D.sub }}>Content mix</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "5px", marginTop: "5px" }}>
+                        {profile.contentMix.map((beat, index) => (
+                          <select key={index} value={beat} onChange={e => updateProfile(mode, p => ({ ...p, contentMix: p.contentMix.map((item, i) => i === index ? e.target.value as ContentBeat : item) }))} style={{ background: "#171923", color: D.text, border: `1px solid ${D.border}`, borderRadius: "6px", padding: "5px", fontSize: "11px" }}>
+                            <option value="news">News</option>
+                            <option value="analysis">Analysis</option>
+                            <option value="feature">Feature</option>
+                          </select>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {status && status.recentEditions.length > 0 && (
             <div style={{ marginBottom: "1rem" }}>
@@ -211,7 +391,7 @@ export default function AdminBroadcastPanel() {
       )}
 
       <div style={{ marginTop: "1.5rem", padding: "14px 16px", background: D.card, border: `1px solid ${D.border}`, borderRadius: "10px", fontSize: "12px", color: D.sub, lineHeight: 1.6 }}>
-        A time slot that gets <strong style={{ color: D.warn }}>SKIPPED</strong> (too little changed) or <strong style={{ color: D.danger }}>FAILED</strong> (couldn't build a clean programme) is normally left alone until the next slot boundary — ordinary page loads never retry it. <strong style={{ color: D.info }}>Regenerate Now</strong> forces a fresh attempt immediately, ignoring the "not enough changed" threshold, so you can get an Edition live right after fixing whatever caused the last one to fail.
+        <strong style={{ color: D.warn }}>Clean Sweep</strong> is a complete editorial reset from the selected date through now. It deliberately ignores previous match airtime, rebuilds every eligible result, recalculates the expanded analysis mix, and adds the broader rotating editorial desks supported by the current data. It does not delete match, season, story, or Edition records, and the previous Edition stays live unless the replacement clears its full quality gate. After a successful sweep, <strong style={{ color: D.success }}>Create New Episode</strong> and <strong style={{ color: D.info }}>Rebuild Current Slot</strong> return to normal incremental updates.
       </div>
     </div>
   );

@@ -77,6 +77,7 @@ export function sceneForSegment(segment: SceneInput): Scene {
   if (segment.purpose === "opening") return "desk";
   if (segment.purpose === "headlines") return "headlines";
   if (segment.purpose === "closing") return "desk";
+  if (segment.purpose === "leaderboard_after_results") return "graphic";
   if (segment.storyType === "CHAMPION") return "champion";
   // storyId === null only ever happens for slot 9's documented no-LEAGUE-
   // story fallback (director.ts) — a hand-written "nothing to report on the
@@ -125,6 +126,7 @@ export type GraphicKind =
  */
 export const GRAPHIC_KIND_BY_STORY_TYPE: Record<StoryType, GraphicKind> = {
   // RESULT
+  MATCH_RESULT: "ResultGraphic",
   UPSET: "MatchContextGraphic",
   MAJOR_UPSET: "MatchContextGraphic",
   MODEL_SHOCK: "MatchContextGraphic",
@@ -182,6 +184,7 @@ export const GRAPHIC_KIND_BY_STORY_TYPE: Record<StoryType, GraphicKind> = {
   ELIMINATION_MILESTONE: "ResultGraphic",
 
   // DOUBLES
+  PAIR_RESULT: "ResultGraphic",
   UNBEATEN_PAIR: "FormWatchGraphic",
   PAIR_SURGE: "FormWatchGraphic",
   PAIR_UPSET: "MatchContextGraphic",
@@ -265,9 +268,11 @@ export function serializeSegment(segment: ProgrammeSegment, segmentId: string): 
   // GRAPHIC_KIND_BY_STORY_TYPE still maps CHAMPION to a kind (LeagueTable
   // Graphic) purely to satisfy that Record's exhaustiveness check; it's
   // never actually used for this story type.
-  const graphic = segment.storyType !== null && segment.storyType !== "CHAMPION" && segment.facts !== null
-    ? { kind: GRAPHIC_KIND_BY_STORY_TYPE[segment.storyType as StoryType], data: segment.facts }
-    : null;
+  const graphic = segment.graphicKind && segment.facts !== null
+    ? { kind: segment.graphicKind, data: segment.facts }
+    : segment.storyType !== null && segment.storyType !== "CHAMPION" && segment.facts !== null
+      ? { kind: GRAPHIC_KIND_BY_STORY_TYPE[segment.storyType as StoryType], data: segment.facts }
+      : null;
 
   // See ApiSegment's own comment on championInfo — reads straight off
   // segment.facts (already resolved id->name by buildGraphicFacts, same as

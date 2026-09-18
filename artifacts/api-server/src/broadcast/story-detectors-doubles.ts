@@ -21,8 +21,11 @@ import type { StoryCandidate } from "./story-types.ts";
 
 export type DoublesMatchResultFacts = {
   matchId: number;
+  playedAt: Date;
   winnerTeamId: number;
   loserTeamId: number;
+  winnerBefore?: TeamState;
+  winnerAfter?: TeamState;
   loserBefore: TeamState;
   loserAfter: TeamState;
   /** Pre-match probability of the actual winner (0..1), from predictDoublesMatch's pA with teamAId = winnerTeamId. */
@@ -31,6 +34,35 @@ export type DoublesMatchResultFacts = {
 
 function matchSubjects(facts: DoublesMatchResultFacts): string[] {
   return [subjectKey("doubles", facts.winnerTeamId), subjectKey("doubles", facts.loserTeamId)];
+}
+
+export function detectPairResult(facts: DoublesMatchResultFacts): StoryCandidate {
+  return {
+    storyType: "PAIR_RESULT",
+    leagueType: "doubles",
+    subjectKeys: matchSubjects(facts),
+    anchorMatchId: facts.matchId,
+    sentiment: "neutral",
+    tags: ["result", "baseline"],
+    facts: {
+      resultKind: "doubles",
+      matchId: facts.matchId,
+      playedAt: facts.playedAt.toISOString(),
+      winnerTeamId: facts.winnerTeamId,
+      loserTeamId: facts.loserTeamId,
+      winnerPointsBefore: facts.winnerBefore?.points ?? null,
+      winnerPointsAfter: facts.winnerAfter?.points ?? null,
+      loserPointsBefore: facts.loserBefore.points,
+      loserPointsAfter: facts.loserAfter.points,
+    },
+    components: {
+      competitiveImportance: 4,
+      unexpectedness: 0,
+      historicalSignificance: 0,
+      performanceAnomaly: 0,
+      entertainmentValue: 1,
+    },
+  };
 }
 
 // No MAJOR/MODEL-severity ladder here — Appendix A gives Doubles a single
@@ -49,7 +81,7 @@ export function detectPairUpset(facts: DoublesMatchResultFacts): StoryCandidate 
     anchorMatchId: facts.matchId,
     sentiment: "positive",
     tags: ["pair_upset"],
-    facts: { matchId: facts.matchId, winnerTeamId: facts.winnerTeamId, loserTeamId: facts.loserTeamId, winnerProbability: facts.winnerProbability },
+    facts: { matchId: facts.matchId, playedAt: facts.playedAt.toISOString(), winnerTeamId: facts.winnerTeamId, loserTeamId: facts.loserTeamId, winnerProbability: facts.winnerProbability },
     components: {
       competitiveImportance: 10,
       unexpectedness: unexpectednessComponent(facts.winnerProbability),
@@ -71,7 +103,7 @@ export function detectPairEliminated(facts: DoublesMatchResultFacts): StoryCandi
     anchorMatchId: facts.matchId,
     sentiment: "negative",
     tags: ["pair_eliminated"],
-    facts: { matchId: facts.matchId, winnerTeamId: facts.winnerTeamId, loserTeamId: facts.loserTeamId },
+    facts: { matchId: facts.matchId, playedAt: facts.playedAt.toISOString(), winnerTeamId: facts.winnerTeamId, loserTeamId: facts.loserTeamId },
     components: {
       competitiveImportance: 18,
       unexpectedness: 0,
@@ -88,7 +120,10 @@ export const DOUBLES_MATCH_DETECTORS = [
 ] as const satisfies readonly ((facts: DoublesMatchResultFacts) => StoryCandidate | null)[];
 
 export function detectDoublesMatchStories(facts: DoublesMatchResultFacts): StoryCandidate[] {
-  return DOUBLES_MATCH_DETECTORS.map(detector => detector(facts)).filter((c): c is StoryCandidate => c !== null);
+  return [
+    detectPairResult(facts),
+    ...DOUBLES_MATCH_DETECTORS.map(detector => detector(facts)).filter((c): c is StoryCandidate => c !== null),
+  ];
 }
 
 // ── UNBEATEN_PAIR / PAIR_SURGE (subject-anchored) ─────────────────────────

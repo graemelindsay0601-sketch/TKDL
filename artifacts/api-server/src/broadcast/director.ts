@@ -56,13 +56,14 @@
 // back to whatever's next-best (including FILLER) rather than leaving real
 // content unused — this is the ONE slot ARCHIVE/FILLER content is allowed
 // to fill, by design (see isFlashbackFamily's own comment).
-import { treatmentForScore } from "./story-engine-math.ts";
+import { isFreshResultEventForNews, treatmentForScore } from "./story-engine-math.ts";
 import { familyForStoryType, type StoryType, type Treatment } from "./story-types.ts";
 import {
   mergeStoriesByAnchorAndNarrative, classifyCarryForward,
   fullSegmentPriority, isWithinSubjectExposureCap, isWithinLeagueAirtimeCap, applyVarietyShuffle,
   type MergedStoryGroup, type CarryForwardState, type RunningOrderSlotPurpose,
-  type EditionProgramme, type ProgrammeSegment,
+  type EditionProgramme, type ProgrammeSegment, type ProgrammeMode, type OrdinaryProgrammeMode,
+  PROGRAMME_PACING_RULES,
 } from "./director-math.ts";
 import { seededRng } from "./seeded-rng.ts";
 import type { BroadcastStory } from "@workspace/db/schema";
@@ -115,6 +116,62 @@ function storyFamily(story: Pick<BroadcastStory, "storyType">) {
 // above isFlashbackFamily so both it and slot 10's own isOpenLeagueQuestion
 // filter share one definition rather than two independently-maintained sets.
 const CLOSED_LEAGUE_MATTER_TYPES = new Set<StoryType>(["CHAMPION", "SEASON_RECAP"]);
+
+/**
+ * Select the v2 editorial mode from real story activity rather than the
+ * scheduled clock slot. A quiet day becomes a deliberate Magazine Edition,
+ * never a weak News Edition padded with routine material.
+ *
+ * Season Review has higher-level season-boundary context and is selected by
+ * edition-engine before this resolver is called.
+ */
+export function selectProgrammeMode(
+  pool: readonly BroadcastStory[],
+  editorialCutoff?: Date,
+): Exclude<ProgrammeMode, "SEASON_REVIEW"> {
+  const referenceTime = editorialCutoff ?? new Date(pool.reduce(
+    (latest, story) => Math.max(latest, story.updatedAt.getTime(), story.detectedAt.getTime()),
+    0,
+  ));
+  // Count editorial storylines, not detector rows: REVENGE + FIRST_H2H_WIN
+  // about one match is one piece of news, not two independent reasons to
+  // declare a busy News Edition.
+  const competitiveGroups = mergeStoriesByAnchorAndNarrative(pool);
+  const freshCompetitive = competitiveGroups.filter(group => {
+    const stories = [group.primary, ...group.supporting];
+    return stories.some(story => {
+      if (story.lifecycle !== "NEW" && story.lifecycle !== "HOT") return false;
+      const family = storyFamily(story);
+      const isMatchResult = family === "RESULT" || (family === "DOUBLES" && story.anchorMatchId !== null);
+      if (isMatchResult) return isFreshResultEventForNews(story.facts.playedAt, referenceTime);
+      return family === "LEAGUE" || family === "DOUBLES" || family === "SHIFT_WARS";
+    });
+  }).map(group => group.primary);
+
+  // Use the Show Bible's treatment scale rather than an unrelated 65/90
+  // scale. Two fresh competitive stories strong enough for the headline
+  // ticker make a genuinely busy news board; one Supporting-or-better story
+  // is substantial enough to lead a News Edition on its own.
+  const broadcastWorthy = freshCompetitive.filter(story => treatmentForScore(story.score) !== "archive");
+  const hasStrongLead = freshCompetitive.some(story => {
+    const treatment = treatmentForScore(story.score);
+    return treatment === "supporting" || treatment === "featured" || treatment === "major";
+  });
+  if (broadcastWorthy.length >= 2 || hasStrongLead) {
+    return "NEWS";
+  }
+
+  const meaningfulCompetitive = pool.some(story => {
+    if (story.lifecycle !== "NEW" && story.lifecycle !== "HOT") return false;
+    const family = storyFamily(story);
+    const isMatchResult = family === "RESULT" || (family === "DOUBLES" && story.anchorMatchId !== null);
+    if (isMatchResult) return isFreshResultEventForNews(story.facts.playedAt, referenceTime);
+    return family === "LEAGUE" || family === "FORM" || family === "PERFORMANCE"
+      || family === "DOUBLES" || family === "SHIFT_WARS";
+  });
+
+  return meaningfulCompetitive ? "BALANCED" : "MAGAZINE";
+}
 
 // ── The "clump of all seasons, doesn't flow" fix ──────────────────────────
 // A real user report traced a catch-up-style Edition reading as an
@@ -258,8 +315,10 @@ const LEAGUE_TYPES = ["singles", "doubles", "shift_wars"] as const;
  */
 export function directorSelect(params: {
   pool: readonly BroadcastStory[];
+  mode: OrdinaryProgrammeMode;
   /** The immediately preceding PUBLISHED Edition's programme, or null if none exists yet (first-ever Edition) — used only for 11.2 carry-forward classification. */
   previousProgramme: EditionProgramme | null;
+  pacing?: import("./director-math.ts").ProgrammePacingRule;
   /** Seeds 10.5's variety shuffle among tied candidates — same per-Edition seeded-RNG contract (seeded-rng.ts) as every other seeded choice in this codebase (e.g. commentaryRng): same slotKey -> the same shuffle, every viewer, every rebuild of that exact slot. */
   slotKey: string;
 }): DirectorResult {
@@ -268,18 +327,40 @@ export function directorSelect(params: {
   const distinctLeagues = new Set(ranked.map(c => c.group.primary.leagueType));
   const ctx = newContext(distinctLeagues.size <= 1);
   const entries: RunningOrderEntry[] = [];
+  const pacing = params.pacing ?? PROGRAMME_PACING_RULES[params.mode];
 
   function place(slot: number, purpose: RunningOrderSlotPurpose, pick: RankedCandidate | null): void {
     if (!pick) return;
     commit(pick, ctx);
-    entries.push({ slot, purpose, group: pick.group, treatment: pick.treatment, carryForwardState: pick.carryForwardState });
+    const isPredictionDesk = purpose === "analysis_or_predictor"
+      && storyFamily(pick.group.primary) === "H2H";
+    entries.push({
+      slot,
+      purpose,
+      group: pick.group,
+      // A head-to-head selected for the predictor desk should sound like a
+      // proper host debate, not a two-line stat readout.
+      treatment: isPredictionDesk ? "major" : pick.treatment,
+      carryForwardState: pick.carryForwardState,
+    });
   }
 
   // Slot 3 — main_story: the single highest-priority candidate — unfiltered
   // by anything else, but never a flashback (see isFlashbackFamily's own
   // comment): the "main story" slot claiming an old champion or a filler
   // promo as today's top headline is exactly the bug this exists to avoid.
-  const mainPick = pickForSlot(ranked, c => !isFlashbackFamily(c.group.primary), ctx);
+  const isFreshResult = (c: RankedCandidate) =>
+    storyFamily(c.group.primary) === "RESULT"
+    && (c.group.primary.lifecycle === "NEW" || c.group.primary.lifecycle === "HOT");
+  const isFeaturePremise = (c: RankedCandidate) => {
+    const family = storyFamily(c.group.primary);
+    return family === "FILLER" || family === "ARCHIVE" || family === "H2H" || family === "PERFORMANCE";
+  };
+  const mainPick = params.mode === "NEWS"
+    ? pickForSlot(ranked, isFreshResult, ctx) ?? pickForSlot(ranked, c => !isFlashbackFamily(c.group.primary), ctx)
+    : params.mode === "MAGAZINE"
+      ? pickForSlot(ranked, isFeaturePremise, ctx) ?? pickForSlot(ranked, () => true, ctx)
+      : pickForSlot(ranked, c => !isFlashbackFamily(c.group.primary), ctx);
   place(3, "main_story", mainPick);
 
   // Slot 4 — second_major_story: a different league first; a same-league
@@ -335,6 +416,23 @@ export function directorSelect(params: {
     pickForSlot(ranked, () => true, ctx);
   place(9, "lighter_or_archive_or_callback", lighterPick);
 
+  // Sequence each mode's selected stories against its configured editorial
+  // mix. Preserve every selected story and purpose; the mix only changes the
+  // order in which news, analysis, and feature beats play.
+  const beatFor = (entry: RunningOrderEntry): "news" | "analysis" | "feature" => {
+    const family = storyFamily(entry.group!.primary);
+    if (family === "RESULT") return "news";
+    if (family === "LEAGUE" || family === "FORM") return "analysis";
+    return "feature";
+  };
+  const remaining = [...entries];
+  const sequenced: RunningOrderEntry[] = [];
+  for (const beat of pacing.contentMix) {
+    const index = remaining.findIndex(entry => beatFor(entry) === beat);
+    if (index >= 0) sequenced.push(remaining.splice(index, 1)[0]);
+  }
+  entries.splice(0, entries.length, ...sequenced, ...remaining);
+
   // ── Quiet-Edition backfill ────────────────────────────────────────────
   // Show Bible v1 §1's own Quiet Edition row: "Calmer; archive, spotlight,
   // table state, predictor if useful" — several calmer beats, not the
@@ -373,16 +471,25 @@ export function directorSelect(params: {
   // story-detectors-filler.ts) — several of THOSE in one Edition is
   // exactly the Quiet Edition's "archive, spotlight, ..." row read
   // plurally, with no old-season content involved at all. So the bonus
-  // loop below is FILLER-only: slot 9's own pick above still gets first
-  // claim on the ONE ARCHIVE story an Edition may ever carry (unchanged
-  // from before this fix), and only the leftover FILLER pool backs a
-  // thin Edition up further — never a second old season. Mirrors slot 2's
-  // headline entries' own "many entries, one purpose" shape (same slot
-  // number and purpose, one segment each) and is capped so it can never
-  // turn a single quiet story into a padded-out show pretending to be busy.
-  const MIN_REAL_ENTRIES_BEFORE_BACKFILL = 4;
-  const MAX_BONUS_LIGHTER_ENTRIES = 3;
-  for (let bonusCount = 0; entries.length < MIN_REAL_ENTRIES_BEFORE_BACKFILL && bonusCount < MAX_BONUS_LIGHTER_ENTRIES; bonusCount++) {
+  // loop below still limits ARCHIVE to the one slot above, but no longer
+  // treats live statistical analysis as disposable just because the news
+  // cycle is quiet. Spend unused current FORM/H2H/PERFORMANCE/LEAGUE,
+  // Doubles and Shift Wars stories first, up to the producer's story cap;
+  // only then use present-tense FILLER. This creates a real magazine middle
+  // — form, matchup debate, table/predictor, feature — instead of padding
+  // the programme with several unrelated promos.
+  const ANALYSIS_FAMILIES = new Set(["FORM", "H2H", "PERFORMANCE", "LEAGUE", "DOUBLES", "SHIFT_WARS"]);
+  while (entries.length < pacing.maxStorySegments) {
+    const analysisPick = pickForSlot(ranked, c => ANALYSIS_FAMILIES.has(storyFamily(c.group.primary)), ctx);
+    if (!analysisPick) break;
+    const family = storyFamily(analysisPick.group.primary);
+    place(
+      family === "LEAGUE" || family === "H2H" ? 5 : 7,
+      family === "LEAGUE" || family === "H2H" ? "analysis_or_predictor" : "form_h2h_or_spotlight",
+      analysisPick,
+    );
+  }
+  while (entries.length < pacing.maxStorySegments) {
     const bonusLighterPick = pickForSlot(ranked, c => storyFamily(c.group.primary) === "FILLER", ctx);
     if (!bonusLighterPick) break;
     place(9, "lighter_or_archive_or_callback", bonusLighterPick);
@@ -401,11 +508,12 @@ export function directorSelect(params: {
   // own, and exempt from the exposure/airtime tallies above (10.4's caps
   // are explicitly about "full-segment time," and a headline tease isn't a
   // full segment — see 9.3's own separate headline_ticker treatment tier).
-  const headlineSources = entries
+  const storyEntries = entries.slice(0, pacing.maxStorySegments);
+  const headlineSources = storyEntries
     .filter(e => e.group !== null)
     .slice()
     .sort((a, b) => b.group!.primary.score - a.group!.primary.score)
-    .slice(0, 3);
+    .slice(0, pacing.maxHeadlineTeases);
   const headlineEntries: RunningOrderEntry[] = headlineSources.map(e => ({
     slot: 2, purpose: "headlines", group: e.group, treatment: "headline_ticker", carryForwardState: e.carryForwardState,
   }));
@@ -441,13 +549,17 @@ export function directorSelect(params: {
   // above, which leans on the exact same set for the exact same reason.)
   const isOpenLeagueQuestion = (c: RankedCandidate) =>
     storyFamily(c.group.primary) === "LEAGUE" && !CLOSED_LEAGUE_MATTER_TYPES.has(c.group.primary.storyType as StoryType);
-  const unusedLeaguePick = pickForSlot(ranked, isOpenLeagueQuestion, ctx);
+  // what_to_watch is a story-backed body segment whenever it carries a
+  // group, so it shares the same configured story-segment budget as slots
+  // 3-9 rather than silently exceeding the producer's cap.
+  const storyBudgetRemaining = storyEntries.length < pacing.maxStorySegments;
+  const unusedLeaguePick = storyBudgetRemaining ? pickForSlot(ranked, isOpenLeagueQuestion, ctx) : null;
   let whatToWatchEntry: RunningOrderEntry;
   if (unusedLeaguePick) {
     commit(unusedLeaguePick, ctx);
     whatToWatchEntry = { slot: 10, purpose: "what_to_watch", group: unusedLeaguePick.group, treatment: unusedLeaguePick.treatment, carryForwardState: unusedLeaguePick.carryForwardState };
   } else {
-    const bestLeagueOverall = ranked.find(isOpenLeagueQuestion) ?? null;
+    const bestLeagueOverall = storyBudgetRemaining ? (ranked.find(isOpenLeagueQuestion) ?? null) : null;
     whatToWatchEntry = bestLeagueOverall
       ? { slot: 10, purpose: "what_to_watch", group: bestLeagueOverall.group, treatment: bestLeagueOverall.treatment, carryForwardState: bestLeagueOverall.carryForwardState }
       : { slot: 10, purpose: "what_to_watch", group: null, treatment: "utility", carryForwardState: null };
@@ -491,7 +603,7 @@ export function directorSelect(params: {
   // first and claim the phrase pool, with headline teases last so a cooldown
   // collision costs only the tease, never the segment it was teasing.
   return {
-    runningOrder: [openingEntry, ...entries, whatToWatchEntry, ...headlineEntries, closingEntry],
+    runningOrder: [openingEntry, ...storyEntries, whatToWatchEntry, ...headlineEntries, closingEntry],
     mergedGroups: merged,
   };
 }

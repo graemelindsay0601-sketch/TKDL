@@ -108,6 +108,37 @@ describe("selectSeasonReviewRunningOrder", () => {
     assert.deepEqual(highlightEntries.map(e => e.group!.primary.id), [300, 301, 302, 303, 304, 305]);
   });
 
+  test("one match becomes one season highlight even when several detectors described it", () => {
+    const closed = closedSeason({ leagueType: "singles", seasonId: 1 });
+    const highlights = [
+      story({ id: 350, storyType: "REVENGE", leagueType: "singles", anchorMatchId: 42, score: 90 }),
+      story({ id: 351, storyType: "FIRST_H2H_WIN", leagueType: "singles", anchorMatchId: 42, score: 80 }),
+      story({ id: 352, storyType: "UPSET", leagueType: "singles", anchorMatchId: 43, score: 70 }),
+    ];
+    const order = selectSeasonReviewRunningOrder({
+      closedSeasons: [closed], pool: [], highlightsByLeague: new Map([["singles" as LeagueType, highlights]]),
+    });
+    const highlightIds = order.filter(e => e.purpose === "season_highlight").map(e => e.group!.primary.id);
+    assert.deepEqual(highlightIds, [350, 352]);
+  });
+
+  test("equal match ids in different league tables remain distinct highlights", () => {
+    const singlesClosed = closedSeason({ leagueType: "singles", seasonId: 1 });
+    const doublesClosed = closedSeason({ leagueType: "doubles", seasonId: 2 });
+    const singles = story({ id: 360, storyType: "UPSET", leagueType: "singles", anchorMatchId: 7 });
+    const doubles = story({ id: 361, storyType: "DOUBLES_UPSET", leagueType: "doubles", anchorMatchId: 7 });
+    const order = selectSeasonReviewRunningOrder({
+      closedSeasons: [singlesClosed, doublesClosed],
+      pool: [],
+      highlightsByLeague: new Map([
+        ["singles" as LeagueType, [singles]],
+        ["doubles" as LeagueType, [doubles]],
+      ]),
+    });
+    const highlightIds = order.filter(e => e.purpose === "season_highlight").map(e => e.group!.primary.id);
+    assert.deepEqual(highlightIds, [360, 361]);
+  });
+
   test("highlights from every closed league appear — a real multi-league retrospective, not just one", () => {
     const singlesClosed = closedSeason({ leagueType: "singles", seasonId: 1 });
     const doublesClosed = closedSeason({ leagueType: "doubles", seasonId: 2 });
