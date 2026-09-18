@@ -114,7 +114,12 @@ export const drillProgressService = {
           ELSE 'novice'
         END as mastery_level,
         COALESCE(
-          ROUND(((r.recent_avg - a.all_time_avg) / a.all_time_avg * 100)::numeric, 1),
+          -- NULLIF guards a.all_time_avg = 0 (a drill whose only logged
+          -- scores are 0) — Postgres numeric division raises "division by
+          -- zero" for that, unlike float NaN/Inf, which 500'd the whole
+          -- stats query for any player with a zero-scored drill. NULLIF
+          -- turns that into NULL, which COALESCE already turns into 0 trend.
+          ROUND(((r.recent_avg - a.all_time_avg) / NULLIF(a.all_time_avg, 0) * 100)::numeric, 1),
           0
         )::numeric as trend
       FROM drill_data d

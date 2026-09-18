@@ -481,17 +481,30 @@ export const statsService = {
 
   // Get sessions for a category
   async getCategorySessions(playerId: number, category: GameTypeCategory, limit: number = 50) {
+    // Was: fetch the most recent `limit` sessions across EVERY category,
+    // THEN filter down to the requested one. A player with lots of recent
+    // Tour/M501 activity could have their Practice-category sessions pushed
+    // entirely out of that initial window, undercounting (or zeroing out)
+    // results that genuinely exist further back. Filtering by category in
+    // the query itself — before the limit — fixes that. This table only
+    // ever holds M501 or Practice rows (see categorizeGameType above), so
+    // any other category short-circuits to empty, matching prior behavior.
+    if (category !== "M501" && category !== "Practice") return [];
+
+    const isM501 = drizzleSql`(${practiceSessionsTable.gameTypeKey} ILIKE '%M501%' OR ${practiceSessionsTable.gameTypeKey} ILIKE '%MASTER%')`;
+    const categoryCondition = category === "M501" ? isM501 : drizzleSql`NOT ${isM501}`;
+
     const sessions = await db
       .select()
       .from(practiceSessionsTable)
-      .where(eq(practiceSessionsTable.player1Id, playerId))
+      .where(and(eq(practiceSessionsTable.player1Id, playerId), categoryCondition))
       .orderBy(desc(practiceSessionsTable.createdAt))
       .limit(limit);
 
     return sessions.map(session => ({
       id: session.id,
       gameType: session.gameTypeName,
-      category: categorizeGameType(session.gameTypeKey || ""),
+      category,
       dartsThrown: session.dartsThrown,
       durationSeconds: session.durationSeconds,
       p1Score: session.p1Score,
@@ -500,7 +513,7 @@ export const statsService = {
       p1CheckoutAttempts: session.p1CheckoutAttempts,
       createdAt: session.createdAt,
       detail: session.detail,
-    })).filter(s => s.category === category);
+    }));
   },
 
   // Get session detail

@@ -61,7 +61,6 @@ export function CategoryStatsEnhanced({ playerId }: CategoryStatsEnhancedProps) 
   const heatmapEnabled = (appSettings as any)?.dartboard_heatmap_enabled === true;
   const [selectedCategory, setSelectedCategory] = useState<GameTypeCategory>("League");
   const [selectedTab, setSelectedTab] = useState<StatTab>("overall");
-  const [breakdown, setBreakdown] = useState<any[]>([]);
   const [categoryStats, setCategoryStats] = useState<CategoryStats | null>(null);
   const [trends, setTrends] = useState<any[]>([]);
   const [dartProfile, setDartProfile] = useState<any>(null);
@@ -71,19 +70,6 @@ export function CategoryStatsEnhanced({ playerId }: CategoryStatsEnhancedProps) 
   const [window, setWindow] = useState<"7days" | "30days" | "90days" | "all">("all");
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [showSessionModal, setShowSessionModal] = useState(false);
-
-  useEffect(() => {
-    const fetchBreakdown = async () => {
-      try {
-        const response = await fetch(`/api/players/${playerId}/stats/categories?window=${window}`);
-        const data = await response.json();
-        setBreakdown(data);
-      } catch (err) {
-        console.error("Failed to load category breakdown:", err);
-      }
-    };
-    fetchBreakdown();
-  }, [playerId, window]);
 
   useEffect(() => {
     const fetchCategoryData = async () => {
@@ -284,8 +270,27 @@ export function CategoryStatsEnhanced({ playerId }: CategoryStatsEnhancedProps) 
               <button
                 key={session.id}
                 onClick={() => {
+                  // The list item from /stats/category/:category/sessions never
+                  // carries dartLog (that field only exists on the dedicated
+                  // /stats/sessions/:sessionId detail response — see
+                  // getSessionDetail vs getCategorySessions in stats-service.ts),
+                  // so the modal's dartLog-gated section below silently never
+                  // rendered. Open the modal immediately with what we already
+                  // have, then fetch the real detail and merge in dartLog once
+                  // it arrives.
                   setSelectedSession(session);
                   setShowSessionModal(true);
+                  fetch(`/api/players/${playerId}/stats/sessions/${session.id}`)
+                    .then(res => (res.ok ? res.json() : null))
+                    .then(detail => {
+                      if (!detail) return;
+                      setSelectedSession((prev: any) =>
+                        prev && prev.id === session.id
+                          ? { ...prev, dartLog: detail.dartLog, avgDartValue: detail.avgDartValue }
+                          : prev
+                      );
+                    })
+                    .catch(err => console.error("Failed to load session dart log:", err));
                 }}
                 style={{
                   background: "rgba(255,255,255,0.02)",

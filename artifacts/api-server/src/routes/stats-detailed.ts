@@ -538,6 +538,12 @@ router.get("/players/:id/stats/overview", async (req, res) => {
     `);
     const comp: any = compResult.rows[0] ?? {};
 
+    // practice_sessions holds both true solo-Practice sessions AND M501
+    // tour-mode session logs (the only two things that ever write to this
+    // table) — without excluding M501 rows here, the "practice" bucket
+    // below silently absorbed M501 activity too, double-counting it against
+    // whatever the M501-specific views already report. Same M501 exclusion
+    // pattern used by getCategorySessions/categorizeGameType elsewhere.
     const pracResult = await db.execute(sql`
       SELECT
         COUNT(*)::int AS sessions,
@@ -546,6 +552,7 @@ router.get("/players/:id/stats/overview", async (req, res) => {
         COALESCE(SUM(p1_checkout_hits), 0)::int AS checkout_hits
       FROM practice_sessions
       WHERE player1_id = ${playerId} AND created_at >= ${cutoff}
+        AND game_type_key NOT ILIKE '%M501%' AND game_type_key NOT ILIKE '%MASTER%'
     `);
     const prac: any = pracResult.rows[0] ?? {};
 

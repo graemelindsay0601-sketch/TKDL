@@ -33,7 +33,7 @@ export const streakService = {
       streak_groups AS (
         SELECT
           is_win,
-          rn - ROW_NUMBER() OVER (ORDER BY rn) as streak_group
+          rn - ROW_NUMBER() OVER (PARTITION BY is_win ORDER BY rn) as streak_group
         FROM ordered_matches
       )
       SELECT COUNT(*)::int as streak_length
@@ -51,7 +51,7 @@ export const streakService = {
   async getBestWinStreak(playerId: number): Promise<number> {
     const result = await db.execute(drizzleSql`
       WITH ordered_matches AS (
-        SELECT 
+        SELECT
           played_at,
           winner_id = ${playerId} as is_win,
           ROW_NUMBER() OVER (ORDER BY played_at DESC) as rn
@@ -61,7 +61,7 @@ export const streakService = {
       streak_groups AS (
         SELECT
           is_win,
-          rn - ROW_NUMBER() OVER (ORDER BY rn) as streak_group
+          rn - ROW_NUMBER() OVER (PARTITION BY is_win ORDER BY rn) as streak_group
         FROM ordered_matches
       ),
       streaks AS (
@@ -100,7 +100,7 @@ export const streakService = {
       streak_groups AS (
         SELECT
           good_checkout,
-          rn - ROW_NUMBER() OVER (ORDER BY rn) as streak_group
+          rn - ROW_NUMBER() OVER (PARTITION BY good_checkout ORDER BY rn) as streak_group
         FROM match_checkouts
       )
       SELECT COUNT(*)::int as streak_length
@@ -168,7 +168,7 @@ export const streakService = {
       streak_groups AS (
         SELECT
           good_checkout,
-          rn - ROW_NUMBER() OVER (ORDER BY rn) as streak_group
+          rn - ROW_NUMBER() OVER (PARTITION BY good_checkout ORDER BY rn) as streak_group
         FROM match_checkouts
       ),
       streaks AS (

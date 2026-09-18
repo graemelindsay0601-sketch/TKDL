@@ -1369,7 +1369,11 @@ export async function generatePracticeRoutine(playerId: number) {
       drills,
       stats: {
         avg: avg > 0 ? avg : null,
-        coPct: coAtt > 5 ? Math.round(coPct) : null,
+        // Was "coPct" — account.tsx's Coach tab reads coachStats.checkoutPct
+        // directly from this response, so the mismatched name meant the
+        // badge's `!== undefined` guard never passed and it silently never
+        // rendered. Renamed to match the frontend's actual field name.
+        checkoutPct: coAtt > 5 ? Math.round(coPct) : null,
         treblePct: totalDarts > 100 ? Math.round(treblePct) : null,
         highScoringRate: totalVisits > 20 ? Math.round(highRate) : null,
         first9: first9 > 0 ? first9 : null,

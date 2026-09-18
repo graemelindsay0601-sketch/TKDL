@@ -177,9 +177,20 @@ export function AdaptiveDifficulty({ playerId }: AdaptiveDifficultyProps) {
                       {drill.daysToNextLevel === 0 ? "Ready!" : `${drill.daysToNextLevel} days`}
                     </strong>
                   </div>
-                ) : (
+                ) : drill.currentDifficulty === "master" ? (
                   <div style={{ color: "rgba(255,255,255,0.5)", textAlign: "right" }}>
                     <strong style={{ color: "#ffd24a" }}>Master Level</strong> 🏆
+                  </div>
+                ) : (
+                  // Was gated on daysToNextLevel === null alone, which the
+                  // backend always returns (it deliberately doesn't fabricate
+                  // an ETA — see the /drills/adaptive route) — so every drill
+                  // at every difficulty, including a brand-new "Easy" one,
+                  // showed "Master Level 🏆" regardless of actual progress.
+                  // Only claim Master when the player's real difficulty tier
+                  // is actually master; otherwise say what's really true.
+                  <div style={{ color: "rgba(255,255,255,0.5)", textAlign: "right" }}>
+                    <strong style={{ color: "rgba(255,255,255,0.6)" }}>Keep practicing</strong>
                   </div>
                 )}
               </div>
