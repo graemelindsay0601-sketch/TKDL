@@ -7,6 +7,17 @@ export type Dart = {
   multiplier: 1 | 2 | 3;
   value: number;
   label: string;
+  /**
+   * Which single ring the dart landed in — only meaningful when
+   * multiplier===1. A real board has two single rings per number (the
+   * wider "outer" one between the double and treble rings, and the
+   * narrower "inner" one between the treble ring and the bull), but until
+   * the Straight Line game needed to tell them apart, nothing here ever
+   * recorded which one a single hit landed in. Every other game leaves
+   * this undefined and is completely unaffected — DartInputBoard only
+   * asks for it when a caller opts in via `distinguishSingleRing`.
+   */
+  ring?: "inner" | "outer";
 };
 
 // ── Camera Scorer Context ──────────────────────────────────────────────────────
@@ -90,12 +101,20 @@ export function DartInputBoard({
   markedSegments,
   disabled = false,
   visitDartCount,
+  distinguishSingleRing = false,
 }: {
   onDart: (dart: Dart) => void;
   onMiss: () => void;
   onUndo: () => void;
   activeSegments?: number[];
   highlightSegments?: number[];
+  /**
+   * Opt-in only — swaps the 3-way Single/Double/Treble selector for a 4-way
+   * Double/Big(outer single)/Treble/Small(inner single) one, so a tapped
+   * number fires a Dart carrying `ring`. Every other game leaves this off
+   * and keeps the normal 3-way selector with `ring` always undefined.
+   */
+  distinguishSingleRing?: boolean;
   /**
    * Number of darts thrown so far in the current visit (0-3), from the
    * caller's own visit-tracking state. When this drops back to 0 — a new
@@ -124,11 +143,12 @@ export function DartInputBoard({
   disabled?: boolean;
 }) {
   const [mult, setMult] = useState<1 | 2 | 3>(1);
+  const [singleRing, setSingleRing] = useState<"inner" | "outer">("outer");
 
   // Reset the multiplier back to Single whenever a new visit begins, so a
   // Treble/Double selection doesn't carry over to the next player/turn.
   useEffect(() => {
-    if (visitDartCount === 0) setMult(1);
+    if (visitDartCount === 0) { setMult(1); setSingleRing("outer"); }
   }, [visitDartCount]);
 
   const { hitDart } = useDartHit();
@@ -151,11 +171,16 @@ export function DartInputBoard({
     if (disabled) return;
     const m = forceMult ?? (seg === 25 && mult === 3 ? 2 : mult);
     const val = seg === 25 ? (m === 2 ? 50 : 25) : seg * m;
+    // Ring only applies to a real-number single hit (25/bull has just one
+    // single ring, so it never carries one) and only when the caller opted
+    // into distinguishing them.
+    const ring: "inner" | "outer" | undefined =
+      distinguishSingleRing && m === 1 && seg !== 25 ? singleRing : undefined;
     const label = seg === 25
       ? (m === 2 ? "DB" : "Bull")
-      : m === 1 ? `${seg}` : m === 2 ? `D${seg}` : `T${seg}`;
+      : m === 1 ? (ring === "inner" ? `${seg}i` : `${seg}`) : m === 2 ? `D${seg}` : `T${seg}`;
     hitDart(label);
-    onDart({ segment: seg, multiplier: m as 1 | 2 | 3, value: val, label });
+    onDart({ segment: seg, multiplier: m as 1 | 2 | 3, value: val, label, ring });
   };
 
   const isActive = (n: number) => !activeSegments || activeSegments.includes(n);
@@ -163,6 +188,7 @@ export function DartInputBoard({
   const markFor  = (n: number) => markedSegments?.find(m => m.segment === n);
 
   const mc = MULT_CFG[mult];
+  const ringSel = mult === 1 ? singleRing : null;
 
   const numBtnStyle = (n: number): React.CSSProperties => {
     const active = isActive(n);
@@ -212,34 +238,72 @@ export function DartInputBoard({
     <div style={{ opacity: disabled ? 0.45 : 1, pointerEvents: disabled ? "none" : undefined, userSelect: "none" }}>
 
       {/* ── Multiplier selector ─────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.3rem", marginBottom: "0.3rem" }}>
-        {([1, 2, 3] as const).map(m => {
-          const cfg = MULT_CFG[m];
-          const sel = mult === m;
-          return (
-            <button
-              key={m}
-              onClick={() => setMult(m)}
-              style={{
-                padding: "0.7rem 0",
-                border: `2px solid ${sel ? cfg.border : "rgba(255,255,255,0.07)"}`,
-                borderRadius: "0.5rem",
-                background: sel ? cfg.bg : "rgba(255,255,255,0.02)",
-                color: sel ? cfg.color : "rgba(255,255,255,0.28)",
-                fontFamily: "Oswald, sans-serif",
-                fontWeight: 800,
-                fontSize: "0.9rem",
-                letterSpacing: "0.06em",
-                cursor: "pointer",
-                transition: "all 0.1s",
-                WebkitTapHighlightColor: "transparent",
-                touchAction: "manipulation",
-              }}>
-              {cfg.label}
-            </button>
-          );
-        })}
-      </div>
+      {!distinguishSingleRing ? (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.3rem", marginBottom: "0.3rem" }}>
+          {([1, 2, 3] as const).map(m => {
+            const cfg = MULT_CFG[m];
+            const sel = mult === m;
+            return (
+              <button
+                key={m}
+                onClick={() => setMult(m)}
+                style={{
+                  padding: "0.7rem 0",
+                  border: `2px solid ${sel ? cfg.border : "rgba(255,255,255,0.07)"}`,
+                  borderRadius: "0.5rem",
+                  background: sel ? cfg.bg : "rgba(255,255,255,0.02)",
+                  color: sel ? cfg.color : "rgba(255,255,255,0.28)",
+                  fontFamily: "Oswald, sans-serif",
+                  fontWeight: 800,
+                  fontSize: "0.9rem",
+                  letterSpacing: "0.06em",
+                  cursor: "pointer",
+                  transition: "all 0.1s",
+                  WebkitTapHighlightColor: "transparent",
+                  touchAction: "manipulation",
+                }}>
+                {cfg.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        // 4-way selector for games that care which single ring was hit —
+        // ordered outside-in to match the physical board: Double, Big
+        // (outer single), Treble, Small (inner single).
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "0.3rem", marginBottom: "0.3rem" }}>
+          {([
+            { key: "double", label: "DOUBLE", mult: 2 as const, ring: null, cfg: MULT_CFG[2] },
+            { key: "outer",  label: "BIG",     mult: 1 as const, ring: "outer" as const, cfg: { color: "#fff", bg: "rgba(255,255,255,0.10)", border: "rgba(255,255,255,0.35)" } },
+            { key: "treble", label: "TREBLE",  mult: 3 as const, ring: null, cfg: MULT_CFG[3] },
+            { key: "inner",  label: "SMALL",   mult: 1 as const, ring: "inner" as const, cfg: { color: "#c084fc", bg: "rgba(192,132,252,0.12)", border: "rgba(192,132,252,0.4)" } },
+          ] as const).map(opt => {
+            const sel = mult === opt.mult && (opt.mult !== 1 || ringSel === opt.ring);
+            return (
+              <button
+                key={opt.key}
+                onClick={() => { setMult(opt.mult); if (opt.ring) setSingleRing(opt.ring); }}
+                style={{
+                  padding: "0.7rem 0",
+                  border: `2px solid ${sel ? opt.cfg.border : "rgba(255,255,255,0.07)"}`,
+                  borderRadius: "0.5rem",
+                  background: sel ? opt.cfg.bg : "rgba(255,255,255,0.02)",
+                  color: sel ? opt.cfg.color : "rgba(255,255,255,0.28)",
+                  fontFamily: "Oswald, sans-serif",
+                  fontWeight: 800,
+                  fontSize: "0.78rem",
+                  letterSpacing: "0.04em",
+                  cursor: "pointer",
+                  transition: "all 0.1s",
+                  WebkitTapHighlightColor: "transparent",
+                  touchAction: "manipulation",
+                }}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Number grid 5×4 ─────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "0.3rem", marginBottom: "0.3rem" }}>

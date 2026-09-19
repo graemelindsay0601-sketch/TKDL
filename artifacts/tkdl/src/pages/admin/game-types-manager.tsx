@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { CollapsibleAdminSection } from "./collapsible-section";
 
-const ENGINES    = ["X01", "Cricket", "Sequence", "HalveIt", "CountUp", "Killer", "Gotcha", "NearestBull", "Baseball", "HighScore", "NoBlack", "Custom"];
+const ENGINES    = ["X01", "Cricket", "Sequence", "HalveIt", "CountUp", "Killer", "Gotcha", "NearestBull", "Baseball", "HighScore", "NoBlack", "HighLow", "Custom"];
 const CATEGORIES = ["competitive", "practice", "party"];
 type GameTypeRow = { id: number; key: string; name: string; engine: string; category: string; description: string; config: string; enabled: boolean; sortOrder: number };
 

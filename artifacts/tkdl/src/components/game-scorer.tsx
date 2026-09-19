@@ -8,7 +8,7 @@ import {
   HalveItScorer, CountUpScorer, GotchaScorer, BaseballScorer,
   ScramScorer, FootballScorer, GolfScorer, NearestBullScorer, ManualScorer,
   JDCChallenge41Scorer, ExponentialBundleScorer, ShootingGalleryScorer, DeadCentreScorer, SnookerScorer,
-  ThreeInABedScorer,
+  ThreeInABedScorer, HighLowScorer,
   TeamX01Scorer, TeamCricketScorer, MultiKillerScorer,
   NinetyNineDartsScorer,
 } from "@/lib/scorers";
@@ -281,6 +281,9 @@ export function GameScorer({
 
     case "Sequence":
       return <SequenceScorer p1Name={ep1} p2Name={ep2} config={cfg} gameKey={gameType.key} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+
+    case "HighLow":
+      return <HighLowScorer p1Name={ep1} p2Name={ep2} config={cfg} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
 
     case "HalveIt":
       return <HalveItScorer p1Name={ep1} p2Name={ep2} gameKey={gameType.key} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;

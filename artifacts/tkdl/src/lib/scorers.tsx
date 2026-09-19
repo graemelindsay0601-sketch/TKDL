@@ -5,7 +5,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize } from "lucide-react";
-import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart } from "./bot-engine";
+import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart, botHighLowVisit, getOppositeSeg } from "./bot-engine";
 import { type PracticeStats, type DartThrow } from "./stats-types";
 import { CardActivationOverlay } from "@/components/CardActivationOverlay";
 import { ChaosCardReveal } from "@/components/ChaosCardReveal";
@@ -3845,11 +3845,36 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
     if (gameKey === "round_clock_doubles") {
       return Array.from({length:20},(_,i)=>({seg:i+1,mult:2 as const,label:`D${i+1}`}));
     }
+    if (gameKey === "straight_line" && pickedStart !== null) {
+      const N = pickedStart, O = getOppositeSeg(N);
+      return [
+        { seg: N, mult: 2 as const, label: `D${N}` },
+        { seg: N, mult: 1 as const, label: `${N}`,  ring: "outer" as const },
+        { seg: N, mult: 3 as const, label: `T${N}` },
+        { seg: N, mult: 1 as const, label: `${N}i`, ring: "inner" as const },
+        { seg: 25, mult: 1 as const, label: "Bull (25)" },
+        { seg: 25, mult: 2 as const, label: "Bullseye (50)" },
+        { seg: O, mult: 1 as const, label: `${O}i`, ring: "inner" as const },
+        { seg: O, mult: 3 as const, label: `T${O}` },
+        { seg: O, mult: 1 as const, label: `${O}`,  ring: "outer" as const },
+        { seg: O, mult: 2 as const, label: `D${O}` },
+      ];
+    }
     // Shanghai (7 rounds scoring)
     return [];
   };
 
   const isShanghai = gameKey === "shanghai" || config?.type === "shanghai";
+  const isStraightLine = gameKey === "straight_line";
+
+  // Straight Line: the player picks their starting number before the
+  // sequence exists at all, so this has to live above buildSequence()'s
+  // call and gate a picker screen the same way the Shanghai branch below
+  // gates its own early return.
+  const [pickedStart, setPickedStart] = useState<number | null>(
+    (config?.startNumber as number | undefined) ?? null
+  );
+
   const sequence = buildSequence();
 
   // Shanghai state
@@ -3934,15 +3959,58 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
     );
   }
 
+  if (isStraightLine && pickedStart === null) {
+    return (
+      <div className="max-w-lg mx-auto space-y-4">
+        <div className="pdc-divider" />
+        <div className="text-center">
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Straight Line</h2>
+          <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
+            Pick a starting number — you'll work Double → Big → Treble → Small → Bull → Bullseye, then back out through its opposite number.
+          </p>
+        </div>
+        <SectionCard>
+          <div className="grid grid-cols-5 gap-1.5">
+            {Array.from({ length: 20 }, (_, i) => i + 1).map(n => (
+              <button key={n} onClick={() => setPickedStart(n)}
+                style={{
+                  padding: "0.8rem 0",
+                  borderRadius: "0.5rem",
+                  border: "1.5px solid rgba(255,255,255,0.12)",
+                  background: "rgba(255,255,255,0.04)",
+                  color: "#fff",
+                  fontFamily: "Oswald, sans-serif",
+                  fontWeight: 800,
+                  fontSize: "1.1rem",
+                  cursor: "pointer",
+                }}>
+                {n}
+              </button>
+            ))}
+          </div>
+        </SectionCard>
+        <AbandonBtn onAbandon={onAbandon} />
+      </div>
+    );
+  }
+
   // Standard sequence (race)
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
     const nv = [...visitDarts, dart];
-    const target = sequence[positions[turn]];
-    if (target && dart.segment === target.seg && dart.multiplier >= target.mult) {
+    const target = sequence[positions[turn]] as (typeof sequence[number] & { ring?: "inner" | "outer" }) | undefined;
+    // Straight Line needs an EXACT bed match (right ring included) — hitting
+    // a treble when "big single" was called for shouldn't skip ahead the
+    // way the other sequence games' `>=` check intentionally allows.
+    const hits = !!target && dart.segment === target.seg && (
+      isStraightLine
+        ? dart.multiplier === target.mult && (target.mult !== 1 || dart.ring === (target as any).ring)
+        : dart.multiplier >= target.mult
+    );
+    if (hits) {
       let pos = positions[turn] + 1;
       // Allow extra advances from treble/double on single-required targets
-      if (target.mult === 1) pos += (dart.multiplier - 1); // T1 → skip 2 extra? No, each dart advances once. Let extra multiplier advance once.
+      if (!isStraightLine && target!.mult === 1) pos += (dart.multiplier - 1); // T1 → skip 2 extra? No, each dart advances once. Let extra multiplier advance once.
       const newPos = Math.min(pos, sequence.length);
       setPositions(prev => { const n:[number,number]=[...prev] as [number,number]; n[turn]=newPos; return n; });
       if (newPos >= sequence.length) { safeTimeout(() => { onPracticeStats?.({ sessionData:{mode:"sequence"} }); onWin(turn, `Finished the sequence!`); }, 200); return; }
@@ -3959,7 +4027,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
   const isBotTurnSeq = !!botConfig && turn === 1;
   useEffect(() => {
     if (!botConfig || turn !== 1 || !botSeqTarget) return;
-    const [d1, d2, d3] = botSequenceVisit(botSeqTarget.seg, (botSeqTarget.mult ?? 1) as 1|2|3, botConfig);
+    const [d1, d2, d3] = botSequenceVisit(botSeqTarget.seg, (botSeqTarget.mult ?? 1) as 1|2|3, botConfig, (botSeqTarget as any).ring);
     const t1 = safeTimeout(() => handleDartRefSeq.current(d1), 700);
     const t2 = safeTimeout(() => handleDartRefSeq.current(d2), 1400);
     const t3 = safeTimeout(() => handleDartRefSeq.current(d3), 2100);
@@ -3996,10 +4064,144 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
           onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
           highlightSegments={curTarget ? [curTarget.seg] : []}
           disabled={isBotTurnSeq}
+          distinguishSingleRing={isStraightLine}
         />
         <AbandonBtn onAbandon={onAbandon} />
       </div>}
     />
+  );
+}
+
+// ── High-Low Scorer ─────────────────────────────────────────────────────────
+// Pub game: the low target starts at 21, the high target is set by whatever
+// the very first visit of the game scores. Every visit after that must
+// score strictly below the current low or strictly above the current high
+// — succeed and that target ratchets in to your own score; fail and you
+// lose a life (config.lives, default 1 = sudden death; config.lives:3 gives
+// a bit more room before elimination). Treble 1 scores 0 for this game
+// only, so the visit total is computed locally rather than summing
+// dart.value directly.
+export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string; config?: any; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const startLives = Math.max(1, (config?.lives as number | undefined) ?? 1);
+
+  const [low, setLow]               = useState(21);
+  const [high, setHigh]             = useState<number | null>(null);
+  const [turn, setTurn]             = useState<0|1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [lives, setLives]           = useState<[number, number]>([startLives, startLives]);
+  const [flash, setFlash]           = useState<string | null>(null);
+
+  const visitValue = (darts: Dart[]) =>
+    darts.reduce((s, d) => s + (d.segment === 1 && d.multiplier === 3 ? 0 : d.value), 0);
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    if (nv.length < 3) { setVisitDarts(nv); return; }
+    setVisitDarts([]);
+    const total = visitValue(nv);
+    const thisTurn = turn;
+
+    if (high === null) {
+      // Opening visit of the game — sets the high target, no bust check.
+      setHigh(total);
+      setFlash(`${names[thisTurn]} sets the high target: ${total}`);
+      safeTimeout(() => setFlash(null), 1600);
+      setTurn(thisTurn === 0 ? 1 : 0);
+      return;
+    }
+
+    const beatLow = total < low;
+    const beatHigh = total > high;
+    if (beatLow || beatHigh) {
+      if (beatLow) setLow(total); else setHigh(total);
+      setFlash(`${names[thisTurn]} scores ${total} — new ${beatLow ? "LOW" : "HIGH"} target!`);
+      safeTimeout(() => setFlash(null), 1600);
+      setTurn(thisTurn === 0 ? 1 : 0);
+      return;
+    }
+
+    // Bust — didn't clear the low or the high this visit.
+    const remaining = Math.max(0, lives[thisTurn] - 1);
+    setFlash(`${names[thisTurn]} scores ${total} — BUST! (needed under ${low} or over ${high})`);
+    safeTimeout(() => setFlash(null), 1800);
+    setLives(prev => { const n: [number, number] = [...prev] as [number, number]; n[thisTurn] = remaining; return n; });
+    if (remaining <= 0) {
+      safeTimeout(() => onPracticeStats?.({ sessionData: { mode: "high_low" } }), 0);
+      safeTimeout(() => onWin(thisTurn === 0 ? 1 : 0, `${names[thisTurn]} busted out on ${total} (needed <${low} or >${high})`), 1000);
+      return;
+    }
+    setTurn(thisTurn === 0 ? 1 : 0);
+  };
+
+  const handleDartRefHL = useRef(handleDart);
+  useEffect(() => { handleDartRefHL.current = handleDart; });
+  const isBotTurnHL = !!botConfig && turn === 1;
+  useEffect(() => {
+    if (!botConfig || turn !== 1) return;
+    const [d1, d2, d3] = botHighLowVisit(low, high, botConfig);
+    const t1 = safeTimeout(() => handleDartRefHL.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefHL.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefHL.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>High-Low</h2>
+      </div>
+
+      {/* Live target readout — the whole point of this HUD is that both
+          players can see exactly what they need to beat at a glance. */}
+      <SectionCard>
+        <div className="grid grid-cols-2 gap-3 text-center">
+          <div>
+            <div className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>Score below</div>
+            <div className="font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "2.4rem", lineHeight: 1, color: "#38bdf8" }}>{low}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>Score above</div>
+            <div className="font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "2.4rem", lineHeight: 1, color: "#ff6b9d" }}>{high ?? "—"}</div>
+          </div>
+        </div>
+        {high === null && (
+          <div className="text-xs text-center mt-2" style={{ color: "rgba(255,210,74,0.7)", fontFamily: "Oswald, sans-serif" }}>
+            First visit of the game sets the high target
+          </div>
+        )}
+      </SectionCard>
+
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => (
+          <PlayerCard key={i}
+            name={names[i]}
+            score={startLives > 1 ? ("❤️".repeat(Math.max(0, lives[i])) || "💀") : (lives[i] > 0 ? "IN" : "OUT")}
+            turn={i === 0}
+            active={turn === i && lives[i] > 0}
+          />
+        ))}
+      </div>
+
+      {flash && <BustBanner msg={flash} />}
+      {isBotTurnHL
+        ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+        : <TurnBanner name={names[turn]} turn={turn} msg={high === null ? "— throw to set the high target" : "— beat the low or the high"} />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        disabled={isBotTurnHL}
+      />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
   );
 }
 

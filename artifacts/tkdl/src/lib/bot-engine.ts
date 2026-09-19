@@ -363,12 +363,12 @@ function gauss(mean: number, sd: number): number {
   return mean + sd * z;
 }
 
-function makeDart(seg: number, mult: 1 | 2 | 3): Dart {
+function makeDart(seg: number, mult: 1 | 2 | 3, ring?: "inner" | "outer"): Dart {
   const val = seg === 25 ? (mult === 2 ? 50 : 25) : seg * mult;
   const lbl =
     seg === 25 ? (mult === 2 ? "DB" : "Bull") :
-    mult === 3 ? `T${seg}` : mult === 2 ? `D${seg}` : `${seg}`;
-  return { segment: seg, multiplier: mult, value: val, label: lbl };
+    mult === 3 ? `T${seg}` : mult === 2 ? `D${seg}` : (ring === "inner" ? `${seg}i` : `${seg}`);
+  return { segment: seg, multiplier: mult, value: val, label: lbl, ring: mult === 1 ? ring : undefined };
 }
 
 export const BOT_MISS: Dart = { segment: 0, multiplier: 1, value: 0, label: "Miss" };
@@ -379,6 +379,16 @@ export function getAdjacentSegs(seg: number): [number, number] {
   const i = BOARD_ORDER.indexOf(seg);
   if (i === -1) return [5, 1];
   return [BOARD_ORDER[(i - 1 + 20) % 20], BOARD_ORDER[(i + 1) % 20]];
+}
+
+/** The segment physically opposite another one, straight across the bull
+ *  (10 places around the 20-segment wheel). E.g. 11 and 6, 20 and 3. Used
+ *  by the Straight Line game to build its target sequence from whichever
+ *  number a player picks to start on. */
+export function getOppositeSeg(seg: number): number {
+  const i = BOARD_ORDER.indexOf(seg);
+  if (i === -1) return seg;
+  return BOARD_ORDER[(i + 10) % 20];
 }
 
 function dartForValue(v: number): Dart {
@@ -536,10 +546,38 @@ export function botSequenceVisit(
   targetSeg: number,
   targetMult: 1 | 2 | 3,
   cfg: BotConfig,
+  targetRing?: "inner" | "outer",
 ): [Dart, Dart, Dart] {
   return Array.from({ length: 3 }, () =>
-    Math.random() < cfg.hitAcc ? makeDart(targetSeg, targetMult) : BOT_MISS
+    Math.random() < cfg.hitAcc ? makeDart(targetSeg, targetMult, targetRing) : BOT_MISS
   ) as [Dart, Dart, Dart];
+}
+
+// ── High-Low visit ───────────────────────────────────────────────────────────
+// Picks a direction (go under the low target or over the high one — whichever
+// gap looks easier, with a little randomness so the bot isn't perfectly
+// predictable) then throws 3 darts aimed at landing a visit total on the
+// right side of that target. Reuses split3's realistic dart breakdown; it
+// doesn't need to know about the "treble 1 scores 0" house rule since it's
+// aiming for real point totals, not trying to game the rule.
+export function botHighLowVisit(low: number, high: number | null, cfg: BotConfig): [Dart, Dart, Dart] {
+  // high===null means this is the game's opening visit — nothing to beat
+  // yet (that visit is what SETS the high target), so just throw a normal
+  // representative visit, same distribution botCountUpVisit uses.
+  if (high === null) {
+    return split3(Math.max(0, Math.min(180, Math.round(gauss(cfg.avg, cfg.sd)))));
+  }
+  const roomBelow = low;                 // 0..low-1 is the safe "go low" zone
+  const roomAbove = 180 - high;          // high+1..180 is the safe "go high" zone
+  const goLow = roomBelow <= 0 ? false : roomAbove <= 0 ? true : Math.random() < roomBelow / (roomBelow + roomAbove);
+  const skillNoise = (1 - cfg.hitAcc) * 15; // weaker bots overshoot/undershoot more
+  let total: number;
+  if (goLow) {
+    total = Math.round(Math.max(0, gauss(Math.max(0, low - 1 - skillNoise * 0.4), skillNoise)));
+  } else {
+    total = Math.round(Math.min(180, gauss(high + 1 + skillNoise * 0.4, skillNoise)));
+  }
+  return split3(Math.max(0, Math.min(180, total)));
 }
 
 // ── HalveIt visit ─────────────────────────────────────────────────────────────
