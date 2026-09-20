@@ -3891,6 +3891,56 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
 
   const maxRounds = config?.rounds ?? 7;
 
+  // Standard sequence (race) — handleDart/refs/effects are declared here,
+  // BEFORE the isShanghai/straight-line-picker early returns below, and
+  // unconditionally on every render. Straight Line's picker screen means
+  // pickedStart (and therefore which branch renders) can change mid-lifetime
+  // of this component — if these hooks lived after the early returns (as
+  // they used to), the first render (picker showing) would call fewer hooks
+  // than the next render (sequence showing) once a number was picked, which
+  // is a React "Rendered more hooks than during the previous render" crash.
+  // Keeping them here, guarded internally, keeps the hook count constant
+  // across every branch (isShanghai never toggles mid-lifetime, so it's
+  // unaffected; on the picker screen `sequence` is [] and this all no-ops).
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    const target = sequence[positions[turn]] as (typeof sequence[number] & { ring?: "inner" | "outer" }) | undefined;
+    // Straight Line needs an EXACT bed match (right ring included) — hitting
+    // a treble when "big single" was called for shouldn't skip ahead the
+    // way the other sequence games' `>=` check intentionally allows.
+    const hits = !!target && dart.segment === target.seg && (
+      isStraightLine
+        ? dart.multiplier === target.mult && (target.mult !== 1 || dart.ring === (target as any).ring)
+        : dart.multiplier >= target.mult
+    );
+    if (hits) {
+      let pos = positions[turn] + 1;
+      // Allow extra advances from treble/double on single-required targets
+      if (!isStraightLine && target!.mult === 1) pos += (dart.multiplier - 1); // T1 → skip 2 extra? No, each dart advances once. Let extra multiplier advance once.
+      const newPos = Math.min(pos, sequence.length);
+      setPositions(prev => { const n:[number,number]=[...prev] as [number,number]; n[turn]=newPos; return n; });
+      if (newPos >= sequence.length) { safeTimeout(() => { onPracticeStats?.({ sessionData:{mode:"sequence"} }); onWin(turn, `Finished the sequence!`); }, 200); return; }
+    }
+    setVisitDarts(nv);
+    if (nv.length === 3) { setVisitDarts([]); const nt: 0|1 = turn===0?1:0; setTurn(nt); onTurnChanged?.(nt); }
+  };
+
+  const curTarget = sequence[positions[turn]];
+  const botSeqTarget = sequence[positions[1]];
+
+  const handleDartRefSeq = useRef(handleDart);
+  useEffect(() => { handleDartRefSeq.current = handleDart; });
+  const isBotTurnSeq = !!botConfig && turn === 1;
+  useEffect(() => {
+    if (!botConfig || turn !== 1 || !botSeqTarget || sequence.length === 0) return;
+    const [d1, d2, d3] = botSequenceVisit(botSeqTarget.seg, (botSeqTarget.mult ?? 1) as 1|2|3, botConfig, (botSeqTarget as any).ring);
+    const t1 = safeTimeout(() => handleDartRefSeq.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefSeq.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefSeq.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (isShanghai) {
     const handleShDart = (dart: Dart) => {
       if (shanghaiDarts.length >= 3) return;
@@ -3994,46 +4044,6 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
     );
   }
 
-  // Standard sequence (race)
-  const handleDart = (dart: Dart) => {
-    if (visitDarts.length >= 3) return;
-    const nv = [...visitDarts, dart];
-    const target = sequence[positions[turn]] as (typeof sequence[number] & { ring?: "inner" | "outer" }) | undefined;
-    // Straight Line needs an EXACT bed match (right ring included) — hitting
-    // a treble when "big single" was called for shouldn't skip ahead the
-    // way the other sequence games' `>=` check intentionally allows.
-    const hits = !!target && dart.segment === target.seg && (
-      isStraightLine
-        ? dart.multiplier === target.mult && (target.mult !== 1 || dart.ring === (target as any).ring)
-        : dart.multiplier >= target.mult
-    );
-    if (hits) {
-      let pos = positions[turn] + 1;
-      // Allow extra advances from treble/double on single-required targets
-      if (!isStraightLine && target!.mult === 1) pos += (dart.multiplier - 1); // T1 → skip 2 extra? No, each dart advances once. Let extra multiplier advance once.
-      const newPos = Math.min(pos, sequence.length);
-      setPositions(prev => { const n:[number,number]=[...prev] as [number,number]; n[turn]=newPos; return n; });
-      if (newPos >= sequence.length) { safeTimeout(() => { onPracticeStats?.({ sessionData:{mode:"sequence"} }); onWin(turn, `Finished the sequence!`); }, 200); return; }
-    }
-    setVisitDarts(nv);
-    if (nv.length === 3) { setVisitDarts([]); const nt: 0|1 = turn===0?1:0; setTurn(nt); onTurnChanged?.(nt); }
-  };
-
-  const curTarget = sequence[positions[turn]];
-  const botSeqTarget = sequence[positions[1]];
-
-  const handleDartRefSeq = useRef(handleDart);
-  useEffect(() => { handleDartRefSeq.current = handleDart; });
-  const isBotTurnSeq = !!botConfig && turn === 1;
-  useEffect(() => {
-    if (!botConfig || turn !== 1 || !botSeqTarget) return;
-    const [d1, d2, d3] = botSequenceVisit(botSeqTarget.seg, (botSeqTarget.mult ?? 1) as 1|2|3, botConfig, (botSeqTarget as any).ring);
-    const t1 = safeTimeout(() => handleDartRefSeq.current(d1), 700);
-    const t2 = safeTimeout(() => handleDartRefSeq.current(d2), 1400);
-    const t3 = safeTimeout(() => handleDartRefSeq.current(d3), 2100);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
-
   return (
     <ScorerLayout
       top={<div className="space-y-3">
@@ -4109,10 +4119,26 @@ export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
     const thisTurn = turn;
 
     if (high === null) {
-      // Opening visit of the game — sets the high target, no bust check.
-      setHigh(total);
-      setFlash(`${names[thisTurn]} sets the high target: ${total}`);
-      safeTimeout(() => setFlash(null), 1600);
+      // Opening visit of the game — it still has to clear the low (21) to
+      // set the high target. Scoring 21 or under here isn't "the new low"
+      // (there's no high yet to weigh it against) — it's just a failure to
+      // open the game, so it busts exactly like any other failed visit.
+      if (total > low) {
+        setHigh(total);
+        setFlash(`${names[thisTurn]} sets the high target: ${total}`);
+        safeTimeout(() => setFlash(null), 1600);
+        setTurn(thisTurn === 0 ? 1 : 0);
+        return;
+      }
+      const remaining = Math.max(0, lives[thisTurn] - 1);
+      setFlash(`${names[thisTurn]} scores ${total} — BUST! (needed over ${low} to set the high) — ${remaining} ${remaining === 1 ? "life" : "lives"} left`);
+      safeTimeout(() => setFlash(null), 1800);
+      setLives(prev => { const n: [number, number] = [...prev] as [number, number]; n[thisTurn] = remaining; return n; });
+      if (remaining <= 0) {
+        safeTimeout(() => onPracticeStats?.({ sessionData: { mode: "high_low" } }), 0);
+        safeTimeout(() => onWin(thisTurn === 0 ? 1 : 0, `${names[thisTurn]} busted out on ${total} (needed over ${low})`), 1000);
+        return;
+      }
       setTurn(thisTurn === 0 ? 1 : 0);
       return;
     }
@@ -4129,7 +4155,7 @@ export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
 
     // Bust — didn't clear the low or the high this visit.
     const remaining = Math.max(0, lives[thisTurn] - 1);
-    setFlash(`${names[thisTurn]} scores ${total} — BUST! (needed under ${low} or over ${high})`);
+    setFlash(`${names[thisTurn]} scores ${total} — BUST! (needed under ${low} or over ${high}) — ${remaining} ${remaining === 1 ? "life" : "lives"} left`);
     safeTimeout(() => setFlash(null), 1800);
     setLives(prev => { const n: [number, number] = [...prev] as [number, number]; n[thisTurn] = remaining; return n; });
     if (remaining <= 0) {
