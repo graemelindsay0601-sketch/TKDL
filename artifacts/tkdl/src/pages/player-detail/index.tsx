@@ -275,10 +275,12 @@ export default function PlayerDetail() {
   // by the leaderboard, season standings, doubles, etc. — see api-server's
   // lib/elo.ts). This fallback only matters for a moment right after
   // deploy, before the server has restarted with the new field; it mirrors
-  // calcTier() exactly (Gold >= 1100, Silver >= 980, else Bronze) rather
-  // than the old invented Diamond/Platinum thresholds that no other part of
-  // the app recognizes (TierBadge only knows Gold/Silver/Bronze).
-  const fallbackTier = player.elo >= 1100 ? "Gold" : player.elo >= 980 ? "Silver" : "Bronze";
+  // calcTier() exactly across the full 5-tier ladder.
+  const fallbackTier =
+    player.elo >= 1400 ? "Diamond" :
+    player.elo >= 1250 ? "Platinum" :
+    player.elo >= 1100 ? "Gold" :
+    player.elo >= 950  ? "Silver" : "Bronze";
   const tier = (player as any).tier || fallbackTier;
   const tierColor = TIER_GLOW[tier] ?? "#ff005c";
 

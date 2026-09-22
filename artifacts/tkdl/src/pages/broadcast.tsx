@@ -1,17 +1,19 @@
 import { useEffect, useState, useRef } from "react";
 import { format } from "date-fns";
 import { Link } from "wouter";
+import { Sparkles } from "lucide-react";
 
-// Diamond/Platinum removed — calcTier() (lib/elo.ts) only ever emits
-// Gold/Silver/Bronze, so these two entries could never render; keeping them
-// around implied a tier ladder the app doesn't actually have.
+// Matches calcTier()'s full 5-tier ladder (lib/elo.ts) — same colors as
+// tier-badge.tsx / the rest of the app.
 const TIER_COLORS: Record<string, string> = {
+  Diamond:  "#00e5ff",
+  Platinum: "#e5e4e2",
   Gold:     "#ffd24a",
   Silver:   "#c0c8d8",
   Bronze:   "#cd7f32",
 };
 const TIER_ICONS: Record<string, string> = {
-  Gold: "🥇", Silver: "🥈", Bronze: "🥉",
+  Diamond: "💎", Platinum: "🏆", Gold: "🥇", Silver: "🥈", Bronze: "🥉",
 };
 
 function useTick() {
@@ -111,6 +113,16 @@ export default function Broadcast() {
             <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#ff005c" }} />
             <span className="font-black uppercase tracking-widest text-xs" style={{ color: "#ff005c", letterSpacing: "0.15em" }}>LIVE</span>
           </div>
+          {/* This screen and /tkdl-live (the automated broadcast show) are
+              both full-bleed kiosk views with no shared nav chrome — each
+              was reachable only by knowing its own URL, with no way to hop
+              from one to the other once either was open. */}
+          <Link href="/tkdl-live"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-colors"
+            style={{ color: "rgba(255,210,74,0.8)", border: "1px solid rgba(255,210,74,0.3)", letterSpacing: "0.1em" }}
+            title="Switch to the TKDL Live broadcast show">
+            <Sparkles className="w-3 h-3" /> TKDL Live
+          </Link>
           {/* This screen is a full-bleed kiosk view with no nav chrome by
               design (it bypasses <Layout> entirely — see App.tsx), which
               left it with literally no way back to the main app once

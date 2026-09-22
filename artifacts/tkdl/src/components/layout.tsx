@@ -46,6 +46,11 @@ const tkdlLiveNav = [
 const leagueNav = [
   { href: "/leaderboard",  label: "Standings",    icon: Trophy          },
   { href: "/players",      label: "Players",      icon: Users           },
+  // Full head-to-head comparison view (see pages/head-to-head.tsx) — same
+  // situation /broadcast was in below: a fully working route reachable only
+  // via a buried link on a player's match-history row, with no way to find
+  // it from the nav.
+  { href: "/head-to-head", label: "Head to Head", icon: Swords          },
   { href: "/seasons",      label: "Seasons",      icon: History         },
   { href: "/hall-of-fame", label: "Hall of Fame", icon: Award           },
   { href: "/rules",        label: "Rules",        icon: BookOpen        },

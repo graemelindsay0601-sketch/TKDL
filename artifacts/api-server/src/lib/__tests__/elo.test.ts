@@ -40,18 +40,28 @@ describe("calcEloChange", () => {
 });
 
 describe("calcTier", () => {
-  test("1100+ is Gold", () => {
+  test("1400+ is Diamond", () => {
+    assert.equal(calcTier(1400), "Diamond");
+    assert.equal(calcTier(2000), "Diamond");
+  });
+
+  test("1250-1399 is Platinum", () => {
+    assert.equal(calcTier(1399), "Platinum");
+    assert.equal(calcTier(1250), "Platinum");
+  });
+
+  test("1100-1249 is Gold", () => {
+    assert.equal(calcTier(1249), "Gold");
     assert.equal(calcTier(1100), "Gold");
-    assert.equal(calcTier(2000), "Gold");
   });
 
-  test("980-1099 is Silver", () => {
+  test("950-1099 is Silver", () => {
     assert.equal(calcTier(1099), "Silver");
-    assert.equal(calcTier(980), "Silver");
+    assert.equal(calcTier(950), "Silver");
   });
 
-  test("below 980 is Bronze", () => {
-    assert.equal(calcTier(979), "Bronze");
+  test("below 950 is Bronze", () => {
+    assert.equal(calcTier(949), "Bronze");
     assert.equal(calcTier(0), "Bronze");
   });
 });

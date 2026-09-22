@@ -6,6 +6,7 @@ import { performSeasonReset, performDoublesSeasonReset, performShiftWarsSeasonRe
 import { calcTier } from "../lib/elo";
 import { computeIdentity } from "../lib/identity";
 import { requireAdminSession } from "../middleware/requireAdminSession";
+import { logAdminAction } from "../lib/adminAudit";
 
 const GetSeasonParams  = z.object({ id: z.coerce.number().int().positive() });
 const ResetSeasonBody  = z.object({ name: z.string().optional() });
@@ -50,6 +51,7 @@ router.post("/seasons/reset", requireAdminSession, async (req, res): Promise<voi
   const overrideName = parsed.success ? parsed.data.name : undefined;
   try {
     const newSeason = await performSeasonReset(overrideName);
+    void logAdminAction(req, "season.reset", "season", newSeason.id, { leagueType: "singles", name: newSeason.name });
     res.status(201).json(newSeason);
   } catch (err) {
     if (err instanceof SeasonResetLockedError) { res.status(409).json({ error: err.message }); return; }
@@ -64,6 +66,7 @@ router.post("/seasons/doubles/reset", requireAdminSession, async (req, res): Pro
   const overrideName = parsed.success ? parsed.data.name : undefined;
   try {
     const newSeason = await performDoublesSeasonReset(overrideName);
+    void logAdminAction(req, "season.reset", "season", newSeason.id, { leagueType: "doubles", name: newSeason.name });
     res.status(201).json(newSeason);
   } catch (err) {
     if (err instanceof SeasonResetLockedError) { res.status(409).json({ error: err.message }); return; }
@@ -76,6 +79,7 @@ router.post("/seasons/shift-wars/reset", requireAdminSession, async (req, res): 
   const overrideName = parsed.success ? parsed.data.name : undefined;
   try {
     const newSeason = await performShiftWarsSeasonReset(overrideName);
+    void logAdminAction(req, "season.reset", "season", newSeason.id, { leagueType: "shift_wars", name: newSeason.name });
     res.status(201).json(newSeason);
   } catch (err) {
     if (err instanceof SeasonResetLockedError) { res.status(409).json({ error: err.message }); return; }
@@ -262,6 +266,10 @@ router.post("/seasons/:id/playoff", requireAdminSession, async (req, res): Promi
     return inserted;
   });
 
+  void logAdminAction(req, "playoff.match_recorded", "playoff_match", (row as any)?.id ?? null, {
+    seasonId: params.data.id, player1Id, player2Id, winnerId: winnerId ?? null, round,
+  });
+
   res.status(201).json(row);
 });
 
@@ -310,6 +318,10 @@ router.patch("/seasons/:id/playoff/:matchId", requireAdminSession, async (req, r
     }
   });
 
+  void logAdminAction(req, "playoff.match_edit", "playoff_match", matchId, {
+    seasonId: params.data.id, winnerId: parsed.data.winnerId, notes: parsed.data.notes, round: parsed.data.round,
+  });
+
   res.json({ ok: true });
 });
 
@@ -318,6 +330,7 @@ router.delete("/seasons/:id/playoff/:matchId", requireAdminSession, async (req, 
   const matchId = parseInt((req.params as any).matchId, 10);
   if (!params.success || isNaN(matchId)) { res.status(400).json({ error: "Invalid params" }); return; }
   await db.execute(sql`DELETE FROM playoff_matches WHERE id = ${matchId} AND season_id = ${params.data.id}`);
+  void logAdminAction(req, "playoff.match_delete", "playoff_match", matchId, { seasonId: params.data.id });
   res.json({ ok: true });
 });
 

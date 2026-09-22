@@ -4,7 +4,7 @@ import { ArrowLeft, Swords, TrendingUp, Target, Flame, Trophy } from "lucide-rea
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 
-type Player = { id: number; name: string; elo: number; tier: string; wins: number; currentStreak: number };
+type Player = { id: number; name: string; elo: number; tier: string; wins: number; currentStreak: number; total180s: number; avgDartsToWin: number | null };
 type H2HMatch = {
   id: number; playedAt: string; winnerId: number; winnerName: string;
   loserId: number; loserName: string; eloChange: number; stake: number;
@@ -284,24 +284,43 @@ export default function HeadToHead() {
             </div>
             <div className="px-4 py-4 space-y-4">
               {[
-                { label: "Current Elo", v1: h2h.player1.elo, v2: h2h.player2.elo, suffix: "" },
+                { label: "Current Elo", v1: h2h.player1.elo as number | null, v2: h2h.player2.elo as number | null, suffix: "", lowerIsBetter: false },
+                {
+                  label: "Head-to-Head Win Rate",
+                  v1: h2h.totalMatches > 0 ? Math.round((h2h.player1.wins / h2h.totalMatches) * 100) : null,
+                  v2: h2h.totalMatches > 0 ? Math.round((h2h.player2.wins / h2h.totalMatches) * 100) : null,
+                  suffix: "%", lowerIsBetter: false,
+                },
+                { label: "180s Hit", v1: h2h.player1.total180s, v2: h2h.player2.total180s, suffix: "", lowerIsBetter: false },
+                { label: "Avg Darts to Win", v1: h2h.player1.avgDartsToWin, v2: h2h.player2.avgDartsToWin, suffix: "", lowerIsBetter: true },
               ].map(row => {
-                const winner = row.v1 > row.v2 ? 1 : row.v2 > row.v1 ? 2 : 0;
+                const hasBoth = row.v1 != null && row.v2 != null;
+                const winner = !hasBoth ? 0
+                  : row.v1 === row.v2 ? 0
+                  : row.lowerIsBetter ? (row.v1! < row.v2! ? 1 : 2)
+                  : (row.v1! > row.v2! ? 1 : 2);
+                const total = hasBoth ? row.v1! + row.v2! : 0;
+                // Avg Darts to Win: less is better, but a smaller number
+                // shouldn't draw a smaller bar — invert the share so the
+                // stronger side still reads as the bigger segment.
+                const p1Share = !hasBoth || total === 0 ? 50
+                  : row.lowerIsBetter ? ((row.v2! / total) * 100)
+                  : ((row.v1! / total) * 100);
                 return (
                   <div key={row.label}>
                     <div className="flex justify-between items-center mb-1">
                       <span className="font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", color: winner === 1 ? "#ff005c" : "rgba(255,0,92,0.45)" }}>
-                        {row.v1}{row.suffix}
+                        {row.v1 != null ? `${row.v1}${row.suffix}` : "—"}
                       </span>
                       <span className="text-xs uppercase font-bold tracking-widest" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
                         {row.label}
                       </span>
                       <span className="font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", color: winner === 2 ? "#0066ff" : "rgba(0,102,255,0.45)" }}>
-                        {row.v2}{row.suffix}
+                        {row.v2 != null ? `${row.v2}${row.suffix}` : "—"}
                       </span>
                     </div>
                     <div className="h-1 rounded-full overflow-hidden flex" style={{ background: "rgba(255,255,255,0.06)" }}>
-                      <div style={{ width: `${(row.v1 / (row.v1 + row.v2)) * 100}%`, background: "#ff005c", opacity: winner === 1 ? 1 : 0.3 }} />
+                      <div style={{ width: `${p1Share}%`, background: "#ff005c", opacity: winner === 1 ? 1 : 0.3 }} />
                       <div style={{ flex: 1, background: "#0066ff", opacity: winner === 2 ? 1 : 0.3 }} />
                     </div>
                   </div>

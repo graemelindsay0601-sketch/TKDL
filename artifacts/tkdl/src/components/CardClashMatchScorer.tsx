@@ -10,6 +10,7 @@ import { ccActivateCard } from "@/lib/card-effect-engine";
 import type { GameResult } from "./game-scorer";
 import type { CardData } from "@/lib/cards-data";
 import type { BotConfig } from "@/lib/bot-engine";
+import { useNewScoringUI } from "@/lib/useNewScoringUI";
 
 interface EquippedCard extends CardData {
   used?: boolean;
@@ -59,7 +60,8 @@ export function CardClashMatchScorer({
   chaosMode = false,
   chaosLabMode = false,
 }: CardClashMatchScorerProps) {
-  
+  const newScoringUI = useNewScoringUI();
+
   // Set sessionStorage BEFORE rendering scorers (not in useEffect)
   // This ensures scorers see the flag when they mount
   if (typeof window !== "undefined") {
@@ -134,6 +136,7 @@ export function CardClashMatchScorer({
         setsToWin={setsToWin}
         legsToWinSet={legsToWinSet}
         onCardsUsedChange={handleCardsUsedChange}
+        newScoringUI={newScoringUI}
       />
     );
   } else {
@@ -149,6 +152,7 @@ export function CardClashMatchScorer({
         setsToWin={setsToWin}
         legsToWinSet={legsToWinSet}
         onCardsUsedChange={handleCardsUsedChange}
+        newScoringUI={newScoringUI}
       />
     );
   }

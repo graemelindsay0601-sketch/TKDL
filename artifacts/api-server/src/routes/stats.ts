@@ -409,9 +409,35 @@ router.get("/stats/h2h", async (req, res): Promise<void> => {
     else break;
   }
 
+  // Career Comparison extras — computed over every match in this h2h
+  // (up to the 100-row cap above), not just the 25 returned as
+  // recentMatches, so the numbers stay accurate for a long-running rivalry.
+  // 180s are tracked on both the winner AND loser side of a match record
+  // (you can hit a 180 in a match you still lose), so both sides get summed
+  // per player rather than only counting their wins.
+  const total180sFor = (pid: number) => rows.reduce((sum, m) => {
+    if (m.winner_id === pid) return sum + (m.winner_180s || 0);
+    if (m.loser_id === pid) return sum + (m.loser_180s || 0);
+    return sum;
+  }, 0);
+  // Darts-to-win only makes sense from a player's own wins (the loser's
+  // dart count in a single-leg match reflects an incomplete leg, not a
+  // comparable finishing time) — null when they haven't beaten this
+  // opponent yet, rather than a misleading 0.
+  const avgDartsToWinFor = (pid: number) => {
+    const darts = rows.filter(m => m.winner_id === pid && m.winner_darts != null).map(m => m.winner_darts as number);
+    return darts.length ? Math.round(darts.reduce((a, b) => a + b, 0) / darts.length) : null;
+  };
+
   res.json({
-    player1: { id: player1.id, name: player1.name, elo: player1.elo, tier: calcTier(player1.elo), wins: p1Wins, currentStreak: p1CurStreak },
-    player2: { id: player2.id, name: player2.name, elo: player2.elo, tier: calcTier(player2.elo), wins: p2Wins, currentStreak: p2CurStreak },
+    player1: {
+      id: player1.id, name: player1.name, elo: player1.elo, tier: calcTier(player1.elo), wins: p1Wins, currentStreak: p1CurStreak,
+      total180s: total180sFor(p1), avgDartsToWin: avgDartsToWinFor(p1),
+    },
+    player2: {
+      id: player2.id, name: player2.name, elo: player2.elo, tier: calcTier(player2.elo), wins: p2Wins, currentStreak: p2CurStreak,
+      total180s: total180sFor(p2), avgDartsToWin: avgDartsToWinFor(p2),
+    },
     totalMatches: rows.length,
     recentMatches: rows.slice(0, 25).map((m: any) => ({
       id:          m.id,

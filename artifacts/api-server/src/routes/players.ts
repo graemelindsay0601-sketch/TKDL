@@ -396,21 +396,33 @@ router.get("/players/:id/career-journey", async (req, res): Promise<void> => {
       eloPoints.unshift(elo);
     }
 
-    let reachedSilver = false;
-    let reachedGold = false;
+    // One milestone event the first time a player's Elo crosses into each
+    // tier — driven by calcTier() so these always agree with the tier badge
+    // shown everywhere else, across the full Silver→Diamond ladder. Ordered
+    // low-to-high so a match that jumps straight past a tier (e.g. Bronze
+    // to Gold in one win) still credits every tier passed through, not just
+    // the one landed on.
+    const TIER_LADDER: { tier: string; title: string; icon: string }[] = [
+      { tier: "Silver",   title: "Reached Silver Tier",   icon: "🥈" },
+      { tier: "Gold",     title: "Reached Gold Tier",     icon: "🥇" },
+      { tier: "Platinum", title: "Reached Platinum Tier", icon: "🏆" },
+      { tier: "Diamond",  title: "Reached Diamond Tier",  icon: "💎" },
+    ];
+    const reachedTiers = new Set<string>();
     let peakElo = eloPoints[0];
     let peakDate: any = allMatches[0]?.playedAt;
     for (let i = 0; i < allMatches.length; i++) {
       const eloAfter = eloPoints[i + 1];
       const playedAt = allMatches[i].playedAt;
       if (eloAfter > peakElo) { peakElo = eloAfter; peakDate = playedAt; }
-      if (!reachedSilver && eloAfter >= 980) {
-        reachedSilver = true;
-        events.push({ date: playedAt, type: "tier", title: "Reached Silver Tier", icon: "🥈" });
-      }
-      if (!reachedGold && eloAfter >= 1100) {
-        reachedGold = true;
-        events.push({ date: playedAt, type: "tier", title: "Reached Gold Tier", icon: "🥇" });
+      const tierAfter = calcTier(eloAfter);
+      const reachedIdx = TIER_LADDER.findIndex(t => t.tier === tierAfter);
+      for (let j = 0; j <= reachedIdx; j++) {
+        const { tier, title, icon } = TIER_LADDER[j]!;
+        if (!reachedTiers.has(tier)) {
+          reachedTiers.add(tier);
+          events.push({ date: playedAt, type: "tier", title, icon });
+        }
       }
     }
 

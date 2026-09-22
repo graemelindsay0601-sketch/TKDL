@@ -14,7 +14,7 @@ import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Plus, Skull, Flame, Target } from "lucide-react";
+import { Plus, Skull, Flame, Target, Search } from "lucide-react";
 import { useState } from "react";
 import { TierBadge } from "@/components/tier-badge";
 
@@ -223,6 +223,8 @@ export default function Players() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<"points" | "elo" | "streak" | "name">("points");
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -244,12 +246,27 @@ export default function Players() {
     });
   }
 
-  const active     = players?.filter(p => p.isActive && p.status !== "ELIMINATED") ?? [];
-  const eliminated = players?.filter(p => p.isActive && p.status === "ELIMINATED") ?? [];
-  const inactive   = players?.filter(p => !p.isActive) ?? [];
+  const q = search.trim().toLowerCase();
+  const matchesSearch = (p: any) =>
+    q === "" || p.name.toLowerCase().includes(q) || (p.nickname ?? "").toLowerCase().includes(q);
+  const searched = players?.filter(matchesSearch) ?? [];
 
-  const activeSorted = [...active].sort((a, b) => (b.points ?? 25) - (a.points ?? 25));
-  const rankMap = new Map(activeSorted.map((p, i) => [p.id, i]));
+  const active     = searched.filter(p => p.isActive && p.status !== "ELIMINATED");
+  const eliminated = searched.filter(p => p.isActive && p.status === "ELIMINATED");
+  const inactive   = searched.filter(p => !p.isActive);
+
+  // Rank badges (#1, #2, ...) are always by points — that's the league
+  // standing. sortBy only changes the order the cards are laid out in.
+  const rankMap = new Map(
+    [...active].sort((a, b) => (b.points ?? 25) - (a.points ?? 25)).map((p, i) => [p.id, i])
+  );
+  const SORTERS: Record<typeof sortBy, (a: any, b: any) => number> = {
+    points: (a, b) => (b.points ?? 25) - (a.points ?? 25),
+    elo:    (a, b) => (b.elo ?? 1000) - (a.elo ?? 1000),
+    streak: (a, b) => (b.currentWinStreak ?? 0) - (a.currentWinStreak ?? 0),
+    name:   (a, b) => a.name.localeCompare(b.name),
+  };
+  const activeSorted = [...active].sort(SORTERS[sortBy]);
 
   return (
     <div className="space-y-8">
@@ -301,9 +318,51 @@ export default function Players() {
         </Dialog>
       </div>
 
+      {!isLoading && (players?.length ?? 0) > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.25)" }} />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search players…"
+              className="pl-9 rounded-xl"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs uppercase tracking-widest mr-1" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>Sort</span>
+            {([
+              ["points", "Points"],
+              ["elo", "ELO"],
+              ["streak", "Streak"],
+              ["name", "A–Z"],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setSortBy(key)}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all"
+                style={{
+                  fontFamily: "Oswald, sans-serif",
+                  background: sortBy === key ? "rgba(255,0,92,0.15)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${sortBy === key ? "rgba(255,0,92,0.4)" : "rgba(255,255,255,0.08)"}`,
+                  color: sortBy === key ? "#ff005c" : "rgba(255,255,255,0.4)",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-20">
           <div className="w-10 h-10 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
+        </div>
+      ) : searched.length === 0 && q !== "" ? (
+        <div className="text-center py-20" style={{ color: "rgba(255,255,255,0.3)" }}>
+          No players match "{search}".
         </div>
       ) : (
         <div className="space-y-10">

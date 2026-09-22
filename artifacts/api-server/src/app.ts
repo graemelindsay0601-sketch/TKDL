@@ -13,11 +13,14 @@ import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetLeagueSeasons, initializeSeasonResetScheduler } from "./lib/seasonReset";
 import { addPerformanceIndexes } from "./db/migrations/add_performance_indexes";
 import { addPerformanceIndexes2 } from "./db/migrations/add_performance_indexes_2";
+import { addPerformanceIndexes3 } from "./db/migrations/add_performance_indexes_3";
+import { ensureAdminAuditTable } from "./lib/adminAudit";
 import { seedTourSystem } from "./lib/tourSeed";
 import { ensureCardClashAchievementTables } from "./lib/card-clash-achievements";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
 import { initializeCardTables, initializeFeatureFlags, initializeFeaturedCardShopTables } from "./lib/cardTablesMigration";
 import { addFavoritesColumn } from "./db/migrations/add_favorites";
+import { apiRateLimit } from "./middleware/apiRateLimit";
 import { addAchievementRewards } from "./db/migrations/add_achievement_rewards";
 import { addAchievementSeasonColumn } from "./db/migrations/add_achievement_season_column";
 import { addSeasonLeagueType } from "./db/migrations/add_season_league_type";
@@ -181,6 +184,7 @@ app.use(async (req, res, next) => {
   next();
 });
 
+app.use("/api", apiRateLimit);
 app.use("/api", router);
 
 // In production, serve the built frontend and handle client-side routing
@@ -1183,6 +1187,9 @@ async function init() {
   await runInitStep("addPerformanceIndexes2", addPerformanceIndexes2);
 
   await runInitStep("seedCommunityTables", seedCommunityTables);
+  // Must run after seedCommunityTables — these tables don't exist before it.
+  await runInitStep("addPerformanceIndexes3", addPerformanceIndexes3);
+  await runInitStep("ensureAdminAuditTable", ensureAdminAuditTable);
   await runInitStep("seedMatchesMilestoneColumns", seedMatchesMilestoneColumns);
   await runInitStep("seedCardFavorites", seedCardFavorites);
   await runInitStep("seedDrillCompletions", seedDrillCompletions);

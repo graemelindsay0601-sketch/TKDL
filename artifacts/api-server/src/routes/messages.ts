@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { createNotification } from "../lib/communityNotify";
 import { authedWriteRateLimit } from "../middleware/writeRateLimit";
+import { isValidUploadedObjectPath } from "../lib/uploadPath";
 
 const router = Router();
 
@@ -121,6 +122,9 @@ router.post("/messages/:partnerId", authedWriteRateLimit, async (req, res): Prom
     res.status(400).json({ error: "Message must have content or a photo" }); return;
   }
   if (String(content).length > 1000) { res.status(400).json({ error: "Message too long (max 1000 chars)" }); return; }
+  if (photoPath != null && !isValidUploadedObjectPath(photoPath)) {
+    res.status(400).json({ error: "Invalid photo" }); return;
+  }
 
   const result = await db.execute(sql`
     INSERT INTO direct_messages (sender_id, receiver_id, content, photo_path)
@@ -158,6 +162,9 @@ router.post("/messages", authedWriteRateLimit, async (req, res): Promise<void> =
     res.status(400).json({ error: "Message must have content or a photo" }); return;
   }
   if (String(content).length > 1000) { res.status(400).json({ error: "Message too long (max 1000 chars)" }); return; }
+  if (photoPath != null && !isValidUploadedObjectPath(photoPath)) {
+    res.status(400).json({ error: "Invalid photo" }); return;
+  }
 
   const result = await db.execute(sql`
     INSERT INTO direct_messages (sender_id, receiver_id, content, photo_path)

@@ -2756,9 +2756,20 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     }
     return null;
   };
+  // BUGFIX: the win-check below runs 50ms after EVERY dart, not just the one
+  // that closes the leg. Once a player's numbers are all closed, checkWin
+  // keeps returning that same winner for every dart thrown afterward (e.g.
+  // the remaining darts left in that same 3-dart visit) until resetForLeg
+  // actually clears the marks — so without a guard, handleLegWin (and the
+  // onWin it eventually calls) fires once per dart still in flight, not
+  // once per leg. This ref makes the leg-over transition edge-triggered:
+  // set the instant a win is first detected, cleared when the next leg's
+  // board actually resets.
+  const legWinPendingRef = useRef(false);
 
   const resetForLeg = useCallback((delay: number, newLegState: [number,number]) => {
     safeTimeout(() => {
+      legWinPendingRef.current = false;
       const ns: 0|1 = legStarter === 0 ? 1 : 0;
       setLegStarter(ns);
       setMarks([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
@@ -3413,13 +3424,17 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
 
     // Check win after state settles
     safeTimeout(() => {
+      if (legWinPendingRef.current) return; // leg's already been decided — ignore trailing darts from this visit
       setMarks(m => {
         setScores(sc => {
           const w = checkWin(m, sc);
-          if (w !== null) safeTimeout(() => {
-            onPracticeStats?.({ sessionData: { mode: "cricket" } });
-            handleLegWin(w);
-          }, 300);
+          if (w !== null && !legWinPendingRef.current) {
+            legWinPendingRef.current = true;
+            safeTimeout(() => {
+              onPracticeStats?.({ sessionData: { mode: "cricket" } });
+              handleLegWin(w);
+            }, 300);
+          }
           return sc;
         });
         return m;

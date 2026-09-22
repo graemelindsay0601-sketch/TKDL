@@ -5,6 +5,7 @@ import type { GameResult } from "./game-scorer";
 import type { BotConfig } from "@/lib/bot-engine";
 import { getTierForVisit, rollCurse, type CurseDef, type CurseGameMode, type CurseTier } from "@/lib/board-curse-data";
 import type { CCEffect } from "@/lib/card-effect-engine";
+import { useNewScoringUI } from "@/lib/useNewScoringUI";
 
 // Vivid, tier-scaled colors so the curse readout reads clearly from across
 // the room, not just up close — mild (amber) through severe (hot red).
@@ -32,6 +33,7 @@ interface BoardCurseScorerProps {
 }
 
 export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, legs = 1, topBanner, onMatchComplete, onAbandon }: BoardCurseScorerProps) {
+  const newScoringUI = useNewScoringUI();
   if (typeof window !== "undefined") {
     sessionStorage.setItem("card_clash_mode", "true");
     sessionStorage.removeItem("card_clash_chaos_mode");
@@ -186,6 +188,7 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
           cardEffects={cardEffects} legs={legs}
           onLegStart={handleLegStart} onVisitStart={handleVisitStart}
           topBanner={combinedTopBanner}
+          newScoringUI={newScoringUI}
         />
       ) : (
         <CricketScorer
@@ -196,6 +199,7 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
           cardEffects={cardEffects} legs={legs}
           onLegStart={handleLegStart} onVisitStart={handleVisitStart}
           topBanner={combinedTopBanner}
+          newScoringUI={newScoringUI}
         />
       )}
     </div>

@@ -85,9 +85,18 @@ export default function TkdlLive() {
         </div>
       )}
 
-      <Link href="/" className="absolute bottom-14 right-4 z-40 text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.15em" }}>
-        ← Back to the Hub
-      </Link>
+      {/* Stacked (not side-by-side) so neither link's width has to be
+          guessed — /broadcast (the plain standings board) is the other
+          full-bleed kiosk screen, previously reachable only by its own URL
+          with no way across from here. */}
+      <div className="absolute bottom-14 right-4 z-40 flex flex-col items-end gap-2">
+        <Link href="/broadcast" className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.15em" }}>
+          Standings Board →
+        </Link>
+        <Link href="/" className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.15em" }}>
+          ← Back to the Hub
+        </Link>
+      </div>
     </div>
   );
 }

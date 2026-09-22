@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { createNotification } from "../lib/communityNotify";
 import { authedWriteRateLimit } from "../middleware/writeRateLimit";
+import { isValidUploadedObjectPath } from "../lib/uploadPath";
 
 const router = Router();
 
@@ -126,6 +127,9 @@ router.post("/community/posts", authedWriteRateLimit, async (req, res): Promise<
   }
   if (String(content).length > 1000) {
     res.status(400).json({ error: "Content too long (max 1000 chars)" }); return;
+  }
+  if (photoPath != null && !isValidUploadedObjectPath(photoPath)) {
+    res.status(400).json({ error: "Invalid photo" }); return;
   }
 
   const result = await db.execute(sql`

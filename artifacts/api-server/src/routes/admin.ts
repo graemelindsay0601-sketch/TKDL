@@ -10,6 +10,7 @@ import { requireAdminSession } from "../middleware/requireAdminSession";
 import { createAnnouncement, getNotificationAnalytics } from "../services/notificationService";
 import { drawDoublesTeams } from "../lib/doublesDraw";
 import { logger } from "../lib/logger";
+import { logAdminAction, getRecentAdminActions } from "../lib/adminAudit";
 
 const router = Router();
 
@@ -119,6 +120,10 @@ router.patch("/admin/seasons/:id/standings/:playerId", async (req, res): Promise
         .set({ isChampion: true })
         .where(and(eq(seasonStandingsTable.seasonId, seasonId), eq(seasonStandingsTable.playerId, playerId)));
     }
+  });
+
+  void logAdminAction(req, "standings.edit", "season_standing", `${seasonId}:${playerId}`, {
+    seasonId, playerId, position, wins, losses, points, elo, isChampion: isChampion ?? false,
   });
 
   res.json({ ok: true });
@@ -284,6 +289,11 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
     throw err;
   }
 
+  void logAdminAction(req, "match.edit", "match", matchId, {
+    before: { winner: matchPreCheck.winnerName, loser: matchPreCheck.loserName, stake: matchPreCheck.stake, notes: matchPreCheck.notes },
+    after:  { winner: result.updated.winnerName, loser: result.updated.loserName, stake: result.updated.stake, notes: result.updated.notes },
+  });
+
   res.json({ match: result.updated, eloChange: result.newEloChange });
 });
 
@@ -322,6 +332,7 @@ router.delete("/admin/players/:id", async (req, res): Promise<void> => {
   });
 
   req.log.info({ playerId, name: player.name }, "Player deleted by admin");
+  void logAdminAction(req, "player.delete", "player", playerId, { name: player.name });
   res.json({ ok: true, deleted: player.name });
 });
 
@@ -335,13 +346,12 @@ router.patch("/admin/players/:id/elo", async (req, res): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const { elo } = parsed.data;
-  // Was a hand-rolled 5-tier scheme (Diamond/Platinum/Gold/Silver/Bronze)
-  // left over from before the ladder was simplified to 3 tiers — it
-  // disagreed with calcTier() (the tier every other page derives from Elo),
-  // so an admin override could show a player as "Platinum" here while their
-  // own profile showed "Gold" for the same Elo. calcTier() is the one
-  // canonical source now.
+  // calcTier() (lib/elo.ts) is the one canonical source for tier — every
+  // page derives a player's tier from it, so an admin Elo override always
+  // agrees with what the player's own profile shows for the same Elo.
   const tier = calcTier(elo);
+
+  const [before] = await db.select({ elo: playersTable.elo, name: playersTable.name }).from(playersTable).where(eq(playersTable.id, playerId));
 
   const [updated] = await db.update(playersTable)
     .set({ elo })
@@ -349,6 +359,9 @@ router.patch("/admin/players/:id/elo", async (req, res): Promise<void> => {
     .returning();
 
   if (!updated) { res.status(404).json({ error: "Player not found" }); return; }
+  void logAdminAction(req, "player.elo_override", "player", playerId, {
+    name: before?.name, beforeElo: before?.elo, afterElo: elo, tier,
+  });
   res.json({ ok: true, elo, tier });
 });
 
@@ -526,6 +539,14 @@ router.get("/admin/export", async (_req, res): Promise<void> => {
     version: "1.0",
     data: { players, matches, seasons, standings, achievements, playerAchievements },
   });
+});
+
+// ── Admin audit log — recent admin actions (match edits, standings edits,
+// Elo overrides, player deletes, season resets, playoff results) ─────────────
+router.get("/admin/audit-log", async (req, res): Promise<void> => {
+  const limit = Math.min(Number(req.query.limit) || 100, 500);
+  const rows = await getRecentAdminActions(limit);
+  res.json(rows);
 });
 
 // ── Doubles event: random team draw for a season ───────────────────────────────

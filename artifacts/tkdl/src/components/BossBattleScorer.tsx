@@ -19,6 +19,7 @@ import type { GameResult } from "./game-scorer";
 import { BOT_LEVELS } from "@/lib/bot-engine";
 import { getBossEffectsForLeg, type Boss, type BossMove } from "@/lib/boss-battles-data";
 import type { CCEffect } from "@/lib/card-effect-engine";
+import { useNewScoringUI } from "@/lib/useNewScoringUI";
 
 interface BossBattleScorerProps {
   boss: Boss;
@@ -28,6 +29,7 @@ interface BossBattleScorerProps {
 }
 
 export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon }: BossBattleScorerProps) {
+  const newScoringUI = useNewScoringUI();
   if (typeof window !== "undefined") {
     sessionStorage.setItem("card_clash_mode", "true");
     sessionStorage.removeItem("card_clash_chaos_mode");
@@ -116,6 +118,7 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon 
           cardEffects={cardEffects}
           legs={3}
           onLegStart={handleLegStart}
+          newScoringUI={newScoringUI}
         />
       ) : (
         <CricketScorer
@@ -127,6 +130,7 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon 
           cardEffects={cardEffects}
           legs={3}
           onLegStart={handleLegStart}
+          newScoringUI={newScoringUI}
         />
       )}
     </div>

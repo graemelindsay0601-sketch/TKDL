@@ -27,6 +27,7 @@ import { PracticeAnalytics } from "./practice-analytics";
 import { SweepTool } from "./sweep-tool";
 import { TestComms } from "./test-comms";
 import { DataManagement } from "./data-management";
+import { AuditLog } from "./audit-log";
 import { AnnouncementsManager } from "./announcements-manager";
 import { NotificationAnalytics } from "./notification-analytics";
 import AdminCardClashPanel from "@/components/admin-card-clash-panel";
@@ -508,6 +509,7 @@ export default function Admin() {
 
       <TestComms />
       <DataManagement />
+      <AuditLog />
       <AnnouncementsManager />
       <NotificationAnalytics />
       <AdminCardClashPanel />

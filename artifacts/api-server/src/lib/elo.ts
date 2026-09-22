@@ -9,9 +9,15 @@ export function calcEloChange(winnerElo: number, loserElo: number): number {
   return Math.max(1, Math.round(K * (1 - expected)));
 }
 
+// The full 5-tier ladder the app documents (see rules.tsx) and already
+// styles everywhere (tier-badge.tsx, community.tsx, leaderboard.tsx,
+// players.tsx's TIER_BAND, etc.) — this is the single source of truth
+// every route derives a player's tier from.
 export function calcTier(elo: number): string {
+  if (elo >= 1400) return "Diamond";
+  if (elo >= 1250) return "Platinum";
   if (elo >= 1100) return "Gold";
-  if (elo >= 980)  return "Silver";
+  if (elo >= 950)  return "Silver";
   return "Bronze";
 }
 
