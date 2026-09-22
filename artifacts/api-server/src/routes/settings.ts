@@ -5,7 +5,7 @@ import { requireAdminSession } from "../middleware/requireAdminSession";
 import { paramStr } from "../lib/http";
 import {
   getAllFeatureFlags, initializeFeatureFlags,
-  enableFeatureForAll, disableFeature, setAdminTestMode,
+  enableFeatureForAll, disableFeature, setAdminTestMode, getFeatureStatus,
 } from "../services/feature-flags-service";
 
 const router = Router();
@@ -35,6 +35,21 @@ router.get("/settings", async (_req, res): Promise<void> => {
   }
   
   res.json(out);
+});
+
+// Generic, public per-flag status check — same intent as
+// /api/card-clash/feature-status, just not hardcoded to three card-clash
+// flags. Reads req.session.isAdmin, the same field /api/auth/login sets and
+// /api/auth/me reflects back (see routes/auth.ts) — the real, working
+// per-player-login admin flag, not the /admin PIN session and not
+// `req.user` (nothing in this app ever populates that; a couple of older
+// routes read it and are effectively always falling through to "not admin").
+// So "admin test mode" here really does mean "only Graeme, signed in as
+// himself, sees it," verified server-side off his own session.
+router.get("/feature-status/:name", async (req, res): Promise<void> => {
+  const isAdmin = (req.session as any).isAdmin ?? false;
+  const status = await getFeatureStatus(paramStr(req.params.name), isAdmin);
+  res.json(status);
 });
 
 router.patch("/admin/settings/:key", requireAdminSession, async (req, res): Promise<void> => {

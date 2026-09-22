@@ -11,9 +11,12 @@ import {
   ThreeInABedScorer, HighLowScorer,
   TeamX01Scorer, TeamCricketScorer, MultiKillerScorer,
   NinetyNineDartsScorer,
+  PickADoubleScorer, LegsScorer, NoughtsCrossesScorer, CheckoutChallengeScorer, FivesScorer, OcheRouletteScorer, OneEightyScorer,
+  HareHoundsScorer, PrisonerScorer, KnockoutScorer, TennisScorer, FollowTheLeaderScorer, BattleshipScorer, BlindKillersScorer,
 } from "@/lib/scorers";
 import { type BotConfig } from "@/lib/bot-engine";
 import { type PracticeStats } from "@/lib/stats-types";
+import { useNewScoringUI } from "@/lib/useNewScoringUI";
 export type { PracticeStats };
 
 export type GameTypeOption = {
@@ -232,6 +235,11 @@ export function GameScorer({
 }) {
   const isBullUpApplicable = bullUp && !soloMode;
   const [starterIdx, setStarterIdx] = useState<0 | 1 | null>(isBullUpApplicable ? null : 0);
+  // Admin-preview-only redesign of the 8 party game scoring screens — see
+  // useNewScoringUI() and /admin's Feature Flags panel ("New Scoring UI").
+  // Everything else (X01, Cricket, Killer, every non-party engine) ignores
+  // this entirely and renders exactly as before.
+  const newScoringUI = useNewScoringUI();
 
   function renderInner() {
     if (starterIdx === null) {
@@ -280,7 +288,7 @@ export function GameScorer({
       return <KillerScorer p1Name={ep1} p2Name={ep2} lives={(cfg.lives as number) ?? 3} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
 
     case "Sequence":
-      return <SequenceScorer p1Name={ep1} p2Name={ep2} config={cfg} gameKey={gameType.key} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+      return <SequenceScorer p1Name={ep1} p2Name={ep2} config={cfg} gameKey={gameType.key} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} newScoringUI={newScoringUI} />;
 
     case "HighLow":
       return <HighLowScorer p1Name={ep1} p2Name={ep2} config={cfg} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
@@ -329,6 +337,34 @@ export function GameScorer({
           return <ThreeInABedScorer p1Name={ep1} p2Name={ep2} winsNeeded={(cfg.winsNeeded as number) ?? 5} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;
         case "snooker_darts":
           return <SnookerScorer p1Name={ep1} p2Name={ep2} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+        case "pick_a_double":
+          return <PickADoubleScorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+        case "legs":
+          return <LegsScorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+        case "noughts_crosses":
+          return <NoughtsCrossesScorer p1Name={ep1} p2Name={ep2} botConfig={botConfig} onWin={win} onAbandon={onAbandon} />;
+        case "checkout_challenge":
+          return <CheckoutChallengeScorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+        case "fives":
+          return <FivesScorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+        case "oche_roulette":
+          return <OcheRouletteScorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+        case "one_eighty_challenge":
+          return <OneEightyScorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} />;
+        case "hare_and_hounds":
+          return <HareHoundsScorer p1Name={ep1} p2Name={ep2} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} newScoringUI={newScoringUI} />;
+        case "prisoner":
+          return <PrisonerScorer p1Name={ep1} p2Name={ep2} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} newScoringUI={newScoringUI} />;
+        case "knockout":
+          return <KnockoutScorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} newScoringUI={newScoringUI} />;
+        case "tennis":
+          return <TennisScorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} newScoringUI={newScoringUI} />;
+        case "follow_the_leader":
+          return <FollowTheLeaderScorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} newScoringUI={newScoringUI} />;
+        case "battleship_darts":
+          return <BattleshipScorer p1Name={ep1} p2Name={ep2} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} newScoringUI={newScoringUI} />;
+        case "blind_killers":
+          return <BlindKillersScorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} newScoringUI={newScoringUI} />;
         default:
           return <ManualScorer p1Name={ep1} p2Name={ep2} gameName={gameType.name} rules={gameType.description} onWin={win} onAbandon={onAbandon} />;
       }

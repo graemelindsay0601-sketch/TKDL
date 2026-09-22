@@ -8,6 +8,7 @@ export const FEATURES = {
   COINS: "coins",
   CARD_CLASH: "card_clash",
   TKDL_LIVE: "tkdl_live",
+  NEW_SCORING_UI: "new_scoring_ui",
 } as const;
 
 /**
@@ -50,6 +51,12 @@ export async function initializeFeatureFlags() {
         enabled: false,
         adminTestMode: true,
         description: "TKDL LIVE - automated broadcast show (admin preview only until switched live for everyone)",
+      },
+      {
+        featureName: FEATURES.NEW_SCORING_UI,
+        enabled: false,
+        adminTestMode: true,
+        description: "New Scoring UI - redesigned party game scoring screens (admin preview only until switched live for everyone)",
       },
     ]).onConflictDoNothing({ target: featureFlagsTable.featureName });
 

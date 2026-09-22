@@ -4,8 +4,8 @@
  */
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
-import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize } from "lucide-react";
-import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart, botHighLowVisit, getOppositeSeg } from "./bot-engine";
+import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize, Shuffle, Grid3X3, Dices, Rabbit, Lock, Swords, Ship, EyeOff, Footprints, Award } from "lucide-react";
+import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart, botHighLowVisit, getOppositeSeg, botPickADoubleVisit, botNoughtsCrossesDart, botOcheRouletteVisit, botOneEightyVisit, botFivesVisit, botTennisVisit, botBattleshipShot, botBlindKillerVisit, BOARD_ORDER } from "./bot-engine";
 import { type PracticeStats, type DartThrow } from "./stats-types";
 import { CardActivationOverlay } from "@/components/CardActivationOverlay";
 import { ChaosCardReveal } from "@/components/ChaosCardReveal";
@@ -32,6 +32,7 @@ import {
 import { cardDebugLog } from "./card-debug";
 import { createMatchLogger, downloadMatchLog } from "./card-clash/matchLogger";
 import type { MatchLogger } from "./card-clash/matchLogger";
+import { RaceTrack, TrackStats, LivesPods, TerritoryGrid, MatchStrip, type LifePod } from "@/components/party-ui";
 
 /**
  * Sends a match's accumulated log to the backend for later download from
@@ -3798,11 +3799,12 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
 }
 
 // ── Sequence Scorer (Around the World, Round the Clock, Shanghai, etc.) ────────
-export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged }: {
+export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI }: {
   p1Name: string; p2Name: string; config: any; gameKey: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   onTurnChanged?: (t: 0|1) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
@@ -3860,11 +3862,18 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
         { seg: O, mult: 2 as const, label: `D${O}` },
       ];
     }
+    if (gameKey === "grand_national") {
+      const lap = Array.from({length:20},(_,i)=>({seg:i+1,mult:1 as const,label:`${i+1}`}));
+      return [...lap, ...lap, {seg:20,mult:2 as const,label:"D20 — WINNING POST"}];
+    }
     // Shanghai (7 rounds scoring)
     return [];
   };
 
-  const isShanghai = gameKey === "shanghai" || config?.type === "shanghai";
+  // shanghai_sudden_death is the exact same 7-round Shanghai game, just
+  // wired through Sequence instead of sitting orphaned on the Custom engine
+  // (where it had no scorer at all) — same instant-win-on-a-Shanghai rule.
+  const isShanghai = gameKey === "shanghai" || gameKey === "shanghai_sudden_death" || config?.type === "shanghai";
   const isStraightLine = gameKey === "straight_line";
 
   // Straight Line: the player picks their starting number before the
@@ -4044,10 +4053,33 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
     );
   }
 
+  // New-scoring-UI track visual is scoped to Grand National specifically —
+  // every other game on this shared Sequence engine (Around-the-World,
+  // Round-the-Clock, Doubles Challenge, Chase-the-Dragon, Straight Line,
+  // Shanghai's early return above, etc.) keeps its existing progress-bar
+  // rendering unchanged regardless of the flag's state.
+  const showGrandNationalTrack = !!newScoringUI && gameKey === "grand_national";
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider" />
+        {showGrandNationalTrack && (
+          <>
+            <TrackStats items={[
+              { label: names[0], value: `${positions[0]}/${sequence.length}`, playerIdx: 0 },
+              { label: names[1], value: `${positions[1]}/${sequence.length}`, playerIdx: 1 },
+            ]} />
+            <RaceTrack
+              max={sequence.length}
+              tickLabels={["START", "LAP 2", "POST"]}
+              lanes={[
+                { label: names[0], pos: positions[0], emoji: "🐎", playerIdx: 0, leadFill: true },
+                { label: names[1], pos: positions[1], emoji: "🐎", playerIdx: 1 },
+              ]}
+            />
+          </>
+        )}
         {/* Progress bars */}
         <div className="grid grid-cols-2 gap-3">
           {[0,1].map(i => (
@@ -4386,7 +4418,7 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
 
 // ── Count Up Scorer ────────────────────────────────────────────────────────────
 export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
-  p1Name: string; p2Name: string; config: { target?: number; rounds?: number; bullsOnly?: boolean; accumulate?: boolean }; botConfig?: BotConfig;
+  p1Name: string; p2Name: string; config: { target?: number; rounds?: number; bullsOnly?: boolean; accumulate?: boolean; noOuterBull?: boolean }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
@@ -4395,6 +4427,7 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
   const maxRounds = config.rounds ?? 0; // 0 = race to target
   const bullsOnly = config.bullsOnly ?? false;   // Bull Rush: count bull hits only
   const accumulate = config.accumulate ?? false; // Accumulator: each visit must beat previous or score halves
+  const noOuterBull = config.noOuterBull ?? false; // No Black: outer bull (25) scores 0
   const [scores, setScores]         = useState<[number,number]>([0,0]);
   const [rounds, setRounds]         = useState<[number,number]>([0,0]);
   const [lastVisit, setLastVisit]   = useState<[number,number]>([0,0]);
@@ -4410,8 +4443,10 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
     if (nv.length === 3) {
       // Bull Rush: count how many darts hit the bull (segment 25)
       const bullHits = nv.filter(d => d.segment === 25).length;
-      // Standard: sum all dart values
-      const cum = bullsOnly ? bullHits : nv.reduce((s,d) => s+d.value, 0);
+      // No Black: outer bull (single 25) scores nothing this visit — the
+      // bullseye (50) is unaffected, only the wider outer ring is "black."
+      const cum = bullsOnly ? bullHits
+        : nv.reduce((s,d) => s + (noOuterBull && d.segment === 25 && d.multiplier === 1 ? 0 : d.value), 0);
 
       setScores(prev => {
         const ns: [number,number] = [...prev] as [number,number];
@@ -4454,8 +4489,12 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
 
   const sub = (i: number) => {
     if (bullsOnly) return `${target - scores[i]} more bulls to go`;
+    // Accumulator's whole point is knowing what you have to beat BEFORE you
+    // throw — showing this only after a failed visit (the old flash-message
+    // behaviour) is exactly the "no live target" gap this game had.
+    if (accumulate) return rounds[i] === 0 ? "First visit — no target yet" : `Beat ${lastVisit[i]} or it's halved`;
     if (maxRounds > 0) return `Round ${rounds[i]}/${maxRounds}`;
-    return `Target: ${target}`;
+    return `${Math.max(0, target - scores[i])} to go`;
   };
 
   const handleDartRefCU = useRef(handleDart);
@@ -4478,12 +4517,14 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
           <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>
             {bullsOnly ? `Bull Rush — First to ${target} Bulls`
               : accumulate ? "Accumulator"
+              : noOuterBull ? `No Black — Race to ${target}`
               : maxRounds > 0 ? `High Score — ${maxRounds} Rounds`
               : `Count Up — Race to ${target}`}
           </h2>
           <p className="text-xs mt-1" style={{ color:"rgba(255,255,255,0.3)" }}>
             {bullsOnly ? "Only bull hits count · Inner (50) or outer (25) · First to 5 wins"
               : accumulate ? "Each visit must score MORE than previous or your total is HALVED"
+              : noOuterBull ? "Outer bull (25) scores ZERO for the whole visit — bullseye (50) is unaffected"
               : "Score as many points as possible"}
           </p>
         </div>
@@ -4492,7 +4533,7 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
         </div>
         {halvMsg && <div className="text-center font-bold text-sm" style={{ color:"#ff005c", fontFamily:"Oswald,sans-serif" }}>{halvMsg}</div>}
         {isBotTurnCU ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
-          : <TurnBanner name={names[turn]} turn={turn} msg={bullsOnly ? "— aim at Bull!" : "— score as many as you can"} />}
+          : <TurnBanner name={names[turn]} turn={turn} msg={bullsOnly ? "— aim at Bull!" : accumulate ? sub(turn) : "— score as many as you can"} />}
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
@@ -4500,6 +4541,7 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
           onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
           onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
           highlightSegments={bullsOnly ? [25] : undefined}
+          markedSegments={noOuterBull ? [{ segment: 25, color: "#ff005c", icon: "⚠", magnitudeLabel: "=0" }] : undefined}
           disabled={isBotTurnCU} />
         <AbandonBtn onAbandon={onAbandon} />
       </div>}
@@ -5134,6 +5176,1569 @@ export function ManualScorer({ p1Name, p2Name, gameName, rules, onWin, onAbandon
           </button>
         ))}
       </div>
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Pick a Double Scorer ─────────────────────────────────────────────────────────
+// Each player calls ONE double at the start of the leg and must finish exactly
+// on it — hitting a different double (even one that would otherwise check you
+// out) doesn't count, so the whole leg has to be routed around your own call.
+export function PickADoubleScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string; config?: { startScore?: number }; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const startScore = config?.startScore ?? 301;
+  const DOUBLE_OPTIONS = [...Array.from({ length: 20 }, (_, i) => ({ seg: i + 1 })), { seg: 25 }];
+
+  const [called, setCalled] = useState<[{ seg: number; mult: 2 } | null, { seg: number; mult: 2 } | null]>([null, null]);
+  const [callPhase, setCallPhase] = useState<0 | 1 | null>(0);
+  const [remaining, setRemaining] = useState<[number, number]>([startScore, startScore]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [flash, setFlash] = useState<string | null>(null);
+
+  const handleCall = (idx: 0 | 1, seg: number) => {
+    setCalled(prev => { const n = [...prev] as typeof prev; n[idx] = { seg, mult: 2 }; return n; });
+    setCallPhase(idx === 0 ? 1 : null);
+  };
+
+  const handleDart = (dart: Dart) => {
+    if (callPhase !== null || visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    const myCalled = called[turn]!;
+    const cur = remaining[turn];
+    const tentative = cur - dart.value;
+    if (tentative > 1) {
+      setRemaining(prev => { const nr: [number,number] = [...prev] as [number,number]; nr[turn] = tentative; return nr; });
+    } else if (tentative === 0) {
+      const isCalledDouble = dart.segment === myCalled.seg && dart.multiplier === 2;
+      if (isCalledDouble) {
+        setRemaining(prev => { const nr: [number,number] = [...prev] as [number,number]; nr[turn] = 0; return nr; });
+        safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "pick_a_double" } }); onWin(turn, `Checked out on the called double!`); }, 300);
+      } else {
+        setFlash(`Not ${names[turn]}'s called double — dart doesn't count!`);
+        safeTimeout(() => setFlash(null), 1800);
+      }
+    } else {
+      setFlash(tentative < 0 ? "Overshot — dart wasted!" : "Can't leave 1 — dart wasted!");
+      safeTimeout(() => setFlash(null), 1500);
+    }
+    if (nv.length === 3) { setVisitDarts([]); const nt: 0|1 = turn===0?1:0; setTurn(nt); }
+  };
+
+  const handleDartRefPAD = useRef(handleDart);
+  useEffect(() => { handleDartRefPAD.current = handleDart; });
+  const isBotTurnPAD = !!botConfig && turn === 1 && callPhase === null;
+  useEffect(() => {
+    if (!botConfig || turn !== 1 || callPhase !== null) return;
+    const myCalled = called[1];
+    if (!myCalled) return;
+    const [d1, d2, d3] = botPickADoubleVisit(remaining[1], myCalled.seg, myCalled.mult, botConfig);
+    const t1 = safeTimeout(() => handleDartRefPAD.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefPAD.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefPAD.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig, callPhase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Bot auto-calls its double instead of showing it a clickable picker.
+  useEffect(() => {
+    if (!botConfig || callPhase !== 1) return;
+    const BOT_DOUBLES = [20, 16, 8, 10, 12, 14, 4, 6, 18, 2];
+    const seg = BOT_DOUBLES[Math.floor(Math.random() * BOT_DOUBLES.length)];
+    const t = safeTimeout(() => handleCall(1, seg), 900);
+    return () => clearTimeout(t);
+  }, [callPhase, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dblLabel = (seg: number) => seg === 25 ? "DB" : `D${seg}`;
+  const showPicker = callPhase !== null && !(botConfig && callPhase === 1);
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      {callPhase !== null ? (
+        showPicker ? (
+          <>
+            <div className="text-center">
+              <Crosshair className="w-8 h-8 mx-auto mb-2" style={{ color: P_COLOR(callPhase) }} />
+              <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{names[callPhase]}, call your double</h2>
+              <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>You must finish THIS leg on this double — no other checkout counts</p>
+            </div>
+            <SectionCard>
+              <div className="grid grid-cols-5 gap-1.5">
+                {DOUBLE_OPTIONS.map(opt => (
+                  <button key={opt.seg} onClick={() => handleCall(callPhase, opt.seg)}
+                    style={{ padding: "0.7rem 0", borderRadius: "0.5rem", border: "1.5px solid rgba(255,255,255,0.12)",
+                      background: "rgba(255,255,255,0.04)", color: "#fff", fontFamily: "Oswald, sans-serif", fontWeight: 800, fontSize: "0.9rem", cursor: "pointer" }}>
+                    {dblLabel(opt.seg)}
+                  </button>
+                ))}
+              </div>
+            </SectionCard>
+            <AbandonBtn onAbandon={onAbandon} />
+          </>
+        ) : (
+          <div className="text-center py-10">
+            <Crosshair className="w-8 h-8 mx-auto mb-2" style={{ color: P_COLOR(1) }} />
+            <p style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.5)" }}>CPU is calling its double…</p>
+          </div>
+        )
+      ) : (
+        <>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Pick a Double</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[0,1].map(i => (
+              <PlayerCard key={i} name={names[i]} score={remaining[i]} turn={i===0} active={turn===i} sub={`Must finish on ${dblLabel(called[i]!.seg)}`} />
+            ))}
+          </div>
+          {flash && <BustBanner msg={flash} />}
+          {isBotTurnPAD ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+            : <TurnBanner name={names[turn]} turn={turn} msg={`— needs ${dblLabel(called[turn]!.seg)} to finish`} />}
+          <VisitDarts darts={visitDarts} />
+          <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+            onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+            onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+            highlightSegments={remaining[turn] === (called[turn]!.seg===25?50:called[turn]!.seg*2) ? [called[turn]!.seg] : undefined}
+            disabled={isBotTurnPAD} />
+          <AbandonBtn onAbandon={onAbandon} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Legs Scorer ───────────────────────────────────────────────────────────────
+// Standard double-out X01, but the winner of each leg picks the NEXT leg's
+// starting score (clamped to the configured range) instead of it being fixed.
+export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string; config?: { minScore?: number; maxScore?: number; legsToWin?: number }; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const minScore = config?.minScore ?? 101;
+  const maxScore = config?.maxScore ?? 501;
+  const legsToWin = config?.legsToWin ?? 3;
+  const defaultPick = Math.min(maxScore, Math.max(minScore, 301));
+
+  const [legWins, setLegWins] = useState<[number, number]>([0, 0]);
+  const [picker, setPicker] = useState<0 | 1>(0);
+  const [phase, setPhase] = useState<"picking" | "playing">("picking");
+  const [pickedScore, setPickedScore] = useState(defaultPick);
+  const [remaining, setRemaining] = useState<[number, number]>([defaultPick, defaultPick]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [flash, setFlash] = useState<string | null>(null);
+
+  const startLeg = (score: number) => {
+    setPickedScore(score);
+    setRemaining([score, score]);
+    setTurn(0);
+    setPhase("playing");
+  };
+
+  const handleDart = (dart: Dart) => {
+    if (phase !== "playing" || visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    const cur = remaining[turn];
+    const tentative = cur - dart.value;
+    if (tentative === 0 && dart.multiplier === 2) {
+      setRemaining(prev => { const nr: [number,number] = [...prev] as [number,number]; nr[turn] = 0; return nr; });
+      setFlash(`${names[turn]} takes the leg!`);
+      safeTimeout(() => setFlash(null), 1800);
+      setLegWins(prev => {
+        const nl: [number,number] = [...prev] as [number,number];
+        nl[turn]++;
+        if (nl[turn] >= legsToWin) {
+          safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "legs" } }); onWin(turn, `Won ${nl[turn]} legs to ${nl[turn===0?1:0]}`); }, 900);
+        } else {
+          safeTimeout(() => { setPicker(turn); setPhase("picking"); }, 900);
+        }
+        return nl;
+      });
+    } else if (tentative > 1) {
+      setRemaining(prev => { const nr: [number,number] = [...prev] as [number,number]; nr[turn] = tentative; return nr; });
+    } else {
+      setFlash(tentative === 0 ? "Not a double — doesn't count!" : "Bust — dart wasted!");
+      safeTimeout(() => setFlash(null), 1500);
+    }
+    if (nv.length === 3) { setVisitDarts([]); const nt: 0|1 = turn===0?1:0; setTurn(nt); }
+  };
+
+  const handleDartRefLegs = useRef(handleDart);
+  useEffect(() => { handleDartRefLegs.current = handleDart; });
+  const isBotTurnLegs = !!botConfig && turn === 1 && phase === "playing";
+  useEffect(() => {
+    if (!botConfig || turn !== 1 || phase !== "playing") return;
+    const [d1, d2, d3] = botX01Visit(remaining[1], true, botConfig);
+    const t1 = safeTimeout(() => handleDartRefLegs.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefLegs.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefLegs.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig, phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!botConfig || picker !== 1 || phase !== "picking") return;
+    const t = safeTimeout(() => startLeg(defaultPick), 900);
+    return () => clearTimeout(t);
+  }, [picker, phase, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      {phase === "picking" ? (
+        <>
+          <div className="text-center">
+            <Dices className="w-8 h-8 mx-auto mb-2" style={{ color: P_COLOR(picker) }} />
+            <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{names[picker]} picks the next leg</h2>
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Choose a starting score between {minScore} and {maxScore}</p>
+          </div>
+          <SectionCard>
+            <div className="text-center font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", color: P_COLOR(picker) }}>{pickedScore}</div>
+            <input type="range" min={minScore} max={maxScore} value={pickedScore}
+              onChange={e => setPickedScore(Number(e.target.value))}
+              style={{ width: "100%", marginTop: "0.5rem" }} />
+            <div className="flex gap-1.5 flex-wrap justify-center mt-3">
+              {[101,170,201,301,501].filter(v => v >= minScore && v <= maxScore).map(v => (
+                <button key={v} onClick={() => setPickedScore(v)}
+                  style={{ padding: "0.4rem 0.8rem", borderRadius: "0.4rem", fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.8rem",
+                    border: pickedScore===v ? "1.5px solid #ffd24a" : "1px solid rgba(255,255,255,0.12)",
+                    background: pickedScore===v ? "rgba(255,210,74,0.12)" : "rgba(255,255,255,0.04)",
+                    color: pickedScore===v ? "#ffd24a" : "rgba(255,255,255,0.5)", cursor: "pointer" }}>
+                  {v}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => startLeg(pickedScore)}
+              className="w-full mt-3" style={{ padding: "0.75rem", borderRadius: "0.5rem", fontFamily: "Oswald, sans-serif", fontWeight: 800,
+                border: `1.5px solid ${P_COLOR(picker)}66`, background: `${P_COLOR(picker)}18`, color: P_COLOR(picker), cursor: "pointer" }}>
+              Start Leg at {pickedScore}
+            </button>
+          </SectionCard>
+          <AbandonBtn onAbandon={onAbandon} />
+        </>
+      ) : (
+        <>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Legs — First to {legsToWin}</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-xs text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
+            {[0,1].map(i => <div key={i} style={{ color: P_COLOR(i) }}>{names[i]}: {legWins[i]} 🏆</div>)}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={remaining[i]} turn={i===0} active={turn===i} sub={`Leg started at ${pickedScore}`} />)}
+          </div>
+          {flash && <BustBanner msg={flash} />}
+          {isBotTurnLegs ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} />}
+          <VisitDarts darts={visitDarts} />
+          <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+            onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+            onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+            disabled={isBotTurnLegs} />
+          <AbandonBtn onAbandon={onAbandon} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Noughts & Crosses Scorer ───────────────────────────────────────────────────
+const NC_LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+export function NoughtsCrossesScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
+  p1Name: string; p2Name: string; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const [cells, setCells] = useState<(0|1|null)[]>(Array(9).fill(null));
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (dart.segment >= 1 && dart.segment <= 9) {
+      setCells(prev => {
+        if (prev[dart.segment - 1] !== null) return prev;
+        const nc = [...prev];
+        nc[dart.segment - 1] = turn;
+        for (const line of NC_LINES) {
+          if (line.every(i => nc[i] === turn)) {
+            safeTimeout(() => onWin(turn, "Three in a row!"), 300);
+            return nc;
+          }
+        }
+        if (nc.every(c => c !== null)) {
+          const count0 = nc.filter(c => c === 0).length;
+          safeTimeout(() => onWin(count0 > 4 ? 0 : 1, "Board full — most cells claimed"), 300);
+        }
+        return nc;
+      });
+    }
+    if (nv.length === 3) { setVisitDarts([]); const nt: 0|1 = turn===0?1:0; setTurn(nt); }
+  };
+
+  const handleDartRefNC = useRef(handleDart);
+  useEffect(() => { handleDartRefNC.current = handleDart; });
+  const isBotTurnNC = !!botConfig && turn === 1;
+  useEffect(() => {
+    if (!botConfig || turn !== 1) return;
+    const t1 = safeTimeout(() => handleDartRefNC.current(botNoughtsCrossesDart(cells, 1, botConfig)), 700);
+    const t2 = safeTimeout(() => handleDartRefNC.current(botNoughtsCrossesDart(cells, 1, botConfig)), 1400);
+    const t3 = safeTimeout(() => handleDartRefNC.current(botNoughtsCrossesDart(cells, 1, botConfig)), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <Grid3X3 className="w-8 h-8 mx-auto mb-2" style={{ color: "#ffd24a" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Noughts &amp; Crosses</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Hit numbers 1–9 to claim a square — three in a row wins</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3 text-xs text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
+        <div style={{ color: P_COLOR(0) }}>{names[0]}: ✕</div>
+        <div style={{ color: P_COLOR(1) }}>{names[1]}: ○</div>
+      </div>
+      <SectionCard>
+        <div className="grid grid-cols-3 gap-2" style={{ maxWidth: "260px", margin: "0 auto" }}>
+          {cells.map((c, i) => (
+            <div key={i} style={{
+              aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center",
+              borderRadius: "0.6rem", fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "1.8rem",
+              border: c === null ? "1.5px solid rgba(255,255,255,0.12)" : `1.5px solid ${P_COLOR(c)}66`,
+              background: c === null ? "rgba(255,255,255,0.03)" : `${P_COLOR(c)}14`,
+              color: c === null ? "rgba(255,255,255,0.25)" : P_COLOR(c),
+            }}>
+              {c === null ? i + 1 : c === 0 ? "✕" : "○"}
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+      {isBotTurnNC ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+        : <TurnBanner name={names[turn]} turn={turn} msg="— hit an open number 1–9" />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        activeSegments={[1,2,3,4,5,6,7,8,9]}
+        highlightSegments={cells.map((c,i) => c===null ? i+1 : null).filter((x): x is number => x!==null)}
+        disabled={isBotTurnNC} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Checkout Challenge Scorer ──────────────────────────────────────────────────
+// Every visit is a fresh, independent attempt at the same starting score — you
+// only win by actually checking it out inside one visit, not by accumulating.
+export function CheckoutChallengeScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string; config?: { startScore?: number }; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const startScore = config?.startScore ?? 170;
+  const [remaining, setRemaining] = useState<[number, number]>([startScore, startScore]);
+  const [attempts, setAttempts] = useState<[number, number]>([0, 0]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    const cur = remaining[turn];
+    const tentative = cur - dart.value;
+    let finished = false;
+    if (tentative === 0 && dart.multiplier === 2) {
+      finished = true;
+      setRemaining(prev => { const nr: [number,number] = [...prev] as [number,number]; nr[turn] = 0; return nr; });
+    } else if (tentative > 1) {
+      setRemaining(prev => { const nr: [number,number] = [...prev] as [number,number]; nr[turn] = tentative; return nr; });
+    }
+    if (finished) {
+      safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "checkout_challenge" } }); onWin(turn, `Checked out ${startScore} in one visit!`); }, 300);
+      return;
+    }
+    if (nv.length === 3) {
+      setVisitDarts([]);
+      setAttempts(prev => { const na: [number,number] = [...prev] as [number,number]; na[turn]++; return na; });
+      setRemaining(prev => { const nr: [number,number] = [...prev] as [number,number]; nr[turn] = startScore; return nr; });
+      const nt: 0|1 = turn===0?1:0; setTurn(nt);
+    }
+  };
+
+  const handleDartRefCC = useRef(handleDart);
+  useEffect(() => { handleDartRefCC.current = handleDart; });
+  const isBotTurnCC = !!botConfig && turn === 1;
+  useEffect(() => {
+    if (!botConfig || turn !== 1) return;
+    const [d1, d2, d3] = botX01Visit(startScore, true, botConfig);
+    const t1 = safeTimeout(() => handleDartRefCC.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefCC.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefCC.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const suggested = CHECKOUTS[startScore];
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <Target className="w-8 h-8 mx-auto mb-2" style={{ color: "#38bdf8" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Checkout Challenge</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Fresh {startScore} every visit — check out in ONE visit to win. Honour the double!</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={remaining[i]} turn={i===0} active={turn===i} sub={`Attempt #${attempts[i]+1}`} />)}
+      </div>
+      {suggested && <CheckoutBar checkout={suggested} playerName={names[turn]} playerIdx={turn} />}
+      {isBotTurnCC ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg="— check out to win!" />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        disabled={isBotTurnCC} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Fives Scorer ────────────────────────────────────────────────────────────────
+export function FivesScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string; config?: { target?: number }; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const target = config?.target ?? 51;
+  const [scores, setScores] = useState<[number, number]>([0, 0]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [flash, setFlash] = useState<string | null>(null);
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      const cum = nv.reduce((s,d) => s+d.value, 0);
+      const isMultiple = cum > 0 && cum % 5 === 0;
+      setScores(prev => {
+        const ns: [number,number] = [...prev] as [number,number];
+        if (isMultiple) {
+          ns[turn] += cum;
+          if (ns[turn] >= target) {
+            safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "fives" } }); onWin(turn, `Reached ${ns[turn]}!`); }, 300);
+          }
+        }
+        return ns;
+      });
+      setFlash(isMultiple ? `✓ ${cum} — multiple of 5, it counts!` : `✗ ${cum} — not a multiple of 5, scores ZERO`);
+      safeTimeout(() => setFlash(null), 1800);
+      setVisitDarts([]);
+      setTurn(t => t===0?1:0);
+    }
+  };
+
+  const handleDartRefFv = useRef(handleDart);
+  useEffect(() => { handleDartRefFv.current = handleDart; });
+  const isBotTurnFv = !!botConfig && turn === 1;
+  useEffect(() => {
+    if (!botConfig || turn !== 1) return;
+    const [d1, d2, d3] = botFivesVisit(botConfig);
+    const t1 = safeTimeout(() => handleDartRefFv.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefFv.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefFv.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const liveTotal = visitDarts.reduce((s,d) => s+d.value, 0);
+  const liveOK = visitDarts.length > 0 && liveTotal % 5 === 0;
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Fives — Race to {target}</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Each visit must total a multiple of 5, or it scores nothing</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} scoreSuffix={`/${target}`} turn={i===0} active={turn===i} />)}
+      </div>
+      {visitDarts.length > 0 && (
+        <div className="text-center text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", color: liveOK ? "#22c55e" : "#ff6b6b" }}>
+          This visit: {liveTotal} {liveOK ? "✓ multiple of 5" : "— not a multiple of 5 yet"}
+        </div>
+      )}
+      {flash && <div className="text-center font-bold text-sm" style={{ color: flash.startsWith("✓") ? "#22c55e" : "#ff005c", fontFamily: "Oswald, sans-serif" }}>{flash}</div>}
+      {isBotTurnFv ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg="— score a multiple of 5!" />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        disabled={isBotTurnFv} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Oche Roulette Scorer ────────────────────────────────────────────────────────
+export function OcheRouletteScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string; config?: { rounds?: number }; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const totalRounds = config?.rounds ?? 9;
+  const pickTarget = () => { const pool = [...Array.from({length:20},(_,i)=>i+1), 25]; return pool[Math.floor(Math.random()*pool.length)]; };
+
+  const [round, setRound] = useState(1);
+  const [target, setTarget] = useState<number>(() => pickTarget());
+  const [scores, setScores] = useState<[number, number]>([0, 0]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+
+  const advanceRound = (finalScores: [number, number]) => {
+    if (round >= totalRounds && finalScores[0] !== finalScores[1]) {
+      safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "oche_roulette" } }); onWin(finalScores[0] > finalScores[1] ? 0 : 1, `${finalScores[0]} vs ${finalScores[1]}`); }, 300);
+      return;
+    }
+    setRound(r => r + 1);
+    setTarget(pickTarget());
+    setTurn(0);
+  };
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (dart.segment === target) {
+      setScores(prev => { const ns: [number,number] = [...prev] as [number,number]; ns[turn] += dart.value; return ns; });
+    }
+    if (nv.length === 3) {
+      setVisitDarts([]);
+      if (turn === 0) { setTurn(1); }
+      else { setScores(sc => { advanceRound(sc); return sc; }); }
+    }
+  };
+
+  const handleDartRefOR = useRef(handleDart);
+  useEffect(() => { handleDartRefOR.current = handleDart; });
+  const isBotTurnOR = !!botConfig && turn === 1;
+  useEffect(() => {
+    if (!botConfig || turn !== 1) return;
+    const [d1, d2, d3] = botOcheRouletteVisit(target, botConfig);
+    const t1 = safeTimeout(() => handleDartRefOR.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefOR.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefOR.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig, target]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <Shuffle className="w-8 h-8 mx-auto mb-2" style={{ color: "#c084fc" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Oche Roulette</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
+          {round > totalRounds ? "SUDDEN DEATH — tied, one more spin" : `Round ${round}/${totalRounds}`}
+        </p>
+      </div>
+      <SectionCard>
+        <div className="text-center">
+          <div className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>Tonight's target</div>
+          <div className="font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", lineHeight: 1, color: "#c084fc", textShadow: "0 0 20px rgba(192,132,252,0.5)" }}>
+            {target === 25 ? "BULL" : target}
+          </div>
+          <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Both players get 3 darts — hits score, misses score zero</div>
+        </div>
+      </SectionCard>
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} />)}
+      </div>
+      {isBotTurnOR ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+        : <TurnBanner name={names[turn]} turn={turn} msg={`— aim at ${target === 25 ? "Bull" : target}`} />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        highlightSegments={[target]}
+        disabled={isBotTurnOR} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── 180 Challenge Scorer ────────────────────────────────────────────────────────
+export function OneEightyScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+  p1Name: string; p2Name: string; config?: { attempts?: number }; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const maxAttempts = config?.attempts ?? 10;
+  const [attempts, setAttempts] = useState<[number, number]>([0, 0]);
+  const [bestVisit, setBestVisit] = useState<[number, number]>([0, 0]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      const isPerfect = nv.every(d => d.segment === 20 && d.multiplier === 3);
+      const total = nv.reduce((s,d) => s+d.value, 0);
+      if (isPerfect) {
+        safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "one_eighty_challenge" } }); onWin(turn, "PERFECT 180!"); }, 300);
+        setVisitDarts([]);
+        return;
+      }
+      setBestVisit(prev => { const nb: [number,number] = [...prev] as [number,number]; nb[turn] = Math.max(nb[turn], total); return nb; });
+      setAttempts(prev => {
+        const na: [number,number] = [...prev] as [number,number];
+        na[turn]++;
+        if (na[0] >= maxAttempts && na[1] >= maxAttempts) {
+          safeTimeout(() => {
+            setBestVisit(bv => {
+              onPracticeStats?.({ sessionData: { mode: "one_eighty_challenge" } });
+              onWin(bv[0] >= bv[1] ? 0 : 1, `Nobody hit 180 — best visit ${bv[0]} vs ${bv[1]}`);
+              return bv;
+            });
+          }, 300);
+        }
+        return na;
+      });
+      setVisitDarts([]);
+      setTurn(t => t===0?1:0);
+    }
+  };
+
+  const handleDartRefOE = useRef(handleDart);
+  useEffect(() => { handleDartRefOE.current = handleDart; });
+  const isBotTurnOE = !!botConfig && turn === 1;
+  useEffect(() => {
+    if (!botConfig || turn !== 1) return;
+    const [d1, d2, d3] = botOneEightyVisit(botConfig);
+    const t1 = safeTimeout(() => handleDartRefOE.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefOE.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefOE.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <Dices className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff6b9d" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>180 Challenge</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>T20 · T20 · T20 — first perfect visit wins</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={attempts[i]} scoreSuffix={`/${maxAttempts}`} turn={i===0} active={turn===i} sub={`Best visit: ${bestVisit[i]}`} />)}
+      </div>
+      <div className="flex gap-2 justify-center">
+        {[0,1,2].map(i => {
+          const d = visitDarts[i];
+          const isT20 = !!d && d.segment===20 && d.multiplier===3;
+          return (
+            <div key={i} style={{
+              width:"3.5rem", height:"3.5rem", borderRadius:"0.5rem", display:"flex", alignItems:"center", justifyContent:"center",
+              fontFamily:"Oswald, sans-serif", fontWeight:900, fontSize:"1rem",
+              border: d ? (isT20 ? "2px solid #22c55e" : "1.5px solid rgba(255,0,92,0.4)") : "1.5px dashed rgba(255,255,255,0.1)",
+              background: d ? (isT20 ? "rgba(34,197,94,0.15)" : "rgba(255,0,92,0.08)") : "rgba(255,255,255,0.02)",
+              color: d ? (isT20 ? "#22c55e" : "#ff005c") : "rgba(255,255,255,0.15)",
+            }}>
+              {d ? (isT20 ? "T20" : "✕") : "—"}
+            </div>
+          );
+        })}
+      </div>
+      {isBotTurnOE ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg="— go for T20, T20, T20!" />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        highlightSegments={[20]}
+        disabled={isBotTurnOE} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Phase 2 — Party Batch 2 (venue/app-inspired party games)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Hare and Hounds Scorer ──────────────────────────────────────────────────────
+// Player 1 is always the Hare, Player 2 always the Hound — the Hare races solo
+// around 1–20 to finish the lap; the Hound chases the exact same path and wins
+// the instant its own position catches or passes the Hare's.
+export function HareHoundsScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+  p1Name: string; p2Name: string; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const [harePos, setHarePos] = useState(0);
+  const [houndPos, setHoundPos] = useState(0);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+
+  const target = turn === 0 ? harePos + 1 : houndPos + 1;
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (dart.segment === target) {
+      if (turn === 0) {
+        const np = harePos + 1;
+        setHarePos(np);
+        if (np >= 20) {
+          safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "hare_and_hounds" } }); onWin(0, "The Hare completes the lap!"); }, 300);
+        }
+      } else {
+        const np = houndPos + 1;
+        setHoundPos(np);
+        if (np >= harePos) {
+          safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "hare_and_hounds" } }); onWin(1, "The Hound catches the Hare!"); }, 300);
+        }
+      }
+    }
+    if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); }
+  };
+
+  const handleDartRefHH = useRef(handleDart);
+  useEffect(() => { handleDartRefHH.current = handleDart; });
+  const isBotTurnHH = !!botConfig && turn === 1;
+  useEffect(() => {
+    if (!botConfig || turn !== 1) return;
+    const [d1, d2, d3] = botSequenceVisit(houndPos + 1, 1, botConfig);
+    const t1 = safeTimeout(() => handleDartRefHH.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefHH.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefHH.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig, houndPos]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const gap = harePos - houndPos;
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <Rabbit className="w-8 h-8 mx-auto mb-2" style={{ color: "#ffd24a" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Hare and Hounds</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
+          {names[0]} is the Hare, racing 1→20. {names[1]} is the Hound, chasing the same path — catch the Hare's number to win.
+        </p>
+      </div>
+      {newScoringUI ? (
+        <>
+          <TrackStats items={[
+            { label: `${names[0]} · Hare`, value: gap > 0 ? `${gap} lengths clear` : "level!", playerIdx: 0 },
+            { label: `${names[1]} · Hound`, value: gap > 0 ? "closing in" : "caught up!", playerIdx: 1 },
+          ]} />
+          <RaceTrack
+            max={20}
+            tickLabels={["START", "10", "FINISH"]}
+            lanes={[
+              { label: names[0], pos: harePos, emoji: "🐇", playerIdx: 0, leadFill: true },
+              { label: names[1], pos: houndPos, emoji: "🐕", playerIdx: 1 },
+            ]}
+          />
+        </>
+      ) : (
+        <SectionCard>
+          <div className="flex items-center gap-1" style={{ overflowX: "auto", paddingTop: "0.9rem", paddingBottom: "0.9rem" }}>
+            {Array.from({length:20},(_,i)=>i+1).map(n => (
+              <div key={n} style={{
+                minWidth: "24px", height: "24px", borderRadius: "0.3rem", display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "Oswald, sans-serif", fontWeight: 800, fontSize: "0.65rem", position: "relative", flexShrink: 0,
+                background: n === harePos ? "rgba(255,210,74,0.2)" : n === houndPos ? "rgba(238,10,120,0.2)" : "rgba(255,255,255,0.03)",
+                border: n === harePos ? "1.5px solid #ffd24a" : n === houndPos ? "1.5px solid #ee0a78" : "1px solid rgba(255,255,255,0.08)",
+                color: "rgba(255,255,255,0.5)",
+              }}>
+                {n}
+                {n === harePos && <span style={{ position:"absolute", top:"-16px", fontSize:"0.85rem" }}>🐇</span>}
+                {n === houndPos && <span style={{ position:"absolute", bottom:"-16px", fontSize:"0.85rem" }}>🐕</span>}
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <PlayerCard name={`${names[0]} 🐇`} score={harePos} scoreSuffix="/20" turn={true} active={turn===0} sub="Hare" />
+        <PlayerCard name={`${names[1]} 🐕`} score={houndPos} scoreSuffix="/20" turn={false} active={turn===1} sub={gap>0?`${gap} behind`:"Level!"} />
+      </div>
+      {isBotTurnHH ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+        : <TurnBanner name={names[turn]} turn={turn} msg={`— hit ${target} to advance`} />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        highlightSegments={[target]}
+        disabled={isBotTurnHH} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Prisoner Scorer ──────────────────────────────────────────────────────────────
+// Round the Clock 1–20, distinguishing the two single rings — hit the INNER
+// single ring on any number and you're jailed: your very next visit is
+// skipped entirely, handled by an auto-advancing effect rather than an early
+// return, so the hooks order never changes across renders.
+export function PrisonerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+  p1Name: string; p2Name: string; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const [positions, setPositions] = useState<[number, number]>([0, 0]);
+  const [skipNext, setSkipNext] = useState<[boolean, boolean]>([false, false]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [flash, setFlash] = useState<string | null>(null);
+
+  const target = positions[turn] + 1;
+
+  const handleDart = (dart: Dart) => {
+    if (skipNext[turn] || visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (dart.multiplier === 1 && dart.ring === "inner") {
+      setSkipNext(prev => { const n: [boolean,boolean] = [...prev] as [boolean,boolean]; n[turn] = true; return n; });
+      setFlash(`${names[turn]} hit the inner ring — JAILED! Skips their next visit.`);
+      safeTimeout(() => setFlash(null), 1800);
+    } else if (dart.segment === target) {
+      const np = positions[turn] + 1;
+      setPositions(prev => { const n: [number,number] = [...prev] as [number,number]; n[turn] = np; return n; });
+      if (np >= 20) {
+        safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "prisoner" } }); onWin(turn, "Reached 20 first!"); }, 300);
+      }
+    }
+    if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); }
+  };
+
+  const handleDartRefPR = useRef(handleDart);
+  useEffect(() => { handleDartRefPR.current = handleDart; });
+
+  // Auto-skip a jailed player's turn the moment it comes around to them —
+  // lives inside a JSX conditional/effect rather than an early return, so
+  // no hook declared below it is ever skipped on a re-render.
+  useEffect(() => {
+    if (!skipNext[turn]) return;
+    setFlash(`${names[turn]} is in jail — visit skipped!`);
+    const t = safeTimeout(() => {
+      setSkipNext(prev => { const n: [boolean,boolean] = [...prev] as [boolean,boolean]; n[turn] = false; return n; });
+      setTurn(t2 => t2===0?1:0);
+      setFlash(null);
+    }, 1400);
+    return () => clearTimeout(t);
+  }, [turn]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isBotTurnPR = !!botConfig && turn === 1 && !skipNext[1];
+  useEffect(() => {
+    if (!botConfig || turn !== 1 || skipNext[1]) return;
+    // The bot never risks hitting its own inner ring — it always aims for
+    // the safe outer single (or the target's double/treble bed).
+    const [d1, d2, d3] = botSequenceVisit(positions[1] + 1, 1, botConfig, "outer");
+    const t1 = safeTimeout(() => handleDartRefPR.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefPR.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefPR.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig, positions, skipNext]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <Lock className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff6b6b" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Prisoner</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Round the Clock 1–20 — but hit the INNER ring and you're jailed, skipping your next visit</p>
+      </div>
+      {newScoringUI && (
+        <>
+          <TrackStats items={[
+            { label: names[0], value: skipNext[0] ? "🔒 jailed" : `${positions[0]}/20`, playerIdx: 0 },
+            { label: names[1], value: skipNext[1] ? "🔒 jailed" : `${positions[1]}/20`, playerIdx: 1 },
+          ]} />
+          <RaceTrack
+            max={20}
+            tickLabels={["START", "10", "FINISH"]}
+            lanes={[
+              { label: names[0], pos: positions[0], emoji: skipNext[0] ? "🔒" : "🏃", playerIdx: 0, leadFill: true },
+              { label: names[1], pos: positions[1], emoji: skipNext[1] ? "🔒" : "🏃", playerIdx: 1 },
+            ]}
+          />
+        </>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => (
+          <PlayerCard key={i} name={names[i]} score={positions[i]} scoreSuffix="/20" turn={i===0} active={turn===i}
+            sub={skipNext[i] ? "🔒 Jailed — next visit skipped" : undefined} />
+        ))}
+      </div>
+      {flash && <BustBanner msg={flash} />}
+      {isBotTurnPR ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+        : skipNext[turn] ? <TurnBanner name={names[turn]} turn={turn} msg="— in jail, visit skipped…" />
+        : <TurnBanner name={names[turn]} turn={turn} msg={`— hit ${target} (outer ring only!)`} />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        highlightSegments={[target]}
+        distinguishSingleRing
+        disabled={isBotTurnPR || skipNext[turn]} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Knockout Scorer ─────────────────────────────────────────────────────────────
+// Every visit has to beat the previous visit's total (the opening visit
+// auto-passes since there's nothing to beat yet) or it's a strike. The bar
+// always resets to whatever was actually scored, win or lose the strike.
+export function KnockoutScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+  p1Name: string; p2Name: string; config?: { strikes?: number }; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const maxStrikes = config?.strikes ?? 3;
+  const [lastScore, setLastScore] = useState<number | null>(null);
+  const [strikes, setStrikes] = useState<[number, number]>([0, 0]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [flash, setFlash] = useState<string | null>(null);
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      const total = nv.reduce((s,d) => s+d.value, 0);
+      const beat = lastScore === null || total > lastScore;
+      if (!beat) {
+        setStrikes(prev => {
+          const ns: [number,number] = [...prev] as [number,number];
+          ns[turn]++;
+          if (ns[turn] >= maxStrikes) {
+            safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "knockout" } }); onWin(turn===0?1:0, `${names[turn]} struck out — ${ns[turn]} strikes`); }, 900);
+          }
+          return ns;
+        });
+        setFlash(lastScore === null ? `${total} — opening bar set` : `${total} doesn't beat ${lastScore} — strike!`);
+      } else {
+        setFlash(lastScore === null ? `Opening visit: ${total}` : `${total} beats ${lastScore}!`);
+      }
+      setLastScore(total);
+      safeTimeout(() => setFlash(null), 1600);
+      setVisitDarts([]);
+      setTurn(t => t===0?1:0);
+    }
+  };
+
+  const handleDartRefKO = useRef(handleDart);
+  useEffect(() => { handleDartRefKO.current = handleDart; });
+  const isBotTurnKO = !!botConfig && turn === 1;
+  useEffect(() => {
+    if (!botConfig || turn !== 1) return;
+    const [d1, d2, d3] = botCountUpVisit(botConfig);
+    const t1 = safeTimeout(() => handleDartRefKO.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefKO.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefKO.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <Swords className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff6b6b" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Knockout</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Beat the bar or take a strike. {maxStrikes} strikes and you're out.</p>
+      </div>
+      <SectionCard>
+        <div className="text-center">
+          <div className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
+            {lastScore === null ? "Opening visit — sets the bar" : "Beat this score"}
+          </div>
+          <div className="font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", lineHeight: 1, color: "#ff6b6b" }}>
+            {lastScore ?? "—"}
+          </div>
+        </div>
+      </SectionCard>
+      {newScoringUI ? (
+        <LivesPods pods={[0,1].map(i => ({
+          id: String(i), name: names[i], initial: names[i].charAt(0).toUpperCase(),
+          lives: Math.max(0, maxStrikes - strikes[i]), maxLives: maxStrikes,
+          out: strikes[i] >= maxStrikes, active: turn === i,
+          colorIdx: i as 0 | 1, tag: strikes[i] >= maxStrikes ? "OUT" : `${strikes[i]}/${maxStrikes} strikes`,
+        }))} />
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={strikes[i]} scoreSuffix={`/${maxStrikes} strikes`} turn={i===0} active={turn===i} />)}
+        </div>
+      )}
+      {flash && <div className="text-center font-bold text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{flash}</div>}
+      {isBotTurnKO ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+        : <TurnBanner name={names[turn]} turn={turn} msg={lastScore===null?"— sets the opening bar":`— needs ${lastScore+1}+`} />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        disabled={isBotTurnKO} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Darts Tennis ─────────────────────────────────────────────────────────────────
+// The dartboard splits into two 10-segment halves (BOARD_ORDER sliced down
+// the middle); each point is played entirely on whichever half is "in play".
+// Server throws a visit, returner throws a visit at the same half — higher
+// total takes the point (ties favour the server). Love/15/30/40, first to 4
+// wins a game (no deuce — a deliberate simplification, called out in the
+// house rules text below), first to gamesToWin games wins the match.
+const TENNIS_HALF_A = BOARD_ORDER.slice(0, 10);
+const TENNIS_HALF_B = BOARD_ORDER.slice(10);
+const TENNIS_LABELS = ["Love", "15", "30", "40"];
+export function TennisScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+  p1Name: string; p2Name: string; config?: { gamesToWin?: number }; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const gamesToWin = config?.gamesToWin ?? 3;
+
+  const [server, setServer] = useState<0 | 1>(0);
+  const [halfIsA, setHalfIsA] = useState(true);
+  const [servePhase, setServePhase] = useState<"serve" | "return">("serve");
+  const [serverTotal, setServerTotal] = useState(0);
+  const [points, setPoints] = useState<[number, number]>([0, 0]);
+  const [games, setGames] = useState<[number, number]>([0, 0]);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [flash, setFlash] = useState<string | null>(null);
+
+  const half = halfIsA ? TENNIS_HALF_A : TENNIS_HALF_B;
+  const returner: 0 | 1 = server === 0 ? 1 : 0;
+  const thrower: 0 | 1 = servePhase === "serve" ? server : returner;
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      const total = nv.reduce((s,d) => s+d.value, 0);
+      if (servePhase === "serve") {
+        setServerTotal(total);
+        setFlash(`${names[server]} serves ${total} — ${names[returner]} to return`);
+        safeTimeout(() => setFlash(null), 1500);
+        setVisitDarts([]);
+        setServePhase("return");
+      } else {
+        // Compare directly against THIS visit's own local total and the
+        // serverTotal already committed from the serve phase, rather than
+        // reading server-side state that might not have settled yet.
+        const returnTotal = total;
+        const winner: 0 | 1 = returnTotal > serverTotal ? returner : server;
+        setFlash(`${names[server]} ${serverTotal} vs ${names[returner]} ${returnTotal} — ${names[winner]} takes the point!`);
+        safeTimeout(() => setFlash(null), 2000);
+        setPoints(prev => {
+          const np: [number,number] = [...prev] as [number,number];
+          np[winner]++;
+          if (np[winner] >= 4) {
+            setGames(g => {
+              const ng: [number,number] = [...g] as [number,number];
+              ng[winner]++;
+              if (ng[winner] >= gamesToWin) {
+                safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "tennis" } }); onWin(winner, `Won ${ng[winner]} games to ${ng[winner===0?1:0]}`); }, 900);
+              } else {
+                safeTimeout(() => setServer(s => s===0?1:0), 900);
+              }
+              return ng;
+            });
+            return [0, 0];
+          }
+          return np;
+        });
+        setHalfIsA(h => !h);
+        setVisitDarts([]);
+        setServePhase("serve");
+      }
+    }
+  };
+
+  const handleDartRefTN = useRef(handleDart);
+  useEffect(() => { handleDartRefTN.current = handleDart; });
+  const isBotTurnTN = !!botConfig && thrower === 1;
+  useEffect(() => {
+    if (!botConfig || thrower !== 1) return;
+    const [d1, d2, d3] = botTennisVisit(half, botConfig);
+    const t1 = safeTimeout(() => handleDartRefTN.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefTN.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefTN.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [thrower, botConfig, halfIsA]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <Award className="w-8 h-8 mx-auto mb-2" style={{ color: "#38bdf8" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Darts Tennis</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
+          Serve 3, return 3, at the half in play — highest visit wins the point. First to 4 points takes the game (no deuce), first to {gamesToWin} games wins the match.
+        </p>
+      </div>
+      {newScoringUI ? (
+        <MatchStrip rows={[0,1].map(i => ({
+          label: `${names[i]}${server===i ? " 🎾" : ""}`, playerIdx: i as 0 | 1, active: thrower === i,
+          games: games[i], pointLabel: TENNIS_LABELS[Math.min(points[i],3)],
+        }))} />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 text-xs text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
+            {[0,1].map(i => <div key={i} style={{ color: P_COLOR(i) }}>{names[i]}: {games[i]} games {server===i ? "🎾 serving" : ""}</div>)}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={TENNIS_LABELS[Math.min(points[i],3)]} turn={i===0} active={thrower===i} />)}
+          </div>
+        </>
+      )}
+      <SectionCard>
+        <div className="text-center text-xs uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
+          In play this point ({halfIsA ? "Half A" : "Half B"})
+        </div>
+        <div className="flex flex-wrap gap-1.5 justify-center">
+          {half.map(n => (
+            <div key={n} style={{
+              width: "26px", height: "26px", borderRadius: "0.3rem", display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: "Oswald, sans-serif", fontWeight: 800, fontSize: "0.7rem",
+              background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.35)", color: "#38bdf8",
+            }}>
+              {n}
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+      {flash && <div className="text-center font-bold text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{flash}</div>}
+      {isBotTurnTN ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+        : <TurnBanner name={names[thrower]} turn={thrower} msg={servePhase==="serve" ? "— serving" : "— returning"} />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        activeSegments={half}
+        disabled={isBotTurnTN} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Follow the Leader Scorer ────────────────────────────────────────────────────
+// The leader throws ONE call dart (a miss just retries the call — it never
+// sets an unhittable target). The other player then gets up to 3 darts to
+// match that exact segment+multiplier or loses a life; a match swaps who
+// leads. The two bot effects below (leader calling vs chaser matching) are
+// mutually exclusive by construction — leader and chaser are always the
+// opposite player index, and only one phase is active at a time.
+export function FollowTheLeaderScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+  p1Name: string; p2Name: string; config?: { lives?: number }; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const startLives = config?.lives ?? 3;
+
+  const [leader, setLeader] = useState<0 | 1>(0);
+  const [lives, setLives] = useState<[number, number]>([startLives, startLives]);
+  const [calledTarget, setCalledTarget] = useState<{ seg: number; mult: 1|2|3; label: string } | null>(null);
+  const [phase, setPhase] = useState<"calling" | "chasing">("calling");
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [flash, setFlash] = useState<string | null>(null);
+
+  const chaser: 0 | 1 = leader === 0 ? 1 : 0;
+
+  const handleDart = (dart: Dart) => {
+    if (phase === "calling") {
+      if (dart.value === 0) {
+        setFlash(`${names[leader]} missed the call — call again!`);
+        safeTimeout(() => setFlash(null), 1200);
+        return;
+      }
+      setCalledTarget({ seg: dart.segment, mult: dart.multiplier, label: dart.label });
+      setFlash(`${names[leader]} calls ${dart.label}! ${names[chaser]} has 3 darts to match it.`);
+      safeTimeout(() => setFlash(null), 2000);
+      setPhase("chasing");
+      return;
+    }
+    if (visitDarts.length >= 3 || !calledTarget) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    const matched = dart.segment === calledTarget.seg && dart.multiplier === calledTarget.mult;
+    if (matched) {
+      setFlash(`${names[chaser]} matches it! Leadership swaps.`);
+      safeTimeout(() => setFlash(null), 1800);
+      setVisitDarts([]);
+      setCalledTarget(null);
+      setPhase("calling");
+      setLeader(chaser);
+      return;
+    }
+    if (nv.length === 3) {
+      setFlash(`${names[chaser]} couldn't match ${calledTarget.label} — loses a life!`);
+      safeTimeout(() => setFlash(null), 1800);
+      setVisitDarts([]);
+      setCalledTarget(null);
+      setLives(prev => {
+        const nl: [number,number] = [...prev] as [number,number];
+        nl[chaser]--;
+        if (nl[chaser] <= 0) {
+          safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "follow_the_leader" } }); onWin(leader, `${names[chaser]} ran out of lives`); }, 900);
+        } else {
+          setPhase("calling");
+        }
+        return nl;
+      });
+    }
+  };
+
+  const handleDartRefFL = useRef(handleDart);
+  useEffect(() => { handleDartRefFL.current = handleDart; });
+
+  // Bot-as-leader: self-generates a random call dart (a manual Dart literal,
+  // since it never needs to simulate a miss the way a human might).
+  useEffect(() => {
+    if (!botConfig || leader !== 1 || phase !== "calling") return;
+    const seg = Math.ceil(Math.random() * 20);
+    const mult: 1|2|3 = ([1,2,3] as const)[Math.floor(Math.random() * 3)];
+    const val = seg * mult;
+    const label = mult === 3 ? `T${seg}` : mult === 2 ? `D${seg}` : `${seg}`;
+    const dart: Dart = { segment: seg, multiplier: mult, value: val, label };
+    const t = safeTimeout(() => handleDartRefFL.current(dart), 900);
+    return () => clearTimeout(t);
+  }, [leader, phase, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Bot-as-chaser: aims all 3 darts at the called target.
+  const isBotTurnFL = !!botConfig && ((leader===1 && phase==="calling") || (chaser===1 && phase==="chasing"));
+  useEffect(() => {
+    if (!botConfig || chaser !== 1 || phase !== "chasing" || !calledTarget) return;
+    const [d1, d2, d3] = botSequenceVisit(calledTarget.seg, calledTarget.mult, botConfig);
+    const t1 = safeTimeout(() => handleDartRefFL.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefFL.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefFL.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [chaser, phase, botConfig, calledTarget]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <Footprints className="w-8 h-8 mx-auto mb-2" style={{ color: "#c084fc" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Follow the Leader</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>The leader calls one dart. Match it exactly within 3 darts or lose a life — match it and the lead swaps.</p>
+      </div>
+      {newScoringUI ? (
+        <LivesPods pods={[0,1].map(i => ({
+          id: String(i), name: names[i], initial: names[i].charAt(0).toUpperCase(),
+          lives: lives[i], maxLives: startLives, out: lives[i] <= 0, active: leader === i,
+          colorIdx: i as 0 | 1, tag: leader === i ? "👑 Leader" : "Chaser",
+        }))} />
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i => (
+            <PlayerCard key={i} name={names[i]} score={lives[i]} scoreSuffix=" lives" turn={i===0} active={leader===i}
+              sub={leader===i ? "👑 Leader" : undefined} />
+          ))}
+        </div>
+      )}
+      <SectionCard>
+        <div className="text-center">
+          <div className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
+            {phase === "calling" ? `${names[leader]} is calling…` : "Called target"}
+          </div>
+          <div className="font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", lineHeight: 1, color: "#c084fc" }}>
+            {calledTarget ? calledTarget.label : "?"}
+          </div>
+        </div>
+      </SectionCard>
+      {flash && <div className="text-center font-bold text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{flash}</div>}
+      {isBotTurnFL ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+        : phase === "calling" ? <TurnBanner name={names[leader]} turn={leader} msg="— call your target!" />
+        : <TurnBanner name={names[chaser]} turn={chaser} msg={`— match ${calledTarget?.label ?? ""}!`} />}
+      <VisitDarts darts={phase === "chasing" ? visitDarts : []} />
+      <DartInputBoard visitDartCount={phase === "chasing" ? visitDarts.length : 0} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => phase === "chasing" && visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        highlightSegments={phase === "chasing" && calledTarget ? [calledTarget.seg] : undefined}
+        disabled={isBotTurnFL} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Battleship Darts Scorer ─────────────────────────────────────────────────────
+// A true hidden-placement Battleship doesn't work on one shared screen, so
+// each player's 6-cell fleet is randomised by the system and never shown to
+// anyone — not even its own owner. Dartboard numbers 1–20 map straight onto
+// a 4×5 grid; firing = hitting that segment on the OPPONENT's grid.
+function makeFleetCells(): boolean[] {
+  const idx = Array.from({ length: 20 }, (_, i) => i);
+  for (let i = idx.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [idx[i], idx[j]] = [idx[j], idx[i]];
+  }
+  const chosen = new Set(idx.slice(0, 6));
+  return Array.from({ length: 20 }, (_, i) => chosen.has(i));
+}
+export function BattleshipScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+  p1Name: string; p2Name: string; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const [fleet] = useState<[boolean[], boolean[]]>(() => [makeFleetCells(), makeFleetCells()]);
+  const [revealed, setRevealed] = useState<[boolean[], boolean[]]>(() => [Array(20).fill(false), Array(20).fill(false)]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [flash, setFlash] = useState<string | null>(null);
+  // Used only by the new-scoring-UI TerritoryGrid, to ring the most recent
+  // hit — the original grid conveys this through the flash text instead.
+  const [lastHitCell, setLastHitCell] = useState<number | null>(null);
+
+  const targetPlayer: 0 | 1 = turn === 0 ? 1 : 0;
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (dart.segment >= 1 && dart.segment <= 20) {
+      const cell = dart.segment - 1;
+      setRevealed(prev => {
+        if (prev[targetPlayer][cell]) return prev;
+        const nr: [boolean[], boolean[]] = [prev[0].slice(), prev[1].slice()];
+        nr[targetPlayer][cell] = true;
+        const isHit = fleet[targetPlayer][cell];
+        if (isHit) setLastHitCell(cell + 1);
+        setFlash(isHit ? `💥 HIT on ${names[targetPlayer]}'s grid!` : `🌊 Miss.`);
+        safeTimeout(() => setFlash(null), 1200);
+        const sunk = fleet[targetPlayer].every((f, i) => !f || nr[targetPlayer][i]);
+        if (sunk) {
+          safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "battleship_darts" } }); onWin(turn, `Sank ${names[targetPlayer]}'s entire fleet!`); }, 500);
+        }
+        return nr;
+      });
+    }
+    if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); }
+  };
+
+  const handleDartRefBS = useRef(handleDart);
+  useEffect(() => { handleDartRefBS.current = handleDart; });
+  const isBotTurnBS = !!botConfig && turn === 1;
+  useEffect(() => {
+    if (!botConfig || turn !== 1) return;
+    const t1 = safeTimeout(() => handleDartRefBS.current(botBattleshipShot(revealed[0], botConfig)), 700);
+    const t2 = safeTimeout(() => handleDartRefBS.current(botBattleshipShot(revealed[0], botConfig)), 1400);
+    const t3 = safeTimeout(() => handleDartRefBS.current(botBattleshipShot(revealed[0], botConfig)), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig, revealed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const shipsRemaining = (i: number) => 6 - fleet[i as 0|1].filter((f, idx) => f && revealed[i as 0|1][idx]).length;
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <Ship className="w-8 h-8 mx-auto mb-2" style={{ color: "#38bdf8" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Battleship Darts</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Each player has a secret 6-cell fleet on the board (1–20) — hidden even from themselves. Fire at your opponent's numbers to sink it.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={shipsRemaining(i)} scoreSuffix="/6 ships" turn={i===0} active={turn===i} />)}
+      </div>
+      <SectionCard>
+        <div className="text-center text-xs uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
+          Firing at {names[targetPlayer]}'s grid
+        </div>
+        {newScoringUI ? (
+          <TerritoryGrid
+            order={Array.from({length:20},(_,i)=>i+1)}
+            lastHit={lastHitCell ?? undefined}
+            claims={Object.fromEntries(
+              Array.from({length:20},(_,i)=>i)
+                .filter(i => revealed[targetPlayer][i] && fleet[targetPlayer][i])
+                .map(i => [i+1, turn as 0 | 1])
+            )}
+          />
+        ) : (
+          <div className="grid grid-cols-5 gap-1.5" style={{ maxWidth: "280px", margin: "0 auto" }}>
+            {Array.from({length:20},(_,i)=>i).map(i => {
+              const r = revealed[targetPlayer][i];
+              const hit = r && fleet[targetPlayer][i];
+              return (
+                <div key={i} style={{
+                  aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center",
+                  borderRadius: "0.4rem", fontFamily: "Oswald, sans-serif", fontWeight: 800, fontSize: "0.85rem",
+                  border: hit ? "1.5px solid #ff005c" : r ? "1.5px solid rgba(255,255,255,0.15)" : "1px solid rgba(255,255,255,0.08)",
+                  background: hit ? "rgba(255,0,92,0.18)" : r ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.015)",
+                  color: hit ? "#ff005c" : r ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.4)",
+                }}>
+                  {hit ? "💥" : r ? "🌊" : i+1}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </SectionCard>
+      {flash && <div className="text-center font-bold text-sm" style={{ color: flash.startsWith("💥") ? "#ff005c" : "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>{flash}</div>}
+      {isBotTurnBS ? <TurnBanner name={names[1]} turn={1} msg="— CPU FIRING…" />
+        : <TurnBanner name={names[turn]} turn={turn} msg={`— fire at ${names[targetPlayer]}'s grid`} />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        activeSegments={Array.from({length:20},(_,i)=>i+1)}
+        disabled={isBotTurnBS} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Blind Killers Scorer ────────────────────────────────────────────────────────
+// Every player is assigned a secret double, generated by the system and
+// never shown to anyone — including its own owner. Hitting your own double
+// reveals it and makes you a Killer; hitting a live opponent's double (once
+// you're a Killer yourself) takes a life and reveals theirs. Anything else —
+// any other double, any miss — stays completely invisible, on purpose:
+// showing even a distinct "nothing happened" flash would leak information.
+export function BlindKillersScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+  p1Name: string; p2Name: string; config?: { lives?: number }; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const startLives = config?.lives ?? 3;
+  const [myNum] = useState<[number, number]>(() => {
+    const pool = Array.from({ length: 20 }, (_, i) => i + 1);
+    const i1 = Math.floor(Math.random() * pool.length);
+    const n1 = pool.splice(i1, 1)[0];
+    const i2 = Math.floor(Math.random() * pool.length);
+    const n2 = pool.splice(i2, 1)[0];
+    return [n1, n2];
+  });
+  const [revealed, setRevealed] = useState<[boolean, boolean]>([false, false]);
+  const [isKiller, setIsKiller] = useState<[boolean, boolean]>([false, false]);
+  const [lives, setLives] = useState<[number, number]>([startLives, startLives]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [flash, setFlash] = useState<string | null>(null);
+
+  const handleDart = (dart: Dart) => {
+    if (visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (dart.multiplier === 2) {
+      const opp: 0 | 1 = turn === 0 ? 1 : 0;
+      if (dart.segment === myNum[turn] && !isKiller[turn]) {
+        setIsKiller(prev => { const n: [boolean,boolean] = [...prev] as [boolean,boolean]; n[turn] = true; return n; });
+        setRevealed(prev => { const n: [boolean,boolean] = [...prev] as [boolean,boolean]; n[turn] = true; return n; });
+        setFlash(`${names[turn]} hits their own double — now a KILLER!`);
+        safeTimeout(() => setFlash(null), 2000);
+      } else if (isKiller[turn] && dart.segment === myNum[opp]) {
+        setRevealed(prev => { const n: [boolean,boolean] = [...prev] as [boolean,boolean]; n[opp] = true; return n; });
+        setFlash(`${names[turn]} takes a life from ${names[opp]}!`);
+        safeTimeout(() => setFlash(null), 2000);
+        setLives(prev => {
+          const nl: [number,number] = [...prev] as [number,number];
+          nl[opp]--;
+          if (nl[opp] <= 0) {
+            safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "blind_killers" } }); onWin(turn, `${names[opp]} is out of lives`); }, 900);
+          }
+          return nl;
+        });
+      }
+    }
+    if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); }
+  };
+
+  const handleDartRefBK = useRef(handleDart);
+  useEffect(() => { handleDartRefBK.current = handleDart; });
+  const isBotTurnBK = !!botConfig && turn === 1;
+  useEffect(() => {
+    if (!botConfig || turn !== 1) return;
+    const [d1, d2, d3] = botBlindKillerVisit(botConfig);
+    const t1 = safeTimeout(() => handleDartRefBK.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefBK.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefBK.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <EyeOff className="w-8 h-8 mx-auto mb-2" style={{ color: "#a78bfa" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Blind Killers</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Everyone's double is secret — even to themselves. Hit your own to go live, hit a live opponent's to take a life.</p>
+      </div>
+      {newScoringUI ? (
+        <LivesPods pods={[0,1].map(i => ({
+          id: String(i), name: names[i], initial: names[i].charAt(0).toUpperCase(),
+          lives: lives[i], maxLives: startLives, out: lives[i] <= 0, active: turn === i,
+          colorIdx: i as 0 | 1,
+          tag: revealed[i] ? `D${myNum[i]} ${isKiller[i] ? "🔓 killer" : "revealed"}` : "🔒 hidden",
+        }))} />
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i => (
+            <PlayerCard key={i} name={names[i]} score={lives[i]} scoreSuffix=" lives" turn={i===0} active={turn===i}
+              sub={revealed[i] ? `Double ${myNum[i]} — ${isKiller[i] ? "KILLER 🔓" : "revealed"}` : "Double: ??? 🔒"} />
+          ))}
+        </div>
+      )}
+      {flash && <div className="text-center font-bold text-sm" style={{ color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>{flash}</div>}
+      {isBotTurnBK ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+        : <TurnBanner name={names[turn]} turn={turn} msg="— throw for a double, any double…" />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        disabled={isBotTurnBK} />
       <AbandonBtn onAbandon={onAbandon} />
     </div>
   );

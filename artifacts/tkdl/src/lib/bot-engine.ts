@@ -720,3 +720,115 @@ export function botShootingGalleryDart(remain: number, cfg: BotConfig): Dart {
   if (remain > 60 && Math.random() < cfg.hitAcc * 0.4) return makeDart(20, 3);
   return makeDart(Math.min(20, seg), 1);
 }
+
+// ── Pick a Double visit ────────────────────────────────────────────────────────
+// The leg can only be finished on the double the player called at the start of
+// the leg, not just any double, so the bot has to hold back rather than taking
+// an easier checkout: it never scores past (remaining - calledValue), and once
+// remaining === calledValue it throws at that specific double only.
+export function botPickADoubleVisit(remaining: number, calledSeg: number, calledMult: 2, cfg: BotConfig): [Dart, Dart, Dart] {
+  const calledValue = calledSeg === 25 ? 50 : calledSeg * calledMult;
+  if (remaining === calledValue) {
+    return Array.from({ length: 3 }, () =>
+      Math.random() < cfg.hitAcc * 0.7 ? makeDart(calledSeg, calledMult) : BOT_MISS
+    ) as [Dart, Dart, Dart];
+  }
+  const maxScore = Math.max(0, remaining - calledValue);
+  const visitScore = Math.max(0, Math.min(maxScore, Math.round(gauss(cfg.avg, cfg.sd))));
+  return split3(visitScore);
+}
+
+// ── Noughts & Crosses dart ─────────────────────────────────────────────────────
+// One dart at a time (called 3x per visit) — simple heuristic: take a winning
+// cell if one's open, else block the opponent's, else the center, else random.
+const NC_LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+export function botNoughtsCrossesDart(cells: (0 | 1 | null)[], myTurn: 0 | 1, cfg: BotConfig): Dart {
+  if (Math.random() > cfg.hitAcc) return BOT_MISS;
+  const opp: 0 | 1 = myTurn === 0 ? 1 : 0;
+  const emptyOf = (line: number[]) => line.filter(i => cells[i] === null);
+  for (const line of NC_LINES) {
+    const empties = emptyOf(line);
+    if (empties.length === 1 && line.filter(i => cells[i] === myTurn).length === 2) return makeDart(empties[0] + 1, 1);
+  }
+  for (const line of NC_LINES) {
+    const empties = emptyOf(line);
+    if (empties.length === 1 && line.filter(i => cells[i] === opp).length === 2) return makeDart(empties[0] + 1, 1);
+  }
+  if (cells[4] === null) return makeDart(5, 1);
+  const open = cells.map((c, i) => (c === null ? i : null)).filter((x): x is number => x !== null);
+  if (!open.length) return BOT_MISS;
+  return makeDart(open[Math.floor(Math.random() * open.length)] + 1, 1);
+}
+
+// ── Oche Roulette visit ────────────────────────────────────────────────────────
+// Aims every dart at whatever number the round's spin landed on.
+export function botOcheRouletteVisit(target: number, cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () => {
+    if (Math.random() > cfg.hitAcc) return BOT_MISS;
+    if (target === 25) return Math.random() < 0.4 ? makeDart(25, 2) : makeDart(25, 1);
+    const roll = Math.random();
+    const mult: 1 | 2 | 3 = roll < cfg.hitAcc * 0.3 ? 3 : roll < cfg.hitAcc * 0.55 ? 2 : 1;
+    return makeDart(target, mult);
+  }) as [Dart, Dart, Dart];
+}
+
+// ── 180 Challenge visit ─────────────────────────────────────────────────────────
+// Swings for treble 20 every dart — the whole game is chasing one perfect visit.
+export function botOneEightyVisit(cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () => {
+    if (Math.random() < cfg.hitAcc * 0.5) return makeDart(20, 3);
+    if (Math.random() > cfg.hitAcc) return BOT_MISS;
+    return makeDart(20, Math.random() < 0.5 ? 1 : 2);
+  }) as [Dart, Dart, Dart];
+}
+
+// ── Fives visit ────────────────────────────────────────────────────────────────
+// Only aims at segment 5 — single/double/treble all land on a multiple of 5, so
+// the bot never wastes a visit on a total that can't score.
+export function botFivesVisit(cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () => {
+    if (Math.random() > cfg.hitAcc) return BOT_MISS;
+    const mult: 1 | 2 | 3 = ([1, 2, 3] as const)[Math.floor(Math.random() * 3)];
+    return makeDart(5, mult);
+  }) as [Dart, Dart, Dart];
+}
+
+// ── Darts Tennis visit ──────────────────────────────────────────────────────
+// Aims at the "in play" half of the board (10 segments) for the round — the
+// target segment varies dart-to-dart the way a real return would spread
+// across the half rather than camping one number, with the same skill-scaled
+// multiplier roll botOcheRouletteVisit uses.
+export function botTennisVisit(half: number[], cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () => {
+    if (Math.random() > cfg.hitAcc) return BOT_MISS;
+    const seg = half[Math.floor(Math.random() * half.length)];
+    const roll = Math.random();
+    const mult: 1 | 2 | 3 = roll < cfg.hitAcc * 0.3 ? 3 : roll < cfg.hitAcc * 0.55 ? 2 : 1;
+    return makeDart(seg, mult);
+  }) as [Dart, Dart, Dart];
+}
+
+// ── Battleship Darts shot ───────────────────────────────────────────────────
+// One dart at a time (called per-dart, same cadence as botNoughtsCrossesDart)
+// — fires at a segment (1–20) that hasn't been shot at yet on the opponent's
+// grid. The bot doesn't "see" the fleet any more than a player does; it just
+// avoids repeating a wasted shot.
+export function botBattleshipShot(revealed: boolean[], cfg: BotConfig): Dart {
+  if (Math.random() > cfg.hitAcc) return BOT_MISS;
+  const open = revealed.map((r, i) => (r ? null : i)).filter((x): x is number => x !== null);
+  if (!open.length) return BOT_MISS;
+  const cell = open[Math.floor(Math.random() * open.length)];
+  return makeDart(cell + 1, 1);
+}
+
+// ── Blind Killers visit ─────────────────────────────────────────────────────
+// The bot is blind too — it has no more idea which double matters than a
+// human player would, so it just throws at doubles at random across the
+// board, same as everyone else in this game.
+export function botBlindKillerVisit(cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () => {
+    if (Math.random() > cfg.hitAcc) return BOT_MISS;
+    const seg = Math.ceil(Math.random() * 20);
+    return makeDart(seg, 2);
+  }) as [Dart, Dart, Dart];
+}

@@ -2,6 +2,29 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
+// Vite speculatively <link rel="modulepreload">s chunks it predicts a route
+// will need, separately from the dynamic import() calls lazy-with-retry.ts
+// wraps. When one of those preloads fails — same root cause: a request
+// landing while the server's mid-boot after a cold start gets the SPA's
+// index.html back instead of the real file — Vite dispatches this event on
+// window instead of throwing into React. Same fix: reload once, guarded so
+// a genuinely broken deploy doesn't reload forever.
+window.addEventListener("vite:preloadError", () => {
+  let alreadyReloaded = false;
+  try {
+    alreadyReloaded = sessionStorage.getItem("chunk-reload:preload") === "1";
+  } catch {
+    // ignore — treat as not-yet-reloaded
+  }
+  if (alreadyReloaded) return;
+  try {
+    sessionStorage.setItem("chunk-reload:preload", "1");
+  } catch {
+    // best-effort
+  }
+  window.location.reload();
+});
+
 // Register service worker with update detection.
 //
 // This used to register /sw.js while use-push-notifications.ts separately

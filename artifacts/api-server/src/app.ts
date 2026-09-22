@@ -562,10 +562,10 @@ async function seedGameTypes() {
     // ── Party / Fun ─────────────────────────────────────────────────────────
     { key: "killer",               name: "Killer",                   engine: "Killer",      category: "party",       description: "Hit your own double to become a Killer, then eliminate others.",           config: JSON.stringify({ lives: 3 }),                                                                             enabled: true, sortOrder: 17 },
     { key: "gotcha",               name: "Gotcha",                   engine: "Gotcha",      category: "party",       description: "Race to exactly 301. Hit opponent's score to reset them to zero.",         config: JSON.stringify({ target: 301 }),                                                                          enabled: true, sortOrder: 18 },
-    { key: "no_black",             name: "No Black",                 engine: "Custom",      category: "party",       description: "TKDL special: any dart in the outer bull scores zero for that throw.",    config: JSON.stringify({ noOuterBull: true }),                                                                    enabled: true, sortOrder: 19 },
+    { key: "no_black",             name: "No Black",                 engine: "CountUp",     category: "party",       description: "TKDL special: any dart in the outer bull scores zero for that throw.",    config: JSON.stringify({ noOuterBull: true, target: 301 }),                                                      enabled: true, sortOrder: 19 },
     { key: "bull_finish",          name: "Bull Finish",              engine: "X01",         category: "party",       description: "501 where you must finish on the bullseye (50) only.",                    config: JSON.stringify({ startingScore: 501, bullFinish: true }),                                                 enabled: true, sortOrder: 20 },
     { key: "nearest_bull",         name: "Nearest the Bull",         engine: "NearestBull", category: "party",       description: "Each player throws 3 darts. Closest to bull wins the round.",             config: JSON.stringify({ dartsEach: 3, rounds: 1 }),                                                              enabled: true, sortOrder: 21 },
-    { key: "pick_a_double",        name: "Pick a Double",            engine: "Custom",      category: "party",       description: "TKDL custom: must call your double before throwing.",                      config: JSON.stringify({ callDouble: true }),                                                                     enabled: true, sortOrder: 22 },
+    { key: "pick_a_double",        name: "Pick a Double",            engine: "Custom",      category: "party",       description: "TKDL custom: must call your double before throwing.",                      config: JSON.stringify({ callDouble: true, startScore: 301 }),                                                    enabled: true, sortOrder: 22 },
     { key: "double_or_nothing",    name: "Double or Nothing",        engine: "X01",         category: "party",       description: "Play 301. If you miss your out-shot, the stake doubles.",                  config: JSON.stringify({ startingScore: 301, doubleOut: true, stakeDoubles: true }),                             enabled: true, sortOrder: 23 },
 
     // ── Competitive — Legs formats ───────────────────────────────────────────
@@ -589,7 +589,7 @@ async function seedGameTypes() {
     { key: "sudden_death",         name: "Sudden Death 501",         engine: "X01",         category: "party",       description: "Standard 501. Bust and you're reset to 50. No second chances.",             config: JSON.stringify({ startingScore: 501, doubleOut: false, bustResetTo: 50 }),                               enabled: true, sortOrder: 37 },
     { key: "football_darts",       name: "Football Darts",           engine: "Custom",      category: "party",       description: "TKDL custom: score 'goals' by hitting doubles. First to 5 goals wins. Hit a single = possession.", config: JSON.stringify({ goalsToWin: 5, goalZone: "doubles", possession: "singles" }),                            enabled: true, sortOrder: 38 },
     { key: "pairs_501",            name: "Pairs 501 (Teams)",        engine: "X01",         category: "party",       description: "2v2 team format. Teammates alternate throws. Double out. First team to 0 wins.", config: JSON.stringify({ startingScore: 501, doubleOut: true, teams: 2, playersPerTeam: 2 }),                   enabled: true, sortOrder: 39 },
-    { key: "shanghai_sudden_death", name: "Shanghai (Sudden Death)",  engine: "Custom",      category: "party",       description: "7 rounds hitting 1 through 7. Hit a Shanghai (single+double+treble in one round) and you instantly win.", config: JSON.stringify({ rounds: 7, shanghaiWin: true }),                                                        enabled: true, sortOrder: 40 },
+    { key: "shanghai_sudden_death", name: "Shanghai (Sudden Death)",  engine: "Sequence",    category: "party",       description: "7 rounds hitting 1 through 7. Hit a Shanghai (single+double+treble in one round) and you instantly win.", config: JSON.stringify({ rounds: 7, shanghaiWin: true }),                                                        enabled: true, sortOrder: 40 },
   ];
 
   // ── 22 new games — total 62 ───────────────────────────────────────────────
@@ -613,7 +613,7 @@ async function seedGameTypes() {
     { key: "2001_double_out",      name: "2001 – Double Out",         engine: "X01",      category: "competitive", description: "Ultra-endurance: 2001 to start, double out to finish. The ultimate long-session challenge.",     config: JSON.stringify({ startingScore: 2001, doubleIn: false, doubleOut: true }),                                 enabled: true, sortOrder: 57 },
     { key: "701_bo3",              name: "701 – Best of 3 Legs",      engine: "X01",      category: "competitive", description: "Marathon best of 3 legs at 701 Double Out. Serious endurance test.",                            config: JSON.stringify({ startingScore: 701, doubleIn: false, doubleOut: true, legs: 3 }),                        enabled: true, sortOrder: 58 },
     { key: "accumulator",          name: "Accumulator",               engine: "CountUp",  category: "practice",    description: "Each visit must score MORE than the previous — or your total is halved. Forces consistent rounds.", config: JSON.stringify({ accumulate: true }),                                                                     enabled: true, sortOrder: 59 },
-    { key: "high_score_9",         name: "Best of 9 Darts",           engine: "CountUp",  category: "practice",    description: "Exactly 9 darts each (3 visits). Highest total from those 9 darts wins. Pure scoring challenge.", config: JSON.stringify({ maxVisits: 3, dartsPerRound: 3 }),                                                       enabled: true, sortOrder: 60 },
+    { key: "high_score_9",         name: "Best of 9 Darts",           engine: "CountUp",  category: "practice",    description: "Exactly 9 darts each (3 visits). Highest total from those 9 darts wins. Pure scoring challenge.", config: JSON.stringify({ rounds: 3 }),                                                                             enabled: true, sortOrder: 60 },
     { key: "oche_roulette",        name: "Oche Roulette",             engine: "Custom",   category: "party",       description: "Random target called each round. Both must hit it in 3 darts. Miss = 0. Most pts after 9 rounds.", config: JSON.stringify({ rounds: 9, randomTarget: true }),                                                       enabled: true, sortOrder: 61 },
     { key: "one_eighty_challenge", name: "180 Challenge",             engine: "Custom",   category: "mini-games",  description: "Race to hit a perfect 180 (T20 T20 T20). First player to land one wins. 10 attempts each.",     config: JSON.stringify({ attempts: 10 }),                                                                         enabled: true, sortOrder: 62 },
     { key: "jdc_challenge_41",    name: "JDC Challenge 41",          engine: "JDCChallenge41",     category: "practice",    description: "3-phase challenge: Shanghai 10–15, Doubles 1–20+Bull (50pts each, Bull=100), Shanghai 15–20. Most points wins.", config: JSON.stringify({}),                                                                                enabled: true, sortOrder: 63 },
@@ -642,7 +642,46 @@ async function seedGameTypes() {
     { key: "99_darts_trebles",     name: "99 Darts (Trebles)",        engine: "NinetyNine",  category: "practice", description: "Throw 99 darts — only trebles on your chosen target count. Each hit = 1.",                                                                      config: JSON.stringify({ variant: "trebles" }),                                   enabled: true, sortOrder: 82 },
   ];
 
-  await db.insert(gameTypesTable).values([...defaults, ...extra, ...teamGames]).onConflictDoNothing();
+  // ── Party Batch 2 — venue/app-inspired party games (Grand National, Hare and
+  // Hounds, Prisoner, Knockout, Tennis, Follow the Leader, Battleship Darts,
+  // Blind Killers) ────────────────────────────────────────────────────────────
+  const partyBatch2: GT[] = [
+    { key: "grand_national",       name: "Grand National",            engine: "Sequence",  category: "party", description: "Two laps of 1–20, then finish on D20 — the winning post. First around twice wins the race.", config: JSON.stringify({}),                     enabled: true, sortOrder: 90 },
+    { key: "hare_and_hounds",      name: "Hare and Hounds",           engine: "Custom",    category: "party", description: "The Hare races round 1–20 to reach 20 first. The Hound chases the same path — catch the Hare's position to win.", config: JSON.stringify({}), enabled: true, sortOrder: 91 },
+    { key: "prisoner",             name: "Prisoner",                  engine: "Custom",    category: "party", description: "Round the Clock 1–20, but hit the INNER single ring and you're jailed — skip your entire next visit.", config: JSON.stringify({}), enabled: true, sortOrder: 92 },
+    { key: "knockout",             name: "Knockout",                  engine: "Custom",    category: "party", description: "Beat the previous visit's score or take a strike. Three strikes and you're out.", config: JSON.stringify({ strikes: 3 }), enabled: true, sortOrder: 93 },
+    { key: "tennis",               name: "Darts Tennis",              engine: "Custom",    category: "party", description: "Serve 3 darts at your half of the board, return 3 back — highest visit total takes the point. Love-15-30-40, first to 4 wins the game, first to 3 games wins the match.", config: JSON.stringify({ gamesToWin: 3 }), enabled: true, sortOrder: 94 },
+    { key: "follow_the_leader",    name: "Follow the Leader",         engine: "Custom",    category: "party", description: "The leader calls a target with one dart. The chaser has 3 darts to match it exactly or loses a life. Match it and the lead swaps.", config: JSON.stringify({ lives: 3 }), enabled: true, sortOrder: 95 },
+    { key: "battleship_darts",     name: "Battleship Darts",          engine: "Custom",    category: "party", description: "A 6-cell fleet is hidden on each player's 1–20 grid. Fire at your opponent's numbers — sink their whole fleet to win.", config: JSON.stringify({}), enabled: true, sortOrder: 96 },
+    { key: "blind_killers",        name: "Blind Killers",             engine: "Custom",    category: "party", description: "Everyone's double is secret — even to themselves. Hit your own to go live, hit a live opponent's to take a life. 3 lives each.", config: JSON.stringify({ lives: 3 }), enabled: true, sortOrder: 97 },
+  ];
+
+  await db.insert(gameTypesTable).values([...defaults, ...extra, ...teamGames, ...partyBatch2]).onConflictDoNothing();
+
+  // ── One-time fixups for rows already seeded by an earlier boot ─────────────
+  // onConflictDoNothing() above never touches a row that already exists, so a
+  // key whose engine/config changed after it first shipped needs an explicit
+  // UPDATE here (guarded so it's a no-op once applied, and harmless to re-run
+  // every boot). This is the same handful of bugs the visual audit found:
+  // no_black and shanghai_sudden_death were stuck on the Custom engine with no
+  // real scorer, and high_score_9's config used a field CountUpScorer never
+  // read, so it silently played as a 501 race instead of a 9-dart challenge.
+  await db.execute(sql`
+    UPDATE game_types SET engine = 'CountUp', config = '{"noOuterBull":true,"target":301}'
+    WHERE key = 'no_black' AND engine <> 'CountUp'
+  `);
+  await db.execute(sql`
+    UPDATE game_types SET engine = 'Sequence'
+    WHERE key = 'shanghai_sudden_death' AND engine <> 'Sequence'
+  `);
+  await db.execute(sql`
+    UPDATE game_types SET config = '{"rounds":3}'
+    WHERE key = 'high_score_9' AND config <> '{"rounds":3}'
+  `);
+  await db.execute(sql`
+    UPDATE game_types SET config = '{"callDouble":true,"startScore":301}'
+    WHERE key = 'pick_a_double' AND config NOT LIKE '%startScore%'
+  `);
 
   // Add rules_text column if not present (safe to run every boot)
   await db.execute(sql`ALTER TABLE game_types ADD COLUMN IF NOT EXISTS rules_text TEXT`);

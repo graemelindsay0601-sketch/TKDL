@@ -369,6 +369,15 @@ export async function initializeFeatureFlags() {
       ON CONFLICT (feature_name) DO NOTHING
     `);
 
+    // New Scoring UI: same insert-only pattern — starts admin-preview-only so
+    // Graeme can flip it on for himself from /admin's Feature Flags panel
+    // without changing anything other players see until he switches it live.
+    await db.execute(sql`
+      INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)
+      VALUES (${FEATURES.NEW_SCORING_UI}, false, true, ${"New Scoring UI - redesigned party game scoring screens (admin preview only until switched live for everyone)"})
+      ON CONFLICT (feature_name) DO NOTHING
+    `);
+
     logger.info("Feature flags initialized successfully");
   } catch (error) {
     logger.error({ error }, "Failed to initialize feature flags");

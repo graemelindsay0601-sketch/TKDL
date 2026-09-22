@@ -9,6 +9,24 @@ interface State {
   error: Error | null;
 }
 
+/**
+ * A failed dynamic import (a lazy-loaded route chunk that came back missing
+ * or as the wrong content — see lazy-with-retry.ts for the full story) is
+ * permanently cached as a rejected promise by React.lazy(). Re-rendering
+ * after catching one of these — which is all "Try Again" used to do — just
+ * re-throws the identical cached error forever, so this class of error
+ * needs an actual reload to recover, not a state reset.
+ */
+function isChunkLoadError(error: Error): boolean {
+  const msg = error.message || "";
+  return (
+    /dynamically imported module/i.test(msg) ||
+    /Importing a module script failed/i.test(msg) ||
+    /Failed to fetch/i.test(msg) ||
+    /Loading chunk/i.test(msg)
+  );
+}
+
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null };
 
@@ -21,12 +39,19 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   handleReset = () => {
+    if (this.state.error && isChunkLoadError(this.state.error)) {
+      // Resetting state here would just re-throw the same cached rejected
+      // import — force a real reload so the chunk is fetched fresh.
+      window.location.reload();
+      return;
+    }
     this.setState({ error: null });
   };
 
   render() {
     if (this.state.error) {
       if (this.props.fallback) return this.props.fallback;
+      const chunkError = isChunkLoadError(this.state.error);
       return (
         <div className="flex flex-col items-center justify-center min-h-[50vh] gap-5 px-6 text-center">
           <div
@@ -43,10 +68,12 @@ export class ErrorBoundary extends Component<Props, State> {
               className="font-black uppercase mb-2"
               style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.4rem", letterSpacing: "0.1em", color: "#fff" }}
             >
-              Something went wrong
+              {chunkError ? "Update in progress" : "Something went wrong"}
             </h2>
             <p className="text-sm max-w-xs mx-auto" style={{ color: "rgba(255,255,255,0.35)", lineHeight: 1.6 }}>
-              {this.state.error.message || "An unexpected error occurred."}
+              {chunkError
+                ? "The app was mid-update when this loaded. Reload to grab the latest version."
+                : this.state.error.message || "An unexpected error occurred."}
             </p>
           </div>
           <div className="flex gap-3">
@@ -61,7 +88,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 letterSpacing: "0.1em",
               }}
             >
-              Try Again
+              {chunkError ? "Reload" : "Try Again"}
             </button>
             <button
               onClick={() => window.location.href = "/"}
