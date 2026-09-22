@@ -301,6 +301,158 @@ export function TerritoryGrid({
   );
 }
 
+// ── CricketBoard ────────────────────────────────────────────────────────────
+// A real cricket scorecard — one row per number, each side showing that
+// player's marks as a 3-pip ring instead of the flat /,✕,● glyph, with a
+// shared gold "closed" treatment across the row once both players have it.
+export function CricketBoard({
+  numbers, labels, marks, playerNames,
+}: {
+  numbers: number[];
+  labels: string[];
+  marks: [number[], number[]];
+  playerNames: [string, string];
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", padding: "0 2px 2px" }}>
+        <div style={{ fontFamily: FONT, fontSize: "0.65rem", fontWeight: 700, color: P_COLOR(0), textAlign: "right" }}>{playerNames[0].toUpperCase()}</div>
+        <div style={{ width: 26 }} />
+        <div style={{ fontFamily: FONT, fontSize: "0.65rem", fontWeight: 700, color: P_COLOR(1), textAlign: "left" }}>{playerNames[1].toUpperCase()}</div>
+      </div>
+      {numbers.map((num, idx) => {
+        const m0 = marks[0][idx], m1 = marks[1][idx];
+        const closed = m0 >= 3 && m1 >= 3;
+        return (
+          <div
+            key={num}
+            style={{
+              display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 8,
+              padding: "7px 10px", borderRadius: 10,
+              background: closed ? "linear-gradient(90deg, rgba(34,197,94,0.10), rgba(238,10,120,0.10))" : "linear-gradient(160deg,#17171f,#101014)",
+              border: closed ? "1px solid rgba(255,210,74,0.35)" : "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            <MarkPips count={m0} playerIdx={0} align="flex-end" />
+            <div
+              style={{
+                fontFamily: FONT, fontWeight: 800, fontSize: "0.82rem", minWidth: 26, textAlign: "center",
+                color: closed ? GOLD : "rgba(255,255,255,0.5)",
+                textDecoration: closed ? "line-through" : undefined,
+              }}
+            >
+              {labels[idx]}
+            </div>
+            <MarkPips count={m1} playerIdx={1} align="flex-start" />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+function MarkPips({ count, playerIdx, align }: { count: number; playerIdx: 0 | 1; align: "flex-start" | "flex-end" }) {
+  const color = P_COLOR(playerIdx);
+  const capped = Math.min(3, count);
+  return (
+    <div style={{ display: "flex", justifyContent: align, gap: 4 }}>
+      {Array.from({ length: 3 }, (_, i) => (
+        <span
+          key={i}
+          style={{
+            width: 10, height: 10, borderRadius: "50%",
+            background: i < capped ? color : "rgba(255,255,255,0.08)",
+            boxShadow: i < capped ? `0 0 6px -1px ${color}` : undefined,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── LimboBar ────────────────────────────────────────────────────────────────
+// A shared descending gauge — Limbo's bar only ever drops, so this reads top
+// (high) to bottom (low) like a real limbo pole, with the current value as a
+// horizontal rail sliding down a vertical scale.
+export function LimboBar({ value, max }: { value: number; max: number }) {
+  const safeMax = Math.max(1, max);
+  const pct = Math.max(0, Math.min(100, (value / safeMax) * 100));
+  return (
+    <div style={{ position: "relative", height: 120, margin: "10px 26px 30px" }}>
+      <div
+        style={{
+          position: "absolute", inset: 0, borderRadius: 10,
+          background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015))",
+          border: "1px solid rgba(255,255,255,0.08)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute", left: -6, right: -6, top: `${100 - pct}%`, height: 4, borderRadius: 4,
+          background: "linear-gradient(90deg, #e63946, #ff8a5c)",
+          boxShadow: "0 0 12px -1px rgba(230,57,70,0.7)", transition: "top .4s",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute", left: "50%", top: `${100 - pct}%`, transform: "translate(-50%,-50%)",
+          fontFamily: FONT, fontWeight: 800, fontSize: "1.25rem", color: "#fff",
+          background: "rgba(8,8,11,0.85)", padding: "3px 10px", borderRadius: 8,
+          border: "1px solid rgba(255,138,92,0.5)", whiteSpace: "nowrap", transition: "top .4s",
+        }}
+      >
+        {value}
+      </div>
+      <div style={{ position: "absolute", left: 0, bottom: -20, fontFamily: FONT, fontSize: "0.58rem", fontWeight: 700, color: "rgba(255,255,255,0.35)" }}>0</div>
+      <div style={{ position: "absolute", left: 0, top: -18, fontFamily: FONT, fontSize: "0.58rem", fontWeight: 700, color: "rgba(255,255,255,0.35)" }}>{max}</div>
+    </div>
+  );
+}
+
+// ── SnakesLaddersBoard ──────────────────────────────────────────────────────
+// A real numbered board in boustrophedon (up one row, down the next) order —
+// same reading pattern as a physical Snakes & Ladders board — for Flight
+// Club's darts variant.
+export function SnakesLaddersBoard({
+  rows, ladders, snakes, positions,
+}: {
+  rows: number[][];
+  ladders: Record<number, number>;
+  snakes: Record<number, number>;
+  positions: [number, number];
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {rows.map((row, ri) => (
+        <div key={ri} style={{ display: "grid", gridTemplateColumns: `repeat(${row.length},1fr)`, gap: 4 }}>
+          {row.map((n) => {
+            const isLadder = ladders[n] != null;
+            const isSnake = snakes[n] != null;
+            const p1here = positions[0] === n;
+            const p2here = positions[1] === n;
+            return (
+              <div
+                key={n}
+                style={{
+                  position: "relative", aspectRatio: "1", borderRadius: 7,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontFamily: FONT, fontWeight: 700, fontSize: "0.68rem",
+                  background: isLadder ? "rgba(74,222,128,0.12)" : isSnake ? "rgba(248,113,113,0.12)" : "linear-gradient(160deg,#17171f,#101014)",
+                  border: isLadder ? "1px solid rgba(74,222,128,0.4)" : isSnake ? "1px solid rgba(248,113,113,0.4)" : "1px solid rgba(255,255,255,0.08)",
+                  color: "rgba(255,255,255,0.4)",
+                }}
+              >
+                {isLadder ? "🪜" : isSnake ? "🐍" : n}
+                {p1here && <span style={{ position: "absolute", top: 2, left: 2, width: 10, height: 10, borderRadius: "50%", background: P_COLOR(0), boxShadow: `0 0 6px ${P_COLOR(0)}` }} />}
+                {p2here && <span style={{ position: "absolute", bottom: 2, right: 2, width: 10, height: 10, borderRadius: "50%", background: P_COLOR(1), boxShadow: `0 0 6px ${P_COLOR(1)}` }} />}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── MatchStrip ──────────────────────────────────────────────────────────────
 // A compact games/points scoreboard chip row — for Tennis, whose scoring
 // shape (love/15/30/40, games won) doesn't fit the other primitives.

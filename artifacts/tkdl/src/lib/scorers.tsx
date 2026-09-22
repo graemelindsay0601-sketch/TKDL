@@ -4,8 +4,8 @@
  */
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
-import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize, Shuffle, Grid3X3, Dices, Rabbit, Lock, Swords, Ship, EyeOff, Footprints, Award } from "lucide-react";
-import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart, botHighLowVisit, getOppositeSeg, botPickADoubleVisit, botNoughtsCrossesDart, botOcheRouletteVisit, botOneEightyVisit, botFivesVisit, botTennisVisit, botBattleshipShot, botBlindKillerVisit, BOARD_ORDER } from "./bot-engine";
+import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize, Shuffle, Grid3X3, Dices, Rabbit, Lock, Swords, Ship, EyeOff, Footprints, Award, PawPrint, ArrowDownToLine, LayoutGrid, Flame } from "lucide-react";
+import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHareHoundsVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart, botHighLowVisit, getOppositeSeg, botPickADoubleVisit, botNoughtsCrossesDart, botOcheRouletteVisit, botOneEightyVisit, botFivesVisit, botTennisVisit, botBattleshipShot, botBlindKillerVisit, botDonkeyDerbyVisit, botLimboVisit, botSnakesLaddersDart, botQuackshotVisit, botFightGameVisit, BOARD_ORDER } from "./bot-engine";
 import { type PracticeStats, type DartThrow } from "./stats-types";
 import { CardActivationOverlay } from "@/components/CardActivationOverlay";
 import { ChaosCardReveal } from "@/components/ChaosCardReveal";
@@ -32,7 +32,7 @@ import {
 import { cardDebugLog } from "./card-debug";
 import { createMatchLogger, downloadMatchLog } from "./card-clash/matchLogger";
 import type { MatchLogger } from "./card-clash/matchLogger";
-import { RaceTrack, TrackStats, LivesPods, TerritoryGrid, MatchStrip, type LifePod } from "@/components/party-ui";
+import { RaceTrack, TrackStats, LivesPods, TerritoryGrid, MatchStrip, ScoreTower, LimboBar, SnakesLaddersBoard, CricketBoard, type LifePod } from "@/components/party-ui";
 
 /**
  * Sends a match's accumulated log to the backend for later download from
@@ -653,7 +653,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 }
 
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
-export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner }: {
+export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI }: {
   p1Name: string; p2Name: string;
   config: {
     startingScore: number;
@@ -691,6 +691,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
    *  inside the same already-scrollable, already-correctly-sized region so it's visible
    *  immediately without adding any extra page height. */
   topBanner?: React.ReactNode;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const { startingScore = 501, p1StartingScore, p2StartingScore, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo } = config;
@@ -1919,9 +1920,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       {/* Scoreboard */}
       <div className={soloMode ? "grid grid-cols-1 gap-3 max-w-xs mx-auto w-full" : "grid grid-cols-2 gap-3"}>
         {([0, ...(soloMode ? [] : [1])] as (0|1)[]).map(i => (
-          <PlayerCard key={i} name={names[i]} score={scores[i]}
-            turn={i===0} active={turn===i && !bust}
-            sub={doubleIn && !started[i] ? "double in required" : undefined} />
+          newScoringUI ? (
+            <ScoreTower key={i} label={names[i]} value={scores[i]} max={startingScores[i]}
+              playerIdx={i} active={turn===i && !bust} countsDown
+              sub={doubleIn && !started[i] ? "double in required" : undefined} />
+          ) : (
+            <PlayerCard key={i} name={names[i]} score={scores[i]}
+              turn={i===0} active={turn===i && !bust}
+              sub={doubleIn && !started[i] ? "double in required" : undefined} />
+          )
         ))}
       </div>
       {isCardClash && <CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} lastActivation={lastActivation} />}
@@ -2167,7 +2174,7 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
 const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
 
-export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart, topBanner }: {
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI }: {
   p1Name: string; p2Name: string; cutThroat?: boolean; includesBull?: boolean; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
@@ -2188,6 +2195,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   /** Board Curse: extra content rendered inside the scorer's own scrollable top
    *  region instead of as a page-level sibling — see X01Scorer's topBanner for why. */
   topBanner?: React.ReactNode;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const numCount = includesBull ? 7 : 6;
@@ -3532,48 +3540,61 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         </div>
       )}
       {/* Scores */}
-      <div className="grid grid-cols-2 gap-3">
-        {[0,1].map(i => (
-          <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} />
-        ))}
-      </div>
+      {newScoringUI ? (
+        <TrackStats items={[0,1].map(i => ({ label: names[i], value: `${scores[i]}`, playerIdx: i as 0 | 1 }))} />
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i => (
+            <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} />
+          ))}
+        </div>
+      )}
       {isCardClash && <CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} lastActivation={lastActivation} />}
       {isCardClash && isChaosLabMode && <BoardMarksHUD marks={activeBoardMarks} names={[p1Name, p2Name]} engine="CRICKET" viewerIdx={turn as 0 | 1} />}
       {isCardClash && isChaosLabMode && <ChaosLabActivityLog entries={chaosLabActivityLogRef.current} names={[p1Name, p2Name]} />}
       {/* Cricket scorecard */}
       <SectionCard>
-        <div className="grid" style={{ gridTemplateColumns: "1fr auto 1fr", gap: "0.15rem" }}>
-          {/* Header */}
-          <div className="text-center text-xs font-bold pb-1" style={{ color: P_COLOR(0), fontFamily: "Oswald, sans-serif" }}>{p1Name.toUpperCase()}</div>
-          <div className="text-center text-xs font-bold pb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>NUM</div>
-          <div className="text-center text-xs font-bold pb-1" style={{ color: P_COLOR(1), fontFamily: "Oswald, sans-serif" }}>{p2Name.toUpperCase()}</div>
+        {newScoringUI ? (
+          <CricketBoard
+            numbers={CRICKET_NUMS.slice(0, numCount)}
+            labels={CRICKET_LABELS.slice(0, numCount)}
+            marks={[marks[0].slice(0, numCount), marks[1].slice(0, numCount)]}
+            playerNames={[p1Name, p2Name]}
+          />
+        ) : (
+          <div className="grid" style={{ gridTemplateColumns: "1fr auto 1fr", gap: "0.15rem" }}>
+            {/* Header */}
+            <div className="text-center text-xs font-bold pb-1" style={{ color: P_COLOR(0), fontFamily: "Oswald, sans-serif" }}>{p1Name.toUpperCase()}</div>
+            <div className="text-center text-xs font-bold pb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>NUM</div>
+            <div className="text-center text-xs font-bold pb-1" style={{ color: P_COLOR(1), fontFamily: "Oswald, sans-serif" }}>{p2Name.toUpperCase()}</div>
 
-          {CRICKET_NUMS.slice(0, numCount).map((num, idx) => (
-            <div key={num} style={{ display: "contents" }}>
-              <div className="text-center py-2 text-lg font-bold" style={{
-                fontFamily: "Oswald, sans-serif",
-                color: marks[0][idx] >= 3 ? P_COLOR(0) : "rgba(255,255,255,0.7)",
-              }}>
-                {markSymbol(marks[0][idx])}
+            {CRICKET_NUMS.slice(0, numCount).map((num, idx) => (
+              <div key={num} style={{ display: "contents" }}>
+                <div className="text-center py-2 text-lg font-bold" style={{
+                  fontFamily: "Oswald, sans-serif",
+                  color: marks[0][idx] >= 3 ? P_COLOR(0) : "rgba(255,255,255,0.7)",
+                }}>
+                  {markSymbol(marks[0][idx])}
+                </div>
+                <div className="text-center py-2 text-sm font-bold" style={{
+                  fontFamily: "Oswald, sans-serif",
+                  color: "rgba(255,255,255,0.4)",
+                  borderLeft: "1px solid rgba(255,255,255,0.06)",
+                  borderRight: "1px solid rgba(255,255,255,0.06)",
+                  textDecoration: marks[0][idx] >= 3 && marks[1][idx] >= 3 ? "line-through" : undefined,
+                }}>
+                  {CRICKET_LABELS[idx]}
+                </div>
+                <div className="text-center py-2 text-lg font-bold" style={{
+                  fontFamily: "Oswald, sans-serif",
+                  color: marks[1][idx] >= 3 ? P_COLOR(1) : "rgba(255,255,255,0.7)",
+                }}>
+                  {markSymbol(marks[1][idx])}
+                </div>
               </div>
-              <div className="text-center py-2 text-sm font-bold" style={{
-                fontFamily: "Oswald, sans-serif",
-                color: "rgba(255,255,255,0.4)",
-                borderLeft: "1px solid rgba(255,255,255,0.06)",
-                borderRight: "1px solid rgba(255,255,255,0.06)",
-                textDecoration: marks[0][idx] >= 3 && marks[1][idx] >= 3 ? "line-through" : undefined,
-              }}>
-                {CRICKET_LABELS[idx]}
-              </div>
-              <div className="text-center py-2 text-lg font-bold" style={{
-                fontFamily: "Oswald, sans-serif",
-                color: marks[1][idx] >= 3 ? P_COLOR(1) : "rgba(255,255,255,0.7)",
-              }}>
-                {markSymbol(marks[1][idx])}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
         {lastHit && (
           <div className="text-center text-xs mt-2 font-bold" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
             Hit: {lastHit}
@@ -3617,10 +3638,11 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
 }
 
 // ── Killer Scorer ──────────────────────────────────────────────────────────────
-export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; lives?: number; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const [phase, setPhase]           = useState<"assign"|"play">("assign");
@@ -3765,22 +3787,30 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <h2 className="text-2xl font-bold uppercase text-center" style={{ fontFamily:"Oswald,sans-serif" }}>Killer</h2>
-        <div className="grid grid-cols-2 gap-3">
-          {[0,1].map(i=>(
-            <div key={i} className="pdc-card p-4 text-center" style={{ borderColor:turn===i?P_COLOR(i):"rgba(255,255,255,0.06)" }}>
-              <div className="text-xs font-bold uppercase" style={{ color:P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>{names[i]}</div>
-              <div className="text-sm mt-1" style={{ color:"rgba(255,255,255,0.5)", fontFamily:"Oswald,sans-serif" }}>D{killerNums[i]}</div>
-              <div className="text-lg font-bold" style={{ fontFamily:"Oswald,sans-serif", color:isKiller[i]?"#ffd24a":"rgba(255,255,255,0.3)" }}>
-                {isKiller[i]?"☠ KILLER":"○ Not yet"}
+        {newScoringUI ? (
+          <LivesPods pods={[0,1].map(i => ({
+            id: String(i), name: names[i], initial: names[i].charAt(0).toUpperCase(),
+            lives: playerLives[i], maxLives: lives, out: playerLives[i] <= 0, active: turn === i,
+            colorIdx: i as 0 | 1, tag: isKiller[i] ? `☠ KILLER · D${killerNums[i]}` : `D${killerNums[i]} · not yet`,
+          }))} />
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {[0,1].map(i=>(
+              <div key={i} className="pdc-card p-4 text-center" style={{ borderColor:turn===i?P_COLOR(i):"rgba(255,255,255,0.06)" }}>
+                <div className="text-xs font-bold uppercase" style={{ color:P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>{names[i]}</div>
+                <div className="text-sm mt-1" style={{ color:"rgba(255,255,255,0.5)", fontFamily:"Oswald,sans-serif" }}>D{killerNums[i]}</div>
+                <div className="text-lg font-bold" style={{ fontFamily:"Oswald,sans-serif", color:isKiller[i]?"#ffd24a":"rgba(255,255,255,0.3)" }}>
+                  {isKiller[i]?"☠ KILLER":"○ Not yet"}
+                </div>
+                <div className="flex justify-center gap-1 mt-2">
+                  {Array.from({length:lives}).map((_,li)=>(
+                    <span key={li} style={{ fontSize:"1.1rem", opacity:li<playerLives[i]?1:0.15 }}>❤</span>
+                  ))}
+                </div>
               </div>
-              <div className="flex justify-center gap-1 mt-2">
-                {Array.from({length:lives}).map((_,li)=>(
-                  <span key={li} style={{ fontSize:"1.1rem", opacity:li<playerLives[i]?1:0.15 }}>❤</span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
         {msg&&<div className="text-center font-bold text-sm" style={{ color:"#ffd24a", fontFamily:"Oswald,sans-serif" }}>{msg}</div>}
         {isBotTurnKill
           ?<TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
@@ -4123,10 +4153,11 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
 // a bit more room before elimination). Treble 1 scores 0 for this game
 // only, so the visit total is computed locally rather than summing
 // dart.value directly.
-export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; config?: any; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
@@ -4237,16 +4268,24 @@ export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
         )}
       </SectionCard>
 
-      <div className="grid grid-cols-2 gap-3">
-        {[0,1].map(i => (
-          <PlayerCard key={i}
-            name={names[i]}
-            score={startLives > 1 ? ("❤️".repeat(Math.max(0, lives[i])) || "💀") : (lives[i] > 0 ? "IN" : "OUT")}
-            turn={i === 0}
-            active={turn === i && lives[i] > 0}
-          />
-        ))}
-      </div>
+      {newScoringUI ? (
+        <LivesPods pods={[0,1].map(i => ({
+          id: String(i), name: names[i], initial: names[i].charAt(0).toUpperCase(),
+          lives: Math.max(0, lives[i]), maxLives: startLives, out: lives[i] <= 0, active: turn === i && lives[i] > 0,
+          colorIdx: i as 0 | 1, tag: lives[i] <= 0 ? "OUT" : `${lives[i]}/${startLives} lives`,
+        }))} />
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i => (
+            <PlayerCard key={i}
+              name={names[i]}
+              score={startLives > 1 ? ("❤️".repeat(Math.max(0, lives[i])) || "💀") : (lives[i] > 0 ? "IN" : "OUT")}
+              turn={i === 0}
+              active={turn === i && lives[i] > 0}
+            />
+          ))}
+        </div>
+      )}
 
       {flash && <BustBanner msg={flash} />}
       {isBotTurnHL
@@ -4267,10 +4306,11 @@ export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
 const HALVEIT_TARGETS = [20,16,"D",17,"Bull",18,19,"T"];
 const HALVEIT_LABELS  = ["20","16","Any Double","17","Bull","18","19","Any Treble"];
 
-export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; gameKey: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const isBobs = gameKey === "bobs_27";
@@ -4382,9 +4422,16 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
         {!isBobs && <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Miss a target = score halved</p>}
         {isBobs && <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Hit double = +score · Miss = -value</p>}
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} />)}
-      </div>
+      {newScoringUI ? (
+        <TrackStats items={[
+          { label: names[0], value: `${scores[0]}`, playerIdx: 0 },
+          { label: names[1], value: `${scores[1]}`, playerIdx: 1 },
+        ]} />
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} />)}
+        </div>
+      )}
       {/* Round targets progress */}
       <div className="flex gap-1 flex-wrap justify-center">
         {targets.map((t,i) => (
@@ -4417,10 +4464,11 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
 }
 
 // ── Count Up Scorer ────────────────────────────────────────────────────────────
-export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; config: { target?: number; rounds?: number; bullsOnly?: boolean; accumulate?: boolean; noOuterBull?: boolean }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const target = config.target ?? 501;
@@ -4528,9 +4576,18 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
               : "Score as many points as possible"}
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} sub={sub(i)} />)}
-        </div>
+        {newScoringUI && !accumulate && maxRounds === 0 ? (
+          <div className="grid grid-cols-2 gap-3">
+            {[0,1].map(i => (
+              <ScoreTower key={i} label={names[i]} value={scores[i]} max={target} playerIdx={i as 0 | 1}
+                active={turn === i} countsDown={false} sub={sub(i)} />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} sub={sub(i)} />)}
+          </div>
+        )}
         {halvMsg && <div className="text-center font-bold text-sm" style={{ color:"#ff005c", fontFamily:"Oswald,sans-serif" }}>{halvMsg}</div>}
         {isBotTurnCU ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
           : <TurnBanner name={names[turn]} turn={turn} msg={bullsOnly ? "— aim at Bull!" : accumulate ? sub(turn) : "— score as many as you can"} />}
@@ -4550,10 +4607,11 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
 }
 
 // ── Gotcha Scorer ──────────────────────────────────────────────────────────────
-export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, onAbandon, onTurnChanged }: {
+export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, onAbandon, onTurnChanged, newScoringUI }: {
   p1Name: string; p2Name: string; target?: number; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onTurnChanged?: (t: 0|1) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const [scores, setScores]         = useState<[number,number]>([0,0]);
@@ -4614,9 +4672,18 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
         <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Gotcha!</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Race to exactly {target}. Match opponent's score = GOTCHA — they reset to 0!</p>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} scoreSuffix={`/${target}`} turn={i===0} active={turn===i} />)}
-      </div>
+      {newScoringUI ? (
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i => (
+            <ScoreTower key={i} label={names[i]} value={scores[i]} max={target} playerIdx={i as 0 | 1}
+              active={turn === i} countsDown={false} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} scoreSuffix={`/${target}`} turn={i===0} active={turn===i} />)}
+        </div>
+      )}
       {msg && <div className="text-center font-bold" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{msg}</div>}
       <TurnBanner name={names[turn]} turn={turn} msg={isBotTurnGotcha ? "— CPU THROWING…" : undefined} />
       <VisitDarts darts={visitDarts} />
@@ -5912,14 +5979,22 @@ export function HareHoundsScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
     const nv = [...visitDarts, dart];
     setVisitDarts(nv);
     if (dart.segment === target) {
+      // A hit on the target number always advances — but landing it as a
+      // double or treble is a harder shot, so it's worth more ground: 1
+      // length for a single, 2 for a double, 3 for a treble. Without this
+      // the Hound (who's chasing the exact same 1-20 sequence the Hare is)
+      // closes the gap just as fast as the Hare opens it, so there's no way
+      // for a sharper thrower to actually pull away — rewarding the harder
+      // shot is what makes the chase a real test of accuracy.
+      const step = dart.multiplier;
       if (turn === 0) {
-        const np = harePos + 1;
+        const np = Math.min(20, harePos + step);
         setHarePos(np);
         if (np >= 20) {
           safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "hare_and_hounds" } }); onWin(0, "The Hare completes the lap!"); }, 300);
         }
       } else {
-        const np = houndPos + 1;
+        const np = Math.min(20, houndPos + step);
         setHoundPos(np);
         if (np >= harePos) {
           safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "hare_and_hounds" } }); onWin(1, "The Hound catches the Hare!"); }, 300);
@@ -5934,7 +6009,10 @@ export function HareHoundsScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
   const isBotTurnHH = !!botConfig && turn === 1;
   useEffect(() => {
     if (!botConfig || turn !== 1) return;
-    const [d1, d2, d3] = botSequenceVisit(houndPos + 1, 1, botConfig);
+    // Weighted toward doubles/trebles by accuracy, same as the human upside
+    // above — otherwise a CPU Hound would fall behind a skilled human Hare
+    // purely because it never benefits from the multiplier bonus.
+    const [d1, d2, d3] = botHareHoundsVisit(houndPos + 1, botConfig);
     const t1 = safeTimeout(() => handleDartRefHH.current(d1), 700);
     const t2 = safeTimeout(() => handleDartRefHH.current(d2), 1400);
     const t3 = safeTimeout(() => handleDartRefHH.current(d3), 2100);
@@ -5950,7 +6028,7 @@ export function HareHoundsScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
         <Rabbit className="w-8 h-8 mx-auto mb-2" style={{ color: "#ffd24a" }} />
         <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Hare and Hounds</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
-          {names[0]} is the Hare, racing 1→20. {names[1]} is the Hound, chasing the same path — catch the Hare's number to win.
+          {names[0]} is the Hare, racing 1→20. {names[1]} is the Hound, chasing the same path — catch the Hare's number to win. Single = 1 length, double = 2, treble = 3.
         </p>
       </div>
       {newScoringUI ? (
@@ -5992,7 +6070,7 @@ export function HareHoundsScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
         <PlayerCard name={`${names[1]} 🐕`} score={houndPos} scoreSuffix="/20" turn={false} active={turn===1} sub={gap>0?`${gap} behind`:"Level!"} />
       </div>
       {isBotTurnHH ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
-        : <TurnBanner name={names[turn]} turn={turn} msg={`— hit ${target} to advance`} />}
+        : <TurnBanner name={names[turn]} turn={turn} msg={`— hit ${target} (D/T moves further)`} />}
       <VisitDarts darts={visitDarts} />
       <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
         onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
@@ -6739,6 +6817,603 @@ export function BlindKillersScorer({ p1Name, p2Name, config, botConfig, onWin, o
         onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
         onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
         disabled={isBotTurnBK} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Donkey Derby Scorer (Flight Club) ───────────────────────────────────────────
+// Each donkey is assigned a random racing number (1–20, always distinct) at
+// the start — visible to both players, since you need to know what to aim
+// at. Hitting your own number advances your donkey one length; hitting your
+// opponent's number knocks theirs back a length. First to 20 lengths wins.
+function assignDonkeyNums(): [number, number] {
+  const a = 1 + Math.floor(Math.random() * 20);
+  let b = 1 + Math.floor(Math.random() * 20);
+  while (b === a) b = 1 + Math.floor(Math.random() * 20);
+  return [a, b];
+}
+export function DonkeyDerbyScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+  p1Name: string; p2Name: string; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const [nums] = useState<[number, number]>(assignDonkeyNums);
+  const [pos, setPos] = useState<[number, number]>([0, 0]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
+
+  const handleDart = (dart: Dart) => {
+    if (over || visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    const other: 0 | 1 = turn === 0 ? 1 : 0;
+    if (dart.segment === nums[turn]) {
+      setPos(prev => {
+        // Guarded with `over` (rather than relying on the clamp alone) so a
+        // human still clicking after the line is crossed — or the bot's
+        // in-flight staggered darts from the same winning visit — can't
+        // re-trigger onWin a second time for the same match.
+        if (prev[turn] >= 20) return prev;
+        const np: [number, number] = [...prev] as [number, number];
+        np[turn] = Math.min(20, np[turn] + 1);
+        if (np[turn] >= 20) {
+          setOver(true);
+          safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "donkey_derby" } }); onWin(turn, `${names[turn]}'s donkey crosses the line first!`); }, 300);
+        }
+        return np;
+      });
+      setFlash(`${names[turn]} hits their number — moves up!`);
+    } else if (dart.segment === nums[other]) {
+      setPos(prev => {
+        const np: [number, number] = [...prev] as [number, number];
+        np[other] = Math.max(0, np[other] - 1);
+        return np;
+      });
+      setFlash(`${names[turn]} clips ${names[other]}'s number — knocked back!`);
+    } else if (dart.segment !== 0) {
+      setFlash(null);
+    }
+    safeTimeout(() => setFlash(null), 1400);
+    if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); }
+  };
+
+  const handleDartRefDD = useRef(handleDart);
+  useEffect(() => { handleDartRefDD.current = handleDart; });
+  const isBotTurnDD = !!botConfig && turn === 1 && !over;
+  useEffect(() => {
+    if (!botConfig || turn !== 1 || over) return;
+    const behind = pos[1] < pos[0];
+    const [d1, d2, d3] = botDonkeyDerbyVisit(nums[1], nums[0], behind, botConfig);
+    const t1 = safeTimeout(() => handleDartRefDD.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefDD.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefDD.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig, pos, nums, over]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <PawPrint className="w-8 h-8 mx-auto mb-2" style={{ color: "#ffd24a" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Donkey Derby</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
+          {names[0]}'s donkey runs on {nums[0]}, {names[1]}'s on {nums[1]}. Hit your own number to advance — hit your rival's to knock them back. First to 20 lengths wins.
+        </p>
+      </div>
+      {newScoringUI ? (
+        <>
+          <TrackStats items={[
+            { label: `${names[0]} · #${nums[0]}`, value: `${pos[0]}/20`, playerIdx: 0 },
+            { label: `${names[1]} · #${nums[1]}`, value: `${pos[1]}/20`, playerIdx: 1 },
+          ]} />
+          <RaceTrack
+            max={20}
+            tickLabels={["START", "10", "FINISH"]}
+            lanes={[
+              { label: names[0], pos: pos[0], emoji: "🐴", playerIdx: 0, leadFill: true },
+              { label: names[1], pos: pos[1], emoji: "🐴", playerIdx: 1 },
+            ]}
+          />
+        </>
+      ) : (
+        <SectionCard>
+          <div className="flex items-center gap-1" style={{ overflowX: "auto", paddingTop: "0.9rem", paddingBottom: "0.9rem" }}>
+            {Array.from({length:20},(_,i)=>i+1).map(n => (
+              <div key={n} style={{
+                minWidth: "24px", height: "24px", borderRadius: "0.3rem", display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "Oswald, sans-serif", fontWeight: 800, fontSize: "0.65rem", position: "relative", flexShrink: 0,
+                background: n === pos[0] ? "rgba(34,197,94,0.2)" : n === pos[1] ? "rgba(238,10,120,0.2)" : "rgba(255,255,255,0.03)",
+                border: n === pos[0] ? "1.5px solid #22c55e" : n === pos[1] ? "1.5px solid #ee0a78" : "1px solid rgba(255,255,255,0.08)",
+                color: "rgba(255,255,255,0.5)",
+              }}>
+                {n}
+                {n === pos[0] && <span style={{ position:"absolute", top:"-16px", fontSize:"0.85rem" }}>🐴</span>}
+                {n === pos[1] && <span style={{ position:"absolute", bottom:"-16px", fontSize:"0.85rem" }}>🐴</span>}
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <PlayerCard name={names[0]} score={pos[0]} scoreSuffix="/20" turn={true} active={turn===0} sub={`Aim: ${nums[0]}`} />
+        <PlayerCard name={names[1]} score={pos[1]} scoreSuffix="/20" turn={false} active={turn===1} sub={`Aim: ${nums[1]}`} />
+      </div>
+      {flash && <div className="text-center font-bold text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{flash}</div>}
+      {isBotTurnDD ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+        : <TurnBanner name={names[turn]} turn={turn} msg={`— hit ${nums[turn]} to advance`} />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        highlightSegments={[nums[turn]]}
+        disabled={isBotTurnDD || over} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Limbo Scorer (Flight Club) ──────────────────────────────────────────────────
+// A visit's 3-dart total has to land UNDER the current bar to clear it — the
+// opposite of Knockout's "beat the bar" — and clearing it drops the bar to
+// whatever you actually scored, so it only ever gets tighter. Fail to clear
+// and you lose a life; last player with lives left wins.
+export function LimboScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+  p1Name: string; p2Name: string; config?: { startBar?: number; lives?: number }; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const startBar = config?.startBar ?? 60;
+  const maxLives = config?.lives ?? 3;
+  const [bar, setBar] = useState(startBar);
+  const [lives, setLives] = useState<[number, number]>([maxLives, maxLives]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
+
+  const handleDart = (dart: Dart) => {
+    if (over || visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      const total = nv.reduce((s, d) => s + d.value, 0);
+      const cleared = total < bar;
+      if (cleared) {
+        setBar(total);
+        setFlash(`${names[turn]} scores ${total} — clears it! Bar drops to ${total}.`);
+      } else {
+        setLives(prev => {
+          if (prev[turn] <= 0) return prev; // already eliminated — don't re-fire onWin
+          const nl: [number, number] = [...prev] as [number, number];
+          nl[turn] = Math.max(0, nl[turn] - 1);
+          if (nl[turn] <= 0) {
+            const winner: 0 | 1 = turn === 0 ? 1 : 0;
+            setOver(true);
+            safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "limbo" } }); onWin(winner, `${names[turn]} is out of lives!`); }, 900);
+          }
+          return nl;
+        });
+        setFlash(`${names[turn]} scores ${total} — doesn't clear ${bar}, loses a life!`);
+      }
+      safeTimeout(() => setFlash(null), 1800);
+      setVisitDarts([]);
+      setTurn(t => t===0?1:0);
+    }
+  };
+
+  const handleDartRefLM = useRef(handleDart);
+  useEffect(() => { handleDartRefLM.current = handleDart; });
+  const isBotTurnLM = !!botConfig && turn === 1 && lives[1] > 0 && !over;
+  useEffect(() => {
+    if (!botConfig || turn !== 1 || lives[1] <= 0 || over) return;
+    const [d1, d2, d3] = botLimboVisit(bar, botConfig);
+    const t1 = safeTimeout(() => handleDartRefLM.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefLM.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefLM.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig, bar, lives, over]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <ArrowDownToLine className="w-8 h-8 mx-auto mb-2" style={{ color: "#38bdf8" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Limbo</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
+          Score under the bar to clear it — the bar starts at {startBar} and only ever drops to whatever you scored. Miss it and lose a life. {maxLives} lives each.
+        </p>
+      </div>
+      {newScoringUI ? (
+        <>
+          <LimboBar value={bar} max={startBar} />
+          <LivesPods pods={[0,1].map(i => ({
+            id: String(i), name: names[i], initial: names[i].charAt(0).toUpperCase(),
+            lives: lives[i as 0|1], maxLives, out: lives[i as 0|1] <= 0, active: turn === i,
+            colorIdx: i as 0 | 1, tag: lives[i as 0|1] <= 0 ? "OUT" : `${lives[i as 0|1]}/${maxLives} lives`,
+          }))} />
+        </>
+      ) : (
+        <>
+          <SectionCard>
+            <div className="text-center">
+              <div className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>Current bar — score under this</div>
+              <div className="font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", lineHeight: 1, color: "#38bdf8" }}>{bar}</div>
+            </div>
+          </SectionCard>
+          <div className="grid grid-cols-2 gap-3">
+            {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={lives[i as 0|1]} scoreSuffix="/lives" turn={i===0} active={turn===i} />)}
+          </div>
+        </>
+      )}
+      {flash && <div className="text-center font-bold text-sm" style={{ color: "#38bdf8", fontFamily: "Oswald, sans-serif" }}>{flash}</div>}
+      {isBotTurnLM ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+        : <TurnBanner name={names[turn]} turn={turn} msg={`— stay under ${bar}`} />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        disabled={isBotTurnLM || over} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Snakes & Ladders Scorer (Flight Club) ───────────────────────────────────────
+// A real 30-square board, laid out boustrophedon (row 1 reads right-to-left
+// from the top since square 30 is the finish) exactly like the physical
+// game. One dart per turn: any live segment (1-20) converts to a 1-6 "roll"
+// (Bull = 6), Miss wastes the turn. Land exactly on a ladder foot and you
+// climb; land on a snake head and you slide down. First to square 30 wins.
+const SL_LADDERS: Record<number, number> = { 3: 16, 8: 22 };
+const SL_SNAKES: Record<number, number> = { 19: 4, 27: 12 };
+const SL_ROWS: number[][] = [
+  [25, 26, 27, 28, 29, 30],
+  [24, 23, 22, 21, 20, 19],
+  [13, 14, 15, 16, 17, 18],
+  [12, 11, 10, 9, 8, 7],
+  [1, 2, 3, 4, 5, 6],
+];
+function rollFromDart(dart: Dart): number {
+  if (dart.segment === 0) return 0;
+  if (dart.segment === 25) return 6;
+  const r = dart.segment % 6;
+  return r === 0 ? 6 : r;
+}
+export function SnakesLaddersScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+  p1Name: string; p2Name: string; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const [pos, setPos] = useState<[number, number]>([1, 1]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
+
+  const handleDart = (dart: Dart) => {
+    if (over) return;
+    const roll = rollFromDart(dart);
+    if (roll === 0) {
+      setFlash(`${names[turn]} misses the board — stays put.`);
+      safeTimeout(() => setFlash(null), 1400);
+      setTurn(t => t===0?1:0);
+      return;
+    }
+    let np = Math.min(30, pos[turn] + roll);
+    let msg = `${names[turn]} rolls a ${roll} — moves to ${np}`;
+    if (SL_LADDERS[np] != null) { msg += `. Ladder! Climbs to ${SL_LADDERS[np]}`; np = SL_LADDERS[np]; }
+    else if (SL_SNAKES[np] != null) { msg += `. Snake! Slides down to ${SL_SNAKES[np]}`; np = SL_SNAKES[np]; }
+    setPos(prev => { const n: [number, number] = [...prev] as [number, number]; n[turn] = np; return n; });
+    setFlash(msg);
+    safeTimeout(() => setFlash(null), 1800);
+    if (np >= 30) {
+      setOver(true);
+      safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "snakes_ladders" } }); onWin(turn, `${names[turn]} reaches square 30 first!`); }, 400);
+      return;
+    }
+    setTurn(t => t===0?1:0);
+  };
+
+  const handleDartRefSL = useRef(handleDart);
+  useEffect(() => { handleDartRefSL.current = handleDart; });
+  const isBotTurnSL = !!botConfig && turn === 1 && !over;
+  useEffect(() => {
+    if (!botConfig || turn !== 1 || over) return;
+    const t1 = safeTimeout(() => handleDartRefSL.current(botSnakesLaddersDart(botConfig)), 900);
+    return () => clearTimeout(t1);
+  }, [turn, botConfig, over]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <LayoutGrid className="w-8 h-8 mx-auto mb-2" style={{ color: "#4ade80" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Snakes &amp; Ladders</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
+          One dart, any number — it converts to a 1-6 roll (Bull = 6). Land on a ladder and climb, land on a snake and slide. First to square 30 wins.
+        </p>
+      </div>
+      {newScoringUI ? (
+        <SnakesLaddersBoard rows={SL_ROWS} ladders={SL_LADDERS} snakes={SL_SNAKES} positions={pos} />
+      ) : (
+        <SectionCard>
+          <div className="flex flex-col gap-1">
+            {SL_ROWS.map((row, ri) => (
+              <div key={ri} className="grid gap-1" style={{ gridTemplateColumns: `repeat(${row.length},1fr)` }}>
+                {row.map(n => (
+                  <div key={n} style={{
+                    aspectRatio: "1", borderRadius: "0.4rem", display: "flex", alignItems: "center", justifyContent: "center",
+                    fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.6rem", position: "relative",
+                    background: SL_LADDERS[n] != null ? "rgba(74,222,128,0.12)" : SL_SNAKES[n] != null ? "rgba(248,113,113,0.12)" : "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)",
+                  }}>
+                    {SL_LADDERS[n] != null ? "🪜" : SL_SNAKES[n] != null ? "🐍" : n}
+                    {pos[0] === n && <span style={{ position:"absolute", top:1, left:1, fontSize:"0.55rem" }}>🟢</span>}
+                    {pos[1] === n && <span style={{ position:"absolute", bottom:1, right:1, fontSize:"0.55rem" }}>🟣</span>}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <PlayerCard name={names[0]} score={pos[0]} scoreSuffix="/30" turn={true} active={turn===0} />
+        <PlayerCard name={names[1]} score={pos[1]} scoreSuffix="/30" turn={false} active={turn===1} />
+      </div>
+      {flash && <div className="text-center font-bold text-sm" style={{ color: "#4ade80", fontFamily: "Oswald, sans-serif" }}>{flash}</div>}
+      {isBotTurnSL ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+        : <TurnBanner name={names[turn]} turn={turn} msg="— throw any number for your roll" />}
+      <DartInputBoard visitDartCount={0} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => {}}
+        disabled={isBotTurnSL || over} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Quackshot Scorer (Flight Club) ──────────────────────────────────────────────
+// 8 rounds of 3-dart visits, alternating turns. Zones score from the centre
+// out: Double Bull +3, Bull +2, Inner Single +1, Treble -2, Outer Single -1,
+// Double 0, Miss 0 — the treble is a deliberate trap, worth less than
+// missing wide, so the smart play is to hold for the bull rather than
+// swinging for a big number. Highest total after 8 rounds wins.
+function quackZoneValue(dart: Dart): number {
+  if (dart.segment === 25) return dart.multiplier === 2 ? 3 : 2; // double bull / bull
+  if (dart.multiplier === 3) return -2; // treble
+  if (dart.multiplier === 2) return 0; // double
+  if (dart.multiplier === 1) return dart.ring === "outer" ? -1 : 1; // inner single (default) vs outer single
+  return 0; // miss
+}
+export function QuackshotScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+  p1Name: string; p2Name: string; config?: { rounds?: number }; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const totalRounds = config?.rounds ?? 8;
+  const [round, setRound] = useState(1);
+  const [scores, setScores] = useState<[number, number]>([0, 0]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
+
+  const handleDart = (dart: Dart) => {
+    if (over || visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    if (nv.length === 3) {
+      const visitTotal = nv.reduce((s, d) => s + quackZoneValue(d), 0);
+      // Computed directly (not via a setScores functional updater) so the
+      // final-round branch below can safely read the up-to-date total —
+      // calling onWin from inside a setState updater trips React's "Cannot
+      // update a component while rendering a different component" warning,
+      // since onWin ultimately updates the parent match screen.
+      const ns: [number, number] = [...scores] as [number, number];
+      ns[turn] += visitTotal;
+      setScores(ns);
+      setFlash(`${names[turn]}'s visit: ${visitTotal >= 0 ? "+" : ""}${visitTotal}`);
+      safeTimeout(() => setFlash(null), 1600);
+      setVisitDarts([]);
+      if (turn === 1) {
+        const nextRound = round + 1;
+        if (nextRound > totalRounds) {
+          setOver(true);
+          safeTimeout(() => {
+            const winner: 0 | 1 | null = ns[0] === ns[1] ? null : (ns[0] > ns[1] ? 0 : 1);
+            onPracticeStats?.({ sessionData: { mode: "quackshot" } });
+            if (winner !== null) {
+              onWin(winner, `Wins ${Math.max(ns[0], ns[1])} to ${Math.min(ns[0], ns[1])} after ${totalRounds} rounds!`);
+            } else {
+              onWin(0, `Tied at ${ns[0]} after ${totalRounds} rounds!`);
+            }
+          }, 500);
+          setTurn(0);
+          return;
+        }
+        setRound(nextRound);
+      }
+      setTurn(t => t===0?1:0);
+    }
+  };
+
+  const handleDartRefQS = useRef(handleDart);
+  useEffect(() => { handleDartRefQS.current = handleDart; });
+  const isBotTurnQS = !!botConfig && turn === 1 && round <= totalRounds && !over;
+  useEffect(() => {
+    if (!botConfig || turn !== 1 || round > totalRounds || over) return;
+    const [d1, d2, d3] = botQuackshotVisit(botConfig);
+    const t1 = safeTimeout(() => handleDartRefQS.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefQS.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefQS.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig, round, over]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <Target className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff9219" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Quackshot</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
+          {totalRounds} rounds, highest score wins — but the treble is a trap: it's worth less than missing wide. Aim for the bull.
+        </p>
+      </div>
+      <SectionCard>
+        <div className="grid grid-cols-3 gap-1.5 text-center" style={{ maxWidth: "320px", margin: "0 auto" }}>
+          {[
+            { label: "D-Bull", val: "+3", color: "#4ade80" },
+            { label: "Bull", val: "+2", color: "#4ade80" },
+            { label: "Inner", val: "+1", color: "#4ade80" },
+            { label: "Treble", val: "−2", color: "#f87171" },
+            { label: "Outer", val: "−1", color: "#f87171" },
+            { label: "Dbl/Miss", val: "0", color: "rgba(255,255,255,0.5)" },
+          ].map((z, i) => (
+            <div key={i} style={{ padding: "4px 2px", borderRadius: 6, background: "rgba(255,255,255,0.03)", border: `1px solid ${z.color}55` }}>
+              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>{z.label}</div>
+              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", fontWeight: 800, color: z.color }}>{z.val}</div>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+      <div className="text-center text-xs uppercase tracking-widest font-bold" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
+        Round {Math.min(round, totalRounds)} of {totalRounds}
+      </div>
+      {newScoringUI ? (
+        <TrackStats items={[
+          { label: names[0], value: `${scores[0]}`, playerIdx: 0 },
+          { label: names[1], value: `${scores[1]}`, playerIdx: 1 },
+        ]} />
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <PlayerCard name={names[0]} score={scores[0]} turn={true} active={turn===0} />
+          <PlayerCard name={names[1]} score={scores[1]} turn={false} active={turn===1} />
+        </div>
+      )}
+      {flash && <div className="text-center font-bold text-sm" style={{ color: "#ff9219", fontFamily: "Oswald, sans-serif" }}>{flash}</div>}
+      {isBotTurnQS ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+        : <TurnBanner name={names[turn]} turn={turn} msg="— aim for the bull, watch the treble trap" />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        distinguishSingleRing
+        disabled={isBotTurnQS || over} />
+      <AbandonBtn onAbandon={onAbandon} />
+    </div>
+  );
+}
+
+// ── Fight Game Scorer (Dartsee) ──────────────────────────────────────────────────
+// Each player is assigned a random distinct power number (1-20) at the
+// start, visible to both. Hitting your opponent's number damages them;
+// hitting your own heals you. Both start at 9 HP — first to reduce their
+// opponent to 0 wins.
+export function FightGameScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+  p1Name: string; p2Name: string; config?: { hp?: number }; botConfig?: BotConfig;
+  onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
+}) {
+  const safeTimeout = useSafeTimeout();
+  const names = [p1Name, p2Name];
+  const maxHp = config?.hp ?? 9;
+  const [nums] = useState<[number, number]>(assignDonkeyNums);
+  const [hp, setHp] = useState<[number, number]>([maxHp, maxHp]);
+  const [turn, setTurn] = useState<0 | 1>(0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
+
+  const handleDart = (dart: Dart) => {
+    if (over || visitDarts.length >= 3) return;
+    const nv = [...visitDarts, dart];
+    setVisitDarts(nv);
+    const other: 0 | 1 = turn === 0 ? 1 : 0;
+    if (dart.segment === nums[other]) {
+      const dmg = dart.multiplier;
+      setHp(prev => {
+        if (prev[other] <= 0) return prev; // already finished off — don't re-fire onWin
+        const nh: [number, number] = [...prev] as [number, number];
+        nh[other] = Math.max(0, nh[other] - dmg);
+        if (nh[other] <= 0) {
+          setOver(true);
+          safeTimeout(() => { onPracticeStats?.({ sessionData: { mode: "fight_game" } }); onWin(turn, `${names[turn]} finishes off ${names[other]}!`); }, 500);
+        }
+        return nh;
+      });
+      setFlash(`${names[turn]} hits ${names[other]}'s number — ${dmg} damage!`);
+    } else if (dart.segment === nums[turn]) {
+      const heal = dart.multiplier;
+      setHp(prev => {
+        const nh: [number, number] = [...prev] as [number, number];
+        nh[turn] = Math.min(maxHp, nh[turn] + heal);
+        return nh;
+      });
+      setFlash(`${names[turn]} hits their own number — heals ${heal}!`);
+    }
+    safeTimeout(() => setFlash(null), 1400);
+    if (nv.length === 3) { setVisitDarts([]); setTurn(t => t===0?1:0); }
+  };
+
+  const handleDartRefFG = useRef(handleDart);
+  useEffect(() => { handleDartRefFG.current = handleDart; });
+  const otherTurnFG: 0 | 1 = turn === 0 ? 1 : 0;
+  const isBotTurnFG = !!botConfig && turn === 1 && hp[1] > 0 && !over;
+  useEffect(() => {
+    if (!botConfig || turn !== 1 || hp[1] <= 0 || over) return;
+    const [d1, d2, d3] = botFightGameVisit(nums[1], nums[0], hp[1], botConfig);
+    const t1 = safeTimeout(() => handleDartRefFG.current(d1), 700);
+    const t2 = safeTimeout(() => handleDartRefFG.current(d2), 1400);
+    const t3 = safeTimeout(() => handleDartRefFG.current(d3), 2100);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [turn, botConfig, hp, nums, over]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <div className="pdc-divider" />
+      <div className="text-center">
+        <Flame className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff6b6b" }} />
+        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Fight Game</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
+          {names[0]} fights on {nums[0]}, {names[1]} fights on {nums[1]}. Hit your rival's number to damage them, hit your own to heal. {maxHp} HP each.
+        </p>
+      </div>
+      {newScoringUI ? (
+        <div className="grid grid-cols-2 gap-3">
+          <ScoreTower label={`${names[0]} · #${nums[0]}`} value={hp[0]} max={maxHp} playerIdx={0} active={turn===0} countsDown={false} sub="HP" />
+          <ScoreTower label={`${names[1]} · #${nums[1]}`} value={hp[1]} max={maxHp} playerIdx={1} active={turn===1} countsDown={false} sub="HP" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <PlayerCard name={names[0]} score={hp[0]} scoreSuffix=" HP" turn={true} active={turn===0} sub={`Number: ${nums[0]}`} />
+          <PlayerCard name={names[1]} score={hp[1]} scoreSuffix=" HP" turn={false} active={turn===1} sub={`Number: ${nums[1]}`} />
+        </div>
+      )}
+      {flash && <div className="text-center font-bold text-sm" style={{ color: "#ff6b6b", fontFamily: "Oswald, sans-serif" }}>{flash}</div>}
+      {isBotTurnFG ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" />
+        : <TurnBanner name={names[turn]} turn={turn} msg={`— hit ${nums[otherTurnFG]} to attack, ${nums[turn]} to heal`} />}
+      <VisitDarts darts={visitDarts} />
+      <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
+        onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+        highlightSegments={[nums[0], nums[1]]}
+        disabled={isBotTurnFG || over} />
       <AbandonBtn onAbandon={onAbandon} />
     </div>
   );

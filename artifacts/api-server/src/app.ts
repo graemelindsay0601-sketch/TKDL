@@ -656,7 +656,19 @@ async function seedGameTypes() {
     { key: "blind_killers",        name: "Blind Killers",             engine: "Custom",    category: "party", description: "Everyone's double is secret — even to themselves. Hit your own to go live, hit a live opponent's to take a life. 3 lives each.", config: JSON.stringify({ lives: 3 }), enabled: true, sortOrder: 97 },
   ];
 
-  await db.insert(gameTypesTable).values([...defaults, ...extra, ...teamGames, ...partyBatch2]).onConflictDoNothing();
+  // ── Party Batch 3 — venue-matched party games (Donkey Derby, Limbo, Snakes
+  // & Ladders, Quackshot from Flight Club; Fight Game from Dartsee) — built to
+  // match how these venues' own apps present them, so returning players
+  // recognise the game rather than learning a TKDL-only variant ─────────────
+  const partyBatch3: GT[] = [
+    { key: "donkey_derby",         name: "Donkey Derby",              engine: "Custom",    category: "party", description: "Each donkey gets a random racing number. Hit your own number to advance a length, hit your rival's to knock them back. First to 20 lengths wins.", config: JSON.stringify({}), enabled: true, sortOrder: 98 },
+    { key: "limbo",                name: "Limbo",                     engine: "Custom",    category: "party", description: "Score under the bar to clear it — the bar starts at 60 and only ever drops to whatever you scored. Miss it and lose a life. 3 lives each.", config: JSON.stringify({ startBar: 60, lives: 3 }), enabled: true, sortOrder: 99 },
+    { key: "snakes_ladders",       name: "Snakes & Ladders",          engine: "Custom",    category: "party", description: "A real 30-square board. One dart converts to a 1-6 roll (Bull = 6) — land on a ladder and climb, land on a snake and slide. First to square 30 wins.", config: JSON.stringify({}), enabled: true, sortOrder: 100 },
+    { key: "quackshot",            name: "Quackshot",                 engine: "Custom",    category: "party", description: "8 rounds, highest score wins. Double Bull +3, Bull +2, Inner Single +1, Treble -2, Outer Single -1, Double/Miss 0 — the treble is a trap, worth less than missing wide.", config: JSON.stringify({ rounds: 8 }), enabled: true, sortOrder: 101 },
+    { key: "fight_game",           name: "Fight Game",                engine: "Custom",    category: "party", description: "Each fighter gets a random power number. Hit your rival's number to damage them, hit your own to heal. 9 HP each — first to finish off their rival wins.", config: JSON.stringify({ hp: 9 }), enabled: true, sortOrder: 102 },
+  ];
+
+  await db.insert(gameTypesTable).values([...defaults, ...extra, ...teamGames, ...partyBatch2, ...partyBatch3]).onConflictDoNothing();
 
   // ── One-time fixups for rows already seeded by an earlier boot ─────────────
   // onConflictDoNothing() above never touches a row that already exists, so a

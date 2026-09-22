@@ -553,6 +553,21 @@ export function botSequenceVisit(
   ) as [Dart, Dart, Dart];
 }
 
+// ── Hare and Hounds visit ───────────────────────────────────────────────────
+// Aims at the chaser's target position, same as botSequenceVisit, but rolls
+// for multiplier the way botBaseballVisit does instead of always throwing a
+// single — a double or treble on target now advances 2 or 3 lengths instead
+// of 1 (see HareHoundsScorer), so a CPU that only ever threw singles would
+// fall behind a skilled human purely from never cashing in on that bonus.
+export function botHareHoundsVisit(target: number, cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () => {
+    if (Math.random() > cfg.hitAcc) return BOT_MISS;
+    const roll = Math.random();
+    const mult: 1 | 2 | 3 = roll < cfg.hitAcc * 0.3 ? 3 : roll < cfg.hitAcc * 0.55 ? 2 : 1;
+    return makeDart(target, mult);
+  }) as [Dart, Dart, Dart];
+}
+
 // ── High-Low visit ───────────────────────────────────────────────────────────
 // Picks a direction (go under the low target or over the high one — whichever
 // gap looks easier, with a little randomness so the bot isn't perfectly
@@ -830,5 +845,76 @@ export function botBlindKillerVisit(cfg: BotConfig): [Dart, Dart, Dart] {
     if (Math.random() > cfg.hitAcc) return BOT_MISS;
     const seg = Math.ceil(Math.random() * 20);
     return makeDart(seg, 2);
+  }) as [Dart, Dart, Dart];
+}
+
+// ── Donkey Derby visit (Flight Club) ────────────────────────────────────────
+// Mostly chases its own racing number to advance, the same way
+// botSequenceVisit does for Hare and Hounds — but a Donkey Derby bot that
+// never went for the spoiler play would be an easy race to win outright, so
+// once it's clearly behind it starts mixing in shots at the opponent's
+// number to knock them back instead of only ever helping itself along.
+export function botDonkeyDerbyVisit(ownNum: number, oppNum: number, behind: boolean, cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () => {
+    if (Math.random() > cfg.hitAcc) return BOT_MISS;
+    const target = behind && Math.random() < 0.35 ? oppNum : ownNum;
+    return makeDart(target, 1);
+  }) as [Dart, Dart, Dart];
+}
+
+// ── Limbo visit (Flight Club) ───────────────────────────────────────────────
+// The whole game rewards scoring LOW, the opposite of every other game here
+// — so once the bar gets tight the bot deliberately goes for single 1 (the
+// smallest scoring hit on the board) rather than its usual scoring target.
+export function botLimboVisit(bar: number, cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () => {
+    if (Math.random() > cfg.hitAcc) return BOT_MISS;
+    if (bar <= 25) return makeDart(1, 1);
+    const seg = 1 + Math.floor(Math.random() * 5); // 1-5, still a deliberately low aim
+    return makeDart(seg, 1);
+  }) as [Dart, Dart, Dart];
+}
+
+// ── Snakes and Ladders die roll (Flight Club) ───────────────────────────────
+// One dart at a time, called per-throw the same cadence as
+// botBattleshipShot/botNoughtsCrossesDart — any live segment (1-20) converts
+// to a die roll (see SnakesLaddersScorer), so the bot just needs to land
+// anywhere on the board, not chase a specific number.
+export function botSnakesLaddersDart(cfg: BotConfig): Dart {
+  if (Math.random() > cfg.hitAcc) return BOT_MISS;
+  const seg = 1 + Math.floor(Math.random() * 20);
+  return makeDart(seg, 1);
+}
+
+// ── Quackshot visit (Flight Club) ───────────────────────────────────────────
+// Zone-scored: Double Bull/Bull/Inner Single score positive, Treble/Outer
+// Single score negative, Double/Miss score zero (see QuackshotScorer) — so a
+// good bot camps the bull and a poor one scatters outward into the treble
+// trap exactly the way a real player who "aims for the middle" but lacks the
+// accuracy would.
+export function botQuackshotVisit(cfg: BotConfig): [Dart, Dart, Dart] {
+  return Array.from({ length: 3 }, () => {
+    const r = Math.random();
+    if (r < cfg.hitAcc * 0.15) return makeDart(25, 2);
+    if (r < cfg.hitAcc * 0.4) return makeDart(25, 1);
+    if (r < cfg.hitAcc * 0.8) return makeDart(20, 1, "inner");
+    if (r < cfg.hitAcc) return makeDart(20, 1, "outer");
+    if (Math.random() < 0.35) return makeDart(20, 3);
+    return BOT_MISS;
+  }) as [Dart, Dart, Dart];
+}
+
+// ── Fight Game visit (Dartsee) ───────────────────────────────────────────────
+// Mostly aims at the opponent's number to deal damage; once its own HP gets
+// low it starts mixing in shots at its own number to heal instead, the same
+// heal-vs-attack tradeoff a human player weighs each visit.
+export function botFightGameVisit(ownNum: number, oppNum: number, ownHp: number, cfg: BotConfig): [Dart, Dart, Dart] {
+  const lowHp = ownHp <= 3;
+  return Array.from({ length: 3 }, () => {
+    if (Math.random() > cfg.hitAcc) return BOT_MISS;
+    const target = lowHp && Math.random() < 0.5 ? ownNum : oppNum;
+    const roll = Math.random();
+    const mult: 1 | 2 | 3 = roll < cfg.hitAcc * 0.3 ? 3 : roll < cfg.hitAcc * 0.55 ? 2 : 1;
+    return makeDart(target, mult);
   }) as [Dart, Dart, Dart];
 }
