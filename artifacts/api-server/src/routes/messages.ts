@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { db, cosmeticDefinitionsTable, playerCosmeticsTable } from "@workspace/db";
+import { sql, eq, and } from "drizzle-orm";
 import { createNotification } from "../lib/communityNotify";
 import { authedWriteRateLimit } from "../middleware/writeRateLimit";
 import { isValidUploadedObjectPath } from "../lib/uploadPath";
@@ -8,6 +8,21 @@ import { currentLeagueId } from "../lib/currentLeague";
 import { getSettingBool } from "../lib/settingsService";
 
 const router = Router();
+
+// A STICKER cosmetic attached to a message is validated the same way an
+// equipped cosmetic is (routes/cosmetics.ts's equip route) — must exist,
+// be the right category, and be owned by the sender. Returns true for
+// stickerId === null/undefined (no sticker attached, always valid).
+async function validSticker(senderId: number, stickerId: unknown): Promise<boolean> {
+  if (stickerId == null) return true;
+  if (typeof stickerId !== "string" || !stickerId) return false;
+  const [def] = await db.select().from(cosmeticDefinitionsTable)
+    .where(eq(cosmeticDefinitionsTable.id, stickerId));
+  if (!def || def.category !== "STICKER") return false;
+  const owned = await db.select().from(playerCosmeticsTable)
+    .where(and(eq(playerCosmeticsTable.playerId, senderId), eq(playerCosmeticsTable.cosmeticId, stickerId)));
+  return owned.length > 0;
+}
 
 function sessionPlayerId(req: any): number | null {
   return (req.session as any)?.playerId ?? null;
@@ -74,7 +89,7 @@ router.get("/messages/:partnerId", async (req, res): Promise<void> => {
   let rows;
   if (sinceId > 0) {
     rows = await db.execute(sql`
-      SELECT dm.id, dm.sender_id, dm.receiver_id, dm.content, dm.photo_path, dm.read_at, dm.created_at,
+      SELECT dm.id, dm.sender_id, dm.receiver_id, dm.content, dm.photo_path, dm.sticker_id, dm.read_at, dm.created_at,
              pl.name AS sender_name
       FROM direct_messages dm
       JOIN players pl ON pl.id = dm.sender_id
@@ -87,7 +102,7 @@ router.get("/messages/:partnerId", async (req, res): Promise<void> => {
     `);
   } else {
     rows = await db.execute(sql`
-      SELECT dm.id, dm.sender_id, dm.receiver_id, dm.content, dm.photo_path, dm.read_at, dm.created_at,
+      SELECT dm.id, dm.sender_id, dm.receiver_id, dm.content, dm.photo_path, dm.sticker_id, dm.read_at, dm.created_at,
              pl.name AS sender_name
       FROM direct_messages dm
       JOIN players pl ON pl.id = dm.sender_id
@@ -118,18 +133,19 @@ router.post("/messages/:partnerId", authedWriteRateLimit, async (req, res): Prom
   if (isNaN(partnerId)) { res.status(400).json({ error: "Invalid partnerId" }); return; }
   if (partnerId === myId) { res.status(400).json({ error: "Cannot message yourself" }); return; }
 
-  const { content = "", photoPath } = req.body as any;
-  if (!String(content).trim() && !photoPath) {
-    res.status(400).json({ error: "Message must have content or a photo" }); return;
+  const { content = "", photoPath, stickerId } = req.body as any;
+  if (!String(content).trim() && !photoPath && !stickerId) {
+    res.status(400).json({ error: "Message must have content, a photo, or a sticker" }); return;
   }
   if (String(content).length > 1000) { res.status(400).json({ error: "Message too long (max 1000 chars)" }); return; }
   if (photoPath != null && !isValidUploadedObjectPath(photoPath)) {
     res.status(400).json({ error: "Invalid photo" }); return;
   }
+  if (!await validSticker(myId, stickerId)) { res.status(403).json({ error: "You don't own that sticker" }); return; }
 
   const result = await db.execute(sql`
-    INSERT INTO direct_messages (sender_id, receiver_id, content, photo_path)
-    VALUES (${myId}, ${partnerId}, ${String(content).trim() || null}, ${photoPath ?? null})
+    INSERT INTO direct_messages (sender_id, receiver_id, content, photo_path, sticker_id)
+    VALUES (${myId}, ${partnerId}, ${String(content).trim() || null}, ${photoPath ?? null}, ${stickerId ?? null})
     RETURNING id, created_at
   `);
   const msgId = (result.rows[0] as any).id as number;
@@ -155,21 +171,22 @@ router.post("/messages", authedWriteRateLimit, async (req, res): Promise<void> =
   const myId = requireAuth(req, res);
   if (!myId) return;
 
-  const { receiverId, content = "", photoPath } = req.body as any;
+  const { receiverId, content = "", photoPath, stickerId } = req.body as any;
   const partnerId = Number(receiverId);
   if (isNaN(partnerId)) { res.status(400).json({ error: "Invalid receiverId" }); return; }
   if (partnerId === myId) { res.status(400).json({ error: "Cannot message yourself" }); return; }
-  if (!String(content).trim() && !photoPath) {
-    res.status(400).json({ error: "Message must have content or a photo" }); return;
+  if (!String(content).trim() && !photoPath && !stickerId) {
+    res.status(400).json({ error: "Message must have content, a photo, or a sticker" }); return;
   }
   if (String(content).length > 1000) { res.status(400).json({ error: "Message too long (max 1000 chars)" }); return; }
   if (photoPath != null && !isValidUploadedObjectPath(photoPath)) {
     res.status(400).json({ error: "Invalid photo" }); return;
   }
+  if (!await validSticker(myId, stickerId)) { res.status(403).json({ error: "You don't own that sticker" }); return; }
 
   const result = await db.execute(sql`
-    INSERT INTO direct_messages (sender_id, receiver_id, content, photo_path)
-    VALUES (${myId}, ${partnerId}, ${String(content).trim() || null}, ${photoPath ?? null})
+    INSERT INTO direct_messages (sender_id, receiver_id, content, photo_path, sticker_id)
+    VALUES (${myId}, ${partnerId}, ${String(content).trim() || null}, ${photoPath ?? null}, ${stickerId ?? null})
     RETURNING id, created_at
   `);
   const msgId = (result.rows[0] as any).id as number;

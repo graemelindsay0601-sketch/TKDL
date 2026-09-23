@@ -5,6 +5,7 @@ import {
   cardDefinitionsTable,
   playerCurrencyTable,
   cardInventoryTable,
+  currencyTransactionsTable,
 } from "@workspace/db";
 import { eq, and, gte, sql } from "drizzle-orm";
 import cron from "node-cron";
@@ -226,13 +227,21 @@ export async function purchaseFeaturedCard(
     // card delivered.
     await db.transaction(async (tx) => {
       // Deduct coins
+      const newBalance = (playerCurrency.cardPoints || 0) - featured.priceCoins;
       await tx
         .update(playerCurrencyTable)
         .set({
-          cardPoints: (playerCurrency.cardPoints || 0) - featured.priceCoins,
+          cardPoints: newBalance,
           updatedAt: new Date(),
         })
         .where(eq(playerCurrencyTable.playerId, playerId));
+
+      // Ledger entry inside the same transaction as the deduction above —
+      // see lib/db/src/schema/player-currency.ts's currencyTransactionsTable.
+      await tx.insert(currencyTransactionsTable).values({
+        playerId, delta: -featured.priceCoins, balanceAfter: newBalance,
+        reason: "featured_card_purchase", detail: card.name,
+      });
 
       // Give card to player — cards are consumed on use during a match, so
       // players are meant to be able to stack multiple of the same card for

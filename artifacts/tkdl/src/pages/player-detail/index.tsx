@@ -10,7 +10,11 @@ import {
   BigStat, StatPanel, ModeTile, TIER_GLOW, CollapsibleSection, ScorecardView, RARITY_COLORS,
 } from "./helpers";
 import { CategoryStatsEnhanced } from "@/components/stats";
-import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName } from "@/lib/cosmetics";
+import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, taglineStyleCSS, playerCardFinish } from "@/lib/cosmetics";
+import { TrophyCase } from "@/components/TrophyCase";
+import { FeaturedStatBadge } from "@/components/FeaturedStatBadge";
+import { useSpotlightValues } from "@/lib/statSpotlight";
+import { SeasonRecapModal } from "@/components/SeasonRecapCard";
 
 export default function PlayerDetail() {
   const params = useParams<{ id: string }>();
@@ -21,6 +25,11 @@ export default function PlayerDetail() {
     query: { staleTime: 5 * 60 * 1000, queryKey: getGetPlayerStatsQueryKey(playerId) },
   });
   const cosmeticsCatalog = useCosmeticsCatalog();
+  // Featured Stat Spotlight — free profile customization, separate from the
+  // coin-cosmetics catalog above (see lib/statSpotlight.ts).
+  const spotlightValues = useSpotlightValues(playerId);
+  // Season Recap Card — opened from a Season History row below.
+  const [recapSeasonId, setRecapSeasonId] = useState<number | null>(null);
 
   const [achProgress, setAchProgress] = useState<any[]>([]);
   const [achFilter, setAchFilter] = useState<"all" | "unlocked" | "locked" | "close">("all");
@@ -310,6 +319,20 @@ export default function PlayerDetail() {
   const streak = player.currentWinStreak ?? 0;
   const lossStreak = player.currentLossStreak ?? 0;
   const equippedNameStyle = cosmeticsCatalog.find(c => c.id === (player as any).equippedNameStyleId);
+  // Banner is the one cosmetic slot this page actually has room for — there's
+  // no avatar square here (unlike account.tsx) for FRAME/PROFILE_ICON to sit
+  // on. Only applied when NOT eliminated, same reasoning as the name style
+  // below: elimination's red treatment is real game state a cosmetic should
+  // never paper over.
+  const equippedBanner = cosmeticsCatalog.find(c => c.id === (player as any).equippedBannerId);
+  const equippedTaglineStyle = cosmeticsCatalog.find(c => c.id === (player as any).equippedTaglineStyleId);
+  // PLAYER_CARD_FINISH cosmetic — a texture overlay layered on top of the
+  // hero block, independent of whatever BANNER is equipped underneath.
+  // Same "not while eliminated" reasoning as the banner/name style above.
+  const equippedFinishCosmetic = cosmeticsCatalog.find(c => c.id === (player as any).equippedPlayerCardFinishId);
+  const finish = isEliminated ? null : playerCardFinish(equippedFinishCosmetic);
+  // TROPHY_CASE_STYLE cosmetic — a skin for the shared <TrophyCase> strip below.
+  const equippedTrophyCaseStyle = cosmeticsCatalog.find(c => c.id === (player as any).equippedTrophyCaseStyleId);
 
   return (
     <>
@@ -339,6 +362,7 @@ export default function PlayerDetail() {
             : `linear-gradient(135deg, ${tierColor}12 0%, rgba(9,9,15,0.98) 55%, rgba(0,102,255,0.05) 100%)`,
           border: `1px solid ${isEliminated ? "rgba(255,0,92,0.25)" : `${tierColor}28`}`,
           boxShadow: `0 0 60px ${isEliminated ? "rgba(255,0,92,0.08)" : `${tierColor}08`}`,
+          ...(isEliminated ? {} : bannerCSS(equippedBanner)),
         }}>
 
         {/* Large rank watermark */}
@@ -352,6 +376,28 @@ export default function PlayerDetail() {
         {/* Tier glow orb */}
         <div className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
           style={{ background: `radial-gradient(circle at 80% 20%, ${tierColor}10, transparent 65%)`, zIndex: 0 }} />
+
+        {/* PLAYER_CARD_FINISH overlay — layered above the banner/tier glow,
+            below the actual content (zIndex 1). Each finish key gets its own
+            treatment; Holo/Prismatic sweep via .player-card-finish-shimmer. */}
+        {finish && (
+          <div
+            className={`absolute inset-0 pointer-events-none ${finish.key === "holo" || finish.key === "prismatic" ? "player-card-finish-shimmer" : ""}`}
+            style={{
+              zIndex: 0,
+              ...(finish.key === "matte" ? {
+                background: `radial-gradient(circle at 50% 30%, transparent 40%, ${finish.color}33 100%)`,
+                mixBlendMode: "multiply",
+              } : finish.key === "foil" ? {
+                backgroundImage: `linear-gradient(115deg, transparent 25%, ${finish.color}40 40%, ${finish.color}80 48%, ${finish.color}40 56%, transparent 70%)`,
+              } : finish.key === "holo" ? {
+                backgroundImage: `linear-gradient(100deg, transparent 15%, ${finish.color}55 35%, #ffffff77 45%, ${finish.color}55 55%, transparent 85%)`,
+              } : {
+                backgroundImage: `linear-gradient(100deg, transparent 5%, #ff005c40 22%, #ffd24a40 39%, #22c55e40 56%, #38bdf840 73%, #a78bfa40 90%, transparent 100%)`,
+              }),
+            }}
+          />
+        )}
 
         <div className="relative p-5 md:p-7" style={{ zIndex: 1 }}>
           {/* Row 1: badges */}
@@ -393,6 +439,18 @@ export default function PlayerDetail() {
                 {player.name}
                 {streak >= 3 && <span className="ml-3 text-3xl animate-bounce inline-block">🔥</span>}
               </h1>
+
+              {/* Tagline — a short player-entered line (see account.tsx's
+                  editable version); previously only ever rendered on the
+                  owner's own account page, invisible here to everyone else
+                  looking the player up. */}
+              {(player as any).tagline && (
+                <div className="mb-2" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.85rem",
+                  letterSpacing: "0.06em", fontStyle: "italic", opacity: 0.9,
+                  color: isEliminated ? "#ff005c" : tierColor, ...(isEliminated ? {} : taglineStyleCSS(equippedTaglineStyle)) }}>
+                  "{(player as any).tagline}"
+                </div>
+              )}
 
               {/* Form strip */}
               <FormStrip matches={recentMatches ?? []} playerId={player.id} />
@@ -1556,13 +1614,13 @@ export default function PlayerDetail() {
           badge={`${seasonHistory.length} season${seasonHistory.length !== 1 ? "s" : ""}`}
         >
           <div className="grid text-xs uppercase font-bold px-4 py-2 border-b"
-            style={{ gridTemplateColumns: "1fr 4rem 5rem 4rem 5rem", borderColor: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.22)", fontFamily: "Oswald, sans-serif" }}>
-            <div>Season</div><div className="text-center">Pos</div><div className="text-center">W-L</div><div className="text-right">ELO</div><div className="text-right">Pts</div>
+            style={{ gridTemplateColumns: "1fr 4rem 5rem 4rem 5rem 4.5rem", borderColor: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.22)", fontFamily: "Oswald, sans-serif" }}>
+            <div>Season</div><div className="text-center">Pos</div><div className="text-center">W-L</div><div className="text-right">ELO</div><div className="text-right">Pts</div><div />
           </div>
           {seasonHistory.map((s: any) => (
             <div key={s.seasonId}
               className="grid px-4 py-3 border-b items-center hover:bg-white/[0.02] transition-colors"
-              style={{ gridTemplateColumns: "1fr 4rem 5rem 4rem 5rem", borderColor: "rgba(255,255,255,0.04)" }}>
+              style={{ gridTemplateColumns: "1fr 4rem 5rem 4rem 5rem 4.5rem", borderColor: "rgba(255,255,255,0.04)" }}>
               <div>
                 <Link href={`/seasons/${s.seasonId}`} className="text-sm font-semibold hover:underline"
                   style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
@@ -1581,9 +1639,19 @@ export default function PlayerDetail() {
               </div>
               <div className="text-right text-sm font-mono" style={{ color: "#0066ff" }}>{s.elo}</div>
               <div className="text-right font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c" }}>{s.points}pts</div>
+              <div className="text-right">
+                <button onClick={() => setRecapSeasonId(s.seasonId)}
+                  className="text-xs font-bold uppercase px-2 py-1 rounded-lg transition-colors hover:bg-white/[0.06]"
+                  style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  Recap
+                </button>
+              </div>
             </div>
           ))}
         </CollapsibleSection>
+      )}
+      {recapSeasonId != null && (
+        <SeasonRecapModal playerId={playerId} seasonId={recapSeasonId} playerName={player.name} onClose={() => setRecapSeasonId(null)} />
       )}
 
       {/* ══ ACHIEVEMENTS ══ */}
@@ -1623,42 +1691,14 @@ export default function PlayerDetail() {
         </div>
 
         {/* ── Trophy Highlights — the curated show-off strip, up to 5 pins ── */}
-        {pins.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap mb-3 px-3 py-2.5 rounded-xl"
-            style={{ background: "linear-gradient(120deg, rgba(255,210,74,0.07), rgba(255,0,92,0.03))", border: "1px solid rgba(255,210,74,0.2)" }}>
-            <Pin className="w-3.5 h-3.5 shrink-0" style={{ color: "#ffd24a" }} />
-            {pins.map(p => {
-              const rc = RARITY_COLORS[p.rarity ?? "Common"] ?? RARITY_COLORS.Common;
-              return (
-                <div key={`${p.system}-${p.key}`}
-                  className="flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-lg"
-                  style={{ background: rc.bg, border: `1px solid ${rc.color}40` }}>
-                  <Link href={`/achievements/${p.system}/${p.key}`} className="flex items-center gap-1.5">
-                    <span className="text-sm leading-none">{p.icon}</span>
-                    <span className="font-black text-xs uppercase" style={{ fontFamily: "Oswald, sans-serif", color: rc.color, letterSpacing: "0.02em" }}>
-                      {p.name}
-                    </span>
-                  </Link>
-                  {isOwnProfile && (
-                    <button
-                      onClick={() => togglePin(p.system, p.key, { name: p.name ?? "", icon: p.icon ?? "🏆", rarity: p.rarity ?? null })}
-                      title="Remove from trophy case"
-                      className="p-0.5 rounded transition-colors hover:bg-white/10">
-                      <X className="w-2.5 h-2.5" style={{ color: "rgba(255,255,255,0.35)" }} />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {isOwnProfile && pins.length === 0 && (
-          <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-xl text-xs"
-            style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.3)" }}>
-            <Pin className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.25)" }} />
-            Pin up to 5 achievements below to build your trophy case — it shows on the Hub too.
-          </div>
-        )}
+        <FeaturedStatBadge statKey={(player as any).featuredStatKey} values={spotlightValues} />
+        <TrophyCase
+          pins={pins}
+          editable={isOwnProfile}
+          onTogglePin={togglePin}
+          styleCosmetic={equippedTrophyCaseStyle}
+          emptyHintSuffix="it shows on the Hub too."
+        />
 
         {/* Source type tabs */}
         <div className="flex gap-1 mb-3 flex-wrap">

@@ -3,7 +3,7 @@ import { useAuth } from "@/context/auth";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { MessageSquare, Image as ImageIcon, Send, X, Heart, ChevronDown, ChevronUp, Clock, CheckCircle, AlertCircle, Pencil, Flame, Trophy, Users, ArrowUpDown } from "lucide-react";
-import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName } from "@/lib/cosmetics";
+import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, postAccentStyle } from "@/lib/cosmetics";
 
 const TIER_COLORS: Record<string, string> = {
   Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
@@ -83,6 +83,7 @@ type Post = {
   comment_count: number;
   myReactions: string[];
   player_name_style_id: string | null;
+  player_post_accent_id: string | null;
   player_win_streak: number;
 };
 
@@ -247,12 +248,22 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
   const tierCol = TIER_COLORS[post.player_tier] ?? "#9ca3af";
   const isPending = post.status === "pending";
   const eventStyle = autoEventStyle(post);
+  // POST_ACCENT cosmetic — a personal border/background tint on the
+  // author's own manual posts. Pending/auto-event posts already have their
+  // own colour treatment above (isPending / eventStyle), which takes
+  // precedence — a purchased accent never masks "awaiting approval" or an
+  // elimination/tier-change highlight.
+  const catalog = useCosmeticsCatalog();
+  const postAccent = !isPending && !eventStyle
+    ? postAccentStyle(catalog.find(c => c.id === post.player_post_accent_id))
+    : {};
 
   return (
     <div id={`post-${post.id}`} className="rounded-2xl overflow-hidden scroll-mt-4"
       style={{
         background: isPending ? "rgba(255,200,0,0.04)" : eventStyle ? `${eventStyle.color}0d` : "rgba(255,255,255,0.03)",
         border: `1px solid ${isPending ? "rgba(255,200,0,0.2)" : eventStyle ? `${eventStyle.color}33` : "rgba(255,255,255,0.07)"}`,
+        ...postAccent,
       }}>
 
       {/* Pending badge */}

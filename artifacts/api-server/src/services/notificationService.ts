@@ -469,6 +469,40 @@ export async function sendShiftWarsMatchResultNotification(
 }
 
 /**
+ * Ping every other opted-in, active player when a match finishes anywhere
+ * in the league — not just the players/teams who were actually in it.
+ * Reuses the "match_result" type and createNotification's existing
+ * per-player preference + batching/quiet-hours checks, so turning off
+ * "Match Results" in your own settings opts you out of both your own
+ * match alerts and everyone else's, the same as before this existed.
+ */
+export async function sendMatchResultBroadcast(
+  excludePlayerIds: number[],
+  title: string,
+  body: string,
+  data?: Record<string, any>
+): Promise<void> {
+  try {
+    const rest = await db.execute(sql`
+      SELECT id FROM players
+      WHERE is_active = true
+        AND id <> ALL(ARRAY[${sql.join(excludePlayerIds.map(id => sql`${id}`), sql`, `)}]::int[])
+    `);
+    for (const p of rest.rows as any[]) {
+      void createNotification({
+        playerId: p.id,
+        type: "match_result",
+        title,
+        body,
+        data: { ...data, broadcast: true },
+      });
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to send match result broadcast");
+  }
+}
+
+/**
  * Send rank change notifications to affected players
  */
 export async function sendRankChangeNotifications(

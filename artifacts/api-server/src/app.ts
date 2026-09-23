@@ -36,6 +36,13 @@ import { addGlowCosmeticColumn } from "./db/migrations/add_glow_cosmetic";
 import { addResultThemeCosmeticColumn } from "./db/migrations/add_result_theme_cosmetic";
 import { addBubbleColorCosmeticColumn } from "./db/migrations/add_bubble_color_cosmetic";
 import { addCosmeticPurchasableFlag } from "./db/migrations/add_cosmetic_purchasable_flag";
+import { addCurrencyTransactionsTable } from "./db/migrations/add_currency_transactions_table";
+import { addAvatarBadgeLeaderboardTagCosmeticColumns } from "./db/migrations/add_avatar_badge_leaderboard_tag_cosmetics";
+import { addWave2CosmeticColumns } from "./db/migrations/add_wave2_cosmetics";
+import { addWave3CosmeticColumns } from "./db/migrations/add_wave3_cosmetics";
+import { addWave4CosmeticColumns } from "./db/migrations/add_wave4_cosmetics";
+import { addFeaturedStatKeyColumn } from "./db/migrations/add_featured_stat_key";
+import { addWave5CosmeticColumns } from "./db/migrations/add_wave5_cosmetics";
 import { seedCosmeticDefinitions } from "./services/cosmetics-service";
 import { addLastSeenHubAtColumn } from "./db/migrations/add_last_seen_hub_at";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
@@ -1238,6 +1245,15 @@ async function init() {
   await runInitStep("addResultThemeCosmeticColumn", addResultThemeCosmeticColumn);
   await runInitStep("addBubbleColorCosmeticColumn", addBubbleColorCosmeticColumn);
   await runInitStep("addCosmeticPurchasableFlag", addCosmeticPurchasableFlag);
+  await runInitStep("addCurrencyTransactionsTable", addCurrencyTransactionsTable);
+  await runInitStep("addAvatarBadgeLeaderboardTagCosmeticColumns", addAvatarBadgeLeaderboardTagCosmeticColumns);
+  // Needs seedCommunityTables (direct_messages) to have already run — see
+  // add_wave2_cosmetics.ts's header comment.
+  await runInitStep("addWave2CosmeticColumns", addWave2CosmeticColumns);
+  await runInitStep("addWave3CosmeticColumns", addWave3CosmeticColumns);
+  await runInitStep("addWave4CosmeticColumns", addWave4CosmeticColumns);
+  await runInitStep("addFeaturedStatKeyColumn", addFeaturedStatKeyColumn);
+  await runInitStep("addWave5CosmeticColumns", addWave5CosmeticColumns);
   // Needs addCosmeticsTables and addCosmeticPurchasableFlag to have run first — upserts into cosmetic_definitions.
   await runInitStep("seedCosmeticDefinitions", seedCosmeticDefinitions);
   await runInitStep("addLastSeenHubAtColumn", addLastSeenHubAtColumn);

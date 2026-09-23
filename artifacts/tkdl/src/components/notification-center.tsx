@@ -25,6 +25,7 @@ interface NotificationPreferences {
   coach_tips: boolean;
   announcements: boolean;
   private_mode: boolean;
+  direct_messages: boolean;
 }
 
 export function NotificationCenter({ playerId }: { playerId: number }) {
@@ -124,6 +125,7 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
       threat_alert: "Threat Alert",
       coach_tip: "Coach Tip",
       announcement: "Announcement",
+      dm_received: "Message",
     };
     return labels[type] || type;
   };
@@ -135,6 +137,7 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
       threat_alert: "#ff7f00",
       coach_tip: "#00e5a0",
       announcement: "#4d94ff",
+      dm_received: "#c084fc",
     };
     return colors[type] || "#9ca3af";
   };
@@ -220,6 +223,7 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
           {[
             { key: "match_results", label: "Match Results (Singles, Doubles, Shift Wars)" },
             { key: "threat_alerts", label: "Close Match Alerts" },
+            { key: "direct_messages", label: "Direct Messages" },
             { key: "coach_tips", label: "Coach Tips" },
             { key: "announcements", label: "League Announcements" },
           ].map(({ key, label }) => (

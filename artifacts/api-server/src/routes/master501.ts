@@ -323,7 +323,7 @@ router.patch("/master501/runs/:runId", matchSubmitRateLimit, async (req, res): P
         const { challengeManager } = await import("../services/challenge-manager");
         
         if (result === "win") {
-          await addCoinsToPlayer(Number(run.player_id), 10);
+          await addCoinsToPlayer(Number(run.player_id), 10, "match_win", "Master 501 win");
         }
         
         // Update challenges for this M-501 match/round

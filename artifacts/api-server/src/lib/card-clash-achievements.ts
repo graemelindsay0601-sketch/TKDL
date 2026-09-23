@@ -169,7 +169,7 @@ export async function checkAndAwardCCAchievements(playerId: number): Promise<Arr
         `);
 
         if (def.coinReward > 0) {
-          await addCoinsToPlayer(playerId, def.coinReward);
+          await addCoinsToPlayer(playerId, def.coinReward, "achievement", def.key);
         }
 
         if (def.packReward) {

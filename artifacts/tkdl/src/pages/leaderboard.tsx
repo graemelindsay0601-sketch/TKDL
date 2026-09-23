@@ -6,7 +6,7 @@ import { Link, useSearch } from "wouter";
 import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal, Zap, Users, Building2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useSettings } from "@/hooks/use-settings";
-import { useCosmeticsCatalog, glowRowStyle } from "@/lib/cosmetics";
+import { useCosmeticsCatalog, glowRowStyle, leaderboardTagStyle, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
 
 type Mode = "season" | "doubles" | "shiftwars" | "career" | "achievements" | "bot" | "tour" | "master501" | "records";
 
@@ -112,6 +112,26 @@ function Pos({ idx }: { idx: number }) {
   );
 }
 
+// PROFILE_ICON + LEADERBOARD_TAG rendered next to a name on the leaderboard —
+// the same two cosmetics that only used to show on the owner's own account
+// page (PROFILE_ICON) or nowhere at all (LEADERBOARD_TAG is new), now
+// visible to everyone scanning the standings. Renders nothing for either
+// when unequipped/unrecognised, same as glowRowStyle().
+function NameFlair({ icon, tag }: { icon?: CosmeticDefinition; tag?: CosmeticDefinition }) {
+  const Icon = icon?.iconKey ? PROFILE_ICON_MAP[icon.iconKey] : null;
+  return (
+    <>
+      {Icon && <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: icon!.color ?? "#fff" }} />}
+      {tag && (
+        <span className="text-[0.55rem] font-black uppercase px-1.5 py-0.5 rounded-md shrink-0"
+          style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.05em", ...leaderboardTagStyle(tag) }}>
+          {tag.name}
+        </span>
+      )}
+    </>
+  );
+}
+
 function DoublesRow({ team, idx }: { team: any; idx: number }) {
   const isTop3 = idx < 3;
   const pColor = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
@@ -178,7 +198,7 @@ function ShiftWarsRow({ team, idx }: { team: any; idx: number }) {
   );
 }
 
-function SeasonRow({ entry, idx, maxElo, glow }: { entry: any; idx: number; maxElo: number; glow?: ReturnType<typeof glowRowStyle> }) {
+function SeasonRow({ entry, idx, maxElo, glow, icon, tag }: { entry: any; idx: number; maxElo: number; glow?: ReturnType<typeof glowRowStyle>; icon?: CosmeticDefinition; tag?: CosmeticDefinition }) {
   const isTop3 = idx < 3;
   const pColor = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
   const tierColor = TIER_BORDER[entry.tier] ?? "rgba(255,255,255,0.12)";
@@ -195,6 +215,7 @@ function SeasonRow({ entry, idx, maxElo, glow }: { entry: any; idx: number; maxE
         <div className="flex-1 min-w-0 pr-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-black uppercase leading-tight" style={{ fontFamily: "Oswald, sans-serif", fontSize: idx === 0 ? "1.2rem" : "1rem", letterSpacing: "0.04em", color: idx === 0 ? "#fff" : "rgba(255,255,255,0.85)" }}>{entry.playerName}</span>
+            <NameFlair icon={icon} tag={tag} />
             {isTop3 && <span className="text-base leading-none">{POS_MEDALS[idx]}</span>}
             {streak >= 3 && <span className="flex items-center gap-0.5 text-xs font-bold shrink-0" style={{ color: "#ff005c" }}><Flame className="w-3 h-3 streak-fire" />{streak}W</span>}
           </div>
@@ -215,7 +236,7 @@ function SeasonRow({ entry, idx, maxElo, glow }: { entry: any; idx: number; maxE
   );
 }
 
-function CareerRow({ entry, idx, maxElo, sortKey, glow }: { entry: any; idx: number; maxElo: number; sortKey: string; glow?: ReturnType<typeof glowRowStyle> }) {
+function CareerRow({ entry, idx, maxElo, sortKey, glow, icon, tag }: { entry: any; idx: number; maxElo: number; sortKey: string; glow?: ReturnType<typeof glowRowStyle>; icon?: CosmeticDefinition; tag?: CosmeticDefinition }) {
   const isTop3 = idx < 3;
   const pColor = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
   const defaultStyle = { background: isTop3 ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 ? pColor + "55" : "rgba(255,255,255,0.08)"}` };
@@ -227,6 +248,7 @@ function CareerRow({ entry, idx, maxElo, sortKey, glow }: { entry: any; idx: num
         <div className="flex-1 min-w-0 pr-2">
           <div className="flex items-center gap-2">
             <span className="font-black uppercase text-base truncate" style={{ fontFamily: "Oswald, sans-serif", color: isTop3 ? "#fff" : "rgba(255,255,255,0.82)" }}>{entry.playerName}</span>
+            <NameFlair icon={icon} tag={tag} />
             {entry.titles > 0 && <span className="text-sm shrink-0" title={`${entry.titles} title(s)`}>{"🏆".repeat(Math.min(entry.titles, 3))}</span>}
           </div>
           {entry.title && <div className="text-xs truncate" style={{ color: "rgba(255,255,255,0.22)", fontStyle: "italic" }}>{entry.title}</div>}
@@ -493,6 +515,7 @@ export default function Standings() {
   // account.tsx and CosmeticsShop.tsx already use).
   const cosmeticsCatalog = useCosmeticsCatalog();
   const glowFor = (id: string | null | undefined) => glowRowStyle(cosmeticsCatalog.find(c => c.id === id));
+  const cosmeticFor = (id: string | null | undefined) => cosmeticsCatalog.find(c => c.id === id);
 
   const active     = useMemo(() => leaderboard?.filter(e => e.status !== "ELIMINATED") ?? [], [leaderboard]);
   const eliminated = useMemo(() => leaderboard?.filter(e => e.status === "ELIMINATED") ?? [], [leaderboard]);
@@ -637,7 +660,7 @@ export default function Standings() {
           {/* ── Season ── */}
           {mode === "season" && (
             <div className="space-y-1.5">
-              {active.map((entry, idx) => <SeasonRow key={entry.playerId} entry={entry} idx={idx} maxElo={maxElo} glow={glowFor(entry.equippedGlowId)} />)}
+              {active.map((entry, idx) => <SeasonRow key={entry.playerId} entry={entry} idx={idx} maxElo={maxElo} glow={glowFor(entry.equippedGlowId)} icon={cosmeticFor(entry.equippedProfileIconId)} tag={cosmeticFor(entry.equippedLeaderboardTagId)} />)}
               {active.length === 0 && <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No players yet.</div>}
               {eliminated.length > 0 && (
                 <div className="mt-5 space-y-1.5">
@@ -669,7 +692,7 @@ export default function Standings() {
           {/* ── All Time ── */}
           {mode === "career" && (
             <div className="space-y-1.5">
-              {careerRows.map((entry, idx) => <CareerRow key={entry.playerId} entry={entry} idx={idx} maxElo={maxCarElo} sortKey={careerSort} glow={glowFor(entry.equippedGlowId)} />)}
+              {careerRows.map((entry, idx) => <CareerRow key={entry.playerId} entry={entry} idx={idx} maxElo={maxCarElo} sortKey={careerSort} glow={glowFor(entry.equippedGlowId)} icon={cosmeticFor(entry.equippedProfileIconId)} tag={cosmeticFor(entry.equippedLeaderboardTagId)} />)}
               {careerRows.length === 0 && <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No data.</div>}
               <div className="pt-2 text-xs" style={{ color: "rgba(255,255,255,0.15)" }}>
                 🏆 Season champion · Net Pts = points gained minus points lost across all wager seasons

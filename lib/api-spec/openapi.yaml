@@ -983,6 +983,12 @@ components:
         equippedGlowId:
           type: string
           nullable: true
+        equippedProfileIconId:
+          type: string
+          nullable: true
+        equippedLeaderboardTagId:
+          type: string
+          nullable: true
 
     # ── Achievements ─────────────────────────────────────────────────────────────
     Achievement:

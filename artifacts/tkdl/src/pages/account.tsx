@@ -7,12 +7,13 @@ import {
   Zap, Trophy, Dumbbell, CircuitBoard, Star, ChevronDown, ChevronRight,
   Award, Flame, CheckCircle, Clock, Brain, BarChart3,
   MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera, Sparkles, Pin,
-  Palette, Coins, ShoppingBag,
+  Palette, Coins, ShoppingBag, Pencil, Check, Smile,
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { LoginGate } from "@/components/LoginGate";
 import { NotificationCenter } from "@/components/notification-center";
 import { CoinBalance } from "@/components/CoinBalance";
+import { TransactionHistory } from "@/components/TransactionHistory";
 import { CardCollectionBook } from "@/components/CardCollectionBook";
 import { PlayerChallenges } from "@/components/PlayerChallenges";
 import { OverallStats, ByGameType, Trends, DartAnalysis, CategoryStatsEnhanced, AdvancedAnalyticsDashboard } from "@/components/stats";
@@ -23,7 +24,10 @@ import { AdaptiveDifficulty } from "@/components/stats/adaptive-difficulty";
 import { LogDrillModal, type LoggableDrill } from "@/components/stats/log-drill-modal";
 import { DebugStatsViewer } from "@/components/stats/debug-stats-viewer";
 import { CosmeticsShop } from "@/components/CosmeticsShop";
-import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, bubbleColorStyle, PROFILE_ICON_MAP } from "@/lib/cosmetics";
+import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, bubbleColorStyle, avatarBadgeIcon, taglineStyleCSS, stickerEmoji, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
+import { TrophyCase } from "@/components/TrophyCase";
+import { FeaturedStatBadge } from "@/components/FeaturedStatBadge";
+import { SPOTLIGHT_STATS, SPOTLIGHT_STAT_KEYS, useSpotlightValues } from "@/lib/statSpotlight";
 
 const TIER_COLORS: Record<string, string> = {
   Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
@@ -333,6 +337,10 @@ export default function AccountPage() {
   const [titleFilter,  setTitleFilter]  = useState<string>("earned");
   const [expandedCats,    setExpandedCats]    = useState<Set<string>>(new Set(["Career"]));
   const cosmeticsCatalog = useCosmeticsCatalog();
+  // Featured Stat Spotlight — free profile customization, separate from the
+  // coin-cosmetics catalog above (see lib/statSpotlight.ts).
+  const spotlightValues = useSpotlightValues(user?.playerId ?? null);
+  const [statSaving, setStatSaving] = useState(false);
 
   // ── Tab + Community state ────────────────────────────────────────────
   const [activeTab,        setActiveTab]       = useState<"overview" | "activity" | "achievements" | "coach" | "social" | "stats" | "analytics" | "cards" | "challenges" | "cosmetics" | "wallet">("overview");
@@ -351,7 +359,12 @@ export default function AccountPage() {
   const [msgText,          setMsgText]         = useState("");
   const [msgPhotoFile,     setMsgPhotoFile]    = useState<File | null>(null);
   const [msgPhotoPreview,  setMsgPhotoPreview] = useState<string | null>(null);
+  const [msgSticker,       setMsgSticker]      = useState<CosmeticDefinition | null>(null);
+  const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [sendingMsg,       setSendingMsg]      = useState(false);
+  const [taglineEditing,   setTaglineEditing]  = useState(false);
+  const [taglineDraft,     setTaglineDraft]    = useState("");
+  const [savingTagline,    setSavingTagline]   = useState(false);
   const [messagingEnabled, setMessagingEnabled] = useState(false);
   const [notifsEnabled,    setNotifsEnabled]   = useState(false);
   const [myPhotoPosts,     setMyPhotoPosts]    = useState<any[] | null>(null);
@@ -404,6 +417,27 @@ export default function AccountPage() {
       credentials: "include",
       body: JSON.stringify({ pins: next.map(p => ({ system: p.system, key: p.key })) }),
     }).catch(() => setPins(pins));
+  };
+
+  const setFeaturedStat = async (statKey: string | null) => {
+    if (!user?.playerId || statSaving) return;
+    setStatSaving(true);
+    try {
+      const r = await fetch(`/api/players/${user.playerId}/featured-stat`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statKey }),
+      });
+      if (r.ok) {
+        setStats((prev: any) => prev ? { ...prev, player: { ...prev.player, featuredStatKey: statKey } } : prev);
+      } else {
+        toast({ title: "Couldn't update featured stat", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Network error", variant: "destructive" });
+    } finally {
+      setStatSaving(false);
+    }
   };
 
   useEffect(() => {
@@ -580,7 +614,23 @@ export default function AccountPage() {
   const equippedBanner      = cosmeticsCatalog.find(c => c.id === player?.equippedBannerId);
   const equippedFrame       = cosmeticsCatalog.find(c => c.id === player?.equippedFrameId);
   const equippedBubbleColor = cosmeticsCatalog.find(c => c.id === player?.equippedBubbleColorId);
+  const equippedAvatarBadge = cosmeticsCatalog.find(c => c.id === player?.equippedAvatarBadgeId);
+  const equippedTaglineStyle = cosmeticsCatalog.find(c => c.id === player?.equippedTaglineStyleId);
+  const equippedTrophyCaseStyle = cosmeticsCatalog.find(c => c.id === player?.equippedTrophyCaseStyleId);
   const ProfileIcon = (equippedProfileIcon?.iconKey && PROFILE_ICON_MAP[equippedProfileIcon.iconKey]) || Target;
+  const avatarBadge = avatarBadgeIcon(equippedAvatarBadge);
+  // Stickers a player can attach to a DM — owned STICKER cosmetics, resolved
+  // from the same shared catalog/ownership fetches every other cosmetic
+  // here uses (see the CosmeticsShop-owned `owned.ownedIds` pattern).
+  const [ownedCosmeticIds, setOwnedCosmeticIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (!user?.playerId) return;
+    fetch(`/api/players/${user.playerId}/cosmetics`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => setOwnedCosmeticIds(data?.ownedIds ?? []))
+      .catch(() => {});
+  }, [user?.playerId]);
+  const ownedStickers = cosmeticsCatalog.filter(c => c.category === "STICKER" && ownedCosmeticIds.includes(c.id));
 
   const recentForm: ("W" | "L")[] = useMemo(() => {
     if (!stats?.recentMatches || !user?.playerId) return [];
@@ -762,6 +812,15 @@ export default function AccountPage() {
               style={{ background: `linear-gradient(135deg, ${tCol}28, ${tCol}0a)`, border: `1px solid ${tCol}55`, ...frameStyle(equippedFrame) }}>
               <div className="absolute inset-0 rounded-2xl" style={{ background: `${tCol}1c`, filter: "blur(10px)" }} />
               <ProfileIcon className="w-8 h-8 relative z-10" style={{ color: tCol, filter: `drop-shadow(0 0 10px ${tCol})` }} />
+              {/* AVATAR_BADGE — a small sticker pinned to the avatar square's
+                  corner, stacking on top of the profile icon + frame rather
+                  than replacing either. */}
+              {avatarBadge && (
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center z-20"
+                  style={{ background: "#0a0a12", border: `1.5px solid ${avatarBadge.color}`, boxShadow: `0 0 8px ${avatarBadge.color}99` }}>
+                  <avatarBadge.Icon className="w-2.5 h-2.5" style={{ color: avatarBadge.color }} />
+                </div>
+              )}
             </div>
 
             <div className="flex-1 min-w-0">
@@ -769,11 +828,46 @@ export default function AccountPage() {
                 color: "#fff", letterSpacing: "0.04em", lineHeight: 1, textShadow: "0 2px 20px rgba(0,0,0,0.9)", ...nameStyleCSS(equippedNameStyle) }}>
                 {user.playerName}
               </div>
-              {player?.tagline && (
-                <div className="mt-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem",
-                  color: tCol, letterSpacing: "0.08em", fontStyle: "italic", opacity: 0.9 }}>
-                  "{player.tagline}"
-                </div>
+              {taglineEditing ? (
+                <form className="flex items-center gap-1.5 mt-1" onSubmit={async e => {
+                  e.preventDefault();
+                  if (savingTagline) return;
+                  setSavingTagline(true);
+                  try {
+                    const r = await fetch(`/api/players/${user.playerId}/tagline`, {
+                      method: "PATCH", credentials: "include",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ tagline: taglineDraft.trim() || null }),
+                    });
+                    if (r.ok) {
+                      const saved = taglineDraft.trim() || null;
+                      setStats((prev: any) => prev ? { ...prev, player: { ...prev.player, tagline: saved } } : prev);
+                      setTaglineEditing(false);
+                    } else toast({ title: "Couldn't save tagline", variant: "destructive" });
+                  } catch {
+                    toast({ title: "Network error", variant: "destructive" });
+                  } finally { setSavingTagline(false); }
+                }}>
+                  <input value={taglineDraft} onChange={e => setTaglineDraft(e.target.value)} maxLength={60}
+                    autoFocus placeholder="Your tagline…"
+                    className="px-2 py-1 rounded-lg text-xs outline-none flex-1"
+                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontFamily: "Oswald, sans-serif" }} />
+                  <button type="submit" disabled={savingTagline} className="p-1 rounded-lg shrink-0" style={{ color: "#22c55e" }}>
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <button type="button" onClick={() => setTaglineEditing(false)} className="p-1 rounded-lg shrink-0" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </form>
+              ) : (
+                <button className="flex items-center gap-1.5 mt-1 group/tagline" onClick={() => { setTaglineDraft(player?.tagline ?? ""); setTaglineEditing(true); }}>
+                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem",
+                    letterSpacing: "0.08em", fontStyle: "italic", opacity: player?.tagline ? 0.9 : 0.4,
+                    color: tCol, ...(player?.tagline ? taglineStyleCSS(equippedTaglineStyle) : {}) }}>
+                    {player?.tagline ? `"${player.tagline}"` : "Add a tagline…"}
+                  </div>
+                  <Pencil className="w-2.5 h-2.5 opacity-0 group-hover/tagline:opacity-50 transition-opacity shrink-0" style={{ color: "rgba(255,255,255,0.5)" }} />
+                </button>
               )}
               <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                 <span className="px-2 py-0.5 rounded-md" style={{ background: `${tCol}22`, fontFamily: "Oswald, sans-serif",
@@ -884,7 +978,16 @@ export default function AccountPage() {
       </div>
 
       {/* ── Account Tabs ────────────────────────────────────────── */}
-      <div className="flex gap-1 p-1 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+      {/* Horizontally scrolling, not flex-1-split-evenly — with 11 tabs now
+          (Wallet added this personalization pass), splitting the full width
+          evenly squeezed every label past readable and pushed the whole
+          card wider than the viewport, which is what was making the
+          fullscreen layout's own scroll behave oddly. Each tab keeps a
+          fixed, readable width and the strip scrolls instead, same pattern
+          as the horizontal scrollers on community.tsx (overflow-x-auto +
+          scrollbarWidth:"none" on the track, shrink-0 on each item). */}
+      <div className="flex gap-1 p-1 rounded-2xl overflow-x-auto"
+        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", scrollbarWidth: "none" }}>
         {([
           { id: "overview"      as const, label: "Overview",  Icon: User                               },
           { id: "activity"      as const, label: "Activity",  Icon: Zap                              },
@@ -899,15 +1002,16 @@ export default function AccountPage() {
           { id: "analytics"     as const, label: "Analytics", Icon: BarChart3                        },
         ]).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className="flex-1 relative flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all"
+            className="shrink-0 relative flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all"
             style={{
+              width: "68px",
               background: activeTab === tab.id ? "rgba(255,0,92,0.18)" : "transparent",
               border:     activeTab === tab.id ? "1px solid rgba(255,0,92,0.35)" : "1px solid transparent",
               color:      activeTab === tab.id ? "#ff005c" : "rgba(255,255,255,0.35)",
               fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em",
             }}>
             <tab.Icon className="w-3.5 h-3.5 shrink-0" />
-            <span style={{ fontSize: "0.55rem", lineHeight: 1 }}>{tab.label.toUpperCase()}</span>
+            <span style={{ fontSize: "0.55rem", lineHeight: 1, whiteSpace: "nowrap" }}>{tab.label.toUpperCase()}</span>
             {"badge" in tab && (tab as any).badge > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white"
                 style={{ background: "#ff005c", fontSize: "0.45rem", fontFamily: "Oswald, sans-serif", fontWeight: 900 }}>
@@ -1400,38 +1504,35 @@ export default function AccountPage() {
         <div className="space-y-3">
 
         {/* ── Trophy Highlights — the curated show-off strip, up to 5 pins ── */}
-        {pins.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap px-3 py-2.5 rounded-xl"
-            style={{ background: "linear-gradient(120deg, rgba(255,210,74,0.07), rgba(255,0,92,0.03))", border: "1px solid rgba(255,210,74,0.2)" }}>
-            <Pin className="w-3.5 h-3.5 shrink-0" style={{ color: "#ffd24a" }} />
-            {pins.map(p => {
-              const rc = RARITY_COL[p.rarity ?? "Common"] ?? RARITY_COL.Common;
-              return (
-                <div key={`${p.system}-${p.key}`}
-                  className="flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-lg"
-                  style={{ background: `${rc}1c`, border: `1px solid ${rc}40` }}>
-                  <span className="text-sm leading-none">{p.icon}</span>
-                  <span className="font-black text-xs uppercase" style={{ fontFamily: "Oswald, sans-serif", color: rc, letterSpacing: "0.02em" }}>
-                    {p.name}
-                  </span>
-                  <button
-                    onClick={() => togglePin(p.system, p.key, { name: p.name ?? "", icon: p.icon ?? "🏆", rarity: p.rarity ?? null })}
-                    title="Remove from trophy case"
-                    className="p-0.5 rounded transition-colors hover:bg-white/10">
-                    <X className="w-2.5 h-2.5" style={{ color: "rgba(255,255,255,0.35)" }} />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {pins.length === 0 && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs"
-            style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.3)" }}>
-            <Pin className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.25)" }} />
-            Pin up to 5 achievements below to build your trophy case — it shows on your player profile too.
-          </div>
-        )}
+        <FeaturedStatBadge statKey={player?.featuredStatKey} values={spotlightValues} />
+        <TrophyCase
+          pins={pins}
+          editable
+          onTogglePin={togglePin}
+          styleCosmetic={equippedTrophyCaseStyle}
+          emptyHintSuffix="it shows on your player profile too."
+        />
+
+        {/* Featured Stat Spotlight picker — free, no coin cost. */}
+        <div className="flex items-center gap-2 flex-wrap px-3 py-2 rounded-xl text-xs"
+          style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <span style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>Feature a stat:</span>
+          <select
+            value={player?.featuredStatKey ?? ""}
+            disabled={statSaving}
+            onChange={e => setFeaturedStat(e.target.value || null)}
+            style={{
+              fontSize: "0.72rem", fontFamily: "Oswald, sans-serif", fontWeight: 700, color: "rgba(255,255,255,0.8)",
+              background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: "6px", padding: "4px 8px", cursor: statSaving ? "default" : "pointer",
+            }}
+          >
+            <option value="">None</option>
+            {SPOTLIGHT_STAT_KEYS.map(key => (
+              <option key={key} value={key}>{SPOTLIGHT_STATS[key].label}</option>
+            ))}
+          </select>
+        </div>
 
         {/* Source selector */}
         <div className="flex gap-1 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
@@ -1933,6 +2034,11 @@ export default function AccountPage() {
                           <img src={`/api/storage${msg.photo_path}`} alt="photo"
                             className="mt-1 rounded-xl max-w-full" style={{ maxHeight: 200 }} />
                         )}
+                        {msg.sticker_id && (
+                          <div className={`mt-1 ${mine ? "text-right" : "text-left"}`} style={{ fontSize: "2rem", lineHeight: 1 }}>
+                            {stickerEmoji(cosmeticsCatalog.find(c => c.id === msg.sticker_id))}
+                          </div>
+                        )}
                         <div className={`text-xs mt-0.5 ${mine ? "text-right" : ""}`}
                           style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "0.5rem" }}>
                           {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -1954,9 +2060,35 @@ export default function AccountPage() {
                     </button>
                   </div>
                 )}
+                {msgSticker && (
+                  <div className="relative mb-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <span style={{ fontSize: "1.3rem", lineHeight: 1 }}>{stickerEmoji(msgSticker)}</span>
+                    <button type="button" onClick={() => setMsgSticker(null)} style={{ color: "rgba(255,255,255,0.4)" }}>
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+                {showStickerPicker && (
+                  <div className="mb-2 p-2 rounded-xl flex flex-wrap gap-1.5"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    {ownedStickers.length === 0 ? (
+                      <span className="text-xs px-1" style={{ color: "rgba(255,255,255,0.3)" }}>
+                        No stickers yet — grab some in the Store's Chat Stickers section.
+                      </span>
+                    ) : ownedStickers.map(s => (
+                      <button key={s.id} type="button"
+                        onClick={() => { setMsgSticker(s); setShowStickerPicker(false); }}
+                        className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors hover:bg-white/10"
+                        style={{ fontSize: "1.3rem" }} title={s.name}>
+                        {stickerEmoji(s)}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <form className="flex gap-2" onSubmit={async e => {
                   e.preventDefault();
-                  if ((!msgText.trim() && !msgPhotoFile) || sendingMsg) return;
+                  if ((!msgText.trim() && !msgPhotoFile && !msgSticker) || sendingMsg) return;
                   setSendingMsg(true);
                   try {
                     let photoPath: string | undefined;
@@ -1976,10 +2108,10 @@ export default function AccountPage() {
                     const r = await fetch("/api/messages", {
                       method: "POST", credentials: "include",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ receiverId: activeConvId, content: msgText || undefined, photoPath }),
+                      body: JSON.stringify({ receiverId: activeConvId, content: msgText || undefined, photoPath, stickerId: msgSticker?.id }),
                     });
                     if (r.ok) {
-                      setMsgText(""); setMsgPhotoFile(null);
+                      setMsgText(""); setMsgPhotoFile(null); setMsgSticker(null);
                       if (msgPhotoPreview) URL.revokeObjectURL(msgPhotoPreview);
                       setMsgPhotoPreview(null);
                       if (msgFileRef.current) msgFileRef.current.value = "";
@@ -2002,11 +2134,16 @@ export default function AccountPage() {
                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }}>
                     <Image className="w-4 h-4" />
                   </button>
+                  <button type="button" onClick={() => setShowStickerPicker(v => !v)}
+                    className="p-2 rounded-xl"
+                    style={{ background: showStickerPicker ? "rgba(255,0,92,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${showStickerPicker ? "rgba(255,0,92,0.35)" : "rgba(255,255,255,0.08)"}`, color: showStickerPicker ? "#ff005c" : "rgba(255,255,255,0.4)" }}>
+                    <Smile className="w-4 h-4" />
+                  </button>
                   <input value={msgText} onChange={e => setMsgText(e.target.value)}
                     placeholder="Message…" maxLength={500}
                     className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }} />
-                  <button type="submit" disabled={sendingMsg || (!msgText.trim() && !msgPhotoFile)}
+                  <button type="submit" disabled={sendingMsg || (!msgText.trim() && !msgPhotoFile && !msgSticker)}
                     className="px-3 py-2 rounded-xl font-bold disabled:opacity-40"
                     style={{ background: "rgba(255,0,92,0.2)", border: "1px solid rgba(255,0,92,0.4)", color: "#ff005c" }}>
                     <Send className="w-4 h-4" />
@@ -2250,22 +2387,14 @@ export default function AccountPage() {
                 <ShoppingBag className="w-4 h-4" /> OPEN STORE
               </button>
 
-              {/* Honest placeholder — there's no earn/spend history log
-                  built yet (that needs its own pass instrumenting every
-                  place coins are earned across the app), so this says so
-                  rather than showing fabricated activity. */}
-              <div style={{
-                textAlign: "center", padding: "16px", borderRadius: "10px",
-                background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)",
-                fontSize: "0.72rem", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.03em",
-              }}>
-                Transaction history is coming in a future update
-              </div>
-
               <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.4)", lineHeight: 1.5 }}>
                 Earned from league matches, practice, Master 501, Tour, Card Clash &amp; challenges. Spend it in the Store on profile banners, avatar frames, name styles, icons &amp; card packs.
               </div>
             </div>
+          </SectionCard>
+
+          <SectionCard title="Transaction History" icon={Zap} accent="#38bdf8">
+            <TransactionHistory playerId={user.playerId} />
           </SectionCard>
         </div>
       )}

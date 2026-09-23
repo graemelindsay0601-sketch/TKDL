@@ -218,7 +218,7 @@ function BullUpPhase({
 export function GameScorer({
   p1Name, p2Name, gameType, botConfig, onWin, onAbandon, onPracticeStats,
   legs, setsToWin, legsToWinSet,
-  teamNames, playerNames, soloMode, bullUp,
+  teamNames, playerNames, soloMode, bullUp, scorerThemeColor,
 }: {
   p1Name: string; p2Name: string;
   gameType: GameTypeOption;
@@ -233,6 +233,10 @@ export function GameScorer({
   playerNames?: string[];
   soloMode?: boolean;
   bullUp?: boolean;
+  /** SCORER_THEME cosmetic: accent colour for the live scoring surface — only
+   *  wired into X01 and Cricket (the two primary 1v1 engines) for now. See
+   *  practice.tsx for the only caller that ever supplies this. */
+  scorerThemeColor?: string | null;
 }) {
   const isBullUpApplicable = bullUp && !soloMode;
   const [starterIdx, setStarterIdx] = useState<0 | 1 | null>(isBullUpApplicable ? null : 0);
@@ -280,10 +284,10 @@ export function GameScorer({
   // ── Standard 1v1 engines ─────────────────────────────────────────────────────
   switch (gameType.engine) {
     case "X01":
-      return <X01Scorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} legs={legs} setsToWin={setsToWin} legsToWinSet={legsToWinSet} soloMode={soloMode} newScoringUI={newScoringUI} />;
+      return <X01Scorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} legs={legs} setsToWin={setsToWin} legsToWinSet={legsToWinSet} soloMode={soloMode} newScoringUI={newScoringUI} scorerThemeColor={scorerThemeColor} />;
 
     case "Cricket":
-      return <CricketScorer p1Name={ep1} p2Name={ep2} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} newScoringUI={newScoringUI} />;
+      return <CricketScorer p1Name={ep1} p2Name={ep2} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} newScoringUI={newScoringUI} scorerThemeColor={scorerThemeColor} />;
 
     case "Killer":
       return <KillerScorer p1Name={ep1} p2Name={ep2} lives={(cfg.lives as number) ?? 3} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} newScoringUI={newScoringUI} />;

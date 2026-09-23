@@ -3,7 +3,8 @@ import { createPortal } from "react-dom";
 import { useSearch } from "wouter";
 import { useListPlayers } from "@workspace/api-client-react";
 import { useCurrentPlayer } from "@/context/auth";
-import { useCosmeticsCatalog, resultThemeColor } from "@/lib/cosmetics";
+import { useCosmeticsCatalog, resultThemeColor, checkoutEffect, scorerThemeColor as scorerThemeColorHelper } from "@/lib/cosmetics";
+import { CheckoutBurst } from "@/components/CheckoutBurst";
 import { useToast } from "@/hooks/use-toast";
 import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users, Ghost, User, Target, Clock, X } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
@@ -680,14 +681,27 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
   const currentPlayer = useCurrentPlayer();
   const cosmeticsCatalog = useCosmeticsCatalog();
   const [equippedThemeId, setEquippedThemeId] = useState<string | null>(null);
+  const [equippedEffectId, setEquippedEffectId] = useState<string | null>(null);
   useEffect(() => {
     if (!currentPlayer?.playerId) return;
     fetch(`/api/players/${currentPlayer.playerId}/cosmetics`)
       .then(r => (r.ok ? r.json() : null))
-      .then(data => setEquippedThemeId(data?.equippedResultThemeId ?? null))
+      .then(data => {
+        setEquippedThemeId(data?.equippedResultThemeId ?? null);
+        setEquippedEffectId(data?.equippedCheckoutEffectId ?? null);
+      })
       .catch(() => {});
   }, [currentPlayer?.playerId]);
   const themeColor = resultThemeColor(cosmeticsCatalog.find(c => c.id === equippedThemeId), "#a78bfa");
+
+  // CHECKOUT_EFFECT cosmetic — only plays for the logged-in viewer, and only
+  // when they were the one who won (comparing currentPlayer against
+  // whichever side result.winnerIdx names), same reasoning as RESULT_THEME
+  // being Practice-only: this screen has a neutral decorative surface to
+  // add an effect to, Master501/Tour's win/loss-semantic screens don't.
+  const winnerId = result.winnerIdx === 0 ? data.p1.id : data.p2?.id;
+  const viewerWon = !!currentPlayer?.playerId && currentPlayer.playerId === winnerId;
+  const burstEffect = viewerWon ? checkoutEffect(cosmeticsCatalog.find(c => c.id === equippedEffectId)) : null;
 
   useEffect(() => {
     const duration = Math.round((Date.now() - startRef.current) / 1000);
@@ -738,9 +752,10 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
     <div className="max-w-lg mx-auto space-y-6 text-center">
       <div className="pdc-divider" />
       <div>
-        <div className="w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center"
+        <div className="relative w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center"
           style={{ background: `${themeColor}26`, border: `2px solid ${themeColor}66` }}>
           <Trophy className="w-8 h-8" style={{ color: themeColor }} />
+          {burstEffect && <CheckoutBurst emoji={burstEffect.emoji} color={burstEffect.color} />}
         </div>
         <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Practice Complete</div>
         <div className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.08em" }}>
@@ -821,6 +836,25 @@ export default function Practice() {
   useZoomLock(isLive);
   useExitGuard(isLive, () => { clearCardClashSession(); setPhase("setup"); });
 
+  // SCORER_THEME cosmetic — accents the logged-in viewer's own live scoring
+  // surface (X01 & Cricket only, see GameScorer). Same "own account, solo
+  // practice" reasoning as PracticeOverScreen's RESULT_THEME/CHECKOUT_EFFECT
+  // above: falls back to each scorer's existing hardcoded default when
+  // nothing's equipped or no one's logged in.
+  const currentPlayer = useCurrentPlayer();
+  const cosmeticsCatalog = useCosmeticsCatalog();
+  const [equippedScorerThemeId, setEquippedScorerThemeId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!currentPlayer?.playerId) return;
+    fetch(`/api/players/${currentPlayer.playerId}/cosmetics`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => setEquippedScorerThemeId(data?.equippedScorerThemeId ?? null))
+      .catch(() => {});
+  }, [currentPlayer?.playerId]);
+  const scorerAccentColor = equippedScorerThemeId
+    ? scorerThemeColorHelper(cosmeticsCatalog.find(c => c.id === equippedScorerThemeId), "")
+    : null;
+
   if (phase === "setup") {
     return <SetupScreen onStart={d => { setSetupData(d); setPhase("playing"); }} />;
   }
@@ -844,6 +878,7 @@ export default function Practice() {
           legsToWinSet={setupData.legsToWinSet}
           soloMode={setupData.soloPlay}
           bullUp={setupData.bullUp}
+          scorerThemeColor={scorerAccentColor}
           onWin={r => { clearCardClashSession(); setResult(r); setPhase("done"); }}
           onAbandon={() => { clearCardClashSession(); setPhase("setup"); }}
           onPracticeStats={s => setPracticeStats(s)}

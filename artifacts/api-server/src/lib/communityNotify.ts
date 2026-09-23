@@ -60,13 +60,31 @@ export async function createNotification(opts: {
   message: string;
 }): Promise<void> {
   try {
-    // No `req` reaches this deep — it's called from event handlers
-    // (matches.ts, etc.) with just a playerId, not a request. Foundation
-    // phase: resolve to the single default league (see lib/currentLeague.ts)
-    // rather than a per-request one, matching the single-tenant reality
-    // today; this is the one seam a real "notify across leagues" flow would
-    // need to widen later.
-    if (!(await getSettingBool(await getDefaultLeagueId(), "notifications_enabled"))) return;
+    if (opts.type === "dm_received") {
+      // DMs get their own per-player gate instead of the league-wide
+      // "notifications_enabled" switch below — that switch defaults to
+      // false and is only reachable via a hidden admin debug route or the
+      // Feature Flags page, so every DM notification was silently dropped
+      // before it ever reached a player, regardless of their own settings.
+      // Mirrors the push_enabled + per-type check notificationService.ts
+      // already does for match results, keyed off the new
+      // direct_messages column (default true).
+      const rows = await db.execute(sql`
+        SELECT push_enabled, direct_messages FROM notification_preferences WHERE player_id = ${opts.playerId}
+      `);
+      const prefs = rows.rows[0] as { push_enabled?: boolean; direct_messages?: boolean } | undefined;
+      // No row yet (player never touched their settings) defaults to on,
+      // matching notification_preferences' own column defaults.
+      if (prefs && (prefs.push_enabled === false || prefs.direct_messages === false)) return;
+    } else {
+      // No `req` reaches this deep — it's called from event handlers
+      // (matches.ts, etc.) with just a playerId, not a request. Foundation
+      // phase: resolve to the single default league (see lib/currentLeague.ts)
+      // rather than a per-request one, matching the single-tenant reality
+      // today; this is the one seam a real "notify across leagues" flow would
+      // need to widen later.
+      if (!(await getSettingBool(await getDefaultLeagueId(), "notifications_enabled"))) return;
+    }
     await db.execute(sql`
       INSERT INTO notifications (player_id, type, actor_id, entity_id, entity_type, message)
       VALUES (

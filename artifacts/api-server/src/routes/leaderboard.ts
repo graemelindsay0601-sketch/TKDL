@@ -53,6 +53,8 @@ router.get("/leaderboard", async (_req, res): Promise<void> => {
       auraColor:     identity.auraColor,
       title:         identity.title,
       equippedGlowId: p.equippedGlowId,
+      equippedProfileIconId: p.equippedProfileIconId,
+      equippedLeaderboardTagId: p.equippedLeaderboardTagId,
     };
   });
 
@@ -113,6 +115,8 @@ router.get("/leaderboard/career", async (req, res): Promise<void> => {
       archetypeIcon:     identity.archetypeIcon,
       title:             identity.title,
       equippedGlowId:    p.equippedGlowId,
+      equippedProfileIconId: p.equippedProfileIconId,
+      equippedLeaderboardTagId: p.equippedLeaderboardTagId,
     };
   });
 

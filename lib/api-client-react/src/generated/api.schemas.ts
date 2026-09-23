@@ -213,6 +213,8 @@ export interface LeaderboardEntry {
   auraColor?: string;
   title?: string;
   equippedGlowId?: string | null;
+  equippedProfileIconId?: string | null;
+  equippedLeaderboardTagId?: string | null;
 }
 
 export interface SeasonDetail {

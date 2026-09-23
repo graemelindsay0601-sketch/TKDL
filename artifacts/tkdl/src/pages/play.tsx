@@ -11,6 +11,8 @@ import { RulesModal } from "@/components/rules-modal";
 import { MatchStatsCard } from "@/components/match-stats-card";
 import { CardEquipmentSelector } from "@/components/CardEquipmentSelector";
 import { useCurrentPlayer } from "@/context/auth";
+import { useCosmeticsCatalog, resultThemeColor, checkoutEffect } from "@/lib/cosmetics";
+import { CheckoutBurst } from "@/components/CheckoutBurst";
 import { PostMatchAnalysisModal } from "@/components/stats/post-match-analysis";
 import { useWakeLock, useZoomLock, useExitGuard, useMatchSnapshot, readMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
 
@@ -716,6 +718,35 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
   const winnerName = winnerTeam.map(p => p.name).join(" & ");
   const loserName  = loserTeam.map(p  => p.name).join(" & ");
 
+  // RESULT_THEME / CHECKOUT_EFFECT cosmetics — same wiring as practice.tsx's
+  // PracticeOverScreen, ported to the real-match win screen. themeColor and
+  // textGlowColor each fall back to this screen's own pre-existing hardcoded
+  // colours (gold / pink) when nothing's equipped, so "nothing equipped"
+  // still renders exactly as before; when a theme IS equipped both resolve
+  // to that one cosmetic colour, unifying the trophy/detail/text-glow/
+  // MatchStatsCard accent that used to be two independent hardcoded tones.
+  // The burst only plays for the logged-in viewer, and only when their own
+  // id is on the winning side — works for 1v1, teams, and killer-ffa alike.
+  const currentPlayer = useCurrentPlayer();
+  const cosmeticsCatalog = useCosmeticsCatalog();
+  const [equippedThemeId, setEquippedThemeId] = useState<string | null>(null);
+  const [equippedEffectId, setEquippedEffectId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!currentPlayer?.playerId) return;
+    fetch(`/api/players/${currentPlayer.playerId}/cosmetics`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        setEquippedThemeId(data?.equippedResultThemeId ?? null);
+        setEquippedEffectId(data?.equippedCheckoutEffectId ?? null);
+      })
+      .catch(() => {});
+  }, [currentPlayer?.playerId]);
+  const equippedTheme = cosmeticsCatalog.find(c => c.id === equippedThemeId);
+  const themeColor    = resultThemeColor(equippedTheme, "#ffd24a");
+  const textGlowColor = resultThemeColor(equippedTheme, "#ff005c");
+  const viewerWon = !!currentPlayer?.playerId && winnerTeam.some(p => p.id === currentPlayer.playerId);
+  const burstEffect = viewerWon ? checkoutEffect(cosmeticsCatalog.find(c => c.id === equippedEffectId)) : null;
+
   const submit = async () => {
     try {
       setError("");
@@ -847,14 +878,17 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
     <div className="max-w-lg mx-auto space-y-6 text-center">
       <div className="pdc-divider" />
       <div>
-        <Trophy className="w-16 h-16 mx-auto mb-3" style={{ color: "#ffd24a", filter: "drop-shadow(0 0 20px rgba(255,210,74,0.5))" }} />
+        <div className="relative w-16 h-16 mx-auto mb-3 flex items-center justify-center">
+          <Trophy className="w-16 h-16" style={{ color: themeColor, filter: `drop-shadow(0 0 20px ${themeColor}80)` }} />
+          {burstEffect && <CheckoutBurst emoji={burstEffect.emoji} color={burstEffect.color} />}
+        </div>
         <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
           {isTeam ? "Winning Team" : isKillerFfa ? "Survivor" : "Winner"}
         </div>
-        <div className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.08em", textShadow: "0 0 30px rgba(255,0,92,0.4)" }}>
+        <div className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.08em", textShadow: `0 0 30px ${textGlowColor}66` }}>
           {winnerName}
         </div>
-        {result.detail && <div className="text-sm mt-1" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{result.detail}</div>}
+        {result.detail && <div className="text-sm mt-1" style={{ color: themeColor, fontFamily: "Oswald, sans-serif" }}>{result.detail}</div>}
       </div>
 
       {stats && data.format === "1v1" && (
@@ -863,7 +897,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           p2Name={data.team2[0].name}
           stats={stats}
           winnerIdx={result.winnerIdx as 0|1}
-          accentColor="#ff005c"
+          accentColor={textGlowColor}
         />
       )}
 

@@ -32,16 +32,31 @@ export function usePushNotifications(playerId: number | null | undefined) {
     }).catch(() => setState("default"));
   }, [supported, playerId]);
 
-  const subscribe = useCallback(async () => {
-    if (!supported || !playerId) return;
+  // Returns the state subscribing actually landed on, so a caller (e.g.
+  // NotificationOptInPrompt) can tell a real success/decline apart from an
+  // unexpected failure — see that component for why the distinction
+  // matters: treating every outcome the same silently and permanently
+  // dismissed the one-time opt-in prompt even when subscribing had failed,
+  // leaving the player with no visible way to retry.
+  const subscribe = useCallback(async (): Promise<PushState> => {
+    if (!supported || !playerId) return "unsupported";
     setLoading(true);
     try {
       const keyRes = await fetch("/api/notifications/vapid-public-key");
-      if (!keyRes.ok) return;
-      const { publicKey } = await keyRes.json() as { publicKey: string };
+      if (!keyRes.ok) { setState("default"); return "default"; }
+      const { publicKey, enabled } = await keyRes.json() as { publicKey: string; enabled?: boolean };
+      if (!publicKey || enabled === false) {
+        // Server has no VAPID key configured — subscribing would only
+        // throw once we call pushManager.subscribe() below. Bail out
+        // before asking for OS permission at all, so a config problem on
+        // our end never shows the player a permission prompt for
+        // something that can't actually work yet.
+        setState("default");
+        return "default";
+      }
 
       const permission = await Notification.requestPermission();
-      if (permission !== "granted") { setState("denied"); return; }
+      if (permission !== "granted") { setState("denied"); return "denied"; }
 
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({
@@ -55,9 +70,13 @@ export function usePushNotifications(playerId: number | null | undefined) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(sub.toJSON()),
       });
-      if (r.ok) setState("subscribed");
-    } catch { setState("default"); }
-    finally { setLoading(false); }
+      if (r.ok) { setState("subscribed"); return "subscribed"; }
+      setState("default");
+      return "default";
+    } catch {
+      setState("default");
+      return "default";
+    } finally { setLoading(false); }
   }, [supported, playerId]);
 
   const unsubscribe = useCallback(async () => {

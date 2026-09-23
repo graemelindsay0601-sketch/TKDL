@@ -4,8 +4,10 @@ import {
   playerCurrencyTable,
   cardDefinitionsTable,
   cardPityTable,
+  currencyTransactionsTable,
+  type CurrencyReason,
 } from "@workspace/db";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 // The callback passed to db.transaction() receives a PgTransaction, not the
 // top-level `db` — it can run every query db can, but lacks db's `$client`
@@ -77,13 +79,23 @@ export async function purchasePack(
         throw new Error("Insufficient coins");
       }
       // Deduct coins
+      const newBalance = (playerCurrency[0].cardPoints || 0) - pack.coins;
       await tx
         .update(playerCurrencyTable)
         .set({
-          cardPoints: (playerCurrency[0].cardPoints || 0) - pack.coins,
+          cardPoints: newBalance,
           updatedAt: new Date(),
         })
         .where(eq(playerCurrencyTable.playerId, playerId));
+      // Ledger entry inside the same transaction as the deduction above —
+      // see lib/db/src/schema/player-currency.ts's currencyTransactionsTable.
+      // packTokens payments aren't logged here: that's a different, legacy
+      // balance (see playerCurrencyTable.packTokens's own comment), not the
+      // card_points balance this ledger tracks.
+      await tx.insert(currencyTransactionsTable).values({
+        playerId, delta: -pack.coins, balanceAfter: newBalance,
+        reason: "card_pack_purchase", detail: packType,
+      });
     }
 
     // Generate cards
@@ -245,85 +257,67 @@ export async function getPlayerCurrency(playerId: number) {
   };
 }
 
-export async function addCoinsToPlayer(playerId: number, amount: number) {
+export async function addCoinsToPlayer(
+  playerId: number,
+  amount: number,
+  reason: CurrencyReason,
+  detail?: string,
+) {
   // Single atomic upsert instead of read-then-write: two concurrent awards to
   // the same player (e.g. a match-win coin grant firing alongside an
   // achievement grant) used to both read the same starting balance and one
   // credit could silently overwrite the other. onConflictDoUpdate with a SQL
   // increment expression makes the whole read-modify-write happen in one
   // statement, atomically, on the DB side. playerId has a unique constraint
-  // so this always targets exactly one row.
-  await db
-    .insert(playerCurrencyTable)
-    .values({
-      playerId,
-      cardPoints: amount,
-      lifetimeCoinsEarned: amount,
-    })
-    .onConflictDoUpdate({
-      target: playerCurrencyTable.playerId,
-      set: {
-        cardPoints: sql`${playerCurrencyTable.cardPoints} + ${amount}`,
-        lifetimeCoinsEarned: sql`${playerCurrencyTable.lifetimeCoinsEarned} + ${amount}`,
-        updatedAt: new Date(),
-      },
-    });
-}
-
-/**
- * Award coins to multiple players in a single batch operation
- * Much more efficient than calling addCoinsToPlayer multiple times
- * Prevents N+1 query pattern
- */
-export async function awardCoinsToMultiplePlayers(
-  playerCoins: Array<{ playerId: number; amount: number }>
-): Promise<void> {
-  if (playerCoins.length === 0) return;
-
-  // Get all player currencies in one query
-  const playerIds = playerCoins.map(p => p.playerId);
-  const currencies = await db
-    .select()
-    .from(playerCurrencyTable)
-    .where(inArray(playerCurrencyTable.playerId, playerIds));
-
-  const currencyMap = new Map(currencies.map(c => [c.playerId, c]));
-
-  // Separate into new and existing
-  const newPlayers: Array<{ playerId: number; cardPoints: number; lifetimeCoinsEarned: number }> = [];
-  const updateMap = new Map<number, { cardPoints: number; lifetimeCoinsEarned: number }>();
-
-  for (const { playerId, amount } of playerCoins) {
-    const existing = currencyMap.get(playerId);
-    if (!existing) {
-      newPlayers.push({
+  // so this always targets exactly one row. Wrapped in a transaction with the
+  // ledger insert below so a credit and its history row are never split —
+  // `reason` is now a required param specifically so every one of this
+  // function's ~20 call sites across the app has to say why, at compile
+  // time, rather than the Wallet's history having unexplained gaps.
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(playerCurrencyTable)
+      .values({
         playerId,
         cardPoints: amount,
         lifetimeCoinsEarned: amount,
-      });
-    } else {
-      updateMap.set(playerId, {
-        cardPoints: (existing.cardPoints || 0) + amount,
-        lifetimeCoinsEarned: (existing.lifetimeCoinsEarned || 0) + amount,
-      });
-    }
-  }
-
-  // Insert new records
-  if (newPlayers.length > 0) {
-    await db.insert(playerCurrencyTable).values(newPlayers);
-  }
-
-  // Update existing records
-  for (const [playerId, values] of updateMap) {
-    await db
-      .update(playerCurrencyTable)
-      .set({
-        cardPoints: values.cardPoints,
-        lifetimeCoinsEarned: values.lifetimeCoinsEarned,
-        updatedAt: new Date(),
       })
-      .where(eq(playerCurrencyTable.playerId, playerId));
+      .onConflictDoUpdate({
+        target: playerCurrencyTable.playerId,
+        set: {
+          cardPoints: sql`${playerCurrencyTable.cardPoints} + ${amount}`,
+          lifetimeCoinsEarned: sql`${playerCurrencyTable.lifetimeCoinsEarned} + ${amount}`,
+          updatedAt: new Date(),
+        },
+      })
+      .returning({ cardPoints: playerCurrencyTable.cardPoints });
+
+    await tx.insert(currencyTransactionsTable).values({
+      playerId, delta: amount, balanceAfter: row.cardPoints, reason, detail: detail ?? null,
+    });
+  });
+}
+
+/**
+ * Award coins to multiple players (e.g. a Card Clash match's winner + loser
+ * payout) with one shared reason.
+ *
+ * This used to be its own hand-rolled batch of reads then writes — a real
+ * lost-update race (the exact bug addCoinsToPlayer's own doc comment
+ * describes) since it read every player's starting balance up front and
+ * wrote back a computed total with no locking in between. It's a loop over
+ * addCoinsToPlayer now instead: for the 2-player batches this is actually
+ * called with (a match's winner + loser), the lost single-statement-batch
+ * optimization is negligible next to getting the same atomic, ledger-logged
+ * write as every other credit in the app, instead of a second bespoke path
+ * that could drift from it.
+ */
+export async function awardCoinsToMultiplePlayers(
+  playerCoins: Array<{ playerId: number; amount: number; detail?: string }>,
+  reason: CurrencyReason,
+): Promise<void> {
+  for (const { playerId, amount, detail } of playerCoins) {
+    await addCoinsToPlayer(playerId, amount, reason, detail);
   }
 }
 
@@ -346,20 +340,39 @@ export async function awardPackTokens(playerId: number, amount: number) {
   }
 }
 
-export async function removeCoinsFromPlayer(playerId: number, amount: number) {
-  const playerCurrency = await getPlayerCurrency(playerId);
+export async function removeCoinsFromPlayer(
+  playerId: number,
+  amount: number,
+  reason: CurrencyReason,
+  detail?: string,
+) {
+  // Row-locked + ledger-logged in one transaction now — this used to be a
+  // plain read-then-write with no lock, the same race class addCoinsToPlayer
+  // already guards against, just on the debit side.
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(playerCurrencyTable)
+      .where(eq(playerCurrencyTable.playerId, playerId))
+      .for("update");
 
-  if ((playerCurrency.cardPoints || 0) < amount) {
-    throw new Error("Insufficient coins");
-  }
+    if (!row || (row.cardPoints || 0) < amount) {
+      throw new Error("Insufficient coins");
+    }
 
-  await db
-    .update(playerCurrencyTable)
-    .set({
-      cardPoints: (playerCurrency.cardPoints || 0) - amount,
-      updatedAt: new Date(),
-    })
-    .where(eq(playerCurrencyTable.playerId, playerId));
+    const newBalance = (row.cardPoints || 0) - amount;
+    await tx
+      .update(playerCurrencyTable)
+      .set({
+        cardPoints: newBalance,
+        updatedAt: new Date(),
+      })
+      .where(eq(playerCurrencyTable.playerId, playerId));
+
+    await tx.insert(currencyTransactionsTable).values({
+      playerId, delta: -amount, balanceAfter: newBalance, reason, detail: detail ?? null,
+    });
+  });
 }
 
 export async function giveCardToPlayer(playerId: number, cardId: string, quantity: number = 1) {
@@ -387,6 +400,20 @@ export async function giveCardToPlayer(playerId: number, cardId: string, quantit
   }
 }
 
+// Pure inventory removal — despite the name, this used to ALSO silently pay
+// the player 10 coins/card internally, baked in on the assumption every
+// caller was a "sell" action. It wasn't: this is called for (1) an actual
+// sell (routes/card-clash.ts's POST /sell-card, which already awards its
+// own rarity-based coinsEarned right after calling this — that was a flat
+// double-credit on every sale), (2) an admin manually removing a card to
+// correct a mistake (routes/card-clash.ts's POST /admin/card/remove — an
+// admin correction should never pay the player), and (3) a card actually
+// being consumed by getting played in a Card Clash match
+// (card-clash-service.ts's match-resolution step — this was quietly paying
+// 10 free coins per card played, win or lose, on top of any real match
+// reward, every single match). Removing the implicit credit here fixes all
+// three at once: sell-card keeps its own explicit, correct award; the
+// other two now correctly award nothing through this path.
 export async function removeCardFromPlayer(playerId: number, cardId: string, quantity: number = 1) {
   const existingCard = await db
     .select()
@@ -414,10 +441,6 @@ export async function removeCardFromPlayer(playerId: number, cardId: string, qua
         and(eq(cardInventoryTable.playerId, playerId), eq(cardInventoryTable.cardId, cardId))
       );
   }
-
-  // Award coins for selling cards (10 coins per card)
-  const coinsEarned = quantity * 10;
-  await addCoinsToPlayer(playerId, coinsEarned);
 }
 
 export async function getPlayerPityStatus(playerId: number) {
@@ -438,11 +461,28 @@ export async function resetPlayerCardData(playerId: number) {
   // Delete inventory
   await db.delete(cardInventoryTable).where(eq(cardInventoryTable.playerId, playerId));
 
-  // Reset currency
-  await db
-    .update(playerCurrencyTable)
-    .set({ cardPoints: 0 })
-    .where(eq(playerCurrencyTable.playerId, playerId));
+  // Reset currency, logging the wipe as its own ledger entry (an absolute
+  // set to 0 is really "debit whatever the balance was") so it isn't a
+  // silent gap in the Wallet's history.
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(playerCurrencyTable)
+      .where(eq(playerCurrencyTable.playerId, playerId))
+      .for("update");
+    const current = row?.cardPoints ?? 0;
+
+    await tx
+      .update(playerCurrencyTable)
+      .set({ cardPoints: 0 })
+      .where(eq(playerCurrencyTable.playerId, playerId));
+
+    if (current > 0) {
+      await tx.insert(currencyTransactionsTable).values({
+        playerId, delta: -current, balanceAfter: 0, reason: "admin_reset",
+      });
+    }
+  });
 
   // Reset pity
   await db

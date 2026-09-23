@@ -36,6 +36,20 @@ export async function seedNotificationTables() {
         ADD COLUMN IF NOT EXISTS threat_alerts BOOLEAN DEFAULT true
     `);
 
+    // direct_messages — DM notifications (routes/messages.ts) went through
+    // communityNotify.ts's createNotification(), which gated EVERY type it
+    // handles (including dm_received) behind the league-wide
+    // "notifications_enabled" setting, which defaults to false and is only
+    // reachable via a hidden admin debug route or the Feature Flags page.
+    // Effectively no one has ever gotten a DM push. This column lets DMs
+    // use the same reliable per-player opt-out pattern match results
+    // already have, instead of that all-or-nothing league switch — see the
+    // dm_received special-case in communityNotify.ts's createNotification().
+    await db.execute(sql`
+      ALTER TABLE notification_preferences
+        ADD COLUMN IF NOT EXISTS direct_messages BOOLEAN DEFAULT true
+    `);
+
     // Notifications table
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS notifications (

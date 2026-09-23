@@ -91,7 +91,7 @@ export async function awardAchievementRewards(
   try {
     if (coinReward && coinReward > 0) {
       await ensurePlayerCurrency(playerId);
-      await addCoinsToPlayer(playerId, coinReward);
+      await addCoinsToPlayer(playerId, coinReward, "achievement", achievementKey);
     }
     if (packReward) {
       await db.execute(sql`

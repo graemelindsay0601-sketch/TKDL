@@ -5,7 +5,7 @@ import { z } from "zod";
 import { validateStake, applyWager } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { requireAdminSession } from "../middleware/requireAdminSession";
-import { sendShiftWarsMatchResultNotification } from "../services/notificationService";
+import { sendShiftWarsMatchResultNotification, sendMatchResultBroadcast } from "../services/notificationService";
 import { createAutoPost } from "../lib/communityNotify";
 import { checkShiftWarsAchievements } from "../lib/shift-wars-achievements";
 
@@ -221,6 +221,15 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
         const winnerPlayerIds = roster.filter(p => p.shift_wars_team_id === winnerTeamId).map(p => p.id);
         const loserPlayerIds  = roster.filter(p => p.shift_wars_team_id === loserTeamId).map(p => p.id);
         await sendShiftWarsMatchResultNotification(winnerName, loserName, winnerPlayerIds, loserPlayerIds, stake);
+
+        // League-wide ping — every other opted-in player, not just the two
+        // departments who played.
+        void sendMatchResultBroadcast(
+          [...winnerPlayerIds, ...loserPlayerIds],
+          "🎯 Shift Wars Result",
+          `${winnerName} beat ${loserName}`,
+          { winnerName, loserName },
+        );
 
         // Auto community post. Shift Wars had the identical missing-post bug
         // as Doubles/Team Matches — mirrors the "Auto community posts" block

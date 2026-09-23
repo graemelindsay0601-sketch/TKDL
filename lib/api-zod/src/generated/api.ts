@@ -464,7 +464,9 @@ export const GetSeasonResponse = zod.object({
   "aura": zod.string().optional(),
   "auraColor": zod.string().optional(),
   "title": zod.string().optional(),
-  "equippedGlowId": zod.string().nullish()
+  "equippedGlowId": zod.string().nullish(),
+  "equippedProfileIconId": zod.string().nullish(),
+  "equippedLeaderboardTagId": zod.string().nullish()
 }))
 })
 
@@ -500,7 +502,9 @@ export const GetLeaderboardResponseItem = zod.object({
   "aura": zod.string().optional(),
   "auraColor": zod.string().optional(),
   "title": zod.string().optional(),
-  "equippedGlowId": zod.string().nullish()
+  "equippedGlowId": zod.string().nullish(),
+  "equippedProfileIconId": zod.string().nullish(),
+  "equippedLeaderboardTagId": zod.string().nullish()
 })
 export const GetLeaderboardResponse = zod.array(GetLeaderboardResponseItem)
 
@@ -556,7 +560,9 @@ export const GetStatsSummaryResponse = zod.object({
   "aura": zod.string().optional(),
   "auraColor": zod.string().optional(),
   "title": zod.string().optional(),
-  "equippedGlowId": zod.string().nullish()
+  "equippedGlowId": zod.string().nullish(),
+  "equippedProfileIconId": zod.string().nullish(),
+  "equippedLeaderboardTagId": zod.string().nullish()
 }).optional(),
   "topEloPlayer": zod.object({
   "id": zod.number(),

@@ -441,7 +441,7 @@ router.patch("/tour/runs/:runId", matchSubmitRateLimit, async (req, res): Promis
           
           // Award 10 coins per win
           if (playerWon) {
-            await addCoinsToPlayer(playerId, 10);
+            await addCoinsToPlayer(playerId, 10, "match_win", "Tour round win");
           }
           
           // Update challenges for each match/round result

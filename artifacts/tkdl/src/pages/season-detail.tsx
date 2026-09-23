@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { useState, useEffect } from "react";
 import { Trophy, Calendar, Hash, ArrowLeft, Medal, Flame, Zap, Crown, BarChart3, Swords, Users, Skull, Building2 } from "lucide-react";
 import { useSettings } from "@/hooks/use-settings";
+import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName } from "@/lib/cosmetics";
 
 function useSeasonMatches(seasonId: number) {
   const [data, setData] = useState<any[]>([]);
@@ -112,6 +113,24 @@ export default function SeasonDetail() {
   const { data: appSettings } = useSettings();
   const shiftWarsEnabled = appSettings?.shift_wars_enabled ?? false;
 
+  // NAME_STYLE cosmetic for the season's Champion spotlight — the backend
+  // already auto-grants the season winner an exclusive NAME_STYLE
+  // ("League Champion") on season close (see cosmetics-service.ts's
+  // CHAMPION_EXCLUSIVES / lib/seasonReset.ts), but until now nothing ever
+  // showed it. Hooks must run unconditionally, so this fetch lives up here
+  // above the isLoading/not-found early returns, keyed off the champion id
+  // once seasonDetail has loaded.
+  const cosmeticsCatalog = useCosmeticsCatalog();
+  const championId = seasonDetail?.season?.championId ?? null;
+  const [championNameStyleId, setChampionNameStyleId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!championId) { setChampionNameStyleId(null); return; }
+    fetch(`/api/players/${championId}/cosmetics`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => setChampionNameStyleId(data?.equippedNameStyleId ?? null))
+      .catch(() => {});
+  }, [championId]);
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -126,6 +145,7 @@ export default function SeasonDetail() {
 
   const { season, standings } = seasonDetail;
   const posColors = ["#ffd24a", "#c0c8d8", "#cd7f32"];
+  const championNameStyle = cosmeticsCatalog.find(c => c.id === championNameStyleId);
 
   return (
     <div className="space-y-6">
@@ -177,7 +197,8 @@ export default function SeasonDetail() {
                 <div className="text-xs uppercase font-bold tracking-wider" style={{ color: "rgba(255,210,74,0.5)", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
                   Champion
                 </div>
-                <div className="text-xl font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a" }}>
+                <div className={`text-xl font-bold ${nameStyleClassName(championNameStyle)}`}
+                  style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", ...nameStyleCSS(championNameStyle) }}>
                   {season.championName}
                 </div>
               </div>

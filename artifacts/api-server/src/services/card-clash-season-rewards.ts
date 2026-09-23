@@ -13,11 +13,11 @@ import { db } from "@workspace/db";
 import {
   cardClashSeasonsTable,
   cardClashMatchesTable,
-  playerCurrencyTable,
   playersTable,
 } from "@workspace/db/schema";
 import { sql, eq, desc, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { addCoinsToPlayer } from "./card-shop-service";
 
 interface SeasonReward {
   playerId: number;
@@ -110,28 +110,15 @@ async function calculateSeasonStandings(seasonId: number) {
 }
 
 /**
- * Award coins to a player (fire-and-forget, handles errors)
+ * Award coins to a player (fire-and-forget, handles errors). Used to do its
+ * own read-then-write here — delegates to addCoinsToPlayer now, the app's
+ * one atomic, ledger-logged currency credit. `rank` becomes the ledger
+ * entry's detail so the Wallet's history reads e.g. "Season reward — rank 1"
+ * rather than just an unexplained credit.
  */
-async function awardCoinsToPlayer(playerId: number, amount: number): Promise<boolean> {
+async function awardCoinsToPlayer(playerId: number, amount: number, rank: number): Promise<boolean> {
   try {
-    const [currency] = await db
-      .select()
-      .from(playerCurrencyTable)
-      .where(eq(playerCurrencyTable.playerId, playerId));
-
-    if (currency) {
-      await db
-        .update(playerCurrencyTable)
-        .set({
-          cardPoints: (currency.cardPoints || 0) + amount,
-        })
-        .where(eq(playerCurrencyTable.playerId, playerId));
-    } else {
-      await db.insert(playerCurrencyTable).values({
-        playerId,
-        cardPoints: amount,
-      });
-    }
+    await addCoinsToPlayer(playerId, amount, "season_reward", `rank ${rank}`);
     return true;
   } catch (err) {
     logger.error({ playerId, amount, err }, "Failed to award coins");
@@ -239,7 +226,7 @@ export async function endSeasonAndAwardRewards(
       };
 
       // Award coins
-      const coinSuccess = await awardCoinsToPlayer(player.player_id, rewardConfig.coins);
+      const coinSuccess = await awardCoinsToPlayer(player.player_id, rewardConfig.coins, rank);
       if (!coinSuccess) {
         logger.warn(
           { playerId: player.player_id, coins: rewardConfig.coins },

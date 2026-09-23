@@ -242,7 +242,7 @@ export const challengeService = {
       let coinsAwarded = 0;
       if (newlyCompleted) {
         coinsAwarded = challengeDef.reward_coins;
-        await this.awardCoins(playerId, coinsAwarded);
+        await this.awardCoins(playerId, coinsAwarded, challengeDef.title);
       }
 
       return {
@@ -336,7 +336,7 @@ export const challengeService = {
       let coinsAwarded = 0;
       if (newlyCompleted) {
         coinsAwarded = challengeDef.reward_coins;
-        await this.awardCoins(playerId, coinsAwarded);
+        await this.awardCoins(playerId, coinsAwarded, challengeDef.title);
       }
 
       return {
@@ -361,9 +361,9 @@ export const challengeService = {
    * SQL increment expression) — also picks up lifetimeCoinsEarned tracking
    * for these coins, which this method never updated before.
    */
-  async awardCoins(playerId: number, amount: number): Promise<void> {
+  async awardCoins(playerId: number, amount: number, challengeTitle?: string): Promise<void> {
     try {
-      await addCoinsToPlayer(playerId, amount);
+      await addCoinsToPlayer(playerId, amount, "challenge", challengeTitle);
     } catch (error) {
       console.error(`[CardClash] Failed to award ${amount} coins to player ${playerId}:`, error);
     }

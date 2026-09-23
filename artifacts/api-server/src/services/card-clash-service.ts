@@ -319,9 +319,9 @@ export async function finishCardClashMatch(
   // Award coins to both players (batched - single DB operation)
   const { awardCoinsToMultiplePlayers } = await import("./card-shop-service");
   await awardCoinsToMultiplePlayers([
-    { playerId: winnerId, amount: winnerCoins },
-    { playerId: loser, amount: loserCoins },
-  ]);
+    { playerId: winnerId, amount: winnerCoins, detail: "Card Clash match win" },
+    { playerId: loser, amount: loserCoins, detail: "Card Clash match loss" },
+  ], "card_clash_match");
 
   // Update challenge progress (fire and forget).
   //

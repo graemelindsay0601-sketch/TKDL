@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, playersTable, playerCurrencyTable, cosmeticDefinitionsTable, playerCosmeticsTable } from "@workspace/db";
+import { db, playersTable, playerCurrencyTable, cosmeticDefinitionsTable, playerCosmeticsTable, currencyTransactionsTable } from "@workspace/db";
 import { eq, and, asc } from "drizzle-orm";
 import { z } from "zod";
 import { logger } from "../lib/logger";
@@ -50,6 +50,15 @@ router.get("/players/:id/cosmetics", async (req, res): Promise<void> => {
         equippedGlowId: playersTable.equippedGlowId,
         equippedResultThemeId: playersTable.equippedResultThemeId,
         equippedBubbleColorId: playersTable.equippedBubbleColorId,
+        equippedAvatarBadgeId: playersTable.equippedAvatarBadgeId,
+        equippedLeaderboardTagId: playersTable.equippedLeaderboardTagId,
+        equippedTaglineStyleId: playersTable.equippedTaglineStyleId,
+        equippedPostAccentId: playersTable.equippedPostAccentId,
+        equippedCheckoutEffectId: playersTable.equippedCheckoutEffectId,
+        equippedScorerThemeId: playersTable.equippedScorerThemeId,
+        equippedPlayerCardFinishId: playersTable.equippedPlayerCardFinishId,
+        equippedTrophyCaseStyleId: playersTable.equippedTrophyCaseStyleId,
+        equippedRecapStyleId: playersTable.equippedRecapStyleId,
       })
       .from(playersTable)
       .where(eq(playersTable.id, playerId));
@@ -69,6 +78,15 @@ router.get("/players/:id/cosmetics", async (req, res): Promise<void> => {
       equippedGlowId: player.equippedGlowId,
       equippedResultThemeId: player.equippedResultThemeId,
       equippedBubbleColorId: player.equippedBubbleColorId,
+      equippedAvatarBadgeId: player.equippedAvatarBadgeId,
+      equippedLeaderboardTagId: player.equippedLeaderboardTagId,
+      equippedTaglineStyleId: player.equippedTaglineStyleId,
+      equippedPostAccentId: player.equippedPostAccentId,
+      equippedCheckoutEffectId: player.equippedCheckoutEffectId,
+      equippedScorerThemeId: player.equippedScorerThemeId,
+      equippedPlayerCardFinishId: player.equippedPlayerCardFinishId,
+      equippedTrophyCaseStyleId: player.equippedTrophyCaseStyleId,
+      equippedRecapStyleId: player.equippedRecapStyleId,
     });
   } catch (err) {
     logger.error({ err }, "Failed to get player cosmetics");
@@ -123,12 +141,20 @@ router.post("/players/:id/cosmetics/purchase", async (req, res): Promise<void> =
       const balance = currency[0]?.cardPoints ?? 0;
       if (!currency[0] || balance < def.price) throw new Error("INSUFFICIENT_COINS");
 
+      const newBalance = balance - def.price;
       await tx
         .update(playerCurrencyTable)
-        .set({ cardPoints: balance - def.price, updatedAt: new Date() })
+        .set({ cardPoints: newBalance, updatedAt: new Date() })
         .where(eq(playerCurrencyTable.playerId, playerId));
 
       await tx.insert(playerCosmeticsTable).values({ playerId, cosmeticId });
+
+      // Ledger entry inside the same transaction as the deduction above —
+      // see lib/db/src/schema/player-currency.ts's currencyTransactionsTable.
+      await tx.insert(currencyTransactionsTable).values({
+        playerId, delta: -def.price, balanceAfter: newBalance,
+        reason: "cosmetic_purchase", detail: def.name,
+      });
 
       return def;
     });
@@ -145,8 +171,10 @@ router.post("/players/:id/cosmetics/purchase", async (req, res): Promise<void> =
   }
 });
 
+// STICKER is deliberately excluded here — it's never equipped to a slot,
+// only owned and then attached per-message (see POST /messages below).
 const EquipBody = z.object({
-  category: z.enum(["NAME_STYLE", "PROFILE_ICON", "BANNER", "FRAME", "GLOW", "RESULT_THEME", "BUBBLE_COLOR"]),
+  category: z.enum(["NAME_STYLE", "PROFILE_ICON", "BANNER", "FRAME", "GLOW", "RESULT_THEME", "BUBBLE_COLOR", "AVATAR_BADGE", "LEADERBOARD_TAG", "TAGLINE_STYLE", "POST_ACCENT", "CHECKOUT_EFFECT", "SCORER_THEME", "PLAYER_CARD_FINISH", "TROPHY_CASE_STYLE", "RECAP_STYLE"]),
   cosmeticId: z.string().min(1).nullable(),
 });
 
@@ -185,7 +213,16 @@ router.post("/players/:id/cosmetics/equip", async (req, res): Promise<void> => {
     else if (category === "FRAME") updateData = { equippedFrameId: cosmeticId };
     else if (category === "GLOW") updateData = { equippedGlowId: cosmeticId };
     else if (category === "RESULT_THEME") updateData = { equippedResultThemeId: cosmeticId };
-    else updateData = { equippedBubbleColorId: cosmeticId };
+    else if (category === "BUBBLE_COLOR") updateData = { equippedBubbleColorId: cosmeticId };
+    else if (category === "AVATAR_BADGE") updateData = { equippedAvatarBadgeId: cosmeticId };
+    else if (category === "LEADERBOARD_TAG") updateData = { equippedLeaderboardTagId: cosmeticId };
+    else if (category === "TAGLINE_STYLE") updateData = { equippedTaglineStyleId: cosmeticId };
+    else if (category === "POST_ACCENT") updateData = { equippedPostAccentId: cosmeticId };
+    else if (category === "CHECKOUT_EFFECT") updateData = { equippedCheckoutEffectId: cosmeticId };
+    else if (category === "SCORER_THEME") updateData = { equippedScorerThemeId: cosmeticId };
+    else if (category === "PLAYER_CARD_FINISH") updateData = { equippedPlayerCardFinishId: cosmeticId };
+    else if (category === "TROPHY_CASE_STYLE") updateData = { equippedTrophyCaseStyleId: cosmeticId };
+    else updateData = { equippedRecapStyleId: cosmeticId };
 
     await db
       .update(playersTable)

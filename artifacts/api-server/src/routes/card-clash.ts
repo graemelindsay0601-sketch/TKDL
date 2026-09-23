@@ -770,7 +770,7 @@ router.post("/admin/coins/give", verifyAdminPin, async (req: Request, res: Respo
     const { playerId, amount } = req.body;
     // Ensure player has a currency record first
     await ensurePlayerCurrency(playerId);
-    await addCoinsToPlayer(playerId, amount);
+    await addCoinsToPlayer(playerId, amount, "admin_grant");
     const currency = await getPlayerCurrency(playerId);
     res.json(currency);
   } catch (error) {
@@ -784,7 +784,7 @@ router.post("/admin/coins/remove", verifyAdminPin, async (req: Request, res: Res
     const { playerId, amount } = req.body;
     // Ensure player has a currency record first
     await ensurePlayerCurrency(playerId);
-    await removeCoinsFromPlayer(playerId, amount);
+    await removeCoinsFromPlayer(playerId, amount, "admin_removal");
     const currency = await getPlayerCurrency(playerId);
     res.json(currency);
   } catch (error) {
@@ -1201,7 +1201,7 @@ router.post("/pack-inventory/:inventoryId/open", async (req: Request, res: Respo
 
     // Award coins to cover the pack cost, then purchase (so no coin balance needed)
     const PACK_COSTS: Record<string, number> = { SINGLE: 50, FIVE: 200, TEN: 350 };
-    await addCoinsToPlayer(parseInt(playerId), PACK_COSTS[packType] ?? 200);
+    await addCoinsToPlayer(parseInt(playerId), PACK_COSTS[packType] ?? 200, "pack_redeem_credit", packType);
     const result = await purchasePack(parseInt(playerId), packType);
 
     // Track packs opened + re-check achievements
@@ -1238,7 +1238,7 @@ router.post("/sell-card", async (req: Request, res: Response) => {
     const coinsEarned = SELL_PRICES[rarity.toUpperCase()] ?? 10;
 
     await removeCardFromPlayer(parseInt(playerId), String(cardId), 1);
-    await addCoinsToPlayer(parseInt(playerId), coinsEarned);
+    await addCoinsToPlayer(parseInt(playerId), coinsEarned, "card_sell", `${rarity} card`);
 
     res.json({ success: true, coinsEarned, rarity });
   } catch (error) {

@@ -275,9 +275,15 @@ function DownloadMatchLogBtn({ logger }: { logger: MatchLogger }) {
   );
 }
 
-function SectionCard({ children }: { children: React.ReactNode }) {
+// accentColor is an optional SCORER_THEME cosmetic override — undefined/null
+// renders exactly as before (default border), so every existing call site
+// that doesn't pass it is pixel-identical to pre-cosmetic behaviour.
+function SectionCard({ children, accentColor }: { children: React.ReactNode; accentColor?: string | null }) {
   return (
-    <div className="pdc-card p-3" style={{ borderColor: "rgba(255,255,255,0.07)" }}>{children}</div>
+    <div className="pdc-card p-3" style={{
+      borderColor: accentColor ? `${accentColor}66` : "rgba(255,255,255,0.07)",
+      boxShadow: accentColor ? `0 0 14px ${accentColor}22` : undefined,
+    }}>{children}</div>
   );
 }
 
@@ -653,7 +659,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 }
 
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
-export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI }: {
+export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor }: {
   p1Name: string; p2Name: string;
   config: {
     startingScore: number;
@@ -692,6 +698,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
    *  immediately without adding any extra page height. */
   topBanner?: React.ReactNode;
   newScoringUI?: boolean;
+  /** SCORER_THEME cosmetic: accent colour for the live scoring surface's SectionCard.
+   *  Only ever supplied by practice.tsx (own-account solo practice) — undefined/null
+   *  everywhere else renders exactly as before. */
+  scorerThemeColor?: string | null;
 }) {
   const safeTimeout = useSafeTimeout();
   const { startingScore = 501, p1StartingScore, p2StartingScore, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo } = config;
@@ -1944,7 +1954,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         return <CheckoutBar key={i} checkout={co} playerName={names[i]} playerIdx={i as 0|1} />;
       })}
       {bust ? <BustBanner msg={bustMsg} /> : isBotTurnX01 ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={doubleIn && !started[turn] ? "— hit a double to start" : undefined} />}
-      <SectionCard>
+      <SectionCard accentColor={scorerThemeColor}>
         <VisitDarts darts={visitDarts} cappedTotal={isCardClash ? cappedCum : undefined} />
         {visitDarts.length > 0 && (
           <div className="text-center text-xs mt-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
@@ -2174,7 +2184,7 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
 const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
 
-export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI }: {
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor }: {
   p1Name: string; p2Name: string; cutThroat?: boolean; includesBull?: boolean; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
@@ -2196,6 +2206,9 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
    *  region instead of as a page-level sibling — see X01Scorer's topBanner for why. */
   topBanner?: React.ReactNode;
   newScoringUI?: boolean;
+  /** SCORER_THEME cosmetic: accent colour for the live scoring surface's SectionCard
+   *  and the mode title — see X01Scorer's scorerThemeColor for the full explanation. */
+  scorerThemeColor?: string | null;
 }) {
   const safeTimeout = useSafeTimeout();
   const numCount = includesBull ? 7 : 6;
@@ -3508,7 +3521,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         {topBanner}
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
+          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: scorerThemeColor ?? undefined }}>
             {cutThroat ? "Cut-Throat Cricket" : "Cricket"}
           </h2>
           {cutThroat && <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Lowest score wins · Hitting closed numbers gives OPPONENT points</p>}
@@ -3568,7 +3581,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       {isCardClash && isChaosLabMode && <BoardMarksHUD marks={activeBoardMarks} names={[p1Name, p2Name]} engine="CRICKET" viewerIdx={turn as 0 | 1} />}
       {isCardClash && isChaosLabMode && <ChaosLabActivityLog entries={chaosLabActivityLogRef.current} names={[p1Name, p2Name]} />}
       {/* Cricket scorecard */}
-      <SectionCard>
+      <SectionCard accentColor={scorerThemeColor}>
         {newScoringUI ? (
           <CricketBoard
             numbers={CRICKET_NUMS.slice(0, numCount)}

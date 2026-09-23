@@ -1,6 +1,7 @@
 import { db } from "@workspace/db";
-import { playerLoginStreaks, playerCurrencyTable } from "@workspace/db/schema";
+import { playerLoginStreaks } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { addCoinsToPlayer } from "./card-shop-service";
 
 export interface LoginReward {
   baseCoins: number;
@@ -127,31 +128,14 @@ export const cardClashLoginService = {
   },
 
   /**
-   * Award coins to player (fire-and-forget pattern)
+   * Award coins to player (fire-and-forget pattern). Used to do its own
+   * read-then-write on playerCurrencyTable here (and never updated
+   * lifetimeCoinsEarned while doing it) — delegates to addCoinsToPlayer now,
+   * the app's one atomic, ledger-logged currency credit.
    */
   async awardCoins(playerId: number, amount: number): Promise<void> {
     try {
-      // Get current balance or create entry
-      let currency = await db.query.playerCurrencyTable.findFirst({
-        where: eq(playerCurrencyTable.playerId, playerId),
-      });
-
-      if (!currency) {
-        // Create new currency entry
-        await db.insert(playerCurrencyTable).values({
-          playerId,
-          cardPoints: amount,
-        });
-      } else {
-        // Update existing entry
-        await db
-          .update(playerCurrencyTable)
-          .set({
-            cardPoints: (currency.cardPoints || 0) + amount,
-            updatedAt: new Date(),
-          })
-          .where(eq(playerCurrencyTable.playerId, playerId));
-      }
+      await addCoinsToPlayer(playerId, amount, "daily_login");
     } catch (error) {
       // Fire-and-forget: log but don't fail
       console.error(`[CardClash] Failed to award ${amount} coins to player ${playerId}:`, error);

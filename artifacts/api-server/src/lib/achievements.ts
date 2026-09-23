@@ -72,6 +72,13 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { key: "DETONATOR",         name: "🧨 Detonator",         description: "Win a 100-point+ ELO swing match",            icon: "🧨", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "MASSIVE_SWING",    criteriaValue: 100, engineType: "MATCH_EVENT" , coinReward: 75, packReward: 'SINGLE' },
   { key: "GRAVE_DIGGER",      name: "🪦 Grave Digger",      description: "Eliminate 3 different players in a season",   icon: "🪦", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "SEASON_UNIQUE_ELIMS", criteriaValue: 3, engineType: "SEASON_EVENT" , coinReward: 75, packReward: 'SINGLE' },
   { key: "MARATHON",          name: "⏳ Marathon",           description: "Play 100 matches",                            icon: "⏳", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "CAREER_GAMES",     criteriaValue: 100, engineType: "STAT_BASED" , coinReward: 75, packReward: 'SINGLE' },
+  // Milestone Plaques — a longer career-length ladder above Marathon, so a
+  // player's commitment keeps getting recognised past the 100-match mark
+  // instead of the trail going cold. Pinnable to the Trophy Case like any
+  // other achievement (see components/TrophyCase.tsx) — no separate "plaque"
+  // display mechanism needed, this reuses the existing pin infrastructure.
+  { key: "MARATHON_250",      name: "🛡 Ironclad",          description: "Play 250 matches",                            icon: "🛡", rarity: "Legendary", category: "Career",    hidden: false, priority: 80, criteriaType: "CAREER_GAMES",     criteriaValue: 250, engineType: "STAT_BASED" , coinReward: 150, packReward: 'FIVE' },
+  { key: "MARATHON_500",      name: "🏛 Living Legend",     description: "Play 500 matches",                            icon: "🏛", rarity: "Mythic",    category: "Career",    hidden: false, priority: 90, criteriaType: "CAREER_GAMES",     criteriaValue: 500, engineType: "STAT_BASED" , coinReward: 300, packReward: 'TEN' },
   { key: "SNIPER",            name: "🎯 Sniper",            description: "Maintain 80% win rate over 50 games",         icon: "🎯", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "WIN_RATE",         criteriaValue: 80,  engineType: "STAT_BASED",   secondaryCriteria: "CAREER_GAMES", secondaryValue: 50 , coinReward: 75, packReward: 'SINGLE' },
   { key: "FORTRESS",          name: "🛑 Fortress",          description: "Never be eliminated all season (20+ games)",  icon: "🛑", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "SEASON_UNELIMINATED", criteriaValue: 1, engineType: "SEASON_EVENT", secondaryCriteria: "SEASON_GAMES", secondaryValue: 20 , coinReward: 75, packReward: 'SINGLE' },
   { key: "STORM_BRINGER",     name: "🌪 Storm Bringer",     description: "Win 20+ matches in a season",                 icon: "🌪", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "SEASON_WINS",      criteriaValue: 20,  engineType: "SEASON_EVENT" , coinReward: 75, packReward: 'SINGLE' },
@@ -598,6 +605,8 @@ export async function checkStatAchievements(playerId: number): Promise<void> {
   if (player.careerGamesPlayed >= 50)  await grantIfNotHas(playerId, "VETERAN");
   if (player.careerGamesPlayed >= 75)  await grantIfNotHas(playerId, "PROFESSIONAL");
   if (player.careerGamesPlayed >= 100) await grantIfNotHas(playerId, "MARATHON");
+  if (player.careerGamesPlayed >= 250) await grantIfNotHas(playerId, "MARATHON_250");
+  if (player.careerGamesPlayed >= 500) await grantIfNotHas(playerId, "MARATHON_500");
   if (player.careerWins >= 10)         await grantIfNotHas(playerId, "BRONZE_BLOODED");
   if (player.careerWins >= 30)         await grantIfNotHas(playerId, "SILVER_STANDARD");
   if (player.careerWins >= 50)         await grantIfNotHas(playerId, "BREAKTHROUGH");

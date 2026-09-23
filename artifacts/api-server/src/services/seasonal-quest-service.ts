@@ -2,10 +2,10 @@ import { db } from "@workspace/db";
 import {
   seasonalQuests,
   playerSeasonalQuests,
-  playerCurrencyTable,
   cardClashSeasonsTable,
 } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { addCoinsToPlayer } from "./card-shop-service";
 
 export interface SeasonalQuestProgress {
   id: number;
@@ -165,7 +165,7 @@ export const seasonalQuestService = {
       let coinsAwarded = 0;
       if (newlyCompleted) {
         coinsAwarded = questDef.reward_coins;
-        await this.awardCoins(playerId, coinsAwarded);
+        await this.awardCoins(playerId, coinsAwarded, questDef.title);
       }
 
       return {
@@ -179,28 +179,13 @@ export const seasonalQuestService = {
   },
 
   /**
-   * Award coins to player (fire-and-forget)
+   * Award coins to player (fire-and-forget). Used to do its own
+   * read-then-write here — delegates to addCoinsToPlayer now, the app's one
+   * atomic, ledger-logged currency credit.
    */
-  async awardCoins(playerId: number, amount: number): Promise<void> {
+  async awardCoins(playerId: number, amount: number, questTitle?: string): Promise<void> {
     try {
-      const currency = await db.query.playerCurrencyTable.findFirst({
-        where: eq(playerCurrencyTable.playerId, playerId),
-      });
-
-      if (!currency) {
-        await db.insert(playerCurrencyTable).values({
-          playerId,
-          cardPoints: amount,
-        });
-      } else {
-        await db
-          .update(playerCurrencyTable)
-          .set({
-            cardPoints: (currency.cardPoints || 0) + amount,
-            updatedAt: new Date(),
-          })
-          .where(eq(playerCurrencyTable.playerId, playerId));
-      }
+      await addCoinsToPlayer(playerId, amount, "quest", questTitle);
     } catch (error) {
       console.error(`[CardClash] Failed to award ${amount} coins to player ${playerId}:`, error);
     }

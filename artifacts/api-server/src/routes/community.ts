@@ -49,6 +49,7 @@ router.get("/community/posts", async (req, res): Promise<void> => {
              WHEN pl.elo >= 950  THEN 'Silver'
              ELSE 'Bronze' END AS player_tier,
         pl.equipped_name_style_id AS player_name_style_id,
+        pl.equipped_post_accent_id AS player_post_accent_id,
         pl.current_win_streak AS player_win_streak,
         cp.content,
         cp.photo_path,

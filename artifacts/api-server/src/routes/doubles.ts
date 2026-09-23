@@ -5,7 +5,7 @@ import { z } from "zod";
 import { applyEloChange, calcTier } from "../lib/elo";
 import { validateStake, applyWager } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
-import { sendDoublesMatchResultNotification } from "../services/notificationService";
+import { sendDoublesMatchResultNotification, sendMatchResultBroadcast } from "../services/notificationService";
 import { createAutoPost } from "../lib/communityNotify";
 import { checkDoublesAchievements } from "../lib/doubles-achievements";
 
@@ -199,6 +199,15 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
       winnerTeamName, loserTeamName,
       winnerPlayerIds, loserPlayerIds,
       stake, eloChange,
+    );
+
+    // League-wide ping — every other opted-in player, not just the two teams
+    // who played.
+    void sendMatchResultBroadcast(
+      [...winnerPlayerIds, ...loserPlayerIds],
+      "🎯 Doubles Result",
+      `${winnerTeamName} beat ${loserTeamName}`,
+      { winnerTeamName, loserTeamName },
     );
 
     // Auto community post (fire and forget — never delay the response).

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, or, desc, and, inArray, sql } from "drizzle-orm";
-import { db, playersTable, matchesTable, matchParticipantsTable, playerAchievementsTable, achievementsTable, seasonStandingsTable, seasonsTable } from "@workspace/db";
+import { db, playersTable, matchesTable, matchParticipantsTable, playerAchievementsTable, achievementsTable, seasonStandingsTable, seasonsTable, currencyTransactionsTable } from "@workspace/db";
 import { z } from "zod";
 import { computeIdentity } from "../lib/identity";
 import { calcTier } from "../lib/elo";
@@ -823,6 +823,244 @@ router.patch("/players/:id/active-title", async (req, res): Promise<void> => {
   }
 });
 
+// PATCH /players/:id/tagline — a short player-entered line shown under
+// their name on both their own account page and their public profile (see
+// schema/players.ts's tagline column). Same ownership pattern as
+// active-title above. Length-capped (60 chars) at the same posture as
+// community posts/DMs elsewhere in this app, which also accept free text
+// with just a length cap and no separate profanity filter.
+router.patch("/players/:id/tagline", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const id = params.data.id;
+
+  const sessionPlayerId = (req.session as any)?.playerId ?? null;
+  if (!sessionPlayerId) { res.status(401).json({ error: "Login required" }); return; }
+  if (sessionPlayerId !== id) { res.status(403).json({ error: "You can only change your own tagline" }); return; }
+
+  try {
+    const { tagline } = z.object({ tagline: z.string().max(60).nullable() }).parse(req.body);
+    const trimmed = tagline?.trim() || null;
+    await db.execute(sql`UPDATE players SET tagline = ${trimmed} WHERE id = ${id}`);
+    res.json({ success: true, tagline: trimmed });
+  } catch (err) {
+    req.log.error({ err }, "PATCH /players/:id/tagline failed");
+    res.status(500).json({ error: "Failed" });
+  }
+});
+
+// Featured Stat Spotlight — a free (not coin-gated) profile customization,
+// separate from the coin-cosmetics system: one stat a player picks to
+// headline next to their Trophy Case (see components/TrophyCase.tsx and
+// lib/statSpotlight.ts's SPOTLIGHT_STATS for the frontend-side labels/
+// formatting). Fixed shortlist validated here, never free text.
+const SPOTLIGHT_STAT_KEYS = ["bestCheckout", "highestAverage", "longestWinStreak", "most180s", "matchesPlayed", "bestLeg"] as const;
+
+// PATCH /players/:id/featured-stat — same ownership pattern as tagline above.
+router.patch("/players/:id/featured-stat", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const id = params.data.id;
+
+  const sessionPlayerId = (req.session as any)?.playerId ?? null;
+  if (!sessionPlayerId) { res.status(401).json({ error: "Login required" }); return; }
+  if (sessionPlayerId !== id) { res.status(403).json({ error: "You can only change your own featured stat" }); return; }
+
+  try {
+    const { statKey } = z.object({ statKey: z.enum(SPOTLIGHT_STAT_KEYS).nullable() }).parse(req.body);
+    await db.execute(sql`UPDATE players SET featured_stat_key = ${statKey} WHERE id = ${id}`);
+    res.json({ success: true, statKey });
+  } catch (err) {
+    req.log.error({ err }, "PATCH /players/:id/featured-stat failed");
+    res.status(400).json({ error: "Invalid stat key" });
+  }
+});
+
+// GET /players/:id/stats/spotlight — current values for every stat in the
+// shortlist (not just whichever one is currently featured), so the picker UI
+// can preview all six before choosing. Public, same reasoning as the
+// cosmetics/pinned-achievements GETs — anyone viewing a profile needs to be
+// able to render its featured stat.
+//
+// bestCheckout / highestAverage / bestLeg are Practice-mode/singles-ladder
+// only (same real-data limits already accepted by /stats/checkout-records
+// and the hall-of-fame endpoints elsewhere in this file) — competitive
+// matches only store checkout hit/attempt *counts*, never the actual
+// checkout score, and only single-leg 501 matches have a meaningful
+// "average"/"fewest darts" reading. highestAverage and bestLeg both derive
+// from the same MIN(winner_darts) row on purpose: this app's singles-ladder
+// matches are single-leg 501, so a player's fastest leg and their highest
+// per-match average are mathematically the same match, just two different
+// ways of describing it.
+router.get("/players/:id/stats/spotlight", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const id = params.data.id;
+
+  try {
+    const [player] = await db
+      .select({ careerGamesPlayed: playersTable.careerGamesPlayed, longestWinStreak: playersTable.longestWinStreak })
+      .from(playersTable)
+      .where(eq(playersTable.id, id));
+    if (!player) { res.status(404).json({ error: "Player not found" }); return; }
+
+    const [checkoutResult, legResult, s180Matches, s180Practice] = await Promise.all([
+      db.execute(sql`
+        WITH session_darts AS (
+          SELECT ps.id AS session_id, ps.game_type_name, ps.created_at,
+                 (dart->>'val')::int AS val, ordinality::int AS pos,
+                 COUNT(*) OVER (PARTITION BY ps.id)::int AS total_darts
+          FROM practice_sessions ps,
+               jsonb_array_elements(ps.session_data->'dartLog') WITH ORDINALITY AS t(dart, ordinality)
+          WHERE ps.player1_id = ${id}
+            AND ps.session_data ? 'dartLog'
+            AND ps.p1_checkout_hits > 0
+            AND ps.game_type_key IN (SELECT key FROM game_types WHERE engine = 'X01')
+        ),
+        last_visits AS (
+          SELECT session_id, SUM(val) AS co_val
+          FROM session_darts
+          WHERE pos > total_darts - ((total_darts - 1) % 3 + 1)
+          GROUP BY session_id
+          HAVING SUM(val) BETWEEN 2 AND 170
+        )
+        SELECT MAX(co_val) AS best_checkout FROM last_visits
+      `),
+      db.execute(sql`
+        SELECT MIN(winner_darts) AS best_leg_darts
+        FROM matches
+        WHERE winner_id = ${id} AND game_type = '501' AND winner_darts IS NOT NULL
+      `),
+      db.execute(sql`
+        SELECT
+          COALESCE(SUM(CASE WHEN winner_id = ${id} THEN winner_180s ELSE 0 END), 0)
+          + COALESCE(SUM(CASE WHEN loser_id = ${id} THEN loser_180s ELSE 0 END), 0) AS total
+        FROM matches
+        WHERE winner_id = ${id} OR loser_id = ${id}
+      `),
+      db.execute(sql`
+        SELECT
+          COALESCE(SUM(CASE WHEN player1_id = ${id} THEN p1_180s ELSE 0 END), 0)
+          + COALESCE(SUM(CASE WHEN player2_id = ${id} THEN p2_180s ELSE 0 END), 0) AS total
+        FROM practice_sessions
+        WHERE player1_id = ${id} OR player2_id = ${id}
+      `),
+    ]);
+
+    const bestCheckout: number | null = (checkoutResult.rows[0] as any)?.best_checkout ?? null;
+    const bestLegDarts: number | null = (legResult.rows[0] as any)?.best_leg_darts ?? null;
+    const highestAverage = bestLegDarts ? Math.round((501 * 3 / bestLegDarts) * 100) / 100 : null;
+    const most180s = Number((s180Matches.rows[0] as any)?.total ?? 0) + Number((s180Practice.rows[0] as any)?.total ?? 0);
+
+    res.json({
+      bestCheckout,
+      highestAverage,
+      longestWinStreak: player.longestWinStreak ?? 0,
+      most180s,
+      matchesPlayed: player.careerGamesPlayed ?? 0,
+      bestLeg: bestLegDarts,
+    });
+  } catch (err) {
+    req.log.error({ err }, "GET /players/:id/stats/spotlight failed");
+    res.status(500).json({ error: "Failed to get stat spotlight" });
+  }
+});
+
+// GET /players/:id/seasons/:seasonId/recap — a Season Recap Card's content:
+// the season's frozen end-of-season standings row (see seasonStandingsTable
+// — a snapshot taken at season close, so this stays accurate even if season
+// data changes later) plus two computed highlights (longest win streak and
+// biggest single win by ELO swing, both scoped to just this player's
+// matches within this one season). Public, same reasoning as the other
+// profile-display GETs above — anyone viewing a profile's Season History
+// can open a past season's recap. 404s for a season this player never
+// played in, rather than returning an empty/zeroed card.
+router.get("/players/:id/seasons/:seasonId/recap", async (req, res): Promise<void> => {
+  const params = z.object({ id: z.coerce.number().int(), seasonId: z.coerce.number().int() }).safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { id, seasonId } = params.data;
+
+  try {
+    const [standing] = await db.select({
+      position:   seasonStandingsTable.position,
+      wins:       seasonStandingsTable.wins,
+      losses:     seasonStandingsTable.losses,
+      points:     seasonStandingsTable.points,
+      elo:        seasonStandingsTable.elo,
+      isChampion: seasonStandingsTable.isChampion,
+      seasonName: seasonsTable.name,
+      startDate:  seasonsTable.startDate,
+      endDate:    seasonsTable.endDate,
+      leagueType: seasonsTable.leagueType,
+    })
+      .from(seasonStandingsTable)
+      .innerJoin(seasonsTable, eq(seasonsTable.id, seasonStandingsTable.seasonId))
+      .where(and(eq(seasonStandingsTable.playerId, id), eq(seasonStandingsTable.seasonId, seasonId)));
+    if (!standing) { res.status(404).json({ error: "This player has no standings row for that season" }); return; }
+
+    const matchResult = await db.execute(sql`
+      SELECT winner_id, loser_id, elo_change, played_at
+      FROM matches
+      WHERE season_id = ${seasonId} AND (winner_id = ${id} OR loser_id = ${id})
+      ORDER BY played_at ASC
+    `);
+    const rows = matchResult.rows as any[];
+
+    let longestStreak = 0, curStreak = 0, biggestWin = 0;
+    for (const m of rows) {
+      const won = m.winner_id === id;
+      curStreak = won ? curStreak + 1 : 0;
+      longestStreak = Math.max(longestStreak, curStreak);
+      if (won) biggestWin = Math.max(biggestWin, m.elo_change ?? 0);
+    }
+
+    res.json({
+      ...standing,
+      matchesPlayed: standing.wins + standing.losses,
+      winRate: (standing.wins + standing.losses) > 0 ? Math.round((standing.wins / (standing.wins + standing.losses)) * 100) : 0,
+      longestStreak,
+      biggestWin,
+    });
+  } catch (err) {
+    req.log.error({ err }, "GET /players/:id/seasons/:seasonId/recap failed");
+    res.status(500).json({ error: "Failed to get season recap" });
+  }
+});
+
+// GET /players/:id/currency-transactions — the Wallet tab's real transaction
+// history (account.tsx). Owner-only, same reasoning as active-title above:
+// a player's coin history is personal, not something any id should be able
+// to read. Paginated with a simple offset/limit — this table only ever
+// grows by a few rows per session, nowhere near needing a keyset cursor.
+router.get("/players/:id/currency-transactions", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const id = params.data.id;
+
+  const sessionPlayerId = (req.session as any)?.playerId ?? null;
+  if (!sessionPlayerId) { res.status(401).json({ error: "Login required" }); return; }
+  if (sessionPlayerId !== id) { res.status(403).json({ error: "You can only view your own transaction history" }); return; }
+
+  const limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+  try {
+    const rows = await db
+      .select()
+      .from(currencyTransactionsTable)
+      .where(eq(currencyTransactionsTable.playerId, id))
+      .orderBy(desc(currencyTransactionsTable.createdAt), desc(currencyTransactionsTable.id))
+      .limit(limit + 1)
+      .offset(offset);
+
+    const hasMore = rows.length > limit;
+    res.json({ transactions: rows.slice(0, limit), hasMore });
+  } catch (err) {
+    req.log.error({ err }, "GET /players/:id/currency-transactions failed");
+    res.status(500).json({ error: "Failed to load transaction history" });
+  }
+});
+
 // ── Card collection favorites (account page "collection book") ─────────────────
 // Deliberately separate from the Card Clash equip-loadout favorites system
 // (card-clash-favorites.ts) — this is a simple per-player boolean against the
@@ -894,13 +1132,13 @@ router.get("/players/:id/notification-prefs", async (req, res): Promise<void> =>
 
   try {
     const rows = await db.execute(sql`
-      SELECT push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode
+      SELECT push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode, direct_messages
       FROM notification_preferences WHERE player_id = ${params.data.id}
     `);
     const row = (rows.rows as any[])[0];
     res.json(row ?? {
       push_enabled: true, match_results: true, rank_changes: true, threat_alerts: true,
-      coach_tips: true, announcements: true, private_mode: false,
+      coach_tips: true, announcements: true, private_mode: false, direct_messages: true,
     });
   } catch (err) {
     req.log.error({ err }, "GET /players/:id/notification-prefs failed");
@@ -909,13 +1147,14 @@ router.get("/players/:id/notification-prefs", async (req, res): Promise<void> =>
 });
 
 const NotificationPrefsBody = z.object({
-  push_enabled:  z.boolean().optional(),
-  match_results: z.boolean().optional(),
-  rank_changes:  z.boolean().optional(),
-  threat_alerts: z.boolean().optional(),
-  coach_tips:    z.boolean().optional(),
-  announcements: z.boolean().optional(),
-  private_mode:  z.boolean().optional(),
+  push_enabled:    z.boolean().optional(),
+  match_results:   z.boolean().optional(),
+  rank_changes:    z.boolean().optional(),
+  threat_alerts:   z.boolean().optional(),
+  coach_tips:      z.boolean().optional(),
+  announcements:   z.boolean().optional(),
+  private_mode:    z.boolean().optional(),
+  direct_messages: z.boolean().optional(),
 });
 
 router.patch("/players/:id/notification-prefs", async (req, res): Promise<void> => {
@@ -937,21 +1176,22 @@ router.patch("/players/:id/notification-prefs", async (req, res): Promise<void> 
 
   try {
     await db.execute(sql`
-      INSERT INTO notification_preferences (player_id, push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode)
+      INSERT INTO notification_preferences (player_id, push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode, direct_messages)
       VALUES (
         ${id},
         ${p.push_enabled ?? true}, ${p.match_results ?? true}, ${p.rank_changes ?? true}, ${p.threat_alerts ?? true},
-        ${p.coach_tips ?? true}, ${p.announcements ?? true}, ${p.private_mode ?? false}
+        ${p.coach_tips ?? true}, ${p.announcements ?? true}, ${p.private_mode ?? false}, ${p.direct_messages ?? true}
       )
       ON CONFLICT (player_id) DO UPDATE SET
-        push_enabled  = COALESCE(${p.push_enabled ?? null}, notification_preferences.push_enabled),
-        match_results = COALESCE(${p.match_results ?? null}, notification_preferences.match_results),
-        rank_changes  = COALESCE(${p.rank_changes ?? null}, notification_preferences.rank_changes),
-        threat_alerts = COALESCE(${p.threat_alerts ?? null}, notification_preferences.threat_alerts),
-        coach_tips    = COALESCE(${p.coach_tips ?? null}, notification_preferences.coach_tips),
-        announcements = COALESCE(${p.announcements ?? null}, notification_preferences.announcements),
-        private_mode  = COALESCE(${p.private_mode ?? null}, notification_preferences.private_mode),
-        updated_at    = NOW()
+        push_enabled    = COALESCE(${p.push_enabled ?? null}, notification_preferences.push_enabled),
+        match_results   = COALESCE(${p.match_results ?? null}, notification_preferences.match_results),
+        rank_changes    = COALESCE(${p.rank_changes ?? null}, notification_preferences.rank_changes),
+        threat_alerts   = COALESCE(${p.threat_alerts ?? null}, notification_preferences.threat_alerts),
+        coach_tips      = COALESCE(${p.coach_tips ?? null}, notification_preferences.coach_tips),
+        announcements   = COALESCE(${p.announcements ?? null}, notification_preferences.announcements),
+        private_mode    = COALESCE(${p.private_mode ?? null}, notification_preferences.private_mode),
+        direct_messages = COALESCE(${p.direct_messages ?? null}, notification_preferences.direct_messages),
+        updated_at      = NOW()
     `);
     res.json({ ok: true });
   } catch (err) {

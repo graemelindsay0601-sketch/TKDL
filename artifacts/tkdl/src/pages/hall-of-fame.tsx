@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Award, Trophy, Zap, Target, Flame, Star, Dumbbell, Medal, ArrowLeft, Skull, TrendingDown, Frown, RotateCcw, Banknote } from "lucide-react";
 import { TierBadge } from "@/components/tier-badge";
+import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, type CosmeticDefinition } from "@/lib/cosmetics";
 
 function useFetch<T>(url: string) {
   const [data, setData]       = useState<T | null>(null);
@@ -26,10 +27,39 @@ type HofData = {
 const MEDAL_COLORS = ["#ffd24a", "#c0c8d8", "#cd7f32"];
 const SHAME_COLORS = ["#ff005c", "#c76b8a", "#8a5a68"];
 
-function RecordCard({ icon, label, accent, top, valueKey, suffix = "", medals = ["🥇", "🥈", "🥉"], rankColors = MEDAL_COLORS, subtitle = "RECORD HOLDER" }: {
+// Resolves the #1 slot's equipped NAME_STYLE for a bounded set of distinct
+// record-holder ids (at most one fetch per unique player, never per card —
+// the same player often tops more than one record). Only ever called with
+// the "good" records' winner ids (see HallOfFame below) — the wall-of-shame
+// cards keep their flat semantic red, same precedent as POST_ACCENT never
+// overriding Community's pending/system-post colours: an existing
+// meaningful colour takes precedence over a purchased cosmetic.
+function usePlayerNameStyles(ids: number[]): Record<number, string | null> {
+  const key = ids.join(",");
+  const [byId, setById] = useState<Record<number, string | null>>({});
+  useEffect(() => {
+    let cancelled = false;
+    const unique = Array.from(new Set(ids));
+    Promise.all(unique.map(id =>
+      fetch(`/api/players/${id}/cosmetics`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => [id, d?.equippedNameStyleId ?? null] as const)
+        .catch(() => [id, null] as const)
+    )).then(pairs => {
+      if (cancelled) return;
+      setById(Object.fromEntries(pairs));
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return byId;
+}
+
+function RecordCard({ icon, label, accent, top, valueKey, suffix = "", medals = ["🥇", "🥈", "🥉"], rankColors = MEDAL_COLORS, subtitle = "RECORD HOLDER", nameStyle }: {
   icon: React.ReactNode; label: string; accent: string;
   top: PlayerRecord[]; valueKey: keyof PlayerRecord; suffix?: string;
   medals?: string[]; rankColors?: string[]; subtitle?: string;
+  nameStyle?: CosmeticDefinition;
 }) {
   if (!top || top.length === 0) return null;
   const winner = top[0];
@@ -49,8 +79,8 @@ function RecordCard({ icon, label, accent, top, valueKey, suffix = "", medals = 
         <div className="text-2xl leading-none">{medals[0]}</div>
         <div className="flex-1 min-w-0">
           <Link href={`/players/${winner.id}`}>
-            <div className="font-black uppercase text-sm truncate cursor-pointer hover:opacity-70 transition-opacity"
-              style={{ fontFamily: "Oswald, sans-serif", color: rankColors[0], letterSpacing: "0.06em" }}>
+            <div className={`font-black uppercase text-sm truncate cursor-pointer hover:opacity-70 transition-opacity ${nameStyleClassName(nameStyle)}`}
+              style={{ fontFamily: "Oswald, sans-serif", color: rankColors[0], letterSpacing: "0.06em", ...nameStyleCSS(nameStyle) }}>
               {winner.name}
             </div>
           </Link>
@@ -88,6 +118,18 @@ function RecordCard({ icon, label, accent, top, valueKey, suffix = "", medals = 
 
 export default function HallOfFame() {
   const { data, loading } = useFetch<HofData>("/api/stats/hall-of-fame");
+
+  // Winner ids for just the 8 "good" records (never the wall-of-shame ones —
+  // see usePlayerNameStyles' comment above), deduped and order-stable so the
+  // fetch effect doesn't re-fire every render.
+  const goodWinnerIds = data
+    ? [data.mostWins, data.highestElo, data.mostPoints, data.longestStreak, data.mostSessions, data.most180s, data.mostTourTrophies, data.mostAchievements]
+        .map(top => top?.[0]?.id).filter((id): id is number => !!id)
+    : [];
+  const nameStylesById = usePlayerNameStyles(goodWinnerIds);
+  const cosmeticsCatalog = useCosmeticsCatalog();
+  const nameStyleFor = (playerId: number | undefined) =>
+    playerId ? cosmeticsCatalog.find(c => c.id === nameStylesById[playerId]) : undefined;
 
   return (
     <div className="space-y-6">
@@ -134,14 +176,14 @@ export default function HallOfFame() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <RecordCard icon={<Trophy className="w-4 h-4" />}    label="Most League Wins"    accent="#22c55e"  top={data.mostWins}         valueKey="careerWins"        />
-          <RecordCard icon={<Zap className="w-4 h-4" />}       label="Highest Peak Elo"    accent="#0066ff"  top={data.highestElo}       valueKey="careerPeakElo"     />
-          <RecordCard icon={<Star className="w-4 h-4" />}      label="Most Career Points"  accent="#ffd24a"  top={data.mostPoints}       valueKey="careerPoints"      />
-          <RecordCard icon={<Flame className="w-4 h-4" />}     label="Longest Win Streak"  accent="#ff005c"  top={data.longestStreak}    valueKey="longestWinStreak"  />
-          <RecordCard icon={<Dumbbell className="w-4 h-4" />}  label="Most Practice Sessions" accent="#a78bfa" top={data.mostSessions}  valueKey="sessions"          />
-          <RecordCard icon={<Target className="w-4 h-4" />}    label="Most 180s"           accent="#ff005c"  top={data.most180s}         valueKey="total180s"         />
-          <RecordCard icon={<Award className="w-4 h-4" />}     label="Most Tour Trophies"  accent="#ffd24a"  top={data.mostTourTrophies} valueKey="tourTrophies"      />
-          <RecordCard icon={<Medal className="w-4 h-4" />}     label="Most Achievements"   accent="#a855f7"  top={data.mostAchievements} valueKey="achievements"      />
+          <RecordCard icon={<Trophy className="w-4 h-4" />}    label="Most League Wins"    accent="#22c55e"  top={data.mostWins}         valueKey="careerWins"        nameStyle={nameStyleFor(data.mostWins?.[0]?.id)} />
+          <RecordCard icon={<Zap className="w-4 h-4" />}       label="Highest Peak Elo"    accent="#0066ff"  top={data.highestElo}       valueKey="careerPeakElo"     nameStyle={nameStyleFor(data.highestElo?.[0]?.id)} />
+          <RecordCard icon={<Star className="w-4 h-4" />}      label="Most Career Points"  accent="#ffd24a"  top={data.mostPoints}       valueKey="careerPoints"      nameStyle={nameStyleFor(data.mostPoints?.[0]?.id)} />
+          <RecordCard icon={<Flame className="w-4 h-4" />}     label="Longest Win Streak"  accent="#ff005c"  top={data.longestStreak}    valueKey="longestWinStreak"  nameStyle={nameStyleFor(data.longestStreak?.[0]?.id)} />
+          <RecordCard icon={<Dumbbell className="w-4 h-4" />}  label="Most Practice Sessions" accent="#a78bfa" top={data.mostSessions}  valueKey="sessions"          nameStyle={nameStyleFor(data.mostSessions?.[0]?.id)} />
+          <RecordCard icon={<Target className="w-4 h-4" />}    label="Most 180s"           accent="#ff005c"  top={data.most180s}         valueKey="total180s"         nameStyle={nameStyleFor(data.most180s?.[0]?.id)} />
+          <RecordCard icon={<Award className="w-4 h-4" />}     label="Most Tour Trophies"  accent="#ffd24a"  top={data.mostTourTrophies} valueKey="tourTrophies"      nameStyle={nameStyleFor(data.mostTourTrophies?.[0]?.id)} />
+          <RecordCard icon={<Medal className="w-4 h-4" />}     label="Most Achievements"   accent="#a855f7"  top={data.mostAchievements} valueKey="achievements"      nameStyle={nameStyleFor(data.mostAchievements?.[0]?.id)} />
         </div>
       )}
 

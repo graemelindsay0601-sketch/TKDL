@@ -9,7 +9,7 @@ import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { checkMatchAchievements, checkStatAchievements } from "../lib/achievements";
 import { checkAndGrantTitles } from "../lib/titles";
 import { createAutoPost } from "../lib/communityNotify";
-import { sendMatchResultNotification, sendThreatAlertNotifications } from "../services/notificationService";
+import { sendMatchResultNotification, sendThreatAlertNotifications, sendMatchResultBroadcast } from "../services/notificationService";
 import { addCoinsToPlayer, removeCardFromPlayer } from "../services/card-shop-service";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 
@@ -285,7 +285,7 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
 
     try {
       if (winnerAllCards.length > 0) {
-        await addCoinsToPlayer(winnerId, 50 + winnerAllCards.length * 10); // 50 base + 10 per card
+        await addCoinsToPlayer(winnerId, 50 + winnerAllCards.length * 10, "card_clash_card_bonus", "League match win — Card Clash bonus"); // 50 base + 10 per card
         for (const card of winnerAllCards) {
           try {
             await removeCardFromPlayer(winnerId, card.id, 1);
@@ -296,7 +296,7 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
       }
 
       if (loserAllCards.length > 0) {
-        await addCoinsToPlayer(loserId, 25 + loserAllCards.length * 10); // 25 base + 10 per card
+        await addCoinsToPlayer(loserId, 25 + loserAllCards.length * 10, "card_clash_card_bonus", "League match loss — Card Clash bonus"); // 25 base + 10 per card
         for (const card of loserAllCards) {
           try {
             await removeCardFromPlayer(loserId, card.id, 1);
@@ -366,6 +366,16 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
       // Match result notification
       await sendMatchResultNotification(winnerId, loserId, winner.name, loser.name, stake, eloChange);
 
+      // League-wide ping — every other opted-in player, not just the two
+      // who played. Uses the same "Match Results" preference toggle as the
+      // personal notification above.
+      void sendMatchResultBroadcast(
+        [winnerId, loserId],
+        "🎯 Match Result",
+        `${winner.name} beat ${loser.name} • ${gameType === "Cricket" ? "Cricket" : `${gameType} Singles`}`,
+        { winnerId, loserId, gameType },
+      );
+
       // Note: leaderboard-position rank-change notifications aren't wired up here —
       // sendRankChangeNotifications() expects each player's actual leaderboard
       // position (see routes/leaderboard.ts), not a raw ELO delta, and computing
@@ -389,8 +399,8 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
       try {
         const winCoins = 20; // League win bonus
         const lossCoins = 10; // League loss bonus
-        await addCoinsToPlayer(winnerId, winCoins);
-        await addCoinsToPlayer(loserId, lossCoins);
+        await addCoinsToPlayer(winnerId, winCoins, "match_win", "League match win");
+        await addCoinsToPlayer(loserId, lossCoins, "match_win", "League match loss");
 
         // Update challenge progress using new manager system
         const { challengeManager } = await import("../services/challenge-manager");

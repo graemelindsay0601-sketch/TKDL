@@ -134,10 +134,10 @@ router.post("/practice/sessions", matchSubmitRateLimit, async (req, res): Promis
         // Award 10 coins per practice win
         let winnerId: number | null = null;
         if (body.winnerIdx === 0 && body.player1Id) {
-          await addCoinsToPlayer(body.player1Id, 10);
+          await addCoinsToPlayer(body.player1Id, 10, "match_win", "Practice win");
           winnerId = body.player1Id;
         } else if (body.winnerIdx === 1 && body.player2Id) {
-          await addCoinsToPlayer(body.player2Id, 10);
+          await addCoinsToPlayer(body.player2Id, 10, "match_win", "Practice win");
           winnerId = body.player2Id;
         }
 

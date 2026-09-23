@@ -34,15 +34,32 @@ export function NotificationOptInPrompt() {
     }
   }, [user?.playerId]);
 
+  const [error, setError] = useState(false);
+
   const dismiss = () => {
     setDismissed(true);
+    setError(false);
     if (!user?.playerId) return;
     try { localStorage.setItem(dismissedKey(user.playerId), "1"); } catch {}
   };
 
   const handleEnable = async () => {
-    await push.subscribe();
-    dismiss();
+    setError(false);
+    // subscribe() reports back what actually happened — a real decline
+    // ("denied") or a real success ("subscribed") is remembered so this
+    // banner never nags again, same as before. But when it comes back
+    // "default" that means something failed unexpectedly (a network
+    // hiccup, a misconfigured server key, etc.) — not a choice the player
+    // made — so this used to still mark the prompt dismissed and hide it
+    // forever, with no error shown and no way to retry short of finding
+    // the Account page toggle. Only persist the dismissal for an outcome
+    // the player actually chose.
+    const result = await push.subscribe();
+    if (result === "denied" || result === "subscribed") {
+      dismiss();
+    } else {
+      setError(true);
+    }
   };
 
   const visible = !!user?.playerId && push.supported && push.state === "default" && !dismissed;
@@ -71,6 +88,11 @@ export function NotificationOptInPrompt() {
             <p style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.45)", lineHeight: 1.5, marginTop: "4px" }}>
               Get notified the moment results, rank changes and announcements happen — singles, doubles, Shift Wars, all of it — even when you're not in the app.
             </p>
+            {error && (
+              <p style={{ fontSize: "0.64rem", color: "#ff7f7f", lineHeight: 1.4, marginTop: "6px" }}>
+                Couldn't turn on notifications — give it another try, or check the Notifications setting in your Account page.
+              </p>
+            )}
             <div className="flex items-center gap-2 mt-3">
               <button onClick={handleEnable} disabled={push.loading}
                 className="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all hover:opacity-90 disabled:opacity-60"

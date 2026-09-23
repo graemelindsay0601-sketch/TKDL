@@ -4,6 +4,7 @@ import { useCurrentPlayer } from "@/context/auth";
 import { BOSSES, type Boss } from "@/lib/boss-battles-data";
 import { BossBattleScorer } from "@/components/BossBattleScorer";
 import type { GameResult } from "@/components/game-scorer";
+import { useCosmeticsCatalog, glowRowStyle } from "@/lib/cosmetics";
 
 type Screen = { kind: "ladder" } | { kind: "entrance"; boss: Boss } | { kind: "fight"; boss: Boss } | { kind: "result"; boss: Boss; won: boolean };
 
@@ -43,6 +44,23 @@ export default function BossBattlePage() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
 
   const playerName = players.find(p => p.id === playerId)?.name ?? "";
+
+  // GLOW cosmetic for "your" row in the ladder — this page's own leaderboard
+  // endpoint doesn't join equipped cosmetics per row (unlike the main
+  // leaderboard), so rather than a backend change this fetches just the
+  // currently-selected player's own GLOW, the same one row this ladder
+  // already highlights via `p.playerId === playerId`.
+  const cosmeticsCatalog = useCosmeticsCatalog();
+  const [myGlowId, setMyGlowId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!playerId) { setMyGlowId(null); return; }
+    fetch(`/api/players/${playerId}/cosmetics`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => setMyGlowId(data?.equippedGlowId ?? null))
+      .catch(() => {});
+  }, [playerId]);
+  const myGlowCosmetic = cosmeticsCatalog.find(c => c.id === myGlowId);
+  const myGlow = glowRowStyle(myGlowCosmetic);
 
   useEffect(() => {
     fetch("/api/players")
@@ -236,18 +254,26 @@ export default function BossBattlePage() {
               <div style={{ fontSize: "0.6rem", fontWeight: 800, letterSpacing: "0.08em", color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: "4px" }}>
                 Ladder Progress
               </div>
-              {leaderboard.players.map((p, i) => (
-                <div key={p.playerId} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.7rem", width: "1.2em", display: "inline-block" }}>{i + 1}</span>
-                    <span style={{ color: p.playerId === playerId ? "#ffd24a" : "#fff", fontWeight: p.playerId === playerId ? 800 : 500 }}>
-                      {p.playerName}
-                    </span>
-                    {p.fullClear && <Trophy className="w-3 h-3" style={{ color: "#ffd24a" }} />}
+              {leaderboard.players.map((p, i) => {
+                const isMe = p.playerId === playerId;
+                // A purchased GLOW cosmetic overrides the default gold "it's
+                // you" highlight with your own colour, same override
+                // convention as the main leaderboard's SeasonRow/CareerRow.
+                const glowColor = isMe ? myGlowCosmetic?.color ?? null : null;
+                return (
+                  <div key={p.playerId} className="flex items-center justify-between text-sm rounded-lg px-2 -mx-2"
+                    style={isMe ? { padding: "0.15rem 0.5rem", ...myGlow } : undefined}>
+                    <div className="flex items-center gap-2">
+                      <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.7rem", width: "1.2em", display: "inline-block" }}>{i + 1}</span>
+                      <span style={{ color: isMe ? (glowColor ?? "#ffd24a") : "#fff", fontWeight: isMe ? 800 : 500 }}>
+                        {p.playerName}
+                      </span>
+                      {p.fullClear && <Trophy className="w-3 h-3" style={{ color: "#ffd24a" }} />}
+                    </div>
+                    <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.75rem" }}>{p.bossesDefeated}/{leaderboard.totalBosses}</span>
                   </div>
-                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.75rem" }}>{p.bossesDefeated}/{leaderboard.totalBosses}</span>
-                </div>
-              ))}
+                );
+              })}
               {Object.keys(leaderboard.fastestPerBoss).length > 0 && (
                 <>
                   <div style={{ fontSize: "0.6rem", fontWeight: 800, letterSpacing: "0.08em", color: "rgba(255,255,255,0.4)", textTransform: "uppercase", margin: "10px 0 4px" }}>

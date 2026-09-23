@@ -248,7 +248,7 @@ export const challengeManager = {
   async awardRewards(playerId: number, coins: number, packTokens: number) {
     // Award coins
     if (coins > 0) {
-      await addCoinsToPlayer(playerId, coins);
+      await addCoinsToPlayer(playerId, coins, "challenge");
       console.log(`[CHALLENGE] Awarded ${coins} coins to player ${playerId}`);
     }
 
@@ -257,7 +257,7 @@ export const challengeManager = {
       // 1 token = 1 card pack pull
       // For now, just add coins equivalent (can be changed to actual card pull)
       // 1 pack token ≈ 50 coins worth
-      await addCoinsToPlayer(playerId, packTokens * 50);
+      await addCoinsToPlayer(playerId, packTokens * 50, "challenge", "pack token bonus");
       console.log(`[CHALLENGE] Awarded ${packTokens} pack tokens to player ${playerId}`);
     }
   },
