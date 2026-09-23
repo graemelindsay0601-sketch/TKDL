@@ -6,6 +6,10 @@ import { PRACTICE_ACHIEVEMENT_DEFINITIONS, checkPracticeAchievements } from "./p
 import { FORMAT_AND_MEME_ACHIEVEMENT_DEFINITIONS } from "./format-and-meme-achievements";
 import { checkAndAwardShadowBotAchievements } from "./shadow-bot-achievements";
 import { MASTER501_ACHIEVEMENT_DEFINITIONS } from "./master501-achievements";
+import { BOARD_CURSE_ACHIEVEMENT_DEFINITIONS } from "./board-curse-achievements";
+import { BOSS_BATTLE_ACHIEVEMENT_DEFINITIONS } from "./boss-battle-achievements";
+import { SHIFT_WARS_ACHIEVEMENT_DEFINITIONS } from "./shift-wars-achievements";
+import { DOUBLES_ACHIEVEMENT_DEFINITIONS } from "./doubles-achievements";
 import { grantIfNotHas } from "./achievement-grant";
 
 export type AchievementDef = {
@@ -210,6 +214,10 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   ...PRACTICE_ACHIEVEMENT_DEFINITIONS,
   ...FORMAT_AND_MEME_ACHIEVEMENT_DEFINITIONS,
   ...MASTER501_ACHIEVEMENT_DEFINITIONS,
+  ...BOARD_CURSE_ACHIEVEMENT_DEFINITIONS,
+  ...BOSS_BATTLE_ACHIEVEMENT_DEFINITIONS,
+  ...SHIFT_WARS_ACHIEVEMENT_DEFINITIONS,
+  ...DOUBLES_ACHIEVEMENT_DEFINITIONS,
 ];
 
 function normGT(gt: string): string {

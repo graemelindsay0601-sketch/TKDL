@@ -836,3 +836,85 @@
   90%  { transform: translateY(2px); }
   100% { transform: translateY(0); }
 }
+
+/* ── Desktop sidebar — per-section colour pass ──────────────────────────────
+   Each nav section carries its own accent colour via the --c custom property,
+   set inline per item/section (see layout.tsx's NAV_SECTIONS). Kept in CSS
+   rather than fully inline because :hover/:focus-visible and the active-item
+   cross-fade need real pseudo-classes/pseudo-elements inline styles can't
+   express. */
+
+.nav-section-dot { background: var(--c); box-shadow: 0 0 5px var(--c); }
+.nav-section-label { color: color-mix(in srgb, var(--c) 78%, white 22%); opacity: .92; }
+
+.nav-item { --c: #888; position: relative; transition: background .16s ease; }
+.nav-item:hover { background: rgba(255,255,255,0.035); }
+.nav-item .nav-item-icon { transition: background .18s ease, box-shadow .18s ease; }
+.nav-item .nav-item-icon svg { transition: opacity .18s ease, color .18s ease; }
+/* Rendered on every item (not just the active one) so switching the active
+   item cross-fades the accent bar's position/colour instead of it popping. */
+.nav-item::before {
+  content: ""; position: absolute; left: -2px; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 62%; background: var(--c); border-radius: 2px; box-shadow: 0 0 9px var(--c);
+  opacity: 0; transition: opacity .22s ease;
+}
+.nav-item.active::before { opacity: 1; }
+.nav-item.active {
+  background: radial-gradient(ellipse at left, color-mix(in srgb, var(--c) 20%, transparent) 0%, color-mix(in srgb, var(--c) 6%, transparent) 65%, transparent 100%);
+}
+.nav-item.active .nav-item-icon {
+  background: radial-gradient(circle at 32% 28%, color-mix(in srgb, var(--c) 55%, white 10%), color-mix(in srgb, var(--c) 85%, black 15%) 75%);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--c) 60%, transparent), inset 0 1px 1px rgba(255,255,255,0.35);
+}
+.nav-item:focus-visible {
+  outline: none; background: rgba(255,255,255,0.035);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--c) 70%, white 10%);
+}
+.nav-item-badge-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 7px var(--c);
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+
+.nav-edge-fade {
+  mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+}
+
+@keyframes sidebar-fade-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.sidebar-fade-in { animation: sidebar-fade-in .4s cubic-bezier(.22,.85,.35,1) backwards; }
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-fade-in { animation: none; }
+}
+
+/* ── Collapse toggle (desktop only — the mobile drawer never collapses) ──── */
+.sidebar-rail { transition: width .32s cubic-bezier(.32,.94,.4,1); }
+@media (min-width: 1024px) {
+  .sidebar-rail.collapsed { width: 4.2rem !important; }
+}
+.sidebar-collapse-btn {
+  position: absolute; top: 1rem; right: -0.7rem; width: 1.375rem; height: 1.375rem;
+  border-radius: 50%; z-index: 20; padding: 0;
+  background: #141420; border: 1px solid rgba(255,255,255,0.14); color: rgba(255,255,255,0.6);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: transform .32s cubic-bezier(.32,.94,.4,1), color .15s ease, border-color .15s ease;
+}
+.sidebar-collapse-btn:hover { color: #fff; border-color: rgba(255,255,255,0.3); }
+.sidebar-collapse-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(255,255,255,0.35); }
+.sidebar-rail.collapsed .sidebar-collapse-btn { transform: rotate(180deg); }
+
+.sidebar-tooltip {
+  position: fixed; z-index: 60; pointer-events: none;
+  font-family: 'Oswald', sans-serif; background: #15151f; border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.9); font-size: 0.7rem; font-weight: 500; letter-spacing: 0.02em;
+  padding: 5px 10px; border-radius: 7px; white-space: nowrap;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.45);
+  opacity: 0; transform: translate(-4px, -50%); transition: opacity .15s ease, transform .15s ease;
+}
+.sidebar-tooltip::before {
+  content: ""; position: absolute; right: 100%; top: 50%; transform: translateY(-50%);
+  border: 4px solid transparent; border-right-color: #15151f;
+}
+.sidebar-tooltip.show { opacity: 1; transform: translate(0, -50%); }

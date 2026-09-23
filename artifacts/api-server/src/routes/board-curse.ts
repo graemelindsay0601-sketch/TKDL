@@ -15,6 +15,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { paramStr } from "../lib/http";
 import { bossBattleRateLimit } from "../middleware/writeRateLimit";
+import { checkBoardCurseAchievements } from "../lib/board-curse-achievements";
 
 const router = Router();
 
@@ -88,6 +89,7 @@ router.post("/board-curse/best", bossBattleRateLimit, async (req: Request, res: 
         END,
         updated_at = NOW()
     `);
+    void checkBoardCurseAchievements(pid);
     res.json({ success: true });
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to record board curse result");
@@ -130,6 +132,7 @@ router.post("/board-curse/record", bossBattleRateLimit, async (req: Request, res
         wins = board_curse_records.wins + ${won ? 1 : 0},
         losses = board_curse_records.losses + ${won ? 0 : 1}
     `);
+    void checkBoardCurseAchievements(pid);
     res.json({ success: true });
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to record board curse match result");

@@ -43,16 +43,31 @@ router.get("/notifications", async (req, res): Promise<void> => {
 });
 
 // ── GET /notifications/unread-count (must come before /:id) ──────────────────
+// Optional ?types=a,b,c scopes the count to specific notification types —
+// used by the sidebar's Community badge (post_approved/post_liked/
+// post_commented/auto_post_fired) so it doesn't light up for DM or
+// achievement notifications that have nothing to do with Community. Called
+// with no `types` at all, it's the original unscoped count the account
+// widget uses.
 router.get("/notifications/unread-count", async (req, res): Promise<void> => {
   const playerId = sessionPlayerId(req);
   if (!playerId) { res.json({ count: 0 }); return; }
 
+  const typesParam = typeof req.query.types === "string" ? req.query.types : "";
+  const types = typesParam.split(",").map(t => t.trim()).filter(Boolean);
+
   try {
-    const rows = await db.execute(sql`
-      SELECT COUNT(*)::int AS count
-      FROM notifications
-      WHERE player_id = ${playerId} AND read_at IS NULL
-    `);
+    const rows = types.length > 0
+      ? await db.execute(sql`
+          SELECT COUNT(*)::int AS count
+          FROM notifications
+          WHERE player_id = ${playerId} AND read_at IS NULL AND type = ANY(${types}::text[])
+        `)
+      : await db.execute(sql`
+          SELECT COUNT(*)::int AS count
+          FROM notifications
+          WHERE player_id = ${playerId} AND read_at IS NULL
+        `);
     res.json(rows.rows[0] ?? { count: 0 });
   } catch {
     res.json({ count: 0 });

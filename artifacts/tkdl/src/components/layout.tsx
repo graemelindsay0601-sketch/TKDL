@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 import { useGetStatsSummary, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
@@ -143,45 +143,49 @@ function LiveTicker() {
   );
 }
 
-function AccountWidget({ unreadCount = 0 }: { unreadCount?: number }) {
+function AccountWidget({ unreadCount = 0, collapsed = false }: { unreadCount?: number; collapsed?: boolean }) {
   const { user, loading } = useAuth();
   if (loading) return null;
   return (
     <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
       {user ? (
         <Link href="/account"
-          className="flex items-center gap-2.5 mx-2 my-1.5 px-3 py-2 rounded-xl transition-colors hover:bg-white/5"
+          className={`flex items-center gap-2.5 mx-2 my-1.5 px-3 py-2 rounded-xl transition-colors hover:bg-white/5 ${collapsed ? "justify-center px-2" : ""}`}
           style={{ background: "rgba(255,0,92,0.06)", border: "1px solid rgba(255,0,92,0.12)" }}>
           <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 relative"
             style={{ background: "rgba(255,0,92,0.18)", border: "1px solid rgba(255,0,92,0.3)" }}>
             <UserCircle className="w-4 h-4" style={{ color: "#ff005c" }} />
             {unreadCount > 0 && (
-              <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white font-black"
+              <div className={`absolute rounded-full flex items-center justify-center text-white font-black ${collapsed ? "-top-0.5 -right-0.5 w-2.5 h-2.5" : "-top-1 -right-1 w-4 h-4"}`}
                 style={{ background: "#ff005c", fontSize: "0.45rem", fontFamily: "Oswald, sans-serif", border: "1.5px solid #0a0612", zIndex: 10 }}>
-                {unreadCount > 9 ? "9+" : unreadCount}
+                {!collapsed && (unreadCount > 9 ? "9+" : unreadCount)}
               </div>
             )}
           </div>
-          <div className="flex-1 min-w-0">
-            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.75rem", fontWeight: 700, color: "#fff", letterSpacing: "0.04em", lineHeight: 1.2 }} className="truncate">
-              {user.playerName}
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.75rem", fontWeight: 700, color: "#fff", letterSpacing: "0.04em", lineHeight: 1.2 }} className="truncate">
+                {user.playerName}
+              </div>
+              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.28)", letterSpacing: "0.08em" }} className="truncate">
+                @{user.username}{user.isAdmin ? " · Admin" : ""}
+              </div>
             </div>
-            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.28)", letterSpacing: "0.08em" }} className="truncate">
-              @{user.username}{user.isAdmin ? " · Admin" : ""}
-            </div>
-          </div>
-          {unreadCount > 0 && (
+          )}
+          {!collapsed && unreadCount > 0 && (
             <Bell className="w-3.5 h-3.5 shrink-0 animate-pulse" style={{ color: "#ff005c" }} />
           )}
         </Link>
       ) : (
         <Link href="/login"
-          className="flex items-center gap-2 mx-2 my-1.5 px-3 py-2 rounded-xl transition-opacity hover:opacity-70"
+          className={`flex items-center gap-2 mx-2 my-1.5 px-3 py-2 rounded-xl transition-opacity hover:opacity-70 ${collapsed ? "justify-center px-2" : ""}`}
           style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
           <LogIn className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
-          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
-            Sign In
-          </span>
+          {!collapsed && (
+            <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
+              Sign In
+            </span>
+          )}
         </Link>
       )}
     </div>
@@ -225,6 +229,60 @@ export function Layout({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [authUser]);
 
+  // Community nav badge — unread count scoped to community-flavoured
+  // notification types only (post_approved/post_liked/post_commented/
+  // auto_post_fired), separate from the account widget's all-types count above.
+  const [communityUnread, setCommunityUnread] = useState(0);
+  useEffect(() => {
+    if (!authUser) return;
+    const load = () => {
+      fetch("/api/notifications/unread-count?types=post_approved,post_liked,post_commented,auto_post_fired", { credentials: "include" })
+        .then(r => r.ok ? r.json() : { count: 0 })
+        .then((d: { count: number }) => setCommunityUnread(d.count))
+        .catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 30_000);
+    return () => clearInterval(id);
+  }, [authUser]);
+
+  // TKDL LIVE nav badge — lights up when a broadcast edition has published
+  // since this player last opened /tkdl-live (see GET /broadcast/live-status
+  // and the mark-seen call in pages/tkdl-live.tsx).
+  const [hasNewEdition, setHasNewEdition] = useState(false);
+  useEffect(() => {
+    if (!authUser || !(tkdlLiveEnabled || authUser?.isAdmin)) return;
+    const load = () => {
+      fetch("/api/broadcast/live-status", { credentials: "include" })
+        .then(r => r.ok ? r.json() : { hasNewEdition: false })
+        .then((d: { hasNewEdition: boolean }) => setHasNewEdition(d.hasNewEdition))
+        .catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => clearInterval(id);
+  }, [authUser, tkdlLiveEnabled]);
+
+  // Desktop-only rail collapse — remembered per browser, never applies to
+  // the mobile drawer (see .sidebar-rail.collapsed's min-width guard).
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try { setCollapsed(localStorage.getItem("tkdl-sidebar-collapsed") === "1"); } catch { /* ignore */ }
+  }, []);
+  function toggleCollapsed() {
+    setCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem("tkdl-sidebar-collapsed", next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  }
+
+  // Single shared tooltip for collapsed-mode nav items — a fixed-position
+  // element positioned via getBoundingClientRect on hover/focus, rather than
+  // one per item, so it isn't clipped by <nav>'s own overflow-y:auto (which
+  // also clips the x-axis — see the .nav-edge-fade comment in index.css).
+  const [tooltip, setTooltip] = useState<{ label: string; x: number; y: number } | null>(null);
+
   type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> };
   const dynamicPlayNav: NavItem[] = liveScorer
     ? [...playNav, { href: "/play", label: "Live Scorer", icon: Swords }]
@@ -238,51 +296,90 @@ export function Layout({ children }: { children: ReactNode }) {
   // "enabled OR admin" shape as the Community section just above.
   const dynamicTkdlLiveNav: NavItem[] = (tkdlLiveEnabled || authUser?.isAdmin) ? tkdlLiveNav : [];
 
-  function NavLink({ item }: { item: NavItem }) {
+  // One accent colour per nav section, reused for its label dot, its items'
+  // active-icon chip, and any badge on those items — the colour pass the
+  // desktop sidebar preview was approved on. Card Clash keeps its own
+  // established brand orange like every other section; it's not muted here
+  // — Card Clash itself is on hold, but colouring its nav row the same way
+  // as the rest isn't a change to the feature, just to this row's paint.
+  const NAV_SECTIONS: Array<{ key: string; label: string; items: NavItem[]; color: string; show: boolean }> = [
+    { key: "hub",          label: "Hub",          items: hubNav,               color: "#0066ff", show: true },
+    { key: "community",    label: "Community",    items: communityNav,         color: "#22c55e", show: communityEnabled || !!authUser?.isAdmin },
+    { key: "play",         label: "Play",         items: dynamicPlayNav,       color: "#ff005c", show: dynamicPlayNav.length > 0 },
+    { key: "practice",     label: "Practice",     items: practiceNav,          color: "#00e5a0", show: true },
+    { key: "tour",         label: "Tour Mode",    items: tourModeNav,          color: "#6366f1", show: true },
+    { key: "master501",    label: "Master 501",   items: master501Nav,         color: "#00c8a0", show: true },
+    { key: "bot",          label: "Bot",          items: dynamicBotNav,        color: "#22d3ee", show: dynamicBotNav.length > 0 },
+    { key: "cardclash",    label: "Card Clash",   items: dynamicCardClashNav,  color: "#f97316", show: dynamicCardClashNav.length > 0 },
+    { key: "bossbattle",   label: "Boss Battle",  items: dynamicBossBattleNav, color: "#ef4444", show: dynamicBossBattleNav.length > 0 },
+    { key: "boardcurse",   label: "Board Curse",  items: dynamicBoardCurseNav, color: "#eab308", show: dynamicBoardCurseNav.length > 0 },
+    { key: "tkdllive",     label: "TKDL LIVE",    items: dynamicTkdlLiveNav,   color: "#ffd24a", show: dynamicTkdlLiveNav.length > 0 },
+    { key: "league",       label: "League",       items: leagueNav,            color: "#38bdf8", show: true },
+    { key: "achievements", label: "Achievements", items: achievementsNav,      color: "#8b5cf6", show: true },
+    { key: "admin",        label: "Admin",        items: configNav,            color: "#8a8a94", show: !!authUser?.isAdmin },
+  ];
+
+  function NavLink({ item, color, sectionIndex, itemIndex }: { item: NavItem; color: string; sectionIndex: number; itemIndex: number }) {
     const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+    const badge: "dot" | number | undefined =
+      item.href === "/tkdl-live" ? (hasNewEdition ? "dot" : undefined) :
+      item.href === "/community" ? (communityUnread > 0 ? communityUnread : undefined) :
+      undefined;
+    const delayMs = 150 + sectionIndex * 45 + 20 + itemIndex * 14;
+
+    const showTip = (e: React.FocusEvent | React.MouseEvent) => {
+      if (!collapsed) return;
+      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      setTooltip({ label: item.label, x: r.right + 10, y: r.top + r.height / 2 });
+    };
+    const hideTip = () => setTooltip(null);
+
     return (
       <Link href={item.href}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm relative overflow-hidden ${
-          isActive ? "text-white" : "text-white/60 hover:text-white"
-        }`}
-        style={isActive ? {
-          background: "linear-gradient(90deg, rgba(255,0,92,0.22) 0%, rgba(255,0,92,0.04) 100%)",
-          border: "1px solid rgba(255,0,92,0.2)",
-          boxShadow: "0 4px 18px rgba(255,0,92,0.12), inset 0 1px 0 rgba(255,255,255,0.04)",
-        } : { border: "1px solid transparent" }}>
-        {isActive && (
-          <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-xl">
-            <div className="absolute right-0 top-0 bottom-0 w-12" style={{ background: "linear-gradient(270deg, rgba(255,0,92,0.06), transparent)" }} />
-          </div>
-        )}
-        <div className="shrink-0 relative">
-          {isActive && <div className="absolute" style={{ inset: -3, background: "rgba(255,0,92,0.45)", filter: "blur(8px)", borderRadius: "50%" }} />}
-          <item.icon className="h-4 w-4 relative z-10" style={isActive ? { color: "#ff005c", filter: "drop-shadow(0 0 5px rgba(255,0,92,0.9))" } : { color: "rgba(255,255,255,0.5)" }} />
+        className={`nav-item sidebar-fade-in flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-sm relative ${
+          isActive ? "active text-white" : "text-white/60 hover:text-white"
+        } ${collapsed ? "justify-center px-2" : ""}`}
+        style={{ "--c": color, animationDelay: `${delayMs}ms` } as React.CSSProperties}
+        onMouseEnter={showTip} onMouseLeave={hideTip} onFocus={showTip} onBlur={hideTip}>
+        <div className="nav-item-icon shrink-0 relative flex items-center justify-center rounded-lg" style={{ width: "1.65rem", height: "1.65rem" }}>
+          <item.icon className="h-4 w-4 relative z-10" style={{ color: isActive ? "#0a0a10" : color, opacity: isActive ? 1 : 0.68 }} />
+          {badge === "dot" && <span className="nav-item-badge-dot absolute" style={{ "--c": color, top: -2, right: -2 } as React.CSSProperties} />}
         </div>
-        <span style={{ fontFamily: "Oswald, sans-serif", letterSpacing: isActive ? "0.1em" : "0.06em", fontSize: "0.82rem", fontWeight: isActive ? 700 : 400 }}>
-          {item.label}
-        </span>
-        {isActive && (
-          <div className="ml-auto w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#ff005c", boxShadow: "0 0 6px rgba(255,0,92,1)" }} />
+        {!collapsed && (
+          <span style={{ fontFamily: "Oswald, sans-serif", letterSpacing: isActive ? "0.06em" : "0.03em", fontSize: "0.82rem", fontWeight: isActive ? 700 : 400 }}>
+            {item.label}
+          </span>
+        )}
+        {!collapsed && typeof badge === "number" && (
+          <span className="ml-auto shrink-0 rounded-full flex items-center justify-center font-black"
+            style={{ minWidth: 16, height: 16, padding: "0 4.5px", fontSize: "0.5rem", color: "#0a0a10", background: color, boxShadow: `0 0 7px color-mix(in srgb, ${color} 55%, transparent)` }}>
+            {badge > 9 ? "9+" : badge}
+          </span>
         )}
       </Link>
     );
   }
 
-  function NavSection({ label, items }: { label: string; items: NavItem[] }) {
+  function NavSection({ label, items, color, sectionIndex }: { label: string; items: NavItem[]; color: string; sectionIndex: number }) {
     return (
       <div>
-        <div className="px-3 mb-1">
-          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.47rem", letterSpacing: "0.22em", color: "rgba(255,255,255,0.32)", textTransform: "uppercase" }}>
-            {label}
-          </span>
+        <div className={`px-3 mb-1 flex items-center gap-1.5 sidebar-fade-in ${collapsed ? "justify-center px-0" : ""}`}
+          style={{ animationDelay: `${150 + sectionIndex * 45}ms` } as React.CSSProperties}>
+          <span className="nav-section-dot shrink-0" style={{ "--c": color, width: 5, height: 5, borderRadius: "50%" } as React.CSSProperties} />
+          {!collapsed && (
+            <span className="nav-section-label" style={{ "--c": color, fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.15em", fontWeight: 700, textTransform: "uppercase" } as React.CSSProperties}>
+              {label}
+            </span>
+          )}
         </div>
         <div className="space-y-0.5">
-          {items.map(item => <NavLink key={item.href} item={item} />)}
+          {items.map((item, i) => <NavLink key={item.href} item={item} color={color} sectionIndex={sectionIndex} itemIndex={i} />)}
         </div>
       </div>
     );
   }
+
+  const visibleNavSections = NAV_SECTIONS.filter(s => s.show && s.items.length > 0);
 
   const SidebarInner = () => (
     <>
@@ -292,131 +389,104 @@ export function Layout({ children }: { children: ReactNode }) {
       </div>
 
       {/* Logo */}
-      <div className="relative px-5 pt-6 pb-4" style={{ borderBottom: "1px solid rgba(255,0,92,0.2)" }}>
+      <div className={`relative sidebar-fade-in ${collapsed ? "flex flex-col items-center px-2 pt-6 pb-4" : "px-5 pt-6 pb-4"}`}
+        style={{ borderBottom: "1px solid rgba(255,0,92,0.2)" }}>
         <div className="absolute top-0 left-0 right-0 h-0.5"
           style={{ background: "linear-gradient(90deg, #ff005c 0%, rgba(255,0,92,0.5) 55%, transparent 100%)" }} />
-        <div className="flex items-center gap-3 mb-1.5">
+        <div className={`flex items-center gap-3 ${collapsed ? "mb-2" : "mb-1.5"}`}>
           <div className="relative shrink-0 cursor-default">
             <div className="absolute" style={{ inset: -4, background: "rgba(255,0,92,0.3)", filter: "blur(12px)", borderRadius: "0.7rem" }} />
             <img src="/icon-192.png" alt="TKDL" className="relative z-10" style={{ width: "3.2rem", height: "3.2rem", borderRadius: "0.6rem", objectFit: "cover" }} />
           </div>
-          <p style={{ fontFamily: "'Montserrat', sans-serif", textTransform: "uppercase", lineHeight: 1.2, marginBottom: 0, letterSpacing: "0.04em" }}>
-            <span style={{ display: "block", fontSize: "1rem", fontWeight: 900, color: "#00539F", fontFamily: "'Nunito', sans-serif", letterSpacing: "-0.01em" }}>Tesco</span>
-            <span style={{ display: "block", fontSize: "0.85rem", fontWeight: 900, color: "#EE1C25" }}>Kilbirnie</span>
-            <span style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "rgba(255,255,255,0.9)", letterSpacing: "0.1em" }}>Darts League</span>
-          </p>
+          {!collapsed && (
+            <p style={{ fontFamily: "'Montserrat', sans-serif", textTransform: "uppercase", lineHeight: 1.2, marginBottom: 0, letterSpacing: "0.04em" }}>
+              <span style={{ display: "block", fontSize: "1rem", fontWeight: 900, color: "#00539F", fontFamily: "'Nunito', sans-serif", letterSpacing: "-0.01em" }}>Tesco</span>
+              <span style={{ display: "block", fontSize: "0.85rem", fontWeight: 900, color: "#EE1C25" }}>Kilbirnie</span>
+              <span style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "rgba(255,255,255,0.9)", letterSpacing: "0.1em" }}>Darts League</span>
+            </p>
+          )}
         </div>
-        <div className="flex items-center gap-2.5 pl-1">
+        <div className={`flex items-center gap-2.5 ${collapsed ? "" : "pl-1"}`}>
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full" style={{ background: "rgba(255,0,92,0.12)", border: "1px solid rgba(255,0,92,0.25)" }}>
             <span className="live-dot" style={{ width: 5, height: 5 }} />
-            <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "#ff005c", fontWeight: 800, letterSpacing: "0.12em" }}>LIVE</span>
+            {!collapsed && <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "#ff005c", fontWeight: 800, letterSpacing: "0.12em" }}>LIVE</span>}
           </div>
-          {summary && <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "rgba(255,255,255,0.3)" }}>{summary.activePlayers ?? summary.totalPlayers} active</span>}
-          {eliminated > 0 && <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "#ff005c", fontWeight: 700 }}>☠ {eliminated}</span>}
+          {!collapsed && summary && <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "rgba(255,255,255,0.3)" }}>{summary.activePlayers ?? summary.totalPlayers} active</span>}
+          {!collapsed && eliminated > 0 && <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "#ff005c", fontWeight: 700 }}>☠ {eliminated}</span>}
         </div>
       </div>
 
       {/* Season leader mini-card */}
       {leader && (
         <Link href={`/players/${leader.playerId}`}>
-          <div className="mx-3 mt-3 px-3 py-2.5 rounded-xl cursor-pointer transition-opacity hover:opacity-80"
-            style={{ background: "linear-gradient(135deg, rgba(255,210,74,0.12) 0%, rgba(255,210,74,0.03) 100%)", border: "1px solid rgba(255,210,74,0.22)", boxShadow: "0 4px 16px rgba(255,210,74,0.04)" }}>
-            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.47rem", letterSpacing: "0.2em", color: "rgba(255,210,74,0.45)", textTransform: "uppercase", marginBottom: "0.3rem" }}>
-              🏆 Season Leader
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.88rem", fontWeight: 800, color: "#ffd24a", letterSpacing: "0.04em", lineHeight: 1.1 }} className="truncate">
-                  {leader.playerName}
-                </div>
-                <div style={{ fontSize: "0.55rem", color: "rgba(255,255,255,0.28)", marginTop: 2 }}>
-                  {leader.wins}W–{leader.losses}L · ELO {leader.elo}
-                </div>
-              </div>
-              <div className="text-right shrink-0">
-                <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.55rem", fontWeight: 900, color: "#ff005c", lineHeight: 1, textShadow: "0 0 14px rgba(255,0,92,0.6)" }}>
+          <div className={`sidebar-fade-in mt-3 rounded-xl cursor-pointer transition-opacity hover:opacity-80 ${collapsed ? "mx-2 px-2 py-2 flex flex-col items-center" : "mx-3 px-3 py-2.5"}`}
+            style={{ animationDelay: "70ms", background: "linear-gradient(135deg, rgba(255,210,74,0.12) 0%, rgba(255,210,74,0.03) 100%)", border: "1px solid rgba(255,210,74,0.22)", boxShadow: "0 4px 16px rgba(255,210,74,0.04)" } as React.CSSProperties}>
+            {collapsed ? (
+              <>
+                <div style={{ fontSize: "0.8rem" }}>🏆</div>
+                <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.85rem", fontWeight: 900, color: "#ff005c", lineHeight: 1, textShadow: "0 0 12px rgba(255,0,92,0.55)" }}>
                   {leader.points}
                 </div>
-                <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.22)", lineHeight: 1 }}>pts</div>
+              </>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.47rem", letterSpacing: "0.2em", color: "rgba(255,210,74,0.45)", textTransform: "uppercase", marginBottom: "0.3rem" }}>
+                    🏆 Season Leader
+                  </div>
+                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.88rem", fontWeight: 800, color: "#ffd24a", letterSpacing: "0.04em", lineHeight: 1.1 }} className="truncate">
+                    {leader.playerName}
+                  </div>
+                  <div style={{ fontSize: "0.55rem", color: "rgba(255,255,255,0.28)", marginTop: 2 }}>
+                    {leader.wins}W–{leader.losses}L · ELO {leader.elo}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.55rem", fontWeight: 900, color: "#ff005c", lineHeight: 1, textShadow: "0 0 14px rgba(255,0,92,0.6)" }}>
+                    {leader.points}
+                  </div>
+                  <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.22)", lineHeight: 1 }}>pts</div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </Link>
       )}
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-2">
-        <NavSection label="Hub"          items={hubNav}          />
-        {(communityEnabled || authUser?.isAdmin) && (
-          <>
-            <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-            <NavSection label="Community"    items={communityNav}    />
-          </>
-        )}
-        <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-        <NavSection label="Play"         items={dynamicPlayNav}  />
-        <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-        <NavSection label="Practice"     items={practiceNav}     />
-        <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-        <NavSection label="Tour Mode"    items={tourModeNav}     />
-        <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-        <NavSection label="Master 501"   items={master501Nav}    />
-        <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-        <NavSection label="Bot"          items={dynamicBotNav}   />
-        <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-        {dynamicCardClashNav.length > 0 && (
-          <>
-            <NavSection label="Card Clash"   items={dynamicCardClashNav} />
-            <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-          </>
-        )}
-        {dynamicBossBattleNav.length > 0 && (
-          <>
-            <NavSection label="Boss Battle"  items={dynamicBossBattleNav} />
-            <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-          </>
-        )}
-        {dynamicBoardCurseNav.length > 0 && (
-          <>
-            <NavSection label="Board Curse"  items={dynamicBoardCurseNav} />
-            <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-          </>
-        )}
-        {dynamicTkdlLiveNav.length > 0 && (
-          <>
-            <NavSection label="TKDL LIVE"    items={dynamicTkdlLiveNav} />
-            <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-          </>
-        )}
-        <NavSection label="League"       items={leagueNav}       />
-        <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-        <NavSection label="Achievements" items={achievementsNav} />
-        {authUser?.isAdmin && (
-          <>
-            <div className="h-px mx-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-            <NavSection label="Admin"        items={configNav}       />
-          </>
-        )}
+      {/* Navigation — one accent colour per section, see NAV_SECTIONS above */}
+      <nav className="nav-edge-fade flex-1 overflow-y-auto py-3 px-2 space-y-2">
+        {visibleNavSections.map((section, si) => (
+          <div key={section.key}>
+            <NavSection label={section.label} items={section.items} color={section.color} sectionIndex={si} />
+            {si < visibleNavSections.length - 1 && (
+              <div className="h-px mx-2 mt-2" style={{ background: "rgba(255,255,255,0.05)" }} />
+            )}
+          </div>
+        ))}
       </nav>
 
       {/* Account widget */}
-      <AccountWidget unreadCount={unreadCount} />
+      <AccountWidget unreadCount={unreadCount} collapsed={collapsed} />
 
-      {/* Footer — season countdown */}
-      <div className="relative px-4 py-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-        <div className="flex items-center justify-between mb-1.5">
-          <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "rgba(255,0,92,0.65)", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            {summary?.currentSeasonName ?? "Season"}
+      {/* Footer — season countdown. Skipped entirely when collapsed: nothing
+          here is essential to icon-only navigation, and there isn't room to
+          show it meaningfully at 66px. */}
+      {!collapsed && (
+        <div className="relative px-4 py-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          <div className="flex items-center justify-between mb-1.5">
+            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "rgba(255,0,92,0.65)", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              {summary?.currentSeasonName ?? "Season"}
+            </div>
+            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "rgba(255,255,255,0.28)" }}>{daysLeft}d left</div>
           </div>
-          <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "rgba(255,255,255,0.28)" }}>{daysLeft}d left</div>
+          <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${monthPct}%`, background: "linear-gradient(90deg, #ff005c, rgba(255,0,92,0.45))", borderRadius: 2 }} />
+          </div>
+          <div style={{ color: "rgba(255,255,255,0.1)", fontSize: "0.47rem", marginTop: "0.3rem", fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
+            PDC-STYLE WAGER LEAGUE
+          </div>
         </div>
-        <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${monthPct}%`, background: "linear-gradient(90deg, #ff005c, rgba(255,0,92,0.45))", borderRadius: 2 }} />
-        </div>
-        <div style={{ color: "rgba(255,255,255,0.1)", fontSize: "0.47rem", marginTop: "0.3rem", fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
-          PDC-STYLE WAGER LEAGUE
-        </div>
-      </div>
+      )}
     </>
   );
 
@@ -433,6 +503,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
       {/* Sidebar — hidden off-screen on tablet/mobile, permanent on desktop (≥1024px) */}
       <aside className={`
+        sidebar-rail ${collapsed ? "collapsed" : ""}
         fixed lg:relative inset-y-0 left-0 z-50
         w-64 lg:w-56 flex flex-col shrink-0
         transition-transform duration-300 ease-in-out
@@ -444,8 +515,23 @@ export function Layout({ children }: { children: ReactNode }) {
           onClick={() => setDrawerOpen(false)}>
           <X className="w-4 h-4" />
         </button>
+        {/* Collapse toggle — desktop only; the mobile drawer is a full-width
+            overlay where an icon-only mode doesn't make sense. */}
+        <button className="sidebar-collapse-btn hidden lg:flex"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={toggleCollapsed}>
+          <ChevronLeft className="w-3 h-3" />
+        </button>
         <SidebarInner />
       </aside>
+
+      {/* Shared tooltip for collapsed-mode nav items (see NavLink's showTip) */}
+      {tooltip && (
+        <div className="sidebar-tooltip show" style={{ left: tooltip.x, top: tooltip.y }}>
+          {tooltip.label}
+        </div>
+      )}
 
       <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         {/* Top bar — visible on tablet/mobile (<1024px) */}

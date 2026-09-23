@@ -38,6 +38,15 @@ export default function TkdlLive() {
       .catch(() => setFailed(true));
   }, []);
 
+  // Once the real screen actually renders (not the coming-soon placeholder),
+  // record the latest edition as seen — clears the "new edition" dot the
+  // sidebar shows on this nav item. Fire-and-forget; a failure here just
+  // means the dot stays lit a bit longer, never worth blocking the screen.
+  useEffect(() => {
+    if (!status?.available) return;
+    fetch("/api/broadcast/mark-seen", { method: "POST", credentials: "include" }).catch(() => {});
+  }, [status?.available]);
+
   // Still checking — a blank dark screen avoids a flash of "coming soon"
   // before we know whether this viewer is actually an admin.
   if (!status && !failed) {

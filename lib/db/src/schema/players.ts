@@ -35,6 +35,11 @@ export const playersTable = pgTable("players", {
   m501Enabled:      boolean("m501_enabled").notNull().default(true),
   shadowBotEnabled: boolean("shadow_bot_enabled").notNull().default(true),
   lastFreePackClaimTime: timestamp("last_free_pack_claim_time", { withTimezone: true }),
+  // Which broadcast_editions.id this player last opened /tkdl-live at —
+  // compared against the latest PUBLISHED edition to drive the "new
+  // edition" dot on the TKDL LIVE nav item. See
+  // db/migrations/add_last_seen_broadcast_edition.ts for why there's no FK.
+  lastSeenBroadcastEditionId: integer("last_seen_broadcast_edition_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

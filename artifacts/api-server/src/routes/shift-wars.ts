@@ -7,6 +7,7 @@ import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { sendShiftWarsMatchResultNotification } from "../services/notificationService";
 import { createAutoPost } from "../lib/communityNotify";
+import { checkShiftWarsAchievements } from "../lib/shift-wars-achievements";
 
 /**
  * Shift Wars — 3 fixed department teams (Fresh, Twilight, Shift Leader) competing
@@ -203,6 +204,8 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
     });
 
     res.status(201).json({ match, winnerName, loserName });
+
+    void checkShiftWarsAchievements(winnerTeamId);
 
     // Push notifications (fire and forget — never delay the response). Shift
     // Wars had no notification integration at all before this. The match

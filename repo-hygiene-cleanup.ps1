@@ -1,9 +1,20 @@
-# TKDL repo hygiene cleanup - round 3
+# TKDL repo hygiene cleanup - round 3 (+ 2026-09-22 addendum)
 # Deletes 277 stray files (old AI-dev-session debris, Replit leftovers,
 # dead binary blobs) plus the Caller/, "Claude outputs/", and attached_assets/
 # directories, approved 2026-09-14. Run this from PowerShell.
 # Nothing here touches git history - old commits still contain these blobs;
 # that needs a separate git filter-repo/BFG pass if you want it, out of scope here.
+#
+# 2026-09-22: three more stray root files appeared since this list was first
+# approved (the round-3 delivery note and patch, and a dead dart-scorer
+# launch script - artifacts/dart-scorer doesn't exist in this repo and
+# render.yaml never references it, so it can't be wired to anything). Added
+# to the bottom of the $paths list below rather than reordering everything.
+# NOT included here (deliberately, needs your call, not auto-deleted):
+# generate-complete-rewards.ts at repo root - a one-off achievement-rewards
+# generator script. It isn't wired into anything today, but the achievements
+# system rework is still on the table and this might still be useful for
+# that, so it's left alone until you say otherwise.
 
 $repoRoot = "C:\Users\demo.000\Documents\GitHub\TKDL"
 Set-Location $repoRoot
@@ -272,7 +283,10 @@ $paths = @(
   "replit.md",
   "replit.nix",
   "tkdl-broadcast-update.zip",
-  "tkdl-live-backdrop-handover.md"
+  "tkdl-live-backdrop-handover.md",
+  "fixes-applied-2026-09-14-round3.md",
+  "tkdl-fixes-2026-09-14-round3.patch",
+  "render_dart_scorer.sh"
 )
 
 foreach ($p in $paths) {

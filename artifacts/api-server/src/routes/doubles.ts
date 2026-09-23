@@ -7,6 +7,7 @@ import { validateStake, applyWager } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { sendDoublesMatchResultNotification } from "../services/notificationService";
 import { createAutoPost } from "../lib/communityNotify";
+import { checkDoublesAchievements } from "../lib/doubles-achievements";
 
 const GetSeasonParams = z.object({ id: z.coerce.number().int().positive() });
 
@@ -187,6 +188,8 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
     });
 
     res.status(201).json({ match, eloChange, loserEliminated });
+
+    void checkDoublesAchievements(winnerPlayerIds, winnerTeamId, eloChange, stake);
 
     // Push notifications (fire and forget — never delay the response). Doubles
     // had no notification integration at all before this; see the "no

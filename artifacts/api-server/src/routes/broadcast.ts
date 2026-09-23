@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
   db, broadcastEditionsTable, broadcastStoriesTable, broadcastPredictionSnapshotsTable,
+  playersTable,
   type LeagueType,
 } from "@workspace/db";
 import { getFeatureStatus, isFeatureAvailable, FEATURES } from "../services/feature-flags-service";
@@ -55,6 +56,10 @@ function sessionIsAdmin(req: Request): boolean {
   return (req.session as any)?.isAdmin === true;
 }
 
+function sessionPlayerId(req: Request): number | null {
+  return (req.session as any)?.playerId ?? null;
+}
+
 /** Returns true (and sends nothing) when the caller may use TKDL LIVE right now; otherwise sends the 403 itself and returns false, so callers can `if (!(await requireBroadcastAvailable(req, res))) return;`. */
 async function requireBroadcastAvailable(req: Request, res: Response): Promise<boolean> {
   const available = await isFeatureAvailable(FEATURES.TKDL_LIVE, sessionIsAdmin(req));
@@ -72,6 +77,53 @@ function errorMessage(err: unknown): string {
 router.get("/broadcast/status", async (req, res): Promise<void> => {
   const status = await getFeatureStatus(FEATURES.TKDL_LIVE, sessionIsAdmin(req));
   res.json(status);
+});
+
+// ── GET /broadcast/live-status ────────────────────────────────────────────
+// Backs the "new edition" dot on the sidebar's TKDL LIVE nav item — true
+// when a published edition exists that this player hasn't opened yet (see
+// players.last_seen_broadcast_edition_id). This is a background poll, not
+// a gated page load, so it degrades to hasNewEdition:false rather than
+// erroring for anyone logged out or without access, instead of the 403
+// requireBroadcastAvailable would send.
+router.get("/broadcast/live-status", async (req, res): Promise<void> => {
+  try {
+    const playerId = sessionPlayerId(req);
+    if (!playerId) { res.json({ hasNewEdition: false }); return; }
+
+    const available = await isFeatureAvailable(FEATURES.TKDL_LIVE, sessionIsAdmin(req));
+    if (!available) { res.json({ hasNewEdition: false }); return; }
+
+    const latest = await latestPublishedEdition();
+    if (!latest) { res.json({ hasNewEdition: false }); return; }
+
+    const [player] = await db.select({ lastSeen: playersTable.lastSeenBroadcastEditionId })
+      .from(playersTable).where(eq(playersTable.id, playerId));
+
+    res.json({ hasNewEdition: player?.lastSeen !== latest.id });
+  } catch {
+    res.json({ hasNewEdition: false });
+  }
+});
+
+// ── POST /broadcast/mark-seen ─────────────────────────────────────────────
+// Called once the TKDL LIVE screen has actually loaded, so the sidebar dot
+// clears after a player has genuinely seen the latest edition.
+router.post("/broadcast/mark-seen", async (req, res): Promise<void> => {
+  try {
+    const playerId = sessionPlayerId(req);
+    if (!playerId) { res.json({ ok: true }); return; }
+
+    const latest = await latestPublishedEdition();
+    if (!latest) { res.json({ ok: true }); return; }
+
+    await db.update(playersTable)
+      .set({ lastSeenBroadcastEditionId: latest.id })
+      .where(eq(playersTable.id, playerId));
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: true });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════

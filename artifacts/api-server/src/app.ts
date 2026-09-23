@@ -24,6 +24,7 @@ import { apiRateLimit } from "./middleware/apiRateLimit";
 import { addAchievementRewards } from "./db/migrations/add_achievement_rewards";
 import { addAchievementSeasonColumn } from "./db/migrations/add_achievement_season_column";
 import { addSeasonLeagueType } from "./db/migrations/add_season_league_type";
+import { addLastSeenBroadcastEditionColumn } from "./db/migrations/add_last_seen_broadcast_edition";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
 import { up as createCardClashFavoritesTable } from "./db/migrations/add_card_clash_favorites";
 import { addDailyChallengeKeyColumn } from "./db/migrations/add_daily_challenge_key";
@@ -1214,6 +1215,7 @@ async function init() {
   // current teams onto it) and needs both those tables and a real active
   // singles season to already exist.
   await runInitStep("addSeasonLeagueType", addSeasonLeagueType);
+  await runInitStep("addLastSeenBroadcastEditionColumn", addLastSeenBroadcastEditionColumn);
   await runInitStep("maybeAutoResetLeagueSeasons", maybeAutoResetLeagueSeasons);
   await runInitStep("seedPlayoffMatches", seedPlayoffMatches);
 

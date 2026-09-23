@@ -22,6 +22,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { paramStr } from "../lib/http";
 import { bossBattleRateLimit } from "../middleware/writeRateLimit";
+import { checkBossBattleAchievements } from "../lib/boss-battle-achievements";
 
 const router = Router();
 
@@ -144,6 +145,7 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
       }
     });
 
+    void checkBossBattleAchievements(pid);
     res.json({ success: true });
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to record boss battle attempt");
