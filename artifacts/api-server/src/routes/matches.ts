@@ -9,7 +9,8 @@ import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { checkMatchAchievements, checkStatAchievements } from "../lib/achievements";
 import { checkAndGrantTitles } from "../lib/titles";
 import { createAutoPost } from "../lib/communityNotify";
-import { sendMatchResultNotification, sendThreatAlertNotifications, sendMatchResultBroadcast } from "../services/notificationService";
+import { sendMatchResultNotification, sendThreatAlertNotifications, sendMatchResultBroadcast, sendRankChangeNotifications } from "../services/notificationService";
+import { rankPlayersByPoints, type RankablePlayer } from "../lib/leaderboardRank";
 import { addCoinsToPlayer, removeCardFromPlayer } from "../services/card-shop-service";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 
@@ -266,6 +267,46 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
   // Bust achievement-progress cache for both players
   invalidateProgressCache([winnerId, loserId]);
 
+  // Leaderboard-position rank diff for winner & loser — computed once here
+  // (awaited, not fire-and-forget) so it's available both for the response
+  // the frontend needs immediately (RANK_UP_EFFECT celebration on the
+  // result screen) and for sendRankChangeNotifications() below. Only these
+  // two players' points/elo/status actually changed, so rather than a
+  // second query for the "before" state we patch this one fetched roster
+  // back to its pre-match values for that half of the diff — see
+  // lib/leaderboardRank.ts.
+  let winnerRankChange = 0, loserRankChange = 0, newWinnerRank = 0, newLoserRank = 0;
+  try {
+    const roster: RankablePlayer[] = (await db
+      .select({ id: playersTable.id, points: playersTable.points, elo: playersTable.elo, status: playersTable.status })
+      .from(playersTable)
+      .where(eq(playersTable.isActive, true)));
+
+    const afterRanks = rankPlayersByPoints(roster);
+    const beforeRoster = roster.map(p => {
+      if (p.id === winnerId) return { ...p, points: winnerPointsBefore, elo: winnerEloBefore };
+      if (p.id === loserId)  return { ...p, points: loserPointsBefore,  elo: loserEloBefore, status: loserEliminated ? "ACTIVE" : p.status };
+      return p;
+    });
+    const beforeRanks = rankPlayersByPoints(beforeRoster);
+
+    newWinnerRank = afterRanks.get(winnerId) ?? 0;
+    newLoserRank  = afterRanks.get(loserId) ?? 0;
+    const oldWinnerRank = beforeRanks.get(winnerId) ?? 0;
+    const oldLoserRank  = beforeRanks.get(loserId) ?? 0;
+    winnerRankChange = oldWinnerRank - newWinnerRank; // positive = moved up
+    loserRankChange  = oldLoserRank  - newLoserRank;
+
+    if (winnerRankChange !== 0 || loserRankChange !== 0) {
+      void sendRankChangeNotifications([
+        ...(winnerRankChange !== 0 ? [{ id: winnerId, name: winner.name, newRank: newWinnerRank, oldRank: oldWinnerRank }] : []),
+        ...(loserRankChange  !== 0 ? [{ id: loserId,  name: loser.name,  newRank: newLoserRank,  oldRank: oldLoserRank  }] : []),
+      ]);
+    }
+  } catch (err) {
+    console.error("Rank-change computation error:", err);
+  }
+
   // Handle Card Clash integration (fire and forget — never delay the response)
   // Cards are attributed per-side: whichever player equipped them is who
   // gets the coin bonus and who has them consumed from their own inventory
@@ -376,11 +417,6 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
         { winnerId, loserId, gameType },
       );
 
-      // Note: leaderboard-position rank-change notifications aren't wired up here —
-      // sendRankChangeNotifications() expects each player's actual leaderboard
-      // position (see routes/leaderboard.ts), not a raw ELO delta, and computing
-      // that live for every match is a separate piece of work from this cleanup.
-
       // Threat alert notifications (if gap < 15 points) — sent to whichever
       // player is now ahead, warning them the other is closing in.
       const eloGap = Math.abs(newWinnerElo - newLoserElo);
@@ -442,6 +478,10 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
     loserEliminated,
     newWinnerPoints,
     newLoserPoints,
+    newWinnerRank,
+    newLoserRank,
+    winnerRankChange, // positive = moved up the leaderboard, 0 = no change
+    loserRankChange,
   });
 });
 

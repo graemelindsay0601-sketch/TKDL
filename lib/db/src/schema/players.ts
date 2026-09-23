@@ -94,6 +94,10 @@ export const playersTable = pgTable("players", {
   // RECAP_STYLE cosmetic category — a background skin for this player's own
   // Season Recap Card.
   equippedRecapStyleId: text("equipped_recap_style_id"),
+  // RANK_UP_EFFECT cosmetic category — which particle-burst animation plays
+  // on this player's own real-match result screen when their leaderboard
+  // position improves because of that match.
+  equippedRankUpEffectId: text("equipped_rank_up_effect_id"),
   // Featured Stat Spotlight — a free (not coin-gated) profile customization:
   // one stat this player picked to headline next to their trophy case (e.g.
   // "Best checkout: 121"). Not a cosmetic — no FK, same no-FK reasoning as

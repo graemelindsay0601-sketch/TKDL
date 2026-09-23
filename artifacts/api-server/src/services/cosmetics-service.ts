@@ -320,6 +320,18 @@ const RECAP_STYLES: SeedCosmetic[] = [
   { id: "recap-champions", category: "RECAP_STYLE", name: "Champion's Ledger", rarity: "LEGENDARY", price: 1000, gradient: "linear-gradient(135deg,#2a2410,#3d3418)", glow: "#ffd24a", sortOrder: 3 },
 ];
 
+// RANK_UP_EFFECT payload rides in `iconKey` (a whitelisted key into
+// lib/cosmetics.ts's RANK_UP_EFFECT_MAP) and `color` for its tint — reuses
+// the same <CheckoutBurst> component as CHECKOUT_EFFECT, just a separate
+// owned/equipped slot so "won a leg" and "climbed the table" can look
+// different. Priced like CHECKOUT_EFFECT — one item per rarity tier.
+const RANK_UP_EFFECTS: SeedCosmetic[] = [
+  { id: "rankup-arrow",  category: "RANK_UP_EFFECT", name: "Arrow Up",    rarity: "COMMON",    price: 150, iconKey: "arrow",  color: "#22c55e", sortOrder: 0 },
+  { id: "rankup-rocket", category: "RANK_UP_EFFECT", name: "Blast Off",   rarity: "RARE",      price: 320, iconKey: "rocket", color: "#38bdf8", sortOrder: 1 },
+  { id: "rankup-star",   category: "RANK_UP_EFFECT", name: "Rising Star", rarity: "EPIC",      price: 500, iconKey: "star",   color: "#ffd24a", sortOrder: 2 },
+  { id: "rankup-crown",  category: "RANK_UP_EFFECT", name: "Crowning",    rarity: "LEGENDARY", price: 800, iconKey: "crown",  color: "#ffd24a", sortOrder: 3 },
+];
+
 // Not purchasable — auto-granted to whoever is crowned Singles champion at
 // season close (see lib/seasonReset.ts's performSeasonResetLocked). Its own
 // distinct id/gradient from the purchasable "name-champion" Legendary
@@ -338,7 +350,7 @@ const CHAMPION_EXCLUSIVES: SeedCosmetic[] = [
 // adds or updates rows, on every boot, so tweaking a price/colour just
 // means editing the arrays above and redeploying.
 export async function seedCosmeticDefinitions(): Promise<void> {
-  for (const c of [...NAME_STYLES, ...PROFILE_ICONS, ...BANNERS, ...FRAMES, ...GLOWS, ...RESULT_THEMES, ...BUBBLE_COLORS, ...AVATAR_BADGES, ...LEADERBOARD_TAGS, ...TAGLINE_STYLES, ...POST_ACCENTS, ...STICKERS, ...CHECKOUT_EFFECTS, ...SCORER_THEMES, ...PLAYER_CARD_FINISHES, ...TROPHY_CASE_STYLES, ...RECAP_STYLES, ...CHAMPION_EXCLUSIVES]) {
+  for (const c of [...NAME_STYLES, ...PROFILE_ICONS, ...BANNERS, ...FRAMES, ...GLOWS, ...RESULT_THEMES, ...BUBBLE_COLORS, ...AVATAR_BADGES, ...LEADERBOARD_TAGS, ...TAGLINE_STYLES, ...POST_ACCENTS, ...STICKERS, ...CHECKOUT_EFFECTS, ...SCORER_THEMES, ...PLAYER_CARD_FINISHES, ...TROPHY_CASE_STYLES, ...RECAP_STYLES, ...RANK_UP_EFFECTS, ...CHAMPION_EXCLUSIVES]) {
     try {
       await db
         .insert(cosmeticDefinitionsTable)

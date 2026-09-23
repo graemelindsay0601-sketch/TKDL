@@ -11,7 +11,7 @@ import { RulesModal } from "@/components/rules-modal";
 import { MatchStatsCard } from "@/components/match-stats-card";
 import { CardEquipmentSelector } from "@/components/CardEquipmentSelector";
 import { useCurrentPlayer } from "@/context/auth";
-import { useCosmeticsCatalog, resultThemeColor, checkoutEffect } from "@/lib/cosmetics";
+import { useCosmeticsCatalog, resultThemeColor, checkoutEffect, rankUpEffect } from "@/lib/cosmetics";
 import { CheckoutBurst } from "@/components/CheckoutBurst";
 import { PostMatchAnalysisModal } from "@/components/stats/post-match-analysis";
 import { useWakeLock, useZoomLock, useExitGuard, useMatchSnapshot, readMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
@@ -731,6 +731,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
   const cosmeticsCatalog = useCosmeticsCatalog();
   const [equippedThemeId, setEquippedThemeId] = useState<string | null>(null);
   const [equippedEffectId, setEquippedEffectId] = useState<string | null>(null);
+  const [equippedRankUpEffectId, setEquippedRankUpEffectId] = useState<string | null>(null);
   useEffect(() => {
     if (!currentPlayer?.playerId) return;
     fetch(`/api/players/${currentPlayer.playerId}/cosmetics`)
@@ -738,6 +739,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
       .then(data => {
         setEquippedThemeId(data?.equippedResultThemeId ?? null);
         setEquippedEffectId(data?.equippedCheckoutEffectId ?? null);
+        setEquippedRankUpEffectId(data?.equippedRankUpEffectId ?? null);
       })
       .catch(() => {});
   }, [currentPlayer?.playerId]);
@@ -746,6 +748,17 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
   const textGlowColor = resultThemeColor(equippedTheme, "#ff005c");
   const viewerWon = !!currentPlayer?.playerId && winnerTeam.some(p => p.id === currentPlayer.playerId);
   const burstEffect = viewerWon ? checkoutEffect(cosmeticsCatalog.find(c => c.id === equippedEffectId)) : null;
+
+  // RANK_UP_EFFECT — only for the 1v1 flow below, which is the only one
+  // that computes a real leaderboard-position diff server-side (see
+  // routes/matches.ts / lib/leaderboardRank.ts). Doubles, Shift Wars, and
+  // team/killer matches post to their own routes, which don't compute this
+  // yet — a smaller, separate piece of work if wanted later.
+  const [viewerRankChange, setViewerRankChange] = useState<number>(0);
+  const [viewerNewRank, setViewerNewRank] = useState<number | null>(null);
+  const rankUpBurst = viewerWon && viewerRankChange > 0
+    ? rankUpEffect(cosmeticsCatalog.find(c => c.id === equippedRankUpEffectId))
+    : null;
 
   const submit = async () => {
     try {
@@ -792,6 +805,8 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           } : {}),
         } });
         setSubmittedMatchId(createdMatch.id);
+        setViewerRankChange(createdMatch.winnerRankChange ?? 0);
+        setViewerNewRank(createdMatch.newWinnerRank ?? null);
       } else if (data.format === "doubles-event" && data.doublesTeamIds) {
         const [team1Id, team2Id] = data.doublesTeamIds;
         const winnerTeamId = result.winnerIdx === 0 ? team1Id : team2Id;
@@ -889,6 +904,17 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           {winnerName}
         </div>
         {result.detail && <div className="text-sm mt-1" style={{ color: themeColor, fontFamily: "Oswald, sans-serif" }}>{result.detail}</div>}
+        {rankUpBurst && viewerNewRank && (
+          <div className="relative inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full" style={{
+            background: `${rankUpBurst.color}1a`, border: `1px solid ${rankUpBurst.color}66`,
+          }}>
+            <CheckoutBurst emoji={rankUpBurst.emoji} color={rankUpBurst.color} />
+            <span style={{ fontSize: "1rem", lineHeight: 1 }}>{rankUpBurst.emoji}</span>
+            <span className="text-xs font-bold uppercase tracking-wide" style={{ color: rankUpBurst.color, fontFamily: "Oswald, sans-serif" }}>
+              Moved up to #{viewerNewRank}!
+            </span>
+          </div>
+        )}
       </div>
 
       {stats && data.format === "1v1" && (

@@ -88,6 +88,18 @@ export interface Match {
   loser180s?: number;
   loserCheckoutAttempts?: number;
   loserCheckoutHits?: number;
+  /** Whether this result eliminated the loser from the season */
+  loserEliminated?: boolean;
+  newWinnerPoints?: number;
+  newLoserPoints?: number;
+  /** Winner's leaderboard position right after this match (see lib/leaderboardRank.ts) */
+  newWinnerRank?: number;
+  /** Loser's leaderboard position right after this match */
+  newLoserRank?: number;
+  /** Positive = winner moved up the leaderboard, 0 = no change */
+  winnerRankChange?: number;
+  /** Positive = loser moved up the leaderboard (rare — a big-stake upset), 0 = no change */
+  loserRankChange?: number;
 }
 
 export interface Achievement {

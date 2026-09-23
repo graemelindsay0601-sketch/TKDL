@@ -1132,13 +1132,14 @@ router.get("/players/:id/notification-prefs", async (req, res): Promise<void> =>
 
   try {
     const rows = await db.execute(sql`
-      SELECT push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode, direct_messages
+      SELECT push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode, direct_messages, achievements, community_activity
       FROM notification_preferences WHERE player_id = ${params.data.id}
     `);
     const row = (rows.rows as any[])[0];
     res.json(row ?? {
       push_enabled: true, match_results: true, rank_changes: true, threat_alerts: true,
       coach_tips: true, announcements: true, private_mode: false, direct_messages: true,
+      achievements: true, community_activity: true,
     });
   } catch (err) {
     req.log.error({ err }, "GET /players/:id/notification-prefs failed");
@@ -1147,14 +1148,16 @@ router.get("/players/:id/notification-prefs", async (req, res): Promise<void> =>
 });
 
 const NotificationPrefsBody = z.object({
-  push_enabled:    z.boolean().optional(),
-  match_results:   z.boolean().optional(),
-  rank_changes:    z.boolean().optional(),
-  threat_alerts:   z.boolean().optional(),
-  coach_tips:      z.boolean().optional(),
-  announcements:   z.boolean().optional(),
-  private_mode:    z.boolean().optional(),
-  direct_messages: z.boolean().optional(),
+  push_enabled:       z.boolean().optional(),
+  match_results:      z.boolean().optional(),
+  rank_changes:       z.boolean().optional(),
+  threat_alerts:      z.boolean().optional(),
+  coach_tips:         z.boolean().optional(),
+  announcements:      z.boolean().optional(),
+  private_mode:       z.boolean().optional(),
+  direct_messages:    z.boolean().optional(),
+  achievements:       z.boolean().optional(),
+  community_activity: z.boolean().optional(),
 });
 
 router.patch("/players/:id/notification-prefs", async (req, res): Promise<void> => {
@@ -1176,22 +1179,25 @@ router.patch("/players/:id/notification-prefs", async (req, res): Promise<void> 
 
   try {
     await db.execute(sql`
-      INSERT INTO notification_preferences (player_id, push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode, direct_messages)
+      INSERT INTO notification_preferences (player_id, push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode, direct_messages, achievements, community_activity)
       VALUES (
         ${id},
         ${p.push_enabled ?? true}, ${p.match_results ?? true}, ${p.rank_changes ?? true}, ${p.threat_alerts ?? true},
-        ${p.coach_tips ?? true}, ${p.announcements ?? true}, ${p.private_mode ?? false}, ${p.direct_messages ?? true}
+        ${p.coach_tips ?? true}, ${p.announcements ?? true}, ${p.private_mode ?? false}, ${p.direct_messages ?? true},
+        ${p.achievements ?? true}, ${p.community_activity ?? true}
       )
       ON CONFLICT (player_id) DO UPDATE SET
-        push_enabled    = COALESCE(${p.push_enabled ?? null}, notification_preferences.push_enabled),
-        match_results   = COALESCE(${p.match_results ?? null}, notification_preferences.match_results),
-        rank_changes    = COALESCE(${p.rank_changes ?? null}, notification_preferences.rank_changes),
-        threat_alerts   = COALESCE(${p.threat_alerts ?? null}, notification_preferences.threat_alerts),
-        coach_tips      = COALESCE(${p.coach_tips ?? null}, notification_preferences.coach_tips),
-        announcements   = COALESCE(${p.announcements ?? null}, notification_preferences.announcements),
-        private_mode    = COALESCE(${p.private_mode ?? null}, notification_preferences.private_mode),
-        direct_messages = COALESCE(${p.direct_messages ?? null}, notification_preferences.direct_messages),
-        updated_at      = NOW()
+        push_enabled        = COALESCE(${p.push_enabled ?? null}, notification_preferences.push_enabled),
+        match_results       = COALESCE(${p.match_results ?? null}, notification_preferences.match_results),
+        rank_changes        = COALESCE(${p.rank_changes ?? null}, notification_preferences.rank_changes),
+        threat_alerts       = COALESCE(${p.threat_alerts ?? null}, notification_preferences.threat_alerts),
+        coach_tips          = COALESCE(${p.coach_tips ?? null}, notification_preferences.coach_tips),
+        announcements       = COALESCE(${p.announcements ?? null}, notification_preferences.announcements),
+        private_mode        = COALESCE(${p.private_mode ?? null}, notification_preferences.private_mode),
+        direct_messages     = COALESCE(${p.direct_messages ?? null}, notification_preferences.direct_messages),
+        achievements        = COALESCE(${p.achievements ?? null}, notification_preferences.achievements),
+        community_activity  = COALESCE(${p.community_activity ?? null}, notification_preferences.community_activity),
+        updated_at          = NOW()
     `);
     res.json({ ok: true });
   } catch (err) {

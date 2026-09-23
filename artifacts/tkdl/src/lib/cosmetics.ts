@@ -4,7 +4,7 @@ import { Flame, Zap, Skull, Crown, Trophy, Rocket, Ghost, Gem, Star, Shield, Swo
 
 export interface CosmeticDefinition {
   id: string;
-  category: "NAME_STYLE" | "PROFILE_ICON" | "BANNER" | "FRAME" | "GLOW" | "RESULT_THEME" | "BUBBLE_COLOR" | "AVATAR_BADGE" | "LEADERBOARD_TAG" | "TAGLINE_STYLE" | "POST_ACCENT" | "STICKER" | "CHECKOUT_EFFECT" | "SCORER_THEME" | "PLAYER_CARD_FINISH" | "TROPHY_CASE_STYLE" | "RECAP_STYLE";
+  category: "NAME_STYLE" | "PROFILE_ICON" | "BANNER" | "FRAME" | "GLOW" | "RESULT_THEME" | "BUBBLE_COLOR" | "AVATAR_BADGE" | "LEADERBOARD_TAG" | "TAGLINE_STYLE" | "POST_ACCENT" | "STICKER" | "CHECKOUT_EFFECT" | "SCORER_THEME" | "PLAYER_CARD_FINISH" | "TROPHY_CASE_STYLE" | "RECAP_STYLE" | "RANK_UP_EFFECT";
   name: string;
   rarity: "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
   price: number;
@@ -62,6 +62,17 @@ export const PLAYER_CARD_FINISH_MAP: Record<string, { label: string }> = {
   foil:       { label: "Foil" },
   holo:       { label: "Holo" },
   prismatic:  { label: "Prismatic" },
+};
+
+// A RANK_UP_EFFECT cosmetic's iconKey picks which particle-burst animation
+// plays on a player's own real-match result screen when their leaderboard
+// position improves — same shape and same reasoning as CHECKOUT_EFFECT_MAP,
+// reusing the shared <CheckoutBurst> component with a different emoji/tint.
+export const RANK_UP_EFFECT_MAP: Record<string, { emoji: string; label: string }> = {
+  arrow:  { emoji: "🔼", label: "Arrow Up" },
+  rocket: { emoji: "🚀", label: "Blast Off" },
+  star:   { emoji: "🌟", label: "Rising Star" },
+  crown:  { emoji: "👑", label: "Crowning" },
 };
 
 export const RARITY_COLORS: Record<string, string> = {
@@ -278,4 +289,18 @@ export function recapStyleCSS(cosmetic: CosmeticDefinition | undefined | null): 
     backgroundImage: cosmetic.gradient,
     boxShadow: cosmetic.glow ? `0 0 40px ${cosmetic.glow}22` : undefined,
   };
+}
+
+// Emoji + colour for a RANK_UP_EFFECT cosmetic — same shape as
+// checkoutEffect() above, feeding the same shared <CheckoutBurst> component.
+// Returns null for nothing-equipped or an unrecognised iconKey, which
+// callers use to fall back to a default burst rather than skip it entirely
+// (unlike CHECKOUT_EFFECT, a rank-up moment always gets *some* celebration —
+// this cosmetic only ever changes its flavour, never turns it off).
+export function rankUpEffect(cosmetic: CosmeticDefinition | undefined | null): { emoji: string; color: string } {
+  const fallback = { emoji: "🔼", color: "#22c55e" };
+  if (!cosmetic?.iconKey) return fallback;
+  const meta = RANK_UP_EFFECT_MAP[cosmetic.iconKey];
+  if (!meta) return fallback;
+  return { emoji: meta.emoji, color: cosmetic.color ?? fallback.color };
 }

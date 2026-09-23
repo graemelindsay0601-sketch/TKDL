@@ -165,6 +165,23 @@ import { playersTable } from "./players";
 // — that's a TKDL LIVE league-wide feature, this is a per-player personal
 // card, different surface and audience entirely.
 //
+// RANK_UP_EFFECT plays a short decorative particle-burst animation — same
+// mechanism as CHECKOUT_EFFECT, reusing the shared <CheckoutBurst> component
+// (components/CheckoutBurst.tsx) rather than a second bespoke one — on a
+// player's own real-match result screen (see play.tsx), specifically when
+// their leaderboard position improved because of that match. Whether it
+// improved comes from the rank-change computation added to routes/
+// matches.ts (see lib/leaderboardRank.ts and sendRankChangeNotifications in
+// notificationService.ts, its push-notification counterpart), not from
+// anything cosmetic-related — this category only owns what the celebration
+// looks like. Reuses `iconKey` as a whitelisted effect key (see
+// RANK_UP_EFFECT_MAP in lib/cosmetics.ts) and `color` for its tint, same
+// payload shape as CHECKOUT_EFFECT. Deliberately its own category rather
+// than reusing CHECKOUT_EFFECT's owned items — a player may want a
+// different flavour for "I won a leg" versus "I climbed the table", and
+// giving them separate slots keeps that a real choice rather than one
+// picked item doing double duty.
+//
 // `purchasable` (default true) backs the "Seasonal & Limited" idea without
 // reaching for calendar-holiday theming the club never asked for: a
 // cosmetic with purchasable=false can never be bought in the shop (see
@@ -174,7 +191,7 @@ import { playersTable } from "./players";
 // champion at season close (lib/seasonReset.ts's performSeasonResetLocked)
 // — a genuinely limited, achievement-locked cosmetic tied to the league's
 // own real season data, not a purchasable stand-in for winning.
-export const COSMETIC_CATEGORIES = ["NAME_STYLE", "PROFILE_ICON", "BANNER", "FRAME", "GLOW", "RESULT_THEME", "BUBBLE_COLOR", "AVATAR_BADGE", "LEADERBOARD_TAG", "TAGLINE_STYLE", "POST_ACCENT", "STICKER", "CHECKOUT_EFFECT", "SCORER_THEME", "PLAYER_CARD_FINISH", "TROPHY_CASE_STYLE", "RECAP_STYLE"] as const;
+export const COSMETIC_CATEGORIES = ["NAME_STYLE", "PROFILE_ICON", "BANNER", "FRAME", "GLOW", "RESULT_THEME", "BUBBLE_COLOR", "AVATAR_BADGE", "LEADERBOARD_TAG", "TAGLINE_STYLE", "POST_ACCENT", "STICKER", "CHECKOUT_EFFECT", "SCORER_THEME", "PLAYER_CARD_FINISH", "TROPHY_CASE_STYLE", "RECAP_STYLE", "RANK_UP_EFFECT"] as const;
 export type CosmeticCategory = (typeof COSMETIC_CATEGORIES)[number];
 
 export const cosmeticDefinitionsTable = pgTable("cosmetic_definitions", {

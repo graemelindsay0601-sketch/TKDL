@@ -50,6 +50,22 @@ export async function seedNotificationTables() {
         ADD COLUMN IF NOT EXISTS direct_messages BOOLEAN DEFAULT true
     `);
 
+    // achievements / community_activity — same fix as direct_messages
+    // above, extended to the rest of communityNotify.ts's types.
+    // achievement_unlocked, and the post_approved/post_liked/post_commented/
+    // auto_post_fired group, were ALSO silently dropped for everyone by the
+    // same always-off "notifications_enabled" league switch — this wasn't
+    // a DM-specific problem, it affected every type that pipeline handles.
+    // See TYPE_TO_PREF_COLUMN in communityNotify.ts.
+    await db.execute(sql`
+      ALTER TABLE notification_preferences
+        ADD COLUMN IF NOT EXISTS achievements BOOLEAN DEFAULT true
+    `);
+    await db.execute(sql`
+      ALTER TABLE notification_preferences
+        ADD COLUMN IF NOT EXISTS community_activity BOOLEAN DEFAULT true
+    `);
+
     // Notifications table
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS notifications (

@@ -43,6 +43,7 @@ import { addWave3CosmeticColumns } from "./db/migrations/add_wave3_cosmetics";
 import { addWave4CosmeticColumns } from "./db/migrations/add_wave4_cosmetics";
 import { addFeaturedStatKeyColumn } from "./db/migrations/add_featured_stat_key";
 import { addWave5CosmeticColumns } from "./db/migrations/add_wave5_cosmetics";
+import { addWave6CosmeticColumns } from "./db/migrations/add_wave6_cosmetics";
 import { seedCosmeticDefinitions } from "./services/cosmetics-service";
 import { addLastSeenHubAtColumn } from "./db/migrations/add_last_seen_hub_at";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
@@ -115,8 +116,22 @@ app.use(
 // Mobile users benefit massively - no re-download on page reload
 // Note: Gzip compression handled by Render reverse proxy (no external dependency)
 app.use((req, res, next) => {
+  // Service worker scripts must never get the long-lived immutable
+  // treatment below, even though the filename ends in .js — unlike the
+  // content-hashed bundles this rule exists for, service-worker.js (and
+  // the unused sw.js leftover) keep the SAME filename across every deploy,
+  // so a browser that's cached one immutably has no reason to ever ask for
+  // a new one again. That's a real way for a player's browser to get
+  // stuck running a months-old service worker (and the stale asset cache
+  // it was written to keep) indefinitely — confirmed live: this exact
+  // pattern left a test browser serving a service worker/cache pair from
+  // a since-replaced deploy, well past when a normal reload should have
+  // picked up the current one.
+  if (/\/(service-worker|sw)\.js$/i.test(req.path)) {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  }
   // Cache static files for 1 year (use hash in filename for cache busting)
-  if (req.url.match(/\.(js|css|png|jpg|gif|svg|woff|woff2|ttf|eot)$/i)) {
+  else if (req.url.match(/\.(js|css|png|jpg|gif|svg|woff|woff2|ttf|eot)$/i)) {
     res.set('Cache-Control', 'public, max-age=31536000, immutable');
     res.set('ETag', undefined); // Let browser use max-age, not ETag
   }
@@ -213,7 +228,38 @@ if (process.env.NODE_ENV === "production") {
   const frontendDist = process.env.FRONTEND_DIST
     ?? path.resolve(process.cwd(), "artifacts/tkdl/dist/public");
   app.use(express.static(frontendDist));
-  app.get("/{*splat}", (_req, res) => {
+  app.get("/{*splat}", (req, res) => {
+    // Anything reaching here didn't match a real static file above. A
+    // request for a client-side ROUTE (e.g. /dashboard, /player/42) has no
+    // extension on its last path segment — that's the case this fallback
+    // exists for, and it gets the SPA shell. A request that DOES look like
+    // a file (e.g. /assets/dashboard-BA7P7TMJ.js) but still landed here is
+    // a genuinely missing asset — almost always a browser holding an
+    // index.html from before the latest deploy, asking for a
+    // content-hashed chunk a newer build has since replaced with a
+    // different hash. That must be a real 404, not this SPA shell:
+    // serving index.html for it used to inherit the "Cache-Control:
+    // public, max-age=31536000, immutable" header the middleware above
+    // stamps onto anything shaped like *.js/*.css/etc. before routing even
+    // runs — telling the browser (and any cache in front of this server)
+    // to treat that broken HTML response as the permanent, never-
+    // revalidate content of that JS file. That's how one stale page load
+    // turned into a permanently broken one that not even a reload could
+    // fix, and could spread to other players sharing an edge/CDN cache.
+    // A real 404 instead lets the frontend's existing "failed to fetch
+    // module" error boundary do what it already does — prompt a reload,
+    // which fetches the current index.html and recovers cleanly.
+    const lastSegment = req.path.split("/").pop() ?? "";
+    if (lastSegment.includes(".")) {
+      // Same reasoning as above — don't let the blanket middleware's
+      // immutable header stick to a 404 either, or a client that caches
+      // this "not found" forever would never notice the file exists again
+      // after a later deploy restores an asset at this same hashed path.
+      res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.status(404).end();
+      return;
+    }
+    res.set("Cache-Control", "no-cache, no-store, must-revalidate");
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 }
@@ -1254,6 +1300,7 @@ async function init() {
   await runInitStep("addWave4CosmeticColumns", addWave4CosmeticColumns);
   await runInitStep("addFeaturedStatKeyColumn", addFeaturedStatKeyColumn);
   await runInitStep("addWave5CosmeticColumns", addWave5CosmeticColumns);
+  await runInitStep("addWave6CosmeticColumns", addWave6CosmeticColumns);
   // Needs addCosmeticsTables and addCosmeticPurchasableFlag to have run first — upserts into cosmetic_definitions.
   await runInitStep("seedCosmeticDefinitions", seedCosmeticDefinitions);
   await runInitStep("addLastSeenHubAtColumn", addLastSeenHubAtColumn);

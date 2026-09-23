@@ -2,11 +2,11 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { Coins, Check, Lock, Search, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
-  useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, glowRowStyle, resultThemeColor, bubbleColorStyle, leaderboardTagStyle, taglineStyleCSS, postAccentStyle, stickerEmoji, checkoutEffect, scorerThemeColor, playerCardFinish, trophyCaseStyle, recapStyleCSS, RARITY_COLORS, PROFILE_ICON_MAP, AVATAR_BADGE_MAP,
+  useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, glowRowStyle, resultThemeColor, bubbleColorStyle, leaderboardTagStyle, taglineStyleCSS, postAccentStyle, stickerEmoji, checkoutEffect, scorerThemeColor, playerCardFinish, trophyCaseStyle, recapStyleCSS, rankUpEffect, RARITY_COLORS, PROFILE_ICON_MAP, AVATAR_BADGE_MAP,
   type CosmeticDefinition,
 } from "@/lib/cosmetics";
 
-type CosmeticCategory = "NAME_STYLE" | "PROFILE_ICON" | "BANNER" | "FRAME" | "GLOW" | "RESULT_THEME" | "BUBBLE_COLOR" | "AVATAR_BADGE" | "LEADERBOARD_TAG" | "TAGLINE_STYLE" | "POST_ACCENT" | "STICKER" | "CHECKOUT_EFFECT" | "SCORER_THEME" | "PLAYER_CARD_FINISH" | "TROPHY_CASE_STYLE" | "RECAP_STYLE";
+type CosmeticCategory = "NAME_STYLE" | "PROFILE_ICON" | "BANNER" | "FRAME" | "GLOW" | "RESULT_THEME" | "BUBBLE_COLOR" | "AVATAR_BADGE" | "LEADERBOARD_TAG" | "TAGLINE_STYLE" | "POST_ACCENT" | "STICKER" | "CHECKOUT_EFFECT" | "SCORER_THEME" | "PLAYER_CARD_FINISH" | "TROPHY_CASE_STYLE" | "RECAP_STYLE" | "RANK_UP_EFFECT";
 type Rarity = "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
 
 interface CosmeticsShopProps {
@@ -32,6 +32,7 @@ interface OwnedState {
   equippedPlayerCardFinishId: string | null;
   equippedTrophyCaseStyleId: string | null;
   equippedRecapStyleId: string | null;
+  equippedRankUpEffectId: string | null;
 }
 
 // Tab order + copy for each category — the catalog grew to ~165 items across
@@ -61,12 +62,13 @@ const CATEGORY_META: Record<CosmeticCategory, { tabLabel: string; title: string;
   PLAYER_CARD_FINISH: { tabLabel: "Finish", title: "Player Card Finishes", subtitle: "A texture overlay on your player-detail hero — layers on top of whatever banner you've got equipped." },
   TROPHY_CASE_STYLE: { tabLabel: "Trophy", title: "Trophy Case Styles", subtitle: "A background & border skin for your pinned Trophy Case strip, on your account page and your public profile." },
   RECAP_STYLE: { tabLabel: "Recap", title: "Season Recap Styles", subtitle: "A background skin for your Season Recap Card — browsable from your Season History." },
+  RANK_UP_EFFECT: { tabLabel: "Rank Up", title: "Rank-Up Celebrations", subtitle: "A particle-burst animation on your real-match result screen when a win moves you up the leaderboard." },
 };
 
 const CATEGORY_ORDER: CosmeticCategory[] = [
   "NAME_STYLE", "PROFILE_ICON", "BANNER", "FRAME", "GLOW", "RESULT_THEME", "BUBBLE_COLOR",
   "AVATAR_BADGE", "LEADERBOARD_TAG", "TAGLINE_STYLE", "POST_ACCENT", "STICKER", "CHECKOUT_EFFECT",
-  "SCORER_THEME", "PLAYER_CARD_FINISH", "TROPHY_CASE_STYLE", "RECAP_STYLE",
+  "SCORER_THEME", "PLAYER_CARD_FINISH", "TROPHY_CASE_STYLE", "RECAP_STYLE", "RANK_UP_EFFECT",
 ];
 
 const RARITY_ORDER: Rarity[] = ["COMMON", "RARE", "EPIC", "LEGENDARY"];
@@ -88,6 +90,7 @@ const EQUIPPED_ID_KEY: Partial<Record<CosmeticCategory, keyof OwnedState>> = {
   PLAYER_CARD_FINISH: "equippedPlayerCardFinishId",
   TROPHY_CASE_STYLE: "equippedTrophyCaseStyleId",
   RECAP_STYLE: "equippedRecapStyleId",
+  RANK_UP_EFFECT: "equippedRankUpEffectId",
   // STICKER deliberately omitted — not equipped to a slot, see the shop
   // section above (equippable={false}) and schema/cosmetics.ts.
 };
@@ -312,6 +315,10 @@ export function CosmeticsShop({ playerId, playerName }: CosmeticsShopProps) {
             ...recapStyleCSS(c),
           }} />
         );
+      case "RANK_UP_EFFECT": {
+        const effect = rankUpEffect(c);
+        return <div style={{ fontSize: "1.4rem", lineHeight: 1, filter: `drop-shadow(0 0 6px ${effect.color}99)` }}>{effect.emoji}</div>;
+      }
       default:
         return null;
     }

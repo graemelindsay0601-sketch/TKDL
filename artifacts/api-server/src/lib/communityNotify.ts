@@ -22,6 +22,28 @@ export type NotificationType =
   | "match_result"
   | "achievement_unlocked";
 
+// Which notification_preferences column gates each type, per-player,
+// instead of the league-wide "notifications_enabled" switch below.
+// dm_received moved first (see git history) because that switch defaults
+// to false and is only reachable via a hidden admin debug route or the
+// Feature Flags page — every one of these was being silently dropped for
+// everyone, regardless of what a player actually wanted, not just DMs.
+// post_approved/post_liked/post_commented/auto_post_fired share one
+// "community_activity" toggle (mirrors match_results already covering
+// singles/doubles/Shift Wars under one switch) since they're all the same
+// kind of social ping; achievement_unlocked gets its own since unlocking
+// something is a more personal moment than someone liking your post.
+// match_result isn't listed — nothing calls createNotification with it;
+// real match results go through notificationService.ts's own pipeline.
+const TYPE_TO_PREF_COLUMN: Partial<Record<NotificationType, "direct_messages" | "achievements" | "community_activity">> = {
+  dm_received:          "direct_messages",
+  achievement_unlocked: "achievements",
+  post_approved:        "community_activity",
+  post_liked:            "community_activity",
+  post_commented:        "community_activity",
+  auto_post_fired:       "community_activity",
+};
+
 // ── Send a Web Push to all subscriptions for a player ────────────────────────
 export async function sendPushToPlayer(
   playerId: number,
@@ -60,22 +82,18 @@ export async function createNotification(opts: {
   message: string;
 }): Promise<void> {
   try {
-    if (opts.type === "dm_received") {
-      // DMs get their own per-player gate instead of the league-wide
-      // "notifications_enabled" switch below — that switch defaults to
-      // false and is only reachable via a hidden admin debug route or the
-      // Feature Flags page, so every DM notification was silently dropped
-      // before it ever reached a player, regardless of their own settings.
+    const prefColumn = TYPE_TO_PREF_COLUMN[opts.type];
+    if (prefColumn) {
       // Mirrors the push_enabled + per-type check notificationService.ts
-      // already does for match results, keyed off the new
-      // direct_messages column (default true).
+      // already does for match results — see TYPE_TO_PREF_COLUMN above.
       const rows = await db.execute(sql`
-        SELECT push_enabled, direct_messages FROM notification_preferences WHERE player_id = ${opts.playerId}
+        SELECT push_enabled, direct_messages, achievements, community_activity
+        FROM notification_preferences WHERE player_id = ${opts.playerId}
       `);
-      const prefs = rows.rows[0] as { push_enabled?: boolean; direct_messages?: boolean } | undefined;
+      const prefs = rows.rows[0] as Record<string, boolean> | undefined;
       // No row yet (player never touched their settings) defaults to on,
       // matching notification_preferences' own column defaults.
-      if (prefs && (prefs.push_enabled === false || prefs.direct_messages === false)) return;
+      if (prefs && (prefs.push_enabled === false || prefs[prefColumn] === false)) return;
     } else {
       // No `req` reaches this deep — it's called from event handlers
       // (matches.ts, etc.) with just a playerId, not a request. Foundation

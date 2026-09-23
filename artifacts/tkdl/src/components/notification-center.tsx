@@ -26,6 +26,8 @@ interface NotificationPreferences {
   announcements: boolean;
   private_mode: boolean;
   direct_messages: boolean;
+  achievements: boolean;
+  community_activity: boolean;
 }
 
 export function NotificationCenter({ playerId }: { playerId: number }) {
@@ -126,6 +128,11 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
       coach_tip: "Coach Tip",
       announcement: "Announcement",
       dm_received: "Message",
+      achievement_unlocked: "Achievement",
+      post_approved: "Community",
+      post_liked: "Community",
+      post_commented: "Community",
+      auto_post_fired: "Community",
     };
     return labels[type] || type;
   };
@@ -138,6 +145,11 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
       coach_tip: "#00e5a0",
       announcement: "#4d94ff",
       dm_received: "#c084fc",
+      achievement_unlocked: "#ffd24a",
+      post_approved: "#22c55e",
+      post_liked: "#22c55e",
+      post_commented: "#22c55e",
+      auto_post_fired: "#22c55e",
     };
     return colors[type] || "#9ca3af";
   };
@@ -214,16 +226,18 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
             />
           </div>
 
-          {/* Per-type toggles. "Rank Changes" was deliberately dropped from
-              this list — nothing in the app has ever actually sent that
-              notification type (see sendRankChangeNotifications in
-              notificationService.ts, which is defined but never called), so
-              showing a toggle for it would just mislead people into thinking
-              it does something. */}
+          {/* Per-type toggles. "Rank Changes" now actually fires — a real
+              singles match that moves your leaderboard position up or down
+              calls sendRankChangeNotifications() from routes/matches.ts
+              (see lib/leaderboardRank.ts for the position diff). Doubles,
+              Shift Wars, and team/killer matches don't compute this yet. */}
           {[
             { key: "match_results", label: "Match Results (Singles, Doubles, Shift Wars)" },
+            { key: "rank_changes", label: "Rank Changes (Singles)" },
             { key: "threat_alerts", label: "Close Match Alerts" },
             { key: "direct_messages", label: "Direct Messages" },
+            { key: "achievements", label: "Achievement Unlocks" },
+            { key: "community_activity", label: "Community Activity (likes, comments, tier changes)" },
             { key: "coach_tips", label: "Coach Tips" },
             { key: "announcements", label: "League Announcements" },
           ].map(({ key, label }) => (
