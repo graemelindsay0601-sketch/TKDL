@@ -146,8 +146,13 @@ function LiveTicker() {
 }
 
 function AccountWidget({ unreadCount = 0, collapsed = false }: { unreadCount?: number; collapsed?: boolean }) {
-  const { user, loading } = useAuth();
-  if (loading) return null;
+  // No `loading` gate here on purpose — `user` is seeded from a cached copy
+  // of the last confirmed session (see context/auth.tsx) so this renders
+  // its real content on the very first paint instead of blanking out and
+  // popping in a moment later once /api/auth/me resolves. If the session
+  // actually changed since the cache was written, refresh() corrects
+  // `user` and this re-renders — same as any other optimistic UI.
+  const { user } = useAuth();
   return (
     <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
       {user ? (
