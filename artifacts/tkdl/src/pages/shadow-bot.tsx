@@ -193,8 +193,8 @@ export default function ShadowBot() {
             </span>
           </div>
 
-          <div className="rounded-2xl overflow-hidden"
-            style={{ border: "1px solid rgba(255,0,92,0.15)", background: "rgba(255,0,92,0.03)" }}>
+          <div className="pdc-card overflow-hidden"
+            style={{ borderColor: "rgba(255,0,92,0.15)", background: "rgba(255,0,92,0.03)" }}>
             {/* Header */}
             <div className="grid px-4 py-2"
               style={{
@@ -283,10 +283,13 @@ export default function ShadowBot() {
               const activeLvl = bot.accuracyLevel ? LEVEL_STEPS.findIndex(s => s.key === bot.accuracyLevel) : -1;
               return (
                 <Link key={bot.playerId} href={`/shadow-bot/${bot.playerId}`}>
-                  <div className="rounded-2xl overflow-hidden transition-all duration-200 hover:scale-[1.015] cursor-pointer"
+                  {/* .pdc-card (same accent-driven convention as seasons.tsx's
+                      SeasonCard) instead of a hand-rolled rounded-2xl div —
+                      per-bot color/lock state still overrides border/background. */}
+                  <div className="pdc-card overflow-hidden transition-all duration-200 hover:scale-[1.015] cursor-pointer"
                     style={{
                       background: bot.locked ? "rgba(255,255,255,0.02)" : `${color}07`,
-                      border: `1px solid ${bot.locked ? "rgba(255,255,255,0.06)" : `${color}22`}`,
+                      borderColor: bot.locked ? "rgba(255,255,255,0.06)" : `${color}22`,
                     }}>
                     <div className="h-0.5 w-full" style={{ background: bot.locked ? "rgba(255,255,255,0.06)" : color }} />
                     <div className="p-4">

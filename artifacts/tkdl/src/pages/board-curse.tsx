@@ -243,13 +243,19 @@ export default function BoardCursePage() {
           ))}
         </div>
         {groups.map(g => (
-          <div key={g.tier} className="mb-6">
-            <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>{TIER_LABEL[g.tier]}</div>
-            <div className="space-y-2">
-              {g.curses.map(c => (
-                <div key={c.name} className="px-3 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          // Brought onto the app's shared .pdc-card system (matches RuleSection's
+          // "card with accent-colored left border" convention) instead of the
+          // one-off flat boxes this used to be — pure chrome change, same data,
+          // same tiers/curses. Rows inside stay flat with a hairline separator,
+          // same "outer card, flat inner rows" pattern boss-battle's leaderboard
+          // panel already uses.
+          <div key={g.tier} className="pdc-card p-4 mb-4" style={{ borderLeft: "3px solid rgba(255,138,0,0.5)" }}>
+            <div className="text-xs font-bold uppercase mb-3" style={{ color: "#ff8a00", letterSpacing: "0.08em" }}>{TIER_LABEL[g.tier]}</div>
+            <div>
+              {g.curses.map((c, i) => (
+                <div key={c.name} className="py-2.5" style={{ borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#fff" }}>{c.name}</div>
-                  <div style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.45)" }}>{c.sampleDescription}</div>
+                  <div style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.45)", marginTop: "2px" }}>{c.sampleDescription}</div>
                 </div>
               ))}
             </div>
@@ -288,27 +294,32 @@ export default function BoardCursePage() {
           <div className="text-center text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>Loading…</div>
         ) : (
           <>
-            <div className="mb-6">
-              <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>Fewest Visits to Close Out</div>
-              {leaderboard.bestVisits.length === 0 ? (
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>No runs recorded yet.</div>
-              ) : leaderboard.bestVisits.map((e, i) => (
-                <div key={i} className="flex items-center justify-between py-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                  <span style={{ fontSize: "0.85rem", color: "#fff" }}>{i + 1}. {e.playerName}</span>
-                  <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#ff8a00" }}>{e.value} visit{e.value === 1 ? "" : "s"}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mb-6">
-              <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>Longest Endless Streak</div>
-              {leaderboard.bestStreak.length === 0 ? (
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>No streaks recorded yet.</div>
-              ) : leaderboard.bestStreak.map((e, i) => (
-                <div key={i} className="flex items-center justify-between py-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                  <span style={{ fontSize: "0.85rem", color: "#fff" }}>{i + 1}. {e.playerName}</span>
-                  <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#ff8a00" }}>{e.value} leg{e.value === 1 ? "" : "s"}</span>
-                </div>
-              ))}
+            {/* Same "outer .pdc-card, flat inner rows" convention as Boss
+                Battle's leaderboard panel below, instead of two floating,
+                card-less blocks — no data or row logic changed. */}
+            <div className="pdc-card p-4">
+              <div className="mb-5">
+                <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>Fewest Visits to Close Out</div>
+                {leaderboard.bestVisits.length === 0 ? (
+                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>No runs recorded yet.</div>
+                ) : leaderboard.bestVisits.map((e, i) => (
+                  <div key={i} className="flex items-center justify-between py-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                    <span style={{ fontSize: "0.85rem", color: "#fff" }}>{i + 1}. {e.playerName}</span>
+                    <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#ff8a00" }}>{e.value} visit{e.value === 1 ? "" : "s"}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>Longest Endless Streak</div>
+                {leaderboard.bestStreak.length === 0 ? (
+                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>No streaks recorded yet.</div>
+                ) : leaderboard.bestStreak.map((e, i) => (
+                  <div key={i} className="flex items-center justify-between py-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                    <span style={{ fontSize: "0.85rem", color: "#fff" }}>{i + 1}. {e.playerName}</span>
+                    <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#ff8a00" }}>{e.value} leg{e.value === 1 ? "" : "s"}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </>
         )}

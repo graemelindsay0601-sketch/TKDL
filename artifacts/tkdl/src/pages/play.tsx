@@ -426,7 +426,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           <Swords className="w-5 h-5" style={{ color: "#ff005c" }} />
         </div>
         <div>
-          <h1 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>Live Scorer</h1>
+          <h1 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>Match Scorer</h1>
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Real match — results submitted to leaderboard</p>
         </div>
       </div>

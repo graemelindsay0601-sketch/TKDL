@@ -4,8 +4,9 @@
  */
 
 import { useState, useEffect } from "react";
-import { BarChart3, TrendingUp, ChevronDown } from "lucide-react";
+import { BarChart3, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { CollapsibleAdminSection } from "./collapsible-section";
 
 interface NotificationStats {
   total_sent: number;
@@ -18,7 +19,6 @@ interface NotificationStats {
 export function NotificationAnalytics() {
   const [stats, setStats] = useState<NotificationStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -39,48 +39,11 @@ export function NotificationAnalytics() {
   };
 
   return (
-    <div style={{
-      background: "rgba(255,255,255,0.02)",
-      border: "1px solid rgba(255,255,255,0.07)",
-      borderRadius: "8px",
-      padding: "20px",
-      color: "#fff",
-    }}>
-      {/* Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          width: "100%",
-          textAlign: "left",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: expanded ? "20px" : 0,
-          padding: 0,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <BarChart3 size={18} style={{ color: "#4d94ff" }} />
-          <h3 style={{ fontSize: "16px", fontWeight: "bold", margin: 0 }}>
-            📊 Notification Analytics (Last 30 Days)
-          </h3>
-        </div>
-        <ChevronDown
-          size={20}
-          style={{
-            transform: expanded ? "rotate(0deg)" : "rotate(-90deg)",
-            transition: "transform 0.2s",
-            flexShrink: 0,
-          }}
-        />
-      </button>
-
-      {/* Stats Grid */}
-      {expanded && (
-        <>
+    // Brought onto the shared CollapsibleAdminSection wrapper — same behavior
+    // (starts collapsed, click to expand), consistent chrome with the rest
+    // of the admin page. #4d94ff swapped for the palette's #38bdf8.
+    <CollapsibleAdminSection title="Notification Analytics (Last 30 Days)" icon={BarChart3} accent="#38bdf8">
+      <div style={{ padding: "20px", color: "#fff" }}>
         {loading ? (
           <div style={{ textAlign: "center", padding: "20px", color: "rgba(255,255,255,0.4)" }}>
             Loading analytics...
@@ -94,8 +57,8 @@ export function NotificationAnalytics() {
         }}>
           {/* Total Sent */}
           <div style={{
-            background: "rgba(74,158,255,0.1)",
-            border: "1px solid rgba(74,158,255,0.2)",
+            background: "rgba(56,189,248,0.1)",
+            border: "1px solid rgba(56,189,248,0.2)",
             borderRadius: "6px",
             padding: "15px",
             textAlign: "center",
@@ -103,7 +66,7 @@ export function NotificationAnalytics() {
             <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.5)", marginBottom: "5px" }}>
               Total Sent
             </div>
-            <div style={{ fontSize: "24px", fontWeight: "bold", color: "#4d94ff" }}>
+            <div style={{ fontSize: "24px", fontWeight: "bold", color: "#38bdf8" }}>
               {stats.total_sent}
             </div>
           </div>
@@ -201,30 +164,33 @@ export function NotificationAnalytics() {
           background: "rgba(255,255,255,0.05)",
           border: "1px solid rgba(255,255,255,0.1)",
           borderRadius: "4px",
-          color: "#4d94ff",
+          color: "#38bdf8",
           fontSize: "12px",
           fontWeight: "bold",
           cursor: "pointer",
           marginBottom: "15px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "6px",
         }}
       >
-        🔄 Refresh
+        <RefreshCw size={13} /> Refresh
       </button>
 
       {/* Info */}
       <div style={{
         padding: "10px",
-        background: "rgba(74,158,255,0.05)",
-        border: "1px solid rgba(74,158,255,0.2)",
+        background: "rgba(56,189,248,0.05)",
+        border: "1px solid rgba(56,189,248,0.2)",
         borderRadius: "4px",
         fontSize: "10px",
         color: "rgba(255,255,255,0.6)",
       }}>
-        💡 Open Rate shows what % of sent notifications were opened. Click Rate shows what % led to engagement.
+        Open Rate shows what % of sent notifications were opened. Click Rate shows what % led to engagement.
         Higher rates = more effective notifications.
       </div>
-        </>
-      )}
-    </div>
+      </div>
+    </CollapsibleAdminSection>
   );
 }

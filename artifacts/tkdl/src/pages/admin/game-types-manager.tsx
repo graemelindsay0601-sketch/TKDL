@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Swords, ChevronDown, Trash2 } from "lucide-react";
+import { Swords, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -149,8 +149,11 @@ export function GameTypesManager() {
                           </div>
                           <div className="text-xs shrink-0 px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>{g.engine}</div>
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* Was ChevronDown, which means expand/collapse everywhere else in this
+                                app (CollapsibleAdminSection, SeasonEditor, etc.) — swapped to Pencil
+                                so "Edit" doesn't borrow the expand/collapse icon's meaning. */}
                             <button onClick={() => startEdit(g)} className="p-1 rounded hover:bg-white/10 transition-colors" style={{ color: "rgba(255,255,255,0.4)" }} title="Edit">
-                              <ChevronDown className="w-3 h-3" />
+                              <Pencil className="w-3 h-3" />
                             </button>
                             <button onClick={() => deleteType(g.id, g.name)} className="p-1 rounded hover:bg-red-500/20 transition-colors" style={{ color: "rgba(255,100,100,0.5)" }} title="Delete">
                               <Trash2 className="w-3 h-3" />

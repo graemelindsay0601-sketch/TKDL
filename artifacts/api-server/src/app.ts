@@ -11,6 +11,9 @@ import { logger } from "./lib/logger";
 import cacheMiddleware from "./middleware/cache";
 import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetLeagueSeasons, initializeSeasonResetScheduler } from "./lib/seasonReset";
+import { addLeaguesTable } from "./db/migrations/add_leagues_table";
+import { addSettingsLeagueId } from "./db/migrations/add_settings_league_id";
+import { getDefaultLeagueId } from "./lib/currentLeague";
 import { addPerformanceIndexes } from "./db/migrations/add_performance_indexes";
 import { addPerformanceIndexes2 } from "./db/migrations/add_performance_indexes_2";
 import { addPerformanceIndexes3 } from "./db/migrations/add_performance_indexes_3";
@@ -28,7 +31,13 @@ import { addLastSeenBroadcastEditionColumn } from "./db/migrations/add_last_seen
 import { backfillCurrentStreaks } from "./db/migrations/backfill_current_streaks";
 import { addCosmeticsTables } from "./db/migrations/add_cosmetics_tables";
 import { addEquippedCosmeticsColumns } from "./db/migrations/add_equipped_cosmetics";
+import { addBannerFrameCosmeticColumns } from "./db/migrations/add_banner_frame_cosmetics";
+import { addGlowCosmeticColumn } from "./db/migrations/add_glow_cosmetic";
+import { addResultThemeCosmeticColumn } from "./db/migrations/add_result_theme_cosmetic";
+import { addBubbleColorCosmeticColumn } from "./db/migrations/add_bubble_color_cosmetic";
+import { addCosmeticPurchasableFlag } from "./db/migrations/add_cosmetic_purchasable_flag";
 import { seedCosmeticDefinitions } from "./services/cosmetics-service";
+import { addLastSeenHubAtColumn } from "./db/migrations/add_last_seen_hub_at";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
 import { up as createCardClashFavoritesTable } from "./db/migrations/add_card_clash_favorites";
 import { addDailyChallengeKeyColumn } from "./db/migrations/add_daily_challenge_key";
@@ -416,25 +425,23 @@ async function seedRealData() {
   logger.info("Real TKDL data seeded successfully");
 }
 
+// Table creation/shape (including the league_id column and its composite
+// primary key) is owned by addLeaguesTable/addSettingsLeagueId, which run
+// before this in init() — this function only ensures default rows exist,
+// scoped to the default league.
 async function seedSettings() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
+  const leagueId = await getDefaultLeagueId();
   // ON CONFLICT DO NOTHING — preserves any admin-set values
   await db.execute(sql`
-    INSERT INTO settings (key, value) VALUES
-      ('live_scorer_enabled',    'false'),
-      ('community_enabled',      'false'),
-      ('messaging_enabled',      'false'),
-      ('notifications_enabled',  'false'),
-      ('doubles_event_enabled',  'true'),
-      ('dartboard_heatmap_enabled', 'false'),
-      ('voice_callouts_enabled', 'false')
-    ON CONFLICT (key) DO NOTHING
+    INSERT INTO settings (league_id, key, value) VALUES
+      (${leagueId}, 'live_scorer_enabled',    'false'),
+      (${leagueId}, 'community_enabled',      'false'),
+      (${leagueId}, 'messaging_enabled',      'false'),
+      (${leagueId}, 'notifications_enabled',  'false'),
+      (${leagueId}, 'doubles_event_enabled',  'true'),
+      (${leagueId}, 'dartboard_heatmap_enabled', 'false'),
+      (${leagueId}, 'voice_callouts_enabled', 'false')
+    ON CONFLICT (league_id, key) DO NOTHING
   `);
   logger.info("Settings defaults ensured");
 }
@@ -1134,6 +1141,10 @@ async function runInitStep(name: string, fn: () => Promise<unknown> | unknown): 
 }
 
 async function init() {
+  // Multi-tenant foundation — must run before anything that reads/writes
+  // league-scoped tables (seedSettings included, right below).
+  await runInitStep("addLeaguesTable", addLeaguesTable);
+  await runInitStep("addSettingsLeagueId", addSettingsLeagueId);
   await runInitStep("seedSettings", seedSettings);
   await runInitStep("initializeCardTables", initializeCardTables);
   await runInitStep("ensureCardClashAchievementTables", ensureCardClashAchievementTables);
@@ -1222,8 +1233,14 @@ async function init() {
   await runInitStep("addLastSeenBroadcastEditionColumn", addLastSeenBroadcastEditionColumn);
   await runInitStep("addCosmeticsTables", addCosmeticsTables);
   await runInitStep("addEquippedCosmeticsColumns", addEquippedCosmeticsColumns);
-  // Needs addCosmeticsTables to have run first — upserts into cosmetic_definitions.
+  await runInitStep("addBannerFrameCosmeticColumns", addBannerFrameCosmeticColumns);
+  await runInitStep("addGlowCosmeticColumn", addGlowCosmeticColumn);
+  await runInitStep("addResultThemeCosmeticColumn", addResultThemeCosmeticColumn);
+  await runInitStep("addBubbleColorCosmeticColumn", addBubbleColorCosmeticColumn);
+  await runInitStep("addCosmeticPurchasableFlag", addCosmeticPurchasableFlag);
+  // Needs addCosmeticsTables and addCosmeticPurchasableFlag to have run first — upserts into cosmetic_definitions.
   await runInitStep("seedCosmeticDefinitions", seedCosmeticDefinitions);
+  await runInitStep("addLastSeenHubAtColumn", addLastSeenHubAtColumn);
   await runInitStep("maybeAutoResetLeagueSeasons", maybeAutoResetLeagueSeasons);
   // Runs after maybeAutoResetLeagueSeasons so a reset firing on this exact
   // boot is immediately reconciled too, though with seasonReset.ts's fix

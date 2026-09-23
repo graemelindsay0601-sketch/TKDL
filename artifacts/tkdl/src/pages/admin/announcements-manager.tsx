@@ -4,8 +4,9 @@
  */
 
 import { useState } from "react";
-import { Send, AlertCircle, CheckCircle, X, ChevronDown } from "lucide-react";
+import { Send, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { CollapsibleAdminSection } from "./collapsible-section";
 
 export function AnnouncementsManager() {
   const [title, setTitle] = useState("");
@@ -13,7 +14,6 @@ export function AnnouncementsManager() {
   const [critical, setCritical] = useState(false);
   const [sending, setSending] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const { toast } = useToast();
 
   const handleSendTest = async () => {
@@ -63,50 +63,16 @@ export function AnnouncementsManager() {
   };
 
   return (
-    <div style={{
-      background: "rgba(255,255,255,0.02)",
-      border: "1px solid rgba(255,255,255,0.07)",
-      borderRadius: "8px",
-      padding: "20px",
-      color: "#fff",
-    }}>
-      {/* Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          width: "100%",
-          textAlign: "left",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: expanded ? "20px" : 0,
-          padding: 0,
-        }}
-      >
-        <div>
-          <h3 style={{ fontSize: "16px", fontWeight: "bold", margin: 0, marginBottom: "5px" }}>
-            📢 Send Announcement
-          </h3>
-          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", margin: 0 }}>
-            Notify all players with an important message
-          </p>
-        </div>
-        <ChevronDown
-          size={20}
-          style={{
-            transform: expanded ? "rotate(0deg)" : "rotate(-90deg)",
-            transition: "transform 0.2s",
-            flexShrink: 0,
-            marginLeft: "10px",
-          }}
-        />
-      </button>
+    // Brought onto the shared CollapsibleAdminSection wrapper (same as
+    // SeasonEditor/ShiftWarsAdmin/etc. below it on the admin page) instead
+    // of a hand-rolled collapse button — same behavior, consistent chrome.
+    <CollapsibleAdminSection title="Send Announcement" icon={Send} accent="#ff005c">
+      <div style={{ padding: "20px", color: "#fff" }}>
+      <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", margin: "0 0 15px" }}>
+        Notify all players with an important message
+      </p>
 
       {/* Form */}
-      {expanded && (
       <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
         {/* Title Input */}
         <div>
@@ -263,7 +229,7 @@ export function AnnouncementsManager() {
           </div>
         </div>
       </div>
-      )}
-    </div>
+      </div>
+    </CollapsibleAdminSection>
   );
 }

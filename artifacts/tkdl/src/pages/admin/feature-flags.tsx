@@ -152,7 +152,7 @@ export function FeatureFlags() {
     <CollapsibleAdminSection title="Feature Flags" icon={Zap} accent="#a78bfa" borderColor="rgba(167,139,250,0.15)" background="rgba(167,139,250,0.02)"
       badge={<span className="text-xs font-bold uppercase px-2 py-0.5 rounded-full ml-1" style={{ background: "rgba(167,139,250,0.12)", border: "1px solid rgba(167,139,250,0.3)", color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>Dev</span>}>
       <div className="px-5 py-4 space-y-5">
-        {row("Live Scorer", "Show the in-game scorer in the nav for all players", liveScorer, setLiveScorer, "live_scorer_enabled", "Live Scorer enabled", "Live Scorer hidden")}
+        {row("Match Scorer", "Show the in-game scorer in the nav for all players", liveScorer, setLiveScorer, "live_scorer_enabled", "Match Scorer enabled", "Match Scorer hidden")}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
         {row("Community Feed", "Show the Community section in the nav, allow players to post, and enable automatic match posts (180s, checkouts, eliminations, etc.)", communityOn, setCommunityOn, "community_enabled", "Community enabled", "Community hidden")}
         {row("Direct Messaging", "Allow players to send each other private messages via the Account page", messagingOn, setMessagingOn, "messaging_enabled", "Messaging enabled", "Messaging disabled")}
@@ -165,7 +165,7 @@ export function FeatureFlags() {
         <div>
           <div className="text-xs font-bold uppercase mb-1" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>Season Events</div>
           <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.2)" }}>Turn a season event on or off — handy for events you only run some seasons.</div>
-          {row("Doubles Event", "Random-draw team event alongside the main season — Play, Submit Match, and Live Scorer all hide it when off", doublesEventOn, setDoublesEventOn, "doubles_event_enabled", "Doubles Event live", "Doubles Event hidden")}
+          {row("Doubles Event", "Random-draw team event alongside the main season — Play, Submit Match, and Match Scorer all hide it when off", doublesEventOn, setDoublesEventOn, "doubles_event_enabled", "Doubles Event live", "Doubles Event hidden")}
         </div>
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
         <div>
@@ -173,7 +173,7 @@ export function FeatureFlags() {
           <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.2)" }}>New and untested — try them out yourself first before turning them on for everyone.</div>
           <div className="space-y-5">
             {row("Dartboard Heatmap", "Visual board showing where a player's darts actually land, on their stats page — needs 60+ logged darts to show anything", heatmapOn, setHeatmapOn, "dartboard_heatmap_enabled", "Dartboard Heatmap live", "Dartboard Heatmap hidden")}
-            {row("Voice Call-Outs", "Live scorer announces scores, checkouts, and 180s out loud using the browser's built-in voice — players can still mute it themselves at the table", voiceCalloutsOn, setVoiceCalloutsOn, "voice_callouts_enabled", "Voice Call-Outs live", "Voice Call-Outs hidden")}
+            {row("Voice Call-Outs", "Match Scorer announces scores, checkouts, and 180s out loud using the browser's built-in voice — players can still mute it themselves at the table", voiceCalloutsOn, setVoiceCalloutsOn, "voice_callouts_enabled", "Voice Call-Outs live", "Voice Call-Outs hidden")}
             {row("Boss Battle", "A ladder of CPU bosses with fixed debuffs built from Card Clash's effects system — arcade only, no Elo impact. Test the ladder yourself before turning it on for everyone", bossBattleOn, setBossBattleOn, "boss_battle_enabled", "Boss Battle live", "Boss Battle hidden")}
             {row("Board Curse", "A standalone mode where random curses strike as a leg goes on, getting worse the longer it runs — solo, vs a bot, or vs a friend. Arcade only, no Elo impact. Test it yourself before turning it on for everyone", boardCurseOn, setBoardCurseOn, "board_curse_enabled", "Board Curse live", "Board Curse hidden")}
             {row("Shift Wars", "A standing 3-team department competition (Fresh, Twilight, Shift Leader) using the same points/wager rules as the Doubles Event — fixed rosters, no random draw. Manage teams and rosters below once live", shiftWarsOn, setShiftWarsOn, "shift_wars_enabled", "Shift Wars live", "Shift Wars hidden")}
@@ -232,7 +232,7 @@ export function FeatureFlags() {
         <div className="flex gap-2">
           <a href="/play" className="flex-1 py-2.5 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
             style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.3)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
-            <Swords className="inline w-3.5 h-3.5 mr-1.5" />Live Scorer →
+            <Swords className="inline w-3.5 h-3.5 mr-1.5" />Match Scorer →
           </a>
           <a href="/practice" className="flex-1 py-2.5 text-center text-xs font-bold uppercase rounded-lg tracking-wider"
             style={{ background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.3)", color: "#a78bfa", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>

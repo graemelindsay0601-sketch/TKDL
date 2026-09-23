@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TKDL Coin Economy — Concept Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700;800&family=Share+Tech+Mono&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06040e;
+    --gold:#ffd24a;
+    --red:#ff005c;
+    --blue:#0066ff;
+    --skyblue:#38bdf8;
+    --purple:#a855f7;
+    --green:#00e5a0;
+    --text:#f2f1f6;
+    --text-dim:rgba(242,241,246,0.55);
+    --text-faint:rgba(242,241,246,0.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    position:relative;
+    overflow-x:hidden;
+  }
+  .ambient-blob-red{
+    position:fixed; top:-120px; left:-120px; width:520px; height:520px; border-radius:50%;
+    filter:blur(120px); opacity:0.2; background:rgba(255,0,60,0.5);
+    animation:float1 16s ease-in-out infinite; pointer-events:none; z-index:0;
+  }
+  .ambient-blob-blue{
+    position:fixed; bottom:-160px; right:-120px; width:520px; height:520px; border-radius:50%;
+    filter:blur(120px); opacity:0.2; background:rgba(0,102,255,0.45);
+    animation:float2 20s ease-in-out infinite; pointer-events:none; z-index:0;
+  }
+  @keyframes float1{0%,100%{transform:translate(0,0)}50%{transform:translate(40px,30px)}}
+  @keyframes float2{0%,100%{transform:translate(0,0)}50%{transform:translate(-40px,-30px)}}
+
+  .wrap{ position:relative; z-index:1; max-width:1080px; margin:0 auto; padding:36px 24px 80px; }
+
+  .banner{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:10px 18px; border-radius:12px; margin-bottom:28px;
+    background:rgba(255,210,74,0.08); border:1px solid rgba(255,210,74,0.25);
+    font-family:'Oswald',sans-serif; font-size:0.78rem; letter-spacing:0.06em; text-transform:uppercase;
+    color:var(--gold);
+  }
+
+  .pdc-card{
+    background:linear-gradient(145deg, rgba(18,18,26,0.95), rgba(8,8,12,0.97));
+    border:1px solid rgba(255,255,255,0.07);
+    backdrop-filter:blur(16px);
+    border-radius:20px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+
+  header.page-head{ display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:18px; margin-bottom:24px; }
+  header.page-head h1{
+    font-family:'Oswald',sans-serif; font-weight:800; font-size:2.1rem; margin:0;
+    letter-spacing:0.01em;
+  }
+  header.page-head .sub{ color:var(--text-dim); font-size:0.92rem; margin-top:4px; }
+
+  .balance-pill{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 18px; border-radius:999px;
+    background:linear-gradient(145deg, rgba(255,210,74,0.14), rgba(255,210,74,0.04));
+    border:1px solid rgba(255,210,74,0.35);
+  }
+  .balance-pill .coin-icon{
+    width:26px; height:26px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #fff3c4, var(--gold) 55%, #b8860b 100%);
+    box-shadow:0 0 14px rgba(255,210,74,0.5);
+    flex-shrink:0;
+  }
+  .balance-pill .amt{ font-family:'Share Tech Mono',monospace; font-size:1.15rem; font-weight:700; color:var(--gold); }
+  .balance-pill .lbl{ font-family:'Oswald',sans-serif; font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-faint); }
+
+  /* Tabs */
+  .tabs{ display:flex; gap:8px; margin-bottom:28px; border-bottom:1px solid rgba(255,255,255,0.08); }
+  .tab-btn{
+    appearance:none; background:none; border:none; cursor:pointer;
+    font-family:'Oswald',sans-serif; font-weight:600; font-size:0.92rem; letter-spacing:0.03em;
+    color:var(--text-faint); padding:12px 18px; border-bottom:2px solid transparent;
+    transition:color .15s ease, border-color .15s ease;
+  }
+  .tab-btn.active{ color:var(--text); border-color:var(--gold); }
+  .tab-btn:hover:not(.active){ color:var(--text-dim); }
+
+  .view{ display:none; }
+  .view.active{ display:block; animation:fadeIn .25s ease; }
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+  /* ===== WALLET VIEW ===== */
+  .wallet-hero{
+    padding:32px; margin-bottom:24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:24px;
+    position:relative; overflow:hidden;
+  }
+  .wallet-hero::before{
+    content:""; position:absolute; inset:0;
+    background:radial-gradient(circle at top right, rgba(255,210,74,0.10), transparent 45%),
+               radial-gradient(circle at bottom left, rgba(0,102,255,0.08), transparent 40%);
+    pointer-events:none;
+  }
+  .wallet-hero .big-balance{ position:relative; z-index:1; }
+  .wallet-hero .big-balance .lbl{ font-family:'Oswald',sans-serif; font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-faint); margin-bottom:6px; }
+  .wallet-hero .big-balance .num{
+    font-family:'Share Tech Mono',monospace; font-size:3.2rem; font-weight:700; color:var(--gold);
+    line-height:1; display:flex; align-items:center; gap:14px;
+  }
+  .wallet-hero .big-balance .num .coin-icon-lg{
+    width:44px; height:44px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #fff3c4, var(--gold) 55%, #b8860b 100%);
+    box-shadow:0 0 22px rgba(255,210,74,0.55);
+  }
+  .wallet-hero .quick-links{ position:relative; z-index:1; display:flex; gap:10px; flex-wrap:wrap; }
+  .quick-link-btn{
+    font-family:'Oswald',sans-serif; font-weight:600; font-size:0.82rem; letter-spacing:0.03em;
+    padding:11px 20px; border-radius:11px; cursor:pointer; border:1px solid rgba(255,255,255,0.12);
+    background:rgba(255,255,255,0.03); color:var(--text); transition:all .15s ease;
+  }
+  .quick-link-btn.primary{ background:linear-gradient(135deg, var(--gold), #f0a93a); color:#1a1200; border:none; }
+  .quick-link-btn:hover{ transform:translateY(-1px); border-color:rgba(255,255,255,0.25); }
+
+  .earn-hint{ font-size:0.78rem; color:var(--text-faint); margin-top:14px; position:relative; z-index:1; }
+
+  .section-label{
+    font-family:'Oswald',sans-serif; font-weight:700; font-size:0.85rem; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--text-dim); margin:0 0 14px 2px; display:flex; align-items:center; gap:8px;
+  }
+  .section-label .dash{ width:22px; height:2px; background:var(--gold); border-radius:2px; }
+
+  .activity-log{ padding:8px 0; }
+  .activity-row{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:14px 22px; border-bottom:1px solid rgba(255,255,255,0.05);
+  }
+  .activity-row:last-child{ border-bottom:none; }
+  .activity-left{ display:flex; align-items:center; gap:14px; }
+  .activity-icon{
+    width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+    font-size:1rem; flex-shrink:0;
+  }
+  .activity-icon.earn{ background:rgba(0,229,160,0.12); color:var(--green); }
+  .activity-icon.spend{ background:rgba(255,0,92,0.12); color:var(--red); }
+  .activity-title{ font-size:0.9rem; font-weight:500; }
+  .activity-time{ font-size:0.75rem; color:var(--text-faint); margin-top:2px; }
+  .activity-amt{ font-family:'Share Tech Mono',monospace; font-weight:700; font-size:0.95rem; white-space:nowrap; }
+  .activity-amt.earn{ color:var(--green); }
+  .activity-amt.spend{ color:var(--red); }
+
+  /* ===== STORE VIEW ===== */
+  .store-cat{ margin-bottom:38px; }
+  .store-cat-head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px; }
+  .store-cat-head h3{ font-family:'Oswald',sans-serif; font-weight:700; font-size:1.15rem; margin:0; }
+  .store-cat-head p{ font-size:0.8rem; color:var(--text-faint); margin:2px 0 0; }
+
+  .item-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:16px; }
+  .item-card{
+    padding:0; overflow:hidden; display:flex; flex-direction:column;
+    transition:transform .15s ease, border-color .15s ease;
+  }
+  .item-card:hover{ transform:translateY(-3px); border-color:rgba(255,255,255,0.14); }
+
+  .item-preview{
+    height:100px; position:relative; display:flex; align-items:center; justify-content:center;
+    border-bottom:1px solid rgba(255,255,255,0.06);
+  }
+  .item-rarity{
+    position:absolute; top:8px; left:8px; font-family:'Oswald',sans-serif; font-size:0.62rem; font-weight:700;
+    letter-spacing:0.06em; text-transform:uppercase; padding:3px 8px; border-radius:6px;
+  }
+  .r-common{ background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.7); }
+  .r-rare{ background:rgba(56,189,248,0.15); color:var(--skyblue); }
+  .r-legendary{ background:rgba(255,210,74,0.16); color:var(--gold); }
+
+  .item-body{ padding:14px 14px 16px; display:flex; flex-direction:column; gap:10px; flex:1; }
+  .item-name{ font-family:'Oswald',sans-serif; font-weight:600; font-size:0.92rem; line-height:1.25; }
+  .item-desc{ font-size:0.74rem; color:var(--text-faint); line-height:1.4; flex:1; }
+  .item-footer{ display:flex; align-items:center; justify-content:space-between; margin-top:2px; }
+  .item-price{ display:flex; align-items:center; gap:6px; font-family:'Share Tech Mono',monospace; font-size:0.88rem; color:var(--gold); font-weight:700; }
+  .item-price .mini-coin{ width:13px; height:13px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #fff3c4, var(--gold) 55%, #b8860b 100%); }
+  .buy-btn{
+    font-family:'Oswald',sans-serif; font-weight:600; font-size:0.72rem; letter-spacing:0.03em; text-transform:uppercase;
+    padding:7px 13px; border-radius:8px; border:1px solid rgba(255,255,255,0.14); background:rgba(255,255,255,0.04);
+    color:var(--text); cursor:pointer;
+  }
+  .buy-btn.owned{ background:rgba(0,229,160,0.1); border-color:rgba(0,229,160,0.3); color:var(--green); }
+
+  /* --- preview swatches for each item type --- */
+  .pv-banner{ width:100%; height:100%; }
+  .pv-frame{ width:56px; height:56px; border-radius:50%; background:#1c1c26; position:relative; display:flex; align-items:center; justify-content:center; }
+  .pv-frame::before{ content:""; position:absolute; inset:-5px; border-radius:50%; }
+  .pv-frame .init{ font-family:'Oswald'; font-weight:700; color:rgba(255,255,255,0.6); font-size:1.1rem; }
+
+  .pv-title-tag{
+    font-family:'Oswald',sans-serif; font-weight:700; font-size:0.8rem; letter-spacing:0.04em; text-transform:uppercase;
+    padding:6px 14px; border-radius:8px;
+  }
+
+  .pv-name-effect{ font-family:'Oswald',sans-serif; font-weight:700; font-size:1.05rem; }
+
+  .pv-board{ width:66px; height:66px; border-radius:50%; position:relative; }
+  .pv-board::after{ content:""; position:absolute; inset:24px; border-radius:50%; background:#0a0a12; }
+
+  footer.note{
+    margin-top:44px; padding:16px 20px; border-radius:14px; font-size:0.8rem; color:var(--text-faint);
+    background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); line-height:1.6;
+  }
+  footer.note strong{ color:var(--text-dim); }
+
+  @keyframes shimmer{
+    0%{ background-position:0% 50%; }
+    100%{ background-position:200% 50%; }
+  }
+</style>
+</head>
+<body>
+  <div class="ambient-blob-red"></div>
+  <div class="ambient-blob-blue"></div>
+
+  <div class="wrap">
+    <div class="banner">⚠ Concept preview v2 — bigger catalog, Card Clash removed — nothing here is wired up yet</div>
+
+    <header class="page-head">
+      <div>
+        <h1>Wallet</h1>
+        <div class="sub">Account → Wallet — one place for your balance, history, and everywhere you can spend it</div>
+      </div>
+      <div class="balance-pill">
+        <div class="coin-icon"></div>
+        <div>
+          <div class="amt">1,240</div>
+          <div class="lbl">Coins</div>
+        </div>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="wallet">Wallet</button>
+      <button class="tab-btn" data-tab="store">Store</button>
+    </div>
+
+    <!-- ============ WALLET VIEW ============ -->
+    <div class="view active" id="view-wallet">
+      <div class="pdc-card wallet-hero">
+        <div class="big-balance">
+          <div class="lbl">Your Balance</div>
+          <div class="num"><span class="coin-icon-lg"></span>1,240</div>
+          <div class="earn-hint">Earned from league matches, practice, Master 501, Tour, Card Clash &amp; challenges</div>
+        </div>
+        <div class="quick-links">
+          <button class="quick-link-btn primary" onclick="showTab('store')">Open Store</button>
+          <button class="quick-link-btn">View Card Collection</button>
+        </div>
+      </div>
+
+      <div class="section-label"><span class="dash"></span>Recent Activity</div>
+      <div class="pdc-card activity-log">
+        <div class="activity-row">
+          <div class="activity-left">
+            <div class="activity-icon earn">🏆</div>
+            <div>
+              <div class="activity-title">League win vs S. Docherty</div>
+              <div class="activity-time">Today, 8:42pm</div>
+            </div>
+          </div>
+          <div class="activity-amt earn">+50</div>
+        </div>
+        <div class="activity-row">
+          <div class="activity-left">
+            <div class="activity-icon spend">🛍️</div>
+            <div>
+              <div class="activity-title">Bought "Checkout King" title</div>
+              <div class="activity-time">Today, 6:15pm</div>
+            </div>
+          </div>
+          <div class="activity-amt spend">-120</div>
+        </div>
+        <div class="activity-row">
+          <div class="activity-left">
+            <div class="activity-icon earn">🎯</div>
+            <div>
+              <div class="activity-title">Practice session completed</div>
+              <div class="activity-time">Yesterday, 7:30pm</div>
+            </div>
+          </div>
+          <div class="activity-amt earn">+15</div>
+        </div>
+        <div class="activity-row">
+          <div class="activity-left">
+            <div class="activity-icon spend">🎴</div>
+            <div>
+              <div class="activity-title">Bought "Kilbirnie Night" pack</div>
+              <div class="activity-time">2 days ago</div>
+            </div>
+          </div>
+          <div class="activity-amt spend">-200</div>
+        </div>
+        <div class="activity-row">
+          <div class="activity-left">
+            <div class="activity-icon earn">📅</div>
+            <div>
+              <div class="activity-title">Weekly challenge completed</div>
+              <div class="activity-time">3 days ago</div>
+            </div>
+          </div>
+          <div class="activity-amt earn">+40</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ STORE VIEW ============ -->
+    <div class="view" id="view-store">
+
+      <div class="store-cat">
+        <div class="store-cat-head">
+          <div>
+            <h3>Profile &amp; Identity</h3>
+            <p>Banners, avatar frames &amp; name effects — shown on your account and player page</p>
+          </div>
+        </div>
+        <div class="item-grid">
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:linear-gradient(120deg,#1a2a3d,#0e1420 60%,#ff005c22);">
+              <span class="item-rarity r-rare">Rare</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Kilbirnie Skyline Banner</div>
+              <div class="item-desc">Profile header background</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>100</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:radial-gradient(circle at 50% 40%, #2a1030, #0a0a12 70%);">
+              <span class="item-rarity r-legendary">Legendary</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Checkout Fireworks Banner</div>
+              <div class="item-desc">Animated spark burst backdrop</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>180</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#15151f;">
+              <span class="item-rarity r-common">Common</span>
+              <div class="pv-frame" style="box-shadow:0 0 0 3px #444, 0 0 18px rgba(255,255,255,0.08);"><span class="init">GL</span></div>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Oche Steel Frame</div>
+              <div class="item-desc">Brushed-steel avatar border</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>60</span>
+                <button class="buy-btn owned">Owned</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#15151f;">
+              <span class="item-rarity r-legendary">Legendary</span>
+              <div class="pv-frame" style="box-shadow:0 0 0 3px var(--gold), 0 0 22px rgba(255,210,74,0.55);"><span class="init">GL</span></div>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Champion's Gold Frame</div>
+              <div class="item-desc">Glowing gold avatar border</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>250</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#0d0d14;">
+              <span class="item-rarity r-rare">Rare</span>
+              <div class="pv-name-effect" style="background:linear-gradient(90deg,#ffd24a,#ff005c,#ffd24a); background-size:200% auto; -webkit-background-clip:text; background-clip:text; color:transparent; animation:shimmer 3s linear infinite;">Graeme L.</div>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Ton-Eighty Shimmer</div>
+              <div class="item-desc">Animated gradient name colour</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>150</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#0d0d14; display:flex; align-items:center; justify-content:center;">
+              <span class="item-rarity r-common">Common</span>
+              <div class="pv-name-effect" style="color:var(--skyblue); text-shadow:0 0 10px rgba(56,189,248,0.6);">Graeme L.</div>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Ice Pulse Name</div>
+              <div class="item-desc">Soft glowing blue name colour</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>70</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:linear-gradient(135deg,#2a1810,#0a0a12 70%);">
+              <span class="item-rarity r-common">Common</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Chalkboard Pub Banner</div>
+              <div class="item-desc">Old-school scoreboard chalk texture</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>80</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#12121a;">
+              <span class="item-rarity r-common">Common</span>
+              <div style="font-size:0.72rem; color:var(--text-faint); font-family:'Oswald'; letter-spacing:0.04em; text-align:center; padding:0 10px;">"Never misses a Friday" — under your name</div>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Custom Tagline</div>
+              <div class="item-desc">A short personal line on your profile</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>60</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:repeating-linear-gradient(45deg,#141420,#141420 8px,#0d0d16 8px,#0d0d16 16px);">
+              <span class="item-rarity r-rare">Rare</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Carbon Weave Backdrop</div>
+              <div class="item-desc">Full-page subtle texture behind your profile</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>110</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:conic-gradient(from 90deg, var(--red), var(--gold), var(--green), var(--skyblue), var(--purple), var(--red));">
+              <span class="item-rarity r-legendary">Legendary</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Personal Accent Colour</div>
+              <div class="item-desc">Pick your own hue — tints buttons &amp; highlights across your profile</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>300</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="store-cat">
+        <div class="store-cat-head">
+          <div>
+            <h3>Leaderboard Flourishes</h3>
+            <p>Titles, badges &amp; flair shown next to your name on the leaderboard</p>
+          </div>
+        </div>
+        <div class="item-grid">
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#15151f;">
+              <span class="item-rarity r-rare">Rare</span>
+              <span class="pv-title-tag" style="background:rgba(255,0,92,0.14); color:var(--red); border:1px solid rgba(255,0,92,0.3);">Checkout King</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">"Checkout King" Title</div>
+              <div class="item-desc">Displayed under your name on the board</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>120</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#15151f;">
+              <span class="item-rarity r-common">Common</span>
+              <span class="pv-title-tag" style="background:rgba(56,189,248,0.14); color:var(--skyblue); border:1px solid rgba(56,189,248,0.3);">Iron Arm</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">"Iron Arm" Title</div>
+              <div class="item-desc">Displayed under your name on the board</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>90</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#15151f;">
+              <span class="item-rarity r-legendary">Legendary</span>
+              <span class="pv-title-tag" style="background:rgba(255,210,74,0.16); color:var(--gold); border:1px solid rgba(255,210,74,0.35);">180 Club</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">"180 Club" Badge</div>
+              <div class="item-desc">Earned automatically — shows here for reference, not purchasable</div>
+              <div class="item-footer">
+                <span class="item-price" style="color:var(--text-faint);">Achievement</span>
+                <button class="buy-btn owned">Owned</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#15151f; display:flex; align-items:center; justify-content:center; gap:8px;">
+              <span class="item-rarity r-common">Common</span>
+              <span style="font-size:1.6rem;">🔥</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Streak Flair Icon</div>
+              <div class="item-desc">Small flame icon next to your name while on a win streak</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>75</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:linear-gradient(90deg, rgba(255,210,74,0.18), transparent);">
+              <span class="item-rarity r-rare">Rare</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Row Glow — Gold</div>
+              <div class="item-desc">Subtle highlight colour on your own leaderboard row</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>85</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#12121a; display:flex; align-items:center; justify-content:center;">
+              <span class="item-rarity r-rare">Rare</span>
+              <span style="font-size:1.5rem;">🎆</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Rank-Up Celebration</div>
+              <div class="item-desc">Flourish that plays when you climb the table</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>130</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="store-cat">
+        <div class="store-cat-head">
+          <div>
+            <h3>Trophy Case &amp; Showcase</h3>
+            <p>Curate what shows on your profile — more a customization screen than a shop</p>
+          </div>
+        </div>
+        <div class="item-grid">
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#15151f; display:flex; gap:6px; align-items:center; justify-content:center;">
+              <span class="item-rarity r-rare">Rare</span>
+              <span style="font-size:1.4rem;">🏆</span><span style="font-size:1.4rem;">🎯</span><span style="font-size:1.4rem;">🔥</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Trophy Shelf (3 slots)</div>
+              <div class="item-desc">Feature your favourite 3 achievement badges up top</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>150</span>
+                <button class="buy-btn">Unlock</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#15151f;">
+              <span class="item-rarity r-common">Common</span>
+              <div style="font-family:'Share Tech Mono'; color:var(--gold); font-size:1.1rem;">121 CO</div>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Featured Stat Spotlight</div>
+              <div class="item-desc">Headline one stat of your choosing on your profile</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>90</span>
+                <button class="buy-btn">Unlock</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:linear-gradient(160deg,#1a1420,#0a0a12);">
+              <span class="item-rarity r-legendary">Legendary</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Season Recap Card</div>
+              <div class="item-desc">Shareable summary of a past season's highlights</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>160</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#15151f; display:flex; align-items:center; justify-content:center;">
+              <span class="item-rarity r-common">Common</span>
+              <div style="width:44px;height:44px;border-radius:6px;background:linear-gradient(160deg,#3a2f1a,#1a1508);border:1px solid rgba(255,210,74,0.3);"></div>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Milestone Plaque</div>
+              <div class="item-desc">Cosmetic marker for things like 100 matches played</div>
+              <div class="item-footer">
+                <span class="item-price" style="color:var(--text-faint);">Earned</span>
+                <button class="buy-btn owned">Owned</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="store-cat">
+        <div class="store-cat-head">
+          <div>
+            <h3>Your Player Card</h3>
+            <p>Cosmetic skins for the stat card shown on your player page — not a Card Clash collectible</p>
+          </div>
+        </div>
+        <div class="item-grid">
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:linear-gradient(160deg,#2a2410,#0f0d08); border:1px solid rgba(255,210,74,0.25);">
+              <span class="item-rarity r-rare">Rare</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Foil-Shimmer Finish</div>
+              <div class="item-desc">Subtle animated sheen across your player card</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>170</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:linear-gradient(160deg,#1a1a1a,#0a0a0a); border:1px solid rgba(255,255,255,0.15);">
+              <span class="item-rarity r-common">Common</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Matte Steel Border</div>
+              <div class="item-desc">Clean brushed-metal card border</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>65</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="store-cat">
+        <div class="store-cat-head">
+          <div>
+            <h3>Seasonal &amp; Limited</h3>
+            <p>Rotates with each TKDL season — once it ends, it's gone from the store</p>
+          </div>
+        </div>
+        <div class="item-grid">
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:linear-gradient(135deg,#ff005c33,#0066ff33);">
+              <span class="item-rarity r-legendary">Season Only</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Winter League Banner</div>
+              <div class="item-desc">Only purchasable during the current season</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>140</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#15151f;">
+              <span class="item-rarity r-legendary">Tenure</span>
+              <span class="pv-title-tag" style="background:rgba(168,85,247,0.14); color:var(--purple); border:1px solid rgba(168,85,247,0.3);">Founding Member</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">"Founding Member" Title</div>
+              <div class="item-desc">Unlocks once you've been in the league long enough</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>200</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="store-cat">
+        <div class="store-cat-head">
+          <div>
+            <h3>In-Match Flourishes</h3>
+            <p>Cosmetic touches on your own result screens — never affects the match itself</p>
+          </div>
+        </div>
+        <div class="item-grid">
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:radial-gradient(circle at 30% 30%, rgba(168,85,247,0.35), #0a0a12 65%);">
+              <span class="item-rarity r-rare">Rare</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Neon Oche Result Theme</div>
+              <div class="item-desc">Purple/magenta accent on your result screens</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>140</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#0d0d14; display:flex; align-items:center; justify-content:center; gap:4px;">
+              <span class="item-rarity r-common">Common</span>
+              <div style="width:8px;height:8px;border-radius:50%;background:var(--gold);"></div>
+              <div style="width:6px;height:6px;border-radius:50%;background:var(--red);margin-top:-14px;"></div>
+              <div style="width:7px;height:7px;border-radius:50%;background:var(--skyblue);margin-top:10px;"></div>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Golden Confetti Win Effect</div>
+              <div class="item-desc">Victory-screen celebration style</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>100</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:#0a0a0f;">
+              <span class="item-rarity r-legendary">Legendary</span>
+              <div class="pv-board" style="background:conic-gradient(#1a1a1a 0 20deg, #2b2b2b 20deg 40deg, #1a1a1a 40deg 60deg, #2b2b2b 60deg 80deg, #1a1a1a 80deg 100deg, #2b2b2b 100deg 120deg, #1a1a1a 120deg 140deg, #2b2b2b 140deg 160deg, #1a1a1a 160deg 180deg, #2b2b2b 180deg 200deg, #1a1a1a 200deg 220deg, #2b2b2b 220deg 240deg, #1a1a1a 240deg 260deg, #2b2b2b 260deg 280deg, #1a1a1a 280deg 300deg, #2b2b2b 300deg 320deg, #1a1a1a 320deg 340deg, #2b2b2b 340deg 360deg); box-shadow:0 0 20px rgba(255,255,255,0.08);"></div>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Carbon Fibre Board Skin</div>
+              <div class="item-desc">Dartboard reskin for your own view during practice</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>200</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="store-cat">
+        <div class="store-cat-head">
+          <div>
+            <h3>Cards &amp; Packs</h3>
+            <p>The existing Card Clash shop — same items, now reachable from the same place as everything else</p>
+          </div>
+        </div>
+        <div class="item-grid">
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:linear-gradient(160deg,#1a1a2e,#0a0a12);">
+              <span class="item-rarity r-common">Standard</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Single Pull</div>
+              <div class="item-desc">1 card pack</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>50</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:linear-gradient(160deg,#1a1a2e,#0a0a12);">
+              <span class="item-rarity r-rare">Rare</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Kilbirnie Night 5-Pack</div>
+              <div class="item-desc">5 card packs</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>200</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pdc-card item-card">
+            <div class="item-preview" style="background:linear-gradient(160deg,#1a1a2e,#0a0a12);">
+              <span class="item-rarity r-legendary">Legendary</span>
+            </div>
+            <div class="item-body">
+              <div class="item-name">Legend Vault 10-Pack</div>
+              <div class="item-desc">10 card packs</div>
+              <div class="item-footer">
+                <span class="item-price"><span class="mini-coin"></span>350</span>
+                <button class="buy-btn">Buy</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <footer class="note">
+      <strong>What's already partly built:</strong> the name-effect and avatar-frame categories extend the existing Cosmetics shop. Everything else on this page is new.<br>
+      <strong>Card Clash:</strong> removed entirely from this concept, per your steer — this system is now fully independent of it.<br>
+      <strong>Scale note:</strong> this is a lot — eight categories if you count everything in the full idea list. Nothing on this page needs to ship at once; treat each category as its own milestone and we pick an order once you've seen the shape of all of them.
+    </footer>
+  </div>
+
+  <script>
+    document.querySelectorAll('.tab-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=> showTab(btn.dataset.tab));
+    });
+    function showTab(tab){
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+      document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+      document.getElementById('view-'+tab).classList.add('active');
+    }
+  </script>
+</body>
+</html>

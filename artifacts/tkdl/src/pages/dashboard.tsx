@@ -1,32 +1,42 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   useGetStatsSummary,
   useGetLeaderboard,
   useGetRecentActivity,
-  useGetNarrativeCards,
-  useGetStatsRivalries,
-  useGetRecentAchievements,
-  useGetTourSummary,
-  useGetTourAllTrophies,
-  useGetBotsLeaderboard,
 } from "@workspace/api-client-react";
 import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
 import { useCurrentPlayer } from "@/context/auth";
+import { useCosmeticsCatalog, PROFILE_ICON_MAP } from "@/lib/cosmetics";
+import { useSettings } from "@/hooks/use-settings";
 import { Link } from "wouter";
 import {
-  Trophy, Swords, Flame, Skull, Zap, Target, AlertTriangle,
-  Star, Medal, CircuitBoard, ChevronRight, Crosshair,
-  Users, Building2, Ghost, Layers, Pin,
+  Trophy, Swords, Flame, Skull, Zap, AlertTriangle,
+  Star, Plus, Dumbbell, Award, History, BookOpen,
+  Users, Building2, Ghost, Layers, Pin, Sparkles, Coins, ThumbsUp,
 } from "lucide-react";
 import { format } from "date-fns";
 
+// ══════════════════════════════════════════════════════════════════════════
+// HUB REWORK v3 — see the mockup this was built from for the full rationale.
+// Short version: the old Hub stacked ~10 blocks of equal weight (hero, trophy
+// case, title race, danger zone, quick stats, game modes, then six parallel
+// "what's happening" cards, then two tables) and always led with the league
+// LEADER regardless of who was actually looking. This version picks a job —
+// "what matters to me right now" — and structures around it: a viewer-
+// relative State Band, a single Priority Nudge, a secondary For You rail, one
+// merged filterable Pulse feed instead of six parallel cards, a condensed
+// Explore strip, a Reference row for evergreen pages, and the same
+// leaderboard/recent tables kept at the bottom as reference material.
+// ══════════════════════════════════════════════════════════════════════════
+
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
-// Endpoints added alongside this Hub rework (achievement counts, pinned
-// trophy case) aren't in the generated api-client-react yet — same
-// lightweight pattern achievements.tsx already uses for its newer endpoints
-// rather than re-running codegen for a couple of read-only GETs.
+// A few endpoints this rework needed (player form, merged pulse feed,
+// last-hub-visit) are new and read-only, so — same lightweight pattern
+// achievements.tsx/community.tsx already use for their own newer endpoints —
+// this reaches them with plain fetch rather than running client codegen for
+// three routes.
 function useFetch<T>(url: string | null) {
   const [data, setData]       = useState<T | null>(null);
   const [loading, setLoading] = useState(!!url);
@@ -43,594 +53,556 @@ function useFetch<T>(url: string | null) {
   return { data, loading };
 }
 
-function MiniStat({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
+function MiniStat({ label, value, accent, size = "lg" }: { label: string; value: string | number; accent?: string; size?: "lg" | "md" }) {
   return (
     <div className="flex flex-col">
       <span className="font-black tabular-nums leading-none"
-        style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.9rem", color: accent ?? "#fff", textShadow: accent ? `0 0 18px ${accent}55` : undefined }}>
+        style={{ fontFamily: "Oswald, sans-serif", fontSize: size === "lg" ? "1.9rem" : "1.4rem", color: accent ?? "#fff", textShadow: accent ? `0 0 18px ${accent}55` : undefined }}>
         {value}
       </span>
       <span className="text-xs uppercase tracking-widest mt-0.5"
-        style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.14em" }}>
+        style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.14em" }}>
         {label}
       </span>
     </div>
   );
 }
 
-function SectionHeader({
-  icon, label, accent, href, linkLabel = "View All →",
-}: {
-  icon: React.ReactNode;
-  label: string;
-  accent: string;
-  href?: string;
-  linkLabel?: string;
-}) {
-  return (
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center gap-2">
-        <span style={{ color: accent }}>{icon}</span>
-        <span className="font-black uppercase text-xs tracking-widest"
-          style={{ fontFamily: "Oswald, sans-serif", color: accent, letterSpacing: "0.16em", fontSize: "0.65rem" }}>
-          {label}
-        </span>
-      </div>
-      {href && (
-        <Link href={href} className="text-xs font-bold uppercase tracking-widest transition-colors hover:opacity-100"
-          style={{ color: accent, opacity: 0.6, fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
-          {linkLabel}
-        </Link>
-      )}
-    </div>
-  );
-}
-
-const posColors = ["#ffd24a", "#c0c8d8", "#cd7f32"];
-
-const TIER_GLOW: Record<string, string> = {
-  Gold:     "#ffd24a",
-  Silver:   "#c0c8d8",
-  Bronze:   "#cd7f32",
-  Platinum: "#e2e8f0",
-  Diamond:  "#00e5ff",
-};
-
-// ── LEAGUE section ─────────────────────────────────────────────────────────────
-
-function LeagueSection({
-  narrative, leaderboard,
-}: {
-  narrative: any[] | undefined;
-  leaderboard: any[] | undefined;
-}) {
-  const active  = leaderboard?.filter(e => e.status !== "ELIMINATED") ?? [];
-  const atRisk  = active.filter(e => e.points > 0 && e.points < 20).slice(0, 2);
-
-  const iconMap: Record<string, React.ReactNode> = {
-    HOTTEST_PLAYER:    <Flame className="w-3 h-3" style={{ color: "#ff005c" }} />,
-    TITLE_RACE:        <Trophy className="w-3 h-3" style={{ color: "#ffd24a" }} />,
-    ELIMINATION_WATCH: <Skull className="w-3 h-3" style={{ color: "#ff005c" }} />,
-    RIVALRY_SPOTLIGHT: <Swords className="w-3 h-3" style={{ color: "#0066ff" }} />,
-    STREAK_WATCH:      <Zap className="w-3 h-3" style={{ color: "#ffd24a" }} />,
-  };
-
-  return (
-    <div className="section-card" style={{ borderTop: "2px solid #ff005c" }}>
-      <SectionHeader
-        icon={<Trophy className="w-3.5 h-3.5" />}
-        label="League"
-        accent="#ff005c"
-        href="/leaderboard"
-      />
-
-      <div className="space-y-2">
-        {narrative?.slice(0, 3).map((card: any, i: number) => (
-          <div key={i} className="flex items-start gap-2 px-3 py-2.5 rounded-xl"
-            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <span className="mt-0.5 shrink-0">{iconMap[card.type] ?? <Target className="w-3 h-3" style={{ color: "#ff005c" }} />}</span>
-            <div className="min-w-0">
-              <p className="font-black text-xs leading-snug truncate"
-                style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)", letterSpacing: "0.02em" }}>
-                {card.headline}
-              </p>
-              <p className="text-xs leading-relaxed line-clamp-1 mt-0.5"
-                style={{ color: "rgba(255,255,255,0.35)" }}>
-                {card.body}
-              </p>
-            </div>
-          </div>
-        ))}
-
-        {atRisk.length > 0 && (
-          <div className="border-t pt-2 mt-1" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <AlertTriangle className="w-3 h-3 animate-pulse" style={{ color: "#ff005c" }} />
-              <span className="text-xs font-black uppercase" style={{ color: "rgba(255,0,92,0.6)", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.14em" }}>Danger Zone</span>
-            </div>
-            {atRisk.map(e => {
-              const isCritical = e.points <= 8;
-              const acc = isCritical ? "#ff005c" : "#f97316";
-              return (
-                <Link key={e.playerId} href={`/players/${e.playerId}`}>
-                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg mb-1 cursor-pointer"
-                    style={{ background: `rgba(${isCritical ? "255,0,92" : "249,115,22"},0.07)`, border: `1px solid rgba(${isCritical ? "255,0,92" : "249,115,22"},0.2)` }}>
-                    <span className="font-black text-xs uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.75)" }}>
-                      {e.playerName}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-black text-sm" style={{ fontFamily: "Oswald, sans-serif", color: acc }}>{e.points}<span className="text-xs font-normal ml-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>pts</span></span>
-                      {isCritical && <Skull className="w-3 h-3 animate-pulse" style={{ color: acc }} />}
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-
-        {(!narrative || narrative.length === 0) && atRisk.length === 0 && (
-          <div className="py-6 text-center text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
-            Play matches to generate storylines
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── TOUR section ───────────────────────────────────────────────────────────────
-
-const DIFF_COLORS: Record<string, string> = {
-  amateur: "#9ca3af", club: "#38bdf8", county: "#34d399", pro: "#ffd24a", elite: "#ff005c",
-};
-const TIER_LABELS: Record<number, string> = { 1: "Amateur", 2: "Club", 3: "County", 4: "Regional", 5: "Pro", 6: "Elite" };
-
-function TourSection() {
-  const { data: summary } = useGetTourSummary();
-  const { data: trophies } = useGetTourAllTrophies();
-
-  return (
-    <div className="section-card" style={{ borderTop: "2px solid #ffd24a" }}>
-      <SectionHeader
-        icon={<Star className="w-3.5 h-3.5" />}
-        label="Tour Mode"
-        accent="#ffd24a"
-        href="/tour"
-        linkLabel="Enter →"
-      />
-
-      <div className="flex gap-5 mb-3 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <MiniStat label="Trophies" value={summary?.totalTrophies ?? 0} accent="#ffd24a" />
-        <MiniStat label="Active Runs" value={summary?.activeRuns ?? 0} accent="#ffd24a" />
-        <MiniStat label="Completed" value={summary?.completedRuns ?? 0} />
-      </div>
-
-      <div className="space-y-1.5">
-        {trophies && trophies.length > 0 ? (
-          trophies.slice(0, 4).map(t => (
-            <div key={t.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl"
-              style={{ background: "rgba(255,210,74,0.04)", border: "1px solid rgba(255,210,74,0.12)" }}>
-              <span className="text-lg leading-none">{t.emoji}</span>
-              <div className="flex-1 min-w-0">
-                <div className="font-black text-xs uppercase truncate"
-                  style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)", letterSpacing: "0.04em" }}>
-                  {t.player_name}
-                </div>
-                <div className="text-xs truncate" style={{ color: "rgba(255,255,255,0.3)" }}>{t.tour_name}</div>
-              </div>
-              <div className="text-right shrink-0">
-                <div className="text-xs font-black uppercase"
-                  style={{ fontFamily: "Oswald, sans-serif", color: DIFF_COLORS[t.difficulty] ?? "#9ca3af", fontSize: "0.58rem", letterSpacing: "0.1em" }}>
-                  {t.difficulty}
-                </div>
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>
-                  {format(new Date(t.awarded_at), "MMM d")}
-                </div>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="py-4 text-center">
-            <div className="text-2xl mb-1.5">🏆</div>
-            <div className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>
-              No trophies yet
-            </div>
-            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.15)" }}>
-              Enter a tour to start your legacy
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="mt-3 pt-2.5 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {[
-            { label: "61 Tours", color: "#ffd24a" },
-            { label: "6 Tiers",  color: "#ffd24a" },
-            { label: "305 Trophies available", color: "rgba(255,255,255,0.3)" },
-          ].map(p => (
-            <span key={p.label} className="text-xs font-bold uppercase"
-              style={{ fontFamily: "Oswald, sans-serif", color: p.color, fontSize: "0.6rem" }}>
-              {p.label} ·
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── ACHIEVEMENTS section ───────────────────────────────────────────────────────
-
-const RARITY_COLORS: Record<string, string> = {
-  Mythic: "#ff005c", Legendary: "#ffd24a", Epic: "#a855f7", Rare: "#0066ff", Common: "#9ca3af",
-};
-
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
+  if (mins < 1)   return "just now";
   if (mins < 60)  return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24)   return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+  if (days < 30)  return `${days}d ago`;
+  return format(new Date(dateStr), "MMM d");
 }
 
-type AchievementCounts = { core: number; tour: number; shadowBot: number; cardClash: number; total: number };
+const posColors = ["#ffd24a", "#c0c8d8", "#cd7f32"];
+const TIER_GLOW: Record<string, string> = { Gold: "#ffd24a", Silver: "#c0c8d8", Bronze: "#cd7f32", Platinum: "#e2e8f0", Diamond: "#00e5ff" };
 
-function AchievementsSection() {
-  const { data: recent, isLoading: loading } = useGetRecentAchievements();
-  const { data: counts } = useFetch<AchievementCounts>("/api/achievements/counts");
+// ── FRESHNESS BAR ────────────────────────────────────────────────────────────
+// "Welcome back, X — last visit Y ago" plus a "N new" count against the
+// already-loaded Pulse feed. Reads GET /hub/visit/:id, which also stamps
+// last_seen_hub_at = now() server-side as a side effect of this call — same
+// "loading the page IS the seeing" shape as TrophyCaseSection's own fetch,
+// simpler than TKDL LIVE's separate mark-seen because there's no render step
+// to wait for here.
+function FreshnessBar({ playerName, previousVisit, pulse }: { playerName: string; previousVisit: string | null; pulse: PulseItem[] | null }) {
+  const newCount = previousVisit && pulse
+    ? pulse.filter(p => new Date(p.timestamp).getTime() > new Date(previousVisit).getTime()).length
+    : 0;
 
   return (
-    <div className="section-card" style={{ borderTop: "2px solid #a855f7" }}>
-      <SectionHeader
-        icon={<Medal className="w-3.5 h-3.5" />}
-        label="Achievements"
-        accent="#a855f7"
-        href="/achievements"
-      />
-
-      <div className="space-y-1.5">
-        {loading ? (
-          <div className="flex justify-center py-6">
-            <div className="w-5 h-5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#a855f7" }} />
-          </div>
-        ) : recent && recent.length > 0 ? (
-          recent.map((u, i) => {
-            const color = RARITY_COLORS[u.rarity] ?? "#9ca3af";
-            return (
-              <Link key={i} href={`/achievements/core/${u.achievement_key}`}>
-                <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl cursor-pointer transition-all hover:-translate-y-0.5"
-                  style={{ background: `${color}07`, border: `1px solid ${color}1a` }}>
-                  <span className="text-xl leading-none shrink-0">{u.icon || "🎯"}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-black text-xs uppercase truncate"
-                      style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)", letterSpacing: "0.03em" }}>
-                      {u.achievement_name.replace(/^[^\s]+\s/, "")}
-                    </div>
-                    <div className="text-xs truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
-                      <span style={{ color: "rgba(255,255,255,0.55)" }}>{u.player_name}</span>
-                      {" · "}
-                      <span style={{ color }}>{u.rarity}</span>
-                    </div>
-                  </div>
-                  <div className="text-xs shrink-0" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
-                    {timeAgo(u.unlocked_at)}
-                  </div>
-                </div>
-              </Link>
-            );
-          })
-        ) : (
-          <div className="py-6 text-center">
-            <div className="text-2xl mb-1.5">🎖️</div>
-            <div className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>
-              No achievements unlocked yet
-            </div>
-            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.15)" }}>
-              Play matches to start unlocking
-            </div>
-          </div>
-        )}
+    <div className="flex items-center justify-between flex-wrap gap-2 px-1">
+      <div className="text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>
+        Welcome back, <span className="font-bold" style={{ color: "#fff" }}>{playerName}</span>
+        {previousVisit && <> — last visit {timeAgo(previousVisit)}</>}
       </div>
-
-      <div className="mt-3 pt-2.5 border-t flex gap-3 items-center justify-between flex-wrap" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-        <div className="flex gap-3">
-          {[
-            { label: "League", color: "#ff005c" },
-            { label: "Tour",   color: "#ffd24a" },
-            { label: "Bot",    color: "#0066ff" },
-            { label: "Cards",  color: "#f97316" },
-          ].map(p => (
-            <span key={p.label} className="text-xs font-bold uppercase"
-              style={{ fontFamily: "Oswald, sans-serif", color: p.color, fontSize: "0.6rem", opacity: 0.6 }}>
-              {p.label}
-            </span>
-          ))}
-        </div>
-        <span className="text-xs" style={{ color: "rgba(255,255,255,0.15)", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
-          {counts ? counts.total : "…"} total achievements
+      {newCount > 0 && (
+        <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.1em", color: "#34e0c9", background: "rgba(52,224,201,0.1)", border: "1px solid rgba(52,224,201,0.3)", padding: "0.25rem 0.6rem", borderRadius: 999 }}>
+          {newCount} new since then
         </span>
-      </div>
-    </div>
-  );
-}
-
-// ── SHADOW BOT section ─────────────────────────────────────────────────────────
-
-const BOT_LEVEL_COLORS: Record<string, string> = {
-  elite: "#ff005c", pro: "#ffd24a", county: "#34d399", club: "#38bdf8", amateur: "#9ca3af", beginner: "rgba(255,255,255,0.3)",
-};
-
-function ShadowBotSection() {
-  const { data: bots } = useGetBotsLeaderboard();
-
-  const activeBots    = bots?.filter(b => !b.locked && b.totalDarts > 0) ?? [];
-  const lockedBots    = bots?.filter(b => b.locked) ?? [];
-  const totalDarts    = bots?.reduce((s, b) => s + (b.totalDarts ?? 0), 0) ?? 0;
-  const totalSessions = bots?.reduce((s, b) => s + (b.totalSessions ?? 0), 0) ?? 0;
-
-  return (
-    <div className="section-card" style={{ borderTop: "2px solid #0066ff" }}>
-      <SectionHeader
-        icon={<CircuitBoard className="w-3.5 h-3.5" />}
-        label="Shadow Bot"
-        accent="#0066ff"
-        href="/shadow-bot"
-        linkLabel="Train →"
-      />
-
-      <div className="flex gap-5 mb-3 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <MiniStat label="Sessions" value={totalSessions} accent="#0066ff" />
-        <MiniStat label="Darts Thrown" value={totalDarts.toLocaleString()} />
-        <MiniStat label="Profiles Built" value={activeBots.length} />
-      </div>
-
-      <div className="space-y-1.5">
-        {activeBots.length > 0 ? (
-          activeBots.slice(0, 4).map(b => {
-            const color = BOT_LEVEL_COLORS[b.accuracyLevel ?? "beginner"] ?? "#9ca3af";
-            const avg   = b.computedAvg && b.computedAvg > 0 ? b.computedAvg.toFixed(1) : "–";
-            return (
-              <div key={b.playerId} className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl"
-                style={{ background: "rgba(0,102,255,0.04)", border: "1px solid rgba(0,102,255,0.12)" }}>
-                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
-                <div className="flex-1 min-w-0">
-                  <div className="font-black text-xs uppercase truncate"
-                    style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)", letterSpacing: "0.04em" }}>
-                    {b.playerName}
-                  </div>
-                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
-                    {b.totalDarts.toLocaleString()} darts · avg {avg}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-xs font-black uppercase"
-                    style={{ fontFamily: "Oswald, sans-serif", color, fontSize: "0.58rem", letterSpacing: "0.1em" }}>
-                    {b.accuracyLevel}
-                  </div>
-                  <div className="h-1 w-12 rounded-full mt-0.5 overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
-                    <div className="h-full rounded-full" style={{ width: `${b.progressToNext}%`, background: color }} />
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="py-4 text-center">
-            {lockedBots.length > 0 ? (
-              <>
-                <div className="text-2xl mb-1.5">🤖</div>
-                <div className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>
-                  No bots unlocked yet
-                </div>
-                <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.15)" }}>
-                  Throw 250 darts to unlock your bot profile
-                </div>
-              </>
-            ) : (
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>No practice sessions yet</div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── RIVALRIES SECTION ──────────────────────────────────────────────────────────
-
-function RivalriesSection() {
-  const { data, isLoading: loading } = useGetStatsRivalries();
-
-  return (
-    <div className="section-card" style={{ borderTop: "2px solid #ff005c" }}>
-      <SectionHeader
-        icon={<Crosshair className="w-3.5 h-3.5" />}
-        label="Rivalries"
-        accent="#ff005c"
-      />
-
-      {loading ? (
-        <div className="py-4 text-center text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>Loading…</div>
-      ) : !data || data.length === 0 ? (
-        <div className="py-4 text-center">
-          <div className="text-2xl mb-1.5">⚔️</div>
-          <div className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>
-            No rivalries yet
-          </div>
-          <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.15)" }}>
-            Play 3+ matches against the same opponent
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-1.5">
-          {data.slice(0, 5).map((r, i) => {
-            const p1Leading  = r.p1_wins > r.p2_wins;
-            const p2Leading  = r.p2_wins > r.p1_wins;
-            const tied       = r.p1_wins === r.p2_wins;
-            const leaderName = p1Leading ? r.p1_name : p2Leading ? r.p2_name : null;
-            const leaderW    = p1Leading ? r.p1_wins : r.p2_wins;
-            const trailerW   = p1Leading ? r.p2_wins : r.p1_wins;
-            return (
-              <div key={i} className="flex items-center gap-3 px-2.5 py-2 rounded-xl"
-                style={{ background: "rgba(255,0,92,0.03)", border: "1px solid rgba(255,0,92,0.1)" }}>
-                <span className="font-black tabular-nums shrink-0"
-                  style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", color: "rgba(255,0,92,0.5)", minWidth: "1.4rem" }}>
-                  {r.total_matches}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-black text-xs uppercase truncate"
-                    style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)", letterSpacing: "0.04em" }}>
-                    {r.p1_name} <span style={{ color: "rgba(255,255,255,0.25)" }}>vs</span> {r.p2_name}
-                  </div>
-                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.62rem" }}>
-                    {tied
-                      ? `${r.p1_wins}–${r.p2_wins} all square`
-                      : `${leaderName} leads ${leaderW}–${trailerW}`}
-                  </div>
-                </div>
-                <div className="flex gap-0.5 shrink-0">
-                  {Array.from({ length: Math.min(r.total_matches, 8) }).map((_, k) => {
-                    const isP1Win = k < r.p1_wins;
-                    return (
-                      <div key={k} className="w-2 h-2 rounded-sm"
-                        style={{ background: isP1Win ? "rgba(255,0,92,0.6)" : "rgba(0,102,255,0.6)" }} />
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
       )}
     </div>
   );
 }
 
-// ── GAME MODES strip ───────────────────────────────────────────────────────────
-// Surfaces every mode in the app on the Hub at a glance — previously only
-// League/Tour/Bot showed up here at all, so Master-501, Card Clash, Doubles
-// Event, Shift Wars, Boss Battle and Board Curse were invisible unless you
-// already knew to dig for them in the nav. Colors match each mode's real
-// established accent where one already exists elsewhere in the app
-// (Master-501 teal / Doubles blue / Shift Wars green all come straight from
-// the Standings tabs); Card Clash, Boss Battle and Board Curse had no
-// established color anywhere yet, so those three are new assignments.
-const GAME_MODES: {
-  key: string; label: string; desc: string; icon: React.ReactNode; accent: string; href: string;
-}[] = [
-  { key: "master501",  label: "Master-501",    desc: "Precision training ladder",       icon: <Zap className="w-4 h-4" />,       accent: "#00c8a0", href: "/master501" },
-  { key: "cardclash",  label: "Card Clash",    desc: "Collect, battle, open packs",     icon: <Layers className="w-4 h-4" />,    accent: "#f97316", href: "/card-clash" },
-  { key: "doubles",    label: "Doubles Event", desc: "Random-draw team season",         icon: <Users className="w-4 h-4" />,     accent: "#0066ff", href: "/leaderboard?mode=doubles" },
-  { key: "shiftwars",  label: "Shift Wars",    desc: "Department team rivalry",         icon: <Building2 className="w-4 h-4" />, accent: "#22c55e", href: "/leaderboard?mode=shiftwars" },
-  { key: "bossbattle", label: "Boss Battle",   desc: "Six bosses, one dartboard",       icon: <Skull className="w-4 h-4" />,     accent: "#ef4444", href: "/boss-battle" },
-  { key: "boardcurse", label: "Board Curse",   desc: "A new curse every visit",         icon: <Ghost className="w-4 h-4" />,     accent: "#8b5cf6", href: "/board-curse" },
-];
+// ── STATE BAND — viewer-relative ─────────────────────────────────────────────
+// Leads with whoever's logged in, not always the league leader. If you're on
+// the board: your rank/points/streak/form plus who you're chasing (or, if
+// you're #1, who's chasing you). If you're not logged in, not on the board
+// (e.g. eliminated), or the leaderboard hasn't loaded yet, this falls back to
+// the original "season leader" framing — same graceful-degradation shape
+// TrophyCaseSection already uses for logged-out visitors.
+function StateBand({ leaderboard, summary, currentPlayer, form }: {
+  leaderboard: any[] | undefined;
+  summary: any;
+  currentPlayer: { playerId: number; playerName: string } | null;
+  form: boolean[] | null;
+}) {
+  const active   = leaderboard?.filter(e => e.status !== "ELIMINATED") ?? [];
+  const atRisk   = active.filter(e => e.points > 0 && e.points < 20);
+  const myIndex  = currentPlayer ? active.findIndex(e => e.playerId === currentPlayer.playerId) : -1;
+  const viewer   = myIndex >= 0 ? active[myIndex] : null;
+  const leader   = active[0] ?? null;
+  const tierGlow = TIER_GLOW[(viewer ?? leader)?.tier ?? "Bronze"] ?? "#cd7f32";
 
-function ModulesSection() {
+  // Chase context: above you if you're not #1, below you (being chased) if
+  // you are. Null when there's nobody in that direction (e.g. sole player).
+  let chase: { label: string; name: string; points: number; gap: number; iAmAhead: boolean } | null = null;
+  if (viewer && myIndex === 0 && active[1]) {
+    chase = { label: "Being Chased", name: active[1].playerName, points: active[1].points, gap: viewer.points - active[1].points, iAmAhead: true };
+  } else if (viewer && myIndex > 0) {
+    const target = active[myIndex - 1];
+    chase = { label: "Chasing", name: target.playerName, points: target.points, gap: target.points - viewer.points, iAmAhead: false };
+  }
+
+  const person   = viewer ?? leader;
+  const heading  = viewer ? "YOUR STANDING" : "SEASON LEADER";
+
+  const sparkline = useMemo(() => {
+    if (!form || form.length === 0) return null;
+    const w = 76, h = 28, step = form.length > 1 ? w / (form.length - 1) : 0;
+    const pts = form.map((won, i) => {
+      // Simple W/L step trace rather than a real cumulative value — this is
+      // "form", not a score history, so each point just alternates a fixed
+      // high/low y based on the result.
+      const y = won ? 4 : 22;
+      return `${(i * step).toFixed(1)},${y}`;
+    });
+    const last = pts[pts.length - 1].split(",");
+    return { points: pts.join(" "), lastX: last[0], lastY: last[1] };
+  }, [form]);
+
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-3">
-        <Swords className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.5)" }} />
-        <span className="text-xs font-black uppercase tracking-widest"
-          style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.18em", fontSize: "0.65rem" }}>
-          Game Modes
-        </span>
+    <div className="relative overflow-hidden fade-in-up" style={{
+      borderRadius: "1rem",
+      background: "linear-gradient(rgba(2,2,8,0.6) 0%, rgba(2,2,8,0.9) 100%), url('https://i.postimg.cc/Bbf9fbrp/pdc1.jpg')",
+      backgroundSize: "cover", backgroundPosition: "center top",
+      border: "1px solid rgba(255,255,255,0.08)",
+      boxShadow: person ? `0 0 60px ${tierGlow}18` : undefined,
+    }}>
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: `radial-gradient(ellipse 130% 55% at 50% 120%, ${tierGlow}30, transparent 60%)` }} />
+
+      <div className="relative z-10 flex items-center justify-between flex-wrap gap-2" style={{ padding: "1.25rem 1.5rem 0" }}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="live-dot" style={{ width: 6, height: 6 }} />
+          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.22em", color: "rgba(255,0,92,0.9)", fontWeight: 900 }}>{heading}</span>
+          <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.7rem" }}>·</span>
+          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.18em", color: "rgba(255,255,255,0.35)", fontWeight: 700 }}>
+            {summary?.currentSeasonName ?? "SEASON"}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          {atRisk.length > 0 && (
+            <span className="flex items-center gap-1.5 font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.06em", color: "#ff8fb4", background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.28)", padding: "0.3rem 0.65rem", borderRadius: 999 }}>
+              <AlertTriangle className="w-3 h-3" /> {atRisk.length} in the danger zone
+            </span>
+          )}
+          <Link href="/leaderboard" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "rgba(255,0,92,0.65)", letterSpacing: "0.14em", fontWeight: 900 }}>
+            FULL TABLE →
+          </Link>
+        </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {GAME_MODES.map(m => (
-          <Link key={m.key} href={m.href}>
-            <div className="relative overflow-hidden rounded-xl px-3 py-3.5 cursor-pointer transition-all hover:-translate-y-0.5 h-full"
-              style={{ background: `${m.accent}0d`, border: `1px solid ${m.accent}33` }}>
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center mb-2.5"
-                style={{ background: `${m.accent}1f`, color: m.accent, boxShadow: `0 0 12px ${m.accent}33` }}>
-                {m.icon}
+
+      <div className="relative z-10" style={{ padding: "0.5rem 1.5rem 1.25rem" }}>
+        {person ? (
+          <div className="grid gap-4" style={{ gridTemplateColumns: chase ? "1.5fr 1fr" : "1fr" }}>
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                {viewer && <span className="font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.4rem", color: "rgba(255,255,255,0.3)" }}>#{myIndex + 1}</span>}
+                <h1 className="font-black uppercase leading-none truncate"
+                  style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(1.8rem, 5vw, 2.8rem)", letterSpacing: "0.05em", color: "#fff", textShadow: `0 2px 40px ${tierGlow}66` }}>
+                  {person.playerName}
+                </h1>
               </div>
-              <div className="font-black uppercase text-xs leading-tight"
-                style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)", letterSpacing: "0.03em" }}>
-                {m.label}
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <TierBadge tier={person.tier} />
+                {(person as any).title && <span style={{ color: "rgba(255,210,74,0.7)", fontStyle: "italic", fontSize: "0.8rem" }}>"{(person as any).title}"</span>}
+                {(person as any).currentStreak >= 2 && (
+                  <span className="flex items-center gap-1 font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", color: "#ff005c" }}>
+                    <Flame className="w-3 h-3" /> {(person as any).currentStreak}-game win streak
+                  </span>
+                )}
               </div>
-              <div className="text-xs mt-0.5 leading-snug" style={{ color: "rgba(255,255,255,0.32)", fontSize: "0.62rem" }}>
-                {m.desc}
+              <div className="flex items-center gap-4 mt-3 flex-wrap" style={{ borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: "0.65rem" }}>
+                <MiniStat label="Points" value={person.points} accent="#ff005c" />
+                <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
+                <MiniStat label="ELO" value={person.elo ?? 0} accent="#0066ff" />
+                <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
+                <MiniStat label="W–L" value={`${person.wins}–${person.losses}`} />
+                {viewer && sparkline && (
+                  <>
+                    <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
+                    <div className="flex items-center gap-2">
+                      <svg width="60" height="26" viewBox="0 0 76 26" style={{ overflow: "visible" }}>
+                        <polyline points={sparkline.points} fill="none" stroke="#00e5a0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <circle cx={sparkline.lastX} cy={sparkline.lastY} r="3" fill="#00e5a0" style={{ filter: "drop-shadow(0 0 4px #00e5a0)" }} />
+                      </svg>
+                      <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.44rem", color: "rgba(255,255,255,0.25)", letterSpacing: "0.1em" }}>LAST {form!.length}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
-          </Link>
-        ))}
+
+            {chase && (
+              <div className="flex flex-col justify-center gap-1.5" style={{ borderLeft: "1px dashed rgba(255,255,255,0.14)", paddingLeft: "1.4rem" }}>
+                <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", fontWeight: 900, letterSpacing: "0.16em", color: "rgba(255,255,255,0.3)", textTransform: "uppercase" }}>{chase.label}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1rem", color: "#ffd24a" }}>{chase.name}</span>
+                  <span style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.7rem" }}>·</span>
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", color: "#ffd24a" }}>{chase.points} pts</span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.6rem", color: "#ff005c", textShadow: "0 0 16px rgba(255,0,92,0.4)" }}>{chase.gap}</span>
+                  <span style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.35)" }}>{chase.iAmAhead ? "point lead" : "points back"}</span>
+                </div>
+                <Link href="/h2h" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.56rem", color: "rgba(255,0,92,0.75)", letterSpacing: "0.06em", fontWeight: 900 }}>
+                  ⚔ Compare head-to-head →
+                </Link>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "1rem", padding: "2rem 0" }}>
+            No matches played yet — start the season!
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ── TROPHY CASE ────────────────────────────────────────────────────────────────
-// A player's pinned favourite achievements (set from their profile), shown
-// front-and-center on the Hub — the "show off" surface the achievements
-// overhaul was meant to build. Only rendered for a logged-in player; the
-// Hub itself is public, but a trophy case only means something as "yours".
+// ── QUICK ACTIONS — the things a player actually DOES ────────────────────────
+// The old Hub was purely a read surface — nothing on it let you act. Submit
+// Match and Practice are always-on routes; Match Scorer joins them only once
+// that feature's switched on, same live_scorer_enabled flag the sidebar's
+// Play section already gates on. (The flag's own name stayed as-is — only
+// the user-facing "Live Scorer" label was renamed to "Match Scorer", since
+// nothing about it is actually live/spectator-visible; see feature-flags.tsx.)
+function QuickActions({ liveScorerEnabled }: { liveScorerEnabled: boolean }) {
+  return (
+    <div className="flex items-center gap-2.5 flex-wrap">
+      <Link href="/submit">
+        <span className="flex items-center gap-2 cursor-pointer transition-all hover:-translate-y-0.5"
+          style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "#1a0f00", background: "linear-gradient(120deg, #ffd24a, #ff8a5c)", padding: "0.65rem 1.2rem", borderRadius: "0.7rem", boxShadow: "0 4px 18px rgba(255,150,60,0.3)" }}>
+          <Plus className="w-4 h-4" /> Submit a Match
+        </span>
+      </Link>
+      <Link href="/practice">
+        <span className="flex items-center gap-2 cursor-pointer transition-all hover:-translate-y-0.5"
+          style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.14)", padding: "0.65rem 1.2rem", borderRadius: "0.7rem" }}>
+          <Dumbbell className="w-4 h-4" /> Practice
+        </span>
+      </Link>
+      {liveScorerEnabled && (
+        <Link href="/play">
+          <span className="flex items-center gap-2 cursor-pointer transition-all hover:-translate-y-0.5"
+            style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.14)", padding: "0.65rem 1.2rem", borderRadius: "0.7rem" }}>
+            <Swords className="w-4 h-4" /> Match Scorer
+          </span>
+        </Link>
+      )}
+    </div>
+  );
+}
+
+// ── PRIORITY NUDGE + FOR YOU RAIL ────────────────────────────────────────────
+// One ranked signal gets promoted to a full-width banner; everything else
+// relevant renders as a smaller card in the rail below it. Both read from the
+// same small set of per-player signals (TKDL LIVE, an active Tour run, pinned
+// achievements, coins/cosmetics, current streak) — nothing here is exhaustive
+// browsing, only what's real and applies to this player right now.
+type HubSpotlight = { available: boolean; hasNewEdition: boolean; title: string | null };
+type TourRun = { id: number; status: string; difficulty: string; tour_name: string; emoji: string; updated_at: string };
+type PlayerCosmetics = { ownedIds: string[]; equippedNameStyleId: string | null; equippedProfileIconId: string | null };
+type PlayerCurrency = { cardPoints: number };
 type PinnedAchievement = { system: string; key: string; name: string; icon: string; rarity: string | null };
 
-const PIN_RARITY_COLORS: Record<string, string> = {
-  Mythic: "#ff005c", Legendary: "#ffd24a", Epic: "#a855f7", Rare: "#0066ff", Common: "#9ca3af",
-};
-
-function TrophyCaseSection() {
-  const currentPlayer = useCurrentPlayer();
-  const { data, loading } = useFetch<{ pins: PinnedAchievement[] }>(
-    currentPlayer ? `/api/players/${currentPlayer.playerId}/pinned-achievements` : null
-  );
+function ForYouZone({ currentPlayer, myStreak }: { currentPlayer: { playerId: number; playerName: string } | null; myStreak: number }) {
+  const catalog = useCosmeticsCatalog();
+  const { data: spotlight } = useFetch<HubSpotlight>("/api/broadcast/hub-spotlight");
+  const { data: tourRuns } = useFetch<TourRun[]>(currentPlayer ? `/api/tour/runs/${currentPlayer.playerId}` : null);
+  const { data: currency } = useFetch<PlayerCurrency>(currentPlayer ? `/api/card-clash/shop/currency/${currentPlayer.playerId}` : null);
+  const { data: cosmetics } = useFetch<PlayerCosmetics>(currentPlayer ? `/api/players/${currentPlayer.playerId}/cosmetics` : null);
+  const { data: pinsData } = useFetch<{ pins: PinnedAchievement[] }>(currentPlayer ? `/api/players/${currentPlayer.playerId}/pinned-achievements` : null);
 
   if (!currentPlayer) return null;
-  const pins = data?.pins ?? [];
-  if (!loading && pins.length === 0) {
-    return (
-      <Link href="/account">
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all hover:-translate-y-0.5"
-          style={{ background: "rgba(255,210,74,0.04)", border: "1px dashed rgba(255,210,74,0.25)" }}>
-          <Pin className="w-4 h-4 shrink-0" style={{ color: "#ffd24a" }} />
-          <span className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
-            <span style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif", fontWeight: 900, letterSpacing: "0.03em" }}>Build your trophy case — </span>
-            pin up to 5 achievements from your profile to show off here.
-          </span>
-        </div>
-      </Link>
-    );
-  }
-  if (pins.length === 0) return null;
 
-  return (
-    <div className="relative overflow-hidden rounded-xl px-4 py-3.5 fade-in-up"
-      style={{ background: "linear-gradient(120deg, rgba(255,210,74,0.07), rgba(255,0,92,0.04))", border: "1px solid rgba(255,210,74,0.2)" }}>
-      <div className="flex items-center justify-between mb-2.5">
+  const activeRun = tourRuns?.find(r => r.status === "active") ?? null;
+  const equippedName = catalog.find(c => c.id === cosmetics?.equippedNameStyleId);
+  const equippedIcon = catalog.find(c => c.id === cosmetics?.equippedProfileIconId);
+  const EquippedIconComp = equippedIcon?.iconKey ? PROFILE_ICON_MAP[equippedIcon.iconKey] : null;
+  const pins = pinsData?.pins ?? [];
+
+  // Priority order for the single promoted nudge: a new broadcast > an active
+  // tour run to resume > a live win streak. Whichever wins is excluded from
+  // the rail below so nothing appears twice.
+  type Nudge = "tkdl" | "tour" | "streak" | null;
+  const nudge: Nudge = spotlight?.available && spotlight.hasNewEdition ? "tkdl"
+    : activeRun ? "tour"
+    : myStreak >= 3 ? "streak"
+    : null;
+
+  const railCards: React.ReactNode[] = [];
+
+  if (pins.length > 0) {
+    railCards.push(
+      <div key="trophy" className="rounded-xl px-4 py-3.5 flex flex-col gap-2" style={{ background: "rgba(255,210,74,0.06)", border: "1px solid rgba(255,210,74,0.28)" }}>
         <div className="flex items-center gap-2">
           <Pin className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />
-          <span className="font-black uppercase text-xs tracking-widest"
-            style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", letterSpacing: "0.16em", fontSize: "0.65rem" }}>
-            {currentPlayer.playerName}'s Trophy Case
-          </span>
+          <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.54rem", letterSpacing: "0.13em", color: "#ffd24a" }}>Trophy Case</span>
         </div>
-        <Link href="/account" className="text-xs font-bold uppercase tracking-widest transition-colors hover:opacity-100"
-          style={{ color: "#ffd24a", opacity: 0.6, fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
-          Manage →
-        </Link>
+        <div className="flex gap-1.5 flex-wrap">
+          {pins.slice(0, 5).map(p => <span key={`${p.system}-${p.key}`} className="text-lg leading-none">{p.icon}</span>)}
+        </div>
+        <Link href="/account?tab=achievements" className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>Manage →</Link>
       </div>
-      <div className="flex gap-2.5 flex-wrap">
-        {pins.map(p => {
-          const color = PIN_RARITY_COLORS[p.rarity ?? "Common"] ?? "#9ca3af";
-          return (
-            <Link key={`${p.system}-${p.key}`} href={`/achievements/${p.system}/${p.key}`}>
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all hover:-translate-y-0.5"
-                style={{ background: `${color}0f`, border: `1px solid ${color}40` }}>
-                <span className="text-lg leading-none" style={{ filter: `drop-shadow(0 0 6px ${color}88)` }}>{p.icon}</span>
-                <span className="font-black text-xs uppercase whitespace-nowrap"
-                  style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)", letterSpacing: "0.02em" }}>
-                  {p.name}
-                </span>
+    );
+  }
+
+  railCards.push(
+    <div key="wallet" className="rounded-xl px-4 py-3.5 flex flex-col gap-2" style={{ background: "rgba(0,200,160,0.06)", border: "1px solid rgba(0,200,160,0.28)" }}>
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-1.5 font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.54rem", letterSpacing: "0.13em", color: "#00c8a0" }}>
+          <Coins className="w-3.5 h-3.5" /> Wallet
+        </span>
+        <Link href="/account?tab=cosmetics" className="text-xs font-bold uppercase" style={{ color: "#00c8a0", opacity: 0.7, fontFamily: "Oswald, sans-serif", fontSize: "0.56rem" }}>Shop →</Link>
+      </div>
+      <span className="font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.5rem", color: "#ffd24a", textShadow: "0 0 16px rgba(255,210,74,0.4)" }}>
+        {currency?.cardPoints ?? 0}<span className="text-xs font-normal ml-1" style={{ color: "rgba(255,255,255,0.3)" }}>coins</span>
+      </span>
+      {(equippedName || equippedIcon) ? (
+        <div className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+          {equippedName?.name}{equippedName && EquippedIconComp ? " · " : ""}{EquippedIconComp && equippedIcon?.name}
+        </div>
+      ) : (
+        <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>Nothing equipped yet</div>
+      )}
+    </div>
+  );
+
+  if (activeRun && nudge !== "tour") {
+    railCards.push(
+      <div key="tour" className="rounded-xl px-4 py-3.5 flex flex-col gap-2" style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.28)" }}>
+        <span className="flex items-center gap-1.5 font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.54rem", letterSpacing: "0.13em", color: "#a5b4fc" }}>
+          <Star className="w-3.5 h-3.5" /> Tour Mode
+        </span>
+        <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.82rem", color: "rgba(255,255,255,0.9)" }}>{activeRun.emoji} {activeRun.tour_name}</span>
+        <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>{activeRun.difficulty} · in progress</span>
+        <Link href={`/tour/${activeRun.id}`} className="text-xs font-black uppercase" style={{ color: "#a5b4fc", fontFamily: "Oswald, sans-serif", fontSize: "0.54rem" }}>Resume →</Link>
+      </div>
+    );
+  }
+
+  if (spotlight?.available && nudge !== "tkdl") {
+    railCards.push(
+      <div key="tkdl" className="rounded-xl px-4 py-3.5 flex flex-col gap-2" style={{ background: "rgba(255,210,74,0.06)", border: "1px solid rgba(255,210,74,0.28)" }}>
+        <span className="flex items-center gap-1.5 font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.54rem", letterSpacing: "0.13em", color: "#ffd24a" }}>
+          <Sparkles className="w-3.5 h-3.5" /> TKDL LIVE
+        </span>
+        <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.82rem", color: "rgba(255,255,255,0.9)" }}>Catch up on the latest broadcast</span>
+        {spotlight.title && <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>{spotlight.title}</span>}
+        <Link href="/tkdl-live" className="text-xs font-black uppercase" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif", fontSize: "0.54rem" }}>Watch →</Link>
+      </div>
+    );
+  }
+
+  if (myStreak >= 2 && nudge !== "streak") {
+    railCards.push(
+      <div key="streak" className="rounded-xl px-4 py-3.5 flex flex-col gap-2" style={{ background: "rgba(255,0,92,0.06)", border: "1px solid rgba(255,0,92,0.25)" }}>
+        <span className="flex items-center gap-1.5 font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.54rem", letterSpacing: "0.13em", color: "#ff8fb4" }}>
+          <Flame className="w-3.5 h-3.5" /> Your Streak
+        </span>
+        <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.82rem", color: "rgba(255,255,255,0.9)" }}>{myStreak} wins running</span>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {nudge && (
+        <div className="relative overflow-hidden rounded-xl px-5 py-4 flex items-center justify-between gap-4 flex-wrap fade-in-up"
+          style={{ background: "linear-gradient(115deg, rgba(255,210,74,0.14), rgba(255,0,92,0.06))", border: "1px solid rgba(255,210,74,0.35)" }}>
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(255,210,74,0.18)" }}>
+              {nudge === "tkdl" && <Sparkles className="w-5 h-5" style={{ color: "#ffd24a" }} />}
+              {nudge === "tour" && <Star className="w-5 h-5" style={{ color: "#ffd24a" }} />}
+              {nudge === "streak" && <Flame className="w-5 h-5" style={{ color: "#ffd24a" }} />}
+            </div>
+            <div className="min-w-0">
+              <div className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.16em", color: "#ffd24a" }}>
+                {nudge === "tkdl" && "TKDL LIVE · New Edition"}
+                {nudge === "tour" && `Tour Mode · ${activeRun?.tour_name}`}
+                {nudge === "streak" && "On A Run"}
               </div>
-            </Link>
+              <div className="font-black uppercase truncate" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", color: "#fff" }}>
+                {nudge === "tkdl" && "This week's broadcast just dropped"}
+                {nudge === "tour" && `${activeRun?.difficulty} — resume where you left off`}
+                {nudge === "streak" && `${myStreak} wins in a row — keep it going`}
+              </div>
+            </div>
+          </div>
+          <Link href={nudge === "tkdl" ? "/tkdl-live" : nudge === "tour" ? `/tour/${activeRun?.id}` : "/submit"}>
+            <span className="font-black uppercase cursor-pointer" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem", letterSpacing: "0.12em", color: "#1a0f00", background: "#ffd24a", padding: "0.6rem 1.2rem", borderRadius: 999, whiteSpace: "nowrap" }}>
+              {nudge === "tkdl" ? "Watch now →" : nudge === "tour" ? "Resume →" : "Play now →"}
+            </span>
+          </Link>
+        </div>
+      )}
+
+      {railCards.length > 0 && (
+        <div>
+          <div className="font-black uppercase mb-2.5" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.9rem", letterSpacing: "0.02em" }}>
+            {nudge ? "Also For You" : "For You"}
+          </div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(railCards.length, 4)}, minmax(200px, 1fr))`, overflowX: "auto" }}>
+            {railCards}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── PULSE — one merged feed instead of six parallel cards ───────────────────
+type PulseItem = {
+  id: string;
+  category: "league" | "tour" | "achievements" | "community";
+  icon: string;
+  title: string;
+  subtitle: string;
+  timestamp: string;
+};
+
+const PULSE_CATEGORY_COLOR: Record<PulseItem["category"], string> = {
+  league: "#ff005c", tour: "#ffd24a", achievements: "#a855f7", community: "#22c55e",
+};
+const PULSE_TABS: { key: "all" | PulseItem["category"]; label: string }[] = [
+  { key: "all", label: "All" }, { key: "league", label: "League" }, { key: "tour", label: "Tour" },
+  { key: "achievements", label: "Achievements" }, { key: "community", label: "Community" },
+];
+
+function PulseSection({ pulse, loading, previousVisit, currentPlayerId }: {
+  pulse: PulseItem[] | null;
+  loading: boolean;
+  previousVisit: string | null;
+  currentPlayerId: number | null;
+}) {
+  const [tab, setTab] = useState<"all" | PulseItem["category"]>("all");
+  const [reacted, setReacted] = useState<Set<string>>(new Set());
+
+  const items = (pulse ?? []).filter(p => tab === "all" || p.category === tab);
+  const previousVisitMs = previousVisit ? new Date(previousVisit).getTime() : null;
+  let dividerPlaced = false;
+
+  async function react(postId: string) {
+    if (!currentPlayerId) return;
+    const numericId = postId.replace("post-", "");
+    setReacted(prev => { const next = new Set(prev); next.has(postId) ? next.delete(postId) : next.add(postId); return next; });
+    try {
+      await fetch(`/api/community/posts/${numericId}/react`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji: "👍" }),
+      });
+    } catch { /* optimistic UI already toggled; a failed react just doesn't persist */ }
+  }
+
+  return (
+    <div className="section-card">
+      <div className="flex items-center justify-between mb-3.5 flex-wrap gap-2.5">
+        <div className="flex items-center gap-2 font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.9rem", letterSpacing: "0.02em" }}>
+          <span className="live-dot" /> League Pulse
+        </div>
+        <div className="flex gap-1.5 flex-wrap">
+          {PULSE_TABS.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className="font-black uppercase transition-all"
+              style={{
+                fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.06em", padding: "0.32rem 0.7rem", borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: tab === t.key ? "#020204" : "rgba(255,255,255,0.4)",
+                background: tab === t.key ? "#fff" : "rgba(255,255,255,0.02)",
+                borderColor: tab === t.key ? "#fff" : "rgba(255,255,255,0.1)",
+              }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        {loading ? (
+          <div className="py-6 text-center text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>Loading…</div>
+        ) : items.length === 0 ? (
+          <div className="py-6 text-center text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>Nothing here yet</div>
+        ) : items.map(item => {
+          const color = PULSE_CATEGORY_COLOR[item.category];
+          const isFresh = previousVisitMs !== null && new Date(item.timestamp).getTime() > previousVisitMs;
+          const showDivider = !isFresh && !dividerPlaced && items.some(i => previousVisitMs !== null && new Date(i.timestamp).getTime() > previousVisitMs);
+          if (showDivider) dividerPlaced = true;
+          return (
+            <div key={item.id}>
+              {showDivider && (
+                <div className="flex items-center gap-2 my-2">
+                  <div className="flex-1 h-px" style={{ background: "rgba(52,224,201,0.25)" }} />
+                  <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.52rem", letterSpacing: "0.12em", color: "#34e0c9", whiteSpace: "nowrap" }}>Since your last visit ↑</span>
+                  <div className="flex-1 h-px" style={{ background: "rgba(52,224,201,0.25)" }} />
+                </div>
+              )}
+              <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl"
+                style={{ background: isFresh ? "rgba(52,224,201,0.03)" : "rgba(255,255,255,0.02)", border: `1px solid ${isFresh ? "rgba(52,224,201,0.25)" : "rgba(255,255,255,0.05)"}` }}>
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-sm" style={{ background: `${color}22`, color }}>{item.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs leading-snug truncate" style={{ color: "rgba(255,255,255,0.85)" }}>{item.title}</div>
+                  <div className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.28)", fontSize: "0.62rem" }}>
+                    <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color, fontSize: "0.56rem" }}>{item.category}</span>
+                    {item.subtitle && <>· {item.subtitle}</>} · {timeAgo(item.timestamp)}
+                  </div>
+                </div>
+                {item.category === "community" && currentPlayerId && (
+                  <button onClick={() => react(item.id)}
+                    className="flex items-center gap-1 shrink-0 transition-all"
+                    style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", fontWeight: 800, borderRadius: 999, padding: "0.22rem 0.55rem", border: "1px solid rgba(255,255,255,0.1)", color: reacted.has(item.id) ? "#fff" : "rgba(255,255,255,0.35)", background: reacted.has(item.id) ? "rgba(255,255,255,0.08)" : "transparent" }}>
+                    <ThumbsUp className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ── EXPLORE strip (condensed) + REFERENCE row ────────────────────────────────
+function ExploreAndReference({ settings }: { settings: any }) {
+  const modes: { key: string; label: string; icon: React.ReactNode; accent: string; href: string; show: boolean }[] = [
+    { key: "practice",   label: "Practice",     icon: <Dumbbell className="w-3 h-3" />,     accent: "#00e5a0", href: "/practice",    show: true },
+    { key: "master501",  label: "Master-501",   icon: <Zap className="w-3 h-3" />,          accent: "#00c8a0", href: "/master501",   show: true },
+    { key: "cardclash",  label: "Card Clash",   icon: <Layers className="w-3 h-3" />,       accent: "#f97316", href: "/card-clash",  show: settings?.card_clash_enabled ?? true },
+    { key: "doubles",    label: "Doubles",      icon: <Users className="w-3 h-3" />,        accent: "#0066ff", href: "/leaderboard?mode=doubles", show: settings?.doubles_event_enabled ?? true },
+    { key: "shiftwars",  label: "Shift Wars",   icon: <Building2 className="w-3 h-3" />,    accent: "#22c55e", href: "/leaderboard?mode=shiftwars", show: settings?.shift_wars_enabled ?? true },
+    { key: "bossbattle", label: "Boss Battle",  icon: <Skull className="w-3 h-3" />,        accent: "#ef4444", href: "/boss-battle", show: settings?.boss_battle_enabled ?? true },
+    { key: "boardcurse", label: "Board Curse",  icon: <Ghost className="w-3 h-3" />,        accent: "#8b5cf6", href: "/board-curse", show: settings?.board_curse_enabled ?? true },
+    { key: "shadowleague", label: "Shadow League", icon: <Trophy className="w-3 h-3" />,    accent: "#22d3ee", href: "/shadow-league", show: true },
+  ];
+
+  const reference = [
+    { label: "Hall of Fame", icon: <Award className="w-3 h-3" />, href: "/hall-of-fame" },
+    { label: "Seasons",      icon: <History className="w-3 h-3" />, href: "/seasons" },
+    { label: "Rules",        icon: <BookOpen className="w-3 h-3" />, href: "/rules" },
+  ];
+
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="font-black uppercase mr-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.16em", color: "rgba(255,255,255,0.4)" }}>⚔ Explore</span>
+        {modes.filter(m => m.show).map(m => (
+          <Link key={m.key} href={m.href}>
+            <span className="flex items-center gap-1.5 cursor-pointer transition-all hover:-translate-y-0.5"
+              style={{ fontFamily: "Oswald, sans-serif", fontWeight: 800, fontSize: "0.62rem", textTransform: "uppercase", letterSpacing: "0.02em", padding: "0.35rem 0.7rem", borderRadius: 999, color: m.accent, background: `${m.accent}14`, border: `1px solid ${m.accent}40` }}>
+              {m.icon} {m.label}
+            </span>
+          </Link>
+        ))}
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="font-black uppercase mr-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.16em", color: "rgba(255,255,255,0.3)" }}>📖 Reference</span>
+        {reference.map(r => (
+          <Link key={r.label} href={r.href}>
+            <span className="flex items-center gap-1.5 cursor-pointer transition-all hover:-translate-y-0.5"
+              style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.6rem", textTransform: "uppercase", padding: "0.32rem 0.65rem", borderRadius: 999, color: "rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.12)" }}>
+              {r.icon} {r.label}
+            </span>
+          </Link>
+        ))}
       </div>
     </div>
   );
@@ -640,246 +612,39 @@ function TrophyCaseSection() {
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<"leaderboard" | "recent">("leaderboard");
+  const currentPlayer = useCurrentPlayer();
+  const { data: appSettings } = useSettings();
 
-  const { data: summary }   = useGetStatsSummary();
+  const { data: summary }     = useGetStatsSummary();
   const { data: leaderboard } = useGetLeaderboard();
-  const { data: recent }    = useGetRecentActivity();
-  const { data: narrative } = useGetNarrativeCards();
+  const { data: recent }      = useGetRecentActivity();
 
-  const active     = leaderboard?.filter(e => e.status !== "ELIMINATED") ?? [];
-  const top5       = active.slice(0, 5);
-  const leader     = active[0] ?? null;
-  const second     = active[1] ?? null;
-  const eliminated = (summary as any)?.eliminatedCount ?? 0;
-  const gap        = leader && second ? leader.points - second.points : 0;
-  const atRisk     = active.filter(e => e.points > 0 && e.points < 20).slice(0, 3);
-  const tierGlow   = TIER_GLOW[leader?.tier ?? "Bronze"] ?? "#cd7f32";
+  const { data: pulse, loading: pulseLoading } = useFetch<PulseItem[]>("/api/hub/pulse");
+  const { data: visit } = useFetch<{ previousVisit: string | null }>(currentPlayer ? `/api/hub/visit/${currentPlayer.playerId}` : null);
+  const { data: formData } = useFetch<{ results: boolean[] }>(currentPlayer ? `/api/hub/form/${currentPlayer.playerId}` : null);
+
+  const active = leaderboard?.filter(e => e.status !== "ELIMINATED") ?? [];
+  const top5   = active.slice(0, 5);
+  const myEntry = currentPlayer ? active.find(e => e.playerId === currentPlayer.playerId) : null;
+  const myStreak = (myEntry as any)?.currentStreak ?? 0;
 
   return (
     <div className="space-y-4">
       <div className="pdc-divider" />
 
-      {/* ── CINEMATIC HERO ── */}
-      <div className="relative overflow-hidden fade-in-up" style={{
-        borderRadius: "1rem",
-        minHeight: "clamp(200px, 26vw, 250px)",
-        background: "linear-gradient(rgba(2,2,8,0.6) 0%, rgba(2,2,8,0.88) 100%), url('https://i.postimg.cc/Bbf9fbrp/pdc1.jpg')",
-        backgroundSize: "cover",
-        backgroundPosition: "center top",
-        border: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: leader ? `0 0 60px ${tierGlow}18` : undefined,
-      }}>
-        {/* Tier glow rising from bottom */}
-        <div style={{
-          position: "absolute", inset: 0, pointerEvents: "none",
-          background: `radial-gradient(ellipse 130% 55% at 50% 120%, ${tierGlow}30, transparent 60%)`,
-        }} />
+      {currentPlayer && <FreshnessBar playerName={currentPlayer.playerName} previousVisit={visit?.previousVisit ?? null} pulse={pulse} />}
 
-        {/* Top bar */}
-        <div className="relative z-10 flex items-center justify-between" style={{ padding: "1.25rem 1.5rem 0" }}>
-          <div className="flex items-center gap-2">
-            <span className="live-dot" style={{ width: 6, height: 6 }} />
-            <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.22em", color: "rgba(255,0,92,0.9)", fontWeight: 900 }}>LIVE</span>
-            <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.7rem" }}>·</span>
-            <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.18em", color: "rgba(255,255,255,0.35)", fontWeight: 700 }}>SEASON LEADER</span>
-          </div>
-          <div className="flex items-center gap-3">
-            {summary?.currentSeasonName && (
-              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>
-                {summary.currentSeasonName}
-              </span>
-            )}
-            <Link href="/leaderboard" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "rgba(255,0,92,0.65)", letterSpacing: "0.14em", fontWeight: 900 }}>
-              FULL TABLE →
-            </Link>
-          </div>
-        </div>
+      <QuickActions liveScorerEnabled={appSettings?.live_scorer_enabled ?? false} />
 
-        {/* Main content */}
-        <div className="relative z-10 flex items-end justify-between gap-4" style={{ padding: "0.5rem 1.5rem 1.25rem" }}>
-          {leader ? (
-            <>
-              <div className="min-w-0 flex-1">
-                <h1 className="font-black uppercase leading-none truncate"
-                  style={{
-                    fontFamily: "Oswald, sans-serif",
-                    fontSize: "clamp(2.2rem, 6vw, 3.6rem)",
-                    letterSpacing: "0.05em",
-                    color: "#fff",
-                    textShadow: `0 2px 40px ${tierGlow}66`,
-                  }}>
-                  {leader.playerName}
-                </h1>
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                  <TierBadge tier={leader.tier} />
-                  {(leader as any).title && (
-                    <span style={{ color: "rgba(255,210,74,0.7)", fontStyle: "italic", fontSize: "0.8rem" }}>"{(leader as any).title}"</span>
-                  )}
-                  {(leader as any).archetype && (
-                    <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "rgba(255,255,255,0.22)", letterSpacing: "0.1em" }}>
-                      · {(leader as any).archetype}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-4 mt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: "0.65rem" }}>
-                  <MiniStat label="Points" value={leader.points} accent="#ff005c" />
-                  <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
-                  <MiniStat label="ELO" value={leader.elo ?? 0} accent="#0066ff" />
-                  <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
-                  <MiniStat label="W–L" value={`${leader.wins}–${leader.losses}`} />
-                  {second && (
-                    <>
-                      <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
-                      <div className="flex flex-col">
-                        <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.9rem", fontWeight: 900, color: gap <= 5 ? "#ff005c" : "#ffd24a", lineHeight: 1, textShadow: `0 0 18px ${gap <= 5 ? "#ff005c55" : "#ffd24a55"}` }}>
-                          +{gap}
-                        </span>
-                        <span style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.16em", marginTop: 2 }}>
-                          CLEAR
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
+      <StateBand leaderboard={leaderboard} summary={summary} currentPlayer={currentPlayer} form={formData?.results ?? null} />
 
-              {/* Streak badge */}
-              {(leader as any).currentStreak >= 3 && (
-                <div className="shrink-0 flex flex-col items-center"
-                  style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.25)", borderRadius: "0.75rem", padding: "0.65rem 0.85rem" }}>
-                  <Flame className="w-5 h-5 streak-fire" style={{ color: "#ff005c" }} />
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "2rem", fontWeight: 900, color: "#ff005c", lineHeight: 1, marginTop: "0.2rem" }}>
-                    {(leader as any).currentStreak}
-                  </span>
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.44rem", color: "rgba(255,0,92,0.5)", letterSpacing: "0.12em", marginTop: "0.15rem" }}>
-                    WIN STREAK
-                  </span>
-                </div>
-              )}
-            </>
-          ) : (
-            <div style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "1rem", padding: "2rem 0" }}>
-              No matches played yet — start the season!
-            </div>
-          )}
-        </div>
-      </div>
+      <ForYouZone currentPlayer={currentPlayer} myStreak={myStreak} />
 
-      <TrophyCaseSection />
+      <PulseSection pulse={pulse} loading={pulseLoading} previousVisit={visit?.previousVisit ?? null} currentPlayerId={currentPlayer?.playerId ?? null} />
 
-      {/* ── SITUATION STRIP (title race + danger zone) ── */}
-      {(second || atRisk.length > 0) && (
-        <div className={`grid gap-3 ${second && atRisk.length > 0 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
+      <ExploreAndReference settings={appSettings} />
 
-          {/* Title race */}
-          {second && (
-            <div style={{ padding: "0.85rem 1rem", border: `1px solid ${gap <= 5 ? "rgba(255,0,92,0.25)" : "rgba(255,210,74,0.18)"}`, borderRadius: "0.75rem", background: gap <= 5 ? "rgba(255,0,92,0.05)" : "rgba(255,210,74,0.04)" }}>
-              <div className="flex items-center gap-1.5 mb-2.5">
-                <Trophy className="w-3 h-3" style={{ color: gap <= 5 ? "#ff005c" : "#ffd24a" }} />
-                <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: gap <= 5 ? "#ff005c" : "#ffd24a", letterSpacing: "0.18em", fontWeight: 900 }}>
-                  {gap <= 5 ? "⚡ TITLE RACE — NECK AND NECK" : "TITLE RACE"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.3)", letterSpacing: "0.12em" }}>1ST</div>
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "1rem", color: "#ffd24a", letterSpacing: "0.04em", lineHeight: 1.1 }}>{leader!.playerName}</div>
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "1.5rem", color: "#ff005c", lineHeight: 1 }}>{leader!.points}<span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.2)", fontWeight: 400 }}>pts</span></div>
-                </div>
-                <div className="text-center px-2">
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.8rem", fontWeight: 900, color: gap <= 5 ? "#ff005c" : "#ffd24a", lineHeight: 1, textShadow: `0 0 20px ${gap <= 5 ? "#ff005c55" : "#ffd24a55"}` }}>
-                    {gap}
-                  </div>
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.42rem", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>PTS GAP</div>
-                </div>
-                <div className="text-right">
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", color: "rgba(255,255,255,0.3)", letterSpacing: "0.12em" }}>2ND</div>
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "1rem", color: "rgba(255,255,255,0.65)", letterSpacing: "0.04em", lineHeight: 1.1 }}>{second.playerName}</div>
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "1.5rem", color: "rgba(255,255,255,0.4)", lineHeight: 1 }}>{second.points}<span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.2)", fontWeight: 400 }}>pts</span></div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Danger zone */}
-          {atRisk.length > 0 && (
-            <div style={{ padding: "0.85rem 1rem", border: "1px solid rgba(255,0,92,0.2)", borderRadius: "0.75rem", background: "rgba(255,0,92,0.04)" }}>
-              <div className="flex items-center gap-1.5 mb-2.5">
-                <AlertTriangle className="w-3 h-3 animate-pulse" style={{ color: "#ff005c" }} />
-                <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "#ff005c", letterSpacing: "0.18em", fontWeight: 900 }}>DANGER ZONE</span>
-              </div>
-              <div className="space-y-1.5">
-                {atRisk.map(e => {
-                  const isCritical = e.points <= 8;
-                  const acc = isCritical ? "#ff005c" : "#f97316";
-                  return (
-                    <Link key={e.playerId} href={`/players/${e.playerId}`}>
-                      <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all hover:opacity-80"
-                        style={{ background: `rgba(${isCritical ? "255,0,92" : "249,115,22"},0.08)`, border: `1px solid rgba(${isCritical ? "255,0,92" : "249,115,22"},0.22)` }}>
-                        <span style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "0.8rem", color: "rgba(255,255,255,0.8)", letterSpacing: "0.04em" }}>
-                          {e.playerName}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "1.1rem", color: acc }}>{e.points}<span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.2)", fontWeight: 400 }}> pts</span></span>
-                          {isCritical && <Skull className="w-3 h-3 animate-pulse" style={{ color: acc }} />}
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── QUICK STATS ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: "Active",     value: summary?.activePlayers ?? summary?.totalPlayers ?? 0, accent: "#0066ff",                   cls: "stat-box-blue" },
-          { label: "Eliminated", value: eliminated,                                            accent: eliminated > 0 ? "#ff005c" : undefined, cls: eliminated > 0 ? "stat-box-red" : "" },
-          { label: "Matches",    value: summary?.currentSeasonMatches ?? 0,                   accent: "#ffd24a",                   cls: "stat-box-gold" },
-          { label: "Top ELO",    value: summary?.topEloPlayer?.elo ?? 0,                      accent: "#0066ff",                   cls: "stat-box-blue" },
-        ].map(s => (
-          <div key={s.label} className={`pdc-card px-4 py-3 ${s.cls}`}>
-            <div className="text-xs uppercase tracking-widest mb-1.5"
-              style={{ color: "rgba(255,255,255,0.28)", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.16em" }}>
-              {s.label}
-            </div>
-            <div className="font-black leading-none"
-              style={{ fontFamily: "Oswald, sans-serif", fontSize: "2.2rem", color: s.accent ?? "#fff", textShadow: s.accent ? `0 0 20px ${s.accent}55` : undefined }}>
-              {s.value}
-            </div>
-            {s.label === "Top ELO" && summary?.topEloPlayer?.name && (
-              <div className="text-xs mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.25)" }}>{summary.topEloPlayer.name}</div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <ModulesSection />
-
-      {/* ── ACTIVITY WALL ── */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="live-dot" />
-          <span className="text-xs font-black uppercase tracking-widest"
-            style={{ color: "rgba(255,0,92,0.85)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.18em", fontSize: "0.65rem" }}>
-            What's Happening
-          </span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <LeagueSection narrative={narrative} leaderboard={leaderboard} />
-          <TourSection />
-          <AchievementsSection />
-          <ShadowBotSection />
-          <RivalriesSection />
-        </div>
-      </div>
-
-      {/* ── LEADERBOARD + RECENT ── */}
-
-      {/* Mobile tab switcher */}
+      {/* ── LEADERBOARD + RECENT (kept, reference tables) ── */}
       <div className="lg:hidden flex rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
         {(["leaderboard", "recent"] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
@@ -890,26 +655,18 @@ export default function Dashboard() {
               color: activeTab === tab ? "#ff005c" : "rgba(255,255,255,0.35)",
               borderBottom: activeTab === tab ? "2px solid #ff005c" : "2px solid transparent",
             }}>
-            {tab === "leaderboard"
-              ? <><Trophy className="w-3.5 h-3.5" /> Standings</>
-              : <><Swords className="w-3.5 h-3.5" /> Matches</>}
+            {tab === "leaderboard" ? <><Trophy className="w-3.5 h-3.5" /> Standings</> : <><Swords className="w-3.5 h-3.5" /> Matches</>}
           </button>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Top 5 leaderboard */}
         <div className={`section-card ${activeTab !== "leaderboard" ? "hidden lg:block" : ""}`}>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-black uppercase flex items-center gap-2 text-sm"
-              style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
-              <Trophy className="w-3.5 h-3.5" style={{ color: "#ffd24a", filter: "drop-shadow(0 0 5px rgba(255,210,74,0.7))" }} />
-              Leaderboard
+            <h2 className="font-black uppercase flex items-center gap-2 text-sm" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
+              <Trophy className="w-3.5 h-3.5" style={{ color: "#ffd24a", filter: "drop-shadow(0 0 5px rgba(255,210,74,0.7))" }} /> Leaderboard
             </h2>
-            <Link href="/leaderboard" className="text-xs font-bold hover:text-white transition-colors uppercase tracking-widest"
-              style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
-              View All →
-            </Link>
+            <Link href="/leaderboard" className="text-xs font-bold hover:text-white transition-colors uppercase tracking-widest" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>View All →</Link>
           </div>
           <div className="space-y-2">
             {top5.map((entry, i) => {
@@ -918,41 +675,30 @@ export default function Dashboard() {
               return (
                 <Link key={entry.playerId} href={`/players/${entry.playerId}`}>
                   <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all hover:-translate-y-0.5 cursor-pointer ${isFirst ? "lb-rank-1" : i === 1 ? "lb-rank-2" : i === 2 ? "lb-rank-3" : "lb-card-row"}`}>
-                    <span className="font-black w-6 text-center leading-none"
-                      style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.3rem", color: pColor, textShadow: isFirst ? `0 0 14px ${pColor}` : undefined }}>
-                      {entry.position}
-                    </span>
+                    <span className="font-black w-6 text-center leading-none" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.3rem", color: pColor, textShadow: isFirst ? `0 0 14px ${pColor}` : undefined }}>{entry.position}</span>
                     <RankChange change={entry.positionChange} />
                     <div className="flex-1 min-w-0">
                       <div className={`font-black text-sm uppercase truncate ${isFirst ? "shimmer-gold" : ""}`}
                         style={!isFirst ? { color: "rgba(255,255,255,0.9)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" } : { fontFamily: "Oswald, sans-serif" }}>
                         {entry.playerName}
                       </div>
-                      {(entry as any).title && (
-                        <div className="text-xs truncate" style={{ color: "rgba(255,255,255,0.22)", fontStyle: "italic" }}>{(entry as any).title}</div>
-                      )}
+                      {(entry as any).title && <div className="text-xs truncate" style={{ color: "rgba(255,255,255,0.22)", fontStyle: "italic" }}>{(entry as any).title}</div>}
                     </div>
                     <TierBadge tier={entry.tier} />
-                    <span className="font-black tabular-nums"
-                      style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.2rem", color: isFirst ? "#ffd24a" : "#ff005c", minWidth: "2.8rem", textAlign: "right" }}>
+                    <span className="font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.2rem", color: isFirst ? "#ffd24a" : "#ff005c", minWidth: "2.8rem", textAlign: "right" }}>
                       {entry.points}<span className="text-xs font-normal ml-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>pts</span>
                     </span>
                   </div>
                 </Link>
               );
             })}
-            {top5.length === 0 && (
-              <div className="py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No data yet</div>
-            )}
+            {top5.length === 0 && <div className="py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No data yet</div>}
           </div>
         </div>
 
-        {/* Recent matches */}
         <div className={`section-card ${activeTab !== "recent" ? "hidden lg:block" : ""}`}>
-          <h2 className="font-black uppercase flex items-center gap-2 text-sm mb-4"
-            style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
-            <Swords className="w-3.5 h-3.5" style={{ color: "#ff005c" }} />
-            Recent Matches
+          <h2 className="font-black uppercase flex items-center gap-2 text-sm mb-4" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
+            <Swords className="w-3.5 h-3.5" style={{ color: "#ff005c" }} /> Recent Matches
           </h2>
           <div className="space-y-2">
             {recent?.slice(0, 6).map((m: any, i: number) => (
@@ -963,40 +709,24 @@ export default function Dashboard() {
                     {m.isTeamMatch ? (
                       <span className="font-black uppercase" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>{m.winnerName}</span>
                     ) : (
-                      <Link href={`/players/${m.winnerId}`} className="hover:underline font-black uppercase"
-                        style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>{m.winnerName}</Link>
+                      <Link href={`/players/${m.winnerId}`} className="hover:underline font-black uppercase" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>{m.winnerName}</Link>
                     )}
                     <span style={{ color: "rgba(255,255,255,0.22)", fontSize: "0.7rem" }}>def.</span>
                     <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.8rem" }}>{m.loserName}</span>
-                    {m.isTeamMatch && (
-                      <span className="text-xs font-black px-1.5 py-0.5 rounded"
-                        style={{ background: "rgba(0,200,150,0.12)", color: "#00c896", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.05em" }}>TEAM</span>
-                    )}
+                    {m.isTeamMatch && <span className="text-xs font-black px-1.5 py-0.5 rounded" style={{ background: "rgba(0,200,150,0.12)", color: "#00c896", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.05em" }}>TEAM</span>}
                   </div>
-                  <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>
-                    {format(new Date(m.playedAt), "MMM d, h:mm a")}
-                  </div>
-                  {m.gameType && (
-                    <div className="text-xs mt-0.5 italic truncate" style={{ color: "rgba(255,255,255,0.18)", maxWidth: "13rem" }}>
-                      {m.gameType}
-                    </div>
-                  )}
+                  <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>{format(new Date(m.playedAt), "MMM d, h:mm a")}</div>
+                  {m.gameType && <div className="text-xs mt-0.5 italic truncate" style={{ color: "rgba(255,255,255,0.18)", maxWidth: "13rem" }}>{m.gameType}</div>}
                 </div>
                 <div className="text-right shrink-0 ml-3">
-                  <div className="text-xs font-black"
-                    style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)" }}>
-                    +{m.pointsAwarded ?? 0}
-                    <span className="font-normal ml-0.5" style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.2)" }}>pts</span>
+                  <div className="text-xs font-black" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)" }}>
+                    +{m.pointsAwarded ?? 0}<span className="font-normal ml-0.5" style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.2)" }}>pts</span>
                   </div>
-                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontSize: "0.65rem" }}>
-                    {m.eloChange ? `ELO ${m.eloChange > 0 ? "+" : ""}${m.eloChange}` : ""}
-                  </div>
+                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontSize: "0.65rem" }}>{m.eloChange ? `ELO ${m.eloChange > 0 ? "+" : ""}${m.eloChange}` : ""}</div>
                 </div>
               </div>
             ))}
-            {(!recent || recent.length === 0) && (
-              <div className="py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No matches yet</div>
-            )}
+            {(!recent || recent.length === 0) && <div className="py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No matches yet</div>}
           </div>
         </div>
       </div>

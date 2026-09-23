@@ -11,6 +11,7 @@ import { createAnnouncement, getNotificationAnalytics } from "../services/notifi
 import { drawDoublesTeams } from "../lib/doublesDraw";
 import { logger } from "../lib/logger";
 import { logAdminAction, getRecentAdminActions } from "../lib/adminAudit";
+import { currentLeagueId } from "../lib/currentLeague";
 
 const router = Router();
 
@@ -466,12 +467,13 @@ router.post("/admin/test-comms", async (req, res): Promise<void> => {
   const GRAEME_ID = 1;
   const SEAN_ID   = 2;
 
+  const leagueId = await currentLeagueId(req);
   await db.execute(sql`
-    INSERT INTO settings (key, value) VALUES
-      ('messaging_enabled',    'true'),
-      ('notifications_enabled','true'),
-      ('community_enabled',    'true')
-    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    INSERT INTO settings (league_id, key, value) VALUES
+      (${leagueId}, 'messaging_enabled',    'true'),
+      (${leagueId}, 'notifications_enabled','true'),
+      (${leagueId}, 'community_enabled',    'true')
+    ON CONFLICT (league_id, key) DO UPDATE SET value = EXCLUDED.value
   `);
 
   const dmResult = await db.execute(sql`

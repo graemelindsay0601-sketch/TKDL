@@ -4,7 +4,7 @@ import { Flame, Zap, Skull, Crown, Trophy, Rocket, Ghost, Gem, type LucideIcon }
 
 export interface CosmeticDefinition {
   id: string;
-  category: "NAME_STYLE" | "PROFILE_ICON";
+  category: "NAME_STYLE" | "PROFILE_ICON" | "BANNER" | "FRAME" | "GLOW" | "RESULT_THEME" | "BUBBLE_COLOR";
   name: string;
   rarity: "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
   price: number;
@@ -13,6 +13,7 @@ export interface CosmeticDefinition {
   glow: string | null;
   iconKey: string | null;
   enabled: boolean;
+  purchasable: boolean;
   sortOrder: number;
 }
 
@@ -84,4 +85,54 @@ export function nameStyleCSS(cosmetic: CosmeticDefinition | undefined | null): C
 // .cosmetic-name-legendary) — everything else renders static.
 export function nameStyleClassName(cosmetic: CosmeticDefinition | undefined | null): string {
   return cosmetic?.gradient && cosmetic.rarity === "LEGENDARY" ? "cosmetic-name-legendary" : "";
+}
+
+// CSS for a BANNER cosmetic — its `gradient` column is a full CSS
+// background-image string. Returns {} for null/unknown, which renders as
+// the existing default hero background, unchanged.
+export function bannerCSS(cosmetic: CosmeticDefinition | undefined | null): CSSProperties {
+  if (!cosmetic?.gradient) return {};
+  return { backgroundImage: cosmetic.gradient };
+}
+
+// CSS for a FRAME cosmetic — `color` is the border colour, `glow` (if set)
+// adds a matching glow. Returns {} for null/unknown, which keeps whatever
+// default border the caller already applies.
+export function frameStyle(cosmetic: CosmeticDefinition | undefined | null): CSSProperties {
+  if (!cosmetic?.color) return {};
+  return {
+    border: `2px solid ${cosmetic.color}`,
+    boxShadow: cosmetic.glow ? `0 0 16px ${cosmetic.glow}88` : undefined,
+  };
+}
+
+// CSS for a GLOW cosmetic — its `color` overrides a leaderboard row's
+// default tier/rank-based left border + background tint with a personal
+// colour. Returns {} for null/unknown, which keeps the caller's existing
+// default styling untouched.
+export function glowRowStyle(cosmetic: CosmeticDefinition | undefined | null): CSSProperties {
+  if (!cosmetic?.color) return {};
+  return {
+    borderLeft: `3px solid ${cosmetic.color}88`,
+    background: `linear-gradient(90deg, ${cosmetic.color}12, transparent 60%)`,
+  };
+}
+
+// Colour for a RESULT_THEME cosmetic — used as the accent across a
+// player's own practice-mode result screens. Callers pass their existing
+// hardcoded default as `fallback` so "nothing equipped" renders exactly as
+// it did before this cosmetic category existed.
+export function resultThemeColor(cosmetic: CosmeticDefinition | undefined | null, fallback: string): string {
+  return cosmetic?.color ?? fallback;
+}
+
+// CSS for a BUBBLE_COLOR cosmetic — background/border tint applied only to
+// a player's own outgoing DM chat bubbles. Returns {} for null/unknown,
+// which keeps the caller's existing default pink bubble unchanged.
+export function bubbleColorStyle(cosmetic: CosmeticDefinition | undefined | null): CSSProperties {
+  if (!cosmetic?.color) return {};
+  return {
+    background: `${cosmetic.color}33`,
+    border: `1px solid ${cosmetic.color}59`,
+  };
 }

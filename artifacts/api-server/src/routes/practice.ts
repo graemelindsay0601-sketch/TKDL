@@ -6,6 +6,8 @@ import { createHash } from "node:crypto";
 import { checkAndAwardShadowBotAchievements, getShadowAchievementProgress } from "../lib/shadow-bot-achievements";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
+import { currentLeagueId } from "../lib/currentLeague";
+import { getSettingBool } from "../lib/settingsService";
 
 const router = Router();
 
@@ -1544,10 +1546,7 @@ router.post("/shadow-bot/simulate", async (req, res): Promise<void> => {
 // All shadow bots ranked by weighted avg (respects shadow_league_enabled setting)
 router.get("/shadow-bot/league", async (req, res): Promise<void> => {
   try {
-    const [settingRow] = (await db.execute(sql`
-      SELECT value FROM settings WHERE key = 'shadow_league_enabled'
-    `)).rows;
-    const enabled = (settingRow as any)?.value === "true";
+    const enabled = await getSettingBool(await currentLeagueId(req), "shadow_league_enabled");
 
     const result = await db.execute(sql`
       WITH ranked AS (

@@ -390,7 +390,22 @@ router.get("/players/:id/stats/time-of-day", async (req, res) => {
       ORDER BY time_window
     `);
 
-    res.json(result.rows);
+    // Postgres NUMERIC comes back from pg as a string (no default type
+    // parser, unlike float8/int), and avg_darts/avg_checkout/winRate are all
+    // cast to ::numeric above — sending result.rows straight through handed
+    // the frontend strings for all three, which crashed
+    // TimeOfDayPerformance's `(stat.avgDarts ?? 0).toFixed(0)` (?? only
+    // catches null/undefined, not "a string that isn't a number"). Same
+    // explicit Number() coercion the sibling /stats/monthly-trends endpoint
+    // below already uses for its own ::numeric column.
+    res.json((result.rows as any[]).map(r => ({
+      hour:        r.hour,
+      matches:     Number(r.matches),
+      wins:        Number(r.wins),
+      winRate:     Number(r.winRate),
+      avgDarts:    Number(r.avgDarts),
+      avgCheckout: Number(r.avgCheckout),
+    })));
   } catch (err) {
     req.log.error({ err }, "Failed to get time-of-day stats");
     res.status(500).json({ error: "Failed to get time-of-day stats" });

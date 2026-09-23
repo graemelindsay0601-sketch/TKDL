@@ -2,6 +2,8 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import webpush from "web-push";
 import { logger } from "./logger";
+import { getDefaultLeagueId } from "./currentLeague";
+import { getSettingBool } from "./settingsService";
 
 const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY  ?? "";
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY ?? "";
@@ -58,8 +60,13 @@ export async function createNotification(opts: {
   message: string;
 }): Promise<void> {
   try {
-    const rows = await db.execute(sql`SELECT value FROM settings WHERE key = 'notifications_enabled'`);
-    if ((rows.rows[0] as any)?.value !== "true") return;
+    // No `req` reaches this deep — it's called from event handlers
+    // (matches.ts, etc.) with just a playerId, not a request. Foundation
+    // phase: resolve to the single default league (see lib/currentLeague.ts)
+    // rather than a per-request one, matching the single-tenant reality
+    // today; this is the one seam a real "notify across leagues" flow would
+    // need to widen later.
+    if (!(await getSettingBool(await getDefaultLeagueId(), "notifications_enabled"))) return;
     await db.execute(sql`
       INSERT INTO notifications (player_id, type, actor_id, entity_id, entity_type, message)
       VALUES (
@@ -80,8 +87,8 @@ export async function createAutoPost(opts: {
   notifyPlayerIds?: number[];
 }): Promise<void> {
   try {
-    const communityRows = await db.execute(sql`SELECT value FROM settings WHERE key = 'community_enabled'`);
-    if ((communityRows.rows[0] as any)?.value !== "true") return;
+    // Same no-`req` situation as createNotification above.
+    if (!(await getSettingBool(await getDefaultLeagueId(), "community_enabled"))) return;
 
     const result = await db.execute(sql`
       INSERT INTO community_posts (player_id, content, post_type, auto_meta, status)

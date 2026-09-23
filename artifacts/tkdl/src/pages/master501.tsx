@@ -40,10 +40,13 @@ type StartCfg = NonNullable<ReturnType<typeof getConfig>>;
 type Phase   = "lobby" | "bullup" | "playing" | "result";
 type BullResult = { playerScore: number; botScore: number; playerFirst: boolean } | null;
 
-const SITE_BG: React.CSSProperties = {
-  backgroundImage: "linear-gradient(rgba(4,4,10,0.84), rgba(4,4,10,0.92)), url('https://i.postimg.cc/Bbf9fbrp/pdc1.jpg')",
-  backgroundSize: "cover", backgroundPosition: "center",
-};
+// Was a hotlinked third-party image (i.postimg.cc) — a visual one-off vs.
+// every other fullscreen match/result screen in the app (practice.tsx,
+// play.tsx, board-curse.tsx, boss-battle.tsx, tour-run.tsx all use this
+// same solid-dark + ambient-blob treatment), and a dependency on an
+// external host staying up. Swapped for the shared treatment; the two call
+// sites below now also render the ambient-blob-red/blue divs.
+const SITE_BG: React.CSSProperties = { background: "#06040e" };
 
 type LbRow = { id: number; name: string; tier: number; round: number; total_wins: number; total_losses: number; total_runs: number; best_avg: string; total_180s: number; co_hits: number; co_attempts: number };
 
@@ -209,7 +212,9 @@ export default function Master501() {
     const next = progress?.config;
     return (
       <div className="min-h-screen" style={SITE_BG}>
-        <div className="max-w-md mx-auto px-4 pt-16 pb-12 flex flex-col items-center gap-6">
+        <div className="ambient-blob-red" />
+        <div className="ambient-blob-blue" />
+        <div className="max-w-md mx-auto px-4 pt-16 pb-12 flex flex-col items-center gap-6" style={{ position: "relative" }}>
           <div style={{ fontSize: "4rem" }}>{won ? "🏆" : "💀"}</div>
           <div className="text-center">
             <div className="font-black uppercase text-4xl mb-1" style={{ fontFamily: "Oswald,sans-serif", color: acc }}>
@@ -291,7 +296,9 @@ export default function Master501() {
 
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4" style={SITE_BG}>
-        <div className="w-full max-w-sm space-y-6">
+        <div className="ambient-blob-red" />
+        <div className="ambient-blob-blue" />
+        <div className="w-full max-w-sm space-y-6" style={{ position: "relative" }}>
 
           {/* Header */}
           <div className="text-center space-y-1">

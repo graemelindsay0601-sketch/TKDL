@@ -18,6 +18,7 @@
 // truth for whether the show is on, exactly as 16.2 already established.
 import { db, settingsTable } from "@workspace/db";
 import { and, eq, inArray } from "drizzle-orm";
+import { getDefaultLeagueId } from "../lib/currentLeague";
 import {
   BROADCAST_SETTING_KEYS, BROADCAST_SETTING_DEFAULTS, resolveBroadcastConfig, validateBroadcastSettingValue,
   type BroadcastSettingKey, type BroadcastConfig,
@@ -38,8 +39,17 @@ export {
  * a setting via PATCH /api/admin/broadcast/settings should take effect on
  * the very next build, not after some arbitrary cache TTL.
  */
+// Multi-tenant note: TKDL LIVE's broadcast subsystem (this file plus
+// edition-engine.ts, story-engine.ts, routes/broadcast.ts — a dozen+ call
+// sites) isn't threaded with per-request league context yet; that's real
+// follow-up work, tracked alongside broadcast_editions.slot_key's own
+// global-uniqueness assumption from the multi-tenant scoping pass. For now
+// this resolves to the single default league, which is exactly today's
+// actual (single-league) behavior — see lib/currentLeague.ts.
 export async function getBroadcastConfig(): Promise<BroadcastConfig> {
-  const rows = await db.select().from(settingsTable).where(inArray(settingsTable.key, BROADCAST_SETTING_KEYS));
+  const leagueId = await getDefaultLeagueId();
+  const rows = await db.select().from(settingsTable)
+    .where(and(eq(settingsTable.leagueId, leagueId), inArray(settingsTable.key, BROADCAST_SETTING_KEYS)));
   const byKey = new Map(rows.map(r => [r.key as BroadcastSettingKey, r.value]));
   return resolveBroadcastConfig(key => byKey.get(key) ?? BROADCAST_SETTING_DEFAULTS[key]);
 }
@@ -51,10 +61,11 @@ export async function getBroadcastConfig(): Promise<BroadcastConfig> {
  * app.ts calls this alongside initializeFeatureFlags() on every boot.
  */
 export async function seedBroadcastSettings(): Promise<void> {
+  const leagueId = await getDefaultLeagueId();
   await db
     .insert(settingsTable)
-    .values(BROADCAST_SETTING_KEYS.map(key => ({ key, value: BROADCAST_SETTING_DEFAULTS[key] })))
-    .onConflictDoNothing({ target: settingsTable.key });
+    .values(BROADCAST_SETTING_KEYS.map(key => ({ leagueId, key, value: BROADCAST_SETTING_DEFAULTS[key] })))
+    .onConflictDoNothing({ target: [settingsTable.leagueId, settingsTable.key] });
 
   // The first producer-profile default set News to 150-300 seconds. A
   // real-data dress rehearsal showed a complete seven-story bulletin landing
@@ -71,6 +82,7 @@ export async function seedBroadcastSettings(): Promise<void> {
     .update(settingsTable)
     .set({ value: BROADCAST_SETTING_DEFAULTS.broadcast_news_profile, updatedAt: new Date() })
     .where(and(
+      eq(settingsTable.leagueId, leagueId),
       eq(settingsTable.key, "broadcast_news_profile"),
       eq(settingsTable.value, legacyNewsProfile),
     ));
@@ -85,6 +97,7 @@ export async function seedBroadcastSettings(): Promise<void> {
     .update(settingsTable)
     .set({ value: BROADCAST_SETTING_DEFAULTS.broadcast_balanced_profile, updatedAt: new Date() })
     .where(and(
+      eq(settingsTable.leagueId, leagueId),
       eq(settingsTable.key, "broadcast_balanced_profile"),
       eq(settingsTable.value, legacyBalancedProfile),
     ));
@@ -98,6 +111,7 @@ export async function seedBroadcastSettings(): Promise<void> {
     .update(settingsTable)
     .set({ value: BROADCAST_SETTING_DEFAULTS.broadcast_balanced_profile, updatedAt: new Date() })
     .where(and(
+      eq(settingsTable.leagueId, leagueId),
       eq(settingsTable.key, "broadcast_balanced_profile"),
       eq(settingsTable.value, compactBalancedProfile),
     ));
@@ -112,6 +126,7 @@ export async function seedBroadcastSettings(): Promise<void> {
     .update(settingsTable)
     .set({ value: BROADCAST_SETTING_DEFAULTS.broadcast_magazine_profile, updatedAt: new Date() })
     .where(and(
+      eq(settingsTable.leagueId, leagueId),
       eq(settingsTable.key, "broadcast_magazine_profile"),
       eq(settingsTable.value, legacyMagazineProfile),
     ));
@@ -125,6 +140,7 @@ export async function seedBroadcastSettings(): Promise<void> {
     .update(settingsTable)
     .set({ value: BROADCAST_SETTING_DEFAULTS.broadcast_magazine_profile, updatedAt: new Date() })
     .where(and(
+      eq(settingsTable.leagueId, leagueId),
       eq(settingsTable.key, "broadcast_magazine_profile"),
       eq(settingsTable.value, compactMagazineProfile),
     ));
@@ -139,11 +155,12 @@ export async function seedBroadcastSettings(): Promise<void> {
  * rows, since the whole point of this endpoint is to actually change them.
  */
 export async function setBroadcastSettings(values: Partial<Record<BroadcastSettingKey, string>>): Promise<void> {
+  const leagueId = await getDefaultLeagueId();
   const entries = Object.entries(values) as [BroadcastSettingKey, string][];
   for (const [key, value] of entries) {
     await db
       .insert(settingsTable)
-      .values({ key, value })
-      .onConflictDoUpdate({ target: settingsTable.key, set: { value, updatedAt: new Date() } });
+      .values({ leagueId, key, value })
+      .onConflictDoUpdate({ target: [settingsTable.leagueId, settingsTable.key], set: { value, updatedAt: new Date() } });
   }
 }

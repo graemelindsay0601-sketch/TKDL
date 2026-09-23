@@ -4,6 +4,8 @@ import { sql } from "drizzle-orm";
 import { createNotification } from "../lib/communityNotify";
 import { authedWriteRateLimit } from "../middleware/writeRateLimit";
 import { isValidUploadedObjectPath } from "../lib/uploadPath";
+import { currentLeagueId } from "../lib/currentLeague";
+import { getSettingBool } from "../lib/settingsService";
 
 const router = Router();
 
@@ -18,10 +20,9 @@ function requireAuth(req: any, res: any): number | false {
   if (!id) { res.status(401).json({ error: "Login required" }); return false; }
   return id;
 }
-async function featureEnabled(key: string): Promise<boolean> {
+async function featureEnabled(req: any, key: string): Promise<boolean> {
   try {
-    const r = await db.execute(sql`SELECT value FROM settings WHERE key = ${key}`);
-    return (r.rows[0] as any)?.value === "true";
+    return await getSettingBool(await currentLeagueId(req), key);
   } catch { return false; }
 }
 
@@ -47,6 +48,8 @@ router.get("/community/posts", async (req, res): Promise<void> => {
              WHEN pl.elo >= 1100 THEN 'Gold'
              WHEN pl.elo >= 950  THEN 'Silver'
              ELSE 'Bronze' END AS player_tier,
+        pl.equipped_name_style_id AS player_name_style_id,
+        pl.current_win_streak AS player_win_streak,
         cp.content,
         cp.photo_path,
         cp.post_type,
@@ -104,6 +107,8 @@ router.get("/community/posts/pending", async (req, res): Promise<void> => {
                 WHEN pl.elo >= 1100 THEN 'Gold'
                 WHEN pl.elo >= 950  THEN 'Silver'
                 ELSE 'Bronze' END AS player_tier,
+           pl.equipped_name_style_id AS player_name_style_id,
+           pl.current_win_streak AS player_win_streak,
            cp.content, cp.photo_path, cp.post_type, cp.auto_meta, cp.status, cp.created_at
     FROM community_posts cp
     JOIN players pl ON pl.id = cp.player_id
@@ -115,7 +120,7 @@ router.get("/community/posts/pending", async (req, res): Promise<void> => {
 
 // ── POST /community/posts ────────────────────────────────────────────────────
 router.post("/community/posts", authedWriteRateLimit, async (req, res): Promise<void> => {
-  if (!await featureEnabled("community_enabled") && !sessionIsAdmin(req)) {
+  if (!await featureEnabled(req, "community_enabled") && !sessionIsAdmin(req)) {
     res.status(503).json({ error: "Community feature not yet enabled" }); return;
   }
   const playerId = requireAuth(req, res);
@@ -151,7 +156,7 @@ router.post("/community/posts", authedWriteRateLimit, async (req, res): Promise<
 // a future manual/admin trigger.
 router.post("/community/auto-post", async (req, res): Promise<void> => {
   if (!sessionIsAdmin(req)) { res.status(403).json({ error: "Admin required" }); return; }
-  if (!await featureEnabled("community_enabled")) {
+  if (!await featureEnabled(req, "community_enabled")) {
     res.json({ ok: false, reason: "community disabled" }); return;
   }
   const { playerId, type, meta = {} } = req.body as any;
@@ -285,7 +290,7 @@ router.delete("/community/posts/:id", async (req, res): Promise<void> => {
 const ALLOWED_EMOJI = ["👍", "❤️", "😂", "🎯", "🏆"];
 
 router.post("/community/posts/:id/react", authedWriteRateLimit, async (req, res): Promise<void> => {
-  if (!await featureEnabled("community_enabled") && !sessionIsAdmin(req)) {
+  if (!await featureEnabled(req, "community_enabled") && !sessionIsAdmin(req)) {
     res.status(503).json({ error: "Community feature not yet enabled" }); return;
   }
   const playerId = requireAuth(req, res);
@@ -356,6 +361,8 @@ router.get("/community/posts/:id/comments", async (req, res): Promise<void> => {
                 WHEN pl.elo >= 1100 THEN 'Gold'
                 WHEN pl.elo >= 950  THEN 'Silver'
                 ELSE 'Bronze' END AS player_tier,
+           pl.equipped_name_style_id AS player_name_style_id,
+           pl.current_win_streak AS player_win_streak,
            pc.content, pc.created_at
     FROM post_comments pc
     JOIN players pl ON pl.id = pc.player_id
@@ -400,7 +407,7 @@ router.delete("/community/posts/:id/comments/:commentId", async (req, res): Prom
 
 // ── POST /community/posts/:id/comments ──────────────────────────────────────
 router.post("/community/posts/:id/comments", authedWriteRateLimit, async (req, res): Promise<void> => {
-  if (!await featureEnabled("community_enabled") && !sessionIsAdmin(req)) {
+  if (!await featureEnabled(req, "community_enabled") && !sessionIsAdmin(req)) {
     res.status(503).json({ error: "Community feature not yet enabled" }); return;
   }
   const playerId = requireAuth(req, res);

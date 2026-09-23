@@ -303,7 +303,10 @@ export function serializeSegment(segment: ProgrammeSegment, segmentId: string): 
 // 14.4 edition title
 // ═══════════════════════════════════════════════════════════════════════
 
-const SLOT_TYPE_LABELS: Record<Exclude<SlotType, "manual">, string> = {
+// Exported so routes/broadcast.ts's lightweight /broadcast/hub-spotlight
+// endpoint (Hub rework) can build a slot label without pulling in the full
+// EditionProgramme editionTitle() below requires.
+export const SLOT_TYPE_LABELS: Record<Exclude<SlotType, "manual">, string> = {
   midday: "Midday", evening: "Evening", night: "Late Night",
 };
 

@@ -54,7 +54,6 @@ export default function Admin() {
   const queryClient = useQueryClient();
 
   const [seasonName, setSeasonName]               = useState("");
-  const [isSweeping, setIsSweeping]               = useState(false);
   const [eloPlayerId, setEloPlayerId]             = useState<number | null>(null);
   const [eloValue, setEloValue]                   = useState(1000);
   const [eloLoading, setEloLoading]               = useState(false);
@@ -215,18 +214,6 @@ export default function Admin() {
     setEditMatchLoading(false);
   };
 
-  const handleSweepAchievements = async () => {
-    setIsSweeping(true);
-    try {
-      const res = await fetch("/api/admin/achievement-sweep", { method: "POST" });
-      const data = await res.json();
-      toast({ title: "Achievement Sweep Complete", description: `${data.totalGranted} achievements granted across ${data.playersChecked} players.` });
-    } catch (e: any) {
-      toast({ title: "Sweep failed", description: e.message, variant: "destructive" });
-    }
-    setIsSweeping(false);
-  };
-
   return (
     <div className="space-y-8">
       <div className="pdc-divider" />
@@ -310,17 +297,12 @@ export default function Admin() {
 
       <TourDataManager players={players ?? []} />
 
-      {/* Achievement Sweep */}
-      <CollapsibleAdminSection title="Achievement Sweep" icon={Zap} accent="#0066ff" borderColor="rgba(0,102,255,0.2)" background="rgba(0,102,255,0.02)">
-        <div className="p-5 flex items-center justify-between gap-4">
-          <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>Retroactively check and grant all earned achievements based on current career stats</p>
-          <Button onClick={handleSweepAchievements} disabled={isSweeping}
-            className="gap-2 font-bold uppercase tracking-wider shrink-0"
-            style={{ background: "#0066ff", border: "none", fontFamily: "Oswald, sans-serif", minWidth: 120 }}>
-            {isSweeping ? <><div className="w-3.5 h-3.5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#fff" }} /> Sweeping...</> : <><Zap className="w-4 h-4" /> Run Sweep</>}
-          </Button>
-        </div>
-      </CollapsibleAdminSection>
+      {/* Achievement sweep used to have two separate UIs here (an inline
+          CollapsibleAdminSection) and further down (<SweepTool />) — both
+          hitting the same /api/admin/achievement-sweep endpoint, just
+          labeled differently. Removed this one; <SweepTool /> below is the
+          single remaining sweep control (it also reports the granted count,
+          which this one didn't surface as clearly). */}
 
       {/* Elo Override */}
       <CollapsibleAdminSection title="Elo Override" icon={Zap} accent="#0066ff" borderColor="rgba(0,102,255,0.2)" background="rgba(0,102,255,0.02)">

@@ -13,7 +13,6 @@ export function CoinBalance({ playerId }: CoinBalanceProps) {
     fetch(`/api/card-clash/shop/currency/${playerId}`)
       .then((r) => r.json())
       .then((data) => {
-        console.log("Coins loaded:", data);
         setCoins(data.cardPoints ?? 0);
         setLoading(false);
       })
@@ -52,7 +51,7 @@ export function CoinBalance({ playerId }: CoinBalanceProps) {
     >
       <Coins size={20} style={{ color: "#ffd24a" }} />
       <div>
-        <div style={{ fontSize: "0.8rem", color: "rgba(255,212,74,0.7)" }}>Card Coins</div>
+        <div style={{ fontSize: "0.8rem", color: "rgba(255,212,74,0.7)" }}>Coins</div>
         <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "#ffd24a" }}>{coins}</div>
       </div>
     </div>

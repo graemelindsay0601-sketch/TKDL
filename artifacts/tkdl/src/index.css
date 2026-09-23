@@ -971,3 +971,107 @@ svg[class*="w-14"], svg[class*="h-14"],
 svg[class*="w-16"], svg[class*="h-16"] {
   filter: drop-shadow(0 0 7px currentColor) drop-shadow(0 3px 5px rgba(0,0,0,0.4));
 }
+
+/* ── Submit Match — mode tabs, stake chips, game-type chips, tilt cards ────
+   Scoped to this one page (sm- prefix) rather than touched onto shared
+   classes like .pdc-card, so this can't ripple into other pages. Built on
+   top of the app's existing tokens (--color-gold/pdc-red/pdc-blue, the
+   pdc-card bevel) instead of introducing a parallel palette. */
+.sm-tab {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 11px 8px; border-radius: 13px;
+  font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 0.78rem;
+  text-transform: uppercase; letter-spacing: 0.03em;
+  border: 1px solid transparent; cursor: pointer; transition: all 0.18s;
+}
+.sm-tab .sm-tab-ic {
+  width: 23px; height: 23px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  transition: all 0.18s;
+}
+.sm-tab .sm-tab-ic svg { width: 12px; height: 12px; filter: none; }
+.sm-tab-pink   { background: linear-gradient(160deg, rgba(255,0,92,0.16), rgba(255,0,92,0.03)); border-color: rgba(255,0,92,0.3); color: rgba(255,187,206,0.82); }
+.sm-tab-pink .sm-tab-ic   { background: rgba(255,0,92,0.24); color: #ff6b9c; }
+.sm-tab-pink:hover        { border-color: rgba(255,0,92,0.55); transform: translateY(-1px); }
+.sm-tab-blue   { background: linear-gradient(160deg, rgba(0,102,255,0.16), rgba(0,102,255,0.03)); border-color: rgba(0,102,255,0.3); color: rgba(180,209,255,0.82); }
+.sm-tab-blue .sm-tab-ic   { background: rgba(0,102,255,0.24); color: #6fa8ff; }
+.sm-tab-blue:hover        { border-color: rgba(0,102,255,0.55); transform: translateY(-1px); }
+.sm-tab-green  { background: linear-gradient(160deg, rgba(34,197,94,0.16), rgba(34,197,94,0.03)); border-color: rgba(34,197,94,0.3); color: rgba(180,235,203,0.82); }
+.sm-tab-green .sm-tab-ic  { background: rgba(34,197,94,0.24); color: #5ee89a; }
+.sm-tab-green:hover       { border-color: rgba(34,197,94,0.55); transform: translateY(-1px); }
+.sm-tab.sm-tab-active.sm-tab-pink  { color: #fff; border-color: rgba(255,0,92,0.65);  background: linear-gradient(160deg, rgba(255,0,92,0.36), rgba(255,0,92,0.1));  box-shadow: 0 0 26px rgba(255,0,92,0.32), 0 6px 16px rgba(255,0,92,0.18); }
+.sm-tab.sm-tab-active.sm-tab-blue  { color: #fff; border-color: rgba(0,102,255,0.65); background: linear-gradient(160deg, rgba(0,102,255,0.36), rgba(0,102,255,0.1)); box-shadow: 0 0 26px rgba(0,102,255,0.32), 0 6px 16px rgba(0,102,255,0.18); }
+.sm-tab.sm-tab-active.sm-tab-green { color: #fff; border-color: rgba(34,197,94,0.65); background: linear-gradient(160deg, rgba(34,197,94,0.36), rgba(34,197,94,0.1)); box-shadow: 0 0 26px rgba(34,197,94,0.32), 0 6px 16px rgba(34,197,94,0.18); }
+.sm-tab.sm-tab-active .sm-tab-ic { background: #fff; color: #14141a; box-shadow: 0 0 14px rgba(255,255,255,0.5); }
+
+.sm-chip {
+  width: 38px; height: 38px; border-radius: 50%;
+  font-family: 'Oswald', sans-serif; font-weight: 800; font-size: 0.76rem;
+  cursor: pointer; color: rgba(255,255,255,0.72);
+  background: radial-gradient(circle at 32% 28%, #232329, #101014 72%);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 5px 11px rgba(0,0,0,0.5);
+  transition: all 0.15s;
+}
+.sm-chip:disabled { opacity: 0.3; cursor: not-allowed; }
+.sm-chip.sm-chip-active {
+  color: #1a1508;
+  background: radial-gradient(circle at 32% 28%, #ffe9ad, var(--color-gold) 78%);
+  border-color: var(--color-gold);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset, 0 0 18px rgba(255,210,74,0.5), 0 6px 14px rgba(0,0,0,0.5);
+  transform: translateY(-1px);
+}
+.sm-custom-input {
+  flex: 1; min-width: 0; background: #000; border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 9px; padding: 8px 12px;
+  font-family: var(--app-font-mono); font-weight: 700; font-size: 0.9rem;
+  color: var(--color-gold); text-align: right;
+  box-shadow: inset 0 2px 7px rgba(0,0,0,0.75);
+}
+.sm-custom-input:focus { outline: none; border-color: var(--color-gold); box-shadow: inset 0 2px 7px rgba(0,0,0,0.75), 0 0 0 2px rgba(255,210,74,0.22); }
+.sm-custom-input::placeholder { color: rgba(255,210,74,0.3); }
+
+.sm-gtchip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px;
+  border-radius: 9px; font-family: 'Oswald', sans-serif; font-weight: 600;
+  font-size: 0.68rem; text-transform: uppercase;
+  background: linear-gradient(160deg, #15151b, #0d0d11);
+  border: 1px solid rgba(255,210,74,0.16); color: rgba(255,255,255,0.64);
+  cursor: pointer; box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset, 0 3px 8px rgba(0,0,0,0.35);
+  transition: all 0.15s;
+}
+.sm-gtchip svg { width: 12px; height: 12px; color: rgba(255,210,74,0.55); filter: none; }
+.sm-gtchip:hover { border-color: rgba(255,210,74,0.4); transform: translateY(-1px); }
+.sm-gtchip.sm-gtchip-active-pink  { background: linear-gradient(160deg, rgba(255,0,92,0.26), rgba(255,0,92,0.07)); border-color: rgba(255,0,92,0.55); color: #ff9dbb; box-shadow: 0 0 0 1px rgba(255,0,92,0.25) inset, 0 0 14px rgba(255,0,92,0.25); }
+.sm-gtchip.sm-gtchip-active-pink svg  { color: #ff6b9c; }
+.sm-gtchip.sm-gtchip-active-green { background: linear-gradient(160deg, rgba(34,197,94,0.26), rgba(34,197,94,0.07)); border-color: rgba(34,197,94,0.55); color: #7fe3a4; box-shadow: 0 0 0 1px rgba(34,197,94,0.25) inset, 0 0 14px rgba(34,197,94,0.25); }
+.sm-gtchip.sm-gtchip-active-green svg { color: #5ee89a; }
+.sm-gtchip.sm-gtchip-active-blue  { background: linear-gradient(160deg, rgba(0,102,255,0.26), rgba(0,102,255,0.07)); border-color: rgba(0,102,255,0.55); color: #8fbaff; box-shadow: 0 0 0 1px rgba(0,102,255,0.25) inset, 0 0 14px rgba(0,102,255,0.25); }
+.sm-gtchip.sm-gtchip-active-blue svg  { color: #6fa8ff; }
+
+/* Cursor-following light sheen + gentle 3D tilt, driven by JS setting
+   --mx/--my and a transform directly on the element (see useTilt in
+   submit-match.tsx) — no extra wrapper markup needed. */
+.sm-tilt { transition: box-shadow 0.2s, border-color 0.2s; will-change: transform; }
+.sm-tilt::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: radial-gradient(circle at var(--mx, 50%) var(--my, 20%), rgba(255,255,255,0.14), transparent 45%);
+  opacity: 0; transition: opacity 0.2s; pointer-events: none;
+}
+.sm-tilt:hover::before { opacity: 1; }
+
+@keyframes sm-cta-pulse-pink {
+  0%, 100% { box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset, 0 0 0 1px rgba(255,0,92,0.4), 0 10px 24px rgba(255,0,92,0.28); }
+  50%      { box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset, 0 0 0 1px rgba(255,0,92,0.6), 0 10px 32px rgba(255,0,92,0.48); }
+}
+@keyframes sm-cta-pulse-green {
+  0%, 100% { box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset, 0 0 0 1px rgba(34,197,94,0.4), 0 10px 24px rgba(34,197,94,0.28); }
+  50%      { box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset, 0 0 0 1px rgba(34,197,94,0.6), 0 10px 32px rgba(34,197,94,0.48); }
+}
+@keyframes sm-cta-pulse-blue {
+  0%, 100% { box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset, 0 0 0 1px rgba(0,102,255,0.4), 0 10px 24px rgba(0,102,255,0.28); }
+  50%      { box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset, 0 0 0 1px rgba(0,102,255,0.6), 0 10px 32px rgba(0,102,255,0.48); }
+}
+.sm-cta-ready-pink  { animation: sm-cta-pulse-pink 2.2s ease-in-out infinite; }
+.sm-cta-ready-green { animation: sm-cta-pulse-green 2.2s ease-in-out infinite; }
+.sm-cta-ready-blue  { animation: sm-cta-pulse-blue 2.2s ease-in-out infinite; }

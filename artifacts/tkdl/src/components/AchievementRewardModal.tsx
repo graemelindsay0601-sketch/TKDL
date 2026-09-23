@@ -108,7 +108,7 @@ export const AchievementRewardModal: React.FC<AchievementRewardModalProps> = ({
                   <div className="text-3xl font-black mb-1" style={{ fontFamily: "Share Tech Mono, monospace", color: "#ffd24a" }}>
                     {achievement.coinReward}
                   </div>
-                  <div className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", color: "rgba(255,255,255,0.4)" }}>Card Points</div>
+                  <div className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", color: "rgba(255,255,255,0.4)" }}>Coins</div>
                 </div>
               )}
 

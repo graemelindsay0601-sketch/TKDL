@@ -6,6 +6,7 @@ import { Link, useSearch } from "wouter";
 import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal, Zap, Users, Building2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useSettings } from "@/hooks/use-settings";
+import { useCosmeticsCatalog, glowRowStyle } from "@/lib/cosmetics";
 
 type Mode = "season" | "doubles" | "shiftwars" | "career" | "achievements" | "bot" | "tour" | "master501" | "records";
 
@@ -177,15 +178,19 @@ function ShiftWarsRow({ team, idx }: { team: any; idx: number }) {
   );
 }
 
-function SeasonRow({ entry, idx, maxElo }: { entry: any; idx: number; maxElo: number }) {
+function SeasonRow({ entry, idx, maxElo, glow }: { entry: any; idx: number; maxElo: number; glow?: ReturnType<typeof glowRowStyle> }) {
   const isTop3 = idx < 3;
   const pColor = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
   const tierColor = TIER_BORDER[entry.tier] ?? "rgba(255,255,255,0.12)";
   const streak = entry.currentStreak ?? 0;
+  // A purchased row-glow cosmetic overrides the default rank/tier-based
+  // accent — glow is {} when nothing's equipped, which keeps this exactly
+  // as it was.
+  const defaultStyle = { background: isTop3 ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 ? pColor + "55" : tierColor + "55"}` };
   return (
     <Link href={`/players/${entry.playerId}`} asChild>
       <div className="group flex items-center gap-3 rounded-xl cursor-pointer transition-all duration-150 hover:bg-white/[0.035] fade-in-up"
-        style={{ padding: "0.8rem 1.1rem", background: isTop3 ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 ? pColor + "55" : tierColor + "55"}`, animationDelay: `${idx * 35}ms` }}>
+        style={{ padding: "0.8rem 1.1rem", ...defaultStyle, ...glow, animationDelay: `${idx * 35}ms` }}>
         <Pos idx={idx} />
         <div className="flex-1 min-w-0 pr-2">
           <div className="flex items-center gap-2 flex-wrap">
@@ -210,13 +215,14 @@ function SeasonRow({ entry, idx, maxElo }: { entry: any; idx: number; maxElo: nu
   );
 }
 
-function CareerRow({ entry, idx, maxElo, sortKey }: { entry: any; idx: number; maxElo: number; sortKey: string }) {
+function CareerRow({ entry, idx, maxElo, sortKey, glow }: { entry: any; idx: number; maxElo: number; sortKey: string; glow?: ReturnType<typeof glowRowStyle> }) {
   const isTop3 = idx < 3;
   const pColor = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
+  const defaultStyle = { background: isTop3 ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 ? pColor + "55" : "rgba(255,255,255,0.08)"}` };
   return (
     <Link href={`/players/${entry.playerId}`} asChild>
       <div className="group flex items-center gap-3 rounded-xl cursor-pointer transition-all duration-150 hover:bg-white/[0.035] fade-in-up"
-        style={{ padding: "0.8rem 1.1rem", background: isTop3 ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 ? pColor + "55" : "rgba(255,255,255,0.08)"}`, animationDelay: `${idx * 35}ms` }}>
+        style={{ padding: "0.8rem 1.1rem", ...defaultStyle, ...glow, animationDelay: `${idx * 35}ms` }}>
         <Pos idx={idx} />
         <div className="flex-1 min-w-0 pr-2">
           <div className="flex items-center gap-2">
@@ -482,6 +488,12 @@ export default function Standings() {
 
   const isLoading = { season: seasonLoading, career: careerLoading, achievements: achLoading, bot: botLoading, tour: tourLoading, master501: m501Loading, records: recordsLoading, doubles: doublesLoading, shiftwars: shiftWarsLoading }[mode];
 
+  // Row-glow cosmetic lookup — leaderboard entries carry equippedGlowId,
+  // resolved against the shared cosmetics catalog (same module-level cache
+  // account.tsx and CosmeticsShop.tsx already use).
+  const cosmeticsCatalog = useCosmeticsCatalog();
+  const glowFor = (id: string | null | undefined) => glowRowStyle(cosmeticsCatalog.find(c => c.id === id));
+
   const active     = useMemo(() => leaderboard?.filter(e => e.status !== "ELIMINATED") ?? [], [leaderboard]);
   const eliminated = useMemo(() => leaderboard?.filter(e => e.status === "ELIMINATED") ?? [], [leaderboard]);
   const maxElo     = useMemo(() => Math.max(...(leaderboard ?? []).map(e => e.elo), 1100), [leaderboard]);
@@ -625,7 +637,7 @@ export default function Standings() {
           {/* ── Season ── */}
           {mode === "season" && (
             <div className="space-y-1.5">
-              {active.map((entry, idx) => <SeasonRow key={entry.playerId} entry={entry} idx={idx} maxElo={maxElo} />)}
+              {active.map((entry, idx) => <SeasonRow key={entry.playerId} entry={entry} idx={idx} maxElo={maxElo} glow={glowFor(entry.equippedGlowId)} />)}
               {active.length === 0 && <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No players yet.</div>}
               {eliminated.length > 0 && (
                 <div className="mt-5 space-y-1.5">
@@ -657,7 +669,7 @@ export default function Standings() {
           {/* ── All Time ── */}
           {mode === "career" && (
             <div className="space-y-1.5">
-              {careerRows.map((entry, idx) => <CareerRow key={entry.playerId} entry={entry} idx={idx} maxElo={maxCarElo} sortKey={careerSort} />)}
+              {careerRows.map((entry, idx) => <CareerRow key={entry.playerId} entry={entry} idx={idx} maxElo={maxCarElo} sortKey={careerSort} glow={glowFor(entry.equippedGlowId)} />)}
               {careerRows.length === 0 && <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No data.</div>}
               <div className="pt-2 text-xs" style={{ color: "rgba(255,255,255,0.15)" }}>
                 🏆 Season champion · Net Pts = points gained minus points lost across all wager seasons

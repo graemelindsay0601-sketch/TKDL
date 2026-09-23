@@ -118,7 +118,10 @@ export function TimeOfDayPerformance({ playerId }: TimeOfDayPerformanceProps) {
               color: "rgba(255,255,255,0.4)",
               marginTop: "4px",
             }}>
-              <span>Avg: {(stat.avgDarts ?? 0).toFixed(0)} darts</span>
+              {/* Number(...) rather than bare (stat.avgDarts ?? 0) — the API now
+                  sends a real number, but coercing here too means a stray
+                  numeric-as-string value can never crash this render again. */}
+              <span>Avg: {Number(stat.avgDarts ?? 0).toFixed(0)} darts</span>
               <span>CO: {((stat.avgCheckout ?? 0) * 100).toFixed(0)}%</span>
             </div>
           </div>

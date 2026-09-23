@@ -45,6 +45,11 @@ router.get("/players/:id/cosmetics", async (req, res): Promise<void> => {
       .select({
         equippedNameStyleId: playersTable.equippedNameStyleId,
         equippedProfileIconId: playersTable.equippedProfileIconId,
+        equippedBannerId: playersTable.equippedBannerId,
+        equippedFrameId: playersTable.equippedFrameId,
+        equippedGlowId: playersTable.equippedGlowId,
+        equippedResultThemeId: playersTable.equippedResultThemeId,
+        equippedBubbleColorId: playersTable.equippedBubbleColorId,
       })
       .from(playersTable)
       .where(eq(playersTable.id, playerId));
@@ -59,6 +64,11 @@ router.get("/players/:id/cosmetics", async (req, res): Promise<void> => {
       ownedIds: owned.map(o => o.cosmeticId),
       equippedNameStyleId: player.equippedNameStyleId,
       equippedProfileIconId: player.equippedProfileIconId,
+      equippedBannerId: player.equippedBannerId,
+      equippedFrameId: player.equippedFrameId,
+      equippedGlowId: player.equippedGlowId,
+      equippedResultThemeId: player.equippedResultThemeId,
+      equippedBubbleColorId: player.equippedBubbleColorId,
     });
   } catch (err) {
     logger.error({ err }, "Failed to get player cosmetics");
@@ -88,6 +98,11 @@ router.post("/players/:id/cosmetics/purchase", async (req, res): Promise<void> =
         .from(cosmeticDefinitionsTable)
         .where(and(eq(cosmeticDefinitionsTable.id, cosmeticId), eq(cosmeticDefinitionsTable.enabled, true)));
       if (!def) throw new Error("NOT_FOUND");
+      // Season-champion-exclusive style cosmetics (purchasable=false) are
+      // only ever granted by server-side code — this is defense in depth
+      // behind the shop UI already hiding their Buy button (see
+      // schema/cosmetics.ts's header comment on `purchasable`).
+      if (!def.purchasable) throw new Error("NOT_PURCHASABLE");
 
       const already = await tx
         .select()
@@ -122,6 +137,7 @@ router.post("/players/:id/cosmetics/purchase", async (req, res): Promise<void> =
   } catch (err) {
     const message = err instanceof Error ? err.message : "";
     if (message === "NOT_FOUND")          { res.status(404).json({ error: "Cosmetic not found" }); return; }
+    if (message === "NOT_PURCHASABLE")    { res.status(403).json({ error: "This cosmetic can't be bought — it's awarded automatically" }); return; }
     if (message === "ALREADY_OWNED")      { res.status(409).json({ error: "You already own this cosmetic" }); return; }
     if (message === "INSUFFICIENT_COINS") { res.status(400).json({ error: "Not enough coins" }); return; }
     logger.error({ err }, "Failed to purchase cosmetic");
@@ -130,7 +146,7 @@ router.post("/players/:id/cosmetics/purchase", async (req, res): Promise<void> =
 });
 
 const EquipBody = z.object({
-  category: z.enum(["NAME_STYLE", "PROFILE_ICON"]),
+  category: z.enum(["NAME_STYLE", "PROFILE_ICON", "BANNER", "FRAME", "GLOW", "RESULT_THEME", "BUBBLE_COLOR"]),
   cosmeticId: z.string().min(1).nullable(),
 });
 
@@ -160,9 +176,20 @@ router.post("/players/:id/cosmetics/equip", async (req, res): Promise<void> => {
       if (owned.length === 0) { res.status(403).json({ error: "You don't own this cosmetic" }); return; }
     }
 
+    // Explicit branches rather than a computed key — keeps this fully
+    // type-checked against playersTable's real columns.
+    let updateData: Partial<typeof playersTable.$inferInsert>;
+    if (category === "NAME_STYLE") updateData = { equippedNameStyleId: cosmeticId };
+    else if (category === "PROFILE_ICON") updateData = { equippedProfileIconId: cosmeticId };
+    else if (category === "BANNER") updateData = { equippedBannerId: cosmeticId };
+    else if (category === "FRAME") updateData = { equippedFrameId: cosmeticId };
+    else if (category === "GLOW") updateData = { equippedGlowId: cosmeticId };
+    else if (category === "RESULT_THEME") updateData = { equippedResultThemeId: cosmeticId };
+    else updateData = { equippedBubbleColorId: cosmeticId };
+
     await db
       .update(playersTable)
-      .set(category === "NAME_STYLE" ? { equippedNameStyleId: cosmeticId } : { equippedProfileIconId: cosmeticId })
+      .set(updateData)
       .where(eq(playersTable.id, playerId));
 
     res.json({ ok: true, category, cosmeticId });

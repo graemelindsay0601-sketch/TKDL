@@ -4,6 +4,8 @@ import { sql } from "drizzle-orm";
 import { createNotification } from "../lib/communityNotify";
 import { authedWriteRateLimit } from "../middleware/writeRateLimit";
 import { isValidUploadedObjectPath } from "../lib/uploadPath";
+import { currentLeagueId } from "../lib/currentLeague";
+import { getSettingBool } from "../lib/settingsService";
 
 const router = Router();
 
@@ -15,10 +17,9 @@ function requireAuth(req: any, res: any): number | false {
   if (!id) { res.status(401).json({ error: "Login required" }); return false; }
   return id;
 }
-async function messagingEnabled(): Promise<boolean> {
+async function messagingEnabled(req: any): Promise<boolean> {
   try {
-    const r = await db.execute(sql`SELECT value FROM settings WHERE key = 'messaging_enabled'`);
-    return (r.rows[0] as any)?.value === "true";
+    return await getSettingBool(await currentLeagueId(req), "messaging_enabled");
   } catch { return false; }
 }
 
@@ -107,7 +108,7 @@ router.get("/messages/:partnerId", async (req, res): Promise<void> => {
 // buggy client loop could otherwise flood another player with unlimited DMs
 // (each one also fires a push notification), so the same rate limit applies.
 router.post("/messages/:partnerId", authedWriteRateLimit, async (req, res): Promise<void> => {
-  if (!await messagingEnabled()) {
+  if (!await messagingEnabled(req)) {
     res.status(503).json({ error: "Messaging not yet enabled" }); return;
   }
   const myId = requireAuth(req, res);
@@ -148,7 +149,7 @@ router.post("/messages/:partnerId", authedWriteRateLimit, async (req, res): Prom
 
 // ── POST /messages — send with receiverId in body (used by account.tsx) ──────
 router.post("/messages", authedWriteRateLimit, async (req, res): Promise<void> => {
-  if (!await messagingEnabled()) {
+  if (!await messagingEnabled(req)) {
     res.status(503).json({ error: "Messaging not yet enabled" }); return;
   }
   const myId = requireAuth(req, res);

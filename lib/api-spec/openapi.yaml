@@ -980,6 +980,9 @@ components:
           type: string
         title:
           type: string
+        equippedGlowId:
+          type: string
+          nullable: true
 
     # ── Achievements ─────────────────────────────────────────────────────────────
     Achievement:

@@ -44,9 +44,9 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Card */}
-        <div className="rounded-2xl p-6 relative"
-          style={{ background: "rgba(10,8,20,0.95)", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 24px 48px rgba(0,0,0,0.5)" }}>
+        {/* Card — on the shared .pdc-card system now instead of a hand-rolled
+            lookalike, matching rules.tsx/seasons.tsx/community.tsx. */}
+        <div className="pdc-card p-6 relative">
 
           <button
             onClick={() => navigate("/")}

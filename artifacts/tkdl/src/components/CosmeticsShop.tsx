@@ -2,9 +2,11 @@ import { useEffect, useState, useCallback } from "react";
 import { Coins, Check, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
-  useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, RARITY_COLORS, PROFILE_ICON_MAP,
+  useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, glowRowStyle, resultThemeColor, bubbleColorStyle, RARITY_COLORS, PROFILE_ICON_MAP,
   type CosmeticDefinition,
 } from "@/lib/cosmetics";
+
+type CosmeticCategory = "NAME_STYLE" | "PROFILE_ICON" | "BANNER" | "FRAME" | "GLOW" | "RESULT_THEME" | "BUBBLE_COLOR";
 
 interface CosmeticsShopProps {
   playerId: number;
@@ -15,6 +17,11 @@ interface OwnedState {
   ownedIds: string[];
   equippedNameStyleId: string | null;
   equippedProfileIconId: string | null;
+  equippedBannerId: string | null;
+  equippedFrameId: string | null;
+  equippedGlowId: string | null;
+  equippedResultThemeId: string | null;
+  equippedBubbleColorId: string | null;
 }
 
 export function CosmeticsShop({ playerId, playerName }: CosmeticsShopProps) {
@@ -41,6 +48,11 @@ export function CosmeticsShop({ playerId, playerName }: CosmeticsShopProps) {
 
   const nameStyles   = catalog.filter(c => c.category === "NAME_STYLE");
   const profileIcons = catalog.filter(c => c.category === "PROFILE_ICON");
+  const banners      = catalog.filter(c => c.category === "BANNER");
+  const frames       = catalog.filter(c => c.category === "FRAME");
+  const glows        = catalog.filter(c => c.category === "GLOW");
+  const resultThemes = catalog.filter(c => c.category === "RESULT_THEME");
+  const bubbleColors = catalog.filter(c => c.category === "BUBBLE_COLOR");
 
   const purchase = async (cosmetic: CosmeticDefinition) => {
     setBusyId(cosmetic.id);
@@ -65,7 +77,7 @@ export function CosmeticsShop({ playerId, playerName }: CosmeticsShopProps) {
     }
   };
 
-  const equip = async (category: "NAME_STYLE" | "PROFILE_ICON", cosmeticId: string | null) => {
+  const equip = async (category: CosmeticCategory, cosmeticId: string | null) => {
     setBusyId(cosmeticId ?? `unequip-${category}`);
     try {
       const res = await fetch(`/api/players/${playerId}/cosmetics/equip`, {
@@ -104,7 +116,7 @@ export function CosmeticsShop({ playerId, playerName }: CosmeticsShopProps) {
 
       <CosmeticSection
         title="Name Styles"
-        subtitle="Recolour your name wherever it's shown — your account page and your profile, as others see it."
+        subtitle="Recolour your name wherever it's shown — your account page and your profile, as others see it. The gold &amp; red League Champion style isn't for sale — it's awarded to whoever wins the Singles season."
         items={nameStyles}
         owned={owned}
         coins={coins}
@@ -137,20 +149,122 @@ export function CosmeticsShop({ playerId, playerName }: CosmeticsShopProps) {
           return Icon ? <Icon className="w-6 h-6" style={{ color: RARITY_COLORS[c.rarity] }} /> : null;
         }}
       />
+
+      <CosmeticSection
+        title="Profile Banners"
+        subtitle="Background behind your name &amp; stats at the top of your account page."
+        items={banners}
+        owned={owned}
+        coins={coins}
+        busyId={busyId}
+        category="BANNER"
+        onPurchase={purchase}
+        onEquip={equip}
+        renderPreview={c => (
+          <div style={{ width: "100%", height: "32px", borderRadius: "6px", ...bannerCSS(c) }} />
+        )}
+      />
+
+      <CosmeticSection
+        title="Avatar Frames"
+        subtitle="Border &amp; glow around your avatar square."
+        items={frames}
+        owned={owned}
+        coins={coins}
+        busyId={busyId}
+        category="FRAME"
+        onPurchase={purchase}
+        onEquip={equip}
+        renderPreview={c => (
+          <div style={{
+            width: "32px", height: "32px", borderRadius: "8px",
+            background: "#15151f", ...frameStyle(c),
+          }} />
+        )}
+      />
+
+      <CosmeticSection
+        title="Leaderboard Row Glow"
+        subtitle="Highlight colour on your own row on the leaderboard."
+        items={glows}
+        owned={owned}
+        coins={coins}
+        busyId={busyId}
+        category="GLOW"
+        onPurchase={purchase}
+        onEquip={equip}
+        renderPreview={c => (
+          <div style={{
+            width: "100%", height: "24px", borderRadius: "6px",
+            background: "#15151f", ...glowRowStyle(c),
+          }} />
+        )}
+      />
+
+      <CosmeticSection
+        title="Result Screen Themes"
+        subtitle="Accent colour on your own practice, Master 501 &amp; Tour result screens."
+        items={resultThemes}
+        owned={owned}
+        coins={coins}
+        busyId={busyId}
+        category="RESULT_THEME"
+        onPurchase={purchase}
+        onEquip={equip}
+        renderPreview={c => (
+          <div style={{
+            width: "24px", height: "24px", borderRadius: "50%",
+            background: resultThemeColor(c, "#a78bfa"),
+            boxShadow: `0 0 10px ${resultThemeColor(c, "#a78bfa")}88`,
+          }} />
+        )}
+      />
+
+      <CosmeticSection
+        title="Message Bubble Colour"
+        subtitle="Tint on your own sent messages in your account-page DMs."
+        items={bubbleColors}
+        owned={owned}
+        coins={coins}
+        busyId={busyId}
+        category="BUBBLE_COLOR"
+        onPurchase={purchase}
+        onEquip={equip}
+        renderPreview={c => (
+          <div style={{
+            padding: "4px 10px", borderRadius: "10px", fontSize: "0.6rem",
+            fontFamily: "Oswald, sans-serif", color: "#fff",
+            background: "rgba(255,0,92,0.2)", border: "1px solid rgba(255,0,92,0.35)",
+            ...bubbleColorStyle(c),
+          }}>
+            Hey!
+          </div>
+        )}
+      />
     </div>
   );
 }
+
+const EQUIPPED_ID_KEY: Record<CosmeticCategory, keyof OwnedState> = {
+  NAME_STYLE: "equippedNameStyleId",
+  PROFILE_ICON: "equippedProfileIconId",
+  BANNER: "equippedBannerId",
+  FRAME: "equippedFrameId",
+  GLOW: "equippedGlowId",
+  RESULT_THEME: "equippedResultThemeId",
+  BUBBLE_COLOR: "equippedBubbleColorId",
+};
 
 function CosmeticSection({
   title, subtitle, items, owned, coins, busyId, category, onPurchase, onEquip, renderPreview,
 }: {
   title: string; subtitle: string; items: CosmeticDefinition[]; owned: OwnedState | null;
-  coins: number; busyId: string | null; category: "NAME_STYLE" | "PROFILE_ICON";
+  coins: number; busyId: string | null; category: CosmeticCategory;
   onPurchase: (c: CosmeticDefinition) => void;
-  onEquip: (category: "NAME_STYLE" | "PROFILE_ICON", id: string | null) => void;
+  onEquip: (category: CosmeticCategory, id: string | null) => void;
   renderPreview: (c: CosmeticDefinition) => React.ReactNode;
 }) {
-  const equippedId = category === "NAME_STYLE" ? owned?.equippedNameStyleId : owned?.equippedProfileIconId;
+  const equippedId = owned ? (owned[EQUIPPED_ID_KEY[category]] as string | null) : null;
 
   return (
     <div>
@@ -222,6 +336,18 @@ function CosmeticSection({
                 >
                   Equip
                 </button>
+              ) : !c.purchasable ? (
+                <div
+                  title="Awarded automatically — not for sale"
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: "4px",
+                    fontSize: "0.6rem", fontWeight: 700, fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em",
+                    color: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.02)",
+                    border: "1px dashed rgba(255,255,255,0.12)", borderRadius: "6px", padding: "5px 0",
+                  }}
+                >
+                  <Lock className="w-3 h-3" /> Exclusive
+                </div>
               ) : (
                 <button
                   onClick={() => canAfford && onPurchase(c)}

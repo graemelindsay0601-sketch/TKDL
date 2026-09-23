@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
-import { db, settingsTable, featureFlagsTable } from "@workspace/db";
+import { db, featureFlagsTable } from "@workspace/db";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { paramStr } from "../lib/http";
+import { currentLeagueId } from "../lib/currentLeague";
+import { getAllSettings, setSetting } from "../lib/settingsService";
 import {
   getAllFeatureFlags, initializeFeatureFlags,
   enableFeatureForAll, disableFeature, setAdminTestMode, getFeatureStatus,
@@ -10,15 +11,15 @@ import {
 
 const router = Router();
 
-router.get("/settings", async (_req, res): Promise<void> => {
-  const rows = await db.select().from(settingsTable);
+router.get("/settings", async (req, res): Promise<void> => {
+  const settingsMap = await getAllSettings(await currentLeagueId(req));
   const flags = await db.select().from(featureFlagsTable);
-  
+
   const out: Record<string, boolean | string> = {};
-  
+
   // Add settings table values
-  for (const r of rows) {
-    out[r.key] = r.value === "true" ? true : r.value === "false" ? false : r.value;
+  for (const [key, value] of Object.entries(settingsMap)) {
+    out[key] = value === "true" ? true : value === "false" ? false : value;
   }
   
   // Add feature flags
@@ -56,12 +57,7 @@ router.patch("/admin/settings/:key", requireAdminSession, async (req, res): Prom
   const key = paramStr(req.params.key);
   const { value } = req.body as { value?: unknown };
   if (value === undefined) { res.status(400).json({ error: "value required" }); return; }
-  const existing = await db.select().from(settingsTable).where(eq(settingsTable.key, key));
-  if (existing.length === 0) {
-    await db.insert(settingsTable).values({ key, value: String(value) });
-  } else {
-    await db.update(settingsTable).set({ value: String(value), updatedAt: new Date() }).where(eq(settingsTable.key, key));
-  }
+  await setSetting(await currentLeagueId(req), key, String(value));
   res.json({ ok: true, key, value });
 });
 

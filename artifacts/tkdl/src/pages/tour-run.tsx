@@ -103,7 +103,6 @@ function KOMatchCard({ match, participants, isPlayer, isActive, isFuture }: {
 
 function KOBracketView({ bracket, onPlay }: { bracket: KOBracket; onPlay: () => void }) {
   const { rounds, currentRound, participants, status } = bracket;
-  const tierColor = "#ff005c";
 
   return (
     <div>

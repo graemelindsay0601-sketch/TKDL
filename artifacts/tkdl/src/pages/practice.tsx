@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useSearch } from "wouter";
 import { useListPlayers } from "@workspace/api-client-react";
 import { useCurrentPlayer } from "@/context/auth";
+import { useCosmeticsCatalog, resultThemeColor } from "@/lib/cosmetics";
 import { useToast } from "@/hooks/use-toast";
 import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users, Ghost, User, Target, Clock, X } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
@@ -672,6 +673,22 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
   const [error, setError]   = useState("");
   const startRef            = useRef(Date.now());
 
+  // RESULT_THEME cosmetic — an accent colour for the logged-in viewer's own
+  // result screen, independent of which slot (p1/p2) they played as. Falls
+  // back to the existing hardcoded purple below when nothing's equipped or
+  // no one's logged in (e.g. a shared-device solo session).
+  const currentPlayer = useCurrentPlayer();
+  const cosmeticsCatalog = useCosmeticsCatalog();
+  const [equippedThemeId, setEquippedThemeId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!currentPlayer?.playerId) return;
+    fetch(`/api/players/${currentPlayer.playerId}/cosmetics`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => setEquippedThemeId(data?.equippedResultThemeId ?? null))
+      .catch(() => {});
+  }, [currentPlayer?.playerId]);
+  const themeColor = resultThemeColor(cosmeticsCatalog.find(c => c.id === equippedThemeId), "#a78bfa");
+
   useEffect(() => {
     const duration = Math.round((Date.now() - startRef.current) / 1000);
     const body: Record<string, unknown> = {
@@ -722,14 +739,14 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
       <div className="pdc-divider" />
       <div>
         <div className="w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center"
-          style={{ background: "rgba(167,139,250,0.15)", border: "2px solid rgba(167,139,250,0.4)" }}>
-          <Trophy className="w-8 h-8" style={{ color: "#a78bfa" }} />
+          style={{ background: `${themeColor}26`, border: `2px solid ${themeColor}66` }}>
+          <Trophy className="w-8 h-8" style={{ color: themeColor }} />
         </div>
         <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Practice Complete</div>
         <div className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.08em" }}>
           {data.soloPlay ? "Practice Complete!" : data.solo ? (result.winnerIdx === 0 ? "You Win!" : `${p2Label ?? "CPU"} Wins!`) : `${winner} Wins!`}
         </div>
-        {result.detail && <div className="text-sm mt-1" style={{ color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>{result.detail}</div>}
+        {result.detail && <div className="text-sm mt-1" style={{ color: themeColor, fontFamily: "Oswald, sans-serif" }}>{result.detail}</div>}
       </div>
 
       {stats && (
@@ -738,7 +755,7 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
           p2Name={data.botName ?? data.p2?.name ?? "CPU"}
           stats={stats}
           winnerIdx={result.winnerIdx as 0|1}
-          accentColor="#a78bfa"
+          accentColor={themeColor}
         />
       )}
 
@@ -774,7 +791,7 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
           <RotateCcw className="w-4 h-4" />Again
         </button>
         <a href="/" className="py-3 rounded-xl font-bold uppercase tracking-widest text-sm text-center block"
-          style={{ background: "rgba(167,139,250,0.12)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.25)", fontFamily: "Oswald, sans-serif", lineHeight: "1.5rem" }}>
+          style={{ background: `${themeColor}1f`, color: themeColor, border: `1px solid ${themeColor}40`, fontFamily: "Oswald, sans-serif", lineHeight: "1.5rem" }}>
           Dashboard
         </a>
       </div>

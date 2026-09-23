@@ -48,6 +48,26 @@ export const playersTable = pgTable("players", {
   // Null means "nothing equipped in that slot" — the existing default look.
   equippedNameStyleId: text("equipped_name_style_id"),
   equippedProfileIconId: text("equipped_profile_icon_id"),
+  // Same no-FK reasoning as the two columns above — added for the
+  // BANNER/FRAME cosmetic categories (see db/migrations/add_banner_frame_cosmetics.ts).
+  equippedBannerId: text("equipped_banner_id"),
+  equippedFrameId: text("equipped_frame_id"),
+  // GLOW cosmetic category (see db/migrations/add_glow_cosmetic.ts) — a
+  // highlight colour for this player's own leaderboard row.
+  equippedGlowId: text("equipped_glow_id"),
+  // RESULT_THEME cosmetic category (see db/migrations/add_result_theme_cosmetic.ts)
+  // — an accent colour for this player's own practice-mode result screens.
+  equippedResultThemeId: text("equipped_result_theme_id"),
+  // BUBBLE_COLOR cosmetic category (see db/migrations/add_bubble_color_cosmetic.ts)
+  // — a tint for this player's own outgoing chat bubbles in account-page DMs.
+  equippedBubbleColorId: text("equipped_bubble_color_id"),
+  // When this player last loaded the Hub — drives the "welcome back, last
+  // visit X ago" freshness bar and the Pulse feed's "since your last visit"
+  // divider (Hub rework). Same no-FK-needed shape as
+  // lastSeenBroadcastEditionId above; unlike that field this isn't compared
+  // against another table's id, just read/written directly by
+  // GET /api/hub/visit/:playerId.
+  lastSeenHubAt: timestamp("last_seen_hub_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

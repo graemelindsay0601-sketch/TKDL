@@ -133,7 +133,9 @@ export default function BossBattlePage() {
         <div style={{ fontSize: "0.7rem", letterSpacing: "0.2em", color: "rgba(255,80,80,0.6)", textTransform: "uppercase" }}>Boss Battle</div>
         <div style={{ fontSize: "2rem", fontWeight: 900, color: "#fff", marginTop: "8px" }}>{boss.name}</div>
         <div style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.5)", marginTop: "4px", fontStyle: "italic" }}>"{boss.tagline}"</div>
-        <div style={{ marginTop: "24px", padding: "16px", borderRadius: "12px", background: "rgba(255,80,80,0.06)", border: "1px solid rgba(255,80,80,0.25)", textAlign: "left" }}>
+        {/* .pdc-card + accent left-border — same convention as rules.tsx's
+            RuleSection — instead of a one-off bordered box. */}
+        <div className="pdc-card p-4" style={{ marginTop: "24px", borderLeft: "3px solid rgba(255,107,107,0.5)", textAlign: "left" }}>
           <div style={{ fontSize: "0.65rem", fontWeight: 800, letterSpacing: "0.08em", color: "#ff6b6b", textTransform: "uppercase", marginBottom: "8px" }}>Moves</div>
           {boss.moves.map(m => (
             <div key={m.name} style={{ marginBottom: "8px" }}>
@@ -267,6 +269,9 @@ export default function BossBattlePage() {
         </div>
       )}
 
+      {/* Outer .pdc-card wrapper to match the leaderboard panel just above —
+          individual boss rows keep their own locked/won/available styling. */}
+      <div className="pdc-card p-3">
       <div className="space-y-3">
         {BOSSES.sort((a, b) => a.order - b.order).map(boss => {
           const unlocked = isUnlocked(boss);
@@ -309,6 +314,7 @@ export default function BossBattlePage() {
             </button>
           );
         })}
+      </div>
       </div>
     </div>
   );

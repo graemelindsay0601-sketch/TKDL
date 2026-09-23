@@ -221,6 +221,15 @@ router.post("/shop/purchase", async (req: Request, res: Response) => {
   try {
     const { playerId, packType } = req.body;
 
+    // Require a real login session and only allow spending on your own
+    // account — same guard cosmetics.ts already uses for its purchase/equip
+    // routes. Previously this trusted body.playerId outright, so a
+    // tampered request could spend/grant packs against a different
+    // player's balance.
+    const sessionId = (req.session as any)?.playerId;
+    if (!sessionId) { res.status(401).json({ error: "Login required" }); return; }
+    if (sessionId !== Number(playerId)) { res.status(403).json({ error: "You can only buy packs for your own account" }); return; }
+
     if (!["SINGLE", "FIVE", "TEN"].includes(packType)) {
       res.status(400).json({ error: "Invalid pack type" });
       return;
@@ -1161,6 +1170,13 @@ router.post("/pack-inventory/:inventoryId/open", async (req: Request, res: Respo
       return;
     }
 
+    // Same account-ownership guard as cosmetics.ts / shop/purchase above —
+    // without it, a tampered request could open (and collect the coins/
+    // cards from) a pack belonging to a different player.
+    const sessionId = (req.session as any)?.playerId;
+    if (!sessionId) { res.status(401).json({ error: "Login required" }); return; }
+    if (sessionId !== Number(playerId)) { res.status(403).json({ error: "You can only open your own packs" }); return; }
+
     // Get the pack type before marking as opened
     const { db: dbConn } = await import("@workspace/db");
     const { sql: sqlFn } = await import("drizzle-orm");
@@ -1207,6 +1223,11 @@ router.post("/sell-card", async (req: Request, res: Response) => {
       res.status(400).json({ error: "playerId and cardId required" });
       return;
     }
+
+    // Same account-ownership guard as the other spend routes above.
+    const sessionId = (req.session as any)?.playerId;
+    if (!sessionId) { res.status(401).json({ error: "Login required" }); return; }
+    if (sessionId !== Number(playerId)) { res.status(403).json({ error: "You can only sell your own cards" }); return; }
 
     // Check the card rarity for dynamic pricing
     const cardDef = await db.execute(sql`
@@ -1328,6 +1349,11 @@ router.post("/sell-card", async (req: Request, res: Response) => {
         res.status(400).json({ success: false, message: "Missing cardId or playerId" });
         return;
       }
+
+      // Same account-ownership guard as the other spend routes above.
+      const sessionId = (req.session as any)?.playerId;
+      if (!sessionId) { res.status(401).json({ success: false, message: "Login required" }); return; }
+      if (sessionId !== Number(playerId)) { res.status(403).json({ success: false, message: "You can only buy for your own account" }); return; }
 
       const { purchaseFeaturedCard } = await import("../services/featured-card-shop-service");
       const result = await purchaseFeaturedCard(Number(playerId), Number(cardId));

@@ -26,4 +26,5 @@ export interface LeaderboardEntry {
   aura?: string;
   auraColor?: string;
   title?: string;
+  equippedGlowId?: string | null;
 }

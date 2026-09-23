@@ -19,7 +19,7 @@ import {
   type BroadcastSettingKey,
 } from "../broadcast/config";
 import { resolveNextLogicalSlot } from "../broadcast/edition-slots";
-import { serializeSegment, editionTitle } from "../broadcast/api-shapes";
+import { serializeSegment, editionTitle, SLOT_TYPE_LABELS } from "../broadcast/api-shapes";
 import {
   programmeSegmentId, programmeModeOf, totalEstimatedSecondsForProgramme, classifyEditionLength,
   type EditionProgramme,
@@ -123,6 +123,41 @@ router.post("/broadcast/mark-seen", async (req, res): Promise<void> => {
     res.json({ ok: true });
   } catch {
     res.json({ ok: true });
+  }
+});
+
+// ── GET /broadcast/hub-spotlight ──────────────────────────────────────────
+// Backs the "Right Now" TKDL LIVE card on the Hub (dashboard.tsx). Same
+// always-200, degrade-gracefully shape as /broadcast/live-status above —
+// this is a landing-page widget, not a gated page load — but also returns a
+// human-readable slot label so the card can say *what* just published
+// rather than just flashing a dot. Deliberately doesn't call editionTitle()
+// (api-shapes.ts), which needs the full rebuilt EditionProgramme just for
+// its optional headline suffix; a Hub teaser card doesn't need that story
+// detail, only enough to read as real rather than generic.
+router.get("/broadcast/hub-spotlight", async (req, res): Promise<void> => {
+  try {
+    const available = await isFeatureAvailable(FEATURES.TKDL_LIVE, sessionIsAdmin(req));
+    if (!available) { res.json({ available: false, hasNewEdition: false, title: null }); return; }
+
+    const latest = await latestPublishedEdition();
+    if (!latest) { res.json({ available: true, hasNewEdition: false, title: null }); return; }
+
+    const dateLabel = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "Europe/London" }).format(latest.scheduledFor);
+    const slotLabel = latest.slotType === "manual" ? "Special" : SLOT_TYPE_LABELS[latest.slotType];
+    const title = `${slotLabel} Edition, ${dateLabel}`;
+
+    const playerId = sessionPlayerId(req);
+    let hasNewEdition = false;
+    if (playerId) {
+      const [player] = await db.select({ lastSeen: playersTable.lastSeenBroadcastEditionId })
+        .from(playersTable).where(eq(playersTable.id, playerId));
+      hasNewEdition = player?.lastSeen !== latest.id;
+    }
+
+    res.json({ available: true, hasNewEdition, title });
+  } catch {
+    res.json({ available: false, hasNewEdition: false, title: null });
   }
 });
 

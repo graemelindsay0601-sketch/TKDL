@@ -1,7 +1,7 @@
 import cron from "node-cron";
 import { randomUUID } from "node:crypto";
 import { db } from "@workspace/db";
-import { playersTable, seasonsTable, seasonStandingsTable } from "@workspace/db";
+import { playersTable, seasonsTable, seasonStandingsTable, playerCosmeticsTable } from "@workspace/db";
 import type { LeagueType } from "@workspace/db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { logger } from "./logger";
@@ -141,6 +141,23 @@ async function performSeasonResetLocked(overrideName?: string): Promise<typeof s
 
     // Grant season achievements
     await checkSeasonAchievements(currentSeason.id, sorted, champion?.id ?? null);
+
+    // Auto-grant the season-champion-exclusive "League Champion" name style
+    // (see services/cosmetics-service.ts's CHAMPION_EXCLUSIVES) — a
+    // purchasable=false cosmetic that only ever comes from actually being
+    // crowned. onConflictDoNothing so a repeat champion (or a retried
+    // reset) never errors on already owning it. Wrapped so a failure here
+    // never blocks the actual season close, same reasoning as the Shift
+    // Wars history snapshot below being non-fatal.
+    if (champion) {
+      try {
+        await db.insert(playerCosmeticsTable)
+          .values({ playerId: champion.id, cosmeticId: "name-crowned" })
+          .onConflictDoNothing();
+      } catch (err) {
+        logger.error({ err, championId: champion.id }, "Failed to grant season-champion cosmetic");
+      }
+    }
 
     // Close the season, then fall through to the same
     // reset-players-and-open-new-season transaction used below regardless

@@ -46,11 +46,13 @@ const tkdlLiveNav = [
 const leagueNav = [
   { href: "/leaderboard",  label: "Standings",    icon: Trophy          },
   { href: "/players",      label: "Players",      icon: Users           },
-  // Full head-to-head comparison view (see pages/head-to-head.tsx) — same
-  // situation /broadcast was in below: a fully working route reachable only
-  // via a buried link on a player's match-history row, with no way to find
-  // it from the nav.
-  { href: "/head-to-head", label: "Head to Head", icon: Swords          },
+  // Full head-to-head comparison view (see pages/head-to-head.tsx, routed at
+  // /h2h in App.tsx — not /head-to-head, which this link pointed at until
+  // now and which 404'd since no such route is registered). Same situation
+  // /broadcast was in below: a fully working route reachable only via a
+  // buried link on a player's match-history row, with no way to find it
+  // from the nav.
+  { href: "/h2h",           label: "Head to Head", icon: Swords          },
   { href: "/seasons",      label: "Seasons",      icon: History         },
   { href: "/hall-of-fame", label: "Hall of Fame", icon: Award           },
   { href: "/rules",        label: "Rules",        icon: BookOpen        },
@@ -285,7 +287,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> };
   const dynamicPlayNav: NavItem[] = liveScorer
-    ? [...playNav, { href: "/play", label: "Live Scorer", icon: Swords }]
+    ? [...playNav, { href: "/play", label: "Match Scorer", icon: Swords }]
     : playNav;
   const dynamicBotNav: NavItem[] = botNav;
   const dynamicCardClashNav: NavItem[] = cardClashEnabled ? cardClashNav : [];

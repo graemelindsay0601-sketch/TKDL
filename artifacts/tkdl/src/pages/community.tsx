@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAuth } from "@/context/auth";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { MessageSquare, Image as ImageIcon, Send, X, Heart, ChevronDown, ChevronUp, Clock, CheckCircle, AlertCircle, Pencil } from "lucide-react";
+import { MessageSquare, Image as ImageIcon, Send, X, Heart, ChevronDown, ChevronUp, Clock, CheckCircle, AlertCircle, Pencil, Flame, Trophy, Users, ArrowUpDown } from "lucide-react";
+import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName } from "@/lib/cosmetics";
 
 const TIER_COLORS: Record<string, string> = {
   Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
@@ -81,6 +82,8 @@ type Post = {
   reactions: Record<string, number>;
   comment_count: number;
   myReactions: string[];
+  player_name_style_id: string | null;
+  player_win_streak: number;
 };
 
 type Comment = {
@@ -90,7 +93,38 @@ type Comment = {
   player_tier: string;
   content: string;
   created_at: string;
+  player_name_style_id: string | null;
+  player_win_streak: number;
 };
+
+function engagementScore(p: Post): number {
+  return Object.values(p.reactions).reduce((a, b) => a + b, 0) + p.comment_count;
+}
+
+// Shared name treatment: links to the player's profile, applies their
+// equipped NAME_STYLE cosmetic (same lib/cosmetics.ts used on player-detail
+// and the dashboard — nothing new invented here), and shows a streak flame
+// once currentWinStreak reaches the same >=3 threshold players.tsx uses.
+function PlayerName({ id, name, tier, nameStyleId, winStreak, className = "" }: {
+  id: number; name: string; tier: string; nameStyleId: string | null; winStreak: number; className?: string;
+}) {
+  const catalog = useCosmeticsCatalog();
+  const cosmetic = catalog.find(c => c.id === nameStyleId);
+  const tierCol = TIER_COLORS[tier] ?? "#9ca3af";
+  return (
+    <Link href={`/players/${id}`}
+      className={`font-bold hover:underline decoration-dotted underline-offset-2 ${nameStyleClassName(cosmetic)} ${className}`}
+      style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em", ...(cosmetic ? nameStyleCSS(cosmetic) : { color: tierCol }) }}>
+      {name}
+      {winStreak >= 3 && (
+        <span className="inline-flex items-center gap-0.5 ml-1 align-middle" style={{ color: "#ff005c" }}>
+          <Flame className="w-3 h-3 streak-fire inline" style={{ color: "#ff005c" }} />
+          <span className="text-xs" style={{ fontFamily: "Oswald, sans-serif" }}>{winStreak}</span>
+        </span>
+      )}
+    </Link>
+  );
+}
 
 function PlayerAvatar({ name, tier, size = 8 }: { name: string; tier: string; size?: number }) {
   const col = TIER_COLORS[tier] ?? "#9ca3af";
@@ -215,7 +249,7 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
   const eventStyle = autoEventStyle(post);
 
   return (
-    <div className="rounded-2xl overflow-hidden"
+    <div id={`post-${post.id}`} className="rounded-2xl overflow-hidden scroll-mt-4"
       style={{
         background: isPending ? "rgba(255,200,0,0.04)" : eventStyle ? `${eventStyle.color}0d` : "rgba(255,255,255,0.03)",
         border: `1px solid ${isPending ? "rgba(255,200,0,0.2)" : eventStyle ? `${eventStyle.color}33` : "rgba(255,255,255,0.07)"}`,
@@ -256,9 +290,16 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
           )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: eventStyle ? eventStyle.color : tierCol, letterSpacing: "0.04em" }}>
-                {post.player_name}
-              </span>
+              {eventStyle ? (
+                <Link href={`/players/${post.player_id}`} className="font-bold text-sm hover:underline decoration-dotted underline-offset-2"
+                  style={{ fontFamily: "Oswald, sans-serif", color: eventStyle.color, letterSpacing: "0.04em" }}>
+                  {post.player_name}
+                </Link>
+              ) : (
+                <PlayerName id={post.player_id} name={post.player_name} tier={post.player_tier}
+                  nameStyleId={post.player_name_style_id} winStreak={post.player_win_streak}
+                  className="text-sm" />
+              )}
               <span className="text-xs px-1.5 py-0.5 rounded-md font-bold" style={{ background: `${tierCol}18`, border: `1px solid ${tierCol}40`, color: tierCol, fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em", fontSize: "0.55rem" }}>
                 {post.player_tier}
               </span>
@@ -385,9 +426,9 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
                 <div key={c.id} className="flex gap-2 group">
                   <PlayerAvatar name={c.player_name} tier={c.player_tier} size={6} />
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs font-bold mr-2" style={{ fontFamily: "Oswald, sans-serif", color: TIER_COLORS[c.player_tier] ?? "#9ca3af" }}>
-                      {c.player_name}
-                    </span>
+                    <PlayerName id={c.player_id} name={c.player_name} tier={c.player_tier}
+                      nameStyleId={c.player_name_style_id} winStreak={c.player_win_streak}
+                      className="text-xs mr-2" />
                     <span className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>{c.content}</span>
                     <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>{relativeTime(c.created_at)}</div>
                   </div>
@@ -444,6 +485,14 @@ export default function CommunityPage() {
   const [submitting,   setSubmitting]   = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Feed tab / sort — filters and reorders whatever's already loaded in
+  // `posts`; it doesn't hit the network again, so "Photos" or "Mine" on a
+  // feed that hasn't loaded far enough just looks thin rather than wrong,
+  // same tradeoff LOAD MORE already makes.
+  const [tab,  setTab]  = useState<"all" | "celebrations" | "photos" | "mine">("all");
+  const [sort, setSort] = useState<"new" | "top">("new");
+  const [expandedPhotoId, setExpandedPhotoId] = useState<number | null>(null);
+
   const LIMIT = 20;
 
   useEffect(() => {
@@ -477,6 +526,36 @@ export default function CommunityPage() {
     void loadPending();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // "Best of the week" — the top posts among what's loaded, ranked by real
+  // reaction + comment counts already on each post. Not a separate scoring
+  // system, just a sort of fields the page already fetches.
+  const highlights = useMemo(() => {
+    return [...posts]
+      .filter(p => engagementScore(p) > 0)
+      .sort((a, b) => engagementScore(b) - engagementScore(a))
+      .slice(0, 3);
+  }, [posts]);
+
+  // "Active this week" — the distinct posters among what's loaded, most
+  // recent first. Derived client-side from the same feed, not a new
+  // presence/online-status feature.
+  const activeMembers = useMemo(() => {
+    const seen = new Map<number, Post>();
+    for (const p of posts) if (!seen.has(p.player_id)) seen.set(p.player_id, p);
+    return [...seen.values()].slice(0, 12);
+  }, [posts]);
+
+  const visiblePosts = useMemo(() => {
+    let list = posts;
+    if (tab === "celebrations") list = list.filter(p => p.post_type === "auto");
+    else if (tab === "photos")  list = list.filter(p => p.photo_path);
+    else if (tab === "mine")    list = list.filter(p => p.player_id === user?.playerId);
+    if (sort === "top") list = [...list].sort((a, b) => engagementScore(b) - engagementScore(a));
+    return list;
+  }, [posts, tab, sort, user?.playerId]);
+
+  const photoTiles = useMemo(() => visiblePosts.filter(p => p.photo_path), [visiblePosts]);
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -647,6 +726,80 @@ export default function CommunityPage() {
         )}
       </div>
 
+      {/* Active this week — distinct posters from the loaded feed */}
+      {activeMembers.length > 1 && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-2 px-0.5">
+            <Users className="w-3 h-3" style={{ color: "rgba(255,255,255,0.3)" }} />
+            <span className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em", color: "rgba(255,255,255,0.3)", fontSize: "0.6rem" }}>
+              Active this week
+            </span>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+            {activeMembers.map(m => {
+              const tierCol = TIER_COLORS[m.player_tier] ?? "#9ca3af";
+              return (
+                <Link key={m.player_id} href={`/players/${m.player_id}`}
+                  className="flex flex-col items-center gap-1 shrink-0" style={{ width: 52 }}>
+                  <div className="relative">
+                    <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold"
+                      style={{ background: `${tierCol}22`, border: `1.5px solid ${tierCol}77`, color: tierCol, fontFamily: "Oswald, sans-serif", fontSize: "0.8rem" }}>
+                      {m.player_name.charAt(0).toUpperCase()}
+                    </div>
+                    {m.player_win_streak >= 3 && (
+                      <Flame className="w-3.5 h-3.5 streak-fire absolute -bottom-0.5 -right-0.5" style={{ color: "#ff005c", filter: "drop-shadow(0 0 3px rgba(255,0,92,0.7))" }} />
+                    )}
+                  </div>
+                  <span className="text-xs truncate w-full text-center" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    {m.player_name.split(" ")[0]}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Best of the week — top posts by real reaction + comment count */}
+      {highlights.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-2 px-0.5">
+            <Trophy className="w-3 h-3" style={{ color: "#ffd24a" }} />
+            <span className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em", color: "#ffd24a", fontSize: "0.6rem" }}>
+              Best of the week
+            </span>
+          </div>
+          <div className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+            {highlights.map((p, i) => {
+              const tierCol = TIER_COLORS[p.player_tier] ?? "#9ca3af";
+              return (
+                <button key={p.id} onClick={() => document.getElementById(`post-${p.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                  className="text-left rounded-2xl p-3 shrink-0 transition-transform hover:-translate-y-0.5"
+                  style={{ width: 200, background: "linear-gradient(160deg, rgba(255,210,74,0.1), rgba(20,20,26,0.6) 70%)", border: "1px solid rgba(255,210,74,0.3)", boxShadow: "0 10px 24px rgba(0,0,0,0.35)" }}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center font-bold shrink-0"
+                        style={{ background: `${tierCol}22`, border: `1px solid ${tierCol}66`, color: tierCol, fontFamily: "Oswald, sans-serif", fontSize: "0.62rem" }}>
+                        {p.player_name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-xs font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>{p.player_name}</span>
+                    </div>
+                    <span className="text-xs font-black shrink-0" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>#{i + 1}</span>
+                  </div>
+                  <p className="text-xs leading-snug mb-2" style={{ color: "rgba(255,255,255,0.65)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                    {p.content || (p.photo_path ? "📷 Photo post" : "")}
+                  </p>
+                  <div className="flex items-center gap-3 text-xs" style={{ color: "#ffd24a", fontFamily: "monospace" }}>
+                    <span>❤ {Object.values(p.reactions).reduce((a, b) => a + b, 0)}</span>
+                    <span>💬 {p.comment_count}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Create post form */}
       {showCreate && (
         <form onSubmit={handleCreatePost}
@@ -710,6 +863,44 @@ export default function CommunityPage() {
         </div>
       )}
 
+      {/* Tabs + sort — filters/reorders the feed already loaded above */}
+      {!loading && posts.length > 0 && (
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+            {([
+              ["all", "All", null],
+              ["celebrations", "Celebrations", "🎯"],
+              ["photos", "Photos", "📸"],
+              ["mine", "Mine", "👤"],
+            ] as const).map(([key, label, icon]) => (
+              <button key={key} onClick={() => { setTab(key); setExpandedPhotoId(null); }}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                style={{
+                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em", textTransform: "uppercase",
+                  background: tab === key ? "rgba(255,0,92,0.22)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${tab === key ? "rgba(255,0,92,0.45)" : "rgba(255,255,255,0.08)"}`,
+                  color: tab === key ? "#ff6b9c" : "rgba(255,255,255,0.4)",
+                }}>
+                {icon && <span>{icon}</span>}{label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-0.5 p-0.5 rounded-lg shrink-0" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            {(["new", "top"] as const).map(key => (
+              <button key={key} onClick={() => setSort(key)}
+                className="px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1"
+                style={{
+                  fontFamily: "Oswald, sans-serif", textTransform: "uppercase", fontSize: "0.6rem", letterSpacing: "0.04em",
+                  background: sort === key ? "rgba(255,210,74,0.16)" : "transparent",
+                  color: sort === key ? "#ffd24a" : "rgba(255,255,255,0.3)",
+                }}>
+                {key === "top" && <ArrowUpDown className="w-2.5 h-2.5" />}{key === "new" ? "Newest" : "Top"}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Feed */}
       {loading ? (
         <div className="flex justify-center py-12">
@@ -725,17 +916,55 @@ export default function CommunityPage() {
             {user ? "Be the first to post!" : "Sign in to post."}
           </p>
         </div>
-      ) : (
+      ) : visiblePosts.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="text-4xl mb-3">{tab === "photos" ? "📸" : tab === "mine" ? "👤" : "🎯"}</div>
+          <p className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em" }}>
+            {tab === "photos" ? "NO PHOTOS YET" : tab === "mine" ? "YOU HAVEN'T POSTED" : "NOTHING HERE YET"}
+          </p>
+        </div>
+      ) : tab === "photos" ? (
         <>
-          <div className="space-y-3">
-            {posts.map(post => (
-              <PostCard key={post.id} post={post} onReact={handleReact} onComment={handleComment}
-                isAdmin={!!user?.isAdmin} onDelete={handleDelete}
-                onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} />
+          {/* Photos get a real grid — a structurally different view, not the
+              same cards with a filter applied — since it's the one post type
+              that's genuinely about the image. */}
+          <div className="grid grid-cols-2 gap-2">
+            {photoTiles.map(p => (
+              <button key={p.id} onClick={() => setExpandedPhotoId(v => v === p.id ? null : p.id)}
+                className="relative rounded-xl overflow-hidden aspect-square group"
+                style={{ border: `1px solid ${expandedPhotoId === p.id ? "rgba(255,0,92,0.5)" : "rgba(255,255,255,0.08)"}` }}>
+                <img src={`/api/storage${p.photo_path}`} alt="" loading="lazy" decoding="async"
+                  className="w-full h-full object-cover" />
+                <div className="absolute inset-x-0 bottom-0 p-2 flex items-center justify-between text-xs"
+                  style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75), transparent)", color: "#fff", fontFamily: "Oswald, sans-serif" }}>
+                  <span className="truncate">{p.player_name.split(" ")[0]}</span>
+                  {engagementScore(p) > 0 && <span className="shrink-0 ml-1">❤ {engagementScore(p)}</span>}
+                </div>
+              </button>
             ))}
           </div>
+          {expandedPhotoId != null && (
+            <div className="pt-1">
+              <PostCard post={photoTiles.find(p => p.id === expandedPhotoId)!} onReact={handleReact} onComment={handleComment}
+                isAdmin={!!user?.isAdmin} onDelete={handleDelete}
+                onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} />
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="space-y-3">
+          {visiblePosts.map(post => (
+            <PostCard key={post.id} post={post} onReact={handleReact} onComment={handleComment}
+              isAdmin={!!user?.isAdmin} onDelete={handleDelete}
+              onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} />
+          ))}
+        </div>
+      )}
+
+      {!loading && posts.length > 0 && (
+        <>
           <div className="text-xs text-center pb-1" style={{ color: "rgba(255,255,255,0.18)" }}>
-            {posts.length} post{posts.length !== 1 ? "s" : ""}
+            {visiblePosts.length} post{visiblePosts.length !== 1 ? "s" : ""}{tab !== "all" ? ` in ${tab}` : ""}
           </div>
           {hasMore ? (
             <button onClick={() => void loadPosts()} disabled={loadingMore}

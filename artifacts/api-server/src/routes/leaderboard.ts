@@ -52,6 +52,7 @@ router.get("/leaderboard", async (_req, res): Promise<void> => {
       aura:          identity.aura,
       auraColor:     identity.auraColor,
       title:         identity.title,
+      equippedGlowId: p.equippedGlowId,
     };
   });
 
@@ -111,6 +112,7 @@ router.get("/leaderboard/career", async (req, res): Promise<void> => {
       archetype:         identity.archetype,
       archetypeIcon:     identity.archetypeIcon,
       title:             identity.title,
+      equippedGlowId:    p.equippedGlowId,
     };
   });
 

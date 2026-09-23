@@ -7,7 +7,7 @@ import {
   Zap, Trophy, Dumbbell, CircuitBoard, Star, ChevronDown, ChevronRight,
   Award, Flame, CheckCircle, Clock, Brain, BarChart3,
   MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera, Sparkles, Pin,
-  Palette,
+  Palette, Coins, ShoppingBag,
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { LoginGate } from "@/components/LoginGate";
@@ -23,7 +23,7 @@ import { AdaptiveDifficulty } from "@/components/stats/adaptive-difficulty";
 import { LogDrillModal, type LoggableDrill } from "@/components/stats/log-drill-modal";
 import { DebugStatsViewer } from "@/components/stats/debug-stats-viewer";
 import { CosmeticsShop } from "@/components/CosmeticsShop";
-import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, PROFILE_ICON_MAP } from "@/lib/cosmetics";
+import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, bubbleColorStyle, PROFILE_ICON_MAP } from "@/lib/cosmetics";
 
 const TIER_COLORS: Record<string, string> = {
   Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
@@ -274,8 +274,12 @@ function SectionCard({ title, icon: Icon, accent = "#ff005c", children, collapsi
 }) {
   const [open, setOpen] = useState(true);
   return (
-    <div className="rounded-2xl overflow-hidden"
-      style={{ background: "rgba(8,6,18,0.9)", border: "1px solid rgba(255,255,255,0.07)" }}>
+    // .pdc-card instead of a hand-rolled lookalike — this one component
+    // backs 15 sections on this page (Titles, Coach's Corner, This Season,
+    // Master 501, Tour Mode, Shadow Bot, Practice, Change Password, Admin
+    // Panel, and the four Analytics tab panels), so fixing it here brings
+    // all of them onto the shared system in one place.
+    <div className="pdc-card overflow-hidden">
       <button
         className="w-full flex items-center gap-2.5 px-5 py-3.5"
         style={{ borderBottom: open ? "1px solid rgba(255,255,255,0.05)" : undefined, cursor: collapsible ? "pointer" : "default" }}
@@ -331,7 +335,7 @@ export default function AccountPage() {
   const cosmeticsCatalog = useCosmeticsCatalog();
 
   // ── Tab + Community state ────────────────────────────────────────────
-  const [activeTab,        setActiveTab]       = useState<"overview" | "activity" | "achievements" | "coach" | "social" | "stats" | "analytics" | "cards" | "challenges" | "cosmetics">("overview");
+  const [activeTab,        setActiveTab]       = useState<"overview" | "activity" | "achievements" | "coach" | "social" | "stats" | "analytics" | "cards" | "challenges" | "cosmetics" | "wallet">("overview");
   const [socialTab,        setSocialTab]       = useState<"dms" | "notifications" | "photos">("dms");
   const [achSource,        setAchSource]       = useState<"league" | "bot" | "tour" | "m501">("league");
   const [coachDrills,      setCoachDrills]     = useState<any[]>([]);
@@ -421,6 +425,18 @@ export default function AccountPage() {
   const loadThread = useCallback(async (partnerId: number) => {
     const r = await fetch(`/api/messages/${partnerId}`, { credentials: "include" });
     if (r.ok) setThreadMessages(await r.json());
+  }, []);
+
+  // ── Jump to a specific tab from ?tab=<id> URL param ──────────────────────
+  // Lets other pages (the Hub's wallet card, so far) deep-link straight to
+  // e.g. /account?tab=cosmetics instead of landing on Overview and making
+  // the player find Customize themselves.
+  useEffect(() => {
+    const tabParam = new URLSearchParams(window.location.search).get("tab");
+    if (tabParam && ["overview", "activity", "achievements", "coach", "social", "stats", "analytics", "cards", "challenges", "cosmetics"].includes(tabParam)) {
+      setActiveTab(tabParam as typeof activeTab);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Open DM from ?dm=<playerId> URL param ────────────────────────────────
@@ -561,6 +577,9 @@ export default function AccountPage() {
 
   const equippedNameStyle   = cosmeticsCatalog.find(c => c.id === player?.equippedNameStyleId);
   const equippedProfileIcon = cosmeticsCatalog.find(c => c.id === player?.equippedProfileIconId);
+  const equippedBanner      = cosmeticsCatalog.find(c => c.id === player?.equippedBannerId);
+  const equippedFrame       = cosmeticsCatalog.find(c => c.id === player?.equippedFrameId);
+  const equippedBubbleColor = cosmeticsCatalog.find(c => c.id === player?.equippedBubbleColorId);
   const ProfileIcon = (equippedProfileIcon?.iconKey && PROFILE_ICON_MAP[equippedProfileIcon.iconKey]) || Target;
 
   const recentForm: ("W" | "L")[] = useMemo(() => {
@@ -729,14 +748,18 @@ export default function AccountPage() {
     <div className="max-w-2xl mx-auto space-y-4 pb-8">
 
       {/* ── Hero ─────────────────────────────────────────────── */}
+      {/* An equipped banner replaces the default tier-tinted background
+          entirely (bannerCSS() returns {} when nothing's equipped, so this
+          falls back to the existing look unchanged); an equipped frame
+          overrides the avatar square's default tier-coloured border. */}
       <div className="rounded-2xl relative overflow-hidden"
-        style={{ background: `linear-gradient(135deg, ${tCol}1e 0%, rgba(8,6,20,0.98) 55%)`, border: `1px solid ${tCol}35`, boxShadow: `0 0 60px ${tCol}14` }}>
+        style={{ background: `linear-gradient(135deg, ${tCol}1e 0%, rgba(8,6,20,0.98) 55%)`, border: `1px solid ${tCol}35`, boxShadow: `0 0 60px ${tCol}14`, ...bannerCSS(equippedBanner) }}>
         <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: `linear-gradient(90deg, ${tCol} 0%, ${tCol}55 40%, transparent 100%)` }} />
 
         <div className="p-5">
           <div className="flex items-start gap-4">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 relative"
-              style={{ background: `linear-gradient(135deg, ${tCol}28, ${tCol}0a)`, border: `1px solid ${tCol}55` }}>
+              style={{ background: `linear-gradient(135deg, ${tCol}28, ${tCol}0a)`, border: `1px solid ${tCol}55`, ...frameStyle(equippedFrame) }}>
               <div className="absolute inset-0 rounded-2xl" style={{ background: `${tCol}1c`, filter: "blur(10px)" }} />
               <ProfileIcon className="w-8 h-8 relative z-10" style={{ color: tCol, filter: `drop-shadow(0 0 10px ${tCol})` }} />
             </div>
@@ -868,6 +891,7 @@ export default function AccountPage() {
           { id: "achievements"  as const, label: "Earned",    Icon: Award                            },
           { id: "coach"         as const, label: "Coach",     Icon: Brain                            },
           { id: "cards"         as const, label: "Cards",     Icon: Sparkles                         },
+          { id: "wallet"        as const, label: "Wallet",    Icon: Coins                            },
           { id: "cosmetics"     as const, label: "Customize", Icon: Palette                          },
           { id: "challenges"    as const, label: "Challenges", Icon: Trophy                          },
           { id: "social"        as const, label: "Social",    Icon: MessageSquare, badge: unreadNotifCount },
@@ -897,8 +921,7 @@ export default function AccountPage() {
       {activeTab === "overview" && (<>
 
       {/* ── Gamerscore ─────────────────────────────────────────── */}
-      <div className="rounded-2xl p-4"
-        style={{ background: "rgba(8,6,18,0.9)", border: "1px solid rgba(255,255,255,0.07)" }}>
+      <div className="pdc-card p-4">
         <div className="flex items-center justify-between mb-3">
           <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.2em", color: "rgba(255,255,255,0.2)", textTransform: "uppercase" }}>
             Gamerscore
@@ -1549,7 +1572,7 @@ export default function AccountPage() {
             </div>
           )}
 
-          <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(8,6,18,0.9)", border: "1px solid rgba(0,200,160,0.2)" }}>
+          <div className="pdc-card overflow-hidden" style={{ borderColor: "rgba(0,200,160,0.2)" }}>
             <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(0,200,160,0.1)" }}>
               <div className="flex items-center gap-2">
                 <Brain className="w-3.5 h-3.5" style={{ color: "#00c8a0" }} />
@@ -1809,7 +1832,7 @@ export default function AccountPage() {
               <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.15)" }}>Direct messaging between players isn't live yet.</p>
             </div>
           ) : activeConvId === null ? (
-            <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="pdc-card overflow-hidden">
               <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 <div className="flex items-center gap-2">
                   <MessageSquare className="w-4 h-4" style={{ color: "rgba(255,0,92,0.7)" }} />
@@ -1879,7 +1902,7 @@ export default function AccountPage() {
               )}
             </div>
           ) : (
-            <div className="rounded-2xl overflow-hidden flex flex-col" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", height: "60vh" }}>
+            <div className="pdc-card overflow-hidden flex flex-col" style={{ height: "60vh" }}>
               <div className="px-4 py-3 flex items-center gap-3 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 <button onClick={() => { setActiveConvId(null); void loadConversations(); }}
                   className="p-1 rounded-lg" style={{ color: "rgba(255,255,255,0.5)" }}>
@@ -1901,6 +1924,7 @@ export default function AccountPage() {
                               background: mine ? "rgba(255,0,92,0.2)"   : "rgba(255,255,255,0.06)",
                               border:     mine ? "1px solid rgba(255,0,92,0.35)" : "1px solid rgba(255,255,255,0.08)",
                               color: "#fff",
+                              ...(mine ? bubbleColorStyle(equippedBubbleColor) : {}),
                             }}>
                             {msg.content}
                           </div>
@@ -2007,8 +2031,8 @@ export default function AccountPage() {
           <>
           {/* ── Push notification opt-in card ── */}
           {push.supported && (
-            <div className="rounded-2xl px-5 py-4"
-              style={{ background: "rgba(8,6,18,0.9)", border: `1px solid ${push.state === "subscribed" ? "rgba(0,229,160,0.25)" : "rgba(255,255,255,0.07)"}` }}>
+            <div className="pdc-card px-5 py-4"
+              style={{ borderColor: push.state === "subscribed" ? "rgba(0,229,160,0.25)" : undefined }}>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                   style={{ background: push.state === "subscribed" ? "rgba(0,229,160,0.12)" : push.state === "denied" ? "rgba(255,0,92,0.08)" : "rgba(255,0,92,0.08)", border: `1px solid ${push.state === "subscribed" ? "rgba(0,229,160,0.3)" : "rgba(255,0,92,0.2)"}` }}>
@@ -2051,7 +2075,7 @@ export default function AccountPage() {
             </div>
           )}
 
-          <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="pdc-card overflow-hidden">
             <NotificationCenter playerId={user.playerId} />
           </div>
           </>
@@ -2062,8 +2086,7 @@ export default function AccountPage() {
         {socialTab === "photos" && (
         <div className="space-y-4">
           {/* Header */}
-          <div className="rounded-2xl px-5 py-4 flex items-center justify-between"
-            style={{ background: "rgba(8,6,18,0.9)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="pdc-card px-5 py-4 flex items-center justify-between">
             <div>
               <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.2em",
                 color: "rgba(255,255,255,0.2)", textTransform: "uppercase", marginBottom: "4px" }}>
@@ -2092,8 +2115,7 @@ export default function AccountPage() {
                 style={{ borderTopColor: "#ff005c" }} />
             </div>
           ) : myPhotoPosts && myPhotoPosts.length === 0 ? (
-            <div className="rounded-2xl flex flex-col items-center justify-center py-16 gap-3"
-              style={{ background: "rgba(8,6,18,0.9)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="pdc-card flex flex-col items-center justify-center py-16 gap-3">
               <Camera className="w-10 h-10" style={{ color: "rgba(255,255,255,0.1)" }} />
               <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", letterSpacing: "0.12em",
                 color: "rgba(255,255,255,0.25)", textTransform: "uppercase" }}>
@@ -2210,9 +2232,47 @@ export default function AccountPage() {
         </div>
       )}
 
+      {activeTab === "wallet" && user?.playerId && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <SectionCard title="Wallet" icon={Coins} accent="#ffd24a">
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <CoinBalance playerId={user.playerId} />
+
+              <button
+                onClick={() => setActiveTab("cosmetics")}
+                className="flex items-center justify-center gap-2 w-full"
+                style={{
+                  background: "linear-gradient(135deg, #ffd24a, #f0a93a)", color: "#1a1200",
+                  fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.04em",
+                  padding: "12px 0", borderRadius: "10px", border: "none", cursor: "pointer",
+                }}
+              >
+                <ShoppingBag className="w-4 h-4" /> OPEN STORE
+              </button>
+
+              {/* Honest placeholder — there's no earn/spend history log
+                  built yet (that needs its own pass instrumenting every
+                  place coins are earned across the app), so this says so
+                  rather than showing fabricated activity. */}
+              <div style={{
+                textAlign: "center", padding: "16px", borderRadius: "10px",
+                background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)",
+                fontSize: "0.72rem", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.03em",
+              }}>
+                Transaction history is coming in a future update
+              </div>
+
+              <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.4)", lineHeight: 1.5 }}>
+                Earned from league matches, practice, Master 501, Tour, Card Clash &amp; challenges. Spend it in the Store on profile banners, avatar frames, name styles, icons &amp; card packs.
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+      )}
+
       {activeTab === "cosmetics" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <SectionCard title="Customize Your Profile" icon={Palette} accent="#ffd24a">
+          <SectionCard title="Store" icon={Palette} accent="#ffd24a">
             <CosmeticsShop playerId={user.playerId} playerName={user.playerName} />
           </SectionCard>
         </div>
