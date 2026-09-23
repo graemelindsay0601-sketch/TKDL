@@ -175,8 +175,17 @@ async function performSeasonResetLocked(overrideName?: string): Promise<typeof s
         seasonWins: 0,
         seasonLosses: 0,
         seasonGamesPlayed: 0,
-        currentWinStreak: 0,
-        currentLossStreak: 0,
+        // currentWinStreak/currentLossStreak are deliberately NOT reset here
+        // — unlike points and seasonWins/Losses, a streak is "consecutive
+        // results since my last loss/win", not a per-season tally, so it
+        // shouldn't break just because the calendar rolled over. Matches.ts
+        // and team-matches.ts already zero the loser's streak (and bump the
+        // winner's) on every real match — that's the only thing that should
+        // ever end a streak. This used to reset both to 0 here too, which
+        // silently wiped a live streak on the season boundary even though
+        // no actual match was lost — e.g. a player who won their last 3
+        // games of one season and their first 5 of the next showed a "3W"
+        // streak instead of 8, since the reset zeroed the counter in between.
         status: "ACTIVE",
       })
       .where(eq(playersTable.isActive, true));

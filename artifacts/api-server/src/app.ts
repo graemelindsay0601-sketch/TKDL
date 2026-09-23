@@ -25,6 +25,7 @@ import { addAchievementRewards } from "./db/migrations/add_achievement_rewards";
 import { addAchievementSeasonColumn } from "./db/migrations/add_achievement_season_column";
 import { addSeasonLeagueType } from "./db/migrations/add_season_league_type";
 import { addLastSeenBroadcastEditionColumn } from "./db/migrations/add_last_seen_broadcast_edition";
+import { backfillCurrentStreaks } from "./db/migrations/backfill_current_streaks";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
 import { up as createCardClashFavoritesTable } from "./db/migrations/add_card_clash_favorites";
 import { addDailyChallengeKeyColumn } from "./db/migrations/add_daily_challenge_key";
@@ -1217,6 +1218,13 @@ async function init() {
   await runInitStep("addSeasonLeagueType", addSeasonLeagueType);
   await runInitStep("addLastSeenBroadcastEditionColumn", addLastSeenBroadcastEditionColumn);
   await runInitStep("maybeAutoResetLeagueSeasons", maybeAutoResetLeagueSeasons);
+  // Runs after maybeAutoResetLeagueSeasons so a reset firing on this exact
+  // boot is immediately reconciled too, though with seasonReset.ts's fix
+  // that reset no longer touches these columns at all — this step's real
+  // job is repairing values any earlier reset already wiped. Safe to run
+  // every startup: see backfill_current_streaks.ts's own comment for why
+  // this recompute can never introduce a wrong value.
+  await runInitStep("backfillCurrentStreaks", backfillCurrentStreaks);
   await runInitStep("seedPlayoffMatches", seedPlayoffMatches);
 
   // Initialize scheduled systems
