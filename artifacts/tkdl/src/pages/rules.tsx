@@ -1,4 +1,4 @@
-import { Shield, Target, Trophy, Zap, Skull, Star, RefreshCw, BookOpen, Users } from "lucide-react";
+import { Shield, Target, Trophy, Zap, Skull, Star, RefreshCw, BookOpen, Users, Coins, Layers, Tv2, Dumbbell, Bot, Flame, Swords, Medal } from "lucide-react";
 
 function RuleSection({
   icon, title, accent = "#ff005c", children,
@@ -139,6 +139,57 @@ export default function Rules() {
           <Rule>Enter the <Gold>stake</Gold>: the number of points agreed upon before the match.</Rule>
           <Rule>Submitted results are <Highlight>immediate and final</Highlight>. Contact an admin if a mistake was made.</Rule>
           <Rule>Admins can <Red>delete</Red> incorrect matches via the Admin panel.</Rule>
+        </RuleSection>
+
+        {/* Coins & Cosmetics */}
+        <RuleSection icon={<Coins className="w-5 h-5" />} title="Coins & The Shop" accent="#ffd24a">
+          <Rule>You earn <Gold>coins</Gold> app-wide — match wins, achievements, daily activity, and more all pay out into one <Highlight>shared balance</Highlight>.</Rule>
+          <Rule>Spend them in two places: <Highlight>Card Clash's</Highlight> card shop for packs, or the <Highlight>Customize</Highlight> tab on your Account page for name styles and profile icons.</Rule>
+          <Rule>Cosmetics you buy are <Highlight>yours forever</Highlight> — equip or swap between owned ones anytime, for free.</Rule>
+          <Rule>An equipped name style shows on your own Account page <Highlight>and</Highlight> on your player profile, so it's visible to anyone who looks you up.</Rule>
+        </RuleSection>
+
+        {/* Card Clash */}
+        <RuleSection icon={<Layers className="w-5 h-5" />} title="Card Clash" accent="#f97316">
+          <Rule>A collectible-card mini-game, separate from the singles ladder — open packs to collect <Highlight>GOOD</Highlight> and <Red>BAD</Red> effect cards across three rarities.</Rule>
+          <Rule>Equip a hand of cards before a Card Clash match to give yourself edges — or curse your opponent.</Rule>
+          <Rule>Runs its own seasonal leaderboard, standings, and rewards, independent of the singles/Doubles/Shift Wars seasons.</Rule>
+          <Rule>Full card effects and current pack pricing live in Card Clash's own <Highlight>Rules</Highlight> tab, in-app.</Rule>
+        </RuleSection>
+
+        {/* TKDL LIVE */}
+        <RuleSection icon={<Tv2 className="w-5 h-5" />} title="TKDL LIVE" accent="#ffd24a">
+          <Rule>An automated broadcast <Highlight>"show"</Highlight> that recaps league storylines, form, and highlights.</Rule>
+          <Rule>New editions publish periodically — the sidebar's <Gold>LIVE</Gold> tab lights up with a dot whenever a fresh one is ready to watch.</Rule>
+          <Rule>It's a produced recap, <Highlight>not</Highlight> a real-time stream — catch up whenever suits you.</Rule>
+        </RuleSection>
+
+        {/* Practice, Master 501 & Tour Mode */}
+        <RuleSection icon={<Dumbbell className="w-5 h-5" />} title="Practice, Master 501 & Tour Mode" accent="#22c55e">
+          <Rule><Highlight>Practice</Highlight> — play any game format solo, against the Shadow Bot, or pass-and-play locally. Drills and coaching stats are tracked on your Account page.</Rule>
+          <Rule><Highlight>Master 501</Highlight> — a 5-tier progression ladder (Challenger through World Championship) with tightening dart-limit handicaps and longer leg formats the further you climb.</Rule>
+          <Rule><Highlight>Tour Mode</Highlight> — a 6-tier bracket tournament (Pub & Local through PDC Majors) across 5 difficulty levels. Winning earns trophies that count toward your Hall of Fame record.</Rule>
+          <Rule>All three are playable from a shared device without logging in — same as submitting a match.</Rule>
+        </RuleSection>
+
+        {/* Shadow Bot */}
+        <RuleSection icon={<Bot className="w-5 h-5" />} title="Shadow Bot" accent="#22d3ee">
+          <Rule>An AI opponent with selectable <Highlight>personas</Highlight> and difficulty levels, for solo practice anytime.</Rule>
+          <Rule>Tracks its own achievement set, separate from league play.</Rule>
+          <Rule>A good way to warm up or test a format before wagering real points on it.</Rule>
+        </RuleSection>
+
+        {/* Board Curse & Boss Battles */}
+        <RuleSection icon={<Flame className="w-5 h-5" />} title="Board Curse & Boss Battles" accent="#eab308">
+          <Rule><Highlight>Board Curse</Highlight> — curse-themed challenge formats, playable solo, vs. the bot, or local pass-and-play, including an <Gold>Endless</Gold> mode that tracks your best streak.</Rule>
+          <Rule><Highlight>Boss Battles</Highlight> — a fixed ladder of bosses fought in order; beating one unlocks the next. Times and clears are tracked on their own leaderboard.</Rule>
+          <Rule>Both are shared-device, no-login game modes, same as Practice and Tour Mode.</Rule>
+        </RuleSection>
+
+        {/* Titles */}
+        <RuleSection icon={<Medal className="w-5 h-5" />} title="Titles" accent="#a855f7">
+          <Rule>Earned display titles for milestones across <Highlight>league matches, Master 501, Practice, and Shadow Bot</Highlight>.</Rule>
+          <Rule>Equip one from your Account page to show it next to your name — unlike achievements, only <Highlight>one title</Highlight> can be active at a time.</Rule>
         </RuleSection>
 
         {/* Spirit of the game */}

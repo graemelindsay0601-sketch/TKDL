@@ -7,6 +7,7 @@ import {
   Zap, Trophy, Dumbbell, CircuitBoard, Star, ChevronDown, ChevronRight,
   Award, Flame, CheckCircle, Clock, Brain, BarChart3,
   MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera, Sparkles, Pin,
+  Palette,
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { LoginGate } from "@/components/LoginGate";
@@ -21,6 +22,8 @@ import { DrillProgressTracker } from "@/components/stats/drill-progress-tracker"
 import { AdaptiveDifficulty } from "@/components/stats/adaptive-difficulty";
 import { LogDrillModal, type LoggableDrill } from "@/components/stats/log-drill-modal";
 import { DebugStatsViewer } from "@/components/stats/debug-stats-viewer";
+import { CosmeticsShop } from "@/components/CosmeticsShop";
+import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, PROFILE_ICON_MAP } from "@/lib/cosmetics";
 
 const TIER_COLORS: Record<string, string> = {
   Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
@@ -325,9 +328,10 @@ export default function AccountPage() {
   const [titleSaving,  setTitleSaving]  = useState(false);
   const [titleFilter,  setTitleFilter]  = useState<string>("earned");
   const [expandedCats,    setExpandedCats]    = useState<Set<string>>(new Set(["Career"]));
+  const cosmeticsCatalog = useCosmeticsCatalog();
 
   // ── Tab + Community state ────────────────────────────────────────────
-  const [activeTab,        setActiveTab]       = useState<"overview" | "activity" | "achievements" | "coach" | "social" | "stats" | "analytics" | "cards" | "challenges">("overview");
+  const [activeTab,        setActiveTab]       = useState<"overview" | "activity" | "achievements" | "coach" | "social" | "stats" | "analytics" | "cards" | "challenges" | "cosmetics">("overview");
   const [socialTab,        setSocialTab]       = useState<"dms" | "notifications" | "photos">("dms");
   const [achSource,        setAchSource]       = useState<"league" | "bot" | "tour" | "m501">("league");
   const [coachDrills,      setCoachDrills]     = useState<any[]>([]);
@@ -555,6 +559,10 @@ export default function AccountPage() {
   const games      = (player?.seasonWins ?? 0) + (player?.seasonLosses ?? 0);
   const winRate    = games > 0 ? Math.round((player?.seasonWins ?? 0) / games * 100) : null;
 
+  const equippedNameStyle   = cosmeticsCatalog.find(c => c.id === player?.equippedNameStyleId);
+  const equippedProfileIcon = cosmeticsCatalog.find(c => c.id === player?.equippedProfileIconId);
+  const ProfileIcon = (equippedProfileIcon?.iconKey && PROFILE_ICON_MAP[equippedProfileIcon.iconKey]) || Target;
+
   const recentForm: ("W" | "L")[] = useMemo(() => {
     if (!stats?.recentMatches || !user?.playerId) return [];
     return (stats.recentMatches as any[]).slice(0, 8).map((m: any) => {
@@ -730,12 +738,12 @@ export default function AccountPage() {
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 relative"
               style={{ background: `linear-gradient(135deg, ${tCol}28, ${tCol}0a)`, border: `1px solid ${tCol}55` }}>
               <div className="absolute inset-0 rounded-2xl" style={{ background: `${tCol}1c`, filter: "blur(10px)" }} />
-              <Target className="w-8 h-8 relative z-10" style={{ color: tCol, filter: `drop-shadow(0 0 10px ${tCol})` }} />
+              <ProfileIcon className="w-8 h-8 relative z-10" style={{ color: tCol, filter: `drop-shadow(0 0 10px ${tCol})` }} />
             </div>
 
             <div className="flex-1 min-w-0">
-              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "2rem", fontWeight: 900,
-                color: "#fff", letterSpacing: "0.04em", lineHeight: 1, textShadow: "0 2px 20px rgba(0,0,0,0.9)" }} className="truncate">
+              <div className={`truncate ${nameStyleClassName(equippedNameStyle)}`} style={{ fontFamily: "Oswald, sans-serif", fontSize: "2rem", fontWeight: 900,
+                color: "#fff", letterSpacing: "0.04em", lineHeight: 1, textShadow: "0 2px 20px rgba(0,0,0,0.9)", ...nameStyleCSS(equippedNameStyle) }}>
                 {user.playerName}
               </div>
               {player?.tagline && (
@@ -860,6 +868,7 @@ export default function AccountPage() {
           { id: "achievements"  as const, label: "Earned",    Icon: Award                            },
           { id: "coach"         as const, label: "Coach",     Icon: Brain                            },
           { id: "cards"         as const, label: "Cards",     Icon: Sparkles                         },
+          { id: "cosmetics"     as const, label: "Customize", Icon: Palette                          },
           { id: "challenges"    as const, label: "Challenges", Icon: Trophy                          },
           { id: "social"        as const, label: "Social",    Icon: MessageSquare, badge: unreadNotifCount },
           { id: "stats"         as const, label: "Stats",     Icon: TrendingUp                             },
@@ -2198,6 +2207,14 @@ export default function AccountPage() {
           }}>
             <CardCollectionBook playerId={user.playerId} />
           </div>
+        </div>
+      )}
+
+      {activeTab === "cosmetics" && user?.playerId && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <SectionCard title="Customize Your Profile" icon={Palette} accent="#ffd24a">
+            <CosmeticsShop playerId={user.playerId} playerName={user.playerName} />
+          </SectionCard>
         </div>
       )}
 

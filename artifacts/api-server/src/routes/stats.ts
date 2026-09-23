@@ -236,7 +236,7 @@ router.get("/stats/live-feed", async (req, res): Promise<void> => {
 });
 
 router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
-  const [players, practiceQ, tourQ, achievQ] = await Promise.all([
+  const [players, practiceQ, tourQ, achievQ, biggestLossQ] = await Promise.all([
     db.select().from(playersTable),
     // Union both player1 and player2 perspectives — this used to only count
     // player1_id, so anyone who mostly played as P2 in two-player practice
@@ -266,6 +266,16 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
         SELECT player_id, COUNT(*) AS cnt FROM player_tour_achievements   GROUP BY player_id
       ) t GROUP BY player_id
     `),
+    // Wall of Shame — biggest single-match loss: the largest stake any
+    // player has ever handed over in one game. Scoped to `matches` (singles
+    // + Shift Wars, same table every other shame stat already draws from —
+    // see careerLosses/longestLossStreak/careerBiggestPointsFall below),
+    // grouped by loser so this is "worst single moment", not a running total.
+    db.execute(drizzleSql`
+      SELECT loser_id AS player_id, MAX(stake)::int AS max_stake
+      FROM matches
+      GROUP BY loser_id
+    `),
   ]);
 
   const practiceMap = new Map<number, { sessions: number; total_darts: number; total_180s: number }>();
@@ -276,6 +286,9 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
 
   const achievMap = new Map<number, number>();
   for (const r of achievQ.rows as any[]) achievMap.set(Number(r.player_id), Number(r.cnt));
+
+  const biggestLossMap = new Map<number, number>();
+  for (const r of biggestLossQ.rows as any[]) biggestLossMap.set(Number(r.player_id), Number(r.max_stake));
 
   const all = players.map(p => ({
     id:                 p.id,
@@ -296,6 +309,8 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
     total180s:        practiceMap.get(p.id)?.total_180s  ?? 0,
     tourTrophies:     tourMap.get(p.id)    ?? 0,
     achievements:     achievMap.get(p.id)  ?? 0,
+    eliminationsCount: p.eliminationsCount ?? 0,
+    biggestSingleLoss: biggestLossMap.get(p.id) ?? 0,
   }));
 
   const topBy = (key: keyof typeof all[0]) =>
@@ -314,6 +329,8 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
     mostLosses:        topBy("careerLosses"),
     longestLossStreak: topBy("longestLossStreak"),
     biggestPointsFall: topBy("careerBiggestPointsFall"),
+    mostEliminations:  topBy("eliminationsCount"),
+    biggestSingleLoss: topBy("biggestSingleLoss"),
   });
 });
 

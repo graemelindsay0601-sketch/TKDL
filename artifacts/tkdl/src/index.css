@@ -918,3 +918,56 @@
   border: 4px solid transparent; border-right-color: #15151f;
 }
 .sidebar-tooltip.show { opacity: 1; transform: translate(0, -50%); }
+
+/* ── Profile cosmetics: name-style shimmer ──────────────────────────
+   Applied to a LEGENDARY name-style cosmetic's gradient text (see
+   lib/cosmetics.ts's nameStyleClassName) — everything else (COMMON/RARE/
+   EPIC) renders static. */
+@keyframes cosmetic-shimmer {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.cosmetic-name-legendary {
+  background-size: 200% auto;
+  animation: cosmetic-shimmer 3s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cosmetic-name-legendary { animation: none; }
+}
+
+/* ── App-wide icon polish ────────────────────────────────────────────
+   Gives every feature-scale icon (Tailwind w-5/h-5 and up — lucide always
+   renders both a width and a height utility class on the svg itself) a
+   consistent glow + depth treatment automatically, instead of a manual
+   pass through the ~90 files that render one. `currentColor` means the
+   glow always matches whatever color that particular icon is already
+   rendering in — no per-icon color to keep in sync, and it degrades
+   gracefully (a near-invisible background watermark icon stays faint,
+   since its low opacity applies to the whole composited element,
+   filter included).
+
+   An icon that already sets its own inline `filter` (a lot of hero/badge
+   icons already do, from earlier polish passes this session) keeps that —
+   an inline style always wins over an external stylesheet rule for the
+   same element, so nothing already hand-tuned changes here. This only
+   lifts the icons that had no treatment at all.
+
+   Deliberately stops below w-5/h-5: that's where the app's small utility
+   chrome lives (dropdown chevrons, checkboxes, inline bullets, the shadcn
+   primitives under components/ui/) and a glow there reads as noise, not
+   polish, on something that small. */
+svg[class*="w-5"],  svg[class*="h-5"],
+svg[class*="w-6"],  svg[class*="h-6"],
+svg[class*="w-7"],  svg[class*="h-7"],
+svg[class*="w-8"],  svg[class*="h-8"],
+svg[class*="w-9"],  svg[class*="h-9"] {
+  filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 2px 3px rgba(0,0,0,0.35));
+}
+/* Genuinely large icons (hero/avatar scale) can carry a bigger glow
+   without turning muddy. */
+svg[class*="w-10"], svg[class*="h-10"],
+svg[class*="w-12"], svg[class*="h-12"],
+svg[class*="w-14"], svg[class*="h-14"],
+svg[class*="w-16"], svg[class*="h-16"] {
+  filter: drop-shadow(0 0 7px currentColor) drop-shadow(0 3px 5px rgba(0,0,0,0.4));
+}

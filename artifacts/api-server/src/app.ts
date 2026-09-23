@@ -26,6 +26,9 @@ import { addAchievementSeasonColumn } from "./db/migrations/add_achievement_seas
 import { addSeasonLeagueType } from "./db/migrations/add_season_league_type";
 import { addLastSeenBroadcastEditionColumn } from "./db/migrations/add_last_seen_broadcast_edition";
 import { backfillCurrentStreaks } from "./db/migrations/backfill_current_streaks";
+import { addCosmeticsTables } from "./db/migrations/add_cosmetics_tables";
+import { addEquippedCosmeticsColumns } from "./db/migrations/add_equipped_cosmetics";
+import { seedCosmeticDefinitions } from "./services/cosmetics-service";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
 import { up as createCardClashFavoritesTable } from "./db/migrations/add_card_clash_favorites";
 import { addDailyChallengeKeyColumn } from "./db/migrations/add_daily_challenge_key";
@@ -1217,6 +1220,10 @@ async function init() {
   // singles season to already exist.
   await runInitStep("addSeasonLeagueType", addSeasonLeagueType);
   await runInitStep("addLastSeenBroadcastEditionColumn", addLastSeenBroadcastEditionColumn);
+  await runInitStep("addCosmeticsTables", addCosmeticsTables);
+  await runInitStep("addEquippedCosmeticsColumns", addEquippedCosmeticsColumns);
+  // Needs addCosmeticsTables to have run first — upserts into cosmetic_definitions.
+  await runInitStep("seedCosmeticDefinitions", seedCosmeticDefinitions);
   await runInitStep("maybeAutoResetLeagueSeasons", maybeAutoResetLeagueSeasons);
   // Runs after maybeAutoResetLeagueSeasons so a reset firing on this exact
   // boot is immediately reconciled too, though with seasonReset.ts's fix

@@ -10,6 +10,7 @@ import {
   BigStat, StatPanel, ModeTile, TIER_GLOW, CollapsibleSection, ScorecardView, RARITY_COLORS,
 } from "./helpers";
 import { CategoryStatsEnhanced } from "@/components/stats";
+import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName } from "@/lib/cosmetics";
 
 export default function PlayerDetail() {
   const params = useParams<{ id: string }>();
@@ -19,6 +20,7 @@ export default function PlayerDetail() {
   const { data: stats, isLoading } = useGetPlayerStats(playerId, {
     query: { staleTime: 5 * 60 * 1000, queryKey: getGetPlayerStatsQueryKey(playerId) },
   });
+  const cosmeticsCatalog = useCosmeticsCatalog();
 
   const [achProgress, setAchProgress] = useState<any[]>([]);
   const [achFilter, setAchFilter] = useState<"all" | "unlocked" | "locked" | "close">("all");
@@ -307,6 +309,7 @@ export default function PlayerDetail() {
 
   const streak = player.currentWinStreak ?? 0;
   const lossStreak = player.currentLossStreak ?? 0;
+  const equippedNameStyle = cosmeticsCatalog.find(c => c.id === (player as any).equippedNameStyleId);
 
   return (
     <>
@@ -379,10 +382,14 @@ export default function PlayerDetail() {
                   "{identity.title}"
                 </div>
               )}
-              <h1 className="font-black uppercase leading-none mb-2"
+              <h1 className={`font-black uppercase leading-none mb-2 ${!isEliminated ? nameStyleClassName(equippedNameStyle) : ""}`}
                 style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(2.2rem, 7vw, 4.5rem)", letterSpacing: "0.03em",
                   color: isEliminated ? "#ff005c" : "#fff",
-                  textShadow: isEliminated ? "0 0 40px rgba(255,0,92,0.5)" : `0 0 40px ${tierColor}20` }}>
+                  textShadow: isEliminated ? "0 0 40px rgba(255,0,92,0.5)" : `0 0 40px ${tierColor}20`,
+                  // An eliminated player's red treatment communicates real game
+                  // state (see the colour/shadow above) — a cosmetic never
+                  // overrides that, only the normal in-play look.
+                  ...(isEliminated ? {} : nameStyleCSS(equippedNameStyle)) }}>
                 {player.name}
                 {streak >= 3 && <span className="ml-3 text-3xl animate-bounce inline-block">🔥</span>}
               </h1>

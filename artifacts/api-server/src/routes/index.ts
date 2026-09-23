@@ -28,6 +28,7 @@ import bossBattlesRouter from "./boss-battles";
 import boardCurseRouter from "./board-curse";
 import shiftWarsRouter from "./shift-wars";
 import broadcastRouter from "./broadcast";
+import cosmeticsRouter from "./cosmetics";
 
 const router: IRouter = Router();
 
@@ -60,5 +61,6 @@ router.use(bossBattlesRouter);
 router.use(boardCurseRouter);
 router.use(shiftWarsRouter);
 router.use(broadcastRouter);
+router.use(cosmeticsRouter);
 
 export default router;

@@ -40,6 +40,14 @@ export const playersTable = pgTable("players", {
   // edition" dot on the TKDL LIVE nav item. See
   // db/migrations/add_last_seen_broadcast_edition.ts for why there's no FK.
   lastSeenBroadcastEditionId: integer("last_seen_broadcast_edition_id"),
+  // Equipped cosmetics (see schema/cosmetics.ts) — plain text references to
+  // cosmetic_definitions.id, no DB foreign key (same reasoning as
+  // lastSeenBroadcastEditionId just above: keeps this table's migration
+  // independent of cosmetics' tables existing yet — equip's own route
+  // already validates the id is real and owned before writing it here).
+  // Null means "nothing equipped in that slot" — the existing default look.
+  equippedNameStyleId: text("equipped_name_style_id"),
+  equippedProfileIconId: text("equipped_profile_icon_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Award, Trophy, Zap, Target, Flame, Star, Dumbbell, Medal, ArrowLeft, Skull, TrendingDown, Frown } from "lucide-react";
+import { Award, Trophy, Zap, Target, Flame, Star, Dumbbell, Medal, ArrowLeft, Skull, TrendingDown, Frown, RotateCcw, Banknote } from "lucide-react";
 import { TierBadge } from "@/components/tier-badge";
 
 function useFetch<T>(url: string) {
@@ -15,11 +15,12 @@ function useFetch<T>(url: string) {
   return { data, loading };
 }
 
-type PlayerRecord = { id: number; name: string; careerWins: number; careerLosses: number; careerPeakElo: number; careerPoints: number; longestWinStreak: number; longestLossStreak: number; careerBiggestPointsFall: number; sessions: number; total180s: number; tourTrophies: number; achievements: number };
+type PlayerRecord = { id: number; name: string; careerWins: number; careerLosses: number; careerPeakElo: number; careerPoints: number; longestWinStreak: number; longestLossStreak: number; careerBiggestPointsFall: number; sessions: number; total180s: number; tourTrophies: number; achievements: number; eliminationsCount: number; biggestSingleLoss: number };
 type HofData = {
   mostWins: PlayerRecord[]; highestElo: PlayerRecord[]; mostPoints: PlayerRecord[]; longestStreak: PlayerRecord[];
   mostSessions: PlayerRecord[]; most180s: PlayerRecord[]; mostTourTrophies: PlayerRecord[]; mostAchievements: PlayerRecord[];
   mostLosses: PlayerRecord[]; longestLossStreak: PlayerRecord[]; biggestPointsFall: PlayerRecord[];
+  mostEliminations: PlayerRecord[]; biggestSingleLoss: PlayerRecord[];
 };
 
 const MEDAL_COLORS = ["#ffd24a", "#c0c8d8", "#cd7f32"];
@@ -170,6 +171,8 @@ export default function HallOfFame() {
             <RecordCard icon={<Frown className="w-4 h-4" />}       label="Wooden Spoon"       accent="#ff005c" top={data.mostLosses}         valueKey="careerLosses"      medals={["🥄","😬","😅"]} rankColors={SHAME_COLORS} subtitle="MOST CAREER LOSSES" />
             <RecordCard icon={<TrendingDown className="w-4 h-4" />} label="The Choke Award"    accent="#ff005c" top={data.longestLossStreak}  valueKey="longestLossStreak" medals={["🫠","😬","😅"]} rankColors={SHAME_COLORS} subtitle="LONGEST LOSING STREAK" />
             <RecordCard icon={<Skull className="w-4 h-4" />}       label="The Collapse"       accent="#ff005c" top={data.biggestPointsFall}  valueKey="careerBiggestPointsFall" suffix=" pts" medals={["💀","😬","😅"]} rankColors={SHAME_COLORS} subtitle="BIGGEST FALL FROM PEAK (ALL-TIME)" />
+            <RecordCard icon={<RotateCcw className="w-4 h-4" />}   label="Frequent Flyer"     accent="#ff005c" top={data.mostEliminations}   valueKey="eliminationsCount" medals={["🔁","😬","😅"]} rankColors={SHAME_COLORS} subtitle="MOST TIMES ELIMINATED" />
+            <RecordCard icon={<Banknote className="w-4 h-4" />}    label="Highway Robbery"    accent="#ff005c" top={data.biggestSingleLoss}  valueKey="biggestSingleLoss" suffix=" pts" medals={["💸","😬","😅"]} rankColors={SHAME_COLORS} subtitle="BIGGEST SINGLE-MATCH LOSS" />
           </div>
         </div>
       )}
