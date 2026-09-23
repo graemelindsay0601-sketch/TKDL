@@ -5,9 +5,10 @@ import { z } from "zod";
 import { validateStake, applyWager } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { requireAdminSession } from "../middleware/requireAdminSession";
-import { sendShiftWarsMatchResultNotification, sendMatchResultBroadcast } from "../services/notificationService";
+import { sendShiftWarsMatchResultNotification, sendMatchResultBroadcast, sendRankChangeNotifications } from "../services/notificationService";
 import { createAutoPost } from "../lib/communityNotify";
 import { checkShiftWarsAchievements } from "../lib/shift-wars-achievements";
+import { rankShiftWarsTeams, type RankableShiftWarsTeam } from "../lib/leaderboardRank";
 
 /**
  * Shift Wars — 3 fixed department teams (Fresh, Twilight, Shift Leader) competing
@@ -159,7 +160,7 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
   // separate unguarded statements lets two concurrent submissions for the
   // same team race and lose one match's points to the other.
   try {
-    const { match, winnerName, loserName } = await db.transaction(async (tx) => {
+    const { match, winnerName, loserName, winnerPointsBefore, loserPointsBefore } = await db.transaction(async (tx) => {
       const teamRows = await tx.execute(sql`SELECT * FROM shift_wars_teams WHERE id IN (${winnerTeamId}, ${loserTeamId}) FOR UPDATE`);
       const teams = teamRows.rows as any[];
       const winner = teams.find(t => t.id === winnerTeamId);
@@ -200,10 +201,38 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
         RETURNING *
       `)).rows as any[];
 
-      return { match, winnerName: winner.name, loserName: loser.name };
+      return { match, winnerName: winner.name, loserName: loser.name, winnerPointsBefore: winner.points, loserPointsBefore: loser.points };
     });
 
-    res.status(201).json({ match, winnerName, loserName });
+    // Team-position rank diff (see lib/leaderboardRank.ts) — only 3 fixed
+    // department teams, points-only, so "before" just needs the two
+    // touched teams patched back rather than a second query.
+    let winnerTeamRankChange = 0, loserTeamRankChange = 0, newWinnerTeamRank = 0, newLoserTeamRank = 0;
+    try {
+      const teamRows = await db.execute(sql`SELECT id, points, name FROM shift_wars_teams`);
+      const roster: RankableShiftWarsTeam[] = (teamRows.rows as any[]).map(t => ({ id: t.id, points: t.points, name: t.name }));
+
+      const afterRanks = rankShiftWarsTeams(roster);
+      const beforeRoster = roster.map(t => {
+        if (t.id === winnerTeamId) return { ...t, points: winnerPointsBefore };
+        if (t.id === loserTeamId)  return { ...t, points: loserPointsBefore };
+        return t;
+      });
+      const beforeRanks = rankShiftWarsTeams(beforeRoster);
+
+      newWinnerTeamRank = afterRanks.get(winnerTeamId) ?? 0;
+      newLoserTeamRank  = afterRanks.get(loserTeamId) ?? 0;
+      winnerTeamRankChange = (beforeRanks.get(winnerTeamId) ?? 0) - newWinnerTeamRank;
+      loserTeamRankChange  = (beforeRanks.get(loserTeamId)  ?? 0) - newLoserTeamRank;
+    } catch (err) {
+      console.error("Shift Wars rank-change computation error:", err);
+    }
+
+    res.status(201).json({
+      match, winnerName, loserName,
+      newWinnerTeamRank, newLoserTeamRank,
+      winnerTeamRankChange, loserTeamRankChange,
+    });
 
     void checkShiftWarsAchievements(winnerTeamId);
 
@@ -221,6 +250,19 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
         const winnerPlayerIds = roster.filter(p => p.shift_wars_team_id === winnerTeamId).map(p => p.id);
         const loserPlayerIds  = roster.filter(p => p.shift_wars_team_id === loserTeamId).map(p => p.id);
         await sendShiftWarsMatchResultNotification(winnerName, loserName, winnerPlayerIds, loserPlayerIds, stake);
+
+        // Rank-change notifications for whichever department's standing
+        // actually moved (see the diff computed above, before this IIFE).
+        if (winnerTeamRankChange !== 0) {
+          void sendRankChangeNotifications(
+            winnerPlayerIds.map((id: number) => ({ id, name: winnerName, newRank: newWinnerTeamRank, oldRank: newWinnerTeamRank - winnerTeamRankChange })),
+          );
+        }
+        if (loserTeamRankChange !== 0) {
+          void sendRankChangeNotifications(
+            loserPlayerIds.map((id: number) => ({ id, name: loserName, newRank: newLoserTeamRank, oldRank: newLoserTeamRank - loserTeamRankChange })),
+          );
+        }
 
         // League-wide ping — every other opted-in player, not just the two
         // departments who played.

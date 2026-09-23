@@ -6,6 +6,7 @@ import { calcTier } from "../lib/elo";
 import { computeIdentity } from "../lib/identity";
 import { seasonStandingsTable } from "@workspace/db";
 import { SHADOW_BOT_ACHIEVEMENT_DEFS, gamerscoreForRarity } from "../lib/shadow-bot-achievements";
+import { getPositionChanges } from "../lib/leaderboardRank";
 
 const router = Router();
 
@@ -27,6 +28,13 @@ router.get("/leaderboard", async (_req, res): Promise<void> => {
     titleCounts.set(s.playerId, (titleCounts.get(s.playerId) ?? 0) + 1);
   }
 
+  // Diffed against the most recent daily snapshot strictly before today
+  // (see lib/leaderboardRank.ts) — a player with no snapshot yet just gets
+  // no entry in the map, which the ?? 0 below treats the same as "no
+  // change" rather than a fabricated movement.
+  const currentRanks = new Map(sorted.map((p, i) => [p.id, i + 1]));
+  const positionChanges = await getPositionChanges(currentRanks);
+
   const leaderboard = sorted.map((p, i) => {
     const rank = i + 1;
     const isChampion = (titleCounts.get(p.id) ?? 0) > 0;
@@ -34,7 +42,7 @@ router.get("/leaderboard", async (_req, res): Promise<void> => {
     const games = p.seasonWins + p.seasonLosses;
     return {
       position:      rank,
-      positionChange: 0,
+      positionChange: positionChanges.get(p.id) ?? 0,
       playerId:      p.id,
       playerName:    p.name,
       wins:          p.seasonWins,

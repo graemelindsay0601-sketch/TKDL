@@ -7,6 +7,7 @@ import { calcTier } from "../lib/elo";
 import { computeIdentity } from "../lib/identity";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { logAdminAction } from "../lib/adminAudit";
+import { getPositionChanges } from "../lib/leaderboardRank";
 
 const GetSeasonParams  = z.object({ id: z.coerce.number().int().positive() });
 const ResetSeasonBody  = z.object({ name: z.string().optional() });
@@ -125,12 +126,17 @@ router.get("/seasons/:id", async (req, res): Promise<void> => {
     const active = players.filter(p => p.status !== "ELIMINATED");
     const eliminated = players.filter(p => p.status === "ELIMINATED");
     const sorted = [...active.sort((a,b) => b.points-a.points || b.elo-a.elo), ...eliminated.sort((a,b) => b.points-a.points)];
+    // Same live diff as GET /leaderboard (see lib/leaderboardRank.ts) —
+    // this branch is the active season, so it's the same ranking, just
+    // rendered from the season-detail page instead of the dashboard.
+    const currentRanks = new Map(sorted.map((p, i) => [p.id, i + 1]));
+    const positionChanges = await getPositionChanges(currentRanks);
     standings = sorted.map((p, i) => {
       const isChampion = (titleCounts.get(p.id) ?? 0) > 0;
       const identity = computeIdentity(p, i+1, isChampion);
       const games = p.seasonWins + p.seasonLosses;
       return {
-        position: i+1, positionChange: 0,
+        position: i+1, positionChange: positionChanges.get(p.id) ?? 0,
         playerId: p.id, playerName: p.name,
         wins: p.seasonWins, losses: p.seasonLosses, gamesPlayed: games,
         points: p.points, peakPoints: p.peakPoints,
@@ -147,6 +153,10 @@ router.get("/seasons/:id", async (req, res): Promise<void> => {
       const p = playerMap.get(r.playerId);
       const games = r.wins + r.losses;
       return {
+        // A closed season's standings are a frozen end-of-season snapshot
+        // (seasonStandingsTable) — there's no "yesterday" to diff against
+        // once the season's over, so positionChange is genuinely 0 here,
+        // not a stub. Only the active-season branch above has a real one.
         position: r.position, positionChange: 0,
         playerId: r.playerId, playerName: p?.name ?? "Unknown",
         wins: r.wins, losses: r.losses, gamesPlayed: games,

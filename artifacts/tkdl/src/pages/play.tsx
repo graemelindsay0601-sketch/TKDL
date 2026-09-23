@@ -749,11 +749,13 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
   const viewerWon = !!currentPlayer?.playerId && winnerTeam.some(p => p.id === currentPlayer.playerId);
   const burstEffect = viewerWon ? checkoutEffect(cosmeticsCatalog.find(c => c.id === equippedEffectId)) : null;
 
-  // RANK_UP_EFFECT — only for the 1v1 flow below, which is the only one
-  // that computes a real leaderboard-position diff server-side (see
-  // routes/matches.ts / lib/leaderboardRank.ts). Doubles, Shift Wars, and
-  // team/killer matches post to their own routes, which don't compute this
-  // yet — a smaller, separate piece of work if wanted later.
+  // RANK_UP_EFFECT — every format now computes a real leaderboard-position
+  // diff server-side and sets these after submit() resolves: 1v1 diffs the
+  // singles leaderboard (routes/matches.ts), Doubles/Shift Wars diff their
+  // own team standings (routes/doubles.ts, routes/shift-wars.ts), and
+  // 2v2/3v3/killer-ffa diff the singles leaderboard per player since Team
+  // Match settles against players' own points/elo (routes/team-matches.ts).
+  // See lib/leaderboardRank.ts for the shared ranking helpers.
   const [viewerRankChange, setViewerRankChange] = useState<number>(0);
   const [viewerNewRank, setViewerNewRank] = useState<number | null>(null);
   const rankUpBurst = viewerWon && viewerRankChange > 0
@@ -811,7 +813,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         const [team1Id, team2Id] = data.doublesTeamIds;
         const winnerTeamId = result.winnerIdx === 0 ? team1Id : team2Id;
         const loserTeamId  = result.winnerIdx === 0 ? team2Id : team1Id;
-        await fetch("/api/doubles/matches", {
+        const doublesResult = await fetch("/api/doubles/matches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -827,12 +829,14 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           }
           return r.json();
         });
+        setViewerRankChange(doublesResult?.winnerTeamRankChange ?? 0);
+        setViewerNewRank(doublesResult?.newWinnerTeamRank ?? null);
         await qc.invalidateQueries({ queryKey: ["leaderboard-doubles"] });
       } else if (data.format === "shift-wars" && data.shiftWarsTeamIds) {
         const [team1Id, team2Id] = data.shiftWarsTeamIds;
         const winnerTeamId = result.winnerIdx === 0 ? team1Id : team2Id;
         const loserTeamId  = result.winnerIdx === 0 ? team2Id : team1Id;
-        await fetch("/api/shift-wars/matches", {
+        const shiftWarsResult = await fetch("/api/shift-wars/matches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -848,9 +852,11 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           }
           return r.json();
         });
+        setViewerRankChange(shiftWarsResult?.winnerTeamRankChange ?? 0);
+        setViewerNewRank(shiftWarsResult?.newWinnerTeamRank ?? null);
         await qc.invalidateQueries({ queryKey: ["leaderboard-shiftwars"] });
       } else {
-        await fetch("/api/team-matches", {
+        const teamResult = await fetch("/api/team-matches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -866,6 +872,9 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           }
           return r.json();
         });
+        const viewerChange = currentPlayer?.playerId ? teamResult?.rankChanges?.[currentPlayer.playerId] : null;
+        setViewerRankChange(viewerChange?.rankChange ?? 0);
+        setViewerNewRank(viewerChange?.newRank ?? null);
       }
       if (data.format !== "doubles-event" && data.format !== "shift-wars") {
         await qc.invalidateQueries({ queryKey: getGetLeaderboardQueryKey() });

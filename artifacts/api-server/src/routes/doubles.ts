@@ -5,9 +5,10 @@ import { z } from "zod";
 import { applyEloChange, calcTier } from "../lib/elo";
 import { validateStake, applyWager } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
-import { sendDoublesMatchResultNotification, sendMatchResultBroadcast } from "../services/notificationService";
+import { sendDoublesMatchResultNotification, sendMatchResultBroadcast, sendRankChangeNotifications } from "../services/notificationService";
 import { createAutoPost } from "../lib/communityNotify";
 import { checkDoublesAchievements } from "../lib/doubles-achievements";
+import { rankDoublesTeams, type RankableDoublesTeam } from "../lib/leaderboardRank";
 
 const GetSeasonParams = z.object({ id: z.coerce.number().int().positive() });
 
@@ -128,6 +129,7 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
     const {
       match, eloChange, loserEliminated,
       winnerTeamName, loserTeamName, winnerPlayerIds, loserPlayerIds,
+      winnerPointsBefore, loserPointsBefore, winnerEloBefore, loserEloBefore,
     } = await db.transaction(async (tx) => {
       const teamRows = await tx.execute(sql`
         SELECT * FROM doubles_teams WHERE id IN (${winnerTeamId}, ${loserTeamId}) AND season_id = ${activeSeason.id} FOR UPDATE
@@ -184,10 +186,61 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
         match, eloChange, loserEliminated,
         winnerTeamName: winner.team_name, loserTeamName: loser.team_name,
         winnerPlayerIds: teamPlayerIds(winner), loserPlayerIds: teamPlayerIds(loser),
+        winnerPointsBefore: winner.points, loserPointsBefore: loser.points,
+        winnerEloBefore: winner.elo, loserEloBefore: loser.elo,
       };
     });
 
-    res.status(201).json({ match, eloChange, loserEliminated });
+    // Team-position rank diff — same idea as the singles one in
+    // routes/matches.ts (see lib/leaderboardRank.ts), applied to this
+    // season's doubles_teams instead of players. Only the winner/loser
+    // team actually changed points/elo/elimination, so the roster fetched
+    // here for the "after" ranking is patched back to pre-match values for
+    // the "before" half rather than queried twice.
+    let winnerTeamRankChange = 0, loserTeamRankChange = 0, newWinnerTeamRank = 0, newLoserTeamRank = 0;
+    try {
+      const teamRows = await db.execute(sql`
+        SELECT id, points, elo, is_eliminated FROM doubles_teams WHERE season_id = ${activeSeason.id}
+      `);
+      const roster: RankableDoublesTeam[] = (teamRows.rows as any[]).map(t => ({
+        id: t.id, points: t.points, elo: t.elo, isEliminated: t.is_eliminated,
+      }));
+
+      const afterRanks = rankDoublesTeams(roster);
+      const beforeRoster = roster.map(t => {
+        if (t.id === winnerTeamId) return { ...t, points: winnerPointsBefore, elo: winnerEloBefore };
+        if (t.id === loserTeamId)  return { ...t, points: loserPointsBefore, elo: loserEloBefore, isEliminated: loserEliminated ? false : t.isEliminated };
+        return t;
+      });
+      const beforeRanks = rankDoublesTeams(beforeRoster);
+
+      newWinnerTeamRank = afterRanks.get(winnerTeamId) ?? 0;
+      newLoserTeamRank  = afterRanks.get(loserTeamId) ?? 0;
+      const oldWinnerTeamRank = beforeRanks.get(winnerTeamId) ?? 0;
+      const oldLoserTeamRank  = beforeRanks.get(loserTeamId) ?? 0;
+      winnerTeamRankChange = oldWinnerTeamRank - newWinnerTeamRank;
+      loserTeamRankChange  = oldLoserTeamRank  - newLoserTeamRank;
+
+      if (winnerTeamRankChange !== 0) {
+        void sendRankChangeNotifications(
+          winnerPlayerIds.map(id => ({ id, name: winnerTeamName, newRank: newWinnerTeamRank, oldRank: oldWinnerTeamRank })),
+        );
+      }
+      if (loserTeamRankChange !== 0) {
+        void sendRankChangeNotifications(
+          loserPlayerIds.map(id => ({ id, name: loserTeamName, newRank: newLoserTeamRank, oldRank: oldLoserTeamRank })),
+        );
+      }
+    } catch (err) {
+      console.error("Doubles rank-change computation error:", err);
+    }
+
+    res.status(201).json({
+      match, eloChange, loserEliminated,
+      newWinnerTeamRank, newLoserTeamRank,
+      winnerTeamRankChange, // positive = winner's team moved up the doubles standings
+      loserTeamRankChange,
+    });
 
     void checkDoublesAchievements(winnerPlayerIds, winnerTeamId, eloChange, stake);
 

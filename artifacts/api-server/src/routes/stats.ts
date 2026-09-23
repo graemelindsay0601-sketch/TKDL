@@ -5,6 +5,7 @@ import { sql as drizzleSql } from "drizzle-orm";
 import { calcTier } from "../lib/elo";
 import { computeIdentity } from "../lib/identity";
 import { buildNarrativeCards } from "../lib/narrative";
+import { getPositionChanges } from "../lib/leaderboardRank";
 
 const router = Router();
 
@@ -45,8 +46,13 @@ router.get("/stats/summary", async (_req, res): Promise<void> => {
     const isChampion = (titleCounts.get(leader.id) ?? 0) > 0;
     const identity = computeIdentity(leader, 1, isChampion);
     const games = leader.seasonWins + leader.seasonLosses;
+    // The league leader is always rank 1 right now by definition — what's
+    // worth diffing is whether they *were* rank 1 yesterday (see
+    // lib/leaderboardRank.ts). A positive change here means they just
+    // took the lead; 0 means they've held it since the last snapshot.
+    const leaderRankChange = (await getPositionChanges(new Map([[leader.id, 1]]))).get(leader.id) ?? 0;
     currentLeader = {
-      position: 1, positionChange: 0,
+      position: 1, positionChange: leaderRankChange,
       playerId: leader.id, playerName: leader.name,
       wins: leader.seasonWins, losses: leader.seasonLosses, gamesPlayed: games,
       points: leader.points, peakPoints: leader.peakPoints,

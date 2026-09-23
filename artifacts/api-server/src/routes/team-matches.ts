@@ -5,6 +5,8 @@ import { z } from "zod";
 import { calcEloChange } from "../lib/elo";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { createAutoPost } from "../lib/communityNotify";
+import { sendRankChangeNotifications } from "../services/notificationService";
+import { rankPlayersByPoints, type RankablePlayer } from "../lib/leaderboardRank";
 
 const TeamMatchBody = z.object({
   winnerIds: z.array(z.number().int().positive()).min(1).max(6),
@@ -125,6 +127,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
   let eloChange: number;
   let loserResults: { id: number; newPoints: number; eliminated: boolean }[];
   let winnerResults: { id: number; share: number }[];
+  let beforeSnapshot: RankablePlayer[];
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -262,19 +265,57 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
       }).where(eq(seasonsTable.id, activeSeason.id));
 
       const txWinnerResults = winnerPlayers.map((p, i) => ({ id: p.id, share: winnerShares[i] }));
-      return { match: newMatch, eloChange: lockedEloChange, loserResults: txLoserResults, winnerResults: txWinnerResults };
+      // Snapshot of every involved player's pre-match points/elo/status —
+      // this is the same players table the singles leaderboard reads, so
+      // a rank-change diff can reuse rankPlayersByPoints() directly rather
+      // than needing its own ranking logic (unlike Doubles/Shift Wars,
+      // which rank a separate teams table).
+      const beforeSnapshot: RankablePlayer[] = [...winnerPlayers, ...loserPlayers].map(p => ({
+        id: p.id, points: p.points, elo: p.elo, status: p.status,
+      }));
+      return { match: newMatch, eloChange: lockedEloChange, loserResults: txLoserResults, winnerResults: txWinnerResults, beforeSnapshot };
     });
 
-    match         = result.match;
-    eloChange     = result.eloChange;
-    loserResults  = result.loserResults;
-    winnerResults = result.winnerResults;
+    match          = result.match;
+    eloChange      = result.eloChange;
+    loserResults   = result.loserResults;
+    winnerResults  = result.winnerResults;
+    beforeSnapshot = result.beforeSnapshot;
   } catch (err) {
     if (err instanceof TeamMatchConflictError) {
       res.status(400).json({ error: err.message });
       return;
     }
     throw err;
+  }
+
+  // Leaderboard-position rank diff for every player who played — reuses
+  // the exact same helper the singles flow uses (routes/matches.ts), since
+  // Team Match wagers/settles against individual players' own points/elo,
+  // not a separate teams table.
+  const rankChanges: Record<number, { newRank: number; rankChange: number }> = {};
+  try {
+    const roster: RankablePlayer[] = await db
+      .select({ id: playersTable.id, points: playersTable.points, elo: playersTable.elo, status: playersTable.status })
+      .from(playersTable)
+      .where(eq(playersTable.isActive, true));
+
+    const beforeById = new Map(beforeSnapshot.map(p => [p.id, p]));
+    const afterRanks = rankPlayersByPoints(roster);
+    const beforeRoster = roster.map(p => beforeById.get(p.id) ?? p);
+    const beforeRanks = rankPlayersByPoints(beforeRoster);
+
+    const notifyList: { id: number; name: string; newRank: number; oldRank: number }[] = [];
+    for (const id of allIds) {
+      const newRank = afterRanks.get(id) ?? 0;
+      const oldRank = beforeRanks.get(id) ?? 0;
+      const rankChange = oldRank - newRank;
+      rankChanges[id] = { newRank, rankChange };
+      if (rankChange !== 0) notifyList.push({ id, name: byId.get(id)?.name ?? "", newRank, oldRank });
+    }
+    if (notifyList.length > 0) void sendRankChangeNotifications(notifyList);
+  } catch (err) {
+    console.error("Team match rank-change computation error:", err);
   }
 
   res.status(201).json({
@@ -285,6 +326,9 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
     // teams all get the same `stake` share); lets the UI show an accurate
     // "who got what" instead of assuming a flat stake per winner.
     winnerShares: winnerResults,
+    // Keyed by player id so the result screen can look up whichever player
+    // is actually viewing (see lib/leaderboardRank.ts).
+    rankChanges,
   });
 
   // Auto community post (fire and forget — never delay the response). Team

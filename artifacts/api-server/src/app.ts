@@ -44,6 +44,7 @@ import { addWave4CosmeticColumns } from "./db/migrations/add_wave4_cosmetics";
 import { addFeaturedStatKeyColumn } from "./db/migrations/add_featured_stat_key";
 import { addWave5CosmeticColumns } from "./db/migrations/add_wave5_cosmetics";
 import { addWave6CosmeticColumns } from "./db/migrations/add_wave6_cosmetics";
+import { addPlayerRankSnapshotsTable } from "./db/migrations/add_player_rank_snapshots";
 import { seedCosmeticDefinitions } from "./services/cosmetics-service";
 import { addLastSeenHubAtColumn } from "./db/migrations/add_last_seen_hub_at";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
@@ -68,6 +69,7 @@ import { seedBroadcastSettings } from "./broadcast/config";
 import { seedCardDefinitions } from "./services/card-definitions-service";
 import { challengeService } from "./services/challenge-service";
 import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
+import { initializeRankSnapshotScheduler } from "./services/rankSnapshotScheduler";
 import { initializeFeaturedCardScheduler } from "./services/featured-card-shop-service";
 import webpush from "web-push";
 import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
@@ -1301,6 +1303,7 @@ async function init() {
   await runInitStep("addFeaturedStatKeyColumn", addFeaturedStatKeyColumn);
   await runInitStep("addWave5CosmeticColumns", addWave5CosmeticColumns);
   await runInitStep("addWave6CosmeticColumns", addWave6CosmeticColumns);
+  await runInitStep("addPlayerRankSnapshotsTable", addPlayerRankSnapshotsTable);
   // Needs addCosmeticsTables and addCosmeticPurchasableFlag to have run first — upserts into cosmetic_definitions.
   await runInitStep("seedCosmeticDefinitions", seedCosmeticDefinitions);
   await runInitStep("addLastSeenHubAtColumn", addLastSeenHubAtColumn);
@@ -1316,6 +1319,7 @@ async function init() {
 
   // Initialize scheduled systems
   await runInitStep("initializeCoachTipsScheduler", initializeCoachTipsScheduler);
+  await runInitStep("initializeRankSnapshotScheduler", initializeRankSnapshotScheduler);
   await runInitStep("initializeFeaturedCardScheduler", initializeFeaturedCardScheduler);
   await runInitStep("initializeSeasonResetScheduler", initializeSeasonResetScheduler);
   await runInitStep("seedSessions", seedSessions);
