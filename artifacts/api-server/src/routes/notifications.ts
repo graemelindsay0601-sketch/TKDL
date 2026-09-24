@@ -215,12 +215,32 @@ router.post("/notifications/subscribe", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
-// ── DELETE /notifications/subscribe — remove push subscription ────────────────
+// ── DELETE /notifications/subscribe — remove push subscription. A player
+// can be subscribed from more than one device (phone, desktop browser,
+// etc) — each gets its own row (push_subscriptions.endpoint is unique per
+// device/browser). This used to delete every row for the player regardless
+// of which device asked, so turning notifications off on ONE device
+// silently wiped every other device's subscription too — e.g. testing from
+// a desktop browser would deauthorize a phone that was never touched,
+// which is exactly why the phone would stop getting anything with no
+// obvious cause. Now scoped to the endpoint the client itself is
+// unsubscribing (sent in the body), so it only ever removes that one
+// device. Falls back to the old wipe-everything behavior only if no
+// endpoint is supplied (e.g. a stale cached client that predates this
+// fix) rather than silently doing nothing. ─────────────────────────────────
+const UnsubscribeBody = z.object({ endpoint: z.string().optional() });
 router.delete("/notifications/subscribe", async (req, res): Promise<void> => {
   const playerId = requireAuth(req, res);
   if (!playerId) return;
 
-  await db.execute(sql`DELETE FROM push_subscriptions WHERE player_id = ${playerId}`);
+  const parsed = UnsubscribeBody.safeParse(req.body ?? {});
+  const endpoint = parsed.success ? parsed.data.endpoint : undefined;
+
+  if (endpoint) {
+    await db.execute(sql`DELETE FROM push_subscriptions WHERE player_id = ${playerId} AND endpoint = ${endpoint}`);
+  } else {
+    await db.execute(sql`DELETE FROM push_subscriptions WHERE player_id = ${playerId}`);
+  }
   res.json({ ok: true });
 });
 

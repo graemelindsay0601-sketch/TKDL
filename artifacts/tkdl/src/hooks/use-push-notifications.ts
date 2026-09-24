@@ -86,8 +86,20 @@ export function usePushNotifications(playerId: number | null | undefined) {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
+        // Send this device's own endpoint so the server only removes THIS
+        // subscription — without it, the server used to (and, for an old
+        // cached client that hasn't picked this up yet, still would) delete
+        // every device this player has ever subscribed from, silently
+        // signing them out of push on a phone just because notifications
+        // got toggled off on a desktop browser.
+        const endpoint = sub.endpoint;
         await sub.unsubscribe();
-        await fetch("/api/notifications/subscribe", { method: "DELETE", credentials: "include" });
+        await fetch("/api/notifications/subscribe", {
+          method: "DELETE",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint }),
+        });
       }
       setState("default");
     } catch {}
