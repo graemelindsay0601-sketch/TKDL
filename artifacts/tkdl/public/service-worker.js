@@ -3,8 +3,8 @@
  * Handles web push notifications, offline support, and caching
  */
 
-const CACHE_NAME = "tkdl-v4";
-const API_CACHE = "tkdl-api-v4";
+const CACHE_NAME = "tkdl-v5";
+const API_CACHE = "tkdl-api-v5";
 
 // Files to cache for offline support
 const STATIC_ASSETS = [
@@ -125,7 +125,7 @@ self.addEventListener("push", (event) => {
     // Still report the ping even with no payload — the question this
     // answers is "did a push event fire on this device at all", which is
     // true here regardless of payload.
-    event.waitUntil(reportPushReceived({}));
+    event.waitUntil(reportPushReceived({ stage: "received_no_data" }));
     return;
   }
 
@@ -163,14 +163,29 @@ self.addEventListener("push", (event) => {
     },
   };
 
-  // Diagnostic ping fires in parallel with the actual notification, and
-  // neither one can block or fail the other — this is purely "did we get
-  // this far", not a dependency of showing the notification itself.
+  // Confirmed live: the push event itself does fire correctly on-device
+  // (see "Service worker reported a push event received on-device" in the
+  // server logs). What's still unknown is whether showNotification() —
+  // the actual call that's supposed to make iOS display a banner — is
+  // succeeding, throwing, or resolving but getting silently suppressed by
+  // the OS. Awaiting it explicitly and reporting the real outcome (instead
+  // of Promise.allSettled swallowing whichever one failed) answers that
+  // directly on the next test rather than needing another guess.
   event.waitUntil(
-    Promise.allSettled([
-      reportPushReceived({ notificationId: data.notificationId, title }),
-      self.registration.showNotification(title, options),
-    ])
+    (async () => {
+      await reportPushReceived({ notificationId: data.notificationId, title, stage: "received" });
+      try {
+        await self.registration.showNotification(title, options);
+        await reportPushReceived({ notificationId: data.notificationId, title, stage: "shown_ok" });
+      } catch (err) {
+        await reportPushReceived({
+          notificationId: data.notificationId,
+          title,
+          stage: "show_failed",
+          error: String(err && err.message ? err.message : err),
+        });
+      }
+    })()
   );
 });
 

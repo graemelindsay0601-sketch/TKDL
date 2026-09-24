@@ -208,6 +208,18 @@ export async function seedNotificationTables() {
         last_used TIMESTAMPTZ DEFAULT NOW()
       )
     `);
+    // Same story as notification_preferences above, confirmed live this
+    // time via "column \"last_used\" of relation \"push_subscriptions\"
+    // does not exist" — this table also predates its own CREATE TABLE
+    // statement, so these columns were never retroactively added on
+    // production. Guard every one of them, not just the one that's failed
+    // so far — the whole point of the earlier fix was to stop finding
+    // these one at a time.
+    await db.execute(sql`ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS auth TEXT`);
+    await db.execute(sql`ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS p256dh TEXT`);
+    await db.execute(sql`ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true`);
+    await db.execute(sql`ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`);
+    await db.execute(sql`ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS last_used TIMESTAMPTZ DEFAULT NOW()`);
 
     // Notification batches (for grouping multiple changes)
     await db.execute(sql`
