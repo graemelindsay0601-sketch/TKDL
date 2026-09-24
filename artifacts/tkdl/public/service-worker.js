@@ -3,8 +3,8 @@
  * Handles web push notifications, offline support, and caching
  */
 
-const CACHE_NAME = "tkdl-v5";
-const API_CACHE = "tkdl-api-v5";
+const CACHE_NAME = "tkdl-v6";
+const API_CACHE = "tkdl-api-v6";
 
 // Files to cache for offline support
 const STATIC_ASSETS = [
@@ -147,11 +147,23 @@ self.addEventListener("push", (event) => {
     data = {},
   } = notificationData;
 
+  // Confirmed via the push-received diagnostic: showNotification() resolves
+  // successfully (stage "shown_ok", no error) on every real device test, yet
+  // nothing visibly appears. Every one of those tests shared the exact same
+  // static tag ("tkdl-notification"). Per the Notifications spec, a new
+  // notification sharing a tag with one already showing REPLACES it
+  // in-place instead of raising a fresh alert — no banner, no sound, no
+  // lock-screen appearance — unless renotify is explicitly set. A unique
+  // tag per notification (falling back to a timestamp when there's no
+  // notificationId, e.g. the "received_no_data" fallback path) plus
+  // renotify:true as a belt-and-braces backstop means every push always
+  // produces a real, new alert instead of a silent swap.
   const options = {
     body,
     icon,
     badge,
-    tag: "tkdl-notification",
+    tag: `tkdl-notification-${data.notificationId ?? Date.now()}`,
+    renotify: true,
     requireInteraction: false,
     actions: [
       { action: "open", title: "Open" },
