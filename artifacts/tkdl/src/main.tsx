@@ -38,6 +38,22 @@ window.addEventListener("vite:preloadError", () => {
 // badge/data — see sendPushNotification in notificationService.ts); /sw.js
 // expected a different shape and is no longer registered anywhere.
 if ("serviceWorker" in navigator && !import.meta.env.DEV) {
+  // Tapping a push notification when the app's already open (backgrounded,
+  // or on a home-screen PWA) needs the window to land on that notification's
+  // own page — e.g. a specific interview — not wherever it happened to be
+  // left open. The service worker's notificationclick handler tried
+  // client.navigate() for that, but that call is unreliable on iOS/Safari
+  // standalone PWAs (it can resolve without the page actually changing), so
+  // a real test just brought the already-open app back to its last page
+  // instead. Posting the target URL here and doing the navigation from the
+  // page's own already-running JS is the reliable way to move an
+  // already-open client — see service-worker.js's "tkdl-navigate" postMessage.
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data && event.data.type === "tkdl-navigate" && typeof event.data.url === "string") {
+      window.location.href = event.data.url;
+    }
+  });
+
   navigator.serviceWorker
     .register("/service-worker.js", { scope: "/" })
     .then((registration) => {

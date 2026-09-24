@@ -3,8 +3,8 @@
  * Handles web push notifications, offline support, and caching
  */
 
-const CACHE_NAME = "tkdl-v7";
-const API_CACHE = "tkdl-api-v7";
+const CACHE_NAME = "tkdl-v8";
+const API_CACHE = "tkdl-api-v8";
 
 // Files to cache for offline support
 const STATIC_ASSETS = [
@@ -242,10 +242,25 @@ self.addEventListener("notificationclick", (event) => {
           return client.focus();
         }
       }
-      // Not already open on that page — focus any open window and
-      // navigate it there if we can, otherwise open a fresh one.
-      if (clientList.length > 0 && "navigate" in clientList[0] && "focus" in clientList[0]) {
-        return clientList[0].navigate(targetUrl).then((c) => c && c.focus());
+      // Not already open on that exact page. client.navigate() looks like
+      // the right call here, but it's unreliable on iOS/Safari standalone
+      // PWAs — it can resolve without the window's page actually changing,
+      // which is exactly what a real device test showed: the banner just
+      // brought the already-open app back to whatever page it was already
+      // on (e.g. the profile page) instead of the interview. Posting the
+      // URL to the page's own already-running JS and letting IT navigate
+      // (see main.tsx's "tkdl-navigate" listener) is the reliable way to
+      // move an already-open client; clients.openWindow is the fallback —
+      // both when nothing's open at all (cold launch from the banner) and
+      // as a backstop if postMessage has no listener for some reason.
+      if (clientList.length > 0) {
+        const client = clientList[0];
+        if ("postMessage" in client) {
+          client.postMessage({ type: "tkdl-navigate", url: targetUrl });
+        }
+        if ("focus" in client) {
+          return client.focus();
+        }
       }
       if (clients.openWindow) {
         return clients.openWindow(targetUrl);
