@@ -67,6 +67,16 @@ export const playersTable = pgTable("players", {
   // LEADERBOARD_TAG cosmetic category (same migration as above) — a short
   // flair chip shown next to this player's name on the leaderboard.
   equippedLeaderboardTagId: text("equipped_leaderboard_tag_id"),
+  // Profile photo (see db/migrations/add_player_avatar_image.ts). The actual
+  // image bytes live in avatar_image/avatar_content_type — deliberately left
+  // OUT of this schema object rather than added as columns here, so the many
+  // existing `db.select().from(playersTable)` call sites across this app
+  // (leaderboard, admin, stats, ...) don't silently start pulling a binary
+  // blob into every player row they already fetch. Only this lightweight
+  // timestamp is schema'd: the frontend uses its presence/value to decide
+  // whether to render GET /players/:id/avatar-image at all, and as a cache-
+  // busting query param when it does.
+  avatarUpdatedAt: timestamp("avatar_updated_at", { withTimezone: true }),
   // A short player-entered line shown under their name (see
   // db/migrations/add_wave2_cosmetics.ts) — plain free text, length-capped
   // server-side in routes/players.ts's PATCH tagline route, same posture as

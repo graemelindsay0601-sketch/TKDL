@@ -1,20 +1,17 @@
 /**
- * Interview Desk — TEST/PREVIEW ONLY for now.
+ * Interview Desk — live for Phase 1's three real trigger types.
  *
- * Nothing here is called from a real game event yet. The only way an
- * interview_requests row gets created right now is POST
- * /admin/interview-desk/test-fire, which an admin fires manually from the
- * admin panel — there is deliberately no Story Engine hook, no push
- * notification, and no touch of any existing notification code path in
- * this file. That's the whole point of it: the user asked to be able to
- * preview and approve how the Interview Desk actually looks and feels
- * before it's "plugged in properly" to real triggers, specifically so nothing
- * about the now-working push notification pipeline is put at risk while
- * this gets evaluated. When the user signs off, wiring this into the real
- * Story Engine (Phase 1: MAJOR_UPSET, WIN_STREAK, 180_MILESTONE) means
- * calling createInterviewRequest() from that detection code and — as a
- * separate, deliberate step — sending a real push through the existing
- * notificationService, not rebuilding any of this.
+ * A real interview_requests row now gets created two ways: POST
+ * /admin/interview-desk/test-fire (admin-only, always is_test=true, for
+ * ongoing manual testing/demos — unchanged), and the real path —
+ * routes/matches.ts calls interviewDeskService.ts's
+ * checkMatchTriggersForInterview() right after a singles match is recorded,
+ * which fires a real (is_test=false), real-push interview invite whenever
+ * that match qualifies as MAJOR_UPSET, WIN_STREAK, or 180_MILESTONE — the
+ * same thresholds the broadcast's own story engine uses for those story
+ * types, so an interview only ever fires for something the show itself
+ * would also call notable. Nothing about the test-fire route's isolation
+ * changed; this file just also gets called from that real trigger now.
  *
  * The player-facing routes (GET/POST below) are real and permanent: a
  * player can only ever see or answer their own interview_requests row,

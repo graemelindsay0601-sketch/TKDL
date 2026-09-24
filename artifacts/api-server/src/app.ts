@@ -22,6 +22,9 @@ import { seedTourSystem } from "./lib/tourSeed";
 import { ensureCardClashAchievementTables } from "./lib/card-clash-achievements";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
 import { initializeInterviewDeskTables, seedInterviewQuestionBank } from "./lib/interviewDeskMigration";
+import { addPlayerAvatarImage } from "./db/migrations/add_player_avatar_image";
+import { addDirectMessagePhotoImage } from "./db/migrations/add_direct_message_photo_image";
+import { addCommunityPostPhotoImage } from "./db/migrations/add_community_post_photo_image";
 import { initializeCardTables, initializeFeatureFlags, initializeFeaturedCardShopTables } from "./lib/cardTablesMigration";
 import { addFavoritesColumn } from "./db/migrations/add_favorites";
 import { apiRateLimit } from "./middleware/apiRateLimit";
@@ -211,7 +214,13 @@ app.use(session({
 }));
 
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+// Default express.json() limit is 100kb — too small for POST /players/:id/avatar,
+// POST /messages(/:partnerId), and POST /community/posts, all of which send a
+// base64-encoded, client-resized image as JSON (base64 alone adds ~33% over
+// the raw bytes). 3mb matches the app's own existing tolerance for image
+// payloads (routes/storage.ts already accepts raw uploads up to 10mb) while
+// still being nowhere near unbounded.
+app.use(express.json({ limit: "3mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // TEMPORARILY DISABLED: API response caching middleware - testing if it causes match submission to fail
@@ -1291,9 +1300,8 @@ async function init() {
   await runInitStep("seedComprehensivePool", () => challengeService.seedComprehensivePool());
   await runInitStep("seedNotificationTables", seedNotificationTables);
   await runInitStep("initializeNotificationPreferences", initializeNotificationPreferences);
-  // Interview Desk — test/preview only right now (see routes/interview-desk.ts's
-  // header). Standing up the real schema + question bank so it can actually be
-  // clicked through and approved before it's wired into any live trigger.
+  // Interview Desk — see routes/interview-desk.ts's header. Schema + question
+  // bank for both the admin test-fire route and the real trigger hook.
   await runInitStep("initializeInterviewDeskTables", initializeInterviewDeskTables);
   await runInitStep("seedInterviewQuestionBank", seedInterviewQuestionBank);
   await runInitStep("addFavoritesColumn", addFavoritesColumn);
@@ -1301,6 +1309,9 @@ async function init() {
   await runInitStep("addAchievementSeasonColumn", addAchievementSeasonColumn);
   await runInitStep("createCardClashPlayerSettingsTable", createCardClashPlayerSettingsTable);
   await runInitStep("createCardClashFavoritesTable", createCardClashFavoritesTable);
+  await runInitStep("addPlayerAvatarImage", addPlayerAvatarImage);
+  await runInitStep("addDirectMessagePhotoImage", addDirectMessagePhotoImage);
+  await runInitStep("addCommunityPostPhotoImage", addCommunityPostPhotoImage);
 
   // Add performance indexes (CRITICAL for query speed)
   await runInitStep("addPerformanceIndexes", addPerformanceIndexes);

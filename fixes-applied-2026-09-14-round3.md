@@ -30,7 +30,7 @@ Recording a playoff match result and crowning a season champion was multiple sep
 
 Both routes now do that sequence — the match write plus the conditional champion-crowning — inside one transaction, so it's all-or-nothing.
 
-**Separate finding, not fixed, needs your call:** while in this file I found that `PATCH /seasons/:id/playoff/:matchId` builds `sets`/`vals` arrays meant for a dynamic update (so a caller can update just `notes`, just `round`, or both), but the actual UPDATE statement that runs ignores them and only ever sets `winner_id` — meaning any `notes` or `round` value sent to this route silently never gets saved. This is unrelated to the race-condition fix above (I left it untouched, consistent with not expanding scope without asking) — let me know if you want it fixed.
+**Separate finding, flagged here 2026-09-14 as not-yet-fixed — checked 2026-09-24 and it's already fixed.** The dead-code bug is gone: the route no longer builds unused `sets`/`vals` arrays, and the real UPDATE now does `winner_id = COALESCE(new value, winner_id)`, same for `notes` and `round` — so a PATCH that only sends one field no longer wipes the others. It's also inside the same transaction as the champion-crowning logic. Whoever fixed it (a prior session) didn't update this note to say so — same situation as the card-shop item in `CURRENCY_GAME_PLAN.md`.
 
 ## boss-battles.ts — POST /boss-battles/attempt
 
@@ -42,7 +42,6 @@ Wrapped both statements in one transaction so they succeed or fail together.
 
 ## Still open
 
-Unchanged from the sweep report — not yet actioned, awaiting your call:
-- The `seasons.ts` PATCH-route dead-code bug noted above (notes/round silently never persist).
-- Repo hygiene (114 stray root files, old Replit leftovers, two dead zip/bundle files in git history) — approved this session, not yet started; picking this up next.
-- The 4 Card-Clash-specific idempotency bugs (`card-clash-service.ts`, `card-clash-login-service.ts`, `card-clash-achievements.ts`, `free-pack-service.ts`) — left alone per your standing instruction.
+- The 4 Card-Clash-specific idempotency bugs (`card-clash-service.ts`, `card-clash-login-service.ts`, `card-clash-achievements.ts`, `free-pack-service.ts`) — left alone per your standing instruction, Card Clash stays benched.
+
+Everything else that was open here is done: the `seasons.ts` PATCH-route bug turned out to already be fixed (see above), and repo hygiene ran via `repo-hygiene-cleanup.ps1` at the repo root (2026-09-24) — three stray files in `Claude outputs/` were duplicates safely removed; a fourth, `achievements-scoping-proposal.md`, wasn't a duplicate of anything and was left in place since it's a live, unanswered proposal.

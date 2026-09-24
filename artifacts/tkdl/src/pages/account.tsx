@@ -304,6 +304,45 @@ function SectionCard({ title, icon: Icon, accent = "#ff005c", children, collapsi
   );
 }
 
+// Resizes an image entirely in the browser before it ever leaves the
+// device — shared by the avatar upload and the DM photo composer, the two
+// places this app lets a player attach their own photo. `square: true`
+// center-crops to a square first (avatar); otherwise the image is scaled
+// down to fit within maxDimension on its longer side, keeping its aspect
+// ratio (DM photos). Always exports JPEG — simplest single format for the
+// server's decode/store/serve path, and small enough at this quality that
+// even a big source photo comes back well under the upload size caps.
+function resizeImageToJpegDataUrl(file: File, opts: { square?: boolean; maxDimension: number; quality: number }): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas unavailable")); return; }
+
+      if (opts.square) {
+        const size = opts.maxDimension;
+        canvas.width = size;
+        canvas.height = size;
+        const side = Math.min(img.naturalWidth, img.naturalHeight);
+        const sx = (img.naturalWidth - side) / 2;
+        const sy = (img.naturalHeight - side) / 2;
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+      } else {
+        const scale = Math.min(1, opts.maxDimension / Math.max(img.naturalWidth, img.naturalHeight));
+        canvas.width = Math.round(img.naturalWidth * scale);
+        canvas.height = Math.round(img.naturalHeight * scale);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      }
+      resolve(canvas.toDataURL("image/jpeg", opts.quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Could not read image")); };
+    img.src = objectUrl;
+  });
+}
+
 export default function AccountPage() {
   const { user, logout } = useAuth();
   const [, navigate]     = useLocation();
@@ -364,6 +403,8 @@ export default function AccountPage() {
   const [taglineEditing,   setTaglineEditing]  = useState(false);
   const [taglineDraft,     setTaglineDraft]    = useState("");
   const [savingTagline,    setSavingTagline]   = useState(false);
+  const [uploadingAvatar,  setUploadingAvatar] = useState(false);
+  const avatarFileInputRef = useRef<HTMLInputElement>(null);
   const [messagingEnabled, setMessagingEnabled] = useState(false);
   const [notifsEnabled,    setNotifsEnabled]   = useState(false);
   const [myPhotoPosts,     setMyPhotoPosts]    = useState<any[] | null>(null);
@@ -559,6 +600,60 @@ export default function AccountPage() {
   const handleLogout = async () => {
     await logout();
     navigate("/");
+  };
+
+  // Resizes/center-crops whatever photo the player picks down to a small
+  // square JPEG entirely in the browser before it ever leaves the device —
+  // keeps the upload small (well under the server's own backstop cap) and
+  // means the server never has to do image processing at all.
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (avatarFileInputRef.current) avatarFileInputRef.current.value = "";
+    if (!file || !user?.playerId) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Please choose an image file", variant: "destructive" });
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const dataUrl = await resizeImageToJpegDataUrl(file, { square: true, maxDimension: 256, quality: 0.85 });
+
+      const res = await fetch(`/api/players/${user.playerId}/avatar`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: dataUrl, contentType: "image/jpeg" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStats((prev: any) => prev ? { ...prev, player: { ...prev.player, avatarUpdatedAt: data.avatarUpdatedAt } } : prev);
+        toast({ title: "Profile photo updated ✓" });
+      } else {
+        toast({ title: "Couldn't save photo", description: data.error, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Couldn't process that image", variant: "destructive" });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!user?.playerId || uploadingAvatar) return;
+    setUploadingAvatar(true);
+    try {
+      const res = await fetch(`/api/players/${user.playerId}/avatar`, { method: "DELETE", credentials: "include" });
+      if (res.ok) {
+        setStats((prev: any) => prev ? { ...prev, player: { ...prev.player, avatarUpdatedAt: null } } : prev);
+        toast({ title: "Profile photo removed" });
+      } else {
+        toast({ title: "Couldn't remove photo", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Network error", variant: "destructive" });
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -841,19 +936,37 @@ export default function AccountPage() {
 
         <div className="p-5">
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 relative"
-              style={{ background: `linear-gradient(135deg, ${tCol}28, ${tCol}0a)`, border: `1px solid ${tCol}55`, ...frameStyle(equippedFrame) }}>
-              <div className="absolute inset-0 rounded-2xl" style={{ background: `${tCol}1c`, filter: "blur(10px)" }} />
-              <ProfileIcon className="w-8 h-8 relative z-10" style={{ color: tCol, filter: `drop-shadow(0 0 10px ${tCol})` }} />
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 relative group/avatar"
+              style={{ background: `linear-gradient(135deg, ${tCol}28, ${tCol}0a)`, border: `1px solid ${tCol}55`, overflow: "hidden", ...frameStyle(equippedFrame) }}>
+              {player?.avatarUpdatedAt ? (
+                <img src={`/api/players/${user.playerId}/avatar-image?v=${encodeURIComponent(player.avatarUpdatedAt)}`}
+                  alt="" className="absolute inset-0 w-full h-full object-cover z-10" />
+              ) : (
+                <>
+                  <div className="absolute inset-0 rounded-2xl" style={{ background: `${tCol}1c`, filter: "blur(10px)" }} />
+                  <ProfileIcon className="w-8 h-8 relative z-10" style={{ color: tCol, filter: `drop-shadow(0 0 10px ${tCol})` }} />
+                </>
+              )}
               {/* AVATAR_BADGE — a small sticker pinned to the avatar square's
-                  corner, stacking on top of the profile icon + frame rather
-                  than replacing either. */}
+                  corner, stacking on top of the photo/profile icon + frame
+                  rather than replacing either. */}
               {avatarBadge && (
                 <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center z-20"
                   style={{ background: "#0a0a12", border: `1.5px solid ${avatarBadge.color}`, boxShadow: `0 0 8px ${avatarBadge.color}99` }}>
                   <avatarBadge.Icon className="w-2.5 h-2.5" style={{ color: avatarBadge.color }} />
                 </div>
               )}
+              {/* Tapping the square (or the camera badge that appears on
+                  hover) opens the file picker — same "click the thing you
+                  want to change" convention as the tagline's pencil icon. */}
+              <button type="button" onClick={() => avatarFileInputRef.current?.click()} disabled={uploadingAvatar}
+                className="absolute inset-0 z-30 flex items-center justify-center transition-opacity opacity-0 group-hover/avatar:opacity-100"
+                style={{ background: "rgba(0,0,0,0.5)" }} aria-label="Change profile photo">
+                {uploadingAvatar
+                  ? <div className="w-4 h-4 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#fff" }} />
+                  : <Camera className="w-5 h-5" style={{ color: "#fff" }} />}
+              </button>
+              <input ref={avatarFileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarFileChange} />
             </div>
 
             <div className="flex-1 min-w-0">
@@ -907,6 +1020,13 @@ export default function AccountPage() {
                   fontSize: "0.58rem", color: tCol, letterSpacing: "0.14em", fontWeight: 800, border: `1px solid ${tCol}44` }}>
                   {tier}
                 </span>
+                {player?.avatarUpdatedAt && (
+                  <button type="button" onClick={handleRemoveAvatar} disabled={uploadingAvatar}
+                    className="px-2 py-0.5 rounded-md transition-opacity hover:opacity-75" style={{ fontFamily: "Oswald, sans-serif",
+                      fontSize: "0.58rem", color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", border: "1px solid rgba(255,255,255,0.12)" }}>
+                    Remove photo
+                  </button>
+                )}
                 {(() => {
                   const at = titleList.find(t => t.isActive);
                   if (!at) return null;
@@ -2063,8 +2183,8 @@ export default function AccountPage() {
                             {msg.content}
                           </div>
                         )}
-                        {msg.photo_path && (
-                          <img src={`/api/storage${msg.photo_path}`} alt="photo"
+                        {msg.photo_content_type && (
+                          <img src={`/api/messages/${msg.id}/photo`} alt="photo"
                             className="mt-1 rounded-xl max-w-full" style={{ maxHeight: 200 }} />
                         )}
                         {msg.sticker_id && (
@@ -2124,24 +2244,20 @@ export default function AccountPage() {
                   if ((!msgText.trim() && !msgPhotoFile && !msgSticker) || sendingMsg) return;
                   setSendingMsg(true);
                   try {
-                    let photoPath: string | undefined;
+                    let photoBase64: string | undefined;
+                    let photoContentType: string | undefined;
                     if (msgPhotoFile) {
-                      const pur = await fetch("/api/storage/uploads/request-url", {
-                        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-                        body: JSON.stringify({ name: msgPhotoFile.name, size: msgPhotoFile.size, contentType: msgPhotoFile.type }),
-                      });
-                      if (pur.ok) {
-                        const { uploadURL, objectPath } = await pur.json() as { uploadURL: string; objectPath: string };
-                        await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": msgPhotoFile.type }, body: msgPhotoFile });
-                        photoPath = objectPath;
-                      } else {
-                        toast({ title: "Photo upload failed", description: "Sending without the photo attached.", variant: "destructive" });
+                      try {
+                        photoBase64 = await resizeImageToJpegDataUrl(msgPhotoFile, { maxDimension: 1280, quality: 0.82 });
+                        photoContentType = "image/jpeg";
+                      } catch {
+                        toast({ title: "Couldn't process that photo", description: "Sending without it attached.", variant: "destructive" });
                       }
                     }
                     const r = await fetch("/api/messages", {
                       method: "POST", credentials: "include",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ receiverId: activeConvId, content: msgText || undefined, photoPath, stickerId: msgSticker?.id }),
+                      body: JSON.stringify({ receiverId: activeConvId, content: msgText || undefined, photoBase64, photoContentType, stickerId: msgSticker?.id }),
                     });
                     if (r.ok) {
                       setMsgText(""); setMsgPhotoFile(null); setMsgSticker(null);

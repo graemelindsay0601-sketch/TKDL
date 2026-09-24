@@ -97,7 +97,7 @@ export const CardClashShop = React.memo(
             alignItems: 'center',
           }}
         >
-          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>Available Coins:</span>
+          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>Coins:</span>
           <span
             style={{
               fontSize: '16px',

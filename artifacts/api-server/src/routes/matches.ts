@@ -8,6 +8,7 @@ import { validateStake, applyWager } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { checkMatchAchievements, checkStatAchievements } from "../lib/achievements";
 import { checkAndGrantTitles } from "../lib/titles";
+import { checkMatchTriggersForInterview } from "../lib/interviewDeskService";
 import { createAutoPost } from "../lib/communityNotify";
 import { sendMatchResultNotification, sendThreatAlertNotifications, sendMatchResultBroadcast, sendRankChangeNotifications } from "../services/notificationService";
 import { rankPlayersByPoints, type RankablePlayer } from "../lib/leaderboardRank";
@@ -142,6 +143,7 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
   let newWinnerPoints: number, newLoserPoints: number, loserEliminated: boolean;
   let winnerPointsBefore: number, loserPointsBefore: number;
   let winnerEloBefore: number, loserEloBefore: number;
+  let winnerStreakAfter: number;
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -242,6 +244,7 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
         loserPointsBefore: l.points,
         winnerEloBefore: w.elo,
         loserEloBefore: l.elo,
+        winnerStreakAfter: winnerStreak,
       };
     });
 
@@ -256,6 +259,7 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
     loserPointsBefore   = result.loserPointsBefore;
     winnerEloBefore     = result.winnerEloBefore;
     loserEloBefore      = result.loserEloBefore;
+    winnerStreakAfter   = result.winnerStreakAfter;
   } catch (err) {
     if (err instanceof MatchConflictError) {
       res.status(400).json({ error: err.message });
@@ -357,6 +361,20 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
   await checkMatchAchievements(loserId,  winnerId, false, stake, loserPointsBefore, winnerPointsBefore, false, match.seasonId, eloChange);
   void checkAndGrantTitles(winnerId);
   void checkAndGrantTitles(loserId);
+
+  // Interview Desk — real trigger hook (MAJOR_UPSET / WIN_STREAK /
+  // 180_MILESTONE). Fire-and-forget, same reasoning as checkAndGrantTitles
+  // above: never delay the response, never let a problem here fail a real
+  // match submission (checkMatchTriggersForInterview itself never throws).
+  void checkMatchTriggersForInterview({
+    matchId: match.id,
+    seasonId: match.seasonId,
+    gameType: match.gameType,
+    playedAt: match.playedAt,
+    winnerId,
+    loserId,
+    winnerStreakAfter,
+  });
 
   // Auto community posts (fire and forget — never delay the response)
   void (async () => {

@@ -1,12 +1,14 @@
 /**
  * Interview Desk — question selection + the actual conversation flow.
  *
- * Shared by the admin test-fire endpoint now, and by the real Story Engine
- * trigger hook once the user's approved the previewed experience and asks
- * for it to be "plugged in properly" (per the plan's Phase 1 list:
- * MAJOR_UPSET, WIN_STREAK, 180_MILESTONE). Keeping this logic here — rather
- * than inline in routes/interview-desk.ts — means that real hook-up is a
- * call into this same function, not a second implementation to keep in sync.
+ * Shared by the admin test-fire endpoint and by the real trigger hook —
+ * checkMatchTriggersForInterview() below, called from routes/matches.ts
+ * right after a singles match is recorded. Now live for Phase 1's three
+ * trigger types (MAJOR_UPSET, WIN_STREAK, 180_MILESTONE) once the user
+ * approved the previewed experience and asked for it to be plugged in
+ * properly. Keeping this logic here — rather than inline in either caller —
+ * means the test route and the real hook-up share one implementation, not
+ * two that could quietly drift apart.
  *
  * The conversation shape (opener → reaction → follow-up → sign-off) mirrors
  * a real post-match interview rather than a single Q&A exchange — see
@@ -53,6 +55,7 @@ import type { InterviewAudience, InterviewQuestionKind } from "./interviewDeskMi
 import { createNotification, sendTestInterviewInviteNotification } from "../services/notificationService";
 import { getBroadcastConfig } from "../broadcast/config";
 import { resolveNextLogicalSlot } from "../broadcast/edition-slots";
+import { predictSinglesMatch } from "../broadcast/match-predictor";
 import { logger } from "./logger";
 
 const GENERIC = "GENERIC";
@@ -252,4 +255,100 @@ export async function advanceInterview(
     reaction: null,
     signoff: { presenter: signoff.presenter, text: signoff.prompt_text },
   };
+}
+
+/**
+ * ── The real trigger hook ──────────────────────────────────────────────
+ * Phase 1's three real trigger types, called from routes/matches.ts right
+ * after a singles match is recorded. Deliberately reuses the exact same
+ * definitions the broadcast's own story engine uses for these three story
+ * types (story-detectors-result.ts / -form.ts / -milestone.ts) — an
+ * interview should never fire for something the show itself wouldn't also
+ * call a major upset, a real streak, or a real milestone. Never throws:
+ * a problem here must never fail a match submission, same reasoning as
+ * every other post-match side effect in matches.ts (achievements, titles).
+ */
+const MAJOR_UPSET_PROBABILITY_THRESHOLD = 0.25; // story-detectors-result.ts's own MAJOR_UPSET/MODEL_SHOCK boundary — below this the broadcast would call it at least a major upset. There's no separate MODEL_SHOCK question bucket seeded, so both of the broadcast's tiers below this line fire the one MAJOR_UPSET interview.
+const WIN_STREAK_MIN = 3; // story-detectors-form.ts's own WIN_STREAK_MIN — the broadcast's own bar for "worth a mention"
+const CAREER_180_THRESHOLDS = [10, 25, 50, 100]; // story-detectors-milestone.ts's own CAREER_180_THRESHOLDS, duplicated here (it isn't exported) rather than imported
+
+export type MatchInterviewContext = {
+  matchId: number;
+  seasonId: number;
+  gameType: string;
+  playedAt: Date;
+  winnerId: number;
+  loserId: number;
+  /** The winner's win streak AFTER this match (i.e. including it). */
+  winnerStreakAfter: number;
+};
+
+/** Null if ANY of this player's own recorded matches (winner or loser side) is missing 180 data — an undercounted "career total" would be worse than none, same rule story-detectors-milestone.ts's detect180Milestone uses. Includes this match itself, since it's already been inserted by the time matches.ts calls this. */
+async function career180sAfterMatch(playerId: number): Promise<number | null> {
+  const rows = (
+    await db.execute(sql`
+      SELECT winner_id, winner_180s, loser_180s FROM matches WHERE winner_id = ${playerId} OR loser_id = ${playerId}
+    `)
+  ).rows as { winner_id: number; winner_180s: number | null; loser_180s: number | null }[];
+
+  let total = 0;
+  for (const row of rows) {
+    const mine = row.winner_id === playerId ? row.winner_180s : row.loser_180s;
+    if (mine === null) return null;
+    total += mine;
+  }
+  return total;
+}
+
+/** Skips firing if this player already has an open (pending, unexpired) interview — one match should never stack a second invite on top of one they haven't answered yet. */
+async function maybeFireInterview(playerId: number, triggerType: string, triggerContext: Record<string, unknown>): Promise<void> {
+  const open = (
+    await db.execute(sql`
+      SELECT 1 FROM interview_requests
+      WHERE player_id = ${playerId} AND status = 'pending' AND (expires_at IS NULL OR expires_at > NOW())
+      LIMIT 1
+    `)
+  ).rows[0];
+  if (open) {
+    logger.info({ playerId, triggerType }, "Interview Desk: skipped firing — player already has an open interview");
+    return;
+  }
+  await createInterviewRequest(playerId, triggerType, "participant", triggerContext);
+}
+
+export async function checkMatchTriggersForInterview(ctx: MatchInterviewContext): Promise<void> {
+  try {
+    const [winnerCareer180s, loserCareer180s, prediction] = await Promise.all([
+      career180sAfterMatch(ctx.winnerId),
+      career180sAfterMatch(ctx.loserId),
+      predictSinglesMatch(ctx.winnerId, ctx.loserId, ctx.seasonId, { cutoff: ctx.playedAt, gameType: ctx.gameType }),
+    ]);
+
+    // Winner: at most one trigger, most notable first — a player who both
+    // pulled off a major upset AND hit a career milestone in the same match
+    // still only gets the one interview invite, not two stacked on top of
+    // each other.
+    let winnerTrigger: { type: string; context: Record<string, unknown> } | null = null;
+    if (winnerCareer180s !== null && CAREER_180_THRESHOLDS.includes(winnerCareer180s)) {
+      winnerTrigger = { type: "180_MILESTONE", context: { matchId: ctx.matchId, career180s: winnerCareer180s } };
+    } else if (prediction.pA < MAJOR_UPSET_PROBABILITY_THRESHOLD) {
+      winnerTrigger = { type: "MAJOR_UPSET", context: { matchId: ctx.matchId, winnerProbability: prediction.pA } };
+    } else if (ctx.winnerStreakAfter >= WIN_STREAK_MIN) {
+      winnerTrigger = { type: "WIN_STREAK", context: { matchId: ctx.matchId, streak: ctx.winnerStreakAfter } };
+    }
+
+    // Loser: 180_MILESTONE is the only one of these three that isn't
+    // winner-only — a career 180 milestone can land in a losing effort.
+    const loserTrigger =
+      loserCareer180s !== null && CAREER_180_THRESHOLDS.includes(loserCareer180s)
+        ? { type: "180_MILESTONE", context: { matchId: ctx.matchId, career180s: loserCareer180s } }
+        : null;
+
+    await Promise.all([
+      winnerTrigger ? maybeFireInterview(ctx.winnerId, winnerTrigger.type, winnerTrigger.context) : Promise.resolve(),
+      loserTrigger ? maybeFireInterview(ctx.loserId, loserTrigger.type, loserTrigger.context) : Promise.resolve(),
+    ]);
+  } catch (err) {
+    logger.error({ err, matchId: ctx.matchId }, "Interview Desk: match-trigger check failed");
+  }
 }

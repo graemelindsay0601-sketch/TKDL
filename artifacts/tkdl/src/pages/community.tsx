@@ -52,20 +52,20 @@ async function compressImage(file: File): Promise<Blob> {
   });
 }
 
-async function uploadPhoto(file: File): Promise<string> {
+// Compresses, then base64-encodes so it can travel as plain JSON in the
+// create-post body — same pattern as the profile photo and DM photo
+// uploads (account.tsx's resizeImageToJpegDataUrl), since the object-
+// storage endpoint this used to hit doesn't work on this app's Render
+// hosting (see db/migrations/add_community_post_photo_image.ts).
+async function encodePhoto(file: File): Promise<{ photoBase64: string; photoContentType: string }> {
   const compressed = await compressImage(file);
-  const res = await fetch("/api/storage/uploads/file", {
-    method: "POST",
-    headers: {
-      "Content-Type": "image/jpeg",
-      "X-File-Type": "image/jpeg",
-    },
-    credentials: "include",
-    body: compressed,
+  const photoBase64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Could not read photo"));
+    reader.readAsDataURL(compressed);
   });
-  if (!res.ok) throw new Error("Upload failed");
-  const { objectPath } = await res.json();
-  return objectPath;
+  return { photoBase64, photoContentType: "image/jpeg" };
 }
 
 type Post = {
@@ -74,7 +74,7 @@ type Post = {
   player_name: string;
   player_tier: string;
   content: string;
-  photo_path: string | null;
+  photo_content_type: string | null;
   post_type: string;
   auto_meta: Record<string, unknown>;
   status: string;
@@ -375,9 +375,9 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
         ) : null}
 
         {/* Photo */}
-        {post.photo_path && (
+        {post.photo_content_type && (
           <div className="mb-3 rounded-xl overflow-hidden relative" style={{ maxHeight: 360 }}>
-            <img src={`/api/storage${post.photo_path}`} alt="Post photo"
+            <img src={`/api/community/posts/${post.id}/photo`} alt="Post photo"
               loading="lazy"
               decoding="async"
               className="w-full object-cover rounded-xl"
@@ -560,13 +560,13 @@ export default function CommunityPage() {
   const visiblePosts = useMemo(() => {
     let list = posts;
     if (tab === "celebrations") list = list.filter(p => p.post_type === "auto");
-    else if (tab === "photos")  list = list.filter(p => p.photo_path);
+    else if (tab === "photos")  list = list.filter(p => p.photo_content_type);
     else if (tab === "mine")    list = list.filter(p => p.player_id === user?.playerId);
     if (sort === "top") list = [...list].sort((a, b) => engagementScore(b) - engagementScore(a));
     return list;
   }, [posts, tab, sort, user?.playerId]);
 
-  const photoTiles = useMemo(() => visiblePosts.filter(p => p.photo_path), [visiblePosts]);
+  const photoTiles = useMemo(() => visiblePosts.filter(p => p.photo_content_type), [visiblePosts]);
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -589,16 +589,17 @@ export default function CommunityPage() {
     if (!createText.trim() && !photoFile) { toast({ title: "Add some text or a photo", variant: "destructive" }); return; }
     setSubmitting(true);
     try {
-      let photoPath: string | undefined;
+      let photoBase64: string | undefined;
+      let photoContentType: string | undefined;
       if (photoFile) {
         setUploading(true);
-        photoPath = await uploadPhoto(photoFile);
+        ({ photoBase64, photoContentType } = await encodePhoto(photoFile));
         setUploading(false);
       }
       const r = await fetch("/api/community/posts", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: createText, photoPath }),
+        body: JSON.stringify({ content: createText, photoBase64, photoContentType }),
       });
       if (r.ok) {
         toast({ title: "Post submitted!", description: "Waiting for approval before it goes live." });
@@ -673,8 +674,8 @@ export default function CommunityPage() {
     const r = await fetch(`/api/community/posts/${id}/remove-photo`, { method: "PATCH", credentials: "include" });
     if (r.ok) {
       toast({ title: "Photo removed" });
-      setPosts(prev => prev.map(p => p.id === id ? { ...p, photo_path: null } : p));
-      setPending(prev => prev.map(p => p.id === id ? { ...p, photo_path: null } : p));
+      setPosts(prev => prev.map(p => p.id === id ? { ...p, photo_content_type: null } : p));
+      setPending(prev => prev.map(p => p.id === id ? { ...p, photo_content_type: null } : p));
     } else {
       toast({ title: "Failed to remove photo", variant: "destructive" });
     }
@@ -798,7 +799,7 @@ export default function CommunityPage() {
                     <span className="text-xs font-black shrink-0" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>#{i + 1}</span>
                   </div>
                   <p className="text-xs leading-snug mb-2" style={{ color: "rgba(255,255,255,0.65)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                    {p.content || (p.photo_path ? "📷 Photo post" : "")}
+                    {p.content || (p.photo_content_type ? "📷 Photo post" : "")}
                   </p>
                   <div className="flex items-center gap-3 text-xs" style={{ color: "#ffd24a", fontFamily: "monospace" }}>
                     <span>❤ {Object.values(p.reactions).reduce((a, b) => a + b, 0)}</span>
@@ -944,7 +945,7 @@ export default function CommunityPage() {
               <button key={p.id} onClick={() => setExpandedPhotoId(v => v === p.id ? null : p.id)}
                 className="relative rounded-xl overflow-hidden aspect-square group"
                 style={{ border: `1px solid ${expandedPhotoId === p.id ? "rgba(255,0,92,0.5)" : "rgba(255,255,255,0.08)"}` }}>
-                <img src={`/api/storage${p.photo_path}`} alt="" loading="lazy" decoding="async"
+                <img src={`/api/community/posts/${p.id}/photo`} alt="" loading="lazy" decoding="async"
                   className="w-full h-full object-cover" />
                 <div className="absolute inset-x-0 bottom-0 p-2 flex items-center justify-between text-xs"
                   style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75), transparent)", color: "#fff", fontFamily: "Oswald, sans-serif" }}>

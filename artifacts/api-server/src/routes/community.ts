@@ -3,11 +3,39 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { createNotification } from "../lib/communityNotify";
 import { authedWriteRateLimit } from "../middleware/writeRateLimit";
-import { isValidUploadedObjectPath } from "../lib/uploadPath";
 import { currentLeagueId } from "../lib/currentLeague";
 import { getSettingBool } from "../lib/settingsService";
 
 const router = Router();
+
+// ── Post photo ────────────────────────────────────────────────────────────
+// Stored as raw bytes directly on the community_posts row, same reasoning
+// and pattern as players.ts's avatar photo and messages.ts's DM photo (see
+// db/migrations/add_community_post_photo_image.ts) — not through
+// lib/objectStorage.ts, which depends on Replit-only infrastructure this
+// app no longer runs on. The client compresses to a JPEG before ever
+// sending it — MAX_COMMUNITY_PHOTO_BYTES below is a real backstop, not the
+// expected size.
+const ALLOWED_COMMUNITY_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_COMMUNITY_PHOTO_BYTES = 1_500_000;
+
+function decodeCommunityPhoto(
+  photoBase64: unknown,
+  photoContentType: unknown,
+): { buffer: Buffer; contentType: string } | "invalid" | "none" {
+  if (photoBase64 == null && photoContentType == null) return "none";
+  if (typeof photoBase64 !== "string" || !photoBase64) return "invalid";
+  if (typeof photoContentType !== "string" || !ALLOWED_COMMUNITY_PHOTO_TYPES.has(photoContentType)) return "invalid";
+  let buffer: Buffer;
+  try {
+    const raw = photoBase64.includes(",") ? photoBase64.split(",", 2)[1] : photoBase64;
+    buffer = Buffer.from(raw, "base64");
+  } catch {
+    return "invalid";
+  }
+  if (buffer.length === 0 || buffer.length > MAX_COMMUNITY_PHOTO_BYTES) return "invalid";
+  return { buffer, contentType: photoContentType };
+}
 
 function sessionPlayerId(req: any): number | null {
   return (req.session as any)?.playerId ?? null;
@@ -36,7 +64,7 @@ router.get("/community/posts", async (req, res): Promise<void> => {
     const photoOnly    = req.query.photo_only === "true";
 
     const playerFilter = filterPlayer ? sql`AND cp.player_id = ${filterPlayer}` : sql``;
-    const photoFilter  = photoOnly    ? sql`AND cp.photo_path IS NOT NULL`       : sql``;
+    const photoFilter  = photoOnly    ? sql`AND cp.photo_content_type IS NOT NULL` : sql``;
 
     const rows = await db.execute(sql`
       SELECT
@@ -52,7 +80,7 @@ router.get("/community/posts", async (req, res): Promise<void> => {
         pl.equipped_post_accent_id AS player_post_accent_id,
         pl.current_win_streak AS player_win_streak,
         cp.content,
-        cp.photo_path,
+        cp.photo_content_type,
         cp.post_type,
         cp.auto_meta,
         cp.status,
@@ -110,7 +138,7 @@ router.get("/community/posts/pending", async (req, res): Promise<void> => {
                 ELSE 'Bronze' END AS player_tier,
            pl.equipped_name_style_id AS player_name_style_id,
            pl.current_win_streak AS player_win_streak,
-           cp.content, cp.photo_path, cp.post_type, cp.auto_meta, cp.status, cp.created_at
+           cp.content, cp.photo_content_type, cp.post_type, cp.auto_meta, cp.status, cp.created_at
     FROM community_posts cp
     JOIN players pl ON pl.id = cp.player_id
     WHERE cp.status = 'pending'
@@ -127,20 +155,23 @@ router.post("/community/posts", authedWriteRateLimit, async (req, res): Promise<
   const playerId = requireAuth(req, res);
   if (!playerId) return;
 
-  const { content = "", photoPath } = req.body as any;
-  if (!String(content).trim() && !photoPath) {
+  const { content = "", photoBase64, photoContentType } = req.body as any;
+  const photo = decodeCommunityPhoto(photoBase64, photoContentType);
+  if (photo === "invalid") { res.status(400).json({ error: "Invalid photo" }); return; }
+  if (!String(content).trim() && photo === "none") {
     res.status(400).json({ error: "Post must have content or a photo" }); return;
   }
   if (String(content).length > 1000) {
     res.status(400).json({ error: "Content too long (max 1000 chars)" }); return;
   }
-  if (photoPath != null && !isValidUploadedObjectPath(photoPath)) {
-    res.status(400).json({ error: "Invalid photo" }); return;
-  }
 
   const result = await db.execute(sql`
-    INSERT INTO community_posts (player_id, content, photo_path, post_type, status)
-    VALUES (${playerId}, ${String(content).trim()}, ${photoPath ?? null}, 'manual', 'pending')
+    INSERT INTO community_posts (player_id, content, photo_image, photo_content_type, post_type, status)
+    VALUES (
+      ${playerId}, ${String(content).trim()},
+      ${photo === "none" ? null : photo.buffer}, ${photo === "none" ? null : photo.contentType},
+      'manual', 'pending'
+    )
     RETURNING id
   `);
   res.status(201).json({ id: (result.rows[0] as any).id, status: "pending" });
@@ -380,12 +411,39 @@ router.patch("/community/posts/:id/remove-photo", async (req, res): Promise<void
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const result = await db.execute(sql`
-    UPDATE community_posts SET photo_path = NULL
+    UPDATE community_posts SET photo_path = NULL, photo_image = NULL, photo_content_type = NULL
     WHERE id = ${id}
     RETURNING id
   `);
   if (!result.rows.length) { res.status(404).json({ error: "Post not found" }); return; }
   res.json({ ok: true });
+});
+
+// ── GET /community/posts/:id/photo — public ──────────────────────────────────
+// No auth — community posts are a public feed, same visibility as the post's
+// own content and reactions, so the photo behind it is public too (unlike
+// DM photos, which are private between the two people in the conversation).
+router.get("/community/posts/:id/photo", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const rows = (
+      await db.execute(sql`
+        SELECT photo_image, photo_content_type FROM community_posts WHERE id = ${id}
+      `)
+    ).rows as { photo_image: Buffer | null; photo_content_type: string | null }[];
+    const row = rows[0];
+    if (!row || !row.photo_image || !row.photo_content_type) {
+      res.status(404).json({ error: "No photo" });
+      return;
+    }
+    res.setHeader("Content-Type", row.photo_content_type);
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    res.send(row.photo_image);
+  } catch (err) {
+    req.log.error({ err }, "GET /community/posts/:id/photo failed");
+    res.status(500).json({ error: "Failed to load photo" });
+  }
 });
 
 // ── DELETE /community/posts/:id/comments/:commentId — admin or own comment ───

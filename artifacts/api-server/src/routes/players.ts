@@ -1206,4 +1206,101 @@ router.patch("/players/:id/notification-prefs", async (req, res): Promise<void> 
   }
 });
 
+// ── Profile photo ───────────────────────────────────────────────────────
+// Stored as raw bytes directly on the players row (see db/migrations/
+// add_player_avatar_image.ts for why: not through lib/objectStorage.ts,
+// which depends on Replit-only infrastructure this app no longer runs on).
+// The client resizes/compresses to a small square before ever sending it —
+// this is a profile photo, not a general file upload — MAX_AVATAR_BYTES
+// below is a real backstop, not the expected size.
+const AvatarUploadBody = z.object({
+  // The client's canvas export (toDataURL) includes the "data:image/...;
+  // base64," prefix — accepted as-is, stripped below, rather than asking
+  // the frontend to do that string surgery itself.
+  imageBase64: z.string().min(1),
+  contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+});
+const MAX_AVATAR_BYTES = 800_000;
+
+router.post("/players/:id/avatar", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const sessionPlayerId = (req.session as any)?.playerId ?? null;
+  if (!sessionPlayerId) { res.status(401).json({ error: "Login required" }); return; }
+  if (sessionPlayerId !== params.data.id) { res.status(403).json({ error: "You can only change your own profile photo" }); return; }
+
+  const parsed = AvatarUploadBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Missing or invalid image" }); return; }
+
+  let buffer: Buffer;
+  try {
+    const raw = parsed.data.imageBase64.includes(",") ? parsed.data.imageBase64.split(",", 2)[1] : parsed.data.imageBase64;
+    buffer = Buffer.from(raw, "base64");
+  } catch {
+    res.status(400).json({ error: "Could not decode image" });
+    return;
+  }
+  if (buffer.length === 0) { res.status(400).json({ error: "Empty image" }); return; }
+  if (buffer.length > MAX_AVATAR_BYTES) { res.status(413).json({ error: "Image too large — please use a smaller photo" }); return; }
+
+  try {
+    await db.execute(sql`
+      UPDATE players
+      SET avatar_image = ${buffer}, avatar_content_type = ${parsed.data.contentType}, avatar_updated_at = NOW()
+      WHERE id = ${params.data.id}
+    `);
+    res.json({ ok: true, avatarUpdatedAt: new Date().toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "POST /players/:id/avatar failed");
+    res.status(500).json({ error: "Failed to save photo" });
+  }
+});
+
+router.delete("/players/:id/avatar", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const sessionPlayerId = (req.session as any)?.playerId ?? null;
+  if (!sessionPlayerId) { res.status(401).json({ error: "Login required" }); return; }
+  if (sessionPlayerId !== params.data.id) { res.status(403).json({ error: "You can only change your own profile photo" }); return; }
+
+  try {
+    await db.execute(sql`
+      UPDATE players SET avatar_image = NULL, avatar_content_type = NULL, avatar_updated_at = NOW()
+      WHERE id = ${params.data.id}
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "DELETE /players/:id/avatar failed");
+    res.status(500).json({ error: "Failed to remove photo" });
+  }
+});
+
+// Public — no auth. A player's avatar is shown anywhere their name shows,
+// same visibility as their profile icon today (not a private resource).
+router.get("/players/:id/avatar-image", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  try {
+    const rows = (
+      await db.execute(sql`
+        SELECT avatar_image, avatar_content_type FROM players WHERE id = ${params.data.id}
+      `)
+    ).rows as { avatar_image: Buffer | null; avatar_content_type: string | null }[];
+    const row = rows[0];
+    if (!row || !row.avatar_image || !row.avatar_content_type) {
+      res.status(404).json({ error: "No photo set" });
+      return;
+    }
+    res.setHeader("Content-Type", row.avatar_content_type);
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    res.send(row.avatar_image);
+  } catch (err) {
+    req.log.error({ err }, "GET /players/:id/avatar-image failed");
+    res.status(500).json({ error: "Failed to load photo" });
+  }
+});
+
 export default router;

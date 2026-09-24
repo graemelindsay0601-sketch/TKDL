@@ -1,7 +1,7 @@
-# TKDL repo hygiene cleanup - round 3 (+ 2026-09-22 addendum)
+# TKDL repo hygiene cleanup - round 3 (+ 2026-09-22 and 2026-09-24 addenda)
 # Deletes 277 stray files (old AI-dev-session debris, Replit leftovers,
-# dead binary blobs) plus the Caller/, "Claude outputs/", and attached_assets/
-# directories, approved 2026-09-14. Run this from PowerShell.
+# dead binary blobs) plus the Caller/ and attached_assets/ directories,
+# approved 2026-09-14. Run this from PowerShell.
 # Nothing here touches git history - old commits still contain these blobs;
 # that needs a separate git filter-repo/BFG pass if you want it, out of scope here.
 #
@@ -10,6 +10,25 @@
 # launch script - artifacts/dart-scorer doesn't exist in this repo and
 # render.yaml never references it, so it can't be wired to anything). Added
 # to the bottom of the $paths list below rather than reordering everything.
+#
+# 2026-09-24: re-checked this script against the real repo before handing it
+# off and found it had gone stale in two ways:
+#   1. Caller/darts-caller-master/ had grown two files the enumerated list
+#      below didn't cover (requirements.txt, templates/index copy.html_backup),
+#      which would've left that directory not fully cleaned. Since Caller/
+#      is a single vendored third-party project (nothing TKDL-specific lives
+#      there), the fix is to delete the whole "Caller" folder in one shot
+#      instead of maintaining a file-by-file list that can drift again.
+#   2. "Claude outputs/" was originally approved as a whole-folder delete,
+#      but it's since picked up newer files - three (CURRENCY_GAME_PLAN.md,
+#      PERSONALIZATION_IDEAS.md, coin-economy-preview.html) are safe: they're
+#      stray duplicates of copies that already live properly under
+#      artifacts/tkdl/. A fourth, achievements-scoping-proposal.md, is NOT a
+#      duplicate of anything else in the repo - it's a still-open proposal
+#      with questions never answered. So this script now deletes only the
+#      three confirmed-duplicate files and leaves the "Claude outputs" folder
+#      (and that proposal doc) alone - flagged separately for your review.
+#
 # NOT included here (deliberately, needs your call, not auto-deleted):
 # generate-complete-rewards.ts at repo root - a one-off achievement-rewards
 # generator script. It isn't wired into anything today, but the achievements
@@ -57,57 +76,10 @@ $paths = @(
   "CODE_SPLITTING_EXAMPLE.ts",
   "COMPREHENSIVE_OPTIMIZATION_REVIEW.md",
   "CRITICAL_AUDIT_AND_FIXES.md",
-  "Caller/darts-caller-master/.gitattributes",
-  "Caller/darts-caller-master/.github/workflows/beta_build.yml",
-  "Caller/darts-caller-master/.github/workflows/build.yml",
-  "Caller/darts-caller-master/.gitignore",
-  "Caller/darts-caller-master/BACKLOG.md",
-  "Caller/darts-caller-master/CHANGELOG.md",
-  "Caller/darts-caller-master/README.md",
-  "Caller/darts-caller-master/README_20250305.md",
-  "Caller/darts-caller-master/assets/__init__.py",
-  "Caller/darts-caller-master/assets/autodarts_keycloak_client.py",
-  "Caller/darts-caller-master/assets/caller_profiles.py",
-  "Caller/darts-caller-master/assets/game_scores.py",
-  "Caller/darts-caller-master/assets/get_cred.py",
-  "Caller/darts-caller-master/blind_support.py",
-  "Caller/darts-caller-master/broadcast-examples.dat",
-  "Caller/darts-caller-master/custom_argument_parser.py",
-  "Caller/darts-caller-master/darts-caller.py",
-  "Caller/darts-caller-master/docker/Dockerfile",
-  "Caller/darts-caller-master/docker/docker-compose.yml",
-  "Caller/darts-caller-master/docker/entrypoint.sh",
-  "Caller/darts-caller-master/en-US-v1.csv",
-  "Caller/darts-caller-master/images/chat.jpg",
-  "Caller/darts-caller-master/images/chat2.jpg",
-  "Caller/darts-caller-master/images/chat3.jpg",
-  "Caller/darts-caller-master/it-IT-v1.csv",
-  "Caller/darts-caller-master/message_logger.py",
-  "Caller/darts-caller-master/resources/darts-caller.icns",
-  "Caller/darts-caller-master/resources/darts-caller.ico",
-  "Caller/darts-caller-master/resources/darts-caller.svg",
-  "Caller/darts-caller-master/ru_RU_v1.csv",
-  "Caller/darts-caller-master/start.bat",
-  "Caller/darts-caller-master/start.sh",
-  "Caller/darts-caller-master/static/audio/incoming.mp3",
-  "Caller/darts-caller-master/static/css/common.css",
-  "Caller/darts-caller-master/static/images/background.png",
-  "Caller/darts-caller-master/static/images/favicon.ico",
-  "Caller/darts-caller-master/static/images/loading.gif",
-  "Caller/darts-caller-master/static/images/mods.png",
-  "Caller/darts-caller-master/static/images/say.png",
-  "Caller/darts-caller-master/static/images/star-no.png",
-  "Caller/darts-caller-master/static/images/star.png",
-  "Caller/darts-caller-master/static/images/stream.png",
-  "Caller/darts-caller-master/static/images/upload.png",
-  "Caller/darts-caller-master/static/js/dexie.min-3.2.4.js",
-  "Caller/darts-caller-master/static/js/dexie.min.js.map",
-  "Caller/darts-caller-master/static/js/peerjs.min-1.5.2.js",
-  "Caller/darts-caller-master/static/js/peerjs.min.js.map",
-  "Caller/darts-caller-master/static/js/socket.io.min-4.7.5.js",
-  "Caller/darts-caller-master/static/js/socket.io.min.js.map",
-  "Caller/darts-caller-master/templates/index.html",
-  "Claude outputs",
+  "Caller",
+  "Claude outputs/CURRENCY_GAME_PLAN.md",
+  "Claude outputs/PERSONALIZATION_IDEAS.md",
+  "Claude outputs/coin-economy-preview.html",
   "DEPLOYMENT_GUIDE.md",
   "DEPLOYMENT_READINESS.md",
   "DEPLOYMENT_SUMMARY_SESSION_7.md",
