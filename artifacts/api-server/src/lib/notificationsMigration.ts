@@ -9,6 +9,40 @@ import { logger } from "./logger";
 
 export async function seedNotificationTables() {
   try {
+    // notification_preferences has now been through two separate rounds of
+    // "add this missing column" fixes (first push_enabled/match_results/
+    // rank_changes/coach_tips/announcements/private_mode, confirmed live —
+    // then player_id itself, on the exact same query at the exact same
+    // line, in a later production log) without this codebase ever once
+    // seeing what the table's real, live shape actually is. Its history
+    // predates every CREATE TABLE statement in this file, so guessing
+    // column-by-column isn't converging — and player_id can't be patched in
+    // after the fact the way an ordinary column can: it's the primary key,
+    // and there's no way to synthesize a valid, unique player id for
+    // whatever rows already exist. Everything this table holds is a
+    // disposable per-player boolean toggle with a known default (the same
+    // defaults the CREATE TABLE below and initializeNotificationPreferences()
+    // already use) — there's nothing in it worth another round of guessing
+    // over. If it's still missing its own primary key column, rebuild it
+    // clean instead of patching around it again.
+    const hasPlayerId = await db.execute(sql`
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'notification_preferences' AND column_name = 'player_id'
+    `);
+    if (hasPlayerId.rows.length === 0) {
+      const exists = await db.execute(sql`
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'notification_preferences'
+      `);
+      if (exists.rows.length > 0) {
+        logger.warn(
+          "notification_preferences exists but has no player_id column — rebuilding it clean. " +
+          "Any per-player preference customization is lost; every player reverts to defaults " +
+          "(everything on except private_mode), same as a brand new row from initializeNotificationPreferences()."
+        );
+        await db.execute(sql`DROP TABLE notification_preferences`);
+      }
+    }
+
     // Notification preferences table
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS notification_preferences (
