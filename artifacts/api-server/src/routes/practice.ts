@@ -181,6 +181,34 @@ router.post("/practice/sessions", matchSubmitRateLimit, async (req, res): Promis
   }
 });
 
+const AttemptBody = z.object({
+  player1Id:   z.number().int().positive().optional(),
+  player2Id:   z.number().int().positive().nullish(),
+  gameTypeKey: z.string(),
+  mode:        z.string().optional(),
+});
+
+// POST /api/practice/session-attempts — fire-and-forget log that a session
+// actually started, so a crash/freeze/abandon before completion is at
+// least visible somewhere instead of vanishing without a trace. See the
+// add_practice_session_attempts migration for why this exists and what it
+// deliberately does NOT do (no resume, no in-progress state stored). Same
+// no-login-required shape as POST /practice/sessions above, for the same
+// shared-device reason.
+router.post("/practice/session-attempts", matchSubmitRateLimit, async (req, res): Promise<void> => {
+  try {
+    const body = AttemptBody.parse(req.body);
+    await db.execute(sql`
+      INSERT INTO practice_session_attempts (player1_id, player2_id, game_type_key, mode)
+      VALUES (${body.player1Id ?? null}, ${body.player2Id ?? null}, ${body.gameTypeKey}, ${body.mode ?? null})
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to log practice session attempt");
+    res.status(500).json({ error: "Failed to log attempt" });
+  }
+});
+
 // GET /api/players/:id/practice-stats — aggregate career practice stats for a player
 router.get("/players/:id/practice-stats", async (req, res): Promise<void> => {
   try {

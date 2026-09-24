@@ -6045,7 +6045,14 @@ export function HareHoundsScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
     const t2 = safeTimeout(() => handleDartRefHH.current(d2), 1400);
     const t3 = safeTimeout(() => handleDartRefHH.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [turn, botConfig, houndPos]); // eslint-disable-line react-hooks/exhaustive-deps
+    // houndPos is deliberately NOT a dependency: the bot's 3-dart visit is
+    // computed once at the start of its turn from houndPos at that moment.
+    // Including houndPos here made every scoring dart mid-visit (which
+    // updates houndPos) cancel the remaining darts and restart the whole
+    // visit from scratch — against an accurate bot this could loop for many
+    // seconds, throwing one dart at a time and never cleanly finishing a
+    // turn, which read as a freeze even though it wasn't a true hang.
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const gap = harePos - houndPos;
 
@@ -6176,7 +6183,11 @@ export function PrisonerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, on
     const t2 = safeTimeout(() => handleDartRefPR.current(d2), 1400);
     const t3 = safeTimeout(() => handleDartRefPR.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [turn, botConfig, positions, skipNext]); // eslint-disable-line react-hooks/exhaustive-deps
+    // positions is deliberately NOT a dependency here — see the identical
+    // note in HareHoundsScorer. The bot's visit is computed once from
+    // positions[1] at the start of its turn; including positions made each
+    // scoring dart mid-visit restart the whole 3-dart sequence.
+  }, [turn, botConfig, skipNext]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -6680,7 +6691,12 @@ export function BattleshipScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
     const t2 = safeTimeout(() => handleDartRefBS.current(botBattleshipShot(revealed[0], botConfig)), 1400);
     const t3 = safeTimeout(() => handleDartRefBS.current(botBattleshipShot(revealed[0], botConfig)), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [turn, botConfig, revealed]); // eslint-disable-line react-hooks/exhaustive-deps
+    // revealed is deliberately NOT a dependency here — see the identical note
+    // in HareHoundsScorer. handleDart calls setRevealed on every one of the
+    // bot's own darts mid-visit, so including it made each scoring dart
+    // restart the whole 3-dart sequence from scratch instead of letting the
+    // pre-planned d1/d2/d3 play out on their fixed timers.
+  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const shipsRemaining = (i: number) => 6 - fleet[i as 0|1].filter((f, idx) => f && revealed[i as 0|1][idx]).length;
 
@@ -6922,7 +6938,11 @@ export function DonkeyDerbyScorer({ p1Name, p2Name, botConfig, onWin, onAbandon,
     const t2 = safeTimeout(() => handleDartRefDD.current(d2), 1400);
     const t3 = safeTimeout(() => handleDartRefDD.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [turn, botConfig, pos, nums, over]); // eslint-disable-line react-hooks/exhaustive-deps
+    // pos is deliberately NOT a dependency here — see the identical note in
+    // HareHoundsScorer. The bot's visit is computed once from pos at the
+    // start of its turn; including pos made every scoring or knock-back dart
+    // mid-visit restart the whole 3-dart sequence.
+  }, [turn, botConfig, nums, over]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -7410,7 +7430,14 @@ export function FightGameScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
     const t2 = safeTimeout(() => handleDartRefFG.current(d2), 1400);
     const t3 = safeTimeout(() => handleDartRefFG.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [turn, botConfig, hp, nums, over]); // eslint-disable-line react-hooks/exhaustive-deps
+    // hp is deliberately NOT a dependency here — see the identical note in
+    // HareHoundsScorer. The bot's visit is computed once from hp[1] at the
+    // start of its turn; hp changes on almost every bot dart (it's aiming at
+    // exactly the numbers that damage/heal), so including it made nearly
+    // every scoring dart restart the whole 3-dart sequence from scratch.
+    // nums never changes after mount, so it's harmless either way — left out
+    // for consistency with the same fix elsewhere.
+  }, [turn, botConfig, over]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="max-w-lg mx-auto space-y-4">

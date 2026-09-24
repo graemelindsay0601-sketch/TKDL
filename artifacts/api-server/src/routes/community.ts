@@ -162,6 +162,8 @@ router.get("/community/posts", async (req, res): Promise<void> => {
         pl.equipped_name_style_id AS player_name_style_id,
         pl.equipped_post_accent_id AS player_post_accent_id,
         pl.current_win_streak AS player_win_streak,
+        pl.tagline AS player_tagline,
+        pl.equipped_tagline_style_id AS player_tagline_style_id,
         cp.content,
         cp.photo_content_type,
         cp.post_type,
@@ -179,10 +181,26 @@ router.get("/community/posts", async (req, res): Promise<void> => {
            FROM players m WHERE m.id = ANY(cp.mentioned_player_ids)),
           '[]'::jsonb
         ) AS mentions,
-        (SELECT COUNT(*)::int FROM post_comments WHERE post_id = cp.id) AS comment_count
+        (SELECT COUNT(*)::int FROM post_comments WHERE post_id = cp.id) AS comment_count,
+        (SELECT COUNT(*)::int FROM post_rsvps WHERE post_id = cp.id) AS rsvp_count,
+        -- Poll posts (post_type = 'poll') carry their options + live vote
+        -- counts and the requesting player's own vote right on the feed row
+        -- rather than a separate per-post fetch — the whole point of a
+        -- lightweight poll is that it renders inline in the feed with no
+        -- extra round trip.
+        CASE WHEN cp.post_type = 'poll' THEN (
+          SELECT jsonb_agg(jsonb_build_object(
+            'id', po.id, 'label', po.label,
+            'vote_count', (SELECT COUNT(*)::int FROM community_poll_votes pv WHERE pv.option_id = po.id)
+          ) ORDER BY po.sort_order)
+          FROM community_poll_options po WHERE po.post_id = cp.id
+        ) ELSE NULL END AS poll_options,
+        CASE WHEN cp.post_type = 'poll' THEN (
+          SELECT option_id FROM community_poll_votes WHERE post_id = cp.id AND player_id = ${myPlayerId}
+        ) ELSE NULL END AS poll_my_vote
       FROM community_posts cp
       JOIN players pl ON pl.id = cp.player_id
-      WHERE cp.status = 'approved' AND cp.post_type = 'manual'
+      WHERE cp.status = 'approved' AND cp.post_type IN ('manual', 'poll')
       ${playerFilter}
       ${photoFilter}
       ${searchFilter}
@@ -366,6 +384,85 @@ router.post("/community/posts", authedWriteRateLimit, async (req, res): Promise<
   res.status(201).json({ id: postId, status: "pending" });
 });
 
+// ── POST /community/polls — admin ─────────────────────────────────────────────
+// Creates a poll as a community_posts row with post_type = 'poll' — see
+// add_community_polls.ts's header for why it piggybacks on the normal post
+// machinery instead of being a separate feed. Admin-only and auto-approved
+// (like /community/auto-post below), since this is an organizer tool
+// ("next friendly night?") rather than something every player posts.
+// Options are fixed at creation — no add/remove-option endpoint, keeping
+// this genuinely lightweight.
+router.post("/community/polls", async (req, res): Promise<void> => {
+  if (!sessionIsAdmin(req)) { res.status(403).json({ error: "Admin required" }); return; }
+  const playerId = sessionPlayerId(req);
+  if (!playerId) { res.status(401).json({ error: "Login required" }); return; }
+
+  const { question, options } = req.body as { question?: string; options?: string[] };
+  const trimmedQuestion = String(question ?? "").trim();
+  if (!trimmedQuestion) { res.status(400).json({ error: "Question required" }); return; }
+  if (trimmedQuestion.length > 300) { res.status(400).json({ error: "Question too long (max 300 chars)" }); return; }
+
+  const cleanOptions = (Array.isArray(options) ? options : [])
+    .map(o => String(o).trim())
+    .filter(o => o.length > 0 && o.length <= 100);
+  if (cleanOptions.length < 2 || cleanOptions.length > 6) {
+    res.status(400).json({ error: "Provide between 2 and 6 options" }); return;
+  }
+
+  const result = await db.execute(sql`
+    INSERT INTO community_posts (player_id, content, post_type, status, approved_at)
+    VALUES (${playerId}, ${trimmedQuestion}, 'poll', 'approved', NOW())
+    RETURNING id
+  `);
+  const postId = (result.rows[0] as any).id as number;
+
+  for (let i = 0; i < cleanOptions.length; i++) {
+    await db.execute(sql`
+      INSERT INTO community_poll_options (post_id, label, sort_order)
+      VALUES (${postId}, ${cleanOptions[i]}, ${i})
+    `);
+  }
+
+  res.status(201).json({ id: postId });
+});
+
+// ── POST /community/posts/:id/vote — poll voting ──────────────────────────────
+// One vote per player per poll — re-voting changes the existing vote rather
+// than adding a second one (the ON CONFLICT upsert below), same "you can
+// change your mind" posture as toggling a reaction, just single-choice
+// instead of multi-toggle.
+router.post("/community/posts/:id/vote", authedWriteRateLimit, async (req, res): Promise<void> => {
+  const playerId = requireAuth(req, res);
+  if (!playerId) return;
+
+  const postId = Number(req.params.id);
+  if (isNaN(postId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { optionId } = req.body as { optionId?: number };
+  if (!optionId || isNaN(Number(optionId))) { res.status(400).json({ error: "optionId required" }); return; }
+
+  const post = (await db.execute(sql`SELECT post_type, status FROM community_posts WHERE id = ${postId}`)).rows[0] as any;
+  if (!post || post.post_type !== "poll" || post.status !== "approved") {
+    res.status(400).json({ error: "Not a votable poll" }); return;
+  }
+  const option = (await db.execute(sql`
+    SELECT id FROM community_poll_options WHERE id = ${Number(optionId)} AND post_id = ${postId}
+  `)).rows[0];
+  if (!option) { res.status(400).json({ error: "Option does not belong to this poll" }); return; }
+
+  await db.execute(sql`
+    INSERT INTO community_poll_votes (post_id, option_id, player_id)
+    VALUES (${postId}, ${Number(optionId)}, ${playerId})
+    ON CONFLICT (post_id, player_id) DO UPDATE SET option_id = ${Number(optionId)}, created_at = NOW()
+  `);
+
+  const optionRows = await db.execute(sql`
+    SELECT po.id, po.label,
+           (SELECT COUNT(*)::int FROM community_poll_votes pv WHERE pv.option_id = po.id) AS vote_count
+    FROM community_poll_options po WHERE po.post_id = ${postId} ORDER BY po.sort_order
+  `);
+  res.json({ poll_options: optionRows.rows, poll_my_vote: Number(optionId) });
+});
+
 // ── POST /community/auto-post — system trigger ────────────────────────────────
 // Despite the name, this was reachable by anyone: no auth, and playerId came
 // straight from the request body, so any anonymous request could post a fake
@@ -447,16 +544,18 @@ router.post("/community/posts/:id/reject", async (req, res): Promise<void> => {
 // a client-side sort of whatever's already loaded, by real reaction/comment
 // counts). Pinning is a deliberate admin action — a committee announcement,
 // a signup sheet — that stays at the top of the feed regardless of
-// engagement, until an admin unpins it. Only approved manual posts can be
-// pinned; pinning something still awaiting moderation would surface
-// unreviewed content at the top of the feed.
+// engagement, until an admin unpins it. Only approved manual or poll posts
+// can be pinned; pinning something still awaiting moderation would surface
+// unreviewed content at the top of the feed. Polls are eligible here
+// specifically so "next friendly night?" can be pinned the same way a
+// signup-sheet announcement can — it's the same kind of thing.
 router.post("/community/posts/:id/pin", async (req, res): Promise<void> => {
   if (!sessionIsAdmin(req)) { res.status(403).json({ error: "Admin required" }); return; }
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const result = await db.execute(sql`
     UPDATE community_posts SET pinned = TRUE, pinned_at = NOW()
-    WHERE id = ${id} AND status = 'approved' AND post_type = 'manual'
+    WHERE id = ${id} AND status = 'approved' AND post_type IN ('manual', 'poll')
     RETURNING id
   `);
   if (!result.rows.length) { res.status(404).json({ error: "Post not found or not eligible to pin" }); return; }
@@ -665,6 +764,52 @@ router.post("/community/posts/:id/bookmark", authedWriteRateLimit, async (req, r
     SELECT (SELECT COUNT(*) FROM ins)::int AS inserted_count
   `);
   res.json({ bookmarked: (toggled.rows[0] as any).inserted_count > 0 });
+});
+
+// ── POST /community/posts/:id/rsvp — toggle "I'm in" ─────────────────────────
+// Restricted to pinned posts, same reasoning as the pin eligibility check
+// above — RSVPing only makes sense on something an admin has deliberately
+// flagged as a real announcement/signup, not on an arbitrary post. Same
+// race-free single-statement toggle as /react and /bookmark.
+router.post("/community/posts/:id/rsvp", authedWriteRateLimit, async (req, res): Promise<void> => {
+  const playerId = requireAuth(req, res);
+  if (!playerId) return;
+
+  const postId = Number(req.params.id);
+  if (isNaN(postId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const eligible = (await db.execute(sql`SELECT pinned FROM community_posts WHERE id = ${postId}`)).rows[0] as any;
+  if (!eligible?.pinned) { res.status(400).json({ error: "Only pinned posts accept RSVPs" }); return; }
+
+  const toggled = await db.execute(sql`
+    WITH del AS (
+      DELETE FROM post_rsvps
+      WHERE post_id = ${postId} AND player_id = ${playerId}
+      RETURNING id
+    ), ins AS (
+      INSERT INTO post_rsvps (post_id, player_id)
+      SELECT ${postId}, ${playerId}
+      WHERE NOT EXISTS (SELECT 1 FROM del)
+      RETURNING id
+    )
+    SELECT (SELECT COUNT(*) FROM ins)::int AS inserted_count
+  `);
+  const rsvpCount = (await db.execute(sql`SELECT COUNT(*)::int AS c FROM post_rsvps WHERE post_id = ${postId}`)).rows[0] as any;
+  res.json({ rsvped: (toggled.rows[0] as any).inserted_count > 0, rsvp_count: rsvpCount.c as number });
+});
+
+// ── GET /community/posts/:id/rsvps — who's in ─────────────────────────────────
+router.get("/community/posts/:id/rsvps", async (req, res): Promise<void> => {
+  const postId = Number(req.params.id);
+  if (isNaN(postId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const rows = await db.execute(sql`
+    SELECT pl.id AS player_id, pl.name AS player_name
+    FROM post_rsvps pr
+    JOIN players pl ON pl.id = pr.player_id
+    WHERE pr.post_id = ${postId}
+    ORDER BY pr.id ASC
+  `);
+  res.json(rows.rows);
 });
 
 // ── GET /community/posts/:id/reactions — who reacted ─────────────────────────

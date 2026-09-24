@@ -856,7 +856,26 @@ export default function Practice() {
     : null;
 
   if (phase === "setup") {
-    return <SetupScreen onStart={d => { setSetupData(d); setPhase("playing"); }} />;
+    return <SetupScreen onStart={d => {
+      // Fire-and-forget: log that a session actually started, not just
+      // when (if) it finishes. practice_sessions only ever gets a row on
+      // successful completion, so a session that freezes/crashes/gets
+      // abandoned before then leaves no trace anywhere today. This alone
+      // doesn't let a crashed session resume — it's just so it's visible
+      // instead of silently vanishing. See the add_practice_session_attempts
+      // migration for the full reasoning.
+      fetch("/api/practice/session-attempts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          player1Id: d.p1.id,
+          player2Id: d.p2?.id ?? null,
+          gameTypeKey: d.gameType.key,
+          mode: d.solo ? (d.soloPlay ? "solo" : "bot") : "2p",
+        }),
+      }).catch(() => {});
+      setSetupData(d); setPhase("playing");
+    }} />;
   }
 
   if (phase === "playing" && setupData) {

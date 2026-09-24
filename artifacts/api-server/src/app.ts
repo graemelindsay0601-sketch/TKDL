@@ -28,6 +28,9 @@ import { addCommunityPostPhotoImage } from "./db/migrations/add_community_post_p
 import { addCommunityPostPin } from "./db/migrations/add_community_post_pin";
 import { addCommunityPostMentions } from "./db/migrations/add_community_post_mentions";
 import { addCommunityPostBookmarks } from "./db/migrations/add_community_post_bookmarks";
+import { addCommunityPostRsvps } from "./db/migrations/add_community_post_rsvps";
+import { addCommunityPolls } from "./db/migrations/add_community_polls";
+import { addPracticeSessionAttempts } from "./db/migrations/add_practice_session_attempts";
 import { initializeCardTables, initializeFeatureFlags, initializeFeaturedCardShopTables } from "./lib/cardTablesMigration";
 import { addFavoritesColumn } from "./db/migrations/add_favorites";
 import { apiRateLimit } from "./middleware/apiRateLimit";
@@ -1319,6 +1322,9 @@ async function init() {
   await runInitStep("addCommunityPostPin", addCommunityPostPin);
   await runInitStep("addCommunityPostMentions", addCommunityPostMentions);
   await runInitStep("addCommunityPostBookmarks", addCommunityPostBookmarks);
+  await runInitStep("addCommunityPostRsvps", addCommunityPostRsvps);
+  await runInitStep("addCommunityPolls", addCommunityPolls);
+  await runInitStep("addPracticeSessionAttempts", addPracticeSessionAttempts);
 
   // Add performance indexes (CRITICAL for query speed)
   await runInitStep("addPerformanceIndexes", addPerformanceIndexes);

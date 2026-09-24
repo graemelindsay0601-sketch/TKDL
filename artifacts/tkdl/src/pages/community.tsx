@@ -3,7 +3,7 @@ import { useAuth } from "@/context/auth";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { MessageSquare, Image as ImageIcon, Send, X, Clock, CheckCircle, AlertCircle, Pencil, Flame, Trophy, Users, ArrowUpDown, Pin, Search, Eye, Bookmark } from "lucide-react";
-import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, postAccentStyle } from "@/lib/cosmetics";
+import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, postAccentStyle, taglineStyleCSS } from "@/lib/cosmetics";
 
 const TIER_COLORS: Record<string, string> = {
   Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
@@ -122,6 +122,8 @@ async function encodePhoto(file: File): Promise<{ photoBase64: string; photoCont
   return { photoBase64, photoContentType: "image/jpeg" };
 }
 
+type PollOption = { id: number; label: string; vote_count: number };
+
 type Post = {
   id: number;
   player_id: number;
@@ -129,6 +131,7 @@ type Post = {
   player_tier: string;
   content: string;
   photo_content_type: string | null;
+  post_type: string;
   status: string;
   pinned: boolean;
   created_at: string;
@@ -137,9 +140,15 @@ type Post = {
   comment_count: number;
   myReactions: string[];
   myBookmarked?: boolean;
+  rsvp_count?: number;
+  myRsvped?: boolean;
+  poll_options?: PollOption[] | null;
+  poll_my_vote?: number | null;
   player_name_style_id: string | null;
   player_post_accent_id: string | null;
   player_win_streak: number;
+  player_tagline?: string | null;
+  player_tagline_style_id?: string | null;
 };
 
 // Shape returned by GET /community/wall-of-fame and GET /community/throwback
@@ -210,7 +219,7 @@ function PlayerAvatar({ name, tier, size = 8 }: { name: string; tier: string; si
   );
 }
 
-function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDelete, onRemovePhoto, onDeleteComment, onEdit, onPin, onUnpin, onBookmark }: {
+function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDelete, onRemovePhoto, onDeleteComment, onEdit, onPin, onUnpin, onBookmark, onVote, onRsvp }: {
   post: Post;
   onReact: (id: number, emoji: string) => void;
   onComment: (id: number, content: string) => void;
@@ -224,6 +233,8 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
   onPin?: (id: number) => void;
   onUnpin?: (id: number) => void;
   onBookmark?: (id: number) => void;
+  onVote?: (id: number, pollOptions: PollOption[], myVote: number) => void;
+  onRsvp?: (id: number, rsvped: boolean, rsvpCount: number) => void;
 }) {
   const { user } = useAuth();
   // Comments show inline — the first couple visible under the post by
@@ -240,6 +251,10 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
   const [reactors, setReactors]           = useState<Record<string, { player_id: number; player_name: string }[]> | null>(null);
   const [showReactors, setShowReactors]   = useState(false);
   const [pinning, setPinning]             = useState(false);
+  const [voting, setVoting]               = useState(false);
+  const [rsvping, setRsvping]             = useState(false);
+  const [rsvpers, setRsvpers]             = useState<{ player_id: number; player_name: string }[] | null>(null);
+  const [showRsvpers, setShowRsvpers]     = useState(false);
   const { toast } = useToast();
 
   const isOwner = !!user?.playerId && user.playerId === post.player_id;
@@ -294,6 +309,44 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
         toast({ title: d.error ?? "Failed to update pin", variant: "destructive" });
       }
     } finally { setPinning(false); }
+  };
+
+  const submitVote = async (optionId: number) => {
+    setVoting(true);
+    try {
+      const r = await fetch(`/api/community/posts/${post.id}/vote`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ optionId }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        onVote?.(post.id, d.poll_options, d.poll_my_vote);
+      } else {
+        const d = await r.json();
+        toast({ title: d.error ?? "Failed to vote", variant: "destructive" });
+      }
+    } finally { setVoting(false); }
+  };
+
+  const toggleRsvp = async () => {
+    setRsvping(true);
+    try {
+      const r = await fetch(`/api/community/posts/${post.id}/rsvp`, { method: "POST", credentials: "include" });
+      if (r.ok) {
+        const d = await r.json();
+        onRsvp?.(post.id, d.rsvped, d.rsvp_count);
+      } else {
+        const d = await r.json();
+        toast({ title: d.error ?? "Failed to RSVP", variant: "destructive" });
+      }
+    } finally { setRsvping(false); }
+  };
+
+  const loadRsvpers = async () => {
+    if (rsvpers) { setShowRsvpers(v => !v); return; }
+    const r = await fetch(`/api/community/posts/${post.id}/rsvps`);
+    if (r.ok) { setRsvpers(await r.json()); setShowRsvpers(true); }
   };
 
   const submitComment = async (e: React.FormEvent) => {
@@ -438,6 +491,42 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
           </p>
         ) : null}
 
+        {/* Poll — post.content above is the question; these are its options.
+            Voting (and re-voting) hits POST /community/posts/:id/vote,
+            single-choice, one vote per player. Bars fill by share of total
+            votes so the result reads at a glance without extra labels. */}
+        {post.post_type === "poll" && post.poll_options && (
+          <div className="mb-3 space-y-1.5">
+            {(() => {
+              const total = post.poll_options.reduce((a, o) => a + o.vote_count, 0);
+              return post.poll_options.map(opt => {
+                const pct = total > 0 ? Math.round((opt.vote_count / total) * 100) : 0;
+                const mine = post.poll_my_vote === opt.id;
+                return (
+                  <button key={opt.id} type="button" disabled={!user || voting}
+                    onClick={() => submitVote(opt.id)}
+                    className="w-full text-left rounded-xl overflow-hidden relative transition-opacity disabled:opacity-70"
+                    style={{ border: `1px solid ${mine ? "rgba(0,102,255,0.5)" : "rgba(255,255,255,0.1)"}` }}>
+                    <div className="absolute inset-y-0 left-0 transition-all"
+                      style={{ width: `${pct}%`, background: mine ? "rgba(0,102,255,0.18)" : "rgba(255,255,255,0.06)" }} />
+                    <div className="relative flex items-center justify-between px-3 py-2 text-xs">
+                      <span style={{ color: mine ? "#4d94ff" : "rgba(255,255,255,0.75)", fontWeight: mine ? 700 : 400 }}>
+                        {mine && "✓ "}{opt.label}
+                      </span>
+                      <span style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Share Tech Mono, monospace" }}>
+                        {opt.vote_count} · {pct}%
+                      </span>
+                    </div>
+                  </button>
+                );
+              });
+            })()}
+            {!user && (
+              <p className="text-xs italic" style={{ color: "rgba(255,255,255,0.3)" }}>Sign in to vote</p>
+            )}
+          </div>
+        )}
+
         {/* Photo */}
         {post.photo_content_type && (
           <div className="mb-3 rounded-xl overflow-hidden relative" style={{ maxHeight: 440 }}>
@@ -501,6 +590,34 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
               );
             })}
 
+            {/* RSVP — "I'm in", pinned posts only (an admin has to have
+                deliberately flagged this as a real announcement/signup
+                first — see the eligibility check in the /rsvp route). */}
+            {post.pinned && (
+              <button onClick={() => user && !rsvping && toggleRsvp()} disabled={!user || rsvping}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-all duration-150 select-none disabled:opacity-60"
+                style={{
+                  background: post.myRsvped ? "rgba(0,229,160,0.15)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${post.myRsvped ? "rgba(0,229,160,0.4)" : "rgba(255,255,255,0.08)"}`,
+                  color: post.myRsvped ? "#00e5a0" : "rgba(255,255,255,0.5)",
+                  cursor: user ? "pointer" : "default",
+                }}>
+                <CheckCircle className="w-3 h-3" />
+                <span style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" }}>
+                  {post.myRsvped ? "I'M IN" : "I'M IN?"}
+                </span>
+                {(post.rsvp_count ?? 0) > 0 && <span className="font-bold">{post.rsvp_count}</span>}
+              </button>
+            )}
+            {post.pinned && (post.rsvp_count ?? 0) > 0 && (
+              <button onClick={loadRsvpers}
+                className="flex items-center gap-1 text-xs transition-colors"
+                style={{ color: showRsvpers ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.22)" }}
+                title="See who's in">
+                <Users className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             {/* Who reacted — a separate tap target from the reaction pills
                 above, so tapping an emoji still just toggles your own
                 reaction. Only shown once there's something to see. */}
@@ -541,6 +658,13 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
                 <span>{people.map(p => p.player_name).join(", ")}</span>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Who's in panel */}
+        {showRsvpers && rsvpers && (
+          <div className="mt-2 rounded-xl p-2.5 text-xs" style={{ background: "rgba(0,229,160,0.05)", border: "1px solid rgba(0,229,160,0.15)", color: "rgba(255,255,255,0.6)" }}>
+            {rsvpers.length === 0 ? "No one yet" : rsvpers.map(p => p.player_name).join(", ")}
           </div>
         )}
 
@@ -600,9 +724,67 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
   );
 }
 
+// A collapsed run of same-player, same-day bare-photo posts (see
+// groupedFeed in CommunityPage). Shows a compact thumbnail grid; tapping a
+// thumbnail expands that one underlying post into a full, completely
+// normal PostCard right below — same react/comment/edit/delete/pin
+// behavior it always had, just reached through one extra tap.
+function PhotoGroupCard({ group, expandedId, onExpand, onReact, onComment, isAdmin, onDelete, onRemovePhoto, onDeleteComment, onEdit, onPin, onUnpin, onBookmark, onVote, onRsvp }: {
+  group: Post[];
+  expandedId: number | null;
+  onExpand: (id: number | null) => void;
+  onReact: (id: number, emoji: string) => void;
+  onComment: (id: number, content: string) => void;
+  isAdmin: boolean;
+  onDelete?: (id: number) => void;
+  onRemovePhoto?: (id: number) => void;
+  onDeleteComment?: (postId: number, commentId: number) => void;
+  onEdit?: (id: number, content: string) => void;
+  onPin?: (id: number) => void;
+  onUnpin?: (id: number) => void;
+  onBookmark?: (id: number) => void;
+  onVote?: (id: number, pollOptions: PollOption[], myVote: number) => void;
+  onRsvp?: (id: number, rsvped: boolean, rsvpCount: number) => void;
+}) {
+  const first = group[0];
+  const expandedPost = group.find(p => p.id === expandedId) ?? null;
+  return (
+    <div className="rounded-2xl p-4" style={{ background: "rgba(20,20,26,0.6)", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="flex items-center gap-2.5 mb-3">
+        <PlayerAvatar name={first.player_name} tier={first.player_tier} />
+        <div className="min-w-0">
+          <PlayerName id={first.player_id} name={first.player_name} tier={first.player_tier}
+            nameStyleId={first.player_name_style_id} winStreak={first.player_win_streak} className="text-sm" />
+          <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+            {relativeTime(first.created_at)} · {group.length} photos
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        {group.map(p => (
+          <button key={p.id} onClick={() => onExpand(expandedId === p.id ? null : p.id)}
+            className="relative rounded-lg overflow-hidden aspect-square">
+            <img src={`/api/community/posts/${p.id}/photo`} alt="" loading="lazy" decoding="async"
+              className="w-full h-full object-cover" />
+            <div className="absolute inset-0 transition-colors" style={{ background: expandedId === p.id ? "rgba(255,0,92,0.2)" : "transparent" }} />
+          </button>
+        ))}
+      </div>
+      {expandedPost && (
+        <div className="pt-3">
+          <PostCard post={expandedPost} onReact={onReact} onComment={onComment} isAdmin={isAdmin}
+            onDelete={onDelete} onRemovePhoto={onRemovePhoto} onDeleteComment={onDeleteComment}
+            onEdit={onEdit} onPin={onPin} onUnpin={onUnpin} onBookmark={onBookmark} onVote={onVote} onRsvp={onRsvp} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CommunityPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const catalog = useCosmeticsCatalog();
 
   const [communityEnabled, setCommunityEnabled] = useState<boolean | null>(null);
   const [posts,     setPosts]     = useState<Post[]>([]);
@@ -621,6 +803,15 @@ export default function CommunityPage() {
   const [submitting,   setSubmitting]   = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Create poll state — admin-only (see POST /community/polls). A separate
+  // small form rather than folding into the main composer above, since a
+  // poll isn't "text + optional photo", it's a question + a fixed set of
+  // options.
+  const [showPollCreate, setShowPollCreate] = useState(false);
+  const [pollQuestion,   setPollQuestion]   = useState("");
+  const [pollOptions,    setPollOptions]    = useState<string[]>(["", ""]);
+  const [creatingPoll,   setCreatingPoll]   = useState(false);
+
   // Feed tab / sort. "All" just filters/reorders whatever's already loaded
   // in `posts`. "Photos" and "Mine" used to do the same thing — which meant
   // a feed that hadn't been paginated far enough yet showed "you haven't
@@ -632,6 +823,7 @@ export default function CommunityPage() {
   const [tab,  setTab]  = useState<"all" | "photos" | "mine" | "saved">("all");
   const [sort, setSort] = useState<"new" | "top">("new");
   const [expandedPhotoId, setExpandedPhotoId] = useState<number | null>(null);
+  const [groupExpandedId, setGroupExpandedId] = useState<number | null>(null);
   const [tabFetchLoading, setTabFetchLoading] = useState(false);
   const fetchedTabsRef = useRef<Set<string>>(new Set());
 
@@ -793,6 +985,41 @@ export default function CommunityPage() {
 
   const photoTiles = useMemo(() => visiblePosts.filter(p => p.photo_content_type), [visiblePosts]);
 
+  // Grouped photo galleries — a run of 3+ consecutive posts (in whatever
+  // order visiblePosts already presents, pinned-first included) by the same
+  // player, same calendar day, each a bare photo with no real caption and
+  // not pinned, reads as a photo dump cluttering the feed with near-
+  // identical cards. Purely a display grouping: the underlying posts are
+  // untouched, and every interaction (react/comment/edit/delete/pin) still
+  // happens on one specific post via the same expand-a-tile pattern the
+  // Photos tab already uses, so nothing about how those actions work
+  // changes — a grouped post is exactly as reactable/commentable/editable
+  // as it always was, just via one extra click to reveal it.
+  const groupedFeed = useMemo(() => {
+    const items: (Post | Post[])[] = [];
+    let run: Post[] = [];
+    const flushRun = () => {
+      if (run.length >= 3) items.push(run);
+      else items.push(...run);
+      run = [];
+    };
+    for (const p of visiblePosts) {
+      const isBarePhoto = !!p.photo_content_type && !p.content.trim() && p.post_type === "manual" && !p.pinned;
+      const last = run[run.length - 1];
+      const continuesRun = last != null
+        && last.player_id === p.player_id
+        && new Date(last.created_at).toDateString() === new Date(p.created_at).toDateString();
+      if (isBarePhoto && (run.length === 0 || continuesRun)) {
+        run.push(p);
+      } else {
+        flushRun();
+        if (isBarePhoto) run.push(p); else items.push(p);
+      }
+    }
+    flushRun();
+    return items;
+  }, [visiblePosts]);
+
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -837,6 +1064,33 @@ export default function CommunityPage() {
     } catch {
       toast({ title: "Upload failed", variant: "destructive" });
     } finally { setSubmitting(false); setUploading(false); }
+  };
+
+  const handleCreatePoll = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanOptions = pollOptions.map(o => o.trim()).filter(Boolean);
+    if (!pollQuestion.trim()) { toast({ title: "Add a question", variant: "destructive" }); return; }
+    if (cleanOptions.length < 2) { toast({ title: "Add at least 2 options", variant: "destructive" }); return; }
+    setCreatingPoll(true);
+    try {
+      const r = await fetch("/api/community/polls", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: pollQuestion.trim(), options: cleanOptions }),
+      });
+      if (r.ok) {
+        toast({ title: "Poll posted!" });
+        setPollQuestion(""); setPollOptions(["", ""]); setShowPollCreate(false);
+        // Polls are auto-approved and go straight into the feed — a real
+        // reload (rather than hand-building a Post object here) so the new
+        // row comes back with every field the feed query computes, exactly
+        // as the server sees it.
+        void loadPosts(true);
+      } else {
+        const d = await r.json();
+        toast({ title: d.error ?? "Failed to create poll", variant: "destructive" });
+      }
+    } finally { setCreatingPoll(false); }
   };
 
   const handleReact = async (postId: number, emoji: string) => {
@@ -927,6 +1181,19 @@ export default function CommunityPage() {
     const { bookmarked } = await r.json();
     setPosts(prev => prev.map(p => p.id === id ? { ...p, myBookmarked: bookmarked } : p));
     setSearchResults(prev => prev ? prev.map(p => p.id === id ? { ...p, myBookmarked: bookmarked } : p) : prev);
+  };
+
+  // The vote/RSVP requests themselves already happened inside PostCard (each
+  // needs its own button-level loading state) — these just reconcile local
+  // state with the result once they succeed.
+  const handleVote = (id: number, pollOptions: PollOption[], myVote: number) => {
+    setPosts(prev => prev.map(p => p.id === id ? { ...p, poll_options: pollOptions, poll_my_vote: myVote } : p));
+    setSearchResults(prev => prev ? prev.map(p => p.id === id ? { ...p, poll_options: pollOptions, poll_my_vote: myVote } : p) : prev);
+  };
+
+  const handleRsvp = (id: number, rsvped: boolean, rsvpCount: number) => {
+    setPosts(prev => prev.map(p => p.id === id ? { ...p, myRsvped: rsvped, rsvp_count: rsvpCount } : p));
+    setSearchResults(prev => prev ? prev.map(p => p.id === id ? { ...p, myRsvped: rsvped, rsvp_count: rsvpCount } : p) : prev);
   };
 
   const handleDeleteComment = async (postId: number, commentId: number) => {
@@ -1028,6 +1295,17 @@ export default function CommunityPage() {
                   <span className="text-xs truncate w-full text-center" style={{ color: "rgba(255,255,255,0.4)" }}>
                     {m.player_name.split(" ")[0]}
                   </span>
+                  {/* Status line — the player's own free-text tagline
+                      (account.tsx), styled by their equipped TAGLINE_STYLE
+                      cosmetic when they have one. Nothing new stored here;
+                      just surfaced in a spot the tab didn't have before. */}
+                  {m.player_tagline && (
+                    <span className="text-xs truncate w-full text-center leading-tight"
+                      title={m.player_tagline}
+                      style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.3)", ...taglineStyleCSS(catalog.find(c => c.id === m.player_tagline_style_id)) }}>
+                      {m.player_tagline}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -1220,6 +1498,63 @@ export default function CommunityPage() {
         </Link>
       )}
 
+      {/* Create poll — admin-only organizer tool (see POST /community/polls'
+          header comment for why). Collapsed behind a small text trigger
+          rather than living in the main composer, since a poll isn't the
+          same shape as a normal post. */}
+      {user?.isAdmin && (
+        showPollCreate ? (
+          <form onSubmit={handleCreatePoll}
+            className="rounded-2xl p-4 space-y-2.5"
+            style={{ background: "rgba(0,102,255,0.04)", border: "1px solid rgba(0,102,255,0.18)" }}>
+            <input value={pollQuestion} onChange={e => setPollQuestion(e.target.value)}
+              placeholder="Ask a question… (e.g. Next friendly night?)"
+              maxLength={300}
+              className="w-full px-3 py-2 rounded-xl text-sm outline-none"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }} />
+            {pollOptions.map((opt, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <input value={opt} maxLength={100}
+                  onChange={e => setPollOptions(prev => prev.map((o, j) => j === i ? e.target.value : o))}
+                  placeholder={`Option ${i + 1}`}
+                  className="flex-1 px-3 py-1.5 rounded-lg text-xs outline-none"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }} />
+                {pollOptions.length > 2 && (
+                  <button type="button" onClick={() => setPollOptions(prev => prev.filter((_, j) => j !== i))}
+                    className="p-1 rounded" style={{ color: "rgba(255,255,255,0.35)" }}>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+            <div className="flex items-center justify-between">
+              {pollOptions.length < 6 ? (
+                <button type="button" onClick={() => setPollOptions(prev => [...prev, ""])}
+                  className="text-xs font-bold" style={{ color: "#4d94ff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
+                  + ADD OPTION
+                </button>
+              ) : <span />}
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => { setShowPollCreate(false); setPollQuestion(""); setPollOptions(["", ""]); }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold" style={{ background: "transparent", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                  CANCEL
+                </button>
+                <button type="submit" disabled={creatingPoll}
+                  className="px-4 py-1.5 rounded-xl text-xs font-bold disabled:opacity-40"
+                  style={{ background: "rgba(0,102,255,0.2)", border: "1px solid rgba(0,102,255,0.4)", color: "#4d94ff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                  {creatingPoll ? "POSTING…" : "POST POLL"}
+                </button>
+              </div>
+            </div>
+          </form>
+        ) : (
+          <button onClick={() => setShowPollCreate(true)}
+            className="text-xs font-bold self-start" style={{ color: "rgba(77,148,255,0.6)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
+            📊 Create a poll
+          </button>
+        )
+      )}
+
       {/* Admin pending queue */}
       {user?.isAdmin && pending.length > 0 && (
         <div className="space-y-2">
@@ -1313,7 +1648,7 @@ export default function CommunityPage() {
             {searchResults.map(post => (
               <PostCard key={post.id} post={post} onReact={handleReact} onComment={handleComment}
                 isAdmin={!!user?.isAdmin} onDelete={handleDelete} onPin={handlePin} onUnpin={handleUnpin}
-                onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} onBookmark={handleBookmark} />
+                onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} onBookmark={handleBookmark} onVote={handleVote} onRsvp={handleRsvp} />
             ))}
           </div>
         )
@@ -1366,16 +1701,22 @@ export default function CommunityPage() {
             <div className="pt-1">
               <PostCard post={photoTiles.find(p => p.id === expandedPhotoId)!} onReact={handleReact} onComment={handleComment}
                 isAdmin={!!user?.isAdmin} onDelete={handleDelete} onPin={handlePin} onUnpin={handleUnpin}
-                onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} onBookmark={handleBookmark} />
+                onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} onBookmark={handleBookmark} onVote={handleVote} onRsvp={handleRsvp} />
             </div>
           )}
         </>
       ) : (
         <div className="space-y-3">
-          {visiblePosts.map(post => (
-            <PostCard key={post.id} post={post} onReact={handleReact} onComment={handleComment}
+          {groupedFeed.map(item => Array.isArray(item) ? (
+            <PhotoGroupCard key={`group-${item[0].id}`} group={item}
+              expandedId={groupExpandedId} onExpand={setGroupExpandedId}
+              onReact={handleReact} onComment={handleComment}
               isAdmin={!!user?.isAdmin} onDelete={handleDelete} onPin={handlePin} onUnpin={handleUnpin}
-              onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} onBookmark={handleBookmark} />
+              onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} onBookmark={handleBookmark} onVote={handleVote} onRsvp={handleRsvp} />
+          ) : (
+            <PostCard key={item.id} post={item} onReact={handleReact} onComment={handleComment}
+              isAdmin={!!user?.isAdmin} onDelete={handleDelete} onPin={handlePin} onUnpin={handleUnpin}
+              onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} onBookmark={handleBookmark} onVote={handleVote} onRsvp={handleRsvp} />
           ))}
         </div>
       )}

@@ -35,12 +35,12 @@ Tabs (All/Photos/Mine) and the New/Top sort toggle already matched the mockup an
 - [x] **Save/bookmark** — `post_bookmarks` table (`add_community_post_bookmarks.ts`), `POST /community/posts/:id/bookmark` toggle, a new "Saved" tab (signed-in users only) alongside All/Photos/Mine.
 - [x] **"This day last year"** — `GET /community/throwback`, a fuzzy ±3 day window around exactly 365 days ago, closest match wins. Shows as a dismissible card near the top of the page when one exists; dismissal is session-only.
 
-## Phase 4 — Lower priority (not started)
+## Phase 4 — Lower priority — **shipped 2026-09-24**
 
-- [ ] **Status line** next to avatars in Who's About — reuses the existing tagline cosmetic field, just surfaced in a new spot
-- [ ] **Grouped photo galleries** — collapse same-night multi-photo posts into one card; worth doing once photo-posting volume actually justifies it
-- [ ] **Actionable RSVP** ("I'm in") on pinned/event posts instead of just comments
-- [ ] **Lightweight polls** for practical things (next friendly night, etc.)
+- [x] **Status line** next to avatars in Who's About — surfaces the existing free-text `players.tagline` (styled by the equipped `TAGLINE_STYLE` cosmetic, if any) under each name in the avatar rail; no new storage, just a new spot for a field that already existed.
+- [x] **Grouped photo galleries** — a run of 3+ consecutive same-player, same-day, caption-free photo posts (never pinned ones) collapses into one compact card with a thumbnail grid; tapping a thumbnail expands that specific post into a completely normal full card underneath, so react/comment/edit/delete/pin all still work exactly as before, just one tap deeper. Purely a display grouping — nothing about the underlying posts changed.
+- [x] **Actionable RSVP** ("I'm in") — `post_rsvps` table (`add_community_post_rsvps.ts`), `POST /community/posts/:id/rsvp` toggle, restricted to pinned posts (an admin has to have already flagged something as a real announcement/signup). Shows a count and a "who's in" reveal next to the reaction bar.
+- [x] **Lightweight polls** — built as a new `community_posts.post_type = 'poll'` (`add_community_polls.ts`: options + votes tables) rather than a separate feed, so a poll gets pinning/comments/reactions/search/admin-delete for free. Admin-only creation (`POST /community/polls`, a small "📊 Create a poll" form near the composer) with 2–6 fixed options; single-choice voting via `POST /community/posts/:id/vote`, re-votable, rendered as fill bars with live counts.
 
 ## Set aside
 
