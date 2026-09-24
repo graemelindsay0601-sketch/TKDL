@@ -20,13 +20,21 @@
  * player can only ever see or answer their own interview_requests row,
  * matching the "who's allowed to answer" decision in the plan (server-side
  * ownership check, not just hiding the button client-side).
+ *
+ * The conversation itself is now a real two-question exchange (opener →
+ * reaction → follow-up → sign-off), not a single Q&A — see
+ * interviewDeskService.ts's header. POST /answer never trusts a
+ * client-supplied "which turn is this" — it derives the expected turn from
+ * the request's own stored state, the same way ownership is enforced
+ * server-side rather than by what the client sends.
  */
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdminSession } from "../middleware/requireAdminSession";
-import { createInterviewRequest } from "../lib/interviewDeskService";
+import { createInterviewRequest, advanceInterview } from "../lib/interviewDeskService";
+import type { InterviewAudience } from "../lib/interviewDeskMigration";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -44,6 +52,7 @@ function requireAuth(req: any, res: any): number | false {
 router.get("/admin/interview-desk/trigger-types", requireAdminSession, async (_req, res): Promise<void> => {
   const { rows } = await db.execute(sql`
     SELECT DISTINCT trigger_type, audience FROM interview_questions
+    WHERE kind = 'opener'
     ORDER BY trigger_type, audience
   `);
   res.json({ options: rows });
@@ -100,6 +109,68 @@ router.get("/admin/interview-desk/test-history", requireAdminSession, async (_re
   res.json({ history: rows });
 });
 
+type RequestRow = {
+  id: number;
+  player_id: number;
+  trigger_type: string;
+  status: string;
+  opener_audience: InterviewAudience;
+  opener_presenter: string;
+  opener_prompt: string;
+  followup_question_id: number | null;
+  followup_presenter: string | null;
+  followup_prompt: string | null;
+  reaction_text: string | null;
+  reaction_presenter: string | null;
+  signoff_text: string | null;
+  signoff_presenter: string | null;
+  opener_answer_type: string | null;
+  opener_answer_text: string | null;
+  followup_answer_type: string | null;
+  followup_answer_text: string | null;
+};
+
+async function loadRequest(id: number): Promise<RequestRow | null> {
+  const row = (
+    await db.execute(sql`
+      SELECT
+        r.id, r.player_id, r.trigger_type, r.status,
+        oq.audience AS opener_audience, oq.presenter AS opener_presenter, oq.prompt_text AS opener_prompt,
+        r.followup_question_id,
+        fq.presenter AS followup_presenter, fq.prompt_text AS followup_prompt,
+        r.reaction_text, r.reaction_presenter,
+        r.signoff_text, r.signoff_presenter,
+        oa.response_type AS opener_answer_type, oa.answer_text AS opener_answer_text,
+        fa.response_type AS followup_answer_type, fa.answer_text AS followup_answer_text
+      FROM interview_requests r
+      LEFT JOIN interview_questions oq ON oq.id = r.question_id
+      LEFT JOIN interview_questions fq ON fq.id = r.followup_question_id
+      LEFT JOIN interview_answers oa ON oa.request_id = r.id AND oa.turn = 'opener'
+      LEFT JOIN interview_answers fa ON fa.request_id = r.id AND fa.turn = 'followup'
+      WHERE r.id = ${id}
+    `)
+  ).rows[0] as RequestRow | undefined;
+  return row ?? null;
+}
+
+function serialize(row: RequestRow) {
+  const awaitingTurn: "opener" | "followup" | null =
+    row.status !== "pending" ? null : !row.opener_answer_type ? "opener" : row.followup_question_id && !row.followup_answer_type ? "followup" : null;
+
+  return {
+    id: row.id,
+    triggerType: row.trigger_type,
+    status: row.status,
+    awaitingTurn,
+    opener: { presenter: row.opener_presenter, promptText: row.opener_prompt },
+    openerAnswer: row.opener_answer_type ? { responseType: row.opener_answer_type, answerText: row.opener_answer_text } : null,
+    reaction: row.reaction_text ? { presenter: row.reaction_presenter, text: row.reaction_text } : null,
+    followup: row.followup_prompt ? { presenter: row.followup_presenter, promptText: row.followup_prompt } : null,
+    followupAnswer: row.followup_answer_type ? { responseType: row.followup_answer_type, answerText: row.followup_answer_text } : null,
+    signoff: row.signoff_text ? { presenter: row.signoff_presenter, text: row.signoff_text } : null,
+  };
+}
+
 // ── Player: fetch one interview request (own only) ──────────────────────────
 router.get("/interview-desk/:id", async (req, res): Promise<void> => {
   const playerId = requireAuth(req, res);
@@ -107,34 +178,14 @@ router.get("/interview-desk/:id", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const row = (
-    await db.execute(sql`
-      SELECT r.id, r.player_id, r.trigger_type, r.trigger_context, r.status, r.created_at,
-             q.presenter, q.prompt_text,
-             a.response_type, a.answer_text
-      FROM interview_requests r
-      LEFT JOIN interview_questions q ON q.id = r.question_id
-      LEFT JOIN interview_answers a ON a.request_id = r.id
-      WHERE r.id = ${id}
-    `)
-  ).rows[0] as any;
-
+  const row = await loadRequest(id);
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   if (row.player_id !== playerId) { res.status(403).json({ error: "Not your interview request" }); return; }
 
-  res.json({
-    id: row.id,
-    triggerType: row.trigger_type,
-    triggerContext: row.trigger_context,
-    status: row.status,
-    presenter: row.presenter,
-    promptText: row.prompt_text,
-    createdAt: row.created_at,
-    answer: row.response_type ? { responseType: row.response_type, answerText: row.answer_text } : null,
-  });
+  res.json(serialize(row));
 });
 
-// ── Player: answer (or decline) their own interview request ────────────────
+// ── Player: answer (or decline) whichever turn is currently open ───────────
 const AnswerBody = z.object({
   responseType: z.enum(["comment", "declined", "not_involved"]),
   answerText: z.string().max(2000).optional(),
@@ -149,22 +200,23 @@ router.post("/interview-desk/:id/answer", async (req, res): Promise<void> => {
   const parsed = AnswerBody.safeParse(req.body ?? {});
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const existing = (
-    await db.execute(sql`SELECT id, player_id, status FROM interview_requests WHERE id = ${id}`)
-  ).rows[0] as any;
-  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
-  if (existing.player_id !== playerId) { res.status(403).json({ error: "Not your interview request" }); return; }
-  if (existing.status !== "pending") { res.status(409).json({ error: "This request has already been answered" }); return; }
+  const row = await loadRequest(id);
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  if (row.player_id !== playerId) { res.status(403).json({ error: "Not your interview request" }); return; }
+  if (row.status !== "pending") { res.status(409).json({ error: "This interview has already wrapped up" }); return; }
 
-  const newStatus = parsed.data.responseType === "comment" ? "answered" : "declined";
+  const turn: "opener" | "followup" | null = !row.opener_answer_type
+    ? "opener"
+    : row.followup_question_id && !row.followup_answer_type
+      ? "followup"
+      : null;
+  if (!turn) { res.status(409).json({ error: "Nothing left to answer on this interview" }); return; }
 
   try {
-    await db.execute(sql`
-      INSERT INTO interview_answers (request_id, response_type, answer_text)
-      VALUES (${id}, ${parsed.data.responseType}, ${parsed.data.answerText ?? null})
-    `);
-    await db.execute(sql`UPDATE interview_requests SET status = ${newStatus} WHERE id = ${id}`);
-    res.json({ ok: true, status: newStatus });
+    const result = await advanceInterview(
+      id, playerId, row.trigger_type, row.opener_audience, turn, parsed.data.responseType, parsed.data.answerText
+    );
+    res.json({ ok: true, ...result });
   } catch (err: any) {
     const detail = err?.cause?.message ?? err?.message ?? String(err);
     logger.error({ err }, "POST /interview-desk/:id/answer failed");
