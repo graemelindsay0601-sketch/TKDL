@@ -22,7 +22,6 @@ import { TimeOfDayPerformance } from "@/components/stats/time-of-day-performance
 import { DrillProgressTracker } from "@/components/stats/drill-progress-tracker";
 import { AdaptiveDifficulty } from "@/components/stats/adaptive-difficulty";
 import { LogDrillModal, type LoggableDrill } from "@/components/stats/log-drill-modal";
-import { DebugStatsViewer } from "@/components/stats/debug-stats-viewer";
 import { CosmeticsShop } from "@/components/CosmeticsShop";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, bubbleColorStyle, avatarBadgeIcon, taglineStyleCSS, stickerEmoji, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
 import { TrophyCase } from "@/components/TrophyCase";
@@ -2404,7 +2403,6 @@ export default function AccountPage() {
             <StreakWidget playerId={user.playerId} />
             <TimeOfDayPerformance playerId={user.playerId} />
           </div>
-          {user.isAdmin && <DebugStatsViewer playerId={user.playerId} />}
           <CategoryStatsEnhanced playerId={user.playerId} />
         </div>
       )}

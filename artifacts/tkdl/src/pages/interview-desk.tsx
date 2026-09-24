@@ -3,7 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { useAuth } from "@/context/auth";
 import { LoginGate } from "@/components/LoginGate";
 import { useToast } from "@/hooks/use-toast";
-import { Send, X, UserX, Radio } from "lucide-react";
+import { Send, X, UserX, Radio, Clock, AlarmClockOff } from "lucide-react";
 import { PRESENTERS, presenterPortraitSrc, type PresenterId, type PresenterState } from "@/features/broadcast/presenters/presenter-config";
 
 // Interview Desk — player-facing answer page. TEST/PREVIEW BUILD: the only
@@ -26,6 +26,7 @@ type RequestData = {
   id: number;
   triggerType: string;
   status: string;
+  expiresAt: string | null;
   awaitingTurn: "opener" | "followup" | null;
   opener: { presenter: string; promptText: string };
   openerAnswer: { responseType: string; answerText: string | null } | null;
@@ -37,6 +38,34 @@ type RequestData = {
 
 function toPresenterId(name: string): PresenterId {
   return name === "ton" ? "B" : "A";
+}
+
+/** Ticking mm:ss until expiresAt, or null once it's passed / not set — so
+ *  the player can actually see the window closing rather than just finding
+ *  out after the fact that they were too slow. */
+function useCountdown(expiresAt: string | null): string | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!expiresAt) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [expiresAt]);
+  if (!expiresAt) return null;
+  const msLeft = new Date(expiresAt).getTime() - now;
+  if (msLeft <= 0) return null;
+  const totalSeconds = Math.floor(msLeft / 1000);
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  // The window isn't a fixed short countdown any more — it's tied to TKDL
+  // LIVE's real episode schedule (see interviewDeskService.ts), which can
+  // be several hours out. mm:ss only reads sensibly once it's actually
+  // close; before that, hours/minutes is what a player expects to see.
+  if (totalMinutes >= 60) {
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return `${h}h ${m}m`;
+  }
+  const s = totalSeconds % 60;
+  return `${totalMinutes}:${String(s).padStart(2, "0")}`;
 }
 
 function answerLabel(a: { responseType: string; answerText: string | null }): string {
@@ -109,6 +138,8 @@ export default function InterviewDeskPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, params.id]);
 
+  const countdown = useCountdown(data?.status === "pending" ? data.expiresAt : null);
+
   if (!user) {
     return (
       <LoginGate
@@ -131,6 +162,7 @@ export default function InterviewDeskPage() {
       const body = await res.json();
       if (!res.ok) {
         toast({ title: "Couldn't submit", description: body.error ?? "Try again.", variant: "destructive" });
+        if (res.status === 409) await load(); // e.g. expired mid-answer — resync so the UI reflects it instead of leaving a dead form up
         setSubmitting(false);
         return;
       }
@@ -194,6 +226,14 @@ export default function InterviewDeskPage() {
               <span className="text-[0.62rem] uppercase tracking-widest ml-auto" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
                 {data.triggerType.replace(/_/g, " ")}
               </span>
+              {countdown && (
+                <span
+                  className="flex items-center gap-1 text-[0.62rem] font-bold px-2 py-0.5 rounded-full"
+                  style={{ color: "#ffd24a", background: "rgba(255,210,74,0.1)", border: "1px solid rgba(255,210,74,0.25)", fontFamily: "Oswald, sans-serif" }}
+                >
+                  <Clock className="w-2.5 h-2.5" />{countdown}
+                </span>
+              )}
             </div>
 
             {/* Transcript */}
@@ -227,6 +267,15 @@ export default function InterviewDeskPage() {
                     </div>
                   </div>
                 )
+              )}
+
+              {data.status === "expired" && (
+                <div className="flex items-start gap-2 px-3.5 py-3 rounded-lg" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <AlarmClockOff className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }} />
+                  <div className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
+                    This one's window closed before you got to it — happens sometimes with a live show on a clock. There'll be another.
+                  </div>
+                </div>
               )}
 
               {isPending && (

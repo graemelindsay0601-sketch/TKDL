@@ -3,8 +3,8 @@
  * Handles web push notifications, offline support, and caching
  */
 
-const CACHE_NAME = "tkdl-v6";
-const API_CACHE = "tkdl-api-v6";
+const CACHE_NAME = "tkdl-v7";
+const API_CACHE = "tkdl-api-v7";
 
 // Files to cache for offline support
 const STATIC_ASSETS = [
@@ -221,19 +221,34 @@ self.addEventListener("notificationclick", (event) => {
     return;
   }
 
-  // Find and focus the app window, or open a new one
+  // Every notification used to just open "/" regardless of what it was
+  // about — fine for a generic alert, but useless for something time-boxed
+  // like an Interview Desk invite, where tapping the banner needs to land
+  // you on the actual question, not the home screen, with the window
+  // already closing behind you. sendPushNotification's payload now
+  // includes a `url` in its data for any notification type that sets one
+  // (see notificationService.ts) — this just honours it when present and
+  // falls back to the old "/" behaviour for every notification that
+  // doesn't, so nothing about existing notification types changes.
+  const targetUrl = (notification.data && notification.data.url) || "/";
+
+  // Find and focus a window already on that exact page, or open a new one
   event.waitUntil(
     clients.matchAll({ type: "window" }).then((clientList) => {
-      // Check if app is already open
       for (let i = 0; i < clientList.length; i++) {
         const client = clientList[i];
-        if (client.url === "/" && "focus" in client) {
+        const clientPath = (() => { try { return new URL(client.url).pathname; } catch { return client.url; } })();
+        if (clientPath === targetUrl && "focus" in client) {
           return client.focus();
         }
       }
-      // If not open, open it
+      // Not already open on that page — focus any open window and
+      // navigate it there if we can, otherwise open a fresh one.
+      if (clientList.length > 0 && "navigate" in clientList[0] && "focus" in clientList[0]) {
+        return clientList[0].navigate(targetUrl).then((c) => c && c.focus());
+      }
       if (clients.openWindow) {
-        return clients.openWindow("/");
+        return clients.openWindow(targetUrl);
       }
     })
   );

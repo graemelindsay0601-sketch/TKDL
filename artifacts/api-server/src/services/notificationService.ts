@@ -21,7 +21,12 @@ export interface NotificationPayload {
   type:
     | "match_result" | "rank_change" | "threat_alert" | "coach_tip" | "announcement"
     | "dm_received" | "achievement_unlocked"
-    | "post_approved" | "post_liked" | "post_commented" | "auto_post_fired";
+    | "post_approved" | "post_liked" | "post_commented" | "auto_post_fired"
+    // Interview Desk (test/preview — see routes/interview-desk.ts's header).
+    // Time-boxed like threat_alert: the request expires once the live
+    // window it was asked for has passed, so it needs to actually reach the
+    // player rather than sit queued behind batching/quiet-hours.
+    | "interview_invite";
   title: string;
   body: string;
   data?: Record<string, any>;
@@ -138,7 +143,7 @@ async function shouldSendNotification(payload: NotificationPayload, prefs: any):
   // batching limits the same way. Now only an announcement explicitly
   // flagged critical gets that bypass; an unflagged one is subject to the
   // same batching rules as any other notification type.
-  const isCritical = payload.type === "threat_alert" || (payload.type === "announcement" && payload.critical === true);
+  const isCritical = payload.type === "threat_alert" || payload.type === "interview_invite" || (payload.type === "announcement" && payload.critical === true);
   
   // Check batching rules
   const batchingResult = await checkBatchingRules({
@@ -168,12 +173,31 @@ async function shouldSendNotification(payload: NotificationPayload, prefs: any):
  * Walks the same checks createNotification()/sendPushNotification() do
  * internally, but surfaces which one failed rather than swallowing it.
  */
-export async function sendTestNotification(playerId: number): Promise<{
+type DiagnosticPushResult = {
   ok: boolean;
   reason?: "vapid_not_configured" | "push_disabled" | "not_subscribed" | "send_failed";
   detail?: string;
   sentTo?: number;
-}> {
+  notificationId?: number;
+};
+
+/**
+ * The actual diagnostic-send logic behind sendTestNotification — pulled out
+ * so a second, differently-worded test button (the Interview Desk's "send
+ * test notification" — see sendTestInterviewInviteNotification below) can
+ * reuse the exact same checks and delivery path instead of a second,
+ * hand-copied implementation that could quietly drift from this one.
+ * sendTestNotification itself is unchanged below: same signature, same
+ * hardcoded content, same return shape — this refactor doesn't change what
+ * either existing caller sees.
+ */
+async function sendDiagnosticPush(
+  playerId: number,
+  notifType: string,
+  title: string,
+  body: string,
+  data: Record<string, any>
+): Promise<DiagnosticPushResult> {
   if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
     return {
       ok: false,
@@ -208,7 +232,7 @@ export async function sendTestNotification(playerId: number): Promise<{
   // pipeline, not a side path.
   const { rows: [notification] } = await db.execute(sql`
     INSERT INTO notifications (player_id, type, title, body, message, data)
-    VALUES (${playerId}, 'announcement', 'Test notification', 'If you can see this, push notifications are working.', 'If you can see this, push notifications are working.', ${JSON.stringify({ test: true })})
+    VALUES (${playerId}, ${notifType}, ${title}, ${body}, ${body}, ${JSON.stringify(data)})
     RETURNING id
   `);
   const notificationId = (notification as any).id;
@@ -221,11 +245,11 @@ export async function sendTestNotification(playerId: number): Promise<{
       await webPush.sendNotification(
         { endpoint: sub.endpoint, keys: { auth: sub.auth, p256dh: sub.p256dh } },
         JSON.stringify({
-          title: "Test notification",
-          body: "If you can see this, push notifications are working.",
+          title,
+          body,
           icon: "/icon-192.png",
           badge: "/icon-192.png",
-          data: { notificationId, test: true },
+          data: { notificationId, ...data },
         })
       );
       sentTo++;
@@ -265,7 +289,29 @@ export async function sendTestNotification(playerId: number): Promise<{
       sentTo: 0,
     };
   }
-  return { ok: true, sentTo };
+  return { ok: true, sentTo, notificationId };
+}
+
+export async function sendTestNotification(playerId: number): Promise<DiagnosticPushResult> {
+  return sendDiagnosticPush(playerId, "announcement", "Test notification", "If you can see this, push notifications are working.", { test: true });
+}
+
+/**
+ * Same diagnostic path as sendTestNotification (VAPID configured? push
+ * enabled? actually subscribed?), but for the Interview Desk's "the hosts
+ * want a word" content specifically, and sendable to any player — not just
+ * the admin's own account — so the admin can confirm this works for
+ * someone else's device too. Still entirely test-only: it's a real
+ * notification through the real pipeline, but nothing calls this except
+ * the admin panel's own button.
+ */
+export async function sendTestInterviewInviteNotification(
+  playerId: number,
+  title: string,
+  body: string,
+  data: Record<string, any>
+): Promise<DiagnosticPushResult> {
+  return sendDiagnosticPush(playerId, "interview_invite", title, body, data);
 }
 
 /**

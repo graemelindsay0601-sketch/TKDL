@@ -94,6 +94,43 @@ router.post("/admin/interview-desk/test-fire", requireAdminSession, async (req, 
   }
 });
 
+// ── Admin: send a real "the hosts want a word" push, with delivery confirmed ──
+// Distinct from test-fire above: this awaits the actual push result (VAPID
+// configured? player subscribed? did it deliver?) instead of firing and
+// forgetting, so the panel can tell the admin exactly what happened — same
+// diagnostic depth as the existing general "Send Test Notification" button,
+// just for this notification's own content, and sendable to any player so
+// it can be confirmed working on someone else's device too.
+router.post("/admin/interview-desk/test-notification", requireAdminSession, async (req, res): Promise<void> => {
+  const adminPlayerId = (req.session as any)?.playerId as number | undefined;
+  if (!adminPlayerId) { res.status(401).json({ error: "Login required" }); return; }
+
+  const parsed = TestFireBody.safeParse(req.body ?? {});
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const targetId = parsed.data.playerId ?? adminPlayerId;
+  const audience = parsed.data.audience ?? "participant";
+
+  try {
+    const target = (await db.execute(sql`SELECT id, name FROM players WHERE id = ${targetId}`)).rows[0] as any;
+    if (!target) { res.status(404).json({ error: `No player with id ${targetId}` }); return; }
+
+    const created = await createInterviewRequest(
+      targetId,
+      parsed.data.triggerType,
+      audience,
+      { source: "admin_test_notification", firedBy: adminPlayerId },
+      true,
+      "diagnostic"
+    );
+
+    res.json({ ok: true, target: { id: target.id, name: target.name }, request: created });
+  } catch (err: any) {
+    const detail = err?.cause?.message ?? err?.message ?? String(err);
+    logger.error({ err }, "POST /admin/interview-desk/test-notification failed");
+    res.status(400).json({ error: "Failed to send test notification", detail });
+  }
+});
+
 // ── Admin: recent test fires, so the panel can show a running history ──────
 router.get("/admin/interview-desk/test-history", requireAdminSession, async (_req, res): Promise<void> => {
   const { rows } = await db.execute(sql`
@@ -114,6 +151,7 @@ type RequestRow = {
   player_id: number;
   trigger_type: string;
   status: string;
+  expires_at: string | null;
   opener_audience: InterviewAudience;
   opener_presenter: string;
   opener_prompt: string;
@@ -134,7 +172,7 @@ async function loadRequest(id: number): Promise<RequestRow | null> {
   const row = (
     await db.execute(sql`
       SELECT
-        r.id, r.player_id, r.trigger_type, r.status,
+        r.id, r.player_id, r.trigger_type, r.status, r.expires_at,
         oq.audience AS opener_audience, oq.presenter AS opener_presenter, oq.prompt_text AS opener_prompt,
         r.followup_question_id,
         fq.presenter AS followup_presenter, fq.prompt_text AS followup_prompt,
@@ -153,6 +191,16 @@ async function loadRequest(id: number): Promise<RequestRow | null> {
   return row ?? null;
 }
 
+// A request that's still marked "pending" but has drifted past its
+// expires_at (nobody polled it in time) gets flipped to 'expired' here
+// rather than by a background job — cheap, and there's no other code path
+// that needs to know about it until someone actually looks.
+async function maybeExpire(row: RequestRow): Promise<RequestRow> {
+  if (row.status !== "pending" || !row.expires_at || new Date(row.expires_at).getTime() > Date.now()) return row;
+  await db.execute(sql`UPDATE interview_requests SET status = 'expired' WHERE id = ${row.id} AND status = 'pending'`);
+  return { ...row, status: "expired" };
+}
+
 function serialize(row: RequestRow) {
   const awaitingTurn: "opener" | "followup" | null =
     row.status !== "pending" ? null : !row.opener_answer_type ? "opener" : row.followup_question_id && !row.followup_answer_type ? "followup" : null;
@@ -161,6 +209,7 @@ function serialize(row: RequestRow) {
     id: row.id,
     triggerType: row.trigger_type,
     status: row.status,
+    expiresAt: row.expires_at,
     awaitingTurn,
     opener: { presenter: row.opener_presenter, promptText: row.opener_prompt },
     openerAnswer: row.opener_answer_type ? { responseType: row.opener_answer_type, answerText: row.opener_answer_text } : null,
@@ -178,9 +227,10 @@ router.get("/interview-desk/:id", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const row = await loadRequest(id);
+  let row = await loadRequest(id);
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   if (row.player_id !== playerId) { res.status(403).json({ error: "Not your interview request" }); return; }
+  row = await maybeExpire(row);
 
   res.json(serialize(row));
 });
@@ -200,9 +250,11 @@ router.post("/interview-desk/:id/answer", async (req, res): Promise<void> => {
   const parsed = AnswerBody.safeParse(req.body ?? {});
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const row = await loadRequest(id);
+  let row = await loadRequest(id);
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   if (row.player_id !== playerId) { res.status(403).json({ error: "Not your interview request" }); return; }
+  row = await maybeExpire(row);
+  if (row.status === "expired") { res.status(409).json({ error: "This one's window has closed" }); return; }
   if (row.status !== "pending") { res.status(409).json({ error: "This interview has already wrapped up" }); return; }
 
   const turn: "opener" | "followup" | null = !row.opener_answer_type
@@ -216,6 +268,7 @@ router.post("/interview-desk/:id/answer", async (req, res): Promise<void> => {
     const result = await advanceInterview(
       id, playerId, row.trigger_type, row.opener_audience, turn, parsed.data.responseType, parsed.data.answerText
     );
+    if (result.stage === "expired") { res.status(409).json({ error: "This one's window has closed" }); return; }
     res.json({ ok: true, ...result });
   } catch (err: any) {
     const detail = err?.cause?.message ?? err?.message ?? String(err);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Mic, Send, X, ExternalLink, History } from "lucide-react";
+import { Mic, Send, Bell, X, Check, ExternalLink, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CollapsibleAdminSection } from "./collapsible-section";
 
@@ -21,6 +21,17 @@ type HistoryRow = {
   presenter: string;
   prompt_text: string;
 };
+type PushResult = { ok: boolean; reason?: string; detail?: string; sentTo?: number };
+
+function expiresIn(iso: string): string {
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return "already closed";
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return `${hours}h ${rem}m`;
+}
 
 export function InterviewDeskTest() {
   const { toast } = useToast();
@@ -30,8 +41,10 @@ export function InterviewDeskTest() {
   const [selected, setSelected] = useState<string>("");
   const [playerId, setPlayerId] = useState<string>("");
   const [loading, setLoading]   = useState(false);
+  const [notifLoading, setNotifLoading] = useState(false);
   const [error, setError]       = useState<string | null>(null);
-  const [lastResult, setLastResult] = useState<{ requestId: number; playerName: string } | null>(null);
+  const [lastResult, setLastResult] = useState<{ requestId: number; playerName: string; expiresAt: string } | null>(null);
+  const [notifResult, setNotifResult] = useState<{ playerName: string; requestId: number; push: PushResult } | null>(null);
 
   const refreshHistory = async () => {
     try {
@@ -59,14 +72,15 @@ export function InterviewDeskTest() {
     })();
   }, []);
 
-  const fire = async () => {
+  const fire = async (endpoint: "test-fire" | "test-notification") => {
     if (!selected) return;
     const [triggerType, audience] = selected.split("::");
-    setLoading(true);
+    const setBusy = endpoint === "test-fire" ? setLoading : setNotifLoading;
+    setBusy(true);
     setError(null);
-    setLastResult(null);
+    if (endpoint === "test-fire") setLastResult(null); else setNotifResult(null);
     try {
-      const res = await fetch("/api/admin/interview-desk/test-fire", {
+      const res = await fetch(`/api/admin/interview-desk/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -77,24 +91,30 @@ export function InterviewDeskTest() {
       });
       const body = await res.json();
       if (res.ok && body.ok) {
-        setLastResult({ requestId: body.request.requestId, playerName: body.target.name });
-        toast({ title: "Test interview created" });
+        if (endpoint === "test-fire") {
+          setLastResult({ requestId: body.request.requestId, playerName: body.target.name, expiresAt: body.request.expiresAt });
+          toast({ title: "Test interview created" });
+        } else {
+          const push: PushResult = body.request.notification ?? { ok: false, detail: "No result returned." };
+          setNotifResult({ playerName: body.target.name, requestId: body.request.requestId, push });
+          toast({ title: push.ok ? "Test notification sent" : "Notification didn't deliver", variant: push.ok ? undefined : "destructive" });
+        }
         refreshHistory();
       } else {
-        setError(body.detail ?? body.error ?? "Failed to create test interview");
-        toast({ title: "Test-fire failed", variant: "destructive" });
+        setError(body.detail ?? body.error ?? "Something went wrong");
+        toast({ title: "Failed", variant: "destructive" });
       }
     } catch {
       setError("Couldn't reach the server.");
     }
-    setLoading(false);
+    setBusy(false);
   };
 
   return (
     <CollapsibleAdminSection title="Interview Desk (Test / Preview)" icon={Mic} accent="#0066ff">
       <div className="px-4 py-4 space-y-4">
         <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
-          Manually fires a test interview request so you can click through the real page and see the real question bank — nothing here is wired into real matches, achievements, or the season yet. This never sends a push notification.
+          Manually fires a test interview request so you can click through the real page and see the real question bank, or just send the "hosts want a word" push on its own to confirm delivery — nothing here is wired into real matches, achievements, or the season yet.
         </p>
 
         <div className="flex flex-wrap gap-3 items-end">
@@ -130,8 +150,8 @@ export function InterviewDeskTest() {
           </div>
 
           <button
-            onClick={fire}
-            disabled={loading || !selected}
+            onClick={() => fire("test-fire")}
+            disabled={loading || notifLoading || !selected}
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-sm uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50"
             style={{ background: loading ? "rgba(0,102,255,0.06)" : "rgba(0,102,255,0.14)", border: "1px solid rgba(0,102,255,0.35)", color: "#0066ff", fontFamily: "Oswald, sans-serif" }}
           >
@@ -139,6 +159,19 @@ export function InterviewDeskTest() {
               <><div className="w-3.5 h-3.5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#0066ff" }} />Firing…</>
             ) : (
               <><Send className="w-3.5 h-3.5" />Fire test interview</>
+            )}
+          </button>
+
+          <button
+            onClick={() => fire("test-notification")}
+            disabled={loading || notifLoading || !selected}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-sm uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50"
+            style={{ background: notifLoading ? "rgba(0,229,160,0.06)" : "rgba(0,229,160,0.12)", border: "1px solid rgba(0,229,160,0.3)", color: "#00e5a0", fontFamily: "Oswald, sans-serif" }}
+          >
+            {notifLoading ? (
+              <><div className="w-3.5 h-3.5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#00e5a0" }} />Sending…</>
+            ) : (
+              <><Bell className="w-3.5 h-3.5" />Send test notification</>
             )}
           </button>
         </div>
@@ -151,16 +184,44 @@ export function InterviewDeskTest() {
         )}
 
         {lastResult && (
-          <a
-            href={`/interview-desk/${lastResult.requestId}`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-bold w-fit"
-            style={{ background: "rgba(0,229,160,0.1)", border: "1px solid rgba(0,229,160,0.3)", color: "#00e5a0", fontFamily: "Oswald, sans-serif" }}
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={`/interview-desk/${lastResult.requestId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-bold w-fit"
+              style={{ background: "rgba(0,229,160,0.1)", border: "1px solid rgba(0,229,160,0.3)", color: "#00e5a0", fontFamily: "Oswald, sans-serif" }}
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Open as {lastResult.playerName} →
+            </a>
+            <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Closes in {expiresIn(lastResult.expiresAt)} — tied to the next scheduled episode, not a fixed countdown.
+            </span>
+          </div>
+        )}
+
+        {notifResult && (
+          <div
+            className="flex items-start gap-2 px-3 py-2.5 rounded-lg"
+            style={{
+              background: notifResult.push.ok ? "rgba(0,229,160,0.08)" : "rgba(255,210,74,0.08)",
+              border: `1px solid ${notifResult.push.ok ? "rgba(0,229,160,0.25)" : "rgba(255,210,74,0.25)"}`,
+            }}
           >
-            <ExternalLink className="w-3.5 h-3.5" />
-            Open as {lastResult.playerName} →
-          </a>
+            {notifResult.push.ok
+              ? <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#00e5a0" }} />
+              : <X className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#ffd24a" }} />}
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.65)", lineHeight: 1.5 }}>
+              {notifResult.push.ok
+                ? `Delivered to ${notifResult.playerName} — ${notifResult.push.sentTo} device${notifResult.push.sentTo === 1 ? "" : "s"}. Check for the banner.`
+                : (notifResult.push.detail ?? `Couldn't confirm delivery to ${notifResult.playerName}.`)}
+              {" "}
+              <a href={`/interview-desk/${notifResult.requestId}`} target="_blank" rel="noreferrer" style={{ color: "#0066ff", textDecoration: "underline" }}>
+                Open it anyway →
+              </a>
+            </div>
+          </div>
         )}
 
         {history.length > 0 && (

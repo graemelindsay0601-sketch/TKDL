@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { X, Bell, Trash2, Settings, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -31,6 +32,7 @@ interface NotificationPreferences {
 }
 
 export function NotificationCenter({ playerId }: { playerId: number }) {
+  const [, navigate] = useLocation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
   const [loading, setLoading] = useState(true);
@@ -133,6 +135,7 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
       post_liked: "Community",
       post_commented: "Community",
       auto_post_fired: "Community",
+      interview_invite: "Interview Desk",
     };
     return labels[type] || type;
   };
@@ -150,6 +153,7 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
       post_liked: "#22c55e",
       post_commented: "#22c55e",
       auto_post_fired: "#22c55e",
+      interview_invite: "#0066ff",
     };
     return colors[type] || "#9ca3af";
   };
@@ -339,6 +343,7 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
           notifications.map((notif) => (
             <div
               key={notif.id}
+              onClick={notif.data?.url ? () => { if (!notif.read) handleMarkRead(notif.id); navigate(notif.data!.url); } : undefined}
               style={{
                 background: notif.read ? "transparent" : "rgba(255,0,92,0.05)",
                 border: `1px solid rgba(${notif.read ? "255,255,255,0.1" : "255,0,92,0.3"})`,
@@ -349,6 +354,7 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
                 justifyContent: "space-between",
                 alignItems: "flex-start",
                 gap: "10px",
+                cursor: notif.data?.url ? "pointer" : "default",
               }}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -400,7 +406,7 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
               <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
                 {!notif.read && (
                   <button
-                    onClick={() => handleMarkRead(notif.id)}
+                    onClick={(e) => { e.stopPropagation(); handleMarkRead(notif.id); }}
                     style={{
                       background: "none",
                       border: "none",
@@ -416,7 +422,7 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
                   </button>
                 )}
                 <button
-                  onClick={() => handleDelete(notif.id)}
+                  onClick={(e) => { e.stopPropagation(); handleDelete(notif.id); }}
                   style={{
                     background: "none",
                     border: "none",
