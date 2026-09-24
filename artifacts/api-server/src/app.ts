@@ -79,15 +79,28 @@ import { playersTable, seasonsTable, matchesTable, seasonStandingsTable, setting
 import { eq, count, sql } from "drizzle-orm";
 
 // Configure VAPID keys for push notifications
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+//
+// This hardcoded "mailto:support@tkdl.local" subject — not the real
+// VAPID_EMAIL env var render.yaml has always asked for — is the actual
+// root cause behind push notifications failing on Apple's endpoint with
+// "BadJwtToken" (confirmed against real production logs, and matches a
+// well-documented class of bug: Apple validates the VAPID JWT's "sub"
+// claim strictly and rejects reserved/non-routable TLDs like .local or
+// .invalid, where Google's FCM is far more lenient and doesn't care).
+// The configured VAPID_EMAIL (a real mailto: address) was correct the
+// whole time — it just never actually got used. Now requiring all three
+// values together, matching this app's own existing all-or-nothing
+// pattern, so a missing VAPID_EMAIL fails loud instead of silently
+// falling back to another bad placeholder subject.
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_EMAIL) {
   webpush.setVapidDetails(
-    "mailto:support@tkdl.local",
+    process.env.VAPID_EMAIL,
     process.env.VAPID_PUBLIC_KEY,
     process.env.VAPID_PRIVATE_KEY
   );
   logger.info("Push notification VAPID keys configured");
 } else {
-  logger.warn("VAPID keys not configured - push notifications will not work");
+  logger.warn("VAPID keys not configured (need VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and VAPID_EMAIL all set) - push notifications will not work");
 }
 
 // Every admin-only action in the app (from the /admin page and every Card
