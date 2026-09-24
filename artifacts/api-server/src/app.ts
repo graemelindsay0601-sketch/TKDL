@@ -591,6 +591,42 @@ async function seedCommunityTables() {
   await db.execute(sql`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS data JSONB`);
   await db.execute(sql`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS "read" BOOLEAN NOT NULL DEFAULT false`);
   await db.execute(sql`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS clicked BOOLEAN NOT NULL DEFAULT false`);
+
+  // user_id: confirmed live via a production 500 — "null value in column
+  // \"user_id\" of relation \"notifications\" violates not-null constraint"
+  // — on an INSERT that only ever wrote player_id. Grepped the entire
+  // codebase: nothing reads or writes user_id anywhere. This table predates
+  // player-based auth entirely (see the legacy users/sessions tables this
+  // app.ts file also still creates, further down) — user_id is what every
+  // notification was keyed on before that migration, and it was left NOT
+  // NULL when player_id was added alongside it. Nothing has populated it
+  // since, so every insert from the current pipeline has been failing this
+  // constraint regardless of which columns the query itself got right.
+  // Wrapped separately so a database that genuinely never had this column
+  // (never had the pre-player-auth schema) doesn't take the rest of this
+  // function down with it.
+  try {
+    await db.execute(sql`ALTER TABLE notifications ALTER COLUMN user_id DROP NOT NULL`);
+    logger.info("notifications.user_id constraint relaxed (legacy pre-player-auth column, unused)");
+  } catch (e) {
+    logger.debug("notifications.user_id column doesn't exist or already nullable");
+  }
+
+  // One-time ground truth instead of another round of column-by-column
+  // guessing if anything is still wrong here: log the table's actual live
+  // shape. Cheap, safe to run every boot.
+  try {
+    const cols = await db.execute(sql`
+      SELECT column_name, is_nullable, column_default
+      FROM information_schema.columns
+      WHERE table_name = 'notifications'
+      ORDER BY ordinal_position
+    `);
+    logger.info({ columns: cols.rows }, "notifications table live schema");
+  } catch (e) {
+    logger.debug("Could not read notifications table schema for diagnostic logging");
+  }
+
   logger.info("Community tables ready");
 }
 
