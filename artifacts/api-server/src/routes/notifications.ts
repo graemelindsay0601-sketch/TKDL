@@ -166,6 +166,15 @@ const PushReceivedBody = z.object({
   notificationId: z.union([z.number(), z.string()]).optional(),
   title: z.string().optional(),
   swScriptUrl: z.string().optional(),
+  // zod's z.object() silently STRIPS any key not declared here before
+  // .safeParse() ever returns — these two were added to the service worker's
+  // ping payload (stage: "received"/"shown_ok"/"show_failed", plus error on
+  // failure) but never added here, so every log line for weeks has been
+  // showing the same 3 fields for every stage of every push, making it look
+  // like nothing was distinguishable when the real data was being thrown
+  // away before the logger ever saw it.
+  stage: z.string().optional(),
+  error: z.string().optional(),
 });
 router.post("/notifications/push-received", async (req, res): Promise<void> => {
   const parsed = PushReceivedBody.safeParse(req.body ?? {});
