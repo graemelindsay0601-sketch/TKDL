@@ -151,6 +151,31 @@ router.post("/notifications/test", async (req, res): Promise<void> => {
   }
 });
 
+// ── POST /notifications/push-received — the service worker calls this the
+// instant its own "push" event fires, before it even attempts
+// showNotification(). Diagnostic only, no auth (a service worker's fetch()
+// doesn't reliably carry session cookies, and this needs to work even when
+// nobody's logged in in the tab the worker is attached to) — exists purely
+// to answer one question definitively: does the push actually reach the
+// device at all? If this never logs after a test send that Apple/Google
+// accepted, the gap is between the push service and the device (OS-level
+// suppression, a stale/wrong service worker registration, etc) — not
+// anything this codebase controls. If it DOES log, the gap is narrower:
+// the device got it, but iOS didn't turn it into a visible banner. ─────────
+const PushReceivedBody = z.object({
+  notificationId: z.union([z.number(), z.string()]).optional(),
+  title: z.string().optional(),
+  swScriptUrl: z.string().optional(),
+});
+router.post("/notifications/push-received", async (req, res): Promise<void> => {
+  const parsed = PushReceivedBody.safeParse(req.body ?? {});
+  logger.info(
+    { body: parsed.success ? parsed.data : req.body, ua: req.headers["user-agent"] },
+    "Service worker reported a push event received on-device"
+  );
+  res.json({ ok: true });
+});
+
 // ── GET /notifications/vapid-public-key ──────────────────────────────────────
 router.get("/notifications/vapid-public-key", (_req, res): void => {
   const key = process.env.VAPID_PUBLIC_KEY ?? "";

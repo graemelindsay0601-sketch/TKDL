@@ -3,8 +3,8 @@
  * Handles web push notifications, offline support, and caching
  */
 
-const CACHE_NAME = "tkdl-v3";
-const API_CACHE = "tkdl-api-v3";
+const CACHE_NAME = "tkdl-v4";
+const API_CACHE = "tkdl-api-v4";
 
 // Files to cache for offline support
 const STATIC_ASSETS = [
@@ -122,6 +122,10 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("push", (event) => {
   if (!event.data) {
     console.log("Push received but no data");
+    // Still report the ping even with no payload — the question this
+    // answers is "did a push event fire on this device at all", which is
+    // true here regardless of payload.
+    event.waitUntil(reportPushReceived({}));
     return;
   }
 
@@ -159,10 +163,26 @@ self.addEventListener("push", (event) => {
     },
   };
 
+  // Diagnostic ping fires in parallel with the actual notification, and
+  // neither one can block or fail the other — this is purely "did we get
+  // this far", not a dependency of showing the notification itself.
   event.waitUntil(
-    self.registration.showNotification(title, options)
+    Promise.allSettled([
+      reportPushReceived({ notificationId: data.notificationId, title }),
+      self.registration.showNotification(title, options),
+    ])
   );
 });
+
+function reportPushReceived(details) {
+  return fetch("/api/notifications/push-received", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...details, swScriptUrl: self.location.href }),
+  }).catch(() => {
+    // Nothing to do if this fails — it's a diagnostic, not core behavior.
+  });
+}
 
 // Handle notification clicks
 self.addEventListener("notificationclick", (event) => {
