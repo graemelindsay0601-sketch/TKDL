@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { sendTestNotification } from "../services/notificationService";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -139,7 +140,14 @@ router.post("/notifications/test", async (req, res): Promise<void> => {
     const result = await sendTestNotification(playerId);
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ ok: false, reason: "server_error", detail: err?.message ?? String(err) });
+    // Drizzle wraps the real driver error in a generic "Failed query: ..."
+    // message and puts the actual Postgres error (missing table, missing
+    // column, permission denied, whatever it really is) on err.cause —
+    // this was only ever surfacing the useless wrapper text to whoever
+    // clicked the button, not the reason.
+    const detail = err?.cause?.message ?? err?.message ?? String(err);
+    logger.error({ err }, "POST /notifications/test failed");
+    res.status(500).json({ ok: false, reason: "server_error", detail });
   }
 });
 

@@ -511,8 +511,12 @@ router.post("/admin/test-comms", requireAdminSession, async (req, res): Promise<
 
     res.json({ ok: true, target: { id: target.id, name: target.name }, push });
   } catch (err: any) {
+    // See routes/notifications.ts's own version of this fix — Drizzle
+    // wraps the real Postgres error in a generic "Failed query: ..."
+    // message and puts the actual reason on err.cause.
+    const detail = err?.cause?.message ?? err?.message ?? String(err);
     req.log.error({ err }, "POST /admin/test-comms failed");
-    res.status(500).json({ error: "Failed to send test comms", detail: err?.message ?? String(err) });
+    res.status(500).json({ error: "Failed to send test comms", detail });
   }
 });
 

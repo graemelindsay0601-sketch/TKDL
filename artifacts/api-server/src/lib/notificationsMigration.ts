@@ -24,6 +24,46 @@ export async function seedNotificationTables() {
       )
     `);
 
+    // push_enabled / match_results / rank_changes / coach_tips /
+    // announcements / private_mode — these six were ONLY ever in the
+    // CREATE TABLE statement above, unlike every column below this comment
+    // which each got its own explicit ALTER TABLE ADD COLUMN IF NOT EXISTS.
+    // CREATE TABLE IF NOT EXISTS is a no-op the moment the table already
+    // exists — it does NOT add columns to a pre-existing table — so on any
+    // database where notification_preferences was first created by an
+    // older, smaller version of this schema, these six columns were never
+    // actually added. That's exactly what production hit: "column
+    // \"match_results\" does not exist" on a table that had existed for a
+    // while, 500ing GET/PATCH /players/:id/notification-prefs and
+    // sendTestNotification's own preference check. Giving every column the
+    // same idempotent guarantee, not just the ones that happened to get
+    // retrofitted after the fact, so this class of bug can't recur when the
+    // next new preference column gets added.
+    await db.execute(sql`
+      ALTER TABLE notification_preferences
+        ADD COLUMN IF NOT EXISTS push_enabled BOOLEAN DEFAULT true
+    `);
+    await db.execute(sql`
+      ALTER TABLE notification_preferences
+        ADD COLUMN IF NOT EXISTS match_results BOOLEAN DEFAULT true
+    `);
+    await db.execute(sql`
+      ALTER TABLE notification_preferences
+        ADD COLUMN IF NOT EXISTS rank_changes BOOLEAN DEFAULT true
+    `);
+    await db.execute(sql`
+      ALTER TABLE notification_preferences
+        ADD COLUMN IF NOT EXISTS coach_tips BOOLEAN DEFAULT true
+    `);
+    await db.execute(sql`
+      ALTER TABLE notification_preferences
+        ADD COLUMN IF NOT EXISTS announcements BOOLEAN DEFAULT true
+    `);
+    await db.execute(sql`
+      ALTER TABLE notification_preferences
+        ADD COLUMN IF NOT EXISTS private_mode BOOLEAN DEFAULT false
+    `);
+
     // threat_alerts on an existing (already-created) table — see the
     // ADD COLUMN IF NOT EXISTS pattern used for the notifications table
     // below. Threat alerts ("X is closing in on your rank") used to be
