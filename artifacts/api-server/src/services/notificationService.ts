@@ -22,6 +22,9 @@ export interface NotificationPayload {
     | "match_result" | "rank_change" | "threat_alert" | "coach_tip" | "announcement"
     | "dm_received" | "achievement_unlocked"
     | "post_approved" | "post_liked" | "post_commented" | "auto_post_fired"
+    // Off the Oche (community tab) additions — an @mention in a post/comment,
+    // and the weekly Top of the Board coin-reward payout.
+    | "post_mentioned" | "top_post_reward"
     // Interview Desk (test/preview — see routes/interview-desk.ts's header).
     // Time-boxed like threat_alert: the request expires once the live
     // window it was asked for has passed, so it needs to actually reach the

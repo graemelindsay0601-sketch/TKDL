@@ -54,17 +54,100 @@ async function featureEnabled(req: any, key: string): Promise<boolean> {
   } catch { return false; }
 }
 
+// ── @mentions ─────────────────────────────────────────────────────────────
+// Deliberately conservative: a "@token" resolves only when it matches
+// exactly one player's full name with spaces/underscores stripped and both
+// sides lowercased ("@JohnSmith" / "@john_smith" both match "John Smith").
+// A token matching nobody, or matching more than one player because two
+// names collide once stripped, is left as plain "@text" rather than guessed
+// at — better to under-mention than to link or notify the wrong person.
+const MENTION_TOKEN = /@([A-Za-z0-9_]{2,40})/g;
+function normalizeMentionKey(s: string): string {
+  return s.toLowerCase().replace(/[_\s]/g, "");
+}
+async function resolveMentions(content: string): Promise<{ id: number; name: string }[]> {
+  const tokens = Array.from(new Set(Array.from(content.matchAll(MENTION_TOKEN)).map(m => m[1])));
+  if (tokens.length === 0) return [];
+
+  // Small league, small player table — fine to pull every name into JS and
+  // match there rather than build a fuzzy SQL match, same reasoning as the
+  // who-reacted grouping above.
+  const players = (await db.execute(sql`SELECT id, name FROM players`)).rows as { id: number; name: string }[];
+  const byKey = new Map<string, { id: number; name: string }[]>();
+  for (const p of players) {
+    const key = normalizeMentionKey(p.name);
+    const bucket = byKey.get(key);
+    if (bucket) bucket.push(p); else byKey.set(key, [p]);
+  }
+
+  const resolved = new Map<number, { id: number; name: string }>();
+  for (const token of tokens) {
+    const matches = byKey.get(normalizeMentionKey(token));
+    if (matches && matches.length === 1) resolved.set(matches[0].id, matches[0]);
+  }
+  return Array.from(resolved.values());
+}
+
+// Notifies newly-mentioned players that a post they're mentioned in is now
+// actually visible — called once a post becomes 'approved' (first approval,
+// or a re-approval after an edit), and separately for the isAdmin-edit path
+// where an already-approved post's mentions change without a fresh
+// approval. Never notifies the author mentioning themself.
+async function notifyMentions(mentionedIds: number[], postId: number, authorId: number): Promise<void> {
+  const targets = mentionedIds.filter(id => id !== authorId);
+  if (targets.length === 0) return;
+  const actor = (await db.execute(sql`SELECT name FROM players WHERE id = ${authorId}`)).rows[0] as any;
+  for (const targetId of targets) {
+    void createNotification({
+      playerId: targetId,
+      type: "post_mentioned",
+      actorId: authorId,
+      entityId: postId,
+      entityType: "post",
+      message: `${actor?.name ?? "Someone"} mentioned you in a post`,
+    });
+  }
+}
+
 // ── GET /community/posts ─────────────────────────────────────────────────────
+// post_type = 'manual' only, as of 2026-09-24 — this feed used to show every
+// approved post, auto-generated ones included (routine match results, tier
+// changes, eliminations, doubles/team/shift-wars results — all fired by
+// createAutoPost() in lib/communityNotify.ts). That made a page meant to be
+// a social space read as a spam log of match results with no real signal.
+// Auto-posts are still written to this same table exactly as before — this
+// only changes what the standalone Community page reads. The Hub's own
+// "League Pulse" feed (GET /hub/pulse) deliberately still reads every
+// approved post regardless of type, so nothing is lost: this app's
+// auto-generated activity now surfaces only on the Hub, and this page is
+// purely what real people actually posted.
 router.get("/community/posts", async (req, res): Promise<void> => {
   try {
-    const limit        = Math.min(Number(req.query.limit)  || 20, 100);
-    const offset       = Math.max(Number(req.query.offset) || 0,  0);
-    const myPlayerId   = sessionPlayerId(req);
-    const filterPlayer = req.query.player_id ? Number(req.query.player_id) : null;
-    const photoOnly    = req.query.photo_only === "true";
+    const limit         = Math.min(Number(req.query.limit)  || 20, 100);
+    const offset        = Math.max(Number(req.query.offset) || 0,  0);
+    const myPlayerId    = sessionPlayerId(req);
+    const filterPlayer  = req.query.player_id ? Number(req.query.player_id) : null;
+    const photoOnly     = req.query.photo_only === "true";
+    const search        = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 100) : "";
+    const bookmarkedOnly = req.query.bookmarked_only === "true";
+
+    // "Saved" tab — a bookmarked-only view of the feed. Signed out (or
+    // somehow no player id) can't have bookmarks, so there's nothing to
+    // show rather than an error.
+    if (bookmarkedOnly && !myPlayerId) { res.json([]); return; }
 
     const playerFilter = filterPlayer ? sql`AND cp.player_id = ${filterPlayer}` : sql``;
+    const bookmarkFilter = bookmarkedOnly
+      ? sql`AND cp.id IN (SELECT post_id FROM post_bookmarks WHERE player_id = ${myPlayerId})`
+      : sql``;
     const photoFilter  = photoOnly    ? sql`AND cp.photo_content_type IS NOT NULL` : sql``;
+    // Simple ILIKE over post content and the author's name — no full-text
+    // index, just enough to find "did someone post about X" in a feed this
+    // size. Revisit with a real search index if the feed ever gets big
+    // enough for ILIKE to show up in query time.
+    const searchFilter = search
+      ? sql`AND (cp.content ILIKE ${"%" + search + "%"} OR pl.name ILIKE ${"%" + search + "%"})`
+      : sql``;
 
     const rows = await db.execute(sql`
       SELECT
@@ -84,38 +167,52 @@ router.get("/community/posts", async (req, res): Promise<void> => {
         cp.post_type,
         cp.auto_meta,
         cp.status,
+        cp.pinned,
         cp.created_at,
         COALESCE(
           (SELECT jsonb_object_agg(emoji, cnt)
            FROM (SELECT emoji, COUNT(*) AS cnt FROM post_reactions WHERE post_id = cp.id GROUP BY emoji) sub),
           '{}'::jsonb
         ) AS reactions,
+        COALESCE(
+          (SELECT jsonb_agg(jsonb_build_object('id', m.id, 'name', m.name))
+           FROM players m WHERE m.id = ANY(cp.mentioned_player_ids)),
+          '[]'::jsonb
+        ) AS mentions,
         (SELECT COUNT(*)::int FROM post_comments WHERE post_id = cp.id) AS comment_count
       FROM community_posts cp
       JOIN players pl ON pl.id = cp.player_id
-      WHERE cp.status = 'approved'
+      WHERE cp.status = 'approved' AND cp.post_type = 'manual'
       ${playerFilter}
       ${photoFilter}
-      ORDER BY cp.created_at DESC
+      ${searchFilter}
+      ${bookmarkFilter}
+      ORDER BY cp.pinned DESC, cp.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `);
 
     const posts = rows.rows as any[];
     let myReactions: Record<number, string[]> = {};
+    let myBookmarks: Set<number> = new Set();
 
     if (myPlayerId && posts.length > 0) {
       const ids = posts.map(p => p.id as number);
+      const idsArray = sql`ARRAY[${sql.join(ids.map(id => sql`${id}`), sql`, `)}]::int[]`;
       const mr = await db.execute(sql`
         SELECT post_id, emoji FROM post_reactions
-        WHERE player_id = ${myPlayerId}
-          AND post_id = ANY(ARRAY[${sql.join(ids.map(id => sql`${id}`), sql`, `)}]::int[])
+        WHERE player_id = ${myPlayerId} AND post_id = ANY(${idsArray})
       `);
       for (const row of mr.rows as any[]) {
         (myReactions[row.post_id] ??= []).push(row.emoji);
       }
+      const bm = await db.execute(sql`
+        SELECT post_id FROM post_bookmarks
+        WHERE player_id = ${myPlayerId} AND post_id = ANY(${idsArray})
+      `);
+      myBookmarks = new Set((bm.rows as any[]).map(r => r.post_id as number));
     }
 
-    res.json(posts.map(p => ({ ...p, myReactions: myReactions[p.id] ?? [] })));
+    res.json(posts.map(p => ({ ...p, myReactions: myReactions[p.id] ?? [], myBookmarked: myBookmarks.has(p.id) })));
   } catch (err: any) {
     res.status(500).json({
       error: "community/posts failed",
@@ -123,6 +220,82 @@ router.get("/community/posts", async (req, res): Promise<void> => {
       cause: err?.cause?.message ?? String(err?.cause ?? ""),
       code: err?.code,
     });
+  }
+});
+
+// ── GET /community/wall-of-fame ──────────────────────────────────────────────
+// The all-time best of the feed — not a separate scoring system, the same
+// reaction-count + comment-count score the "Top of the board" client-side
+// sort already uses, just computed in SQL across every approved manual post
+// ever made instead of only whatever's currently paged into the client.
+// Posts alias scores can't be referenced in a WHERE clause in the same
+// SELECT that defines them (Postgres evaluates WHERE before the SELECT
+// list), hence the `scored` CTE below.
+router.get("/community/wall-of-fame", async (req, res): Promise<void> => {
+  try {
+    const rows = await db.execute(sql`
+      WITH scored AS (
+        SELECT cp.id, cp.player_id, cp.content, cp.photo_content_type, cp.created_at,
+               COALESCE(r.reaction_count, 0)::int AS reaction_count,
+               COALESCE(c.comment_count, 0)::int  AS comment_count
+        FROM community_posts cp
+        LEFT JOIN (SELECT post_id, COUNT(*) AS reaction_count FROM post_reactions GROUP BY post_id) r ON r.post_id = cp.id
+        LEFT JOIN (SELECT post_id, COUNT(*) AS comment_count  FROM post_comments  GROUP BY post_id) c ON c.post_id = cp.id
+        WHERE cp.status = 'approved' AND cp.post_type = 'manual'
+      )
+      SELECT s.id, s.player_id, pl.name AS player_name,
+             CASE WHEN pl.elo >= 1400 THEN 'Diamond'
+                  WHEN pl.elo >= 1250 THEN 'Platinum'
+                  WHEN pl.elo >= 1100 THEN 'Gold'
+                  WHEN pl.elo >= 950  THEN 'Silver'
+                  ELSE 'Bronze' END AS player_tier,
+             pl.equipped_name_style_id AS player_name_style_id,
+             pl.current_win_streak AS player_win_streak,
+             s.content, s.photo_content_type, s.created_at,
+             s.reaction_count, s.comment_count,
+             (s.reaction_count + s.comment_count) AS score
+      FROM scored s
+      JOIN players pl ON pl.id = s.player_id
+      WHERE (s.reaction_count + s.comment_count) > 0
+      ORDER BY (s.reaction_count + s.comment_count) DESC, s.created_at DESC
+      LIMIT 8
+    `);
+    res.json(rows.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: "wall-of-fame failed", message: err?.message ?? String(err) });
+  }
+});
+
+// ── GET /community/throwback — "this day last year" ─────────────────────────
+// A fuzzy ±3 day window around exactly 365 days ago rather than an exact
+// date match — a league this size won't reliably have a post on the literal
+// calendar day, but something from "around this time last year" still lands
+// as a throwback. Picks whichever approved manual post in that window sits
+// closest to the 365-day mark; returns null (not a 404) when nothing's
+// there, since "no throwback today" is a perfectly normal, expected answer,
+// not an error.
+router.get("/community/throwback", async (req, res): Promise<void> => {
+  try {
+    const rows = await db.execute(sql`
+      SELECT cp.id, cp.player_id, pl.name AS player_name,
+             CASE WHEN pl.elo >= 1400 THEN 'Diamond'
+                  WHEN pl.elo >= 1250 THEN 'Platinum'
+                  WHEN pl.elo >= 1100 THEN 'Gold'
+                  WHEN pl.elo >= 950  THEN 'Silver'
+                  ELSE 'Bronze' END AS player_tier,
+             pl.equipped_name_style_id AS player_name_style_id,
+             pl.current_win_streak AS player_win_streak,
+             cp.content, cp.photo_content_type, cp.created_at
+      FROM community_posts cp
+      JOIN players pl ON pl.id = cp.player_id
+      WHERE cp.status = 'approved' AND cp.post_type = 'manual'
+        AND cp.created_at BETWEEN (NOW() - INTERVAL '368 days') AND (NOW() - INTERVAL '362 days')
+      ORDER BY ABS(EXTRACT(EPOCH FROM (cp.created_at - (NOW() - INTERVAL '365 days')))) ASC
+      LIMIT 1
+    `);
+    res.json(rows.rows[0] ?? null);
+  } catch (err: any) {
+    res.status(500).json({ error: "throwback failed", message: err?.message ?? String(err) });
   }
 });
 
@@ -165,16 +338,32 @@ router.post("/community/posts", authedWriteRateLimit, async (req, res): Promise<
     res.status(400).json({ error: "Content too long (max 1000 chars)" }); return;
   }
 
+  const trimmedContent = String(content).trim();
   const result = await db.execute(sql`
     INSERT INTO community_posts (player_id, content, photo_image, photo_content_type, post_type, status)
     VALUES (
-      ${playerId}, ${String(content).trim()},
+      ${playerId}, ${trimmedContent},
       ${photo === "none" ? null : photo.buffer}, ${photo === "none" ? null : photo.contentType},
       'manual', 'pending'
     )
     RETURNING id
   `);
-  res.status(201).json({ id: (result.rows[0] as any).id, status: "pending" });
+  const postId = (result.rows[0] as any).id as number;
+
+  // Resolved and stored now so it's ready the moment the post is approved
+  // (see the /approve route below, which is where mentioned players are
+  // actually notified — a still-pending post might yet be rejected, and a
+  // mention notification for content nobody will ever see would be
+  // confusing).
+  const mentions = await resolveMentions(trimmedContent);
+  if (mentions.length > 0) {
+    await db.execute(sql`
+      UPDATE community_posts SET mentioned_player_ids = ARRAY[${sql.join(mentions.map(m => sql`${m.id}`), sql`, `)}]::int[]
+      WHERE id = ${postId}
+    `);
+  }
+
+  res.status(201).json({ id: postId, status: "pending" });
 });
 
 // ── POST /community/auto-post — system trigger ────────────────────────────────
@@ -227,11 +416,12 @@ router.post("/community/posts/:id/approve", async (req, res): Promise<void> => {
   const result = await db.execute(sql`
     UPDATE community_posts SET status = 'approved', approved_at = NOW()
     WHERE id = ${id} AND status = 'pending'
-    RETURNING player_id
+    RETURNING player_id, mentioned_player_ids
   `);
   if (!result.rows.length) { res.status(404).json({ error: "Post not found or already approved" }); return; }
 
-  const authorId = (result.rows[0] as any).player_id as number;
+  const row = result.rows[0] as any;
+  const authorId = row.player_id as number;
   void createNotification({
     playerId: authorId,
     type: "post_approved",
@@ -239,6 +429,7 @@ router.post("/community/posts/:id/approve", async (req, res): Promise<void> => {
     entityType: "post",
     message: "Your post was approved! 🎉",
   });
+  void notifyMentions((row.mentioned_player_ids ?? []) as number[], id, authorId);
   res.json({ ok: true });
 });
 
@@ -248,6 +439,41 @@ router.post("/community/posts/:id/reject", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.execute(sql`UPDATE community_posts SET status = 'rejected' WHERE id = ${id}`);
+  res.json({ ok: true });
+});
+
+// ── POST /community/posts/:id/pin — admin ────────────────────────────────────
+// A separate mechanic from the "Top of the board" highlights (which is just
+// a client-side sort of whatever's already loaded, by real reaction/comment
+// counts). Pinning is a deliberate admin action — a committee announcement,
+// a signup sheet — that stays at the top of the feed regardless of
+// engagement, until an admin unpins it. Only approved manual posts can be
+// pinned; pinning something still awaiting moderation would surface
+// unreviewed content at the top of the feed.
+router.post("/community/posts/:id/pin", async (req, res): Promise<void> => {
+  if (!sessionIsAdmin(req)) { res.status(403).json({ error: "Admin required" }); return; }
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const result = await db.execute(sql`
+    UPDATE community_posts SET pinned = TRUE, pinned_at = NOW()
+    WHERE id = ${id} AND status = 'approved' AND post_type = 'manual'
+    RETURNING id
+  `);
+  if (!result.rows.length) { res.status(404).json({ error: "Post not found or not eligible to pin" }); return; }
+  res.json({ ok: true });
+});
+
+// ── POST /community/posts/:id/unpin — admin ──────────────────────────────────
+router.post("/community/posts/:id/unpin", async (req, res): Promise<void> => {
+  if (!sessionIsAdmin(req)) { res.status(403).json({ error: "Admin required" }); return; }
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const result = await db.execute(sql`
+    UPDATE community_posts SET pinned = FALSE, pinned_at = NULL
+    WHERE id = ${id}
+    RETURNING id
+  `);
+  if (!result.rows.length) { res.status(404).json({ error: "Post not found" }); return; }
   res.json({ ok: true });
 });
 
@@ -272,24 +498,47 @@ router.patch("/community/posts/:id", async (req, res): Promise<void> => {
   const { content } = req.body as { content?: string };
   if (!content?.trim()) { res.status(400).json({ error: "Content required" }); return; }
 
-  const post = (await db.execute(sql`SELECT player_id, post_type, status FROM community_posts WHERE id = ${id}`)).rows[0] as any;
+  const post = (await db.execute(sql`SELECT player_id, post_type, status, mentioned_player_ids FROM community_posts WHERE id = ${id}`)).rows[0] as any;
   if (!post) { res.status(404).json({ error: "Post not found" }); return; }
   if (!isAdmin && post.player_id !== playerId) { res.status(403).json({ error: "Not your post" }); return; }
   if (!isAdmin && post.post_type !== "manual") {
     res.status(403).json({ error: "Auto-generated posts can't be edited" }); return;
   }
 
+  const trimmed = content.trim();
+  const newMentions = await resolveMentions(trimmed);
+  const newMentionIds = newMentions.map(m => m.id);
+  const mentionsArraySql = newMentionIds.length > 0
+    ? sql`ARRAY[${sql.join(newMentionIds.map(mid => sql`${mid}`), sql`, `)}]::int[]`
+    : sql`ARRAY[]::int[]`;
+
   if (!isAdmin && post.status === "approved") {
     await db.execute(sql`
       UPDATE community_posts
-      SET content = ${content.trim()}, status = 'pending', approved_at = NULL
+      SET content = ${trimmed}, status = 'pending', approved_at = NULL, mentioned_player_ids = ${mentionsArraySql}
       WHERE id = ${id}
     `);
+    // Mentions notify when this comes back out of pending via /approve, not
+    // here — same reasoning as a brand-new post.
     res.json({ ok: true, status: "pending" });
     return;
   }
 
-  await db.execute(sql`UPDATE community_posts SET content = ${content.trim()} WHERE id = ${id}`);
+  await db.execute(sql`
+    UPDATE community_posts SET content = ${trimmed}, mentioned_player_ids = ${mentionsArraySql} WHERE id = ${id}
+  `);
+
+  // This path (admin editing any post, including one that's already live)
+  // never goes through /approve again, so it's the one place a newly-added
+  // mention on an already-approved post needs to notify directly. Diffed
+  // against what was mentioned before so a routine typo-fix edit doesn't
+  // re-notify everyone who was already mentioned.
+  if (post.status === "approved") {
+    const priorIds = new Set<number>((post.mentioned_player_ids ?? []) as number[]);
+    const freshIds = newMentionIds.filter(mid => !priorIds.has(mid));
+    void notifyMentions(freshIds, id, post.player_id);
+  }
+
   res.json({ ok: true });
 });
 
@@ -319,7 +568,17 @@ router.delete("/community/posts/:id", async (req, res): Promise<void> => {
 });
 
 // ── POST /community/posts/:id/react ──────────────────────────────────────────
-const ALLOWED_EMOJI = ["👍", "❤️", "😂", "🎯", "🏆"];
+// Reuses the same free-text post_reactions.emoji TEXT column for a second,
+// visually-distinct row of darts-themed "sticker" reactions — deliberately
+// NOT gated behind the purchasable STICKER cosmetics/ownership system (see
+// lib/cosmetics.ts), which would need an extra ownership check on every
+// react call. This is a flat, free set anyone can use; a cosmetic-gated
+// version is a possible future enhancement, not this one. Grouping/counting
+// in GET /community/posts already works generically off whatever string is
+// in this column, so no other backend change is needed to support these.
+const BASE_EMOJI    = ["👍", "❤️", "😂", "🎯", "🏆"];
+const STICKER_EMOJI = ["🎯 BULLSEYE", "🔥 ON FIRE", "💥 180!", "🍀 LUCKY", "🤝 GG"];
+const ALLOWED_EMOJI = [...BASE_EMOJI, ...STICKER_EMOJI];
 
 router.post("/community/posts/:id/react", authedWriteRateLimit, async (req, res): Promise<void> => {
   if (!await featureEnabled(req, "community_enabled") && !sessionIsAdmin(req)) {
@@ -378,6 +637,56 @@ router.post("/community/posts/:id/react", authedWriteRateLimit, async (req, res)
     }
   }
   res.json({ toggled: wasAdded });
+});
+
+// ── POST /community/posts/:id/bookmark — toggle, private per-player ──────────
+// Same race-free single-statement toggle as /react above. Bookmarks are
+// never shown to anyone but the player who made them (no notification, no
+// "who saved this" — unlike reactions, which are public), so this doesn't
+// need to check post ownership or fire any notification.
+router.post("/community/posts/:id/bookmark", authedWriteRateLimit, async (req, res): Promise<void> => {
+  const playerId = requireAuth(req, res);
+  if (!playerId) return;
+
+  const postId = Number(req.params.id);
+  if (isNaN(postId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const toggled = await db.execute(sql`
+    WITH del AS (
+      DELETE FROM post_bookmarks
+      WHERE post_id = ${postId} AND player_id = ${playerId}
+      RETURNING id
+    ), ins AS (
+      INSERT INTO post_bookmarks (post_id, player_id)
+      SELECT ${postId}, ${playerId}
+      WHERE NOT EXISTS (SELECT 1 FROM del)
+      RETURNING id
+    )
+    SELECT (SELECT COUNT(*) FROM ins)::int AS inserted_count
+  `);
+  res.json({ bookmarked: (toggled.rows[0] as any).inserted_count > 0 });
+});
+
+// ── GET /community/posts/:id/reactions — who reacted ─────────────────────────
+// Returns every reaction on the post grouped by emoji, each with the names of
+// who reacted — backs the "tap a reaction to see who" feature. Small feed,
+// small reaction counts per post, so one query grouped in JS is simpler than
+// pushing the grouping into SQL and fine at this scale.
+router.get("/community/posts/:id/reactions", async (req, res): Promise<void> => {
+  const postId = Number(req.params.id);
+  if (isNaN(postId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const rows = await db.execute(sql`
+    SELECT pr.emoji, pr.player_id, pl.name AS player_name
+    FROM post_reactions pr
+    JOIN players pl ON pl.id = pr.player_id
+    WHERE pr.post_id = ${postId}
+    ORDER BY pr.id ASC
+  `);
+  const byEmoji: Record<string, { player_id: number; player_name: string }[]> = {};
+  for (const row of rows.rows as any[]) {
+    (byEmoji[row.emoji] ??= []).push({ player_id: row.player_id, player_name: row.player_name });
+  }
+  res.json(byEmoji);
 });
 
 // ── GET /community/posts/:id/comments ────────────────────────────────────────

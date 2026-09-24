@@ -25,6 +25,9 @@ import { initializeInterviewDeskTables, seedInterviewQuestionBank } from "./lib/
 import { addPlayerAvatarImage } from "./db/migrations/add_player_avatar_image";
 import { addDirectMessagePhotoImage } from "./db/migrations/add_direct_message_photo_image";
 import { addCommunityPostPhotoImage } from "./db/migrations/add_community_post_photo_image";
+import { addCommunityPostPin } from "./db/migrations/add_community_post_pin";
+import { addCommunityPostMentions } from "./db/migrations/add_community_post_mentions";
+import { addCommunityPostBookmarks } from "./db/migrations/add_community_post_bookmarks";
 import { initializeCardTables, initializeFeatureFlags, initializeFeaturedCardShopTables } from "./lib/cardTablesMigration";
 import { addFavoritesColumn } from "./db/migrations/add_favorites";
 import { apiRateLimit } from "./middleware/apiRateLimit";
@@ -75,6 +78,7 @@ import { challengeService } from "./services/challenge-service";
 import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
 import { initializeRankSnapshotScheduler } from "./services/rankSnapshotScheduler";
 import { initializeFeaturedCardScheduler } from "./services/featured-card-shop-service";
+import { initializeCommunityTopPostScheduler } from "./services/communityTopPostScheduler";
 import webpush from "web-push";
 import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
 import bcrypt from "bcryptjs";
@@ -1312,6 +1316,9 @@ async function init() {
   await runInitStep("addPlayerAvatarImage", addPlayerAvatarImage);
   await runInitStep("addDirectMessagePhotoImage", addDirectMessagePhotoImage);
   await runInitStep("addCommunityPostPhotoImage", addCommunityPostPhotoImage);
+  await runInitStep("addCommunityPostPin", addCommunityPostPin);
+  await runInitStep("addCommunityPostMentions", addCommunityPostMentions);
+  await runInitStep("addCommunityPostBookmarks", addCommunityPostBookmarks);
 
   // Add performance indexes (CRITICAL for query speed)
   await runInitStep("addPerformanceIndexes", addPerformanceIndexes);
@@ -1387,6 +1394,7 @@ async function init() {
   await runInitStep("initializeCoachTipsScheduler", initializeCoachTipsScheduler);
   await runInitStep("initializeRankSnapshotScheduler", initializeRankSnapshotScheduler);
   await runInitStep("initializeFeaturedCardScheduler", initializeFeaturedCardScheduler);
+  await runInitStep("initializeCommunityTopPostScheduler", initializeCommunityTopPostScheduler);
   await runInitStep("initializeSeasonResetScheduler", initializeSeasonResetScheduler);
   await runInitStep("seedSessions", seedSessions);
   await runInitStep("seedUsers", seedUsers);

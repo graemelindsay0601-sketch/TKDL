@@ -10,7 +10,7 @@ const hubNav = [
   { href: "/",             label: "Hub",          icon: LayoutDashboard },
 ];
 const communityNav = [
-  { href: "/community",    label: "Community",    icon: MessageSquare   },
+  { href: "/community",    label: "Off the Oche", icon: MessageSquare   },
 ];
 const playNav = [
   { href: "/submit",       label: "Submit Match", icon: Plus            },
@@ -311,7 +311,7 @@ export function Layout({ children }: { children: ReactNode }) {
   // as the rest isn't a change to the feature, just to this row's paint.
   const NAV_SECTIONS: Array<{ key: string; label: string; items: NavItem[]; color: string; show: boolean }> = [
     { key: "hub",          label: "Hub",          items: hubNav,               color: "#0066ff", show: true },
-    { key: "community",    label: "Community",    items: communityNav,         color: "#22c55e", show: communityEnabled || !!authUser?.isAdmin },
+    { key: "community",    label: "Off the Oche", items: communityNav,         color: "#22c55e", show: communityEnabled || !!authUser?.isAdmin },
     { key: "play",         label: "Play",         items: dynamicPlayNav,       color: "#ff005c", show: dynamicPlayNav.length > 0 },
     { key: "practice",     label: "Practice",     items: practiceNav,          color: "#00e5a0", show: true },
     { key: "tour",         label: "Tour Mode",    items: tourModeNav,          color: "#6366f1", show: true },

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAuth } from "@/context/auth";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { MessageSquare, Image as ImageIcon, Send, X, Heart, ChevronDown, ChevronUp, Clock, CheckCircle, AlertCircle, Pencil, Flame, Trophy, Users, ArrowUpDown } from "lucide-react";
+import { MessageSquare, Image as ImageIcon, Send, X, Clock, CheckCircle, AlertCircle, Pencil, Flame, Trophy, Users, ArrowUpDown, Pin, Search, Eye, Bookmark } from "lucide-react";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, postAccentStyle } from "@/lib/cosmetics";
 
 const TIER_COLORS: Record<string, string> = {
@@ -10,7 +10,61 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 const EMOJIS = ["👍", "❤️", "😂", "🎯", "🏆"] as const;
+// Darts-themed "sticker" reactions — a second, visually distinct row next
+// to the plain emoji pills. Must match ALLOWED_EMOJI's STICKER_EMOJI in
+// routes/community.ts exactly (case-sensitive string match server-side).
+const STICKERS = ["🎯 BULLSEYE", "🔥 ON FIRE", "💥 180!", "🍀 LUCKY", "🤝 GG"] as const;
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+
+// Quick-post templates — chip buttons in the expanded composer that just
+// prefill createText with a starting line; never posts anything on their
+// own. Purely a typing head-start for the common shapes of post this feed
+// actually sees.
+const QUICK_POST_TEMPLATES = [
+  { label: "Match result",  text: "🏆 Match result: " },
+  { label: "Session recap", text: "🎯 Tonight's session: " },
+  { label: "Funny moment",  text: "😅 Story of the night: " },
+  { label: "Looking for a game", text: "📅 Who's up for a practice night? " },
+  { label: "Shoutout",      text: "🙌 Shoutout to " },
+] as const;
+
+// Mirrors the backend's resolveMentions() in routes/community.ts — same
+// token shape and same normalize-then-compare rule — so a mention the
+// server resolved (returned in post.mentions) reliably matches back up
+// with the literal "@token" substring that produced it, letting the
+// frontend turn only the resolved ones into profile links.
+const MENTION_TOKEN = /@([A-Za-z0-9_]{2,40})/g;
+function normalizeMentionKey(s: string): string {
+  return s.toLowerCase().replace(/[_\s]/g, "");
+}
+
+// Splits a post's content into plain text and profile-linked "@token"
+// pieces, using the (small) list of players the backend actually resolved
+// for this post — never guesses at a mention the backend didn't resolve.
+function renderPostContent(content: string, mentions: { id: number; name: string }[] | undefined): (string | JSX.Element)[] {
+  if (!mentions || mentions.length === 0) return [content];
+  const byKey = new Map(mentions.map(m => [normalizeMentionKey(m.name), m]));
+  const parts: (string | JSX.Element)[] = [];
+  let lastIndex = 0;
+  let key = 0;
+  MENTION_TOKEN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = MENTION_TOKEN.exec(content))) {
+    const target = byKey.get(normalizeMentionKey(match[1]));
+    if (target) {
+      if (match.index > lastIndex) parts.push(content.slice(lastIndex, match.index));
+      parts.push(
+        <Link key={`mention-${key++}`} href={`/players/${target.id}`}
+          className="font-semibold hover:underline" style={{ color: "#0066ff" }}>
+          @{match[1]}
+        </Link>
+      );
+      lastIndex = MENTION_TOKEN.lastIndex;
+    }
+  }
+  if (lastIndex < content.length) parts.push(content.slice(lastIndex));
+  return parts;
+}
 
 function relativeTime(ts: string): string {
   const diff = (Date.now() - new Date(ts).getTime()) / 1000;
@@ -75,16 +129,35 @@ type Post = {
   player_tier: string;
   content: string;
   photo_content_type: string | null;
-  post_type: string;
-  auto_meta: Record<string, unknown>;
   status: string;
+  pinned: boolean;
   created_at: string;
   reactions: Record<string, number>;
+  mentions?: { id: number; name: string }[];
   comment_count: number;
   myReactions: string[];
+  myBookmarked?: boolean;
   player_name_style_id: string | null;
   player_post_accent_id: string | null;
   player_win_streak: number;
+};
+
+// Shape returned by GET /community/wall-of-fame and GET /community/throwback
+// — a lighter-weight read-only post: no status/pinned/reactions-by-emoji/
+// myReactions, since neither view supports reacting/commenting/pinning
+// inline, just a static look back.
+type LookbackPost = {
+  id: number;
+  player_id: number;
+  player_name: string;
+  player_tier: string;
+  content: string;
+  photo_content_type: string | null;
+  created_at: string;
+  player_name_style_id: string | null;
+  player_win_streak: number;
+  reaction_count?: number;
+  comment_count?: number;
 };
 
 type Comment = {
@@ -137,39 +210,7 @@ function PlayerAvatar({ name, tier, size = 8 }: { name: string; tier: string; si
   );
 }
 
-// ── Auto-post event coloring ────────────────────────────────────────────────
-// Every system-generated post (post_type "auto") used to render identically
-// to every other one — same grey card, same green "AUTO" pill — whether it
-// was a routine match result or an elimination. The real event type already
-// lives in auto_meta.type (set in api-server/src/routes/matches.ts: "match",
-// "tier_up", "tier_drop", with loserEliminated flagged inside a "match"
-// post) — this just surfaces it visually instead of adding new event types.
-const AUTO_EVENT_STYLES: Record<string, { color: string; icon: string; label: string }> = {
-  elimination:      { color: "#ff005c", icon: "💀", label: "Elimination" },
-  match:             { color: "#22c55e", icon: "🎯", label: "Match" },
-  tier_up:           { color: "#ffd24a", icon: "🏆", label: "Tier Up" },
-  tier_drop:         { color: "#f97316", icon: "📉", label: "Tier Down" },
-  // Doubles/Team Matches/Shift Wars results didn't post to the feed at all
-  // until routes/doubles.ts, team-matches.ts and shift-wars.ts each started
-  // calling createAutoPost — without their own entries here they still fell
-  // through to the generic "⚡ Auto" style below, indistinguishable from
-  // each other and from a singles match.
-  doubles_match:     { color: "#0066ff", icon: "🎯", label: "Doubles" },
-  team_match:        { color: "#38bdf8", icon: "👥", label: "Team Match" },
-  shift_wars_match:  { color: "#22c55e", icon: "🏬", label: "Shift Wars" },
-};
-
-function autoEventStyle(post: Post): { color: string; icon: string; label: string } | null {
-  if (post.post_type !== "auto") return null;
-  const meta = (post.auto_meta ?? {}) as { type?: string; loserEliminated?: boolean; eliminatedIds?: number[] };
-  if (meta.type === "match" && meta.loserEliminated) return AUTO_EVENT_STYLES.elimination;
-  if (meta.type === "doubles_match" && meta.loserEliminated) return AUTO_EVENT_STYLES.elimination;
-  if (meta.type === "team_match" && Array.isArray(meta.eliminatedIds) && meta.eliminatedIds.length > 0) return AUTO_EVENT_STYLES.elimination;
-  if (meta.type && AUTO_EVENT_STYLES[meta.type]) return AUTO_EVENT_STYLES[meta.type];
-  return { color: "#00e5a0", icon: "⚡", label: "Auto" };
-}
-
-function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDelete, onRemovePhoto, onDeleteComment, onEdit }: {
+function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDelete, onRemovePhoto, onDeleteComment, onEdit, onPin, onUnpin, onBookmark }: {
   post: Post;
   onReact: (id: number, emoji: string) => void;
   onComment: (id: number, content: string) => void;
@@ -180,15 +221,25 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
   onRemovePhoto?: (id: number) => void;
   onDeleteComment?: (postId: number, commentId: number) => void;
   onEdit?: (id: number, content: string) => void;
+  onPin?: (id: number) => void;
+  onUnpin?: (id: number) => void;
+  onBookmark?: (id: number) => void;
 }) {
   const { user } = useAuth();
-  const [showComments, setShowComments]   = useState(false);
+  // Comments show inline — the first couple visible under the post by
+  // default, "View all" reveals the rest — instead of being hidden behind a
+  // click-to-expand toggle. Loaded once on mount rather than lazily, which
+  // is fine at this feed's scale (a club's worth of posts, not a firehose).
   const [comments, setComments]           = useState<Comment[] | null>(null);
+  const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [commentText, setCommentText]     = useState("");
   const [submittingComment, setSubmit]    = useState(false);
   const [editing, setEditing]             = useState(false);
   const [editText, setEditText]           = useState(post.content);
   const [saving, setSaving]               = useState(false);
+  const [reactors, setReactors]           = useState<Record<string, { player_id: number; player_name: string }[]> | null>(null);
+  const [showReactors, setShowReactors]   = useState(false);
+  const [pinning, setPinning]             = useState(false);
   const { toast } = useToast();
 
   const isOwner = !!user?.playerId && user.playerId === post.player_id;
@@ -219,9 +270,30 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
     if (r.ok) setComments(await r.json());
   }, [post.id]);
 
-  const toggleComments = () => {
-    if (!showComments && !comments) void loadComments();
-    setShowComments(v => !v);
+  useEffect(() => {
+    if (post.status !== "pending" && post.comment_count > 0) void loadComments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post.id]);
+
+  const loadReactors = async () => {
+    if (reactors) { setShowReactors(v => !v); return; }
+    const r = await fetch(`/api/community/posts/${post.id}/reactions`);
+    if (r.ok) { setReactors(await r.json()); setShowReactors(true); }
+  };
+
+  const togglePin = async () => {
+    setPinning(true);
+    try {
+      const r = await fetch(`/api/community/posts/${post.id}/${post.pinned ? "unpin" : "pin"}`, {
+        method: "POST", credentials: "include",
+      });
+      if (r.ok) {
+        (post.pinned ? onUnpin : onPin)?.(post.id);
+      } else {
+        const d = await r.json();
+        toast({ title: d.error ?? "Failed to update pin", variant: "destructive" });
+      }
+    } finally { setPinning(false); }
   };
 
   const submitComment = async (e: React.FormEvent) => {
@@ -245,24 +317,21 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
     } finally { setSubmit(false); }
   };
 
-  const tierCol = TIER_COLORS[post.player_tier] ?? "#9ca3af";
   const isPending = post.status === "pending";
-  const eventStyle = autoEventStyle(post);
   // POST_ACCENT cosmetic — a personal border/background tint on the
-  // author's own manual posts. Pending/auto-event posts already have their
-  // own colour treatment above (isPending / eventStyle), which takes
-  // precedence — a purchased accent never masks "awaiting approval" or an
-  // elimination/tier-change highlight.
+  // author's own post. Pending posts keep their own "awaiting approval"
+  // colour treatment above, which takes precedence — a purchased accent
+  // never masks that a post hasn't been moderated yet.
   const catalog = useCosmeticsCatalog();
-  const postAccent = !isPending && !eventStyle
+  const postAccent = !isPending
     ? postAccentStyle(catalog.find(c => c.id === post.player_post_accent_id))
     : {};
 
   return (
     <div id={`post-${post.id}`} className="rounded-2xl overflow-hidden scroll-mt-4"
       style={{
-        background: isPending ? "rgba(255,200,0,0.04)" : eventStyle ? `${eventStyle.color}0d` : "rgba(255,255,255,0.03)",
-        border: `1px solid ${isPending ? "rgba(255,200,0,0.2)" : eventStyle ? `${eventStyle.color}33` : "rgba(255,255,255,0.07)"}`,
+        background: isPending ? "rgba(255,200,0,0.04)" : "rgba(255,255,255,0.03)",
+        border: `1px solid ${isPending ? "rgba(255,200,0,0.2)" : post.pinned ? "rgba(255,210,74,0.35)" : "rgba(255,255,255,0.07)"}`,
         ...postAccent,
       }}>
 
@@ -288,37 +357,24 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
         </div>
       )}
 
+      {/* Pinned badge — a deliberate admin action, separate from the
+          algorithmic "Top of the board" highlights above the feed */}
+      {!isPending && post.pinned && (
+        <div className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold"
+          style={{ background: "rgba(255,210,74,0.06)", borderBottom: "1px solid rgba(255,210,74,0.15)", color: "#ffd24a", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
+          <Pin className="w-3.5 h-3.5" />PINNED
+        </div>
+      )}
+
       <div className="p-4">
         {/* Header */}
         <div className="flex items-start gap-3 mb-3">
-          {eventStyle ? (
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm"
-              style={{ background: `${eventStyle.color}22`, border: `1.5px solid ${eventStyle.color}66` }}>
-              {eventStyle.icon}
-            </div>
-          ) : (
-            <PlayerAvatar name={post.player_name} tier={post.player_tier} />
-          )}
+          <PlayerAvatar name={post.player_name} tier={post.player_tier} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              {eventStyle ? (
-                <Link href={`/players/${post.player_id}`} className="font-bold text-sm hover:underline decoration-dotted underline-offset-2"
-                  style={{ fontFamily: "Oswald, sans-serif", color: eventStyle.color, letterSpacing: "0.04em" }}>
-                  {post.player_name}
-                </Link>
-              ) : (
-                <PlayerName id={post.player_id} name={post.player_name} tier={post.player_tier}
-                  nameStyleId={post.player_name_style_id} winStreak={post.player_win_streak}
-                  className="text-sm" />
-              )}
-              <span className="text-xs px-1.5 py-0.5 rounded-md font-bold" style={{ background: `${tierCol}18`, border: `1px solid ${tierCol}40`, color: tierCol, fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em", fontSize: "0.55rem" }}>
-                {post.player_tier}
-              </span>
-              {eventStyle && (
-                <span className="text-xs px-1.5 py-0.5 rounded-md font-bold uppercase" style={{ background: `${eventStyle.color}1a`, border: `1px solid ${eventStyle.color}4d`, color: eventStyle.color, fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em", fontSize: "0.55rem" }}>
-                  {eventStyle.label}
-                </span>
-              )}
+              <PlayerName id={post.player_id} name={post.player_name} tier={post.player_tier}
+                nameStyleId={post.player_name_style_id} winStreak={post.player_win_streak}
+                className="text-sm" />
             </div>
             <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" }}>
               {relativeTime(post.created_at)}
@@ -331,6 +387,14 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
                 style={{ color: editing ? "#ffd24a" : "rgba(255,255,255,0.6)" }}
                 title="Edit post">
                 <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {isAdmin && !isPending && (
+              <button onClick={togglePin} disabled={pinning}
+                className="p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity disabled:opacity-20"
+                style={{ color: post.pinned ? "#ffd24a" : "rgba(255,255,255,0.6)" }}
+                title={post.pinned ? "Unpin post" : "Pin post"}>
+                <Pin className="w-3.5 h-3.5" fill={post.pinned ? "#ffd24a" : "none"} />
               </button>
             )}
             {isAdmin && !isPending && (
@@ -370,18 +434,18 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
           </div>
         ) : post.content ? (
           <p className="text-sm mb-3 leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>
-            {post.content}
+            {renderPostContent(post.content, post.mentions)}
           </p>
         ) : null}
 
         {/* Photo */}
         {post.photo_content_type && (
-          <div className="mb-3 rounded-xl overflow-hidden relative" style={{ maxHeight: 360 }}>
+          <div className="mb-3 rounded-xl overflow-hidden relative" style={{ maxHeight: 440 }}>
             <img src={`/api/community/posts/${post.id}/photo`} alt="Post photo"
               loading="lazy"
               decoding="async"
               className="w-full object-cover rounded-xl"
-              style={{ maxHeight: 360 }} />
+              style={{ maxHeight: 440 }} />
             {isAdmin && (
               <button onClick={() => onRemovePhoto?.(post.id)}
                 className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-opacity hover:opacity-90"
@@ -413,45 +477,106 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
               );
             })}
 
-            {/* Comment toggle */}
-            <button onClick={toggleComments}
-              className="ml-auto flex items-center gap-1.5 text-xs transition-colors"
-              style={{ color: showComments ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.25)" }}>
+            {/* Sticker reactions — same toggle mechanics as the plain emoji
+                pills above (same onReact/myReactions), styled distinctly
+                (mono type, gold-tinted) so they read as a separate,
+                collectible-feeling row rather than more of the same five
+                emoji. */}
+            {STICKERS.map(sticker => {
+              const count  = post.reactions[sticker] ?? 0;
+              const active = post.myReactions.includes(sticker);
+              return (
+                <button key={sticker} onClick={() => user ? onReact(post.id, sticker) : void 0}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-all duration-150 select-none"
+                  style={{
+                    fontFamily: "Share Tech Mono, monospace",
+                    background: active ? "rgba(255,210,74,0.15)" : "rgba(255,210,74,0.04)",
+                    border: `1px solid ${active ? "rgba(255,210,74,0.5)" : "rgba(255,210,74,0.18)"}`,
+                    color: active ? "#ffd24a" : count > 0 ? "rgba(255,210,74,0.7)" : "rgba(255,210,74,0.35)",
+                    cursor: user ? "pointer" : "default",
+                  }}>
+                  <span>{sticker}</span>
+                  {count > 0 && <span className="font-bold">{count}</span>}
+                </button>
+              );
+            })}
+
+            {/* Who reacted — a separate tap target from the reaction pills
+                above, so tapping an emoji still just toggles your own
+                reaction. Only shown once there's something to see. */}
+            {Object.values(post.reactions).some(c => c > 0) && (
+              <button onClick={loadReactors}
+                className="flex items-center gap-1 text-xs transition-colors"
+                style={{ color: showReactors ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.22)" }}
+                title="See who reacted">
+                <Eye className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            <span className="ml-auto flex items-center gap-1.5 text-xs"
+              style={{ color: "rgba(255,255,255,0.25)" }}>
               <MessageSquare className="w-3.5 h-3.5" />
               <span style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" }}>
-                {post.comment_count} {showComments ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />}
+                {post.comment_count}
               </span>
-            </button>
+            </span>
+
+            {user && (
+              <button onClick={() => onBookmark?.(post.id)}
+                className="transition-colors"
+                style={{ color: post.myBookmarked ? "#ffd24a" : "rgba(255,255,255,0.22)" }}
+                title={post.myBookmarked ? "Saved" : "Save post"}>
+                <Bookmark className="w-3.5 h-3.5" fill={post.myBookmarked ? "#ffd24a" : "none"} />
+              </button>
+            )}
           </div>
         )}
 
-        {/* Comments section */}
-        {showComments && (
+        {/* Who reacted panel */}
+        {!isPending && showReactors && reactors && (
+          <div className="mt-2 flex flex-col gap-1 rounded-xl p-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            {Object.entries(reactors).map(([emoji, people]) => (
+              <div key={emoji} className="text-xs flex items-start gap-1.5" style={{ color: "rgba(255,255,255,0.5)" }}>
+                <span>{emoji}</span>
+                <span>{people.map(p => p.player_name).join(", ")}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Comments — inline preview, not gated behind a click to expand */}
+        {!isPending && (post.comment_count > 0 || user) && (
           <div className="mt-3 space-y-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "0.75rem" }}>
             {comments === null ? (
-              <div className="text-xs text-center py-2" style={{ color: "rgba(255,255,255,0.3)" }}>Loading…</div>
-            ) : comments.length === 0 ? (
-              <div className="text-xs text-center py-2" style={{ color: "rgba(255,255,255,0.3)" }}>No comments yet</div>
-            ) : (
-              comments.map(c => (
-                <div key={c.id} className="flex gap-2 group">
-                  <PlayerAvatar name={c.player_name} tier={c.player_tier} size={6} />
-                  <div className="flex-1 min-w-0">
-                    <PlayerName id={c.player_id} name={c.player_name} tier={c.player_tier}
-                      nameStyleId={c.player_name_style_id} winStreak={c.player_win_streak}
-                      className="text-xs mr-2" />
-                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>{c.content}</span>
-                    <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>{relativeTime(c.created_at)}</div>
+              post.comment_count > 0 && <div className="text-xs text-center py-2" style={{ color: "rgba(255,255,255,0.3)" }}>Loading…</div>
+            ) : comments.length === 0 ? null : (
+              <>
+                {(commentsExpanded ? comments : comments.slice(0, 2)).map(c => (
+                  <div key={c.id} className="flex gap-2 group">
+                    <PlayerAvatar name={c.player_name} tier={c.player_tier} size={6} />
+                    <div className="flex-1 min-w-0">
+                      <PlayerName id={c.player_id} name={c.player_name} tier={c.player_tier}
+                        nameStyleId={c.player_name_style_id} winStreak={c.player_win_streak}
+                        className="text-xs mr-2" />
+                      <span className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>{c.content}</span>
+                      <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>{relativeTime(c.created_at)}</div>
+                    </div>
+                    {(isAdmin || c.player_id === user?.playerId) && (
+                      <button onClick={() => onDeleteComment?.(post.id, c.id)}
+                        className="shrink-0 p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
+                        style={{ color: "#ff005c" }} title="Delete comment">
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
-                  {(isAdmin || c.player_id === user?.playerId) && (
-                    <button onClick={() => onDeleteComment?.(post.id, c.id)}
-                      className="shrink-0 p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
-                      style={{ color: "#ff005c" }} title="Delete comment">
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              ))
+                ))}
+                {!commentsExpanded && comments.length > 2 && (
+                  <button onClick={() => setCommentsExpanded(true)}
+                    className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
+                    View all {comments.length} comments
+                  </button>
+                )}
+              </>
             )}
 
             {user && (
@@ -496,13 +621,39 @@ export default function CommunityPage() {
   const [submitting,   setSubmitting]   = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Feed tab / sort — filters and reorders whatever's already loaded in
-  // `posts`; it doesn't hit the network again, so "Photos" or "Mine" on a
-  // feed that hasn't loaded far enough just looks thin rather than wrong,
-  // same tradeoff LOAD MORE already makes.
-  const [tab,  setTab]  = useState<"all" | "celebrations" | "photos" | "mine">("all");
+  // Feed tab / sort. "All" just filters/reorders whatever's already loaded
+  // in `posts`. "Photos" and "Mine" used to do the same thing — which meant
+  // a feed that hadn't been paginated far enough yet showed "you haven't
+  // posted" even for someone who had, just because their post wasn't in the
+  // loaded window. Those two tabs now merge in a dedicated server-filtered
+  // fetch the first time they're opened (see the effect below), so the tab
+  // reflects everything that actually matches, not just what happened to be
+  // paged in already.
+  const [tab,  setTab]  = useState<"all" | "photos" | "mine" | "saved">("all");
   const [sort, setSort] = useState<"new" | "top">("new");
   const [expandedPhotoId, setExpandedPhotoId] = useState<number | null>(null);
+  const [tabFetchLoading, setTabFetchLoading] = useState(false);
+  const fetchedTabsRef = useRef<Set<string>>(new Set());
+
+  // Search — a separate server query rather than filtering what's already
+  // loaded, so it can find posts that haven't been paged into `posts` yet.
+  // Debounced so typing doesn't fire a request per keystroke.
+  const [searchQuery, setSearchQuery]     = useState("");
+  const [searchResults, setSearchResults] = useState<Post[] | null>(null);
+  const [searching, setSearching]         = useState(false);
+
+  // Wall of Fame — collapsed by default (this page is already dense), and
+  // only fetched the first time it's actually opened, same lazy pattern as
+  // the Photos/Mine/Saved tabs above.
+  const [showWallOfFame, setShowWallOfFame]   = useState(false);
+  const [wallOfFame, setWallOfFame]           = useState<LookbackPost[] | null>(null);
+  const [wallOfFameLoading, setWallOfFameLoading] = useState(false);
+
+  // Throwback — fetched once on mount (it's cheap, and it's the kind of
+  // "oh hey" moment that only lands if it's already there when the page
+  // opens). `undefined` = not fetched yet, `null` = fetched, nothing found.
+  const [throwback, setThrowback] = useState<LookbackPost | null | undefined>(undefined);
+  const [throwbackDismissed, setThrowbackDismissed] = useState(false);
 
   const LIMIT = 20;
 
@@ -520,7 +671,15 @@ export default function CommunityPage() {
       const r = await fetch(`/api/community/posts?limit=${LIMIT}&offset=${off}`);
       if (!r.ok) return;
       const data: Post[] = await r.json();
-      setPosts(prev => reset ? data : [...prev, ...data]);
+      // Deduped by id — a post already merged in by the Photos/Mine tab
+      // fetch below (or already present after a reset) would otherwise show
+      // up twice, and React duplicate-key warnings, once regular pagination
+      // reaches the same row.
+      setPosts(prev => {
+        if (reset) return data;
+        const seen = new Set(prev.map(p => p.id));
+        return [...prev, ...data.filter(p => !seen.has(p.id))];
+      });
       setHasMore(data.length === LIMIT);
       setOffset(off + data.length);
     } finally { setLoading(false); setLoadMore(false); }
@@ -535,8 +694,70 @@ export default function CommunityPage() {
   useEffect(() => {
     void loadPosts(true);
     void loadPending();
+    fetch("/api/community/throwback")
+      .then(r => r.ok ? r.json() : null)
+      .then((data: LookbackPost | null) => setThrowback(data))
+      .catch(() => setThrowback(null));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const toggleWallOfFame = () => {
+    const opening = !showWallOfFame;
+    setShowWallOfFame(opening);
+    if (opening && wallOfFame === null) {
+      setWallOfFameLoading(true);
+      fetch("/api/community/wall-of-fame")
+        .then(r => r.ok ? r.json() : [])
+        .then((data: LookbackPost[]) => setWallOfFame(data))
+        .catch(() => setWallOfFame([]))
+        .finally(() => setWallOfFameLoading(false));
+    }
+  };
+
+  // Backs the "Photos" and "Mine" tabs with a real server query the first
+  // time each is opened, merging any posts the general feed hasn't paged in
+  // yet into `posts` (deduped by id) rather than replacing it — so switching
+  // back to "All" still has everything it had before, and LOAD MORE's
+  // pagination cursor is untouched.
+  useEffect(() => {
+    if (tab === "all") return;
+    const cacheKey = tab === "mine" ? `mine:${user?.playerId ?? "anon"}`
+                    : tab === "saved" ? `saved:${user?.playerId ?? "anon"}`
+                    : "photos";
+    if ((tab === "mine" || tab === "saved") && !user?.playerId) return;
+    if (fetchedTabsRef.current.has(cacheKey)) return;
+    fetchedTabsRef.current.add(cacheKey);
+
+    const params = tab === "mine" ? `player_id=${user!.playerId}`
+                  : tab === "saved" ? `bookmarked_only=true`
+                  : `photo_only=true`;
+    setTabFetchLoading(true);
+    fetch(`/api/community/posts?limit=100&${params}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: Post[]) => {
+        setPosts(prev => {
+          const seen = new Set(prev.map(p => p.id));
+          const fresh = data.filter(p => !seen.has(p.id));
+          return fresh.length ? [...prev, ...fresh] : prev;
+        });
+      })
+      .catch(() => { fetchedTabsRef.current.delete(cacheKey); })
+      .finally(() => setTabFetchLoading(false));
+  }, [tab, user?.playerId]);
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) { setSearchResults(null); setSearching(false); return; }
+    setSearching(true);
+    const handle = setTimeout(() => {
+      fetch(`/api/community/posts?limit=50&q=${encodeURIComponent(q)}`)
+        .then(r => r.ok ? r.json() : [])
+        .then((data: Post[]) => setSearchResults(data))
+        .catch(() => setSearchResults([]))
+        .finally(() => setSearching(false));
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [searchQuery]);
 
   // "Best of the week" — the top posts among what's loaded, ranked by real
   // reaction + comment counts already on each post. Not a separate scoring
@@ -559,10 +780,14 @@ export default function CommunityPage() {
 
   const visiblePosts = useMemo(() => {
     let list = posts;
-    if (tab === "celebrations") list = list.filter(p => p.post_type === "auto");
-    else if (tab === "photos")  list = list.filter(p => p.photo_content_type);
-    else if (tab === "mine")    list = list.filter(p => p.player_id === user?.playerId);
+    if (tab === "photos")      list = list.filter(p => p.photo_content_type);
+    else if (tab === "mine")   list = list.filter(p => p.player_id === user?.playerId);
+    else if (tab === "saved")  list = list.filter(p => p.myBookmarked);
     if (sort === "top") list = [...list].sort((a, b) => engagementScore(b) - engagementScore(a));
+    // Pinned posts float to the top regardless of sort — a stable partition
+    // that otherwise preserves whatever order the sort above (or the
+    // server's own pinned-first ordering) already produced.
+    list = [...list].sort((a, b) => (a.pinned === b.pinned) ? 0 : a.pinned ? -1 : 1);
     return list;
   }, [posts, tab, sort, user?.playerId]);
 
@@ -681,6 +906,29 @@ export default function CommunityPage() {
     }
   };
 
+  // The pin/unpin request itself already happened inside PostCard (it needs
+  // its own loading state on the button) — these just reconcile local state
+  // once it succeeds.
+  const handlePin = (id: number) => {
+    toast({ title: "Post pinned" });
+    setPosts(prev => prev.map(p => p.id === id ? { ...p, pinned: true } : p));
+    setSearchResults(prev => prev ? prev.map(p => p.id === id ? { ...p, pinned: true } : p) : prev);
+  };
+
+  const handleUnpin = (id: number) => {
+    toast({ title: "Post unpinned" });
+    setPosts(prev => prev.map(p => p.id === id ? { ...p, pinned: false } : p));
+    setSearchResults(prev => prev ? prev.map(p => p.id === id ? { ...p, pinned: false } : p) : prev);
+  };
+
+  const handleBookmark = async (id: number) => {
+    const r = await fetch(`/api/community/posts/${id}/bookmark`, { method: "POST", credentials: "include" });
+    if (!r.ok) { toast({ title: "Failed to update saved posts", variant: "destructive" }); return; }
+    const { bookmarked } = await r.json();
+    setPosts(prev => prev.map(p => p.id === id ? { ...p, myBookmarked: bookmarked } : p));
+    setSearchResults(prev => prev ? prev.map(p => p.id === id ? { ...p, myBookmarked: bookmarked } : p) : prev);
+  };
+
   const handleDeleteComment = async (postId: number, commentId: number) => {
     const r = await fetch(`/api/community/posts/${postId}/comments/${commentId}`, { method: "DELETE", credentials: "include" });
     if (r.ok) {
@@ -701,8 +949,8 @@ export default function CommunityPage() {
     return (
       <div className="max-w-xl mx-auto px-4 py-20 text-center">
         <div className="text-5xl mb-4">🎯</div>
-        <h1 className="text-2xl font-bold mb-2" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", color: "#fff" }}>COMMUNITY</h1>
-        <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>Coming soon — the community feed is being set up.</p>
+        <h1 className="text-2xl font-bold mb-2" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", color: "#fff" }}>OFF THE OCHE</h1>
+        <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>Coming soon — the clubhouse is being set up.</p>
       </div>
     );
   }
@@ -715,28 +963,43 @@ export default function CommunityPage() {
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold"
           style={{ background: "rgba(255,200,0,0.06)", border: "1px solid rgba(255,200,0,0.25)", color: "#ffd24a", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em" }}>
           <AlertCircle className="w-4 h-4" />
-          ADMIN PREVIEW — Community is hidden from players. Enable it in Admin → Feature Flags.
+          ADMIN PREVIEW — Off the Oche is hidden from players. Enable it in Admin → Feature Flags.
         </div>
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>COMMUNITY</h1>
-        {user ? (
-          <button onClick={() => setShowCreate(v => !v)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
-            style={{ background: showCreate ? "rgba(255,0,92,0.25)" : "rgba(255,0,92,0.15)", border: "1px solid rgba(255,0,92,0.4)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
-            {showCreate ? <X className="w-4 h-4" /> : <Heart className="w-4 h-4" />}
-            {showCreate ? "CANCEL" : "NEW POST"}
-          </button>
-        ) : (
-          <Link href="/login"
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
-            Sign in to post
-          </Link>
-        )}
+      <div>
+        <h1 className="text-2xl font-black tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>OFF THE OCHE</h1>
+        <p className="text-xs italic mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+          Whatever's on your mind — on or off the oche.
+        </p>
       </div>
+
+      {/* This day last year — a dismissible throwback, shown only when one
+          actually exists (see GET /community/throwback's fuzzy ±3 day
+          window). Dismissal is session-only, not saved anywhere. */}
+      {throwback && !throwbackDismissed && (
+        <div className="rounded-2xl p-3.5 relative" style={{ background: "linear-gradient(160deg, rgba(0,102,255,0.1), rgba(20,20,26,0.6) 70%)", border: "1px solid rgba(0,102,255,0.3)" }}>
+          <button onClick={() => setThrowbackDismissed(true)}
+            className="absolute top-2.5 right-2.5 p-0.5 rounded" style={{ color: "rgba(255,255,255,0.3)" }}>
+            <X className="w-3.5 h-3.5" />
+          </button>
+          <div className="flex items-center gap-1.5 mb-1.5 pr-6">
+            <Clock className="w-3.5 h-3.5" style={{ color: "#0066ff" }} />
+            <span className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", color: "#0066ff", fontSize: "0.62rem" }}>
+              This day last year
+            </span>
+          </div>
+          <div className="flex items-center gap-2 mb-1">
+            <PlayerAvatar name={throwback.player_name} tier={throwback.player_tier} size={6} />
+            <PlayerName id={throwback.player_id} name={throwback.player_name} tier={throwback.player_tier}
+              nameStyleId={throwback.player_name_style_id} winStreak={throwback.player_win_streak} className="text-xs" />
+          </div>
+          <p className="text-sm leading-snug" style={{ color: "rgba(255,255,255,0.7)" }}>
+            {throwback.content || (throwback.photo_content_type ? "📷 Photo post" : "")}
+          </p>
+        </div>
+      )}
 
       {/* Active this week — distinct posters from the loaded feed */}
       {activeMembers.length > 1 && (
@@ -744,7 +1007,7 @@ export default function CommunityPage() {
           <div className="flex items-center gap-1.5 mb-2 px-0.5">
             <Users className="w-3 h-3" style={{ color: "rgba(255,255,255,0.3)" }} />
             <span className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em", color: "rgba(255,255,255,0.3)", fontSize: "0.6rem" }}>
-              Active this week
+              Who's about
             </span>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
@@ -778,7 +1041,7 @@ export default function CommunityPage() {
           <div className="flex items-center gap-1.5 mb-2 px-0.5">
             <Trophy className="w-3 h-3" style={{ color: "#ffd24a" }} />
             <span className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em", color: "#ffd24a", fontSize: "0.6rem" }}>
-              Best of the week
+              Top of the board
             </span>
           </div>
           <div className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
@@ -812,50 +1075,149 @@ export default function CommunityPage() {
         </div>
       )}
 
-      {/* Create post form */}
-      {showCreate && (
-        <form onSubmit={handleCreatePost}
-          className="rounded-2xl p-4 space-y-3"
-          style={{ background: "rgba(255,0,92,0.04)", border: "1px solid rgba(255,0,92,0.18)" }}>
-          <textarea value={createText} onChange={e => setCreateText(e.target.value)}
-            placeholder="What's happening in the darts room…"
-            rows={3} maxLength={1000}
-            className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff", fontFamily: "inherit" }} />
-          <div className="flex justify-end">
-            <span className="text-xs tabular-nums" style={{ color: createText.length > 900 ? "#ff005c" : "rgba(255,255,255,0.2)" }}>
-              {createText.length}/1000
-            </span>
-          </div>
+      {/* Wall of Fame — the all-time version of "Top of the board" above,
+          collapsed by default (this page is already dense) and only fetched
+          the first time it's actually opened. */}
+      <div>
+        <button onClick={toggleWallOfFame}
+          className="flex items-center gap-1.5 px-0.5 w-full text-left">
+          <Trophy className="w-3 h-3" style={{ color: "#ffd24a" }} />
+          <span className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em", color: "#ffd24a", fontSize: "0.6rem" }}>
+            Wall of Fame
+          </span>
+          <span className="text-xs" style={{ color: "rgba(255,210,74,0.5)" }}>{showWallOfFame ? "▲" : "▼"}</span>
+        </button>
+        {showWallOfFame && (
+          wallOfFameLoading ? (
+            <div className="flex justify-center py-6">
+              <div className="w-5 h-5 rounded-full animate-spin" style={{ border: "2px solid rgba(255,210,74,0.3)", borderTopColor: "#ffd24a" }} />
+            </div>
+          ) : !wallOfFame || wallOfFame.length === 0 ? (
+            <p className="text-xs text-center py-4" style={{ color: "rgba(255,255,255,0.25)" }}>
+              Nothing's earned its place here yet.
+            </p>
+          ) : (
+            <div className="flex gap-2.5 overflow-x-auto pb-1 mt-2" style={{ scrollbarWidth: "none" }}>
+              {wallOfFame.map((p, i) => {
+                const tierCol = TIER_COLORS[p.player_tier] ?? "#9ca3af";
+                return (
+                  <div key={p.id}
+                    className="text-left rounded-2xl p-3 shrink-0"
+                    style={{ width: 200, background: "linear-gradient(160deg, rgba(255,210,74,0.14), rgba(20,20,26,0.6) 70%)", border: "1px solid rgba(255,210,74,0.4)", boxShadow: "0 10px 24px rgba(0,0,0,0.35)" }}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center font-bold shrink-0"
+                          style={{ background: `${tierCol}22`, border: `1px solid ${tierCol}66`, color: tierCol, fontFamily: "Oswald, sans-serif", fontSize: "0.62rem" }}>
+                          {p.player_name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-xs font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>{p.player_name}</span>
+                      </div>
+                      <span className="text-xs shrink-0" style={{ color: "#ffd24a" }}>🏅{i + 1}</span>
+                    </div>
+                    <p className="text-xs leading-snug mb-2" style={{ color: "rgba(255,255,255,0.65)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      {p.content || (p.photo_content_type ? "📷 Photo post" : "")}
+                    </p>
+                    <div className="flex items-center gap-3 text-xs" style={{ color: "#ffd24a", fontFamily: "monospace" }}>
+                      <span>❤ {p.reaction_count ?? 0}</span>
+                      <span>💬 {p.comment_count ?? 0}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        )}
+      </div>
 
-          {photoPreview && (
-            <div className="relative rounded-xl overflow-hidden" style={{ maxHeight: 240 }}>
-              <img src={photoPreview} alt="preview" className="w-full object-cover rounded-xl" style={{ maxHeight: 240 }} />
-              <button type="button" onClick={clearPhoto}
-                className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
-                style={{ background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff" }}>
-                <X className="w-3.5 h-3.5" />
+      {/* Composer — always present in the flow rather than gated behind a
+          header button. Collapsed, it's just an inviting one-line bar (the
+          "chalk it up" affordance); clicking it expands the real form in
+          place. Signed-out visitors see the same shape pointing at login. */}
+      {user ? (
+        showCreate ? (
+          <form onSubmit={handleCreatePost}
+            className="rounded-2xl p-4 space-y-3"
+            style={{ background: "rgba(255,0,92,0.04)", border: "1px solid rgba(255,0,92,0.18)" }}>
+            <textarea value={createText} onChange={e => setCreateText(e.target.value)}
+              placeholder="What's happening in the darts room…"
+              rows={3} maxLength={1000}
+              autoFocus
+              className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff", fontFamily: "inherit" }} />
+            <div className="flex justify-end">
+              <span className="text-xs tabular-nums" style={{ color: createText.length > 900 ? "#ff005c" : "rgba(255,255,255,0.2)" }}>
+                {createText.length}/1000
+              </span>
+            </div>
+
+            {/* Quick-post templates — a typing head-start, nothing more.
+                Hidden once the composer already has text so it doesn't
+                clutter an in-progress post. */}
+            {!createText && (
+              <div className="flex flex-wrap gap-1.5">
+                {QUICK_POST_TEMPLATES.map(t => (
+                  <button key={t.label} type="button" onClick={() => setCreateText(t.text)}
+                    className="px-2.5 py-1 rounded-full text-xs transition-colors hover:opacity-80"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.45)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.03em" }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {photoPreview && (
+              <div className="relative rounded-xl overflow-hidden" style={{ maxHeight: 240 }}>
+                <img src={photoPreview} alt="preview" className="w-full object-cover rounded-xl" style={{ maxHeight: 240 }} />
+                <button type="button" onClick={clearPhoto}
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff" }}>
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoSelect} className="hidden" />
+              <button type="button" onClick={() => fileRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-opacity hover:opacity-75"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                <ImageIcon className="w-3.5 h-3.5" />PHOTO
+              </button>
+              <button type="button" onClick={() => { setShowCreate(false); setCreateText(""); clearPhoto(); }}
+                className="px-3 py-2 rounded-xl text-xs font-bold transition-opacity hover:opacity-75"
+                style={{ background: "transparent", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                CANCEL
+              </button>
+              <div className="flex-1 text-right text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
+                {createText.length}/1000
+              </div>
+              <button type="submit" disabled={submitting || (!createText.trim() && !photoFile)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-40"
+                style={{ background: "rgba(255,0,92,0.2)", border: "1px solid rgba(255,0,92,0.4)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                {uploading ? "UPLOADING…" : submitting ? "POSTING…" : "POST"}
               </button>
             </div>
-          )}
-
-          <div className="flex items-center gap-2">
-            <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoSelect} className="hidden" />
-            <button type="button" onClick={() => fileRef.current?.click()}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-opacity hover:opacity-75"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
-              <ImageIcon className="w-3.5 h-3.5" />PHOTO
-            </button>
-            <div className="flex-1 text-right text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
-              {createText.length}/1000
-            </div>
-            <button type="submit" disabled={submitting || (!createText.trim() && !photoFile)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-40"
-              style={{ background: "rgba(255,0,92,0.2)", border: "1px solid rgba(255,0,92,0.4)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
-              {uploading ? "UPLOADING…" : submitting ? "POSTING…" : "POST"}
-            </button>
-          </div>
-        </form>
+          </form>
+        ) : (
+          <button onClick={() => setShowCreate(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left transition-colors hover:bg-white/[0.02]"
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.15)" }}>
+            <span className="flex-1 text-sm italic" style={{ color: "rgba(255,255,255,0.3)" }}>
+              Chalk something up…
+            </span>
+            <ImageIcon className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.25)" }} />
+            <span className="shrink-0 px-3 py-1.5 rounded-full text-xs font-bold"
+              style={{ background: "rgba(255,0,92,0.18)", border: "1px solid rgba(255,0,92,0.4)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+              POST
+            </span>
+          </button>
+        )
+      ) : (
+        <Link href="/login"
+          className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl text-sm"
+          style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.35)", fontStyle: "italic" }}>
+          Sign in to post
+        </Link>
       )}
 
       {/* Admin pending queue */}
@@ -875,16 +1237,36 @@ export default function CommunityPage() {
         </div>
       )}
 
+      {/* Search — a real server query (see the effect above), not a filter
+          over what's already loaded, so it can find posts further back than
+          the current page. */}
+      {!loading && (
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 absolute pointer-events-none" style={{ left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.25)" }} />
+          <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search posts or players…"
+            className="w-full pl-9 pr-8 py-2 rounded-xl text-xs outline-none"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }} />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")}
+              className="absolute p-0.5 rounded"
+              style={{ right: 10, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.35)" }}>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Tabs + sort — filters/reorders the feed already loaded above */}
-      {!loading && posts.length > 0 && (
+      {!loading && posts.length > 0 && !searchQuery.trim() && (
         <div className="flex items-center justify-between gap-2">
           <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
             {([
               ["all", "All", null],
-              ["celebrations", "Celebrations", "🎯"],
               ["photos", "Photos", "📸"],
               ["mine", "Mine", "👤"],
-            ] as const).map(([key, label, icon]) => (
+              ["saved", "Saved", "🔖"],
+            ] as const).filter(([key]) => key !== "saved" || !!user).map(([key, label, icon]) => (
               <button key={key} onClick={() => { setTab(key); setExpandedPhotoId(null); }}
                 className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
                 style={{
@@ -914,7 +1296,28 @@ export default function CommunityPage() {
       )}
 
       {/* Feed */}
-      {loading ? (
+      {searchQuery.trim() ? (
+        searching ? (
+          <div className="flex justify-center py-12">
+            <div className="w-6 h-6 rounded-full animate-spin" style={{ border: "2px solid rgba(255,0,92,0.3)", borderTopColor: "#ff005c" }} />
+          </div>
+        ) : !searchResults || searchResults.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="text-4xl mb-3">🔍</div>
+            <p className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em" }}>
+              NO RESULTS
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {searchResults.map(post => (
+              <PostCard key={post.id} post={post} onReact={handleReact} onComment={handleComment}
+                isAdmin={!!user?.isAdmin} onDelete={handleDelete} onPin={handlePin} onUnpin={handleUnpin}
+                onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} onBookmark={handleBookmark} />
+            ))}
+          </div>
+        )
+      ) : loading ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 rounded-full animate-spin" style={{ border: "2px solid rgba(255,0,92,0.3)", borderTopColor: "#ff005c" }} />
         </div>
@@ -928,11 +1331,15 @@ export default function CommunityPage() {
             {user ? "Be the first to post!" : "Sign in to post."}
           </p>
         </div>
+      ) : tabFetchLoading && tab !== "all" ? (
+        <div className="flex justify-center py-12">
+          <div className="w-6 h-6 rounded-full animate-spin" style={{ border: "2px solid rgba(255,0,92,0.3)", borderTopColor: "#ff005c" }} />
+        </div>
       ) : visiblePosts.length === 0 ? (
         <div className="text-center py-16">
-          <div className="text-4xl mb-3">{tab === "photos" ? "📸" : tab === "mine" ? "👤" : "🎯"}</div>
+          <div className="text-4xl mb-3">{tab === "photos" ? "📸" : tab === "mine" ? "👤" : tab === "saved" ? "🔖" : "🎯"}</div>
           <p className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em" }}>
-            {tab === "photos" ? "NO PHOTOS YET" : tab === "mine" ? "YOU HAVEN'T POSTED" : "NOTHING HERE YET"}
+            {tab === "photos" ? "NO PHOTOS YET" : tab === "mine" ? "YOU HAVEN'T POSTED" : tab === "saved" ? "NOTHING SAVED YET" : "NOTHING HERE YET"}
           </p>
         </div>
       ) : tab === "photos" ? (
@@ -958,8 +1365,8 @@ export default function CommunityPage() {
           {expandedPhotoId != null && (
             <div className="pt-1">
               <PostCard post={photoTiles.find(p => p.id === expandedPhotoId)!} onReact={handleReact} onComment={handleComment}
-                isAdmin={!!user?.isAdmin} onDelete={handleDelete}
-                onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} />
+                isAdmin={!!user?.isAdmin} onDelete={handleDelete} onPin={handlePin} onUnpin={handleUnpin}
+                onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} onBookmark={handleBookmark} />
             </div>
           )}
         </>
@@ -967,8 +1374,8 @@ export default function CommunityPage() {
         <div className="space-y-3">
           {visiblePosts.map(post => (
             <PostCard key={post.id} post={post} onReact={handleReact} onComment={handleComment}
-              isAdmin={!!user?.isAdmin} onDelete={handleDelete}
-              onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} />
+              isAdmin={!!user?.isAdmin} onDelete={handleDelete} onPin={handlePin} onUnpin={handleUnpin}
+              onRemovePhoto={handleRemovePhoto} onDeleteComment={handleDeleteComment} onEdit={handleEdit} onBookmark={handleBookmark} />
           ))}
         </div>
       )}

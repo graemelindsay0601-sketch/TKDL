@@ -135,6 +135,8 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
       post_liked: "Community",
       post_commented: "Community",
       auto_post_fired: "Community",
+      post_mentioned: "Mentioned",
+      top_post_reward: "Top of the Board",
       interview_invite: "Interview Desk",
     };
     return labels[type] || type;
@@ -153,6 +155,8 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
       post_liked: "#22c55e",
       post_commented: "#22c55e",
       auto_post_fired: "#22c55e",
+      post_mentioned: "#22c55e",
+      top_post_reward: "#ffd24a",
       interview_invite: "#0066ff",
     };
     return colors[type] || "#9ca3af";
