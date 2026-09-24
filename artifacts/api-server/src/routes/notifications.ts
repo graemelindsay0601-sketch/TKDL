@@ -185,6 +185,29 @@ router.post("/notifications/push-received", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
+// ── POST /notifications/client-log — the "Enable" button's own subscribe()
+// call reports here on failure. Same reasoning as push-received: no auth
+// (this can legitimately fire before the subscribe flow has finished, and
+// must never itself require being subscribed), diagnostic only. Before
+// this existed, any failure in pushManager.subscribe() itself — permission
+// quirks, an iOS InvalidStateError from a stale existing subscription,
+// anything — was caught and silently reset to "default" with zero trace
+// anywhere, making "I tapped Enable and nothing happened" indistinguishable
+// from "I never tapped it". This is what makes that failure visible.
+const ClientLogBody = z.object({
+  event: z.string().optional(),
+  name: z.string().optional(),
+  error: z.string().optional(),
+});
+router.post("/notifications/client-log", async (req, res): Promise<void> => {
+  const parsed = ClientLogBody.safeParse(req.body ?? {});
+  logger.info(
+    { body: parsed.success ? parsed.data : req.body, ua: req.headers["user-agent"] },
+    "Client-side push subscribe diagnostic"
+  );
+  res.json({ ok: true });
+});
+
 // ── GET /notifications/vapid-public-key ──────────────────────────────────────
 router.get("/notifications/vapid-public-key", (_req, res): void => {
   const key = process.env.VAPID_PUBLIC_KEY ?? "";

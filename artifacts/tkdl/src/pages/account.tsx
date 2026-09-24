@@ -603,6 +603,22 @@ export default function AccountPage() {
 
   const push = usePushNotifications(user?.playerId);
 
+  // Wraps push.subscribe()'s own return value so a real failure on this
+  // device is actually visible instead of looking identical to "never
+  // tried" — the hook itself only ever silently resets to "default" on any
+  // error (network hiccup, iOS throwing on pushManager.subscribe(), a
+  // rejected fetch), with nothing surfaced to the UI or the server logs.
+  // That's exactly the kind of invisible failure that made the OS-banner
+  // investigation take this long — "shown_ok" for a fake test on a
+  // different device could be verified from logs, but this couldn't be
+  // verified at all before now.
+  const [pushSubscribeFailed, setPushSubscribeFailed] = useState(false);
+  const handlePushSubscribe = async () => {
+    setPushSubscribeFailed(false);
+    const result = await push.subscribe();
+    if (result !== "subscribed" && result !== "denied") setPushSubscribeFailed(true);
+  };
+
   // Test-notification diagnostic — fires POST /notifications/test and shows
   // exactly why it did or didn't arrive (no VAPID keys configured server-
   // side, this device isn't subscribed, push is off in prefs, or the push
@@ -2219,7 +2235,7 @@ export default function AccountPage() {
                   </button>
                 ) : push.state !== "denied" && push.state !== "unsupported" ? (
                   <button
-                    onClick={push.subscribe}
+                    onClick={handlePushSubscribe}
                     disabled={push.loading}
                     className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:opacity-90"
                     style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", background: "#ff005c", color: "#fff", fontSize: "0.6rem" }}>
@@ -2227,6 +2243,15 @@ export default function AccountPage() {
                   </button>
                 ) : null}
               </div>
+              {pushSubscribeFailed && (
+                <div className="mt-2.5 flex items-start gap-2 px-3 py-2 rounded-lg"
+                  style={{ background: "rgba(255,0,92,0.06)", border: "1px solid rgba(255,0,92,0.2)" }}>
+                  <X className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#ff005c" }} />
+                  <div style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.65)", lineHeight: 1.5 }}>
+                    Couldn't turn on notifications on this device — the exact error's been logged. Try again, or check with whoever manages the app.
+                  </div>
+                </div>
+              )}
 
               {/* Send-a-real-test-push — shows exactly what happened rather
                   than leaving you guessing whether it's working. */}

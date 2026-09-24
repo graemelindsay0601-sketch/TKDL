@@ -59,6 +59,19 @@ export function usePushNotifications(playerId: number | null | undefined) {
       if (permission !== "granted") { setState("denied"); return "denied"; }
 
       const reg = await navigator.serviceWorker.ready;
+
+      // If this browser already holds a subscription — e.g. from before a
+      // server-side row for it got deleted (the old cross-device unsubscribe
+      // bug), or from an earlier VAPID key — calling subscribe() again
+      // while one exists throws InvalidStateError on most browsers,
+      // especially with a different applicationServerKey. That throw used
+      // to be swallowed below with no trace anywhere. Always clear out
+      // anything already there first so subscribe() below starts clean.
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) {
+        try { await existing.unsubscribe(); } catch { /* best effort */ }
+      }
+
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
@@ -73,7 +86,22 @@ export function usePushNotifications(playerId: number | null | undefined) {
       if (r.ok) { setState("subscribed"); return "subscribed"; }
       setState("default");
       return "default";
-    } catch {
+    } catch (err: any) {
+      // This used to disappear completely — no UI feedback, no server log,
+      // nothing — so a real failure on a device (an iOS throw on
+      // pushManager.subscribe(), a rejected fetch, anything) looked
+      // identical to the player simply never having tapped the button.
+      // Reported fire-and-forget so a slow/failed report never blocks the
+      // UI from resetting cleanly.
+      fetch("/api/notifications/client-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "subscribe_failed",
+          name: err && err.name,
+          error: String(err && err.message ? err.message : err),
+        }),
+      }).catch(() => {});
       setState("default");
       return "default";
     } finally { setLoading(false); }
