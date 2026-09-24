@@ -31,6 +31,7 @@ import broadcastRouter from "./broadcast";
 import cosmeticsRouter from "./cosmetics";
 import hubRouter from "./hub";
 import interviewDeskRouter from "./interview-desk";
+import selfPlayUnlocksRouter from "./self-play-unlocks";
 
 const router: IRouter = Router();
 
@@ -66,5 +67,6 @@ router.use(broadcastRouter);
 router.use(cosmeticsRouter);
 router.use(hubRouter);
 router.use(interviewDeskRouter);
+router.use(selfPlayUnlocksRouter);
 
 export default router;

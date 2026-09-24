@@ -332,6 +332,22 @@ const RANK_UP_EFFECTS: SeedCosmetic[] = [
   { id: "rankup-crown",  category: "RANK_UP_EFFECT", name: "Crowning",    rarity: "LEGENDARY", price: 800, iconKey: "crown",  color: "#ffd24a", sortOrder: 3 },
 ];
 
+// ACCOUNT_ACCENT payload rides in `color` — a flat swatch colour applied
+// only to a player's own account page (see account.tsx's equippedAccent
+// and lib/cosmetics.ts's accountAccentColor()). Deliberately a small, flat
+// set (no gradients/glow) since this recolours plain UI chrome (buttons,
+// the active-tab underline, a couple of highlight borders), not a
+// decorative flourish — six clear, distinct colours is plenty of choice
+// without making the picker itself a chore.
+const ACCOUNT_ACCENTS: SeedCosmetic[] = [
+  { id: "accent-ember",   category: "ACCOUNT_ACCENT", name: "Ember",    rarity: "COMMON", price: 120, color: "#ff8c00", sortOrder: 0 },
+  { id: "accent-ice",     category: "ACCOUNT_ACCENT", name: "Ice",      rarity: "COMMON", price: 120, color: "#38bdf8", sortOrder: 1 },
+  { id: "accent-venom",   category: "ACCOUNT_ACCENT", name: "Venom",    rarity: "COMMON", price: 120, color: "#22c55e", sortOrder: 2 },
+  { id: "accent-magenta", category: "ACCOUNT_ACCENT", name: "Magenta",  rarity: "COMMON", price: 120, color: "#ec4899", sortOrder: 3 },
+  { id: "accent-violet",  category: "ACCOUNT_ACCENT", name: "Violet",   rarity: "COMMON", price: 120, color: "#a78bfa", sortOrder: 4 },
+  { id: "accent-gold",    category: "ACCOUNT_ACCENT", name: "Gold",     rarity: "RARE",   price: 250, color: "#ffd24a", sortOrder: 5 },
+];
+
 // Not purchasable — auto-granted to whoever is crowned Singles champion at
 // season close (see lib/seasonReset.ts's performSeasonResetLocked). Its own
 // distinct id/gradient from the purchasable "name-champion" Legendary
@@ -350,7 +366,7 @@ const CHAMPION_EXCLUSIVES: SeedCosmetic[] = [
 // adds or updates rows, on every boot, so tweaking a price/colour just
 // means editing the arrays above and redeploying.
 export async function seedCosmeticDefinitions(): Promise<void> {
-  for (const c of [...NAME_STYLES, ...PROFILE_ICONS, ...BANNERS, ...FRAMES, ...GLOWS, ...RESULT_THEMES, ...BUBBLE_COLORS, ...AVATAR_BADGES, ...LEADERBOARD_TAGS, ...TAGLINE_STYLES, ...POST_ACCENTS, ...STICKERS, ...CHECKOUT_EFFECTS, ...SCORER_THEMES, ...PLAYER_CARD_FINISHES, ...TROPHY_CASE_STYLES, ...RECAP_STYLES, ...RANK_UP_EFFECTS, ...CHAMPION_EXCLUSIVES]) {
+  for (const c of [...NAME_STYLES, ...PROFILE_ICONS, ...BANNERS, ...FRAMES, ...GLOWS, ...RESULT_THEMES, ...BUBBLE_COLORS, ...AVATAR_BADGES, ...LEADERBOARD_TAGS, ...TAGLINE_STYLES, ...POST_ACCENTS, ...STICKERS, ...CHECKOUT_EFFECTS, ...SCORER_THEMES, ...PLAYER_CARD_FINISHES, ...TROPHY_CASE_STYLES, ...RECAP_STYLES, ...RANK_UP_EFFECTS, ...ACCOUNT_ACCENTS, ...CHAMPION_EXCLUSIVES]) {
     try {
       await db
         .insert(cosmeticDefinitionsTable)

@@ -6,7 +6,7 @@ import { useCurrentPlayer } from "@/context/auth";
 import { useCosmeticsCatalog, resultThemeColor, checkoutEffect, scorerThemeColor as scorerThemeColorHelper } from "@/lib/cosmetics";
 import { CheckoutBurst } from "@/components/CheckoutBurst";
 import { useToast } from "@/hooks/use-toast";
-import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users, Ghost, User, Target, Clock, X } from "lucide-react";
+import { Dumbbell, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, Bot, Cpu, Users, Ghost, User, Target, Clock, X, Search, Star, ChevronDown, Sparkles, ArrowUp } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
 import { CustomHandicapCard, CUSTOM_HANDICAP_KEY } from "@/components/custom-handicap-picker";
 import { RulesModal } from "@/components/rules-modal";
@@ -48,15 +48,23 @@ const TABS = [
   { key: "mini-games",  label: "Mini-Games"  },
 ];
 
-function GameCard({ gt, selected, onSelect, onRules }: {
-  gt: GameTypeOption; selected: boolean; onSelect: () => void; onRules: () => void;
+// Expandable, favouritable game card — click the body to select the game
+// for setup, click the star to favourite it (device-local, see
+// PRACTICE_REDESIGN_BUILD_PLAN.md Phase 1), click the chevron to reveal a
+// bit more detail plus a link into the existing RulesModal for the full
+// text. All three are separate hit targets (star/chevron stopPropagation
+// so they don't also select the game).
+function GameCard({ gt, selected, expanded, isFav, onSelect, onToggleExpand, onToggleFav, onRules }: {
+  gt: GameTypeOption; selected: boolean; expanded: boolean; isFav: boolean;
+  onSelect: () => void; onToggleExpand: () => void; onToggleFav: () => void; onRules: () => void;
 }) {
   return (
-    <div onClick={onSelect} className="pdc-card p-3 cursor-pointer transition-all relative overflow-hidden"
+    <div id={`game-card-${gt.key}`} onClick={onSelect} className="pdc-card p-3 cursor-pointer transition-all relative overflow-hidden"
       style={{
         borderColor: selected ? "#a78bfa" : "rgba(255,255,255,0.07)",
         background: selected ? "rgba(167,139,250,0.06)" : "rgba(255,255,255,0.02)",
         boxShadow: selected ? "0 0 18px rgba(167,139,250,0.12)" : undefined,
+        gridColumn: expanded ? "1 / -1" : undefined,
       }}>
       {selected && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: "#a78bfa" }} />}
       <div className="flex items-start justify-between gap-2">
@@ -68,11 +76,26 @@ function GameCard({ gt, selected, onSelect, onRules }: {
             {gt.description}
           </div>
         </div>
-        <button onClick={e => { e.stopPropagation(); onRules(); }} className="shrink-0 p-1 rounded"
-          style={{ color: "rgba(255,255,255,0.25)", cursor: "pointer" }}>
-          <BookOpen className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button onClick={e => { e.stopPropagation(); onToggleFav(); }} className="p-1 rounded"
+            style={{ color: isFav ? "#ffd24a" : "rgba(255,255,255,0.2)", cursor: "pointer" }} title={isFav ? "Remove favourite" : "Add favourite"}>
+            <Star className="w-3.5 h-3.5" fill={isFav ? "#ffd24a" : "none"} />
+          </button>
+          <button onClick={e => { e.stopPropagation(); onToggleExpand(); }} className="p-1 rounded"
+            style={{ color: "rgba(255,255,255,0.25)", cursor: "pointer" }} title="More info">
+            <ChevronDown className="w-3.5 h-3.5 transition-transform" style={{ transform: expanded ? "rotate(180deg)" : "none" }} />
+          </button>
+        </div>
       </div>
+      {expanded && (
+        <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }} onClick={e => e.stopPropagation()}>
+          <p className="text-xs leading-relaxed mb-2.5" style={{ color: "rgba(255,255,255,0.5)" }}>{gt.description}</p>
+          <button onClick={onRules} className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5"
+            style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
+            <BookOpen className="w-3.5 h-3.5" />Full rules
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -91,13 +114,100 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [p1Id, setP1Id]           = useState("");
   const [p2Id, setP2Id]           = useState("");
   const [selectedGame, setGame]   = useState<GameTypeOption | null>(null);
-  const [tab, setTab]             = useState("practice");
   const [rulesGame, setRulesGame] = useState<GameTypeOption | null>(null);
   const [formatMode, setFormatMode] = useState<"legs" | "sets">("legs");
   const [selectedLegs, setSelectedLegs] = useState(1);
   const [selectedSets, setSelectedSets] = useState({ sets: 3, legsPerSet: 3 });
   const [bullUp, setBullUp]             = useState(false);
   const [gameLb, setGameLb]             = useState<any[]>([]);
+
+  // ── Self-play unlocks: locked "Play a Pro" personas + Preview Pass ────────
+  // See SELF_PLAY_UNLOCKS_BUILD_PLAN.md. activeUnlockIds is fetched once
+  // per logged-in player and updated optimistically on a successful
+  // purchase — the backend is the source of truth (routes/self-play-unlocks.ts),
+  // this is just avoiding a full refetch after every unlock click.
+  const LOCKED_PERSONA_IDS = ["luke_harbours", "luca_scrawler"];
+  const [selfPlayCatalog, setSelfPlayCatalog] = useState<Record<string, { price: number; name: string }>>({});
+  const [activeUnlockIds, setActiveUnlockIds] = useState<Set<string>>(new Set());
+  const [unlockingId, setUnlockingId]   = useState<string | null>(null);
+  const [unlockError, setUnlockError]   = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/self-play-unlocks/catalog").then(r => r.json())
+      .then((rows: any[]) => {
+        const map: Record<string, { price: number; name: string }> = {};
+        for (const row of rows) map[row.id] = { price: row.price, name: row.name };
+        setSelfPlayCatalog(map);
+      }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!currentPlayer?.playerId) return;
+    fetch(`/api/players/${currentPlayer.playerId}/self-play-unlocks`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : { activeIds: [] })
+      .then((d: { activeIds: string[] }) => setActiveUnlockIds(new Set(d.activeIds)))
+      .catch(() => {});
+  }, [currentPlayer?.playerId]);
+
+  const hasPreviewPass = activeUnlockIds.has("persona-preview-pass");
+  function isPersonaLocked(personaId: string): boolean {
+    if (!LOCKED_PERSONA_IDS.includes(personaId)) return false;
+    if (hasPreviewPass) return false;
+    return !activeUnlockIds.has(`persona-${personaId}`);
+  }
+  async function unlockSelfPlay(unlockId: string) {
+    if (!currentPlayer?.playerId || unlockingId) return;
+    setUnlockingId(unlockId);
+    setUnlockError(null);
+    try {
+      const res = await fetch(`/api/players/${currentPlayer.playerId}/self-play-unlocks/purchase`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unlockId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setUnlockError(data.error || "Purchase failed"); return; }
+      setActiveUnlockIds(prev => new Set(prev).add(unlockId));
+    } catch {
+      setUnlockError("Couldn't reach the server — try again in a moment.");
+    } finally {
+      setUnlockingId(null);
+    }
+  }
+
+  // ── Game browser: search / category filter / favourites / expand ──────────
+  // Replaces the old fixed 4-tab switcher — see PRACTICE_REDESIGN_BUILD_PLAN.md
+  // Phase 1. Favourites are device-local (localStorage), not per-player —
+  // Practice is a shared walk-up screen with no login requirement (same
+  // reasoning as the no-auth practice-session routes on the backend), so a
+  // per-player favourites list isn't the right shape here without knowing
+  // who's about to play before they've even picked a game.
+  const [gameSearch, setGameSearch]     = useState("");
+  const [activeCat, setActiveCat]       = useState<string>("all");
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
+  const [expandedKey, setExpandedKey]   = useState<string | null>(null);
+  const [favorites, setFavorites]       = useState<Set<string>>(new Set());
+  const [showBackTop, setShowBackTop]   = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("tkdl_practice_favorites");
+      if (raw) setFavorites(new Set(JSON.parse(raw)));
+    } catch { /* ignore — favourites are a convenience, not load-bearing */ }
+  }, []);
+  function toggleFavorite(key: string) {
+    setFavorites(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      try { localStorage.setItem("tkdl_practice_favorites", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }
+  useEffect(() => {
+    const onScroll = () => setShowBackTop(window.scrollY > 480);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Deep-link from the Coach tab's "Start This Drill" button (account.tsx) —
   // previously that link passed the drill's display title as an unused
@@ -173,7 +283,45 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     true
   );
 
-  const tabGames = gameTypes.filter(g => g.category === tab && g.enabled !== false);
+  const CAT_COLOR: Record<string, string> = {
+    competitive: "#38bdf8",
+    practice: "#a78bfa",
+    party: "#ee0a78",
+    "mini-games": "#ffd24a",
+  };
+  const enabledGames = gameTypes.filter(g => g.enabled !== false);
+  const totalGames = enabledGames.length;
+  const catCounts: Record<string, number> = {};
+  for (const t of TABS) catCounts[t.key] = enabledGames.filter(g => g.category === t.key).length;
+  const searchQ = gameSearch.trim().toLowerCase();
+  const passesSearch = (g: GameTypeOption) => !searchQ || g.name.toLowerCase().includes(searchQ) || g.description.toLowerCase().includes(searchQ);
+  const activeCats = activeCat === "all" ? TABS.map(t => t.key) : [activeCat];
+  const visibleGames = enabledGames.filter(g => activeCats.includes(g.category) && passesSearch(g));
+  const shownCount = visibleGames.length;
+  const favGames = enabledGames.filter(g => favorites.has(g.key));
+
+  function toggleCatCollapsed(cat: string) {
+    setCollapsedCats(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat); else next.add(cat);
+      return next;
+    });
+  }
+  function jumpToGame(gt: GameTypeOption) {
+    setActiveCat("all"); setGameSearch("");
+    setCollapsedCats(prev => { const n = new Set(prev); n.delete(gt.category); return n; });
+    setExpandedKey(gt.key);
+    requestAnimationFrame(() => {
+      document.getElementById(`game-card-${gt.key}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
+  function surpriseMe() {
+    const pool = visibleGames.length ? visibleGames : enabledGames;
+    if (!pool.length) return;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    setGame(pick);
+    jumpToGame(pick);
+  }
 
   function formatProps() {
     const isX01 = selectedGame?.key?.startsWith("x01") || selectedGame?.key?.startsWith("501") || selectedGame?.key?.startsWith("301");
@@ -240,6 +388,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   }
 
   return (
+    <>
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -397,12 +546,51 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                     </span>
                   ))}
               </div>
+              {!hasPreviewPass && LOCKED_PERSONA_IDS.some(isPersonaLocked) && (
+                <div className="flex items-center justify-between gap-3 mb-3 px-3 py-2.5 rounded-xl"
+                  style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.2)" }}>
+                  <div>
+                    <div className="text-xs font-bold" style={{ color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>
+                      Preview Pass
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
+                      {selfPlayCatalog["persona-preview-pass"]?.price ?? 120} coins · every locked persona for 7 days
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => unlockSelfPlay("persona-preview-pass")}
+                    disabled={unlockingId === "persona-preview-pass"}
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg shrink-0"
+                    style={{
+                      fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em",
+                      background: "rgba(167,139,250,0.18)", color: "#a78bfa",
+                      border: "1px solid rgba(167,139,250,0.35)",
+                      cursor: unlockingId === "persona-preview-pass" ? "wait" : "pointer",
+                      opacity: unlockingId === "persona-preview-pass" ? 0.6 : 1,
+                    }}>
+                    {unlockingId === "persona-preview-pass" ? "…" : "Get Pass"}
+                  </button>
+                </div>
+              )}
+              {unlockError && (
+                <div className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ color: "#ff6b8a", background: "rgba(255,0,92,0.08)", border: "1px solid rgba(255,0,92,0.2)", fontFamily: "Oswald, sans-serif" }}>
+                  {unlockError}
+                </div>
+              )}
               <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                {BOT_PERSONAS.map(p => (
-                  <PersonaCard key={p.id} persona={p}
-                    selected={selectedPersona?.id === p.id}
-                    onSelect={() => setPersona(p)} />
-                ))}
+                {BOT_PERSONAS.map(p => {
+                  const locked = isPersonaLocked(p.id);
+                  const unlockId = `persona-${p.id}`;
+                  return (
+                    <PersonaCard key={p.id} persona={p}
+                      selected={selectedPersona?.id === p.id}
+                      onSelect={() => setPersona(p)}
+                      locked={locked}
+                      price={selfPlayCatalog[unlockId]?.price}
+                      unlocking={unlockingId === unlockId}
+                      onUnlock={() => unlockSelfPlay(unlockId)} />
+                  );
+                })}
               </div>
               {selectedPersona && (
                 <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg"
@@ -435,44 +623,132 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         </div>
       )}
 
-      {/* Game type */}
+      {/* Game type — search + category filter + collapsible sections,
+         replacing the old fixed 4-tab switcher. See
+         PRACTICE_REDESIGN_BUILD_PLAN.md Phase 1 for the reasoning: the old
+         layout hid 3 of 4 categories behind tabs and still needed a scroll
+         box for whichever tab was open, on top of the *page's* own scroll —
+         a "scroll fest" with no way to jump around. This flattens all
+         enabled games into one filterable, browsable list. */}
       <div>
         <h2 className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>Game Type</h2>
-        <div className="flex gap-1 mb-3 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className="flex-1 py-1.5 text-xs font-bold uppercase rounded-lg transition-all"
-              style={{
-                fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", cursor: "pointer",
-                background: tab === t.key ? "rgba(167,139,250,0.15)" : "transparent",
-                color: tab === t.key ? "#a78bfa" : "rgba(255,255,255,0.3)",
-                border: tab === t.key ? "1px solid rgba(167,139,250,0.3)" : "1px solid transparent",
-              }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
-          {/* Custom / Handicap — lets Player 1 and Player 2 (or Player 1 vs
-             a bot) start on independently typed scores (e.g. 501 v 301). */}
+
+        {/* Custom / Handicap — lets Player 1 and Player 2 (or Player 1 vs a
+           bot) start on independently typed scores (e.g. 501 v 301). Pinned
+           above the browser, always visible regardless of search/filters. */}
+        <div className="mb-3">
           <CustomHandicapCard
             accent="#a78bfa"
             selected={selectedGame?.key === CUSTOM_HANDICAP_KEY}
-            onSelect={gt => setGame(gt)}
+            onSelect={gt => { setGame(gt); setExpandedKey(null); }}
             onClear={() => setGame(g => (g?.key === CUSTOM_HANDICAP_KEY ? null : g))}
           />
-          {tabGames.length === 0 && (
-            <div className="col-span-2 text-center py-8 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
-              No games in this category
-            </div>
-          )}
-          {tabGames.map(gt => (
-            <GameCard key={gt.key} gt={gt}
-              selected={selectedGame?.key === gt.key}
-              onSelect={() => setGame(gt)}
-              onRules={() => setRulesGame(gt)} />
-          ))}
         </div>
+
+        {/* Sticky search + surprise-me + category quick-nav */}
+        <div className="sticky top-2 z-20 mb-3 rounded-xl p-2.5" style={{ background: "rgba(10,7,16,0.92)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(14px)" }}>
+          <div className="flex gap-2 mb-2.5">
+            <div className="flex-1 flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <Search className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
+              <input
+                value={gameSearch}
+                onChange={e => setGameSearch(e.target.value)}
+                placeholder={`Search ${totalGames} games…`}
+                className="w-full bg-transparent text-sm outline-none"
+                style={{ color: "#fff", fontFamily: "Oswald, sans-serif" }}
+              />
+            </div>
+            <button onClick={surpriseMe} className="shrink-0 px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-1.5"
+              style={{ background: "linear-gradient(120deg,#ffe19a,#ffd24a)", color: "#2a1600", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
+              <Sparkles className="w-3.5 h-3.5" />Surprise
+            </button>
+          </div>
+          <div className="flex gap-1.5 flex-wrap">
+            <button onClick={() => setActiveCat("all")}
+              className="text-xs font-bold px-3 py-1.5 rounded-full transition-all"
+              style={{
+                fontFamily: "Oswald, sans-serif", cursor: "pointer",
+                background: activeCat === "all" ? "rgba(167,139,250,0.18)" : "rgba(255,255,255,0.04)",
+                color: activeCat === "all" ? "#a78bfa" : "rgba(255,255,255,0.4)",
+                border: activeCat === "all" ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.08)",
+              }}>
+              All <span style={{ opacity: 0.6 }}>{totalGames}</span>
+            </button>
+            {TABS.map(t => {
+              const c = CAT_COLOR[t.key] ?? "#a78bfa";
+              const on = activeCat === t.key;
+              return (
+                <button key={t.key} onClick={() => setActiveCat(t.key)}
+                  className="text-xs font-bold px-3 py-1.5 rounded-full transition-all"
+                  style={{
+                    fontFamily: "Oswald, sans-serif", cursor: "pointer",
+                    background: on ? `${c}22` : "rgba(255,255,255,0.04)",
+                    color: on ? c : "rgba(255,255,255,0.4)",
+                    border: on ? `1px solid ${c}66` : "1px solid rgba(255,255,255,0.08)",
+                  }}>
+                  {t.label} <span style={{ opacity: 0.6 }}>{catCounts[t.key] ?? 0}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Favourites quick row — device-local, only shown once something's starred */}
+        {favGames.length > 0 && (
+          <div className="flex gap-1.5 flex-wrap mb-3">
+            {favGames.map(g => (
+              <button key={g.key} onClick={() => jumpToGame(g)}
+                className="text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5"
+                style={{ background: "rgba(255,210,74,0.1)", border: "1px solid rgba(255,210,74,0.3)", color: "#ffd24a", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
+                <Star className="w-3 h-3" fill="#ffd24a" />{g.name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
+          {(activeCat === "all" && !searchQ) ? `${totalGames} games` : `${shownCount} match${shownCount === 1 ? "" : "es"}`}
+        </div>
+
+        {shownCount === 0 ? (
+          <div className="text-center py-8 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
+            No games match — try a different search or category.
+          </div>
+        ) : (
+          activeCats.map(catKey => {
+            const catGames = visibleGames.filter(g => g.category === catKey);
+            if (!catGames.length) return null;
+            const c = CAT_COLOR[catKey] ?? "#a78bfa";
+            const label = TABS.find(t => t.key === catKey)?.label ?? catKey;
+            const collapsed = collapsedCats.has(catKey);
+            return (
+              <div key={catKey} className="mb-3">
+                <button onClick={() => toggleCatCollapsed(catKey)}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg mb-2"
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", cursor: "pointer" }}>
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c, boxShadow: `0 0 6px ${c}` }} />
+                  <span className="text-xs font-black uppercase tracking-wider flex-1 text-left" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>{label}</span>
+                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>{catGames.length}</span>
+                  <ChevronDown className="w-3.5 h-3.5 transition-transform" style={{ color: "rgba(255,255,255,0.3)", transform: collapsed ? "rotate(-90deg)" : "none" }} />
+                </button>
+                {!collapsed && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {catGames.map(gt => (
+                      <GameCard key={gt.key} gt={gt}
+                        selected={selectedGame?.key === gt.key}
+                        expanded={expandedKey === gt.key}
+                        isFav={favorites.has(gt.key)}
+                        onSelect={() => setGame(gt)}
+                        onToggleExpand={() => setExpandedKey(k => k === gt.key ? null : gt.key)}
+                        onToggleFav={() => toggleFavorite(gt.key)}
+                        onRules={() => setRulesGame(gt)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
         {selectedGame && (
           <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.2)" }}>
             <Zap className="w-3.5 h-3.5 shrink-0" style={{ color: "#a78bfa" }} />
@@ -663,6 +939,15 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
 
       {rulesGame && <RulesModal game={rulesGame} onClose={() => setRulesGame(null)} />}
     </div>
+    {showBackTop && (
+      <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        className="fixed bottom-24 right-5 z-30 w-11 h-11 rounded-full flex items-center justify-center"
+        style={{ background: "rgba(20,14,32,0.92)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)", cursor: "pointer", boxShadow: "0 10px 28px -10px rgba(0,0,0,0.6)" }}
+        title="Back to top">
+        <ArrowUp className="w-4 h-4" />
+      </button>
+    )}
+    </>
   );
 }
 

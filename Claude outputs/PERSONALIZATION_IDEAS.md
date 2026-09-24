@@ -1,5 +1,19 @@
 # TKDL Personalization System — Full Idea List
 
+**Status check 2026-09-24 — this doc is stale.** A prior session built almost all of it without updating this file (same pattern flagged for `CURRENCY_GAME_PLAN.md` and, earlier, for a seasons.ts bug in `fixes-applied-2026-09-14-round3.md`). Verified directly against the live code, category by category:
+- **1. Profile Identity** — built (banners, frames, profile icons, animated names, tagline all wired into `account.tsx`). NOT built: the "personal accent colour" theming the whole page — the one item this doc itself flagged as its own mini-project.
+- **2. Leaderboard Presence** — built in full, including rank-up celebration. **Correction, same day:** an earlier pass through this file said `rankUpEffect()` was dead/unwired — that was wrong, it missed `pages/play.tsx`. Checked directly: `play.tsx` (~lines 752-926) computes a real server-side leaderboard-position diff per match format, fetches the equipped `RANK_UP_EFFECT` cosmetic, and renders a "Moved up to #N!" burst via `CheckoutBurst` when the viewer won and climbed. Fully wired, nothing to do here.
+- **3. In-Match/Personal Screens** — built (result theme, checkout effect, scorer theme all wired into practice/Master501/Tour via the shared scorer). NOT built: dartboard skin — `dartboard-bg.tsx` confirmed to have no cosmetic hook.
+- **4. Trophy Case & Showcase** — built in full: `TrophyCase.tsx`, `FeaturedStatBadge.tsx`, `SeasonRecapCard.tsx`, all rendered in `account.tsx`.
+- **5. Player Card** — built, wired into `player-detail/index.tsx`'s hero block.
+- **6. Social** — built in a different shape: message bubble colour is real; "chat reactions" exist on the Community feed, not the Messages tab this doc scoped it to.
+- **7. Seasonal & Limited** — partial: non-purchasable/awarded styles exist (e.g. a League Champion name style), but no generic tenure-gated unlock mechanism.
+- **8. Small Utility** — not built. Lowest priority in the doc and it shows.
+
+Don't treat this as a build backlog. The real remaining list (2026-09-24, revised): personal accent-colour theming, dartboard skin cosmetic, tenure-based unlocks, a standalone name-colour re-roll token, an extra dart-profile-slot purchase, Currency Phase 3 (self-play unlocks) in full, and true Messages-tab chat reactions. Rank-up celebration is NOT on this list — it's already done. Original idea list kept below for reference.
+
+---
+
 Card Clash dropped from this entirely, per your steer — everything below is standalone and lives in the new Store. Organized by area of the app each thing touches, so it's easier to see how big each category could get.
 
 ---

@@ -27,3 +27,4 @@ export * from "./card-clash-favorites";
 export * from "./feature-flags";
 export * from "./broadcast";
 export * from "./cosmetics";
+export * from "./self-play-unlocks";

@@ -212,6 +212,14 @@ export function resultThemeColor(cosmetic: CosmeticDefinition | undefined | null
   return cosmetic?.color ?? fallback;
 }
 
+// ACCOUNT_ACCENT cosmetic — a flat swatch colour applied only to a
+// player's own account page (see account.tsx, which reads this once and
+// sets it as a CSS custom property scoped to that page's own root wrapper
+// so it can never leak into shared/other-player-visible components).
+export function accountAccentColor(cosmetic: CosmeticDefinition | undefined | null, fallback: string): string {
+  return cosmetic?.color ?? fallback;
+}
+
 // CSS for a BUBBLE_COLOR cosmetic — background/border tint applied only to
 // a player's own outgoing DM chat bubbles. Returns {} for null/unknown,
 // which keeps the caller's existing default pink bubble unchanged.

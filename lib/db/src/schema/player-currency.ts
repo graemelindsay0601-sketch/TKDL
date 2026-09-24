@@ -45,6 +45,7 @@ export const CURRENCY_REASONS = [
   "admin_removal",          // Admin "remove coins"
   "admin_reset",            // Admin "reset player card data" (full wipe)
   "community_top_post",     // Off the Oche weekly Top of the Board coin reward
+  "self_play_unlock",       // Self-play unlocks shop: extra Shadow Bot personas, preview pass, Coach's Corner bonus drills
 ] as const;
 export type CurrencyReason = (typeof CURRENCY_REASONS)[number];
 

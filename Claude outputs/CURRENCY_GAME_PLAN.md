@@ -1,5 +1,16 @@
 # TKDL Coin Economy — Game Plan
 
+**Status check 2026-09-24 — this doc is stale.** A prior session built almost all of it without updating this file — same pattern `fixes-applied-2026-09-14-round3.md` already flagged once for the seasons.ts bug, just not caught here at the time. Verified directly (not just claimed) against the live code:
+- **Phase 0** — both items done. The card-shop account-ownership gap is fixed on all 4 named endpoints (`routes/card-clash.ts`: pack purchase, pack open, sell card, featured-card purchase all now check `sessionId !== Number(playerId)` → 403). Currency is named "Coins" everywhere (`CoinBalance.tsx`, `CosmeticsShop.tsx`, `AchievementRewardModal.tsx`).
+- **Phase 1** — done and exceeds spec: `account.tsx` has a real Wallet tab (balance + Open Store link) plus a separate paginated `TransactionHistory.tsx` (15 reason types).
+- **Phase 2** — done and far larger than scoped: all 5 listed cosmetic categories shipped, plus 13 more not in this doc (18 categories total in `cosmetics.ts`, ~165 catalog items per `CosmeticsShop.tsx`).
+- **Phase 3 (self-play unlocks)** — genuinely NOT built. Real gap.
+- **Phase 4 (utility/social)** — partially built in a different shape (tagline is free not coin-gated, chat reactions exist on Community not Messages); the name-colour re-roll token is NOT built.
+
+Don't treat this doc as a build backlog — see `PRACTICE_REDESIGN_BUILD_PLAN.md`-adjacent session notes (2026-09-24) for the real remaining-gaps list. Original plan kept below for reference.
+
+---
+
 A working checklist to tick off before anything gets built. Nothing here is built yet — this is the menu to approve from.
 
 Guiding rule for everything below, per your steer: **vanity-first, nothing that touches league or season outcomes.** Self-play unlocks (drills, bot difficulty) are the one category that isn't pure cosmetic, but they only affect practice-mode content — never a real match, standing, or season result.

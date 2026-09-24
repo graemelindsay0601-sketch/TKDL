@@ -57,6 +57,9 @@ import { addWave6CosmeticColumns } from "./db/migrations/add_wave6_cosmetics";
 import { addPlayerRankSnapshotsTable } from "./db/migrations/add_player_rank_snapshots";
 import { seedCosmeticDefinitions } from "./services/cosmetics-service";
 import { addLastSeenHubAtColumn } from "./db/migrations/add_last_seen_hub_at";
+import { addSelfPlayUnlocks } from "./db/migrations/add_self_play_unlocks";
+import { addAccountAccentCosmeticColumn } from "./db/migrations/add_account_accent_cosmetic";
+import { seedSelfPlayUnlockDefinitions } from "./services/self-play-unlocks-service";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
 import { up as createCardClashFavoritesTable } from "./db/migrations/add_card_clash_favorites";
 import { addDailyChallengeKeyColumn } from "./db/migrations/add_daily_challenge_key";
@@ -1383,9 +1386,13 @@ async function init() {
   await runInitStep("addWave5CosmeticColumns", addWave5CosmeticColumns);
   await runInitStep("addWave6CosmeticColumns", addWave6CosmeticColumns);
   await runInitStep("addPlayerRankSnapshotsTable", addPlayerRankSnapshotsTable);
+  await runInitStep("addAccountAccentCosmeticColumn", addAccountAccentCosmeticColumn);
   // Needs addCosmeticsTables and addCosmeticPurchasableFlag to have run first — upserts into cosmetic_definitions.
   await runInitStep("seedCosmeticDefinitions", seedCosmeticDefinitions);
   await runInitStep("addLastSeenHubAtColumn", addLastSeenHubAtColumn);
+  await runInitStep("addSelfPlayUnlocks", addSelfPlayUnlocks);
+  // Needs addSelfPlayUnlocks to have run first — upserts into self_play_unlock_definitions.
+  await runInitStep("seedSelfPlayUnlockDefinitions", seedSelfPlayUnlockDefinitions);
   await runInitStep("maybeAutoResetLeagueSeasons", maybeAutoResetLeagueSeasons);
   // Runs after maybeAutoResetLeagueSeasons so a reset firing on this exact
   // boot is immediately reconciled too, though with seasonReset.ts's fix

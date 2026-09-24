@@ -23,7 +23,7 @@ import { DrillProgressTracker } from "@/components/stats/drill-progress-tracker"
 import { AdaptiveDifficulty } from "@/components/stats/adaptive-difficulty";
 import { LogDrillModal, type LoggableDrill } from "@/components/stats/log-drill-modal";
 import { CosmeticsShop } from "@/components/CosmeticsShop";
-import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, bubbleColorStyle, avatarBadgeIcon, taglineStyleCSS, stickerEmoji, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
+import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, bubbleColorStyle, avatarBadgeIcon, taglineStyleCSS, stickerEmoji, accountAccentColor, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
 import { TrophyCase } from "@/components/TrophyCase";
 import { FeaturedStatBadge } from "@/components/FeaturedStatBadge";
 import { SPOTLIGHT_STATS, SPOTLIGHT_STAT_KEYS, useSpotlightValues } from "@/lib/statSpotlight";
@@ -387,6 +387,13 @@ export default function AccountPage() {
   const [coachDrills,      setCoachDrills]     = useState<any[]>([]);
   const [coachStats,       setCoachStats]      = useState<any>(null);
   const [coachLoading,     setCoachLoading]    = useState(false);
+  // Coach's Corner Bonus Pack — self-play unlock. generatePracticeRoutine()
+  // (routes/practice.ts) already folds the two bonus drills into `drills`
+  // once bought, so no separate fetch/merge is needed for those — this is
+  // only for the "buy it" CTA when the player hasn't yet.
+  const [coachBonusUnlocked, setCoachBonusUnlocked] = useState(true);
+  const [unlockingBonusPack, setUnlockingBonusPack]  = useState(false);
+  const [bonusUnlockError,   setBonusUnlockError]    = useState<string | null>(null);
   const [openDrills,       setOpenDrills]      = useState<Record<string, boolean>>({});
   const [loggingDrill,     setLoggingDrill]    = useState<LoggableDrill | null>(null);
   const [drillsVersion,    setDrillsVersion]   = useState(0);
@@ -572,11 +579,39 @@ export default function AccountPage() {
     setCoachLoading(true);
     fetch(`/api/players/${user.playerId}/practice-routine`)
       .then(r => r.ok ? r.json() : {})
-      .then((d: any) => { setCoachDrills(Array.isArray(d.drills) ? d.drills : []); setCoachStats(d.stats ?? null); })
+      .then((d: any) => {
+        setCoachDrills(Array.isArray(d.drills) ? d.drills : []);
+        setCoachStats(d.stats ?? null);
+        setCoachBonusUnlocked(d.bonusUnlocked ?? false);
+      })
       .catch(() => {})
       .finally(() => setCoachLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, user?.playerId]);
+
+  async function unlockCoachBonusPack() {
+    if (!user?.playerId || unlockingBonusPack) return;
+    setUnlockingBonusPack(true);
+    setBonusUnlockError(null);
+    try {
+      const res = await fetch(`/api/players/${user.playerId}/self-play-unlocks/purchase`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unlockId: "coach-bonus-pack" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setBonusUnlockError(data.error || "Purchase failed"); return; }
+      setCoachBonusUnlocked(true);
+      // Refetch so the two bonus drills actually appear, rather than just
+      // flipping the CTA off and leaving the list stale until a tab switch.
+      const routine: any = await fetch(`/api/players/${user.playerId}/practice-routine`).then(r => r.ok ? r.json() : {});
+      setCoachDrills(Array.isArray(routine.drills) ? routine.drills : []);
+    } catch {
+      setBonusUnlockError("Couldn't reach the server — try again in a moment.");
+    } finally {
+      setUnlockingBonusPack(false);
+    }
+  }
 
   useEffect(() => {
     if (!user?.playerId || activeTab !== "coach") return;
@@ -745,6 +780,14 @@ export default function AccountPage() {
   const equippedAvatarBadge = cosmeticsCatalog.find(c => c.id === player?.equippedAvatarBadgeId);
   const equippedTaglineStyle = cosmeticsCatalog.find(c => c.id === player?.equippedTaglineStyleId);
   const equippedTrophyCaseStyle = cosmeticsCatalog.find(c => c.id === player?.equippedTrophyCaseStyleId);
+  // ACCOUNT_ACCENT cosmetic — deliberately a plain component-local constant,
+  // never a global CSS variable or class: it's read once here and used only
+  // in this file's own JSX below (the tab bar's active-tab indicator), so
+  // it can't leak into any shared/other-player-visible component even by
+  // accident. Falls back to the app's existing brand red so "nothing
+  // equipped" renders pixel-identical to before this cosmetic existed.
+  const equippedAccountAccent = cosmeticsCatalog.find(c => c.id === player?.equippedAccountAccentId);
+  const accountAccent = accountAccentColor(equippedAccountAccent, "#ff005c");
   const ProfileIcon = (equippedProfileIcon?.iconKey && PROFILE_ICON_MAP[equippedProfileIcon.iconKey]) || Target;
   const avatarBadge = avatarBadgeIcon(equippedAvatarBadge);
   // Stickers a player can attach to a DM — owned STICKER cosmetics, resolved
@@ -1158,9 +1201,9 @@ export default function AccountPage() {
             className="shrink-0 relative flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all"
             style={{
               width: "68px",
-              background: activeTab === tab.id ? "rgba(255,0,92,0.18)" : "transparent",
-              border:     activeTab === tab.id ? "1px solid rgba(255,0,92,0.35)" : "1px solid transparent",
-              color:      activeTab === tab.id ? "#ff005c" : "rgba(255,255,255,0.35)",
+              background: activeTab === tab.id ? `${accountAccent}2e` : "transparent",
+              border:     activeTab === tab.id ? `1px solid ${accountAccent}59` : "1px solid transparent",
+              color:      activeTab === tab.id ? accountAccent : "rgba(255,255,255,0.35)",
               fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em",
             }}>
             <tab.Icon className="w-3.5 h-3.5 shrink-0" />
@@ -1886,6 +1929,33 @@ export default function AccountPage() {
                         <div style={{ fontSize: "0.48rem", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", marginTop: "2px", textTransform: "uppercase" }}>Treble</div>
                       </div>
                     )}
+                  </div>
+                )}
+                {!coachLoading && !coachBonusUnlocked && (
+                  <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl"
+                    style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.2)" }}>
+                    <div>
+                      <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem", fontWeight: 800, color: "#a78bfa", letterSpacing: "0.04em" }}>
+                        Coach's Corner Bonus Pack
+                      </div>
+                      <div style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.35)", marginTop: "2px" }}>
+                        200 coins · two advanced training blocks on top of your free routine
+                      </div>
+                    </div>
+                    <button onClick={unlockCoachBonusPack} disabled={unlockingBonusPack}
+                      className="shrink-0 px-3 py-2 rounded-lg"
+                      style={{
+                        fontFamily: "Oswald, sans-serif", fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.06em",
+                        background: "rgba(167,139,250,0.18)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.35)",
+                        cursor: unlockingBonusPack ? "wait" : "pointer", opacity: unlockingBonusPack ? 0.6 : 1,
+                      }}>
+                      {unlockingBonusPack ? "…" : "Unlock"}
+                    </button>
+                  </div>
+                )}
+                {bonusUnlockError && (
+                  <div style={{ fontSize: "0.6rem", color: "#ff6b8a", background: "rgba(255,0,92,0.08)", border: "1px solid rgba(255,0,92,0.2)", borderRadius: "10px", padding: "8px 12px" }}>
+                    {bonusUnlockError}
                   </div>
                 )}
                 {coachDrills.map((drill: any, i: number) => {

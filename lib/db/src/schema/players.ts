@@ -108,6 +108,11 @@ export const playersTable = pgTable("players", {
   // on this player's own real-match result screen when their leaderboard
   // position improves because of that match.
   equippedRankUpEffectId: text("equipped_rank_up_effect_id"),
+  // ACCOUNT_ACCENT cosmetic category — a flat swatch colour applied only to
+  // this player's own account page (see schema/cosmetics.ts's header
+  // comment on ACCOUNT_ACCENT for why this one is scoped narrower than the
+  // other equipped* columns here).
+  equippedAccountAccentId: text("equipped_account_accent_id"),
   // Featured Stat Spotlight — a free (not coin-gated) profile customization:
   // one stat this player picked to headline next to their trophy case (e.g.
   // "Best checkout: 121"). Not a cosmetic — no FK, same no-FK reasoning as

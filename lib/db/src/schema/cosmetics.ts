@@ -191,7 +191,16 @@ import { playersTable } from "./players";
 // champion at season close (lib/seasonReset.ts's performSeasonResetLocked)
 // — a genuinely limited, achievement-locked cosmetic tied to the league's
 // own real season data, not a purchasable stand-in for winning.
-export const COSMETIC_CATEGORIES = ["NAME_STYLE", "PROFILE_ICON", "BANNER", "FRAME", "GLOW", "RESULT_THEME", "BUBBLE_COLOR", "AVATAR_BADGE", "LEADERBOARD_TAG", "TAGLINE_STYLE", "POST_ACCENT", "STICKER", "CHECKOUT_EFFECT", "SCORER_THEME", "PLAYER_CARD_FINISH", "TROPHY_CASE_STYLE", "RECAP_STYLE", "RANK_UP_EFFECT"] as const;
+// ACCOUNT_ACCENT reuses `color` for a flat swatch colour, same shape as
+// GLOW/BUBBLE_COLOR — but scoped narrower than any other cosmetic here: it
+// only ever tints a player's own account page (buttons, active-tab
+// underline, a few highlight borders), applied as a CSS custom property on
+// that page's own root wrapper (see account.tsx). Deliberately does NOT
+// touch anything another player can see — not the leaderboard, not
+// player-detail, not chat — since the request that led to this one was
+// explicitly scoped "account page only", unlike every other cosmetic slot
+// above which is at least visible to whoever views that player's profile.
+export const COSMETIC_CATEGORIES = ["NAME_STYLE", "PROFILE_ICON", "BANNER", "FRAME", "GLOW", "RESULT_THEME", "BUBBLE_COLOR", "AVATAR_BADGE", "LEADERBOARD_TAG", "TAGLINE_STYLE", "POST_ACCENT", "STICKER", "CHECKOUT_EFFECT", "SCORER_THEME", "PLAYER_CARD_FINISH", "TROPHY_CASE_STYLE", "RECAP_STYLE", "RANK_UP_EFFECT", "ACCOUNT_ACCENT"] as const;
 export type CosmeticCategory = (typeof COSMETIC_CATEGORIES)[number];
 
 export const cosmeticDefinitionsTable = pgTable("cosmetic_definitions", {

@@ -76,40 +76,71 @@ export function LevelBotPicker({ selected, onSelect }: {
 }
 
 // ── Pro persona card ─────────────────────────────────────────────────────────
-export function PersonaCard({ persona, selected, onSelect }: {
+// `locked`/`price`/`onUnlock`/`unlocking` are all optional — every existing
+// caller that never passes them renders exactly as before. When `locked` is
+// true the card can't be selected (clicking it does nothing but is inert,
+// same posture as ShadowPlayerPicker's locked rows below) and instead shows
+// a price + an "Unlock" button that calls `onUnlock` — the parent owns the
+// actual purchase request and refetching ownership afterwards, same
+// division of responsibility CosmeticsShop.tsx already uses.
+export function PersonaCard({ persona, selected, onSelect, locked, price, onUnlock, unlocking }: {
   persona: BotPersona; selected: boolean; onSelect: () => void;
+  locked?: boolean; price?: number; onUnlock?: () => void; unlocking?: boolean;
 }) {
   const lvl = BOT_LEVELS[persona.level];
   return (
-    <button onClick={onSelect} className="pdc-card p-3 text-left w-full transition-all relative overflow-hidden"
+    <button onClick={() => !locked && onSelect()} className="pdc-card p-3 text-left w-full transition-all relative overflow-hidden"
       style={{
-        borderColor: selected ? lvl.color : "rgba(255,255,255,0.07)",
-        background: selected ? `${lvl.color}14` : "rgba(255,255,255,0.02)",
-        cursor: "pointer",
+        borderColor: selected ? lvl.color : locked ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.07)",
+        background: selected ? `${lvl.color}14` : locked ? "rgba(255,255,255,0.01)" : "rgba(255,255,255,0.02)",
+        cursor: locked ? "not-allowed" : "pointer",
+        opacity: locked ? 0.65 : 1,
       }}>
       {selected && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: lvl.color }} />}
       <div className="flex items-center gap-3">
-        <span className="text-2xl leading-none">{persona.flag}</span>
+        <span className="text-2xl leading-none" style={{ filter: locked ? "grayscale(1)" : undefined }}>
+          {locked ? "🔒" : persona.flag}
+        </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: selected ? "#fff" : "rgba(255,255,255,0.85)" }}>
+            <span className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: locked ? "rgba(255,255,255,0.4)" : selected ? "#fff" : "rgba(255,255,255,0.85)" }}>
               {persona.name}
             </span>
             <span className="text-xs px-1.5 py-0.5 rounded-md shrink-0 font-bold"
-              style={{ background: `${lvl.color}22`, color: lvl.color, fontFamily: "Oswald, sans-serif", letterSpacing: "0.05em" }}>
+              style={{ background: `${lvl.color}22`, color: locked ? "rgba(255,255,255,0.3)" : lvl.color, fontFamily: "Oswald, sans-serif", letterSpacing: "0.05em" }}>
               {persona.nickname}
             </span>
           </div>
-          <div className="text-xs mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
-            {persona.tagline}
-          </div>
+          {locked ? (
+            <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
+              {price != null ? `${price} coins to unlock permanently` : "Locked"}
+            </div>
+          ) : (
+            <div className="text-xs mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
+              {persona.tagline}
+            </div>
+          )}
         </div>
-        <div className="text-right shrink-0">
-          <div className="text-xl font-black leading-none" style={{ fontFamily: "Oswald, sans-serif", color: lvl.color }}>
-            {persona.avg}
+        {locked ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); if (!unlocking) onUnlock?.(); }}
+            className="text-xs font-bold px-2.5 py-1.5 rounded-lg shrink-0"
+            style={{
+              fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em",
+              background: "rgba(167,139,250,0.15)", color: "#a78bfa",
+              border: "1px solid rgba(167,139,250,0.3)", cursor: unlocking ? "wait" : "pointer",
+              opacity: unlocking ? 0.6 : 1,
+            }}>
+            {unlocking ? "…" : "Unlock"}
+          </button>
+        ) : (
+          <div className="text-right shrink-0">
+            <div className="text-xl font-black leading-none" style={{ fontFamily: "Oswald, sans-serif", color: lvl.color }}>
+              {persona.avg}
+            </div>
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>avg</div>
           </div>
-          <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>avg</div>
-        </div>
+        )}
       </div>
     </button>
   );

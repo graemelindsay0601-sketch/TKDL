@@ -8,6 +8,7 @@ import { requireAdminSession } from "../middleware/requireAdminSession";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { currentLeagueId } from "../lib/currentLeague";
 import { getSettingBool } from "../lib/settingsService";
+import { getActiveUnlockIds } from "../services/self-play-unlocks-service";
 
 const router = Router();
 
@@ -1395,8 +1396,36 @@ export async function generatePracticeRoutine(playerId: number) {
       });
     }
 
+    // ── Bonus drills (Coach's Corner Bonus Pack — self-play unlock) ─────────
+    // Unlike everything above, these two aren't stat-conditional — they're
+    // always eligible once bought, which is the whole point of paying for
+    // them: a couple of always-on advanced blocks alongside whatever the
+    // bot builds for free from real session data. See
+    // self-play-unlocks-service.ts's "coach-bonus-pack" catalog entry.
+    const unlockedIds = await getActiveUnlockIds(playerId);
+    const bonusUnlocked = unlockedIds.has("coach-bonus-pack");
+    if (bonusUnlocked) {
+      drills.push({
+        id: "bonus_180_factory", title: "180 Factory", icon: "💯",
+        priority: "advanced", focus: "scoring",
+        description: "Pure maximum output. No safety net, no resets — just how many 180s you can bank in one sitting.",
+        drill: "20 visits at T20 only. Log every 180. Missed visits still count toward the 20 — don't restart the count.",
+        target: v180 > 0 ? `Beat your current logged best of ${v180} 180s in one session` : "Land and log your first tracked 180",
+        duration: "15 min",
+      });
+      drills.push({
+        id: "bonus_bogey_buster", title: "Bogey Number Buster", icon: "🧨",
+        priority: "advanced", focus: "checkout",
+        description: "169, 168, 166, 165, 163, 162, 159 — darts' classic bogey numbers, with no 3-dart finish. Real matches turn on knowing the bail-out route, not just the checkout route.",
+        drill: "Start a leg at each bogey number in turn (169 → 168 → 166 → 165 → 163 → 162 → 159). Aim to bail out to a clean 2-dart leave rather than busting.",
+        target: "Bail out cleanly from all 7 bogey numbers without busting",
+        duration: "15 min",
+      });
+    }
+
     return {
       drills,
+      bonusUnlocked,
       stats: {
         avg: avg > 0 ? avg : null,
         // Was "coPct" — account.tsx's Coach tab reads coachStats.checkoutPct
