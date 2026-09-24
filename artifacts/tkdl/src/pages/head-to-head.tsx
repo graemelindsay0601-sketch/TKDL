@@ -3,6 +3,7 @@ import { Link, useSearch } from "wouter";
 import { ArrowLeft, Swords, TrendingUp, Target, Flame, Trophy } from "lucide-react";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
+import { useFetch } from "@/hooks/use-fetch";
 
 type Player = { id: number; name: string; elo: number; tier: string; wins: number; currentStreak: number; total180s: number; avgDartsToWin: number | null };
 type H2HMatch = {
@@ -14,22 +15,6 @@ type H2HMatch = {
 };
 type H2HData = { player1: Player; player2: Player; totalMatches: number; recentMatches: H2HMatch[] };
 type PlayerOption = { id: number; name: string };
-
-function useFetch<T>(url: string | null) {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    if (!url) { setData(null); return; }
-    let cancelled = false;
-    setLoading(true);
-    fetch(url)
-      .then(r => r.json())
-      .then(d => { if (!cancelled) { setData(d); setLoading(false); } })
-      .catch(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [url]);
-  return { data, loading };
-}
 
 function WinBar({ p1Wins, p2Wins, p1Name, p2Name }: { p1Wins: number; p2Wins: number; p1Name: string; p2Name: string }) {
   const total = p1Wins + p2Wins;

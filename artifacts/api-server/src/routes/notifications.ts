@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
+import { sendTestNotification } from "../services/notificationService";
 
 const router = Router();
 
@@ -124,6 +125,22 @@ router.patch("/notifications/:id/read", async (req, res): Promise<void> => {
     WHERE id = ${id} AND player_id = ${playerId}
   `);
   res.json({ ok: true });
+});
+
+// ── POST /notifications/test — fire one real push at the caller's own
+// device and report exactly what happened. Used by the "Send test
+// notification" button in Account → Notifications so it's possible to
+// actually tell whether the pipeline works instead of guessing. ───────────────
+router.post("/notifications/test", async (req, res): Promise<void> => {
+  const playerId = requireAuth(req, res);
+  if (!playerId) return;
+
+  try {
+    const result = await sendTestNotification(playerId);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ ok: false, reason: "server_error", detail: err?.message ?? String(err) });
+  }
 });
 
 // ── GET /notifications/vapid-public-key ──────────────────────────────────────

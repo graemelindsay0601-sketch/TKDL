@@ -8,9 +8,20 @@ import { sql, eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { checkBatchingRules, queueNotificationForBatching } from "./batchingService";
 
+// The "community" types (dm_received through auto_post_fired) used to run
+// through a second, parallel createNotification() in lib/communityNotify.ts
+// — its own DB write (a different notifications-table column shape), its
+// own push-send implementation, its own preferences lookup. Two systems
+// that happened to share a table, not one. communityNotify.ts's
+// createNotification is now a thin wrapper around this one instead — see
+// its header — so every notification in the app, of every type, now goes
+// through exactly one insert, one preference check, and one push send.
 export interface NotificationPayload {
   playerId: number;
-  type: "match_result" | "rank_change" | "threat_alert" | "coach_tip" | "announcement";
+  type:
+    | "match_result" | "rank_change" | "threat_alert" | "coach_tip" | "announcement"
+    | "dm_received" | "achievement_unlocked"
+    | "post_approved" | "post_liked" | "post_commented" | "auto_post_fired";
   title: string;
   body: string;
   data?: Record<string, any>;
@@ -19,6 +30,14 @@ export interface NotificationPayload {
   // quiet hours/daily batching limits. Threat alerts are always critical
   // regardless of this flag.
   critical?: boolean;
+  // Who/what this notification is about — optional, only ever set by the
+  // former communityNotify.ts call sites (a DM, a like, a comment, an
+  // achievement). Written straight to the notifications table's actor_id/
+  // entity_id/entity_type columns so GET /notifications' actor_name join
+  // keeps working for these types exactly as it did before.
+  actorId?: number | null;
+  entityId?: number | null;
+  entityType?: string | null;
 }
 
 export interface PushSubscription {
@@ -44,8 +63,11 @@ export async function createNotification(payload: NotificationPayload): Promise<
     // /notifications already falls back to via COALESCE(body, message) for
     // the older message-shaped rows.
     const { rows: [notification] } = await db.execute(sql`
-      INSERT INTO notifications (player_id, type, title, body, message, data)
-      VALUES (${payload.playerId}, ${payload.type}, ${payload.title}, ${payload.body}, ${payload.body}, ${JSON.stringify(payload.data || {})})
+      INSERT INTO notifications (player_id, type, title, body, message, data, actor_id, entity_id, entity_type)
+      VALUES (
+        ${payload.playerId}, ${payload.type}, ${payload.title}, ${payload.body}, ${payload.body}, ${JSON.stringify(payload.data || {})},
+        ${payload.actorId ?? null}, ${payload.entityId ?? null}, ${payload.entityType ?? null}
+      )
       RETURNING id
     `);
 
@@ -97,6 +119,14 @@ async function shouldSendNotification(payload: NotificationPayload, prefs: any):
     threat_alert: "threat_alerts",
     coach_tip:    "coach_tips",
     announcement: "announcements",
+    // Merged in from communityNotify.ts's own (now-removed) copy of this
+    // map — see this file's header comment.
+    dm_received:          "direct_messages",
+    achievement_unlocked: "achievements",
+    post_approved:        "community_activity",
+    post_liked:            "community_activity",
+    post_commented:        "community_activity",
+    auto_post_fired:       "community_activity",
   };
   const typeKey = TYPE_TO_PREF_COLUMN[payload.type];
   if (typeKey && typeKey in prefs && !prefs[typeKey]) return false;
@@ -128,6 +158,100 @@ async function shouldSendNotification(payload: NotificationPayload, prefs: any):
   }
 
   return true;
+}
+
+/**
+ * Fire one real notification straight at a single player's own device and
+ * report back exactly what happened, instead of the fire-and-forget +
+ * logger.error pattern the rest of this file uses (fine for background
+ * triggers nobody's watching, useless for "is this actually working").
+ * Walks the same checks createNotification()/sendPushNotification() do
+ * internally, but surfaces which one failed rather than swallowing it.
+ */
+export async function sendTestNotification(playerId: number): Promise<{
+  ok: boolean;
+  reason?: "vapid_not_configured" | "push_disabled" | "not_subscribed" | "send_failed";
+  detail?: string;
+  sentTo?: number;
+}> {
+  if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+    return {
+      ok: false,
+      reason: "vapid_not_configured",
+      detail: "The server has no VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY set, so push notifications can't be delivered by anyone yet. Run \"pnpm run generate-vapid-keys\" in artifacts/api-server, add the two printed lines to your .env, and restart the server.",
+    };
+  }
+
+  const prefs = await getNotificationPreferences(playerId);
+  if (prefs && prefs.push_enabled === false) {
+    return {
+      ok: false,
+      reason: "push_disabled",
+      detail: "Push notifications are turned off in your own preferences — turn on \"All Notifications\" below, then try the test again.",
+    };
+  }
+
+  const subs = await db.execute(sql`
+    SELECT endpoint, auth, p256dh FROM push_subscriptions WHERE player_id = ${playerId}
+  `);
+  const rows = subs.rows as any[];
+  if (rows.length === 0) {
+    return {
+      ok: false,
+      reason: "not_subscribed",
+      detail: "You don't have an active push subscription on this device — tap \"Enable\" above first, then try the test again.",
+    };
+  }
+
+  // Write a real row so it also shows up in the in-app notification list,
+  // same as any other notification — the test should exercise the actual
+  // pipeline, not a side path.
+  const { rows: [notification] } = await db.execute(sql`
+    INSERT INTO notifications (player_id, type, title, body, message, data)
+    VALUES (${playerId}, 'announcement', 'Test notification', 'If you can see this, push notifications are working.', 'If you can see this, push notifications are working.', ${JSON.stringify({ test: true })})
+    RETURNING id
+  `);
+  const notificationId = (notification as any).id;
+
+  const webPush = await import("web-push");
+  let sentTo = 0;
+  let lastError: string | undefined;
+  for (const sub of rows) {
+    try {
+      await webPush.sendNotification(
+        { endpoint: sub.endpoint, keys: { auth: sub.auth, p256dh: sub.p256dh } },
+        JSON.stringify({
+          title: "Test notification",
+          body: "If you can see this, push notifications are working.",
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+          data: { notificationId, test: true },
+        })
+      );
+      sentTo++;
+      await db.execute(sql`UPDATE push_subscriptions SET last_used = NOW() WHERE endpoint = ${sub.endpoint}`);
+      await db.execute(sql`
+        INSERT INTO notification_analytics (notification_id, player_id, sent_at)
+        VALUES (${notificationId}, ${playerId}, NOW())
+      `);
+    } catch (err: any) {
+      if (err.statusCode === 410) {
+        await db.execute(sql`DELETE FROM push_subscriptions WHERE endpoint = ${sub.endpoint}`);
+      }
+      lastError = err?.body || err?.message || String(err);
+      logger.error({ err }, "Test notification failed to send");
+    }
+  }
+
+  if (sentTo === 0) {
+    return {
+      ok: false,
+      reason: "send_failed",
+      detail: lastError ?? "The push service rejected the notification for an unknown reason — check the server logs.",
+      sentTo: 0,
+    };
+  }
+  return { ok: true, sentTo };
 }
 
 /**

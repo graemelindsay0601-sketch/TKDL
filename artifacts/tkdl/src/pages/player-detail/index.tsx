@@ -61,6 +61,11 @@ export default function PlayerDetail() {
   const [pins, setPins] = useState<PinEntry[]>([]);
   useEffect(() => {
     if (!playerId) return;
+    // Reset before fetching — otherwise navigating from one player to
+    // another briefly shows the PREVIOUS player's pinned achievements under
+    // the new player's name, since this component doesn't unmount between
+    // profile visits (same route, just a changed :id param).
+    setPins([]);
     fetch(`/api/players/${playerId}/pinned-achievements`)
       .then(r => r.json())
       .then(d => setPins(Array.isArray(d?.pins) ? d.pins : []))
@@ -116,6 +121,19 @@ export default function PlayerDetail() {
   const [playerCurrency, setPlayerCurrency] = useState<any>(null);
   useEffect(() => {
     if (!playerId) return;
+    // Reset every field this fetch populates before firing it — see the pins
+    // effect above for why. Without this, switching players shows the old
+    // player's practice stats, gamerscore, trophies, achievements, currency
+    // and career journey until the new fetches resolve.
+    setPracticeAgg(null);
+    setPracticeSessions([]);
+    setDartProfile(null);
+    setGamerscore(null);
+    setTourTrophies([]);
+    setShadowAchs([]);
+    setTourAchs([]);
+    setPlayerCurrency(null);
+    setCareerJourney([]);
     Promise.all([
       fetch(`/api/players/${playerId}/practice-stats`).then(r => r.json()),
       fetch(`/api/players/${playerId}/practice-sessions`).then(r => r.json()),
@@ -141,6 +159,7 @@ export default function PlayerDetail() {
 
   useEffect(() => {
     if (!playerId) return;
+    setAchProgress([]);
     fetch(`/api/players/${playerId}/achievement-progress`)
       .then(r => r.json())
       .then(d => setAchProgress(Array.isArray(d) ? d : []))
@@ -149,6 +168,7 @@ export default function PlayerDetail() {
 
   useEffect(() => {
     if (!playerId) return;
+    setGameTypes([]);
     fetch(`/api/players/${playerId}/stats`)
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.gameTypes)) setGameTypes(d.gameTypes); })
@@ -158,6 +178,7 @@ export default function PlayerDetail() {
   const [doublesTeam, setDoublesTeam] = useState<any | null>(null);
   useEffect(() => {
     if (!playerId) return;
+    setDoublesTeam(null);
     fetch("/api/seasons/current?leagueType=doubles")
       .then(r => r.json())
       .then(season => {
@@ -177,6 +198,7 @@ export default function PlayerDetail() {
   const [shiftWarsTeam, setShiftWarsTeam] = useState<any | null>(null);
   useEffect(() => {
     if (!playerId) return;
+    setShiftWarsTeam(null);
     fetch("/api/shift-wars/teams")
       .then(r => r.ok ? r.json() : [])
       .then(teams => {
@@ -199,6 +221,12 @@ export default function PlayerDetail() {
   const [tourRuns, setTourRuns] = useState<any[]>([]);
   useEffect(() => {
     if (!playerId) return;
+    setMaster501(null);
+    setShadowStats(null);
+    setBossBattle(null);
+    setBoardCurseRecord(null);
+    setCardClashStats(null);
+    setTourRuns([]);
     fetch(`/api/master501/progress/${playerId}`).then(r => r.ok ? r.json() : null).then(setMaster501).catch(() => setMaster501(null));
     fetch(`/api/players/${playerId}/shadow-bot-stats`).then(r => r.ok ? r.json() : null).then(setShadowStats).catch(() => setShadowStats(null));
     fetch(`/api/boss-battles/progress/${playerId}`).then(r => r.ok ? r.json() : null).then(setBossBattle).catch(() => setBossBattle(null));
@@ -211,6 +239,24 @@ export default function PlayerDetail() {
       if (!bot && !local) { setBoardCurseRecord(null); return; }
       setBoardCurseRecord({ wins: (bot?.wins ?? 0) + (local?.wins ?? 0), losses: (bot?.losses ?? 0) + (local?.losses ?? 0) });
     });
+  }, [playerId]);
+
+  // Interaction-scoped state below (practice game breakdown, session detail,
+  // high-checkouts list) is never fetched automatically by playerId — each
+  // piece only loads when the viewer clicks into it. But none of it is keyed
+  // by player either, so if a panel is left open while navigating from one
+  // player to another, it keeps showing the PREVIOUS player's cached game
+  // sessions / selected session / checkouts under the new player's page.
+  // Clearing it on playerId change forces a fresh fetch next time it's opened.
+  useEffect(() => {
+    setExpandedGame(null);
+    setGameSessionsCache({});
+    setGameSessionsLoading({});
+    setSelectedSession(null);
+    setSessionDetailLoading(false);
+    setCheckouts(null);
+    setCheckoutsOpen(false);
+    setCheckoutsLoading(false);
   }, [playerId]);
 
   // Achievement-grid derived data — hoisted above the early returns below and

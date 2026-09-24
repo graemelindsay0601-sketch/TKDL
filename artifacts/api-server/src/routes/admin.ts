@@ -7,11 +7,11 @@ import crypto from "crypto";
 import { checkStatAchievements, checkMatchAchievements, retroactiveSweep } from "../lib/achievements";
 import { applyEloChange, calcTier } from "../lib/elo";
 import { requireAdminSession } from "../middleware/requireAdminSession";
-import { createAnnouncement, getNotificationAnalytics } from "../services/notificationService";
+import { createAnnouncement, getNotificationAnalytics, sendTestNotification } from "../services/notificationService";
+import { createNotification as createCommunityNotification } from "../lib/communityNotify";
 import { drawDoublesTeams } from "../lib/doublesDraw";
 import { logger } from "../lib/logger";
 import { logAdminAction, getRecentAdminActions } from "../lib/adminAudit";
-import { currentLeagueId } from "../lib/currentLeague";
 
 const router = Router();
 
@@ -462,66 +462,58 @@ router.get("/admin/notifications/analytics", requireAdminSession, async (req, re
   }
 });
 
-// ── Test comms: fire fake DM + notifications to Graeme (player 1) ────────────
-router.post("/admin/test-comms", async (req, res): Promise<void> => {
-  const GRAEME_ID = 1;
-  const SEAN_ID   = 2;
+// ── Test comms: send a real notification through the real pipeline ──────────
+// This used to hardcode player ids 1 and 2 ("Graeme" and "Sean") and write
+// fake rows straight into direct_messages/community_posts/notifications —
+// no admin auth check, no existence check on those ids, no try/catch. The
+// moment either hardcoded id didn't match a real row, the insert threw a
+// foreign-key violation and Express returned a bare, undiagnosable 500 —
+// almost certainly what was being hit. It also never actually tested push
+// delivery: every insert went straight to the table, bypassing both real
+// notification pipelines (and the push send they trigger) entirely, so a
+// 200 from the old version never actually proved anything was reaching a
+// device. It also wrote a fake DM into a real inbox and a fake post into
+// the real community feed, live, every time it ran — worth not doing.
+//
+// This version requires admin auth, takes the target player as a real
+// parameter (defaulting to the admin's own account), confirms that player
+// exists before touching anything, and sends one real notification of each
+// kind through the actual pipelines (notificationService.ts +
+// communityNotify.ts's thin wrapper over it) — including a real push
+// attempt via sendTestNotification, whose result says exactly what
+// happened rather than just "ok: true".
+const TestCommsBody = z.object({ playerId: z.number().int().positive().optional() });
 
-  const leagueId = await currentLeagueId(req);
-  await db.execute(sql`
-    INSERT INTO settings (league_id, key, value) VALUES
-      (${leagueId}, 'messaging_enabled',    'true'),
-      (${leagueId}, 'notifications_enabled','true'),
-      (${leagueId}, 'community_enabled',    'true')
-    ON CONFLICT (league_id, key) DO UPDATE SET value = EXCLUDED.value
-  `);
+router.post("/admin/test-comms", requireAdminSession, async (req, res): Promise<void> => {
+  const adminPlayerId = (req.session as any)?.playerId as number | undefined;
+  if (!adminPlayerId) { res.status(401).json({ error: "Login required" }); return; }
 
-  const dmResult = await db.execute(sql`
-    INSERT INTO direct_messages (sender_id, receiver_id, content)
-    VALUES (${SEAN_ID}, ${GRAEME_ID}, '🎯 Test message — comms are working! Nice game today.')
-    RETURNING id
-  `);
-  const dmId = (dmResult.rows[0] as any).id as number;
+  const parsed = TestCommsBody.safeParse(req.body ?? {});
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const targetId = parsed.data.playerId ?? adminPlayerId;
 
-  await db.execute(sql`
-    INSERT INTO notifications (player_id, type, actor_id, entity_id, entity_type, message)
-    VALUES (
-      ${GRAEME_ID}, 'dm_received', ${SEAN_ID}, ${dmId}, 'message',
-      'New message from Sean'
-    )
-  `);
+  try {
+    const target = (await db.execute(sql`SELECT id, name FROM players WHERE id = ${targetId}`)).rows[0] as any;
+    if (!target) { res.status(404).json({ error: `No player with id ${targetId}` }); return; }
 
-  await db.execute(sql`
-    INSERT INTO notifications (player_id, type, actor_id, entity_id, entity_type, message)
-    VALUES (
-      ${GRAEME_ID}, 'post_liked', ${SEAN_ID}, NULL, 'post',
-      'Sean reacted 🎯 to your post'
-    )
-  `);
+    // Real push attempt, real diagnostics — see notificationService.ts.
+    const push = await sendTestNotification(targetId);
 
-  const postResult = await db.execute(sql`
-    INSERT INTO community_posts (player_id, content, post_type, status)
-    VALUES (${SEAN_ID}, '🎯 Test post — community feed working!', 'manual', 'approved')
-    RETURNING id
-  `);
-  const postId = (postResult.rows[0] as any).id as number;
+    // One of each in-app notification "shape" this pipeline handles, so the
+    // notification list/preferences UI has something real to show too.
+    void createCommunityNotification({
+      playerId: targetId,
+      type: "post_liked",
+      actorId: adminPlayerId,
+      entityType: "post",
+      message: "Test — community notifications are working!",
+    });
 
-  await db.execute(sql`
-    INSERT INTO notifications (player_id, type, actor_id, entity_id, entity_type, message)
-    VALUES (
-      ${GRAEME_ID}, 'post_commented', ${SEAN_ID}, ${postId}, 'comment',
-      'Sean commented on your post'
-    )
-  `);
-
-  res.json({
-    ok: true,
-    sent: {
-      dm: { id: dmId, from: "Sean", to: "Graeme", content: "🎯 Test message — comms are working!" },
-      notifications: 3,
-      communityPost: { id: postId, status: "approved" },
-    },
-  });
+    res.json({ ok: true, target: { id: target.id, name: target.name }, push });
+  } catch (err: any) {
+    req.log.error({ err }, "POST /admin/test-comms failed");
+    res.status(500).json({ error: "Failed to send test comms", detail: err?.message ?? String(err) });
+  }
 });
 
 // ── Full data export (JSON backup) — requires admin session ───────────────────

@@ -603,6 +603,24 @@ export default function AccountPage() {
 
   const push = usePushNotifications(user?.playerId);
 
+  // Test-notification diagnostic — fires POST /notifications/test and shows
+  // exactly why it did or didn't arrive (no VAPID keys configured server-
+  // side, this device isn't subscribed, push is off in prefs, or the push
+  // service itself rejected it) instead of a silent no-op.
+  const [testResult, setTestResult] = useState<{ ok: boolean; reason?: string; detail?: string; sentTo?: number } | null>(null);
+  const [testLoading, setTestLoading] = useState(false);
+  const sendTestNotification = async () => {
+    setTestLoading(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/notifications/test", { method: "POST", credentials: "include" });
+      setTestResult(await res.json());
+    } catch {
+      setTestResult({ ok: false, detail: "Couldn't reach the server — try again in a moment." });
+    }
+    setTestLoading(false);
+  };
+
   const player     = stats?.player as any;
   const tier       = player?.tier ?? "Bronze";
   const tCol       = TIER_COLORS[tier] ?? "#aaa";
@@ -2208,6 +2226,39 @@ export default function AccountPage() {
                     {push.loading ? "…" : "Enable"}
                   </button>
                 ) : null}
+              </div>
+
+              {/* Send-a-real-test-push — shows exactly what happened rather
+                  than leaving you guessing whether it's working. */}
+              <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-center justify-between gap-3">
+                  <div style={{ fontSize: "0.62rem", color: "rgba(255,255,255,0.35)" }}>
+                    Not sure it's working? Send yourself one.
+                  </div>
+                  <button
+                    onClick={sendTestNotification}
+                    disabled={testLoading}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:opacity-80 disabled:opacity-60"
+                    style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.7)", fontSize: "0.6rem" }}>
+                    <Send className="w-3 h-3" />{testLoading ? "Sending…" : "Send test notification"}
+                  </button>
+                </div>
+                {testResult && (
+                  <div className="mt-2.5 flex items-start gap-2 px-3 py-2 rounded-lg"
+                    style={{
+                      background: testResult.ok ? "rgba(0,229,160,0.08)" : "rgba(255,0,92,0.06)",
+                      border: `1px solid ${testResult.ok ? "rgba(0,229,160,0.25)" : "rgba(255,0,92,0.2)"}`,
+                    }}>
+                    {testResult.ok
+                      ? <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#00e5a0" }} />
+                      : <X className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#ff005c" }} />}
+                    <div style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.65)", lineHeight: 1.5 }}>
+                      {testResult.ok
+                        ? "Sent — check your device for the notification."
+                        : (testResult.detail ?? "Something went wrong.")}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

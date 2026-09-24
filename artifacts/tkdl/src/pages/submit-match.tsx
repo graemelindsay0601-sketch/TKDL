@@ -21,6 +21,7 @@ import { Form, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { TierBadge } from "@/components/tier-badge";
 import { useSettings } from "@/hooks/use-settings";
+import { useFetch } from "@/hooks/use-fetch";
 import { useCurrentPlayer } from "@/context/auth";
 
 const TIER_COLOR: Record<string, string> = {
@@ -89,25 +90,6 @@ function useShiftWarsTeamsForSubmit() {
 // display + light interaction only; each section still owns its own
 // state, validation and submit logic exactly as before.
 // ═══════════════════════════════════════════════════════════════════════
-
-/** Generic fetch hook for the couple of endpoints here that aren't in the
- *  generated api-client — same pattern head-to-head.tsx and the Hub's
- *  support routes already use elsewhere in this app. */
-function useFetch<T>(url: string | null) {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    if (!url) { setData(null); return; }
-    let cancelled = false;
-    setLoading(true);
-    fetch(url)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (!cancelled) { setData(d); setLoading(false); } })
-      .catch(() => { if (!cancelled) { setData(null); setLoading(false); } });
-    return () => { cancelled = true; };
-  }, [url]);
-  return { data, loading };
-}
 
 /** Cursor-following tilt + light sheen on a card, mutating the DOM
  *  directly via refs (not React state) so hovering doesn't trigger a

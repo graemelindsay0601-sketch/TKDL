@@ -4,23 +4,7 @@ import { Lock, Star, Users, Trophy, Medal, CircuitBoard } from "lucide-react";
 import { format } from "date-fns";
 import { AchievementRewardModal } from "../components/AchievementRewardModal";
 import { useAchievementModal } from "../utils/use-achievement-modal";
-
-// ── Shared fetch hook ──────────────────────────────────────────────────────────
-
-function useFetch<T>(url: string) {
-  const [data, setData]     = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fetch(url)
-      .then(r => r.json())
-      .then(d => { if (!cancelled) { setData(d); setLoading(false); } })
-      .catch(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [url]);
-  return { data, loading };
-}
+import { useFetch } from "@/hooks/use-fetch";
 
 // ── League achievement helpers ─────────────────────────────────────────────────
 

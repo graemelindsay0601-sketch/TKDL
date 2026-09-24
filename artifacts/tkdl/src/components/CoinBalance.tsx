@@ -34,8 +34,11 @@ export function CoinBalance({ playerId }: CoinBalanceProps) {
     return () => clearInterval(interval);
   }, [playerId]);
 
-  if (loading) return null;
-
+  // No loading gate here on purpose — this used to return null entirely
+  // while the first fetch was in flight, so the whole widget blinked into
+  // existence a beat after the Account page rendered. Showing the shell
+  // immediately with a placeholder for the number, then swapping in the
+  // real value, avoids that pop without displaying a possibly-wrong "0".
   return (
     <div
       style={{
@@ -52,7 +55,7 @@ export function CoinBalance({ playerId }: CoinBalanceProps) {
       <Coins size={20} style={{ color: "#ffd24a" }} />
       <div>
         <div style={{ fontSize: "0.8rem", color: "rgba(255,212,74,0.7)" }}>Coins</div>
-        <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "#ffd24a" }}>{coins}</div>
+        <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "#ffd24a" }}>{loading ? "—" : coins}</div>
       </div>
     </div>
   );

@@ -36,27 +36,32 @@ export async function seedNotificationTables() {
         ADD COLUMN IF NOT EXISTS threat_alerts BOOLEAN DEFAULT true
     `);
 
-    // direct_messages — DM notifications (routes/messages.ts) went through
-    // communityNotify.ts's createNotification(), which gated EVERY type it
-    // handles (including dm_received) behind the league-wide
-    // "notifications_enabled" setting, which defaults to false and is only
-    // reachable via a hidden admin debug route or the Feature Flags page.
-    // Effectively no one has ever gotten a DM push. This column lets DMs
-    // use the same reliable per-player opt-out pattern match results
-    // already have, instead of that all-or-nothing league switch — see the
-    // dm_received special-case in communityNotify.ts's createNotification().
+    // direct_messages — DM notifications (routes/messages.ts) originally
+    // went through a second, parallel createNotification() that used to
+    // live in communityNotify.ts, which gated EVERY type it handled
+    // (including dm_received) behind the league-wide "notifications_enabled"
+    // setting — defaults to false, only reachable via the Feature Flags
+    // page. Effectively no one ever got a DM push. This column lets DMs use
+    // the same reliable per-player opt-out pattern match results already
+    // have, instead of that all-or-nothing league switch. That second
+    // pipeline has since been merged into this one (notificationService.ts
+    // is now the only place any notification gets created or sent —
+    // communityNotify.ts's createNotification is a thin wrapper over it),
+    // so this column is read from TYPE_TO_PREF_COLUMN in
+    // notificationService.ts today, not communityNotify.ts.
     await db.execute(sql`
       ALTER TABLE notification_preferences
         ADD COLUMN IF NOT EXISTS direct_messages BOOLEAN DEFAULT true
     `);
 
     // achievements / community_activity — same fix as direct_messages
-    // above, extended to the rest of communityNotify.ts's types.
-    // achievement_unlocked, and the post_approved/post_liked/post_commented/
-    // auto_post_fired group, were ALSO silently dropped for everyone by the
-    // same always-off "notifications_enabled" league switch — this wasn't
-    // a DM-specific problem, it affected every type that pipeline handles.
-    // See TYPE_TO_PREF_COLUMN in communityNotify.ts.
+    // above, extended to the rest of the old communityNotify.ts pipeline's
+    // types. achievement_unlocked, and the post_approved/post_liked/
+    // post_commented/auto_post_fired group, were ALSO silently dropped for
+    // everyone by the same always-off "notifications_enabled" league
+    // switch — this wasn't a DM-specific problem, it affected every type
+    // that pipeline handled. See TYPE_TO_PREF_COLUMN in
+    // notificationService.ts (both maps were merged into one there).
     await db.execute(sql`
       ALTER TABLE notification_preferences
         ADD COLUMN IF NOT EXISTS achievements BOOLEAN DEFAULT true

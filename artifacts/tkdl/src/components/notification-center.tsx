@@ -226,32 +226,39 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
             />
           </div>
 
-          {/* Per-type toggles. "Rank Changes" now actually fires — a real
-              singles match that moves your leaderboard position up or down
-              calls sendRankChangeNotifications() from routes/matches.ts
-              (see lib/leaderboardRank.ts for the position diff). Doubles,
-              Shift Wars, and team/killer matches don't compute this yet. */}
+          {/* Per-type toggles, each with what actually fires it spelled out —
+              this used to just be a bare label ("Rank Changes (Singles)")
+              that was also stale: sendRankChangeNotifications() has been
+              wired into Doubles, Shift Wars and team matches too (see
+              routes/doubles.ts, shift-wars.ts, team-matches.ts), not just
+              routes/matches.ts. Naming the real trigger for each type here
+              is the answer to "what actually counts as a notification" —
+              it shouldn't require reading the source to find out. */}
           {[
-            { key: "match_results", label: "Match Results (Singles, Doubles, Shift Wars)" },
-            { key: "rank_changes", label: "Rank Changes (Singles)" },
-            { key: "threat_alerts", label: "Close Match Alerts" },
-            { key: "direct_messages", label: "Direct Messages" },
-            { key: "achievements", label: "Achievement Unlocks" },
-            { key: "community_activity", label: "Community Activity (likes, comments, tier changes)" },
-            { key: "coach_tips", label: "Coach Tips" },
-            { key: "announcements", label: "League Announcements" },
-          ].map(({ key, label }) => (
+            { key: "match_results", label: "Match Results", detail: "A singles, doubles or Shift Wars match you were in gets recorded." },
+            { key: "rank_changes", label: "Rank Changes", detail: "Your position moves on the singles, doubles or Shift Wars leaderboard." },
+            { key: "threat_alerts", label: "Close Match Alerts", detail: "Someone closes to within 15 points of your rank." },
+            { key: "direct_messages", label: "Direct Messages", detail: "Another player sends you a message." },
+            { key: "achievements", label: "Achievement Unlocks", detail: "You unlock an achievement, in any system (league, Master-501, Shadow Bot, Boss Battle, Doubles, Shift Wars, Practice, Board Curse)." },
+            { key: "community_activity", label: "Community Activity", detail: "Someone likes or comments on your post, or your post is approved." },
+            { key: "coach_tips", label: "Coach Tips", detail: "The scheduled daily coaching tip goes out." },
+            { key: "announcements", label: "League Announcements", detail: "An admin sends a league-wide announcement." },
+          ].map(({ key, label, detail }) => (
             <div
               key={key}
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "center",
+                alignItems: "flex-start",
+                gap: "12px",
                 padding: "8px 0",
                 fontSize: "12px",
               }}
             >
-              <label style={{ cursor: "pointer" }}>{label}</label>
+              <label style={{ cursor: "pointer" }}>
+                <div>{label}</div>
+                <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", marginTop: "2px", lineHeight: 1.4 }}>{detail}</div>
+              </label>
               <input
                 type="checkbox"
                 checked={(preferences as any)[key]}
@@ -267,6 +274,8 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
                   width: "16px",
                   height: "16px",
                   opacity: preferences.push_enabled ? 1 : 0.5,
+                  flexShrink: 0,
+                  marginTop: "2px",
                 }}
               />
             </div>

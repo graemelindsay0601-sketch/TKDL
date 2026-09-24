@@ -9,6 +9,7 @@ import { RankChange } from "@/components/rank-change";
 import { useCurrentPlayer } from "@/context/auth";
 import { useCosmeticsCatalog, PROFILE_ICON_MAP } from "@/lib/cosmetics";
 import { useSettings } from "@/hooks/use-settings";
+import { useFetch } from "@/hooks/use-fetch";
 import { Link } from "wouter";
 import {
   Trophy, Swords, Flame, Skull, Zap, AlertTriangle,
@@ -31,27 +32,6 @@ import { format } from "date-fns";
 // ══════════════════════════════════════════════════════════════════════════
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
-
-// A few endpoints this rework needed (player form, merged pulse feed,
-// last-hub-visit) are new and read-only, so — same lightweight pattern
-// achievements.tsx/community.tsx already use for their own newer endpoints —
-// this reaches them with plain fetch rather than running client codegen for
-// three routes.
-function useFetch<T>(url: string | null) {
-  const [data, setData]       = useState<T | null>(null);
-  const [loading, setLoading] = useState(!!url);
-  useEffect(() => {
-    if (!url) { setData(null); setLoading(false); return; }
-    let cancelled = false;
-    setLoading(true);
-    fetch(url)
-      .then(r => r.json())
-      .then(d => { if (!cancelled) { setData(d); setLoading(false); } })
-      .catch(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [url]);
-  return { data, loading };
-}
 
 function MiniStat({ label, value, accent, size = "lg" }: { label: string; value: string | number; accent?: string; size?: "lg" | "md" }) {
   return (

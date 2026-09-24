@@ -3,18 +3,7 @@ import { Link } from "wouter";
 import { Award, Trophy, Zap, Target, Flame, Star, Dumbbell, Medal, ArrowLeft, Skull, TrendingDown, Frown, RotateCcw, Banknote } from "lucide-react";
 import { TierBadge } from "@/components/tier-badge";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, type CosmeticDefinition } from "@/lib/cosmetics";
-
-function useFetch<T>(url: string) {
-  const [data, setData]       = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fetch(url).then(r => r.json()).then(d => { if (!cancelled) { setData(d); setLoading(false); } }).catch(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [url]);
-  return { data, loading };
-}
+import { useFetch } from "@/hooks/use-fetch";
 
 type PlayerRecord = { id: number; name: string; careerWins: number; careerLosses: number; careerPeakElo: number; careerPoints: number; longestWinStreak: number; longestLossStreak: number; careerBiggestPointsFall: number; sessions: number; total180s: number; tourTrophies: number; achievements: number; eliminationsCount: number; biggestSingleLoss: number };
 type HofData = {

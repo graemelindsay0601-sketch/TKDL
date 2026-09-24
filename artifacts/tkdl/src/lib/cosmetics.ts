@@ -79,28 +79,65 @@ export const RARITY_COLORS: Record<string, string> = {
   COMMON: "#9ca3af", RARE: "#3b82f6", EPIC: "#a855f7", LEGENDARY: "#ffd24a",
 };
 
-let catalogCache: CosmeticDefinition[] | null = null;
+// A hard refresh wipes this whole module, including catalogCache below, so
+// every name-style colour, badge, frame and banner on the page rendered
+// unstyled for a beat and then popped into its real look once
+// /api/cosmetics/catalog resolved — on every single refresh, for one of the
+// most widely-used pieces of data in the app. localStorage carries the last
+// successfully fetched catalog across that gap: catalogCache seeds from it
+// immediately (below), so cosmetic-dependent UI renders correctly on the
+// very first paint, and a real fetch still runs once per page load in the
+// background to pick up anything an admin added or changed since — same
+// cache-then-confirm pattern as the nav's account widget and feature flags
+// (see context/auth.tsx, hooks/use-settings.ts).
+const CATALOG_CACHE_KEY = "tkdl_cached_cosmetics_catalog";
+
+function readCachedCatalog(): CosmeticDefinition[] | null {
+  try {
+    const raw = localStorage.getItem(CATALOG_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as CosmeticDefinition[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedCatalog(rows: CosmeticDefinition[]): void {
+  try {
+    localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify(rows));
+  } catch {
+    // best-effort — private browsing / storage disabled just means no cache
+  }
+}
+
+let catalogCache: CosmeticDefinition[] | null = readCachedCatalog();
 let catalogPromise: Promise<CosmeticDefinition[]> | null = null;
 
+// Shared, module-level cache — the catalog rarely changes and several
+// components on the same page (the shop, an account header, a player-detail
+// hero) all need it, so this avoids a duplicate fetch per component. Only
+// ever fetches once per page load (catalogPromise memoizes it) regardless
+// of how many components call this.
 function loadCatalog(): Promise<CosmeticDefinition[]> {
-  if (catalogCache) return Promise.resolve(catalogCache);
   if (!catalogPromise) {
     catalogPromise = fetch("/api/cosmetics/catalog")
       .then(r => (r.ok ? r.json() : []))
-      .then((rows: CosmeticDefinition[]) => { catalogCache = rows; return rows; })
-      .catch(() => []);
+      .then((rows: CosmeticDefinition[]) => {
+        if (rows.length > 0) {
+          catalogCache = rows;
+          writeCachedCatalog(rows);
+        }
+        return catalogCache ?? [];
+      })
+      .catch(() => catalogCache ?? []);
   }
   return catalogPromise;
 }
 
-// Shared, module-level cache — the catalog rarely changes and several
-// components on the same page (the shop, an account header, a player-detail
-// hero) all need it, so this avoids a duplicate fetch per component.
 export function useCosmeticsCatalog(): CosmeticDefinition[] {
   const [catalog, setCatalog] = useState<CosmeticDefinition[]>(catalogCache ?? []);
   useEffect(() => {
     let live = true;
-    loadCatalog().then(rows => { if (live) setCatalog(rows); });
+    loadCatalog().then(rows => { if (live && rows.length > 0) setCatalog(rows); });
     return () => { live = false; };
   }, []);
   return catalog;
