@@ -26,6 +26,7 @@ import { TourDataManager } from "./tour-data-manager";
 import { PracticeAnalytics } from "./practice-analytics";
 import { SweepTool } from "./sweep-tool";
 import { TestComms } from "./test-comms";
+import { InterviewDeskTest } from "./interview-desk-test";
 import { DataManagement } from "./data-management";
 import { AuditLog } from "./audit-log";
 import { AnnouncementsManager } from "./announcements-manager";
@@ -490,6 +491,7 @@ export default function Admin() {
       </div>
 
       <TestComms />
+      <InterviewDeskTest />
       <DataManagement />
       <AuditLog />
       <AnnouncementsManager />

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { calcEloChange } from "../lib/elo";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { createAutoPost } from "../lib/communityNotify";
-import { sendRankChangeNotifications } from "../services/notificationService";
+import { sendRankChangeNotifications, sendTeamMatchResultNotification } from "../services/notificationService";
 import { rankPlayersByPoints, type RankablePlayer } from "../lib/leaderboardRank";
 
 const TeamMatchBody = z.object({
@@ -330,6 +330,13 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
     // is actually viewing (see lib/leaderboardRank.ts).
     rankChanges,
   });
+
+  // Win/loss push to every player on both sides — Team Matches previously
+  // only ever notified players whose leaderboard rank happened to move
+  // (sendRankChangeNotifications above), so a team match result itself was
+  // otherwise invisible outside the app. Matches how Singles/Doubles/Shift
+  // Wars all already notify their own participants.
+  void sendTeamMatchResultNotification(match.winnerName, match.loserName, winnerIds, loserIds, stake, eloChange);
 
   // Auto community post (fire and forget — never delay the response). Team
   // Matches never had any community-feed integration before this — mirrors

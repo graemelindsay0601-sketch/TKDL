@@ -30,6 +30,7 @@ import shiftWarsRouter from "./shift-wars";
 import broadcastRouter from "./broadcast";
 import cosmeticsRouter from "./cosmetics";
 import hubRouter from "./hub";
+import interviewDeskRouter from "./interview-desk";
 
 const router: IRouter = Router();
 
@@ -64,5 +65,6 @@ router.use(shiftWarsRouter);
 router.use(broadcastRouter);
 router.use(cosmeticsRouter);
 router.use(hubRouter);
+router.use(interviewDeskRouter);
 
 export default router;

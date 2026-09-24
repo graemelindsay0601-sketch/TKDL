@@ -8,6 +8,7 @@ import { logger } from "./logger";
 import { checkSeasonAchievements } from "./achievements";
 import { drawDoublesTeams } from "./doublesDraw";
 import { decideSinglesChampion } from "./singles-champion";
+import { createNotification } from "../services/notificationService";
 
 /**
  * Guards a single league's reset sequence against a second concurrent
@@ -172,6 +173,46 @@ async function performSeasonResetLocked(overrideName?: string): Promise<typeof s
       championId: champion?.id ?? currentSeason.championId ?? null,
       championName: champion?.name ?? currentSeason.championName ?? null,
     }).where(eq(seasonsTable.id, currentSeason.id));
+
+    // Being crowned champion previously only ever showed up as a cosmetic
+    // grant (the "name-crowned" style above) that a player would only ever
+    // notice by happening to check Account → Cosmetics — there was no
+    // notification of any kind, for the champion or anyone else, when a
+    // season actually closed. Covers both ways a champion gets decided: the
+    // tie-free case resolved right above (`champion`), and a tied season
+    // resolved earlier via the admin playoff flow (`currentSeason.championId`,
+    // which is why the fallback below matches the one used for the DB write
+    // just above it. This is a rare (once-per-season), genuinely big deal
+    // moment, worth a real push rather than folding into "just another
+    // achievement" — wrapped so a failure here can never block the actual
+    // season close.
+    try {
+      const finalChampionId   = champion?.id ?? currentSeason.championId ?? null;
+      const finalChampionName = champion?.name ?? currentSeason.championName ?? null;
+
+      if (finalChampionId && finalChampionName) {
+        void createNotification({
+          playerId: finalChampionId,
+          type: "achievement_unlocked",
+          title: "🏆 Season Champion!",
+          body: `You're the ${currentSeason.name} champion! The exclusive crowned name style is yours.`,
+          data: { seasonId: currentSeason.id, seasonName: currentSeason.name },
+        }).catch(err => logger.error({ err }, "Failed to notify season champion"));
+
+        for (const p of players) {
+          if (p.id === finalChampionId) continue;
+          void createNotification({
+            playerId: p.id,
+            type: "announcement",
+            title: "🏆 New Season Champion",
+            body: `${finalChampionName} is crowned champion of the ${currentSeason.name} season!`,
+            data: { seasonId: currentSeason.id, championId: finalChampionId },
+          }).catch(err => logger.error({ err }, "Failed to broadcast season champion announcement"));
+        }
+      }
+    } catch (err) {
+      logger.error({ err, seasonId: currentSeason.id }, "Failed to send season champion notifications");
+    }
 
     logger.info({ seasonId: currentSeason.id, champion: champion?.name }, "Singles season closed");
   }

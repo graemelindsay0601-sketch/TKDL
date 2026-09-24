@@ -575,6 +575,47 @@ export async function sendDoublesMatchResultNotification(
 }
 
 /**
+ * Send match result notifications for a Team Match (team_501) to every
+ * player on both sides (up to 6 a side). Team Matches had rank-change
+ * alerts (sendRankChangeNotifications, wired in routes/team-matches.ts) but
+ * — unlike Singles, Doubles and Shift Wars — no actual win/loss
+ * notification: a player only found out their team match result happened
+ * at all if their leaderboard position happened to move because of it.
+ * Reuses "match_result" like every other game mode, so it's covered by the
+ * same Match Results preference toggle players already have — no new
+ * toggle needed for players to control this.
+ */
+export async function sendTeamMatchResultNotification(
+  winnerTeamName: string,
+  loserTeamName: string,
+  winnerPlayerIds: number[],
+  loserPlayerIds: number[],
+  stake: number,
+  eloChange: number
+): Promise<void> {
+  try {
+    await Promise.all([
+      ...winnerPlayerIds.map(playerId => createNotification({
+        playerId,
+        type: "match_result",
+        title: "Team Match Victory!",
+        body: `${winnerTeamName} beat ${loserTeamName} • +${eloChange} ELO • ±${stake} pts`,
+        data: { winnerTeamName, loserTeamName, eloChange, stake, result: "win" },
+      })),
+      ...loserPlayerIds.map(playerId => createNotification({
+        playerId,
+        type: "match_result",
+        title: "Team Match Loss",
+        body: `${loserTeamName} lost to ${winnerTeamName} • -${eloChange} ELO • ±${stake} pts`,
+        data: { winnerTeamName, loserTeamName, eloChange, stake, result: "loss" },
+      })),
+    ]);
+  } catch (err) {
+    logger.error({ err }, "Failed to send team match result notifications");
+  }
+}
+
+/**
  * Send match result notifications for a Shift Wars match to every player on
  * both department rosters. Shift Wars is points-only (no ELO ladder — see
  * routes/shift-wars.ts) and had no notification integration at all.

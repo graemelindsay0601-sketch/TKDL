@@ -36,6 +36,7 @@ const TkdlLive = lazyWithRetry(() => import("@/pages/tkdl-live"), "tkdl-live");
 const TkdlLivePreview = import.meta.env.DEV ? lazy(() => import("@/pages/tkdl-live-preview")) : null;
 const Login = lazyWithRetry(() => import("@/pages/login"), "login");
 const Account = lazyWithRetry(() => import("@/pages/account"), "account");
+const InterviewDeskPage = lazyWithRetry(() => import("@/pages/interview-desk"), "interview-desk");
 const Community = lazyWithRetry(() => import("@/pages/community"), "community");
 const HeadToHead = lazyWithRetry(() => import("@/pages/head-to-head"), "head-to-head");
 const NotFound = lazyWithRetry(() => import("@/pages/not-found"), "not-found");
@@ -160,6 +161,9 @@ function AppRoutes() {
             </Route>
             <Route path="/account">
               <RoutePage><Account /></RoutePage>
+            </Route>
+            <Route path="/interview-desk/:id">
+              <RoutePage><InterviewDeskPage /></RoutePage>
             </Route>
             <Route path="/h2h">
               <RoutePage><HeadToHead /></RoutePage>

@@ -21,6 +21,7 @@ import { ensureAdminAuditTable } from "./lib/adminAudit";
 import { seedTourSystem } from "./lib/tourSeed";
 import { ensureCardClashAchievementTables } from "./lib/card-clash-achievements";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
+import { initializeInterviewDeskTables, seedInterviewQuestionBank } from "./lib/interviewDeskMigration";
 import { initializeCardTables, initializeFeatureFlags, initializeFeaturedCardShopTables } from "./lib/cardTablesMigration";
 import { addFavoritesColumn } from "./db/migrations/add_favorites";
 import { apiRateLimit } from "./middleware/apiRateLimit";
@@ -1290,6 +1291,11 @@ async function init() {
   await runInitStep("seedComprehensivePool", () => challengeService.seedComprehensivePool());
   await runInitStep("seedNotificationTables", seedNotificationTables);
   await runInitStep("initializeNotificationPreferences", initializeNotificationPreferences);
+  // Interview Desk — test/preview only right now (see routes/interview-desk.ts's
+  // header). Standing up the real schema + question bank so it can actually be
+  // clicked through and approved before it's wired into any live trigger.
+  await runInitStep("initializeInterviewDeskTables", initializeInterviewDeskTables);
+  await runInitStep("seedInterviewQuestionBank", seedInterviewQuestionBank);
   await runInitStep("addFavoritesColumn", addFavoritesColumn);
   await runInitStep("addAchievementRewards", addAchievementRewards);
   await runInitStep("addAchievementSeasonColumn", addAchievementSeasonColumn);
