@@ -235,7 +235,21 @@ export async function sendTestNotification(playerId: number): Promise<{
         VALUES (${notificationId}, ${playerId}, NOW())
       `);
     } catch (err: any) {
-      if (err.statusCode === 410) {
+      // 410 = the push service says this subscription is gone for good.
+      // 403 = the push service rejected our VAPID auth for this specific
+      // subscription — confirmed live: "the VAPID credentials in the
+      // authorization header do not correspond to the credentials used to
+      // create the subscriptions" (FCM) / "BadJwtToken" (Apple). That means
+      // this exact subscription was created under a DIFFERENT VAPID key
+      // than the one this server has configured now — a subscription is
+      // cryptographically bound to the key active when the browser called
+      // pushManager.subscribe(), so it can never succeed against today's
+      // key no matter how many times we retry it. Just as dead as a 410,
+      // for a different reason — prune it the same way, so it stops
+      // silently eating every future test instead of ever getting fixed by
+      // the player resubscribing (which creates a new row, not repairing
+      // this one).
+      if (err.statusCode === 410 || err.statusCode === 403) {
         await db.execute(sql`DELETE FROM push_subscriptions WHERE endpoint = ${sub.endpoint}`);
       }
       lastError = err?.body || err?.message || String(err);
@@ -321,8 +335,10 @@ async function sendPushNotification(
           VALUES (${notificationId}, ${playerId}, NOW())
         `);
       } catch (err: any) {
-        // If subscription is invalid (410 = Gone), delete it
-        if (err.statusCode === 410) {
+        // 410 Gone, or 403 = this subscription's key doesn't match our
+        // current VAPID keys — permanently dead either way. See the
+        // matching comment in sendTestNotification for the full story.
+        if (err.statusCode === 410 || err.statusCode === 403) {
           await db.execute(sql`
             DELETE FROM push_subscriptions WHERE endpoint = ${sub.endpoint}
           `);
