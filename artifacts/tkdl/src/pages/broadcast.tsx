@@ -2,16 +2,13 @@ import { useEffect, useState, useRef } from "react";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { Sparkles } from "lucide-react";
+// This file's TIER_COLORS already matched tier-badge.tsx's canonical values
+// exactly (its own comment said as much) — now importing the real thing
+// instead of a hand-copy, same as every other page a visual-consistency
+// sweep touched, so it can't silently drift later the way three of those
+// other copies already had.
+import { TIER_COLORS } from "@/components/tier-badge";
 
-// Matches calcTier()'s full 5-tier ladder (lib/elo.ts) — same colors as
-// tier-badge.tsx / the rest of the app.
-const TIER_COLORS: Record<string, string> = {
-  Diamond:  "#00e5ff",
-  Platinum: "#e5e4e2",
-  Gold:     "#ffd24a",
-  Silver:   "#c0c8d8",
-  Bronze:   "#cd7f32",
-};
 const TIER_ICONS: Record<string, string> = {
   Diamond: "💎", Platinum: "🏆", Gold: "🥇", Silver: "🥈", Bronze: "🥉",
 };

@@ -4,10 +4,11 @@ import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { MessageSquare, Image as ImageIcon, Send, X, Clock, CheckCircle, AlertCircle, Pencil, Flame, Trophy, Users, ArrowUpDown, Pin, Search, Eye, Bookmark } from "lucide-react";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, postAccentStyle, taglineStyleCSS } from "@/lib/cosmetics";
-
-const TIER_COLORS: Record<string, string> = {
-  Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
-};
+// Canonical tier→color map (see tier-badge.tsx) — this file's own local
+// copy had quietly drifted on Silver (#9ca3af vs the real #c0c8d8) until a
+// visual-consistency sweep caught it; importing instead of redefining
+// keeps it from drifting again.
+import { TIER_COLORS } from "@/components/tier-badge";
 
 const EMOJIS = ["👍", "❤️", "😂", "🎯", "🏆"] as const;
 // Darts-themed "sticker" reactions — a second, visually distinct row next

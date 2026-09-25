@@ -66,7 +66,10 @@ export function TestComms() {
 
         {result && (
           <div className="space-y-2 pt-1">
-            <div className="flex items-center gap-2 text-xs font-bold" style={{ color: "#22c55e", fontFamily: "Oswald, sans-serif" }}>
+            {/* #00e5a0, not #22c55e -- matches this page's own success accent
+                (the button/spinner above, the push-delivered check below), per
+                a 2026-09-25 visual-consistency pass. */}
+            <div className="flex items-center gap-2 text-xs font-bold" style={{ color: "#00e5a0", fontFamily: "Oswald, sans-serif" }}>
               <Bell className="w-3.5 h-3.5" /> Sent to {result.target?.name ?? "your account"} — an in-app notification is waiting for you
             </div>
             <div className="flex items-start gap-2 px-3 py-2 rounded-lg"

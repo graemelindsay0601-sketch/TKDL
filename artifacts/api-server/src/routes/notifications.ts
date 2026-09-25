@@ -87,16 +87,11 @@ router.post("/notifications/mark-all-read", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
-// ── PATCH /notifications/read-all ────────────────────────────────────────────
-router.patch("/notifications/read-all", async (req, res): Promise<void> => {
-  const playerId = requireAuth(req, res);
-  if (!playerId) return;
-  await db.execute(sql`
-    UPDATE notifications SET read_at = NOW()
-    WHERE player_id = ${playerId} AND read_at IS NULL
-  `);
-  res.json({ ok: true });
-});
+// PATCH /notifications/read-all was removed 2026-09-25 — byte-identical SQL
+// to POST /notifications/mark-all-read above, and grepping the whole
+// frontend found zero callers of "read-all" anywhere. Looked like a rename
+// that never got its old route cleaned up. mark-all-read (used by
+// account.tsx) is the one real path.
 
 // ── POST /notifications/:id/read (used by account.tsx) ───────────────────────
 router.post("/notifications/:id/read", async (req, res): Promise<void> => {

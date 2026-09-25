@@ -6,7 +6,6 @@ import { streakService } from "../services/streak-service";
 import { drillProgressService } from "../services/drill-progress-service";
 import { postMatchAnalysisService } from "../services/post-match-analysis-service";
 import { generatePracticeRoutine } from "./practice";
-import { invalidateCache } from "../middleware/cache";
 
 const router = Router();
 
@@ -256,11 +255,6 @@ router.post("/players/:id/drills/complete", async (req, res) => {
     const completion = await drillProgressService.completeDrill(
       playerId, drillId, drillTitle, durationMinutes ?? 0, score, difficulty ?? "medium", notes
     );
-    // Logging a drill changes /drills/stats, /drills/milestones and
-    // /practice-routine for this player, all cached for up to 10 minutes
-    // (see middleware/cache.ts) — without this, the Coach tab's "Your Drill
-    // Progress" area could show stale data for that long after logging one.
-    invalidateCache();
     res.json(completion);
   } catch (err) {
     req.log.error({ err }, "Failed to complete drill");

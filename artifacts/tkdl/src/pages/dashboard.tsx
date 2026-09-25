@@ -15,6 +15,7 @@ import {
   Trophy, Swords, Flame, Skull, Zap, AlertTriangle,
   Star, Plus, Dumbbell, Award, History, BookOpen,
   Users, Building2, Ghost, Layers, Pin, Sparkles, Coins, ThumbsUp,
+  MessageSquare, CircuitBoard, Calendar,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -282,6 +283,13 @@ type TourRun = { id: number; status: string; difficulty: string; tour_name: stri
 type PlayerCosmetics = { ownedIds: string[]; equippedNameStyleId: string | null; equippedProfileIconId: string | null };
 type PlayerCurrency = { cardPoints: number };
 type PinnedAchievement = { system: string; key: string; name: string; icon: string; rarity: string | null };
+// GET /hub/on-this-day/:playerId — null on the (overwhelming majority of)
+// days with no anniversary match; see routes/hub.ts for the query and its
+// singles+Team-matches-only scope.
+type OnThisDayMatch = {
+  matchId: number; playedAt: string; yearsAgo: number; wasWin: boolean;
+  opponentId: number; opponentName: string; gameType: string; eloChange: number;
+};
 
 function ForYouZone({ currentPlayer, myStreak }: { currentPlayer: { playerId: number; playerName: string } | null; myStreak: number }) {
   const catalog = useCosmeticsCatalog();
@@ -290,6 +298,7 @@ function ForYouZone({ currentPlayer, myStreak }: { currentPlayer: { playerId: nu
   const { data: currency } = useFetch<PlayerCurrency>(currentPlayer ? `/api/card-clash/shop/currency/${currentPlayer.playerId}` : null);
   const { data: cosmetics } = useFetch<PlayerCosmetics>(currentPlayer ? `/api/players/${currentPlayer.playerId}/cosmetics` : null);
   const { data: pinsData } = useFetch<{ pins: PinnedAchievement[] }>(currentPlayer ? `/api/players/${currentPlayer.playerId}/pinned-achievements` : null);
+  const { data: onThisDay } = useFetch<OnThisDayMatch | null>(currentPlayer ? `/api/hub/on-this-day/${currentPlayer.playerId}` : null);
 
   if (!currentPlayer) return null;
 
@@ -300,11 +309,14 @@ function ForYouZone({ currentPlayer, myStreak }: { currentPlayer: { playerId: nu
   const pins = pinsData?.pins ?? [];
 
   // Priority order for the single promoted nudge: a new broadcast > an active
-  // tour run to resume > a live win streak. Whichever wins is excluded from
-  // the rail below so nothing appears twice.
-  type Nudge = "tkdl" | "tour" | "streak" | null;
+  // tour run to resume > an on-this-day anniversary match (rare enough — one
+  // specific calendar day a year — that it deserves top billing over an
+  // ordinary streak when it does fire) > a live win streak. Whichever wins is
+  // excluded from the rail below so nothing appears twice.
+  type Nudge = "tkdl" | "tour" | "onThisDay" | "streak" | null;
   const nudge: Nudge = spotlight?.available && spotlight.hasNewEdition ? "tkdl"
     : activeRun ? "tour"
+    : onThisDay ? "onThisDay"
     : myStreak >= 3 ? "streak"
     : null;
 
@@ -392,24 +404,34 @@ function ForYouZone({ currentPlayer, myStreak }: { currentPlayer: { playerId: nu
             <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(255,210,74,0.18)" }}>
               {nudge === "tkdl" && <Sparkles className="w-5 h-5" style={{ color: "#ffd24a" }} />}
               {nudge === "tour" && <Star className="w-5 h-5" style={{ color: "#ffd24a" }} />}
+              {nudge === "onThisDay" && <Calendar className="w-5 h-5" style={{ color: "#ffd24a" }} />}
               {nudge === "streak" && <Flame className="w-5 h-5" style={{ color: "#ffd24a" }} />}
             </div>
             <div className="min-w-0">
               <div className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.16em", color: "#ffd24a" }}>
                 {nudge === "tkdl" && "TKDL LIVE · New Edition"}
                 {nudge === "tour" && `Tour Mode · ${activeRun?.tour_name}`}
+                {nudge === "onThisDay" && `On This Day · ${onThisDay?.yearsAgo} year${onThisDay?.yearsAgo === 1 ? "" : "s"} ago`}
                 {nudge === "streak" && "On A Run"}
               </div>
               <div className="font-black uppercase truncate" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", color: "#fff" }}>
                 {nudge === "tkdl" && "This week's broadcast just dropped"}
                 {nudge === "tour" && `${activeRun?.difficulty} — resume where you left off`}
+                {nudge === "onThisDay" && (onThisDay?.wasWin
+                  ? `You beat ${onThisDay?.opponentName} today, ${onThisDay?.yearsAgo} year${onThisDay?.yearsAgo === 1 ? "" : "s"} back`
+                  : `${onThisDay?.opponentName} beat you today, ${onThisDay?.yearsAgo} year${onThisDay?.yearsAgo === 1 ? "" : "s"} back`)}
                 {nudge === "streak" && `${myStreak} wins in a row — keep it going`}
               </div>
             </div>
           </div>
-          <Link href={nudge === "tkdl" ? "/tkdl-live" : nudge === "tour" ? `/tour/${activeRun?.id}` : "/submit"}>
+          <Link href={
+            nudge === "tkdl" ? "/tkdl-live"
+            : nudge === "tour" ? `/tour/${activeRun?.id}`
+            : nudge === "onThisDay" ? `/h2h?p1=${currentPlayer.playerId}&p2=${onThisDay?.opponentId}`
+            : "/submit"
+          }>
             <span className="font-black uppercase cursor-pointer" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem", letterSpacing: "0.12em", color: "#1a0f00", background: "#ffd24a", padding: "0.6rem 1.2rem", borderRadius: 999, whiteSpace: "nowrap" }}>
-              {nudge === "tkdl" ? "Watch now →" : nudge === "tour" ? "Resume →" : "Play now →"}
+              {nudge === "tkdl" ? "Watch now →" : nudge === "tour" ? "Resume →" : nudge === "onThisDay" ? "See rivalry →" : "Play now →"}
             </span>
           </Link>
         </div>
@@ -552,6 +574,28 @@ function ExploreAndReference({ settings }: { settings: any }) {
     { key: "bossbattle", label: "Boss Battle",  icon: <Skull className="w-3 h-3" />,        accent: "#ef4444", href: "/boss-battle", show: settings?.boss_battle_enabled ?? true },
     { key: "boardcurse", label: "Board Curse",  icon: <Ghost className="w-3 h-3" />,        accent: "#8b5cf6", href: "/board-curse", show: settings?.board_curse_enabled ?? true },
     { key: "shadowleague", label: "Shadow League", icon: <Trophy className="w-3 h-3" />,    accent: "#22d3ee", href: "/shadow-league", show: true },
+    // Tour/Community/Shadow Bot added 2026-09-25 — all three were fully built
+    // pages with real routes, but had no entry point anywhere on the Hub:
+    // Tour only ever appeared in ForYouZone's rail, and only once a player
+    // already had an active run (see the "activeRun" card above) — nothing
+    // let a player who'd never started one discover or enter Tour Mode from
+    // here. Community and Shadow Bot (1v1 vs AI, distinct from the
+    // already-linked Shadow League standings) had no Hub link at all.
+    // Icons match this app's existing convention for each (layout.tsx's
+    // main nav uses the same Star/CircuitBoard/MessageSquare glyphs). Colors
+    // were picked to stay visually distinct from every OTHER chip already in
+    // this specific 11-item strip (a 2026-09-25 visual-consistency pass
+    // checked, and every accent below is unique in this array) — Tour's
+    // #a855f7 happens to also match layout.tsx's mobile bottom-nav, but
+    // Shadow Bot and Community intentionally don't reuse layout.tsx's own
+    // sidebar-section colors (#22d3ee, #22c55e) because those are already
+    // spoken for by the neighbouring Shadow League and Shift Wars chips
+    // right here — reusing them would make two chips in this one strip look
+    // identical, which matters more for THIS strip's job (telling 11 modes
+    // apart at a glance) than matching a color used one screen away.
+    { key: "tour",       label: "Tour",         icon: <Star className="w-3 h-3" />,         accent: "#a855f7", href: "/tour",         show: true },
+    { key: "shadowbot",  label: "Shadow Bot",   icon: <CircuitBoard className="w-3 h-3" />, accent: "#00d4ff", href: "/shadow-bot",   show: true },
+    { key: "community",  label: "Community",    icon: <MessageSquare className="w-3 h-3" />, accent: "#ff005c", href: "/community",   show: true },
   ];
 
   const reference = [

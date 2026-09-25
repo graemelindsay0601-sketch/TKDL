@@ -306,7 +306,11 @@ export default function Tour() {
         ) : (
           <div>
             {tourLb.filter(r => r.totalTrophies > 0).slice(0, 6).map((row: any, idx: number) => {
-              const POS_COLORS = ["#ffd24a", "#94a3b8", "#cd7f32"];
+              // #c0c8d8 for 2nd, not #94a3b8 -- matches the #1/#2/#3 podium
+              // colors used everywhere else in the app (dashboard.tsx,
+              // season-detail.tsx, leaderboard.tsx), per a 2026-09-25
+              // visual-consistency pass.
+              const POS_COLORS = ["#ffd24a", "#c0c8d8", "#cd7f32"];
               const posColor   = POS_COLORS[idx] ?? "rgba(255,255,255,0.2)";
               const highestTierMeta = row.highestTier > 0 ? TIERS[(row.highestTier - 1) as number] : null;
               return (

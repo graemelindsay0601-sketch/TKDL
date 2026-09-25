@@ -11,6 +11,12 @@ import { db } from "@workspace/db";
 import { sql, and, eq, gte } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
+export interface QueuedPushMessage {
+  title: string;
+  body: string;
+  data?: Record<string, any>;
+}
+
 export interface NotificationBatchConfig {
   playerId: number;
   notificationType: string;
@@ -137,24 +143,35 @@ function calculateDelayToNextQuietHourEnd(): number {
 }
 
 /**
- * Queue notification for later delivery (batching)
+ * Queue notification for later delivery (batching).
+ *
+ * This used to only log the delay and drop it — nothing ever actually
+ * delivered a batched/quiet-hours-deferred push later, so any notification
+ * that hit quiet hours or the daily cap silently never reached the device
+ * (the in-app notifications-table row was always written before this ran,
+ * so it wasn't lost — only the push). Now persists a row so
+ * pushBatchScheduler.ts's periodic flush (flushDuePushNotifications() in
+ * notificationService.ts) can actually deliver it once send_after arrives.
  */
 export async function queueNotificationForBatching(
   playerId: number,
   notificationId: number,
-  delayMs: number
+  delayMs: number,
+  message: QueuedPushMessage
 ): Promise<void> {
   try {
-    // Store batching info (we could use a separate queue table if needed)
-    // For now, we'll log it and the notification will be picked up when player checks
+    const sendAfter = new Date(Date.now() + delayMs);
+
+    await db.execute(sql`
+      INSERT INTO pending_push_notifications (player_id, notification_id, title, body, data, send_after)
+      VALUES (${playerId}, ${notificationId}, ${message.title}, ${message.body}, ${JSON.stringify(message.data || {})}, ${sendAfter})
+    `);
+
     logger.info({
       playerId,
       notificationId,
       delayMinutes: Math.round(delayMs / 60000)
     }, "Notification queued for batching");
-
-    // In a production system, you might store this in a queue table
-    // and have a separate job process the queue
   } catch (error) {
     logger.error({ error }, "Error queueing notification for batching");
   }

@@ -55,22 +55,18 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { key: "WIN_COLLECTOR",     name: "⚡ Win Collector",     description: "Win matches in 4+ different seasons",          icon: "⚡", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "MULTI_SEASON_WINS",criteriaValue: 4,   engineType: "SEASON_EVENT", coinReward: 200, packReward: 'FIVE' },
   { key: "HISTORIAN",         name: "📚 Historian",         description: "Play in 3+ seasons",                          icon: "📚", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "MULTI_SEASON_PLAYS",criteriaValue: 3,  engineType: "SEASON_EVENT", coinReward: 125 },
   { key: "PROFESSIONAL",      name: "💼 Professional",      description: "Play 75 career matches",                       icon: "💼", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "CAREER_GAMES",     criteriaValue: 75,  engineType: "STAT_BASED", coinReward: 150, packReward: 'FIVE' },
-  { key: "SHOWMAN",           name: "🎪 Showman",           description: "Win 5 featured matches",                       icon: "🎪", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "FEATURED_WINS",    criteriaValue: 5,   engineType: "MATCH_EVENT", coinReward: 125, packReward: 'SINGLE' },
   { key: "COLLECTOR",         name: "📦 Collector",         description: "Unlock 10 achievements",                       icon: "📦", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "TOTAL_ACHIEVEMENTS",criteriaValue: 10,  engineType: "STAT_BASED", coinReward: 100 },
   { key: "RED_HOT",           name: "🔥 Red Hot",           description: "Win 7 in a row",                               icon: "🔥", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "WIN_STREAK",       criteriaValue: 7,   engineType: "MATCH_EVENT",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 20, coinReward: 150, packReward: 'SINGLE' },
-  { key: "DOUBLE_TROUBLE",    name: "🧨 Double Eliminator", description: "Eliminate 2 players in one season",            icon: "🧨", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "SEASON_ELIMINATIONS", criteriaValue: 2, engineType: "SEASON_EVENT", coinReward: 200, packReward: 'FIVE' },
   { key: "ELO_1050",          name: "🔷 Elite Threshold",   description: "Reach 1050 ELO rating",                        icon: "🔷", rarity: "Rare",      category: "Career",    hidden: false, priority: 40, criteriaType: "PEAK_ELO",         criteriaValue: 1050, engineType: "STAT_BASED", coinReward: 250, packReward: 'FIVE' },
   { key: "HOT_STREAK",        name: "🔥 Hot Streak",        description: "Win 5 consecutive matches",                    icon: "🔥", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "WIN_STREAK",       criteriaValue: 5,   engineType: "MATCH_EVENT",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 10, coinReward: 200, packReward: 'FIVE' },
   { key: "ELIMINATOR",        name: "⚔ Eliminator",         description: "Eliminate a player (reduce to 0 points)",     icon: "⚔",  rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "ELIMINATIONS",     criteriaValue: 1,   engineType: "MATCH_EVENT", coinReward: 150 },
   { key: "GIANT_KILLER",      name: "⚔ Giant Killer",       description: "Beat a top-ranked player 3 times",            icon: "⚔",  rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "TOP_RANKED_WINS",  criteriaValue: 3,   engineType: "MATCH_EVENT", coinReward: 250, packReward: 'FIVE' },
   { key: "IRON_WALL",         name: "🧱 Iron Wall",         description: "Finish season with no eliminations (stay active)", icon: "🧱", rarity: "Epic", category: "Career",    hidden: false, priority: 60, criteriaType: "SEASON_UNELIMINATED", criteriaValue: 1, engineType: "SEASON_EVENT", secondaryCriteria: "SEASON_GAMES", secondaryValue: 15, coinReward: 300, packReward: 'TEN' },
-  { key: "PREDATOR",          name: "🪓 Predator",          description: "Eliminate the same player twice",              icon: "🪓", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "PLAYER_ELIMINATIONS",criteriaValue: 2, engineType: "MATCH_EVENT", coinReward: 200 },
   { key: "SHARPSHOOTER_ACH",  name: "🏹 Sharpshooter",     description: "Maintain 75% win rate over 30 games",          icon: "🏹", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "WIN_RATE",         criteriaValue: 75,  engineType: "STAT_BASED",   secondaryCriteria: "CAREER_GAMES", secondaryValue: 30, coinReward: 350, packReward: 'TEN' },
   { key: "COMEBACK_KING",     name: "🩹 Comeback King",     description: "Win 3 matches after losing 2+",               icon: "🩹", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "COMEBACK_STREAK",  criteriaValue: 3,   engineType: "MATCH_EVENT", coinReward: 200, packReward: 'FIVE' },
   { key: "KING_SLAYER",       name: "👑 King Slayer",       description: "Beat the top-ranked player 3 times",          icon: "👑", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "TOP_RANKED_WINS",  criteriaValue: 3,   engineType: "MATCH_EVENT", coinReward: 300, packReward: 'TEN' },
   { key: "SHOCKWAVE",         name: "⚡ Shockwave",          description: "Win 100+ points in a season",                 icon: "⚡", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "SEASON_POINTS",    criteriaValue: 100, engineType: "SEASON_EVENT", coinReward: 250, packReward: 'FIVE' },
   { key: "DETONATOR",         name: "🧨 Detonator",         description: "Win a 100-point+ ELO swing match",            icon: "🧨", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "MASSIVE_SWING",    criteriaValue: 100, engineType: "MATCH_EVENT" , coinReward: 75, packReward: 'SINGLE' },
-  { key: "GRAVE_DIGGER",      name: "🪦 Grave Digger",      description: "Eliminate 3 different players in a season",   icon: "🪦", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "SEASON_UNIQUE_ELIMS", criteriaValue: 3, engineType: "SEASON_EVENT" , coinReward: 75, packReward: 'SINGLE' },
   { key: "MARATHON",          name: "⏳ Marathon",           description: "Play 100 matches",                            icon: "⏳", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "CAREER_GAMES",     criteriaValue: 100, engineType: "STAT_BASED" , coinReward: 75, packReward: 'SINGLE' },
   // Milestone Plaques — a longer career-length ladder above Marathon, so a
   // player's commitment keeps getting recognised past the 100-match mark
@@ -84,7 +80,16 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { key: "STORM_BRINGER",     name: "🌪 Storm Bringer",     description: "Win 20+ matches in a season",                 icon: "🌪", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "SEASON_WINS",      criteriaValue: 20,  engineType: "SEASON_EVENT" , coinReward: 75, packReward: 'SINGLE' },
   { key: "POINT_MASTER",      name: "💯 Point Master",      description: "Win 500+ total points in career",             icon: "💯", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "CAREER_POINTS",    criteriaValue: 500, engineType: "STAT_BASED" , coinReward: 75, packReward: 'SINGLE' },
   { key: "CONQUEROR",         name: "👑 Conqueror",         description: "Beat all top 5 ranked players",               icon: "👑", rarity: "Epic",      category: "Rank",      hidden: false, priority: 60, criteriaType: "TOP_RANKED_WINS",  criteriaValue: 5,   engineType: "MATCH_EVENT" , coinReward: 75, packReward: 'SINGLE' },
-  { key: "FORTRESS_KING",     name: "🧱 Fortress King",     description: "Stay top 3 in points all season",             icon: "🧱", rarity: "Epic",      category: "Career",    hidden: false, priority: 60, criteriaType: "TOP3_FULL_SEASON", criteriaValue: 1,   engineType: "SEASON_EVENT" , coinReward: 75, packReward: 'SINGLE' },
+  // FORTRESS_KING ("stay top 3 in points ALL season") was retired 2026-09-25 —
+  // never granted anywhere despite its own TOP3_FULL_SEASON criteriaType
+  // existing in routes/players.ts's getProgress() display helper. That
+  // display code just checks "finished a season in the top 3 at least once"
+  // (top3Finishes >= 1) — the same weaker signal UNBREAKABLE/SEASON_TOP3
+  // already grant for — not "stayed top 3 for the entire season," which
+  // would need a per-week/per-match ranking snapshot this app doesn't keep.
+  // Wiring the real criteria up isn't a small fix; wiring up the easier,
+  // already-available one would just be a third copy of UNBREAKABLE.
+
   // ASSASSIN/APOCALYPSE ("eliminate N top-ranked opponents") were retired —
   // see the removal note near REAPER_SEASONAL/MOMENTUM/GHOST below. Unlike
   // GIANT_KILLER/KING_SLAYER/CONQUEROR (which only need to know who you beat
@@ -161,16 +166,30 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { key: "METEOR",            name: "☄ Meteor",             description: "Finish top 3 in your first season",           icon: "☄",  rarity: "Epic",      category: "Seasonal",  hidden: false, priority: 60, criteriaType: "FIRST_SEASON_TOP3",criteriaValue: 1,   engineType: "SEASON_EVENT" , coinReward: 75, packReward: 'SINGLE' },
   // === HIDDEN ===
   { key: "LAST_MAN_STANDING", name: "☠ Last Man Standing",  description: "Never be eliminated across entire career",    icon: "☠",  rarity: "Mythic",    category: "Hidden",    hidden: true,  priority: 90, criteriaType: "NEVER_ELIMINATED",  criteriaValue: 1,  engineType: "STAT_BASED" , coinReward: 300, packReward: 'TEN' },
-  { key: "ICE_COLD",          name: "🧊 Ice Cold",          description: "Win 3 consecutive matches in a difficult season", icon: "🧊", rarity: "Legendary", category: "Hidden",   hidden: true,  priority: 80, criteriaType: "WIN_STREAK",       criteriaValue: 3,   engineType: "SEASON_EVENT" , coinReward: 150, packReward: 'FIVE' },
+  // ICE_COLD ("win 3 consecutive matches in a difficult season") was retired
+  // 2026-09-25 — never granted anywhere, and "difficult season" isn't a
+  // concept this app defines or tracks (no per-season difficulty rating,
+  // average-opponent-Elo figure, or anything similar exists to check
+  // against). As written it's indistinguishable from HEAT_CHECK ("win 3 in a
+  // row"), just re-scoped to a season with no way to tell which seasons
+  // qualify as "difficult" — not a small fix without inventing that concept
+  // from scratch.
+
   { key: "PERFECT_RUN",       name: "🎯 Perfect Run",       description: "Win 10 consecutive matches",                  icon: "🎯", rarity: "Mythic",    category: "Hidden",    hidden: true,  priority: 90, criteriaType: "WIN_STREAK",       criteriaValue: 10,  engineType: "MATCH_EVENT",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 20 , coinReward: 300, packReward: 'TEN' },
   { key: "PHOENIX",           name: "🪙 Phoenix Rising",    description: "Win a match starting with only 1 point left", icon: "🪙", rarity: "Legendary", category: "Hidden",    hidden: true,  priority: 80, criteriaType: "LOW_POINT_WIN",    criteriaValue: 1,   engineType: "MATCH_EVENT" , coinReward: 150, packReward: 'FIVE' },
-  { key: "CHAOS_AGENT",       name: "🧨 Chaos Agent",       description: "Eliminate 5 different players",               icon: "🧨", rarity: "Legendary", category: "Hidden",    hidden: true,  priority: 80, criteriaType: "UNIQUE_ELIMINATIONS", criteriaValue: 5, engineType: "MATCH_EVENT" , coinReward: 150, packReward: 'FIVE' },
   { key: "SNAKE",             name: "🐍 Snake",             description: "Beat the same player 5 times",               icon: "🐍", rarity: "Epic",      category: "Hidden",    hidden: true,  priority: 60, criteriaType: "SAME_OPPONENT_WINS", criteriaValue: 5, engineType: "MATCH_EVENT" , coinReward: 75, packReward: 'SINGLE' },
   { key: "POINT_THIEF",       name: "💣 Point Thief",       description: "Win 200+ points in a single season",          icon: "💣", rarity: "Mythic",    category: "Hidden",    hidden: true,  priority: 90, criteriaType: "SEASON_POINTS",    criteriaValue: 200, engineType: "SEASON_EVENT" , coinReward: 300, packReward: 'TEN' },
   { key: "UNBREAKABLE",       name: "🔒 Unbreakable",       description: "Finish season in top 3 points",               icon: "🔒", rarity: "Legendary", category: "Hidden",    hidden: true,  priority: 80, criteriaType: "SEASON_TOP3",      criteriaValue: 1,   engineType: "SEASON_EVENT" , coinReward: 150, packReward: 'FIVE' },
   { key: "LONE_WOLF",         name: "🐺 Lone Wolf",         description: "Win 15+ matches in a season with low participation", icon: "🐺", rarity: "Epic", category: "Hidden",  hidden: true,  priority: 60, criteriaType: "SEASON_WINS",      criteriaValue: 15,  engineType: "SEASON_EVENT",  secondaryCriteria: "SEASON_GAMES", secondaryValue: 12 , coinReward: 75, packReward: 'SINGLE' },
-  { key: "TOXIC",             name: "☣ Toxic",              description: "Eliminate 2 different players",               icon: "☣",  rarity: "Epic",      category: "Hidden",    hidden: true,  priority: 60, criteriaType: "UNIQUE_ELIMINATIONS", criteriaValue: 2, engineType: "MATCH_EVENT" , coinReward: 75, packReward: 'SINGLE' },
-  { key: "BLOOD_HUNTER",      name: "🩸 Blood Hunter",      description: "Eliminate 10 different players",              icon: "🩸", rarity: "Legendary", category: "Hidden",    hidden: true,  priority: 80, criteriaType: "UNIQUE_ELIMINATIONS", criteriaValue: 10,engineType: "MATCH_EVENT" , coinReward: 150, packReward: 'FIVE' },
+  // CHAOS_AGENT/TOXIC/BLOOD_HUNTER/PREDATOR/GRAVE_DIGGER/DOUBLE_TROUBLE
+  // (elimination-count achievements above and below this comment) and
+  // SHOWMAN ("featured" match wins) were retired 2026-09-25 — defined here
+  // but had no grant call anywhere in the codebase, the same "never
+  // earnable" bug ASSASSIN/APOCALYPSE were retired for. The elimination
+  // ones need per-opponent attribution matches never stored (only a
+  // lifetime counter survives past match-write time); SHOWMAN needed a
+  // "featured match" concept that doesn't exist anywhere in this app. See
+  // retiredKeys in seedAchievements() below for the DB-side cleanup.
   { key: "FROZEN_OUT",        name: "🥶 Frozen Out",        description: "Be eliminated in a season",                   icon: "🥶", rarity: "Epic",      category: "Hidden",    hidden: true,  priority: 60, criteriaType: "ELIMINATED_SEASON",criteriaValue: 1,   engineType: "SEASON_EVENT" , coinReward: 75, packReward: 'SINGLE' },
   { key: "GENIUS",            name: "💡 Genius",            description: "Win 3 times as underdog (lower points)",      icon: "💡", rarity: "Epic",      category: "Hidden",    hidden: true,  priority: 60, criteriaType: "UPSET_WIN",        criteriaValue: 3,   engineType: "MATCH_EVENT" , coinReward: 75, packReward: 'SINGLE' },
   { key: "COLD_SNAP",         name: "❄ Cold Snap",          description: "Lose 7 in a row",                             icon: "❄",  rarity: "Rare",      category: "Hidden",    hidden: true,  priority: 40, criteriaType: "LOSS_STREAK",      criteriaValue: 7,   engineType: "MATCH_EVENT",  secondaryCriteria: "CAREER_GAMES", secondaryValue: 20 , coinReward: 35, packReward: 'SINGLE' },
@@ -409,6 +428,11 @@ export async function retroactiveSweep(): Promise<{ granted: number; playersChec
     const maxRivalry = Math.max(0, ...[...oppGames.values()]);
     if (maxSameOpp >= 3)  await grantIfNotHas(pid, "TARGET_LOCKED");
     if (maxSameOpp >= 5)  await grantIfNotHas(pid, "SNAKE");
+    // RIVAL_BREAKER was defined but never granted anywhere — same bug as
+    // WIN_COLLECTOR/HISTORIAN/SURVIVOR_ELITE above. It's the exact same
+    // "wins against one opponent" signal as TARGET_LOCKED/SNAKE, just a
+    // higher threshold, so it slots in right beside them.
+    if (maxSameOpp >= 10) await grantIfNotHas(pid, "RIVAL_BREAKER");
     if (maxRivalry >= 10) await grantIfNotHas(pid, "RIVALRY_DEFINED");
 
     // Unique opponents beaten
@@ -430,6 +454,12 @@ export async function retroactiveSweep(): Promise<{ granted: number; playersChec
     if ((fmtCounts["Treble"]  ?? 0) >= 3)  await grantIfNotHas(pid, "TREBLE_MASTER");
     if (uniqueFmts >= 4) await grantIfNotHas(pid, "WORLD_TOUR");
     if (uniqueFmts >= 6) await grantIfNotHas(pid, "JACK_OF_ALL");
+    // GAME_HOPPER_10 was defined but never granted — same UNIQUE_FORMATS_WON
+    // signal as WORLD_TOUR/JACK_OF_ALL, just the hardest threshold (10 is
+    // close to the ceiling normalizeGameType can even produce — see its own
+    // comment). GAME_HOPPER_20 asked for a threshold above that ceiling and
+    // was retired outright rather than wired up here; see retiredKeys below.
+    if (uniqueFmts >= 10) await grantIfNotHas(pid, "GAME_HOPPER_10");
 
     // TKDL legacy
     const seasonIds = new Set(allMatches.map(m => m.seasonId));
@@ -580,7 +610,65 @@ export async function seedAchievements(): Promise<void> {
   // any of them ever existed — so this is just catalog cleanup, not a data
   // loss risk; the player_achievements delete is a defensive no-op in the
   // normal case.
-  const retiredKeys = ["GHOST", "REAPER_SEASONAL", "MOMENTUM", "ASSASSIN", "APOCALYPSE"];
+  const retiredKeys = [
+    "GHOST", "REAPER_SEASONAL", "MOMENTUM", "ASSASSIN", "APOCALYPSE",
+    // Second wave, found 2026-09-25 — same "defined, never granted" bug,
+    // same root causes as the five above:
+    // - PREDATOR/CHAOS_AGENT/TOXIC/BLOOD_HUNTER/GRAVE_DIGGER/DOUBLE_TROUBLE
+    //   all need per-opponent elimination attribution ("eliminate the SAME
+    //   player twice", "eliminate N DIFFERENT players") — matches only ever
+    //   stored a lifetime elimination counter with no opponent attached,
+    //   exactly the gap ASSASSIN/APOCALYPSE were retired for above.
+    // - SHOWMAN needed a "featured match" concept that doesn't exist
+    //   anywhere in the app — no match/season table has any such flag.
+    // - NEMESIS_RELATIONSHIP was a genuine functional duplicate of
+    //   RIVALRY_DEFINED ("play 10 matches against the same opponent") —
+    //   already noted as retired-in-spirit in a comment near
+    //   RIVALRY_DEFINED's own grant call, but the definition itself was
+    //   never actually removed from format-and-meme-achievements.ts.
+    "PREDATOR", "CHAOS_AGENT", "TOXIC", "BLOOD_HUNTER", "GRAVE_DIGGER", "DOUBLE_TROUBLE",
+    "SHOWMAN", "NEMESIS_RELATIONSHIP",
+    // GAME_HOPPER_20 asked for wins across 20 different game types, but
+    // normalizeGameType (routes/players.ts) can only ever produce ~10
+    // distinct values (Cricket/Around the World/Killer/Shanghai/Bull Finish/
+    // Treble/1001/501/301/Other) — mathematically unreachable as defined,
+    // unlike GAME_HOPPER_10 (wired up above) which is exactly at that
+    // ceiling and genuinely just very hard.
+    "GAME_HOPPER_20",
+    // Third wave, found 2026-09-25 — same "defined, never granted" bug, and
+    // each one turned out to hinge on a genuinely ambiguous or missing
+    // product definition rather than a straightforward wiring gap:
+    // - FORTRESS_KING/ICE_COLD — see their own removal comments above
+    //   (near where they used to sit in ACHIEVEMENT_DEFINITIONS).
+    // - COMPLETE_COLLECTOR references a "Sequence" game format that doesn't
+    //   exist anywhere in this app (normalizeGameType's ~10 known formats
+    //   don't include it), and its ALL_CATEGORIES_WON criteriaType has no
+    //   engine implementation to check against.
+    // - STREAK_MACHINE/HOT_HAND ("5+/10 win streak") never specify whether
+    //   they mean practice mode or career-wide — and either reading is
+    //   already covered: PRACTICE_WIN_STREAK_5/10 (practice-achievements.ts)
+    //   grant for practice streaks, HOT_STREAK/INFERNO grant for career
+    //   streaks. Wiring these up as written would just duplicate one of
+    //   those, not add anything new.
+    "FORTRESS_KING", "ICE_COLD", "COMPLETE_COLLECTOR", "STREAK_MACHINE", "HOT_HAND",
+    // Fourth wave, found 2026-09-25 by a targeted audit of the 6 practice/
+    // feature achievement files not yet checked for this bug pattern —
+    // practice-achievements.ts came back with 11 dead keys, all investigated
+    // (not just assumed) before retiring; see the removal comments where
+    // PRACTICE_BIG_FISH/PRACTICE_BIG_FISH_5 and the bot-level/pro-persona
+    // block used to sit in practice-achievements.ts for the full reasoning.
+    // Short version: the frontend's 170+ counter is a general high-scoring-
+    // visit milestone, not specifically a checkout; and which bot level or
+    // persona a player faced in practice never reaches the backend at all.
+    // board-curse-achievements.ts, boss-battle-achievements.ts,
+    // shift-wars-achievements.ts, doubles-achievements.ts, and
+    // master501-achievements.ts were all confirmed fully wired — no action
+    // needed there.
+    "PRACTICE_BIG_FISH", "PRACTICE_BIG_FISH_5",
+    "PRACTICE_BOT_LEVEL_5_WINS_1", "PRACTICE_BOT_LEVEL_5_WINS_3", "PRACTICE_BOT_LEVEL_10_WINS_5",
+    "PRACTICE_BOT_LEVEL_15_WINS_5", "PRACTICE_BOT_LEVEL_20_WINS_5",
+    "PRACTICE_BEAT_LUKE_3", "PRACTICE_BEAT_LUCA_3", "PRACTICE_BEAT_MIKKEL_3", "PRACTICE_BEAT_PERRY_3",
+  ];
   const retiredRows = await db.select({ id: achievementsTable.id }).from(achievementsTable)
     .where(inArray(achievementsTable.key, retiredKeys));
   if (retiredRows.length > 0) {
@@ -639,14 +727,32 @@ export async function checkStatAchievements(playerId: number): Promise<void> {
   if (total >= 25) await grantIfNotHas(playerId, "DECORATED");
   if (total >= 50) await grantIfNotHas(playerId, "LEGEND");
 
-  // Check LAST_MAN_STANDING — never eliminated career
-  if (player.status !== "ELIMINATED" && player.careerGamesPlayed >= 5) {
+  // Check LAST_MAN_STANDING — never eliminated career, and the multi-season
+  // Career badges below it (WIN_COLLECTOR/HISTORIAN/SURVIVOR_ELITE) — all
+  // three were defined in ACHIEVEMENT_DEFINITIONS but had no grant call
+  // anywhere, same bug as GIANT_KILLER/KING_SLAYER/CONQUEROR/COMEBACK_KING
+  // above. Formulas mirror routes/players.ts's getProgress() exactly
+  // (multiSeasonWins/seasonsPlayed/unelimSeasons) so the progress bar and
+  // the actual unlock agree.
+  {
     const standings = await db.select().from(seasonStandingsTable)
       .where(eq(seasonStandingsTable.playerId, playerId));
-    const wasEliminated = standings.some(s => s.points === 0);
-    if (!wasEliminated && standings.length > 0) {
-      await grantIfNotHas(playerId, "LAST_MAN_STANDING");
+
+    if (player.status !== "ELIMINATED" && player.careerGamesPlayed >= 5) {
+      const wasEliminated = standings.some(s => s.points === 0);
+      if (!wasEliminated && standings.length > 0) {
+        await grantIfNotHas(playerId, "LAST_MAN_STANDING");
+      }
     }
+
+    const multiSeasonWins = standings.filter(s => s.wins > 0).length;
+    if (multiSeasonWins >= 4) await grantIfNotHas(playerId, "WIN_COLLECTOR");
+
+    const seasonsPlayed = standings.length;
+    if (seasonsPlayed >= 3) await grantIfNotHas(playerId, "HISTORIAN");
+
+    const unelimSeasons = standings.filter(s => s.points > 0 && (s.wins + s.losses) >= 5).length;
+    if (unelimSeasons >= 5) await grantIfNotHas(playerId, "SURVIVOR_ELITE");
   }
 
   // REGULAR_PLAYER — played at least once per week for 20+ distinct weeks
@@ -804,8 +910,9 @@ export async function checkMatchAchievements(
       }
     }
     for (const [, cnt] of opponentCounts) {
-      if (cnt >= 3) await grantIfNotHas(playerId, "TARGET_LOCKED");
-      if (cnt >= 5) await grantIfNotHas(playerId, "SNAKE");
+      if (cnt >= 3)  await grantIfNotHas(playerId, "TARGET_LOCKED");
+      if (cnt >= 5)  await grantIfNotHas(playerId, "SNAKE");
+      if (cnt >= 10) await grantIfNotHas(playerId, "RIVAL_BREAKER");
     }
 
     // ── Format / rivalry / special achievements ──────────────────────────────
@@ -819,8 +926,9 @@ export async function checkMatchAchievements(
     if ((fmtCounts["301"]     ?? 0) >= 10) await grantIfNotHas(playerId, "THREE_O_ONE");
     if ((fmtCounts["501"]     ?? 0) >= 5)  await grantIfNotHas(playerId, "FIVE_O_ONE");
     if ((fmtCounts["Treble"]  ?? 0) >= 3)  await grantIfNotHas(playerId, "TREBLE_MASTER");
-    if (uniqueFmts >= 4) await grantIfNotHas(playerId, "WORLD_TOUR");
-    if (uniqueFmts >= 6) await grantIfNotHas(playerId, "JACK_OF_ALL");
+    if (uniqueFmts >= 4)  await grantIfNotHas(playerId, "WORLD_TOUR");
+    if (uniqueFmts >= 6)  await grantIfNotHas(playerId, "JACK_OF_ALL");
+    if (uniqueFmts >= 10) await grantIfNotHas(playerId, "GAME_HOPPER_10");
 
     // Rivalry
     const uniqueOppBeaten = new Set(playerWins.map(m => m.loserId)).size;

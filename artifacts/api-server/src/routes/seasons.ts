@@ -106,6 +106,47 @@ router.get("/seasons/:id/mvp", async (req, res): Promise<void> => {
   res.json(mvp ? { playerId: mvp.player_id, playerName: mvp.player_name, wins: mvp.wins } : null);
 });
 
+// ── Season Preview ──────────────────────────────────────────────────────
+// The forward-looking companion to season-detail.tsx's "Season Storylines"
+// panel (which needs real match data to compute upsets/streaks/etc. and so
+// has nothing to show right when a season opens). Preview instead surfaces
+// what's already true the moment the season starts: who's defending the
+// title, who enters as Elo favorite, who's riding a hot streak in. All
+// three read career-wide fields that seasonReset.ts deliberately does NOT
+// reset at season boundaries (Elo, currentWinStreak) or that live on the
+// season row itself (championId/championName from the previous season) —
+// see seasonReset.ts's performSeasonResetLocked for why those specific
+// fields survive the reset. Singles-only: Elo/streak framing doesn't map
+// cleanly onto Doubles Event's or Shift Wars's team-based standings.
+router.get("/seasons/:id/preview", async (req, res): Promise<void> => {
+  const params = GetSeasonParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [season] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, params.data.id));
+  if (!season) { res.status(404).json({ error: "Season not found" }); return; }
+  if (season.leagueType !== "singles") { res.json({ defendingChampion: null, eloFavorite: null, hottestStreak: null }); return; }
+
+  const [previousSeason] = await db.select().from(seasonsTable)
+    .where(and(eq(seasonsTable.leagueType, "singles"), eq(seasonsTable.isActive, false)))
+    .orderBy(desc(seasonsTable.id))
+    .limit(1);
+  const defendingChampion = previousSeason?.championId && previousSeason?.championName
+    ? { playerId: previousSeason.championId, playerName: previousSeason.championName, seasonName: previousSeason.name }
+    : null;
+
+  const activePlayers = await db.select().from(playersTable).where(and(eq(playersTable.isActive, true), eq(playersTable.status, "ACTIVE")));
+
+  const topElo = [...activePlayers].sort((a, b) => b.elo - a.elo)[0] ?? null;
+  const eloFavorite = topElo ? { playerId: topElo.id, playerName: topElo.name, elo: topElo.elo, tier: calcTier(topElo.elo) } : null;
+
+  const topStreak = [...activePlayers].sort((a, b) => b.currentWinStreak - a.currentWinStreak)[0] ?? null;
+  const hottestStreak = topStreak && topStreak.currentWinStreak >= 2
+    ? { playerId: topStreak.id, playerName: topStreak.name, streak: topStreak.currentWinStreak }
+    : null;
+
+  res.json({ defendingChampion, eloFavorite, hottestStreak });
+});
+
 router.get("/seasons/:id", async (req, res): Promise<void> => {
   const params = GetSeasonParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -180,7 +221,7 @@ router.get("/seasons/:id/matches", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const rows = await db.execute(sql`
-    SELECT m.id, m.played_at, m.stake, m.elo_change, m.game_type,
+    SELECT m.id, m.played_at, m.stake, m.elo_change, m.game_type, m.was_upset_win,
            m.winner_id, m.winner_name, m.loser_id, m.loser_name,
            m.winner_darts, m.winner_100s, m.winner_140s, m.winner_170s, m.winner_180s,
            m.loser_darts, m.loser_100s, m.loser_140s, m.loser_170s, m.loser_180s
@@ -196,6 +237,12 @@ router.get("/seasons/:id/matches", async (req, res): Promise<void> => {
     stake:       r.stake,
     eloChange:   r.elo_change,
     gameType:    r.game_type,
+    // Used by season-detail.tsx's "Season Storylines" panel to pick out
+    // this season's biggest upset — see matches.ts schema comment on
+    // wasUpsetWin for why this is computed and stored at write time rather
+    // than reconstructed later (points-before-match isn't otherwise
+    // recoverable from a running total).
+    wasUpsetWin: r.was_upset_win,
     winnerId:    r.winner_id,
     winnerName:  r.winner_name,
     loserId:     r.loser_id,

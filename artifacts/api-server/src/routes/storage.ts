@@ -1,116 +1,21 @@
-import express, { Router, type IRouter, type Request, type Response } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
-import {
-  RequestUploadUrlBody,
-  RequestUploadUrlResponse,
-} from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { ObjectPermission, getObjectAclPolicy } from "../lib/objectAcl";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
-// Every upload entry point in the app (community photo posts, account/message
-// attachments) only ever offers an `accept="image/*"` file picker — so a
-// content-type outside this list can only arrive from a direct API call, not
-// normal use. Without this check, an uploaded file's client-supplied content
-// type was stored as-is and echoed back as the Content-Type response header
-// when served — meaning an upload of `Content-Type: text/html` (or
-// image/svg+xml, which can carry a <script>) would render as a live page
-// under the app's own origin instead of downloading as a photo, i.e. stored
-// XSS with no restriction stopping it.
-const ALLOWED_IMAGE_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "image/heic",
-  "image/heif",
-]);
-
-function isAllowedImageType(contentType: string | undefined | null): boolean {
-  return !!contentType && ALLOWED_IMAGE_TYPES.has(contentType.toLowerCase().split(";")[0].trim());
-}
-
-/**
- * POST /storage/uploads/file — server-side proxy upload (avoids browser CORS)
- * Client sends raw file bytes; server proxies to GCS and returns objectPath.
- */
-router.post(
-  "/storage/uploads/file",
-  express.raw({ limit: "10mb", type: () => true }),
-  async (req: Request, res: Response) => {
-    try {
-      const contentType =
-        (req.headers["x-file-type"] as string) ||
-        req.headers["content-type"] ||
-        "application/octet-stream";
-
-      if (!isAllowedImageType(contentType)) {
-        res.status(415).json({ error: "Only image uploads are allowed" });
-        return;
-      }
-
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-      const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
-
-      const putRes = await fetch(uploadURL, {
-        method: "PUT",
-        headers: { "Content-Type": contentType },
-        body: req.body as Buffer,
-      });
-
-      if (!putRes.ok) {
-        req.log.error({ status: putRes.status }, "GCS proxy upload failed");
-        res.status(500).json({ error: "Storage upload failed" });
-        return;
-      }
-
-      res.json({ objectPath });
-    } catch (error) {
-      req.log.error({ err: error }, "Proxy upload error");
-      res.status(500).json({ error: "Upload failed" });
-    }
-  }
-);
-
-/**
- * POST /storage/uploads/request-url
- *
- * Request a presigned URL for file upload.
- * The client sends JSON metadata (name, size, contentType) — NOT the file.
- * Then uploads the file directly to the returned presigned URL.
- */
-router.post("/storage/uploads/request-url", async (req: Request, res: Response) => {
-  const parsed = RequestUploadUrlBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Missing or invalid required fields" });
-    return;
-  }
-
-  try {
-    const { name, size, contentType } = parsed.data;
-
-    if (!isAllowedImageType(contentType)) {
-      res.status(415).json({ error: "Only image uploads are allowed" });
-      return;
-    }
-
-    const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-    const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
-
-    res.json(
-      RequestUploadUrlResponse.parse({
-        uploadURL,
-        objectPath,
-        metadata: { name, size, contentType },
-      }),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Error generating upload URL");
-    res.status(500).json({ error: "Failed to generate upload URL" });
-  }
-});
+// POST /storage/uploads/file and POST /storage/uploads/request-url were
+// removed 2026-09-25 — a GCS presigned-upload flow that grepping the whole
+// frontend found zero callers of. community.tsx's own header comment
+// confirms why: photo uploads moved to base64-in-JSON because "the
+// object-storage endpoint this used to hit doesn't work on this app's
+// Render hosting." Every real upload path (community posts, DMs, avatars)
+// writes straight to Postgres bytea columns instead. The GET routes below
+// are kept as-is — they still serve any objects that predate that
+// migration, and ObjectStorageService/objectAcl.ts stay in place to back
+// them (getObjectEntityFile, downloadObject, the ACL check).
 
 /**
  * GET /storage/public-objects/*

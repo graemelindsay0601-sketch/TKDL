@@ -1746,13 +1746,17 @@ export default function PlayerDetail() {
           emptyHintSuffix="it shows on the Hub too."
         />
 
-        {/* Source type tabs */}
+        {/* Source type tabs — same four categories and colors as the main
+            Achievements page's TABS (pages/achievements.tsx); a 2026-09-25
+            visual-consistency pass found this list had drifted to its own
+            independent color set (League/Bot/Tour all differed) even though
+            it's the same filter-by-source concept shown there. */}
         <div className="flex gap-1 mb-3 flex-wrap">
           {([
-            { key: "league", label: "🏆 League", color: "#ffd24a" },
+            { key: "league", label: "🏆 League", color: "#ff005c" },
             { key: "m501",   label: "🎯 M-501",  color: "#00c8a0" },
-            { key: "bot",    label: "🤖 Bot",    color: "#ff005c" },
-            { key: "tour",   label: "🌟 Tour",   color: "#a855f7" },
+            { key: "bot",    label: "🤖 Bot",    color: "#0066ff" },
+            { key: "tour",   label: "🌟 Tour",   color: "#ffd24a" },
           ] as const).map(({ key, label, color }) => {
             const src = achSourceMap[key] ?? [];
             const cnt = src.filter((a: any) => a.isUnlocked).length;

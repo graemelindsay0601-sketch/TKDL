@@ -1,6 +1,6 @@
 import { useGetLeaderboard } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
-import { TierBadge } from "@/components/tier-badge";
+import { TierBadge, TIER_COLORS as TIER_BORDER } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
 import { Link, useSearch } from "wouter";
 import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal, Zap, Users, Building2 } from "lucide-react";
@@ -17,10 +17,6 @@ const CAREER_SORTS = [
   { key: "peakElo", label: "Peak ELO"    },
   { key: "points",  label: "Career Pts"  },
 ] as const;
-
-const TIER_BORDER: Record<string, string> = {
-  Diamond: "#00d4ff", Platinum: "#e879f9", Gold: "#ffd24a", Silver: "#c0c8d8", Bronze: "#cd7f32",
-};
 
 function TierDot({ tier }: { tier: string }) {
   const color = TIER_BORDER[tier] ?? "rgba(255,255,255,0.2)";
@@ -212,6 +208,7 @@ function SeasonRow({ entry, idx, maxElo, glow, icon, tag }: { entry: any; idx: n
       <div className="group flex items-center gap-3 rounded-xl cursor-pointer transition-all duration-150 hover:bg-white/[0.035] fade-in-up"
         style={{ padding: "0.8rem 1.1rem", ...defaultStyle, ...glow, animationDelay: `${idx * 35}ms` }}>
         <Pos idx={idx} />
+        <RankChange change={entry.positionChange} />
         <div className="flex-1 min-w-0 pr-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-black uppercase leading-tight" style={{ fontFamily: "Oswald, sans-serif", fontSize: idx === 0 ? "1.2rem" : "1rem", letterSpacing: "0.04em", color: idx === 0 ? "#fff" : "rgba(255,255,255,0.85)" }}>{entry.playerName}</span>

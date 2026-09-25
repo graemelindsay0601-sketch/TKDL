@@ -40,16 +40,29 @@ router.get("/hub/form/:playerId", async (req, res): Promise<void> => {
 });
 
 // ── GET /hub/pulse ─────────────────────────────────────────────────────────
-// Merges four genuinely timestamped event sources — recent matches, tour
-// trophies, achievement unlocks, community posts — into one feed sorted by
-// recency. Deliberately does NOT include the old League card's "narrative
-// cards" or danger-zone/rivalry content: those are live-computed snapshots
-// of current state, not discrete events with a real timestamp, so they
-// don't fit an activity feed honestly (they're still shown, just in the
-// State Band instead). There's no real "bot" event log anywhere in the
-// schema (bot level-ups aren't recorded with a timestamp), so that category
-// comes back empty here rather than faking entries — the frontend shows an
-// honest empty state for it instead of invented content.
+// Merges six genuinely timestamped event sources — singles/team matches,
+// Doubles Event matches, Shift Wars matches, tour trophies, achievement
+// unlocks, community posts — into one feed sorted by recency. Deliberately
+// does NOT include the old League card's "narrative cards" or
+// danger-zone/rivalry content: those are live-computed snapshots of current
+// state, not discrete events with a real timestamp, so they don't fit an
+// activity feed honestly (they're still shown, just in the State Band
+// instead). There's no real "bot" event log anywhere in the schema (bot
+// level-ups aren't recorded with a timestamp), so that category comes back
+// empty here rather than faking entries — the frontend shows an honest
+// empty state for it instead of invented content.
+//
+// 2026-09-25: fixed a real gap — this feed used to query only the plain
+// `matches` table. "Team matches" (2v2/3v3/multi-Killer, routes/team-matches.ts)
+// already write into that same table with a `team_%`/`multi_killer` gameType,
+// so those were always included. But Doubles Event and Shift Wars results are
+// recorded in their own dedicated tables (doubles_matches/doubles_teams,
+// shift_wars_matches/shift_wars_teams — see routes/doubles.ts and
+// routes/shift-wars.ts), which this feed never touched, so a doubles or
+// shift-wars result — despite firing a push notification via
+// sendDoublesMatchResultNotification/sendShiftWarsMatchResultNotification —
+// never showed up anywhere as "recent activity." Both are now merged in
+// alongside the plain matches query below.
 type PulseItem = {
   id: string;
   category: "league" | "tour" | "achievements" | "community";
@@ -61,11 +74,27 @@ type PulseItem = {
 
 router.get("/hub/pulse", async (_req, res): Promise<void> => {
   try {
-    const [matches, trophies, achievements, posts] = await Promise.all([
+    const [matches, doublesMatches, shiftWarsMatches, trophies, achievements, posts] = await Promise.all([
       db.execute(sql`
         SELECT id, winner_name, loser_name, stake, played_at
         FROM matches
         ORDER BY played_at DESC
+        LIMIT 8
+      `),
+      db.execute(sql`
+        SELECT dm.id, wt.team_name AS winner_team_name, lt.team_name AS loser_team_name, dm.stake, dm.played_at
+        FROM doubles_matches dm
+        JOIN doubles_teams wt ON wt.id = dm.winner_team_id
+        JOIN doubles_teams lt ON lt.id = dm.loser_team_id
+        ORDER BY dm.played_at DESC
+        LIMIT 8
+      `),
+      db.execute(sql`
+        SELECT sm.id, wt.name AS winner_team_name, lt.name AS loser_team_name, sm.stake, sm.played_at
+        FROM shift_wars_matches sm
+        JOIN shift_wars_teams wt ON wt.id = sm.winner_team_id
+        JOIN shift_wars_teams lt ON lt.id = sm.loser_team_id
+        ORDER BY sm.played_at DESC
         LIMIT 8
       `),
       db.execute(sql`
@@ -104,6 +133,22 @@ router.get("/hub/pulse", async (_req, res): Promise<void> => {
         icon: "🎯",
         title: `${m.winner_name} def. ${m.loser_name}`,
         subtitle: m.stake > 0 ? `${m.stake} pts` : "",
+        timestamp: m.played_at,
+      })),
+      ...(doublesMatches.rows as any[]).map(m => ({
+        id: `doubles-${m.id}`,
+        category: "league" as const,
+        icon: "🎯",
+        title: `${m.winner_team_name} def. ${m.loser_team_name}`,
+        subtitle: m.stake > 0 ? `Doubles Event · ${m.stake} pts` : "Doubles Event",
+        timestamp: m.played_at,
+      })),
+      ...(shiftWarsMatches.rows as any[]).map(m => ({
+        id: `shiftwars-${m.id}`,
+        category: "league" as const,
+        icon: "🏬",
+        title: `${m.winner_team_name} def. ${m.loser_team_name}`,
+        subtitle: m.stake > 0 ? `Shift Wars · ${m.stake} pts` : "Shift Wars",
         timestamp: m.played_at,
       })),
       ...(trophies.rows as any[]).map(t => ({
@@ -163,6 +208,55 @@ router.get("/hub/visit/:playerId", async (req, res): Promise<void> => {
   } catch (err) {
     logger.error({ err }, "Failed to record hub visit");
     res.status(500).json({ previousVisit: null });
+  }
+});
+
+// ── GET /hub/on-this-day/:playerId ────────────────────────────────────────
+// A small nostalgia nudge for the Hub: did this player play a match on
+// this exact calendar day in some earlier year? Scoped deliberately to the
+// plain `matches` table (singles + Team matches, which already share that
+// table — see the Pulse fix above) rather than Doubles Event / Shift Wars:
+// those record results at the team level with no team-membership join in
+// scope here, so a doubles/Shift-Wars anniversary won't surface via this
+// endpoint yet. Returns null (not 404) when nothing matches today's
+// month/day in a past year — that's the ordinary case on 364 days a year,
+// not an error, so the frontend just renders nothing for this card.
+router.get("/hub/on-this-day/:playerId", async (req, res): Promise<void> => {
+  try {
+    const playerId = parseInt(req.params.playerId, 10);
+    if (isNaN(playerId)) { res.status(400).json({ error: "Invalid player ID" }); return; }
+
+    const rows = (await db.execute(sql`
+      SELECT id, winner_id, winner_name, loser_id, loser_name, game_type, elo_change, played_at
+      FROM matches
+      WHERE (winner_id = ${playerId} OR loser_id = ${playerId})
+        AND EXTRACT(MONTH FROM played_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+        AND EXTRACT(DAY FROM played_at) = EXTRACT(DAY FROM CURRENT_DATE)
+        AND EXTRACT(YEAR FROM played_at) < EXTRACT(YEAR FROM CURRENT_DATE)
+      ORDER BY played_at DESC
+      LIMIT 1
+    `)).rows as {
+      id: number; winner_id: number; winner_name: string; loser_id: number; loser_name: string;
+      game_type: string; elo_change: number; played_at: string;
+    }[];
+
+    const row = rows[0];
+    if (!row) { res.json(null); return; }
+
+    const wasWin = row.winner_id === playerId;
+    res.json({
+      matchId: row.id,
+      playedAt: row.played_at,
+      yearsAgo: new Date().getFullYear() - new Date(row.played_at).getFullYear(),
+      wasWin,
+      opponentId: wasWin ? row.loser_id : row.winner_id,
+      opponentName: wasWin ? row.loser_name : row.winner_name,
+      gameType: row.game_type,
+      eloChange: row.elo_change,
+    });
+  } catch (err) {
+    logger.error({ err }, "Failed to get on-this-day match");
+    res.status(500).json(null);
   }
 });
 

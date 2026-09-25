@@ -155,7 +155,10 @@ export function GameTypesManager() {
                             <button onClick={() => startEdit(g)} className="p-1 rounded hover:bg-white/10 transition-colors" style={{ color: "rgba(255,255,255,0.4)" }} title="Edit">
                               <Pencil className="w-3 h-3" />
                             </button>
-                            <button onClick={() => deleteType(g.id, g.name)} className="p-1 rounded hover:bg-red-500/20 transition-colors" style={{ color: "rgba(255,100,100,0.5)" }} title="Delete">
+                            {/* rgba(255,0,92,x) / hover:bg-red-900 matches the delete-button
+                                treatment in tour-data-manager.tsx, not this page's own
+                                plain-red rgba(255,100,100,x) -- 2026-09-25 consistency pass. */}
+                            <button onClick={() => deleteType(g.id, g.name)} className="p-1 rounded hover:bg-red-900/30 transition-colors" style={{ color: "rgba(255,0,92,0.6)" }} title="Delete">
                               <Trash2 className="w-3 h-3" />
                             </button>
                           </div>

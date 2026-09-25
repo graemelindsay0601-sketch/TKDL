@@ -45,7 +45,14 @@ export const TITLE_DEFINITIONS: TitleDef[] = [
   { key:"TITLE_RIVAL_BREAKER",    title:"Rival Breaker",      description:"Break a losing streak against a rival",             rarity:"Epic",      category:"league",    icon:"💥", requiresAchievement:"RIVAL_BREAKER" },
   { key:"TITLE_KING_SLAYER",      title:"King Slayer",        description:"Beat the season leader",                            rarity:"Epic",      category:"league",    icon:"👑", requiresAchievement:"KING_SLAYER" },
   { key:"TITLE_COMEBACK_KING",    title:"Comeback King",      description:"Win after a losing streak",                         rarity:"Epic",      category:"league",    icon:"🔄", requiresAchievement:"COMEBACK_KING" },
-  { key:"TITLE_NEMESIS",          title:"The Nemesis",        description:"Become someone's nemesis",                          rarity:"Rare",      category:"league",    icon:"😈", requiresAchievement:"NEMESIS_RELATIONSHIP" },
+  // TITLE_NEMESIS (requiresAchievement: "NEMESIS_RELATIONSHIP") removed
+  // 2026-09-25 — NEMESIS_RELATIONSHIP was retired in achievements.ts as a
+  // genuine duplicate of RIVALRY_DEFINED ("play 10 matches against the same
+  // opponent"). No repoint: RIVALRY_DEFINED has no title of its own to
+  // collide with, but "become someone's nemesis" and "break a losing streak
+  // against a rival" (TITLE_RIVAL_BREAKER) aren't the same claim, so this is
+  // removed rather than silently repointed to a title that means something
+  // different.
   { key:"TITLE_UNDERDOG",         title:"The Underdog",       description:"Upset a higher-rated player",                       rarity:"Rare",      category:"league",    icon:"🐕", requiresAchievement:"UNDERDOG_SPECIAL" },
   { key:"TITLE_GIANT_KILLER",     title:"Giant Killer",       description:"Beat a significantly higher-rated opponent",        rarity:"Epic",      category:"league",    icon:"🗡️", requiresAchievement:"GIANT_KILLER" },
 
@@ -60,7 +67,12 @@ export const TITLE_DEFINITIONS: TitleDef[] = [
   // ── League — Career milestones ────────────────────────────────────────────
   { key:"TITLE_VETERAN",          title:"The Veteran",        description:"A seasoned campaigner",                             rarity:"Rare",      category:"league",    icon:"🎖️", requiresAchievement:"VETERAN" },
   { key:"TITLE_PROFESSIONAL",     title:"The Professional",   description:"Play 200 career games",                             rarity:"Epic",      category:"league",    icon:"💼", requiresAchievement:"PROFESSIONAL" },
-  { key:"TITLE_PREDATOR",         title:"The Predator",       description:"Hunt down opponents relentlessly",                  rarity:"Epic",      category:"league",    icon:"🦅", requiresAchievement:"PREDATOR" },
+  // TITLE_PREDATOR (requiresAchievement: "PREDATOR") removed 2026-09-25 —
+  // PREDATOR ("eliminate the same player twice") was retired in
+  // achievements.ts alongside CHAOS_AGENT/TOXIC/BLOOD_HUNTER/GRAVE_DIGGER/
+  // DOUBLE_TROUBLE: none of these are reconstructable without per-opponent
+  // elimination attribution, which matches never stored (same gap
+  // ASSASSIN/APOCALYPSE were already retired for).
   { key:"TITLE_CONQUEROR",        title:"The Conqueror",      description:"Dominate across all formats",                       rarity:"Epic",      category:"league",    icon:"🏆", requiresAchievement:"CONQUEROR" },
   // TITLE_ASSASSIN (requiresAchievement: "ASSASSIN") removed — ASSASSIN was
   // "eliminate N top-ranked opponents" and was permanently retired in
@@ -85,13 +97,19 @@ export const TITLE_DEFINITIONS: TitleDef[] = [
   { key:"TITLE_MOST_ACTIVE",      title:"Most Active",        description:"Most active player in the league",                  rarity:"Rare",      category:"practice",  icon:"⚡", requiresAchievement:"MOST_ACTIVE" },
   { key:"TITLE_DEDICATED",        title:"Dedicated",          description:"Reach 100 practice sessions",                       rarity:"Rare",      category:"practice",  icon:"💪", requiresAchievement:"PRACTICE_TOTAL_SESSIONS_25" },
   { key:"TITLE_GRIND_100",        title:"Centurion Sessions", description:"Reach 100 total practice sessions",                 rarity:"Epic",      category:"practice",  icon:"💯", requiresAchievement:"PRACTICE_TOTAL_SESSIONS_100" },
-  { key:"TITLE_SHOWMAN",          title:"The Showman",        description:"Show off across all modes",                         rarity:"Rare",      category:"practice",  icon:"🎭", requiresAchievement:"SHOWMAN" },
+  // TITLE_SHOWMAN (requiresAchievement: "SHOWMAN") removed 2026-09-25 —
+  // SHOWMAN ("win 5 featured matches") was retired in achievements.ts:
+  // no match/season table anywhere in the app has a "featured" concept for
+  // it to check.
 
   // ── Practice — Game variety ───────────────────────────────────────────────
   { key:"TITLE_GAME_HOPPER",      title:"Game Hopper",        description:"Play 10 different game types",                      rarity:"Rare",      category:"practice",  icon:"🎮", requiresAchievement:"GAME_HOPPER_10" },
   { key:"TITLE_JACK_OF_ALL",      title:"Jack of All",        description:"Master every game format",                          rarity:"Epic",      category:"practice",  icon:"🌐", requiresAchievement:"JACK_OF_ALL" },
   { key:"TITLE_WORLD_TOUR",       title:"World Tour",         description:"Tour every game mode",                              rarity:"Epic",      category:"practice",  icon:"🌍", requiresAchievement:"WORLD_TOUR" },
-  { key:"TITLE_COMPLETE_COLL",    title:"Complete Collector",  description:"Collect wins in every format",                      rarity:"Legendary", category:"practice",  icon:"🌌", requiresAchievement:"COMPLETE_COLLECTOR" },
+  // TITLE_COMPLETE_COLL (requiresAchievement: "COMPLETE_COLLECTOR") removed
+  // 2026-09-25 — COMPLETE_COLLECTOR was retired in format-and-meme-
+  // achievements.ts: its description names a "Sequence" game format that
+  // doesn't exist anywhere in this app.
   { key:"TITLE_DECORATED",        title:"Decorated",          description:"Rack up achievements across all modes",             rarity:"Legendary", category:"practice",  icon:"🎗️", requiresAchievement:"DECORATED" },
 
   // ── Game-specific — 501 & variants ───────────────────────────────────────
@@ -109,7 +127,9 @@ export const TITLE_DEFINITIONS: TitleDef[] = [
   { key:"TITLE_CRICKET_KING",     title:"Cricket King",       description:"Dominate the Cricket format",                       rarity:"Rare",      category:"game",      icon:"🏏", requiresAchievement:"CRICKET_KING" },
   { key:"TITLE_SNAKE",            title:"The Snake",          description:"Slippery and dangerous",                            rarity:"Epic",      category:"game",      icon:"🐍", requiresAchievement:"SNAKE" },
   { key:"TITLE_LONE_WOLF",        title:"Lone Wolf",          description:"A solo operator",                                   rarity:"Rare",      category:"game",      icon:"🐺", requiresAchievement:"LONE_WOLF" },
-  { key:"TITLE_CHAOS_AGENT",      title:"Chaos Agent",        description:"Bring unpredictability to every game",              rarity:"Epic",      category:"game",      icon:"🌀", requiresAchievement:"CHAOS_AGENT" },
+  // TITLE_CHAOS_AGENT (requiresAchievement: "CHAOS_AGENT") removed
+  // 2026-09-25 — see TITLE_PREDATOR's note above; same elimination-
+  // attribution gap, same retirement.
   { key:"TITLE_DETONATOR",        title:"Detonator",          description:"Explosive finisher",                                rarity:"Epic",      category:"game",      icon:"💣", requiresAchievement:"DETONATOR" },
   { key:"TITLE_IMMORTAL",         title:"Immortal",           description:"Play endlessly and never stop improving",           rarity:"Legendary", category:"game",      icon:"⚰️", requiresAchievement:"IMMORTAL" },
   { key:"TITLE_PHOENIX",          title:"Phoenix",            description:"Rise from the ashes",                               rarity:"Legendary", category:"game",      icon:"🦅", requiresAchievement:"PHOENIX" },

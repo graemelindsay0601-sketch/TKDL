@@ -503,28 +503,9 @@ router.get("/tour/achievements/:playerId", async (req, res): Promise<void> => {
   }
 });
 
-// ── GET /api/tour/summary ─────────────────────────────────────────────────────
-
-router.get("/tour/summary", async (req, res): Promise<void> => {
-  try {
-    const [trophyRow, runRows] = await Promise.all([
-      db.execute(sql`SELECT COUNT(*)::int AS count FROM tour_trophies`),
-      db.execute(sql`SELECT status, COUNT(*)::int AS count FROM player_tour_runs GROUP BY status`),
-    ]);
-    const totalTrophies = Number((trophyRow.rows[0] as any)?.count ?? 0);
-    const runMap: Record<string, number> = {};
-    for (const r of runRows.rows as any[]) runMap[r.status] = Number(r.count);
-    res.json({
-      totalTrophies,
-      activeRuns: runMap["active"] ?? 0,
-      completedRuns: runMap["completed"] ?? 0,
-      eliminatedRuns: runMap["eliminated"] ?? 0,
-    });
-  } catch (err) {
-    req.log.error({ err }, "Failed to get tour summary");
-    res.status(500).json({ error: "Failed to get tour summary" });
-  }
-});
+// GET /api/tour/summary was removed 2026-09-25 — grepped the whole frontend
+// and found zero callers. Dead since whatever admin panel it was meant to
+// feed either never shipped or was superseded by all-trophies below.
 
 // ── GET /api/tour/all-trophies ────────────────────────────────────────────────
 
@@ -580,29 +561,13 @@ router.delete("/tour/trophies/:trophyId", requireAdminSession, async (req, res):
   }
 });
 
-// ── DELETE /api/tour/player/:playerId — admin wipe all tour data for a player ──
-
-router.delete("/tour/player/:playerId", requireAdminSession, async (req, res): Promise<void> => {
-  try {
-    const playerId = parseInt(paramStr(req.params.playerId), 10);
-    if (isNaN(playerId)) { res.status(400).json({ error: "Invalid player id" }); return; }
-
-    const [trophies, achievements, runs] = await Promise.all([
-      db.execute(sql`DELETE FROM tour_trophies WHERE player_id = ${playerId} RETURNING id`),
-      db.execute(sql`DELETE FROM player_tour_achievements WHERE player_id = ${playerId} RETURNING id`),
-      db.execute(sql`DELETE FROM player_tour_runs WHERE player_id = ${playerId} RETURNING id`),
-    ]);
-
-    res.json({
-      trophiesDeleted:      trophies.rows.length,
-      achievementsDeleted:  achievements.rows.length,
-      runsDeleted:          runs.rows.length,
-    });
-  } catch (err) {
-    req.log.error({ err }, "Failed to delete player tour data");
-    res.status(500).json({ error: "Failed to delete player tour data" });
-  }
-});
+// DELETE /api/tour/player/:playerId was removed 2026-09-25 — grepped the
+// whole frontend and found zero callers (tour-data-manager.tsx only ever
+// calls the run/trophy deletes above). It also duplicated logic admin.ts's
+// player-delete transaction already runs inline (tour_trophies,
+// player_tour_achievements, player_tour_runs), as two copies that could
+// silently drift apart — admin.ts's version is the real one, and it's
+// wrapped in a transaction this standalone route never was.
 
 // ── GET /api/tour/achievement-definitions ─────────────────────────────────────
 

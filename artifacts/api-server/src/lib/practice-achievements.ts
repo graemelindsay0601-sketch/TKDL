@@ -47,9 +47,19 @@ export const PRACTICE_ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { key:"PRACTICE_TOTAL_180S_30",  name:"🔥 180 Specialist",   description:"Hit 30 total 180s in practice",   icon:"🔥", rarity:"Epic",      category:"Practice", hidden:false, priority:60, criteriaType:"PRACTICE_TOTAL_180S", criteriaValue:30,  engineType:"STAT_BASED" , coinReward: 75, packReward: "SINGLE"},
   { key:"PRACTICE_TOTAL_180S_60",  name:"⚡ 180 Archer",       description:"Hit 60 total 180s in practice",   icon:"⚡", rarity:"Legendary", category:"Practice", hidden:false, priority:80, criteriaType:"PRACTICE_TOTAL_180S", criteriaValue:60,  engineType:"STAT_BASED" , coinReward: 150, packReward: "FIVE"},
   { key:"PRACTICE_TOTAL_180S_100", name:"👑 180 Legend",       description:"Hit 100 total 180s in practice",  icon:"👑", rarity:"Mythic",    category:"Practice", hidden:false, priority:90, criteriaType:"PRACTICE_TOTAL_180S", criteriaValue:100, engineType:"STAT_BASED" , coinReward: 300, packReward: "TEN"},
-  // ── Big Fish (170 checkout) ───────────────────────────────────────────────────
-  { key:"PRACTICE_BIG_FISH",   name:"🐟 The Big Fish",     description:"Land a 170 checkout (T20 T20 D25)",     icon:"🐟", rarity:"Legendary", category:"Practice", hidden:false, priority:80, criteriaType:"PRACTICE_170_CHECKOUT",  criteriaValue:1, engineType:"STAT_BASED" , coinReward: 150, packReward: "FIVE"},
-  { key:"PRACTICE_BIG_FISH_5", name:"🐟 Big Fish Hunter",  description:"Land five 170 checkouts in practice",   icon:"🐟", rarity:"Mythic",    category:"Practice", hidden:false, priority:90, criteriaType:"PRACTICE_170_CHECKOUT",  criteriaValue:5, engineType:"STAT_BASED" , coinReward: 300, packReward: "TEN"},
+  // PRACTICE_BIG_FISH/PRACTICE_BIG_FISH_5 ("land a 170 checkout") retired
+  // 2026-09-25 — investigated wiring these up (found by a fresh audit; see
+  // the "Third wave"-style note in achievements.ts's retiredKeys for detail).
+  // The frontend DOES track a p1_170s/p2_170s counter (scorers.tsx), but per
+  // its own comment it's a cumulative "170+ scored in ANY visit" milestone —
+  // the same convention real darts stats use (a 180 visit also counts as a
+  // 170+/140+/100+ visit) — not specifically a checkout. Wiring the
+  // achievement straight to that counter would grant it for any high-scoring
+  // visit mid-leg, not the literal "T20 T20 D25 to finish" the description
+  // promises. Correctly checking "did the WINNING visit itself total exactly
+  // 170" needs new logic in the win handler, plus new columns and submission
+  // fields — a real feature addition, not the "easy fix" bar this batch was
+  // held to.
   // ── 100+ checkouts ───────────────────────────────────────────────────────────
   { key:"PRACTICE_100_PLUS_CHECKOUT_1",  name:"💪 Century Finisher",  description:"Land a 100+ checkout in practice",     icon:"💪", rarity:"Rare",      category:"Practice", hidden:false, priority:40, criteriaType:"PRACTICE_100_PLUS_CHECKOUT", criteriaValue:1,  engineType:"STAT_BASED" , coinReward: 35, packReward: "SINGLE"},
   { key:"PRACTICE_100_PLUS_CHECKOUT_5",  name:"🎯 High Finish Master", description:"Land 5 checkouts of 100+ in practice", icon:"🎯", rarity:"Epic",      category:"Practice", hidden:false, priority:60, criteriaType:"PRACTICE_100_PLUS_CHECKOUT", criteriaValue:5,  engineType:"STAT_BASED" , coinReward: 75, packReward: "SINGLE"},
@@ -90,17 +100,20 @@ export const PRACTICE_ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { key:"PRACTICE_KILLER_WINS_3",  name:"💀 Killer Starter",   description:"Win 3 Killer games in practice",  icon:"💀", rarity:"Common", category:"Practice", hidden:false, priority:20, criteriaType:"PRACTICE_KILLER_WINS", criteriaValue:3,  engineType:"STAT_BASED" , coinReward: 15},
   { key:"PRACTICE_KILLER_WINS_10", name:"💀 Killer Master",    description:"Win 10 Killer games in practice", icon:"💀", rarity:"Rare",   category:"Practice", hidden:false, priority:40, criteriaType:"PRACTICE_KILLER_WINS", criteriaValue:10, engineType:"STAT_BASED" , coinReward: 35, packReward: "SINGLE"},
   { key:"PRACTICE_KILLER_WINS_20", name:"💀 Killer Assassin",  description:"Win 20 Killer games in practice", icon:"💀", rarity:"Epic",   category:"Practice", hidden:false, priority:60, criteriaType:"PRACTICE_KILLER_WINS", criteriaValue:20, engineType:"STAT_BASED" , coinReward: 75, packReward: "SINGLE"},
-  // ── Bot level wins ────────────────────────────────────────────────────────────
-  { key:"PRACTICE_BOT_LEVEL_5_WINS_1",   name:"🤖 Bot Beater",        description:"Beat a Level 5 bot in practice",         icon:"🤖", rarity:"Common",    category:"Practice", hidden:false, priority:20, criteriaType:"PRACTICE_BOT_LEVEL_WINS", criteriaValue:5,  engineType:"STAT_BASED" , coinReward: 15},
-  { key:"PRACTICE_BOT_LEVEL_5_WINS_3",   name:"🤖 Level 5 Warrior",   description:"Beat a Level 5 bot 3 times",             icon:"🤖", rarity:"Rare",      category:"Practice", hidden:false, priority:40, criteriaType:"PRACTICE_BOT_LEVEL_WINS", criteriaValue:5,  engineType:"STAT_BASED", secondaryCriteria:"win_count_vs_level", secondaryValue:3 , coinReward: 35, packReward: "SINGLE"},
-  { key:"PRACTICE_BOT_LEVEL_10_WINS_5",  name:"🤖 Level 10 Master",   description:"Beat a Level 10 bot 5 times",            icon:"🤖", rarity:"Epic",      category:"Practice", hidden:false, priority:60, criteriaType:"PRACTICE_BOT_LEVEL_WINS", criteriaValue:10, engineType:"STAT_BASED", secondaryCriteria:"win_count_vs_level", secondaryValue:5 , coinReward: 75, packReward: "SINGLE"},
-  { key:"PRACTICE_BOT_LEVEL_15_WINS_5",  name:"🤖 Level 15 Dominator",description:"Beat a Level 15 bot 5 times",            icon:"🤖", rarity:"Legendary", category:"Practice", hidden:false, priority:80, criteriaType:"PRACTICE_BOT_LEVEL_WINS", criteriaValue:15, engineType:"STAT_BASED", secondaryCriteria:"win_count_vs_level", secondaryValue:5 , coinReward: 150, packReward: "FIVE"},
-  { key:"PRACTICE_BOT_LEVEL_20_WINS_5",  name:"🤖 Level 20 Conqueror",description:"Beat the Level 20 (max) bot 5 times",    icon:"🤖", rarity:"Mythic",    category:"Practice", hidden:false, priority:90, criteriaType:"PRACTICE_BOT_LEVEL_WINS", criteriaValue:20, engineType:"STAT_BASED", secondaryCriteria:"win_count_vs_level", secondaryValue:5 , coinReward: 300, packReward: "TEN"},
-  // ── Pro persona wins ──────────────────────────────────────────────────────────
-  { key:"PRACTICE_BEAT_LUKE_3",   name:"🏴󠁧󠁢󠁥󠁮󠁧󠁿 Luke's Nemesis",    description:"Beat Luke Harbours 3 times in practice",      icon:"🏴󠁧󠁢󠁥󠁮󠁧󠁿", rarity:"Rare", category:"Practice", hidden:false, priority:40, criteriaType:"PRACTICE_BOT_PRO_WINS", criteriaValue:3, engineType:"STAT_BASED", secondaryCriteria:"pro_name", secondaryValue:0 , coinReward: 35, packReward: "SINGLE"},
-  { key:"PRACTICE_BEAT_LUCA_3",   name:"🏴󠁧󠁢󠁥󠁮󠁧󠁿 Luca Slayer",       description:"Beat Luca Scrawler 3 times in practice",      icon:"🏴󠁧󠁢󠁥󠁮󠁧󠁿", rarity:"Rare", category:"Practice", hidden:false, priority:40, criteriaType:"PRACTICE_BOT_PRO_WINS", criteriaValue:3, engineType:"STAT_BASED", secondaryCriteria:"pro_name", secondaryValue:1 , coinReward: 35, packReward: "SINGLE"},
-  { key:"PRACTICE_BEAT_MIKKEL_3", name:"🇳🇱 Green Machine Down",   description:"Beat Mikkel van Garwin 3 times in practice",  icon:"🇳🇱", rarity:"Rare", category:"Practice", hidden:false, priority:40, criteriaType:"PRACTICE_BOT_PRO_WINS", criteriaValue:3, engineType:"STAT_BASED", secondaryCriteria:"pro_name", secondaryValue:2 , coinReward: 35, packReward: "SINGLE"},
-  { key:"PRACTICE_BEAT_PERRY_3",  name:"🏴󠁧󠁢󠁥󠁮󠁧󠁿 Snakebite Striker",  description:"Beat Perry Wight 3 times in practice",        icon:"🏴󠁧󠁢󠁥󠁮󠁧󠁿", rarity:"Rare", category:"Practice", hidden:false, priority:40, criteriaType:"PRACTICE_BOT_PRO_WINS", criteriaValue:3, engineType:"STAT_BASED", secondaryCriteria:"pro_name", secondaryValue:6 , coinReward: 35, packReward: "SINGLE"},
+  // PRACTICE_BOT_LEVEL_5/10/15/20_WINS_* and PRACTICE_BEAT_<pro>_3 (9 keys)
+  // retired 2026-09-25 — same investigation as PRACTICE_BIG_FISH above.
+  // practice.tsx's bot-vs-player selection (a numeric level via BOT_LEVELS,
+  // or a named persona via BOT_PERSONAS in bot-engine.ts — Luke Harbours,
+  // Luca Scrawler, Mikkel van Garwin, Perry Wight, etc.) is entirely
+  // client-side state used only to drive the bot's simulated throws. The
+  // practice-session submission body (practice.tsx, POST /practice/sessions)
+  // never sends which level or persona was played — practice_sessions has no
+  // column for it and nothing in the request body carries it either — so
+  // there is currently no way for the backend to know who a session's
+  // opponent even was, let alone check "beat Level 5" or "beat Luke
+  // Harbours 3 times." Wiring these up needs a new submission field, a
+  // schema column, and route changes before any grant logic could work —
+  // a real feature addition, not the "easy fix" bar this batch was held to.
   // ── Win streaks ───────────────────────────────────────────────────────────────
   { key:"PRACTICE_WIN_STREAK_3",  name:"🔥 Hot Hand",     description:"Win 3 practice games in a row",  icon:"🔥", rarity:"Common", category:"Practice", hidden:false, priority:20, criteriaType:"PRACTICE_WIN_STREAK", criteriaValue:3,  engineType:"STAT_BASED" , coinReward: 15},
   { key:"PRACTICE_WIN_STREAK_5",  name:"🔥 On Fire",      description:"Win 5 practice games in a row",  icon:"🔥", rarity:"Rare",   category:"Practice", hidden:false, priority:40, criteriaType:"PRACTICE_WIN_STREAK", criteriaValue:5,  engineType:"STAT_BASED" , coinReward: 35, packReward: "SINGLE"},

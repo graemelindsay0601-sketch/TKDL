@@ -529,7 +529,11 @@ export default function Master501() {
               const meta   = M501_TIER_META[row.tier] ?? M501_TIER_META[1];
               const avg    = Number(row.best_avg);
               const coPct  = row.co_attempts > 0 ? Math.round((row.co_hits / row.co_attempts) * 100) : null;
-              const POS_COLORS = ["#ffd24a", "#94a3b8", "#cd7f32"];
+              // #c0c8d8 for 2nd, not #94a3b8 -- matches the #1/#2/#3 podium
+              // colors used everywhere else in the app (dashboard.tsx,
+              // season-detail.tsx, leaderboard.tsx), per a 2026-09-25
+              // visual-consistency pass.
+              const POS_COLORS = ["#ffd24a", "#c0c8d8", "#cd7f32"];
               const posColor   = POS_COLORS[idx] ?? "rgba(255,255,255,0.2)";
               return (
                 <div key={row.id} className="px-4 py-2.5 border-b flex items-center gap-3"

@@ -7,7 +7,7 @@ import {
   Zap, Trophy, Dumbbell, CircuitBoard, Star, ChevronDown, ChevronRight,
   Award, Flame, CheckCircle, Clock, Brain, BarChart3,
   MessageSquare, Bell, BellRing, BellOff, Send, X, Image, ArrowLeft, MailOpen, Images, Camera, Sparkles, Pin,
-  Palette, Coins, ShoppingBag, Pencil, Check, Smile, Plus,
+  Palette, Coins, ShoppingBag, Pencil, Check, Smile,
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { LoginGate } from "@/components/LoginGate";
@@ -302,149 +302,6 @@ function SectionCard({ title, icon: Icon, accent = "#ff005c", children, collapsi
       </button>
       {open && <div className="px-5 py-4">{children}</div>}
     </div>
-  );
-}
-
-// ── Personal Goals (2026-09-25) ─────────────────────────────────────────
-// A player's own self-set targets — Elo, career wins, or achievements
-// unlocked — each rendered as a progress bar toward the number they chose.
-// Deliberately career-wide, not season-scoped: seasons here auto-reset
-// monthly (see seasonReset.ts), so a "10 wins this season" goal would go
-// stale mid-goal the moment the season rolled over. See routes/goals.ts.
-type Goal = {
-  id: number;
-  goalType: "elo" | "career_wins" | "achievements";
-  targetValue: number;
-  currentValue: number;
-  createdAt: string;
-  achievedAt: string | null;
-};
-
-const GOAL_META: Record<Goal["goalType"], { label: string; verb: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string }> = {
-  elo:          { label: "Elo",          verb: "Reach",  icon: TrendingUp, color: "#0066ff" },
-  career_wins:  { label: "Wins",         verb: "Win",    icon: Trophy,     color: "#22c55e" },
-  achievements: { label: "Achievements", verb: "Unlock", icon: Award,      color: "#a855f7" },
-};
-const MAX_ACTIVE_GOALS_CLIENT = 3; // mirrors MAX_ACTIVE_GOALS in routes/goals.ts
-
-function PersonalGoals({ playerId }: { playerId: number }) {
-  const [goals, setGoals]         = useState<Goal[] | null>(null);
-  const [newType, setNewType]     = useState<Goal["goalType"]>("elo");
-  const [newTarget, setNewTarget] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const { toast } = useToast();
-
-  const load = useCallback(async () => {
-    try {
-      const r = await fetch(`/api/players/${playerId}/goals`);
-      if (r.ok) setGoals((await r.json()).goals);
-    } catch { /* leave goals as-is on a transient failure */ }
-  }, [playerId]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  if (goals === null) return null;
-
-  const activeGoals   = goals.filter(g => !g.achievedAt);
-  const achievedGoals = goals.filter(g => g.achievedAt);
-  const atCap = activeGoals.length >= MAX_ACTIVE_GOALS_CLIENT;
-
-  const addGoal = async () => {
-    const targetValue = Number(newTarget);
-    if (!targetValue || targetValue <= 0) return;
-    setSubmitting(true);
-    try {
-      const r = await fetch("/api/goals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ goalType: newType, targetValue }),
-      });
-      const data = await r.json();
-      if (r.ok) {
-        setNewTarget("");
-        void load();
-      } else {
-        toast({ title: "Couldn't add goal", description: data.error, variant: "destructive" });
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const deleteGoal = async (id: number) => {
-    const r = await fetch(`/api/goals/${id}`, { method: "DELETE", credentials: "include" });
-    if (r.ok) void load();
-  };
-
-  return (
-    <SectionCard title="Personal Goals" icon={Target} accent="#00e5a0">
-      {goals.length === 0 && (
-        <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.35)" }}>
-          Set your own target — an Elo, a win count, an achievement count — and track your progress toward it here.
-        </p>
-      )}
-
-      {goals.length > 0 && (
-        <div className="space-y-2.5 mb-3">
-          {[...activeGoals, ...achievedGoals].map(g => {
-            const meta = GOAL_META[g.goalType];
-            const Icon = meta.icon;
-            const pct = Math.min(100, Math.round((g.currentValue / g.targetValue) * 100));
-            return (
-              <div key={g.id} className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: g.achievedAt ? "#00e5a0" : meta.color }} />
-                    <span className="text-xs font-bold truncate" style={{ color: "#fff" }}>
-                      {meta.verb} {g.targetValue.toLocaleString()} {meta.label}
-                    </span>
-                    {g.achievedAt && <CheckCircle className="w-3 h-3 shrink-0" style={{ color: "#00e5a0" }} />}
-                  </div>
-                  <button type="button" onClick={() => deleteGoal(g.id)} className="p-1 rounded hover:bg-white/10 transition-colors shrink-0" title="Remove goal">
-                    <X className="w-3 h-3" style={{ color: "rgba(255,255,255,0.3)" }} />
-                  </button>
-                </div>
-                <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${pct}%`, borderRadius: 2, transition: "width 0.5s ease",
-                    background: g.achievedAt ? "#00e5a0" : meta.color }} />
-                </div>
-                <div className="text-[0.6rem] mt-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-                  {g.achievedAt ? "Achieved" : `${g.currentValue.toLocaleString()} / ${g.targetValue.toLocaleString()}`}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {atCap ? (
-        <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
-          Tracking {MAX_ACTIVE_GOALS_CLIENT} active goals at once — finish or remove one to add another.
-        </p>
-      ) : (
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
-            {(Object.keys(GOAL_META) as Goal["goalType"][]).map(t => (
-              <button key={t} type="button" onClick={() => setNewType(t)}
-                className="px-2.5 py-1.5 text-[0.62rem] font-bold uppercase tracking-wide transition-colors"
-                style={{ fontFamily: "Oswald, sans-serif", background: newType === t ? `${GOAL_META[t].color}22` : "transparent", color: newType === t ? GOAL_META[t].color : "rgba(255,255,255,0.4)" }}>
-                {GOAL_META[t].label}
-              </button>
-            ))}
-          </div>
-          <input type="number" min={1} value={newTarget} onChange={e => setNewTarget(e.target.value)}
-            placeholder="Target"
-            className="w-20 px-2 py-1.5 rounded-lg text-xs"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }} />
-          <button type="button" onClick={addGoal} disabled={submitting || !newTarget}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide disabled:opacity-40 transition-opacity"
-            style={{ fontFamily: "Oswald, sans-serif", background: "rgba(0,229,160,0.12)", border: "1px solid rgba(0,229,160,0.3)", color: "#00e5a0" }}>
-            <Plus className="w-3 h-3" /> Add
-          </button>
-        </div>
-      )}
-    </SectionCard>
   );
 }
 
@@ -1256,13 +1113,10 @@ export default function AccountPage() {
               </div>
               <div style={{ fontSize: "0.44rem", color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.2em", marginTop: "2px" }}>PTS</div>
               {(player?.currentWinStreak ?? player?.win_streak ?? 0) >= 3 && (
-                // #ff005c, not orange — matches the same win-streak Flame
-                // badge everywhere else it appears (leaderboard.tsx,
-                // community.tsx, player-detail/index.tsx all use this exact
-                // color + the streak-fire class); a visual-consistency pass
-                // on 2026-09-25 found this was the one place still on an
-                // independently-chosen orange.
                 <div className="mt-1.5 flex items-center justify-end gap-1">
+                  {/* #ff005c, not #ff8c00 -- matches the win-streak Flame color
+                      used everywhere else (leaderboard.tsx, community.tsx,
+                      player-detail/index.tsx), per a 2026-09-25 visual-consistency pass. */}
                   <Flame className="w-3.5 h-3.5 streak-fire" style={{ color: "#ff005c", filter: "drop-shadow(0 0 5px #ff005c)" }} />
                   <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", color: "#ff005c", fontWeight: 900, letterSpacing: "0.06em" }}>
                     {player?.currentWinStreak ?? player?.win_streak} STREAK
@@ -1617,9 +1471,6 @@ export default function AccountPage() {
           </div>
         )}
       </SectionCard>
-
-      {/* ── Personal Goals ────────────────────────────────────── */}
-      {user?.playerId && <PersonalGoals playerId={user.playerId} />}
 
       </>)}
 

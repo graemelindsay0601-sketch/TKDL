@@ -4,7 +4,7 @@ import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
-import { Trophy, Calendar, Hash, ArrowLeft, Medal, Flame, Zap, Crown, BarChart3, Swords, Users, Skull, Building2, Coins, BookOpen, TrendingUp } from "lucide-react";
+import { Trophy, Calendar, Hash, ArrowLeft, Medal, Flame, Zap, Crown, BarChart3, Swords, Users, Skull, Building2, Coins, BookOpen } from "lucide-react";
 import { useSettings } from "@/hooks/use-settings";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName } from "@/lib/cosmetics";
 
@@ -20,28 +20,6 @@ function useSeasonMatches(seasonId: number) {
       .catch(() => setLoading(false));
   }, [seasonId]);
   return { data, loading };
-}
-
-// Season Preview — the forward-looking companion to Season Storylines below.
-// Storylines needs real match data to compute upsets/streaks/margins, so it
-// has nothing to show right when a season opens; Preview instead surfaces
-// what's already true the moment the season starts (defending champion,
-// Elo favorite, hottest streak entering), backed by GET /seasons/:id/preview.
-type SeasonPreview = {
-  defendingChampion: { playerId: number; playerName: string; seasonName: string } | null;
-  eloFavorite: { playerId: number; playerName: string; elo: number; tier: string } | null;
-  hottestStreak: { playerId: number; playerName: string; streak: number } | null;
-};
-function useSeasonPreview(seasonId: number) {
-  const [data, setData] = useState<SeasonPreview | null>(null);
-  useEffect(() => {
-    if (!seasonId) return;
-    fetch(`/api/seasons/${seasonId}/preview`)
-      .then(r => r.json())
-      .then(d => setData(d ?? null))
-      .catch(() => setData(null));
-  }, [seasonId]);
-  return data;
 }
 
 // Doubles and Shift Wars each run their own independent monthly season now
@@ -130,7 +108,6 @@ export default function SeasonDetail() {
     query: { enabled: !!seasonId, queryKey: getGetSeasonQueryKey(seasonId) },
   });
   const { data: matches, loading: matchesLoading } = useSeasonMatches(seasonId);
-  const preview = useSeasonPreview(seasonId);
   const { data: doublesTeams, loading: doublesTeamsLoading } = useDoublesTeams();
   const { data: doublesMatches, loading: doublesMatchesLoading } = useDoublesMatches();
   const { data: shiftWarsRows, loading: shiftWarsLoading, isLive: shiftWarsIsLive } = useSeasonShiftWars();
@@ -318,11 +295,10 @@ export default function SeasonDetail() {
             sub: `+${biggestUpset.eloChange} Elo swing`,
           },
           bestStreak && {
-            // #ff005c matches the win-streak Flame everywhere else it
-            // appears in the app (leaderboard.tsx, community.tsx,
-            // player-detail/index.tsx, account.tsx) — caught by a
-            // visual-consistency pass right after this card was written.
-            key: "streak", icon: <Flame className="w-4 h-4" />, color: "#ff005c",
+            // #ff005c, not #ff8c00 -- matches the win-streak Flame color used
+            // everywhere else (leaderboard.tsx, community.tsx, account.tsx,
+            // player-detail/index.tsx), per a 2026-09-25 visual-consistency pass.
+            key: "streak", icon: <Flame className="w-4 h-4 streak-fire" />, color: "#ff005c",
             label: "Hottest Run",
             headline: bestStreak.playerName,
             sub: `${bestStreak.streak} wins in a row`,
@@ -367,68 +343,6 @@ export default function SeasonDetail() {
                     {s.headline}
                   </div>
                   <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>{s.sub}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Season Preview — the inverse slot from Storylines above: shown only
-          while this season is still active, since it's a snapshot of what's
-          true entering it rather than a review of what happened in it (once
-          the season closes, Storylines takes over this position). Elo and
-          win-streak fields survive the monthly season-reset (see
-          seasonReset.ts), and defendingChampion reads championId/Name off
-          the previous closed season row, so all three are meaningful from
-          the moment a new season opens. Singles-only — the API returns all
-          nulls for Doubles/Shift Wars, so the card just doesn't render. */}
-      {season.isActive && preview && (preview.defendingChampion || preview.eloFavorite || preview.hottestStreak) && (() => {
-        const cards = [
-          preview.defendingChampion && {
-            key: "champion", icon: <Crown className="w-4 h-4" />, color: "#ffd24a",
-            label: "Defending Champion",
-            headline: preview.defendingChampion.playerName,
-            sub: `Won ${preview.defendingChampion.seasonName}`,
-          },
-          preview.eloFavorite && {
-            key: "elo", icon: <TrendingUp className="w-4 h-4" />, color: "#0066ff",
-            label: "Elo Favorite",
-            headline: preview.eloFavorite.playerName,
-            sub: `${preview.eloFavorite.elo} Elo · ${preview.eloFavorite.tier}`,
-          },
-          preview.hottestStreak && {
-            key: "streak", icon: <Flame className="w-4 h-4" />, color: "#ff005c",
-            label: "Hottest Streak Entering",
-            headline: preview.hottestStreak.playerName,
-            sub: `${preview.hottestStreak.streak} wins in a row`,
-          },
-        ].filter(Boolean) as { key: string; icon: JSX.Element; color: string; label: string; headline: string; sub: string }[];
-
-        return (
-          <div className="pdc-card p-5" style={{ borderColor: "rgba(0,102,255,0.14)", background: "rgba(0,102,255,0.02)" }}>
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-4 h-4" style={{ color: "#0066ff" }} />
-              <h2 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#0066ff", letterSpacing: "0.14em" }}>
-                Season Preview
-              </h2>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {cards.map(c => (
-                <div key={c.key} className="rounded-xl px-4 py-3"
-                  style={{ background: `${c.color}08`, border: `1px solid ${c.color}20` }}>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <span style={{ color: c.color }}>{c.icon}</span>
-                    <span className="text-xs uppercase tracking-widest font-bold"
-                      style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.3)", fontSize: "0.55rem", letterSpacing: "0.16em" }}>
-                      {c.label}
-                    </span>
-                  </div>
-                  <div className="font-black leading-tight mb-0.5"
-                    style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", color: c.color, textShadow: `0 0 16px ${c.color}55` }}>
-                    {c.headline}
-                  </div>
-                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>{c.sub}</div>
                 </div>
               ))}
             </div>

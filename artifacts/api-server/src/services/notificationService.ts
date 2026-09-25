@@ -89,8 +89,8 @@ export async function createNotification(payload: NotificationPayload): Promise<
     const preference = (prefs.rows[0] as any);
     
     // Determine if we should send based on preferences
-    const shouldSend = await shouldSendNotification(payload, preference);
-    
+    const { shouldSend, batchingDelay } = await shouldSendNotification(payload, preference);
+
     if (shouldSend) {
       // Send push notification asynchronously (don't wait)
       sendPushNotification(payload.playerId, notificationId, {
@@ -98,6 +98,16 @@ export async function createNotification(payload: NotificationPayload): Promise<
         body: payload.body,
         data: payload.data || {},
       }).catch(err => logger.error({ err }, "Failed to send push notification"));
+    } else if (batchingDelay) {
+      // Quiet hours / daily cap deferred this one — queue it for
+      // pushBatchScheduler.ts to deliver once send_after arrives, instead of
+      // silently dropping the push the way this used to (see
+      // queueNotificationForBatching's header in batchingService.ts).
+      queueNotificationForBatching(payload.playerId, notificationId, batchingDelay, {
+        title: payload.title,
+        body: payload.body,
+        data: payload.data || {},
+      }).catch(err => logger.error({ err }, "Failed to queue deferred push notification"));
     }
 
     return notificationId;
@@ -108,10 +118,13 @@ export async function createNotification(payload: NotificationPayload): Promise<
 }
 
 /**
- * Check if notification should be sent based on preferences and rules
+ * Check if notification should be sent based on preferences and rules.
+ * Returns the batching delay (ms) alongside shouldSend:false so the caller
+ * can queue a deferred push instead of just dropping it — see
+ * createNotification's call site and queueNotificationForBatching.
  */
-async function shouldSendNotification(payload: NotificationPayload, prefs: any): Promise<boolean> {
-  if (!prefs?.push_enabled) return false;
+async function shouldSendNotification(payload: NotificationPayload, prefs: any): Promise<{ shouldSend: boolean; batchingDelay?: number }> {
+  if (!prefs?.push_enabled) return { shouldSend: false };
 
   // Check type-specific preference. notification_preferences' columns are
   // plural (match_results, rank_changes, coach_tips, announcements) while
@@ -137,7 +150,7 @@ async function shouldSendNotification(payload: NotificationPayload, prefs: any):
     auto_post_fired:       "community_activity",
   };
   const typeKey = TYPE_TO_PREF_COLUMN[payload.type];
-  if (typeKey && typeKey in prefs && !prefs[typeKey]) return false;
+  if (typeKey && typeKey in prefs && !prefs[typeKey]) return { shouldSend: false };
 
   // Critical notifications always go through. This used to treat every
   // announcement as critical unconditionally, so the admin composer's
@@ -162,10 +175,10 @@ async function shouldSendNotification(payload: NotificationPayload, prefs: any):
       type: payload.type,
       reason: batchingResult.reason
     }, "Notification batched/queued");
-    return false;
+    return { shouldSend: false, batchingDelay: batchingResult.batchingDelay };
   }
 
-  return true;
+  return { shouldSend: true };
 }
 
 /**
@@ -318,9 +331,12 @@ export async function sendTestInterviewInviteNotification(
 }
 
 /**
- * Send Web Push notification to player's device
+ * Send Web Push notification to player's device.
+ * Exported (was private) so flushDuePushNotifications() below can reuse the
+ * exact same delivery path for a deferred/batched push instead of a second,
+ * hand-copied implementation that could drift from this one.
  */
-async function sendPushNotification(
+export async function sendPushNotification(
   playerId: number,
   notificationId: number,
   message: { title: string; body: string; data: Record<string, any> }
@@ -398,6 +414,51 @@ async function sendPushNotification(
   } catch (err) {
     logger.error({ err }, `Failed to send push notification for notification ${notificationId}`);
   }
+}
+
+/**
+ * Deliver every push notification queued by queueNotificationForBatching()
+ * whose send_after time has arrived. Called on a 5-minute cron
+ * (services/pushBatchScheduler.ts) — see that file's header for the cadence
+ * reasoning. This is what actually completes the quiet-hours/daily-cap
+ * batching flow; before this existed, checkBatchingRules() computed a real
+ * delay but nothing ever acted on it once the notification was deferred.
+ */
+export async function flushDuePushNotifications(): Promise<{ delivered: number; failed: number }> {
+  let delivered = 0;
+  let failed = 0;
+  try {
+    const due = await db.execute(sql`
+      SELECT id, player_id, notification_id, title, body, data
+      FROM pending_push_notifications
+      WHERE sent_at IS NULL AND send_after <= NOW()
+      ORDER BY send_after ASC
+      LIMIT 200
+    `);
+
+    for (const row of due.rows as any[]) {
+      try {
+        await sendPushNotification(row.player_id, row.notification_id, {
+          title: row.title,
+          body: row.body,
+          data: row.data || {},
+        });
+        await db.execute(sql`UPDATE pending_push_notifications SET sent_at = NOW() WHERE id = ${row.id}`);
+        delivered++;
+      } catch (err) {
+        logger.error({ err, pendingId: row.id }, "Failed to deliver a queued push notification");
+        failed++;
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to flush due push notifications");
+  }
+
+  if (delivered > 0 || failed > 0) {
+    logger.info({ delivered, failed }, "Flushed deferred push notifications");
+  }
+
+  return { delivered, failed };
 }
 
 /**

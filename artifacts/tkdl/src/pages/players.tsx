@@ -16,7 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Plus, Skull, Flame, Target, Search } from "lucide-react";
 import { useState } from "react";
-import { TierBadge } from "@/components/tier-badge";
+import { TierBadge, TIER_COLORS as TIER_ELO_COLOR } from "@/components/tier-badge";
 
 const formSchema = z.object({
   name:     z.string().min(1, "Name is required"),
@@ -35,10 +35,6 @@ const TIER_BAND: Record<string, { min: number; max: number }> = {
   Bronze: { min: 800, max: 950 }, Silver: { min: 950, max: 1100 },
   Gold: { min: 1100, max: 1250 }, Platinum: { min: 1250, max: 1400 },
   Diamond: { min: 1400, max: 1600 },
-};
-
-const TIER_ELO_COLOR: Record<string, string> = {
-  Diamond: "#00e5ff", Platinum: "#e5e4e2", Gold: "#ffd24a", Silver: "#9ca3af", Bronze: "#cd7f32",
 };
 
 function PlayerCard({ player, leaderboardRank }: { player: any; leaderboardRank?: number }) {

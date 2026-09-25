@@ -201,10 +201,18 @@ const PARTY: AchievementDef[] = [
 // ─── Variety / Collector ──────────────────────────────────────────────────────
 const VARIETY: AchievementDef[] = [
   { key:"GAME_HOPPER_10",     name:"🃏 Game Hopper",       description:"Win matches across 10 different game types",      icon:"🃏", rarity:"Epic",      category:"Format", hidden:false, priority:60, criteriaType:"UNIQUE_GAME_WINS",   criteriaValue:10, engineType:"STAT_BASED" , coinReward: 75, packReward: "SINGLE"},
-  { key:"GAME_HOPPER_20",     name:"🃏 Game Collector",    description:"Win matches across 20 different game types",      icon:"🃏", rarity:"Legendary", category:"Format", hidden:false, priority:80, criteriaType:"UNIQUE_GAME_WINS",   criteriaValue:20, engineType:"STAT_BASED" , coinReward: 150, packReward: "FIVE"},
-  { key:"COMPLETE_COLLECTOR", name:"🌐 Complete Collector",description:"Win in X01, Cricket, Sequence and one other game",icon:"🌐", rarity:"Epic",      category:"Format", hidden:false, priority:60, criteriaType:"ALL_CATEGORIES_WON", criteriaValue:1,  engineType:"STAT_BASED" , coinReward: 75, packReward: "SINGLE"},
-  { key:"STREAK_MACHINE",     name:"🔥 Streak Machine",    description:"Maintain a 5+ win streak in practice",            icon:"🔥", rarity:"Rare",      category:"Format", hidden:false, priority:40, criteriaType:"WIN_STREAK_5",       criteriaValue:1,  engineType:"STAT_BASED" , coinReward: 35, packReward: "SINGLE"},
-  { key:"HOT_HAND",           name:"🔥 Hot Hand",          description:"Win 10 matches in a row",                         icon:"🔥", rarity:"Epic",      category:"Format", hidden:false, priority:60, criteriaType:"WIN_STREAK_10",      criteriaValue:1,  engineType:"STAT_BASED" , coinReward: 75, packReward: "SINGLE"},
+  // GAME_HOPPER_20 ("win matches across 20 different game types") was
+  // retired 2026-09-25 — routes/players.ts's normalizeGameType() can only
+  // ever bucket wins into ~10 distinct format names, so 20 was
+  // mathematically unreachable, unlike GAME_HOPPER_10 right above (wired up
+  // in achievements.ts — genuinely hard, not impossible).
+  // COMPLETE_COLLECTOR/STREAK_MACHINE/HOT_HAND were retired 2026-09-25 — see
+  // the "Third wave" note in achievements.ts's seedAchievements() retiredKeys
+  // for the full reasoning (COMPLETE_COLLECTOR names a "Sequence" format
+  // that doesn't exist anywhere in this app; STREAK_MACHINE/HOT_HAND are
+  // ambiguous duplicates of either PRACTICE_WIN_STREAK_5/10 or
+  // HOT_STREAK/INFERNO depending on a practice-vs-career reading neither
+  // ever specified). None had a grant call anywhere in the codebase.
 ];
 
 // ─── New match/season achievements ───────────────────────────────────────────
@@ -217,11 +225,16 @@ const VARIETY: AchievementDef[] = [
 // one (checkMatchAchievements/checkStatAchievements in achievements.ts,
 // which reads the ORIGINAL definitions' criteria). Removed as stale
 // duplicates — the achievements.ts definitions are the ones that match the
-// real grant logic. NEMESIS_RELATIONSHIP is the sole definition for that
-// key (not duplicated), so it stays.
-const NEW_CAREER: AchievementDef[] = [
-  { key:"NEMESIS_RELATIONSHIP",  name:"😤 Nemesis",               description:"Play the same opponent 10+ times",                  icon:"😤", rarity:"Rare",      category:"Rivalry",  hidden:false, priority:40, criteriaType:"H2H_MATCH_COUNT",      criteriaValue:10,  engineType:"SEASON_EVENT" , coinReward: 35, packReward: "SINGLE"},
-];
+// real grant logic.
+//
+// NEMESIS_RELATIONSHIP ("play the same opponent 10+ times") used to live
+// here with a note that it was "the sole definition for that key, so it
+// stays" — that note was wrong (or went stale): RIVALRY_DEFINED in
+// achievements.ts is the exact same "10+ matches vs. the same opponent"
+// condition and already has a real grant call, so this was a genuine
+// functional duplicate under a different key, retired 2026-09-25 along with
+// its title (TITLE_NEMESIS in titles.ts).
+const NEW_CAREER: AchievementDef[] = [];
 
 export const FORMAT_AND_MEME_ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   ...X01,

@@ -96,6 +96,15 @@ router.get("/stats/career-leaders", async (_req, res): Promise<void> => {
   res.json(leaders);
 });
 
+// 2026-09-25: this used to query only the plain `matches` table, so Doubles
+// Event and Shift Wars results — which live in their own dedicated tables
+// (doubles_matches/doubles_teams, shift_wars_matches/shift_wars_teams; see
+// routes/doubles.ts and routes/shift-wars.ts) — never showed up here even
+// though this is the Hub's actual "Recent Matches" card. Same root cause,
+// and same fix, as the /hub/pulse gap fixed the same day (see hub.ts) —
+// merged in below alongside the plain matches query. "Team matches"
+// (2v2/3v3/multi-Killer) already lived in the plain `matches` table and were
+// already included via teamMatchIdSet, so those needed no change.
 router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
   const matches = await db.select().from(matchesTable).orderBy(desc(matchesTable.playedAt)).limit(15);
   const matchIds = matches.map(m => m.id);
@@ -106,7 +115,7 @@ router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
       .where(inArray(matchParticipantsTable.matchId, matchIds));
     for (const p of participants) teamMatchIdSet.add(p.matchId);
   }
-  const activity = matches.map(m => ({
+  const activity: any[] = matches.map(m => ({
     matchId:       m.id,
     winnerId:      m.winnerId,
     loserId:       m.loserId,
@@ -120,7 +129,50 @@ router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
     playedAt:      m.playedAt,
     seasonId:      m.seasonId,
   }));
-  res.json(activity);
+
+  // Negative, offset-namespaced matchIds so these never collide with a real
+  // (positive, serial) matches.id — this field is only ever used as a React
+  // list key on the frontend, never looked up against the matches table, so
+  // a synthetic id is safe here. Doubles matches do track an elo_change
+  // column (see doubles.ts); Shift Wars has no Elo system at all (points
+  // only — see shift-wars.ts's own insert/select, neither of which touches
+  // an elo column), so its eloChange is honestly 0 rather than invented.
+  const doublesRows = (await db.execute(drizzleSql`
+    SELECT dm.id, wt.team_name AS winner_team_name, lt.team_name AS loser_team_name, dm.stake, dm.elo_change, dm.played_at
+    FROM doubles_matches dm
+    JOIN doubles_teams wt ON wt.id = dm.winner_team_id
+    JOIN doubles_teams lt ON lt.id = dm.loser_team_id
+    ORDER BY dm.played_at DESC
+    LIMIT 15
+  `)).rows as any[];
+  for (const m of doublesRows) {
+    activity.push({
+      matchId: -(1_000_000 + m.id),
+      winnerName: m.winner_team_name, loserName: m.loser_team_name,
+      stake: m.stake, pointsAwarded: m.stake, eloChange: m.elo_change ?? 0,
+      gameType: "Doubles Event", isTeamMatch: true, playedAt: m.played_at,
+    });
+  }
+
+  const shiftWarsRows = (await db.execute(drizzleSql`
+    SELECT sm.id, wt.name AS winner_team_name, lt.name AS loser_team_name, sm.stake, sm.played_at
+    FROM shift_wars_matches sm
+    JOIN shift_wars_teams wt ON wt.id = sm.winner_team_id
+    JOIN shift_wars_teams lt ON lt.id = sm.loser_team_id
+    ORDER BY sm.played_at DESC
+    LIMIT 15
+  `)).rows as any[];
+  for (const m of shiftWarsRows) {
+    activity.push({
+      matchId: -(2_000_000 + m.id),
+      winnerName: m.winner_team_name, loserName: m.loser_team_name,
+      stake: m.stake, pointsAwarded: m.stake, eloChange: 0,
+      gameType: "Shift Wars", isTeamMatch: true, playedAt: m.played_at,
+    });
+  }
+
+  activity.sort((a, b) => new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime());
+  res.json(activity.slice(0, 15));
 });
 
 router.get("/stats/narrative", async (_req, res): Promise<void> => {
@@ -395,7 +447,7 @@ router.get("/stats/h2h", async (req, res): Promise<void> => {
   const p2 = parseInt(req.query.p2 as string, 10);
   if (isNaN(p1) || isNaN(p2) || p1 === p2) { res.status(400).json({ error: "Invalid player IDs" }); return; }
 
-  const [players, matchResult] = await Promise.all([
+  const [players, matchResult, favGameTypeResult] = await Promise.all([
     db.select().from(playersTable).where(inArray(playersTable.id, [p1, p2])),
     db.execute(drizzleSql`
       SELECT m.id, m.played_at, m.winner_id, m.winner_name, m.loser_id, m.loser_name,
@@ -410,7 +462,45 @@ router.get("/stats/h2h", async (req, res): Promise<void> => {
       ORDER BY m.played_at DESC
       LIMIT 100
     `),
+    // Scouting Report addition (2026-09-25): each player's most-played
+    // game type across ALL of their own matches (not just this h2h
+    // pairing) — deliberately a separate, unscoped query, since "what do
+    // they usually play" is a fact about the player, not about this
+    // specific matchup. game_type is nullable on older rows, so those are
+    // excluded rather than counted as a fake "no format" bucket.
+    db.execute(drizzleSql`
+      SELECT player_id, game_type, cnt FROM (
+        SELECT winner_id AS player_id, game_type, COUNT(*) AS cnt
+        FROM matches
+        WHERE winner_id IN (${p1}, ${p2}) AND game_type IS NOT NULL AND game_type <> ''
+        GROUP BY winner_id, game_type
+        UNION ALL
+        SELECT loser_id AS player_id, game_type, COUNT(*) AS cnt
+        FROM matches
+        WHERE loser_id IN (${p1}, ${p2}) AND game_type IS NOT NULL AND game_type <> ''
+        GROUP BY loser_id, game_type
+      ) combined
+    `),
   ]);
+
+  // Sum the winner-side and loser-side counts per (player, game_type), then
+  // take the top game_type per player. Done in JS rather than a second
+  // GROUP BY in SQL since the UNION ALL above already did the split — this
+  // just merges it back down.
+  const favGameTypeTotals = new Map<string, number>();
+  for (const r of favGameTypeResult.rows as { player_id: number; game_type: string; cnt: number | string }[]) {
+    const key = `${r.player_id}::${r.game_type}`;
+    favGameTypeTotals.set(key, (favGameTypeTotals.get(key) ?? 0) + Number(r.cnt));
+  }
+  const favoriteGameTypeFor = (pid: number): string | null => {
+    let best: string | null = null, bestCount = 0;
+    for (const [key, count] of favGameTypeTotals) {
+      const [keyPid, gameType] = key.split("::");
+      if (Number(keyPid) !== pid) continue;
+      if (count > bestCount) { best = gameType; bestCount = count; }
+    }
+    return best;
+  };
 
   const player1 = players.find(p => p.id === p1);
   const player2 = players.find(p => p.id === p2);
@@ -455,11 +545,11 @@ router.get("/stats/h2h", async (req, res): Promise<void> => {
   res.json({
     player1: {
       id: player1.id, name: player1.name, elo: player1.elo, tier: calcTier(player1.elo), wins: p1Wins, currentStreak: p1CurStreak,
-      total180s: total180sFor(p1), avgDartsToWin: avgDartsToWinFor(p1),
+      total180s: total180sFor(p1), avgDartsToWin: avgDartsToWinFor(p1), favoriteGameType: favoriteGameTypeFor(p1),
     },
     player2: {
       id: player2.id, name: player2.name, elo: player2.elo, tier: calcTier(player2.elo), wins: p2Wins, currentStreak: p2CurStreak,
-      total180s: total180sFor(p2), avgDartsToWin: avgDartsToWinFor(p2),
+      total180s: total180sFor(p2), avgDartsToWin: avgDartsToWinFor(p2), favoriteGameType: favoriteGameTypeFor(p2),
     },
     totalMatches: rows.length,
     recentMatches: rows.slice(0, 25).map((m: any) => ({

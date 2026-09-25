@@ -327,14 +327,46 @@ function QuickRematch({ currentPlayerId, onPick }: { currentPlayerId: number; on
   );
 }
 
-type H2HStat = { id: number; name: string; wins: number; currentStreak: number };
+type H2HStat = { id: number; name: string; wins: number; currentStreak: number; favoriteGameType: string | null };
 type H2HData = { player1: H2HStat; player2: H2HStat; totalMatches: number };
 
+// Overall (not h2h-scoped) recent form — same endpoint and shape the Hub's
+// own sparkline reads (see hub.ts's GET /hub/form/:playerId): last 8
+// results, oldest first, true = win.
+function useOverallForm(playerId: number) {
+  const { data } = useFetch<{ results: boolean[] }>(playerId ? `/api/hub/form/${playerId}` : null);
+  return data?.results ?? [];
+}
+
+function ScoutingFormDots({ results }: { results: boolean[] }) {
+  if (results.length === 0) return null;
+  return (
+    <div className="flex gap-[3px] items-center">
+      {results.slice(-5).map((isWin, i) => (
+        <span key={i} className="block rounded-full" style={{ width: 6, height: 6, background: isWin ? "#22c55e" : "#ff005c", boxShadow: isWin ? "0 0 5px rgba(34,197,94,0.7)" : undefined }} />
+      ))}
+    </div>
+  );
+}
+
+// "Scouting Report" — the original Head-to-Head win/loss + streak panel,
+// plus a quick pre-match briefing on each player independent of this
+// specific pairing: their overall current form and their most-played game
+// type, so you know what you're walking into before you submit. Renamed
+// from the plain HeadToHeadPanel it grew out of; still keyed off the same
+// /api/stats/h2h call, extended server-side with favoriteGameType, plus
+// two small /api/hub/form/:playerId calls (2026-09-25).
 function HeadToHeadPanel({ winnerId, loserId }: { winnerId: number; loserId: number }) {
   const { data: h2h } = useFetch<H2HData>(`/api/stats/h2h?p1=${winnerId}&p2=${loserId}`);
-  if (!h2h || !h2h.player1 || !h2h.player2 || h2h.totalMatches === 0) return null;
+  const winnerForm = useOverallForm(winnerId);
+  const loserForm  = useOverallForm(loserId);
+  if (!h2h || !h2h.player1 || !h2h.player2) return null;
 
-  const leader = h2h.player1.wins === h2h.player2.wins ? null : (h2h.player1.wins > h2h.player2.wins ? h2h.player1 : h2h.player2);
+  const leader = h2h.totalMatches > 0 && h2h.player1.wins !== h2h.player2.wins
+    ? (h2h.player1.wins > h2h.player2.wins ? h2h.player1 : h2h.player2)
+    : null;
+  const hasScoutingInfo = winnerForm.length > 0 || loserForm.length > 0 || h2h.player1.favoriteGameType || h2h.player2.favoriteGameType;
+  if (h2h.totalMatches === 0 && !hasScoutingInfo) return null;
 
   return (
     <div className="mb-4">
@@ -342,30 +374,52 @@ function HeadToHeadPanel({ winnerId, loserId }: { winnerId: number; loserId: num
         <div className="flex items-center justify-between mb-2.5">
           <div className="flex items-center gap-1.5">
             <Swords className="w-3 h-3" style={{ color: "var(--color-gold)" }} />
-            <span className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "var(--color-gold)", fontSize: "0.6rem" }}>Head-to-Head</span>
+            <span className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "var(--color-gold)", fontSize: "0.6rem" }}>Scouting Report</span>
           </div>
           <a href={`/h2h?p1=${winnerId}&p2=${loserId}`} className="text-xs hover:underline" style={{ color: "rgba(255,255,255,0.35)" }}>View full history →</a>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="font-mono font-black rounded-lg px-3 py-1" style={{ fontSize: "1.35rem", background: "#000", boxShadow: "inset 0 2px 6px rgba(0,0,0,0.7)" }}>
-            <span style={{ color: "#22c55e", textShadow: "0 0 12px rgba(34,197,94,0.6)" }}>{h2h.player1.wins}</span>
-            <span style={{ color: "rgba(255,255,255,0.25)", margin: "0 4px" }}>–</span>
-            <span style={{ color: "#ff005c", textShadow: "0 0 12px rgba(255,0,92,0.6)" }}>{h2h.player2.wins}</span>
-          </div>
-          <div className="text-xs leading-snug" style={{ color: "rgba(255,255,255,0.6)" }}>
-            {leader
-              ? <><b style={{ color: "#fff" }}>{leader.name}</b> leads this matchup across {h2h.totalMatches} meetings.</>
-              : <>Dead even across {h2h.totalMatches} meetings.</>}
-          </div>
-          {(h2h.player1.currentStreak || h2h.player2.currentStreak) ? (
-            <div className="ml-auto text-right flex-shrink-0">
-              <div className="font-mono font-black text-sm" style={{ color: "var(--color-gold)", textShadow: "0 0 10px rgba(255,210,74,0.5)" }}>
-                {h2h.player1.currentStreak >= h2h.player2.currentStreak ? `W${h2h.player1.currentStreak}` : `W${h2h.player2.currentStreak}`}
-              </div>
-              <div className="text-[0.58rem] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.3)" }}>current run</div>
+
+        {h2h.totalMatches > 0 && (
+          <div className="flex items-center gap-4 mb-3">
+            <div className="font-mono font-black rounded-lg px-3 py-1" style={{ fontSize: "1.35rem", background: "#000", boxShadow: "inset 0 2px 6px rgba(0,0,0,0.7)" }}>
+              <span style={{ color: "#22c55e", textShadow: "0 0 12px rgba(34,197,94,0.6)" }}>{h2h.player1.wins}</span>
+              <span style={{ color: "rgba(255,255,255,0.25)", margin: "0 4px" }}>–</span>
+              <span style={{ color: "#ff005c", textShadow: "0 0 12px rgba(255,0,92,0.6)" }}>{h2h.player2.wins}</span>
             </div>
-          ) : null}
-        </div>
+            <div className="text-xs leading-snug" style={{ color: "rgba(255,255,255,0.6)" }}>
+              {leader
+                ? <><b style={{ color: "#fff" }}>{leader.name}</b> leads this matchup across {h2h.totalMatches} meetings.</>
+                : <>Dead even across {h2h.totalMatches} meetings.</>}
+            </div>
+            {(h2h.player1.currentStreak || h2h.player2.currentStreak) ? (
+              <div className="ml-auto text-right flex-shrink-0">
+                <div className="font-mono font-black text-sm" style={{ color: "var(--color-gold)", textShadow: "0 0 10px rgba(255,210,74,0.5)" }}>
+                  {h2h.player1.currentStreak >= h2h.player2.currentStreak ? `W${h2h.player1.currentStreak}` : `W${h2h.player2.currentStreak}`}
+                </div>
+                <div className="text-[0.58rem] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.3)" }}>current run</div>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {hasScoutingInfo && (
+          <div className={`grid grid-cols-2 gap-3 ${h2h.totalMatches > 0 ? "pt-3 border-t" : ""}`} style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+            {[{ name: h2h.player1.name, form: winnerForm, favoriteGameType: h2h.player1.favoriteGameType },
+              { name: h2h.player2.name, form: loserForm, favoriteGameType: h2h.player2.favoriteGameType }].map((p, i) => (
+              <div key={i} className="min-w-0">
+                <div className="text-xs font-bold truncate mb-1" style={{ color: "rgba(255,255,255,0.7)" }}>{p.name}</div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <ScoutingFormDots results={p.form} />
+                  {p.favoriteGameType && (
+                    <span className="text-[0.62rem] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
+                      usually plays <span style={{ color: "var(--color-gold)" }}>{p.favoriteGameType}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

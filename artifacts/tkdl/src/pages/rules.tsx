@@ -1,4 +1,20 @@
 import { Shield, Target, Trophy, Zap, Skull, Star, RefreshCw, BookOpen, Users, Coins, Layers, Tv2, Dumbbell, Bot, Flame, Swords, Medal } from "lucide-react";
+import { useFetch } from "@/hooks/use-fetch";
+
+// GET /achievements/counts — same live source the Hub uses for its "X
+// total achievements" stat, which used to be a hardcoded number that
+// drifted from reality as achievements were added/retired (see hub route's
+// own comment on that fix). This page's "There are N achievements" line had
+// exactly the same hardcoded-number problem — worth fixing the same way
+// rather than just typing in a fresher number that will only go stale
+// again next time achievements are added or retired. `core` specifically
+// (not the endpoint's grand total) because this section — and its "5
+// rarities" claim — describes the league/core achievement system; Shadow
+// Bot and Card Clash each get their own count called out in their own
+// section below, and Tour achievements don't carry a rarity at all (see
+// achievements/detail route), so folding them in here would make the "5
+// rarities" line inaccurate.
+type AchievementCounts = { core: number; tour: number; shadowBot: number; cardClash: number; total: number };
 
 function RuleSection({
   icon, title, accent = "#ff005c", children,
@@ -48,6 +64,7 @@ function Blue({ children }: { children: React.ReactNode }) {
 }
 
 export default function Rules() {
+  const { data: achCounts } = useFetch<AchievementCounts>("/api/achievements/counts");
   return (
     <div className="space-y-6">
       <div className="pdc-divider" />
@@ -115,7 +132,7 @@ export default function Rules() {
 
         {/* Achievements */}
         <RuleSection icon={<Star className="w-5 h-5" />} title="Achievements" accent="#a855f7">
-          <Rule>There are <Highlight>92 achievements</Highlight> to unlock across 5 rarities: Common, Rare, Epic, Legendary, and Mythic.</Rule>
+          <Rule>There are <Highlight>{achCounts?.core ?? "90+"} achievements</Highlight> to unlock across 5 rarities: Common, Rare, Epic, Legendary, and Mythic.</Rule>
           <Rule>Achievements are checked automatically after every match and season event.</Rule>
           <Rule>Some achievements are <Highlight>hidden</Highlight> — you won't know what they are until you unlock them.</Rule>
           <Rule><span style={{ color: "#ff005c", fontWeight: 700 }}>Mythic</span> achievements are season-level milestones (e.g. winning the championship, being unbeaten all season).</Rule>

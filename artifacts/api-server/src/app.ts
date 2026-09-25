@@ -8,7 +8,6 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import router from "./routes";
 import { logger } from "./lib/logger";
-import cacheMiddleware from "./middleware/cache";
 import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetLeagueSeasons, initializeSeasonResetScheduler } from "./lib/seasonReset";
 import { addLeaguesTable } from "./db/migrations/add_leagues_table";
@@ -57,6 +56,7 @@ import { addWave6CosmeticColumns } from "./db/migrations/add_wave6_cosmetics";
 import { addPlayerRankSnapshotsTable } from "./db/migrations/add_player_rank_snapshots";
 import { seedCosmeticDefinitions } from "./services/cosmetics-service";
 import { addLastSeenHubAtColumn } from "./db/migrations/add_last_seen_hub_at";
+import { addPendingPushNotifications } from "./db/migrations/add_pending_push_notifications";
 import { addSelfPlayUnlocks } from "./db/migrations/add_self_play_unlocks";
 import { addAccountAccentCosmeticColumn } from "./db/migrations/add_account_accent_cosmetic";
 import { seedSelfPlayUnlockDefinitions } from "./services/self-play-unlocks-service";
@@ -83,6 +83,7 @@ import { seedCardDefinitions } from "./services/card-definitions-service";
 import { challengeService } from "./services/challenge-service";
 import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
 import { initializeRankSnapshotScheduler } from "./services/rankSnapshotScheduler";
+import { initializePushBatchScheduler } from "./services/pushBatchScheduler";
 import { initializeFeaturedCardScheduler } from "./services/featured-card-shop-service";
 import { initializeCommunityTopPostScheduler } from "./services/communityTopPostScheduler";
 import webpush from "web-push";
@@ -233,8 +234,18 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "3mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// TEMPORARILY DISABLED: API response caching middleware - testing if it causes match submission to fail
-// app.use("/api", cacheMiddleware());
+// API response caching middleware — removed 2026-09-25, not fixed and
+// re-enabled. It was disabled here ("testing if it causes match submission
+// to fail") and never revisited. Investigated: invalidateCache() (the
+// function meant to clear a stale cache entry after a mutation) was only
+// ever called from one route in the whole app, so re-enabling this as it
+// stood would have served up to 10 minutes of stale leaderboard/match/
+// stats data after almost any real mutation — exactly the "match
+// submission looks broken" symptom the disabling comment described. Its
+// cache key was also silently broken (built from req.user?.id, which this
+// app never sets — everyone hashed to the same 'anon' bucket). See
+// middleware/cache.ts, kept in place as an inert file with the full
+// writeup rather than silently deleted.
 
 // Repair legacy sessions that only have userId — backfill playerId + isAdmin
 app.use(async (req, res, next) => {
@@ -874,6 +885,25 @@ async function seedCardFavorites() {
   logger.info("Card favorites table ready");
 }
 
+// Personal Goals (see routes/goals.ts) — a player's own self-set targets
+// (Elo / career wins / achievements unlocked), each with a progress bar on
+// the account page. achieved_at is set lazily the first time a GET notices
+// current_value has crossed target_value, not by a background job.
+async function seedPlayerGoals() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS player_goals (
+      id           SERIAL PRIMARY KEY,
+      player_id    INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      goal_type    TEXT NOT NULL,
+      target_value INTEGER NOT NULL,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      achieved_at  TIMESTAMPTZ
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_player_goals_player ON player_goals(player_id)`);
+  logger.info("Player goals table ready");
+}
+
 // Boss Battle Mode: which bosses each player has beaten, so the ladder page
 // knows what's unlocked. Pure arcade — never touches matches/Elo, so a
 // simple per-player/boss row is all that's needed.
@@ -1345,6 +1375,7 @@ async function init() {
   await runInitStep("ensureAdminAuditTable", ensureAdminAuditTable);
   await runInitStep("seedMatchesMilestoneColumns", seedMatchesMilestoneColumns);
   await runInitStep("seedCardFavorites", seedCardFavorites);
+  await runInitStep("seedPlayerGoals", seedPlayerGoals);
   await runInitStep("seedDrillCompletions", seedDrillCompletions);
   await runInitStep("seedBossBattleProgress", seedBossBattleProgress);
   await runInitStep("seedBoardCurseBest", seedBoardCurseBest);
@@ -1393,6 +1424,8 @@ async function init() {
   await runInitStep("addSelfPlayUnlocks", addSelfPlayUnlocks);
   // Needs addSelfPlayUnlocks to have run first — upserts into self_play_unlock_definitions.
   await runInitStep("seedSelfPlayUnlockDefinitions", seedSelfPlayUnlockDefinitions);
+  // Needs the notifications table to already exist (FK to notifications.id).
+  await runInitStep("addPendingPushNotifications", addPendingPushNotifications);
   await runInitStep("maybeAutoResetLeagueSeasons", maybeAutoResetLeagueSeasons);
   // Runs after maybeAutoResetLeagueSeasons so a reset firing on this exact
   // boot is immediately reconciled too, though with seasonReset.ts's fix
@@ -1406,6 +1439,7 @@ async function init() {
   // Initialize scheduled systems
   await runInitStep("initializeCoachTipsScheduler", initializeCoachTipsScheduler);
   await runInitStep("initializeRankSnapshotScheduler", initializeRankSnapshotScheduler);
+  await runInitStep("initializePushBatchScheduler", initializePushBatchScheduler);
   await runInitStep("initializeFeaturedCardScheduler", initializeFeaturedCardScheduler);
   await runInitStep("initializeCommunityTopPostScheduler", initializeCommunityTopPostScheduler);
   await runInitStep("initializeSeasonResetScheduler", initializeSeasonResetScheduler);
