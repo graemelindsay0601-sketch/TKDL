@@ -143,6 +143,27 @@ export function PanelLine({ children }: { children: ReactNode }) {
   return <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.72rem", fontWeight: 600 }}>{children}</div>;
 }
 
+// `overflowWrap: "anywhere"` (both name spans below) prefers breaking at a
+// normal boundary — a space — and only breaks mid-word when a single token
+// genuinely has nowhere else to go. A real first name ("Richard") IS one
+// such token, and at this plate's fixed width it broke arbitrarily wherever
+// the line ran out of room ("RICHA" / "RD") rather than at anything a
+// person would call a syllable — real user feedback flagged this as part of
+// the show's "weird text," and it's not a rare edge case: most real names
+// in this league are 6+ letters, so it would have kept recurring. Shrinking
+// the ceiling for a longer single-word name lets it fit on one line instead
+// of relying on the break; a genuinely long multi-word name (a doubles team
+// name) still wraps normally at its own spaces either way, which reads
+// fine. `long` is deliberately a fixed, small clamp() rather than scaled
+// down from `regular` — screenshotted against real fixture names (Richard,
+// Graeme) until an 8-letter single word reliably held one line at this
+// plate's actual rendered width, not hand-calculated from font-metrics
+// assumptions that turned out optimistic in practice.
+function versusNameSize(name: string, regular: string, long: string): string {
+  const longSingleWord = name.length > 6 && !name.includes(" ");
+  return longSingleWord ? long : regular;
+}
+
 /** The versus split on this skin: two solid-fill name plates angled toward each other (a chevron meeting point) instead of two names floating on transparent background either side of a "VS" label. */
 export function VersusPanel({
   leftName, rightName, leftAccent, rightAccent, splitFraction, splitLabel, compact = true,
@@ -162,11 +183,11 @@ export function VersusPanel({
               — this file's own BigVersus below hit the same problem at a
               bigger scale (see its header comment): ellipsizing a long
               player/team name at this size cut it down to almost nothing. */}
-          <span className="font-black uppercase block" style={{ color: "#08080c", fontSize: compact ? "clamp(0.68rem, 3.6vw, 0.92rem)" : "clamp(0.8rem, 4vw, 1.15rem)", lineHeight: 1.2, overflowWrap: "anywhere" }}>{leftName}</span>
+          <span className="font-black uppercase block" style={{ color: "#08080c", fontSize: versusNameSize(leftName, compact ? "clamp(0.68rem, 3.6vw, 0.92rem)" : "clamp(0.8rem, 4vw, 1.15rem)", compact ? "clamp(0.44rem, 1.8vw, 0.54rem)" : "clamp(0.6rem, 3vw, 0.8rem)"), lineHeight: 1.2, overflowWrap: "anywhere" }}>{leftName}</span>
         </div>
         <div className="flex items-center justify-center font-black shrink-0" style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.64rem", letterSpacing: "0.05em" }}>VS</div>
         <div className="min-w-0" style={{ flex: "1 1 0%", background: rightAccent, clipPath: "polygon(14% 0, 100% 0, 100% 100%, 0% 100%)", padding: namePad, paddingLeft: compact ? 22 : 30 }}>
-          <span className="font-black uppercase block" style={{ color: "#08080c", fontSize: compact ? "clamp(0.68rem, 3.6vw, 0.92rem)" : "clamp(0.8rem, 4vw, 1.15rem)", lineHeight: 1.2, overflowWrap: "anywhere" }}>{rightName}</span>
+          <span className="font-black uppercase block" style={{ color: "#08080c", fontSize: versusNameSize(rightName, compact ? "clamp(0.68rem, 3.6vw, 0.92rem)" : "clamp(0.8rem, 4vw, 1.15rem)", compact ? "clamp(0.44rem, 1.8vw, 0.54rem)" : "clamp(0.6rem, 3vw, 0.8rem)"), lineHeight: 1.2, overflowWrap: "anywhere" }}>{rightName}</span>
         </div>
       </div>
       {splitFraction !== undefined && (
@@ -409,11 +430,11 @@ export function BigVersus({
     <div className="flex flex-col gap-3 min-w-0">
       <div className="flex items-stretch min-w-0" style={{ gap: 3 }}>
         <div className="min-w-0" style={{ flex: "1 1 0%", background: leftAccent, clipPath: "polygon(0 0, 100% 0, 86% 100%, 0% 100%)", padding: "12px 20px", paddingRight: 40, boxShadow: `0 0 24px ${withAlpha(leftAccent, "44")}` }}>
-          <span className="font-black uppercase block" style={{ color: "#050810", fontSize: "clamp(0.95rem, 4.6vw, 1.7rem)", lineHeight: 1.15, overflowWrap: "anywhere" }}>{leftName}</span>
+          <span className="font-black uppercase block" style={{ color: "#050810", fontSize: versusNameSize(leftName, "clamp(0.95rem, 4.6vw, 1.7rem)", "clamp(0.62rem, 3.4vw, 1.05rem)"), lineHeight: 1.15, overflowWrap: "anywhere" }}>{leftName}</span>
         </div>
         <div className="flex items-center justify-center font-black shrink-0" style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.85rem", letterSpacing: "0.06em" }}>VS</div>
         <div className="min-w-0" style={{ flex: "1 1 0%", background: rightAccent, clipPath: "polygon(14% 0, 100% 0, 100% 100%, 0% 100%)", padding: "12px 20px", paddingLeft: 40 }}>
-          <span className="font-black uppercase block" style={{ color: "#050810", fontSize: "clamp(0.95rem, 4.6vw, 1.7rem)", lineHeight: 1.15, overflowWrap: "anywhere" }}>{rightName}</span>
+          <span className="font-black uppercase block" style={{ color: "#050810", fontSize: versusNameSize(rightName, "clamp(0.95rem, 4.6vw, 1.7rem)", "clamp(0.62rem, 3.4vw, 1.05rem)"), lineHeight: 1.15, overflowWrap: "anywhere" }}>{rightName}</span>
         </div>
       </div>
       {splitFraction !== undefined && (

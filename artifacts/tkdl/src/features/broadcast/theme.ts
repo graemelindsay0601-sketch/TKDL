@@ -60,11 +60,32 @@ export const SCENE_LABEL: Record<Scene, string> = {
   champion: "Champion",
 };
 
-/** "NEW_LEADER" -> "New Leader", "180_MILESTONE" -> "180 Milestone" — the exact same transform api-shapes.ts's own humanizeStoryType() applies backend-side, mirrored here for display of a `Segment.type`/`LiveOverlayItem.storyType` value the frontend receives as a raw identifier. */
+/**
+ * "NEW_LEADER" -> "New Leader", "180_MILESTONE" -> "180 Milestone" — the
+ * same transform api-shapes.ts's own humanizeStoryType() applies
+ * backend-side, mirrored here for display of a `Segment.type`/
+ * `LiveOverlayItem.storyType` value the frontend receives as a raw
+ * identifier.
+ *
+ * `word.charAt(0).toUpperCase()` (not a bare `word.charAt(0)`) — real user
+ * feedback: "what_to_watch" and "lighter_or_archive_or_callback" were
+ * showing up verbatim, underscores and all, as on-screen segment titles.
+ * Those are director.ts's own lowercase `RunningOrderSlotPurpose` values
+ * (api-shapes.ts's `type: segment.storyType ?? segment.purpose` falls back
+ * to one whenever a slot has no real story attached — see
+ * scene-support.tsx's headlineFor, which now also recognises a lowercase
+ * identifier as one to humanize). This function only ever forced a word's
+ * REST to lowercase and left its first letter untouched, which produced
+ * correct Title Case for an uppercase STORY_TYPE (its first letter was
+ * already capital) but silently no-opped on a lowercase purpose word,
+ * leaving "what" as "what" instead of "What". Forcing the first letter
+ * upper-cases either source correctly and changes nothing for the
+ * already-uppercase inputs this function was originally written for.
+ */
 export function humanizeStoryType(storyType: string): string {
   return storyType
     .split("_")
-    .map(word => (/^\d+$/.test(word) ? word : word.charAt(0) + word.slice(1).toLowerCase()))
+    .map(word => (/^\d+$/.test(word) ? word : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()))
     .join(" ");
 }
 

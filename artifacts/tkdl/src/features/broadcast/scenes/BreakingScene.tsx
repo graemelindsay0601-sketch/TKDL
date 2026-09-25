@@ -32,6 +32,22 @@ import { headlineFor, type SceneProps } from "./scene-support";
 
 const BREAKING_RED = "#ff005c";
 
+// theme.ts's humanizeFactKey() is the right general transform (it's what
+// every other scene's fact captions use too), but on its own it produces
+// captions like "Leader Name" and "Previous Leader Name" sitting directly
+// under a name that's already shown big and bold two lines up — real user
+// feedback: "seeing a lot of weird text/terminology... need this to
+// actually look like a show." A caption that repeats "Name" back at a name
+// the viewer can already see reads like a raw database field, not
+// something a graphics team would actually caption a breaking-news beat
+// with. This scene alone (BREAKING_WORTHY_STORY_TYPES can carry any of
+// several *Name-shaped fact keys — leaderName/previousLeaderName being the
+// most common) trims that redundant trailing word; the value itself is
+// untouched, and every other scene's captions are untouched too.
+function breakingCaptionFor(key: string): string {
+  return humanizeFactKey(key).replace(/\s+Name$/, "");
+}
+
 export function BreakingScene({ segment }: SceneProps) {
   const leagueAccent = segment.leagueType ? LEAGUE_ACCENT[segment.leagueType] : BREAKING_RED;
   const facts = Object.entries(segment.graphic?.data ?? {}).slice(0, 3);
@@ -62,7 +78,7 @@ export function BreakingScene({ segment }: SceneProps) {
           {facts.map(([key, value]) => (
             <div key={key} className="font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", color: "#ffd24a", letterSpacing: "0.02em" }}>
               {formatFactValue(key, value)}
-              <span className="ml-2 font-medium normal-case" style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.5)" }}>{humanizeFactKey(key)}</span>
+              <span className="ml-2 font-medium normal-case" style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.5)" }}>{breakingCaptionFor(key)}</span>
             </div>
           ))}
         </div>

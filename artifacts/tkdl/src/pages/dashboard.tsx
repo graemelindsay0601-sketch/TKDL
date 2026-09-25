@@ -454,7 +454,17 @@ function ForYouZone({ currentPlayer, myStreak }: { currentPlayer: { playerId: nu
                 {nudge === "streak" && "On A Run"}
               </div>
               <div className="font-black uppercase truncate" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.1rem", color: "#fff" }}>
-                {nudge === "tkdl" && "This week's broadcast just dropped"}
+                {/* Was "This week's broadcast just dropped" — wrong cadence
+                    claim. TKDL LIVE isn't weekly: by default it's one
+                    episode a day (broadcast_single_daily_episode, the
+                    "night" slot), or up to three a day (midday/evening/
+                    night) if an admin turns that off — and even then a new
+                    Edition only actually builds once enough has changed
+                    (the Edition Change Score threshold in config-math.ts),
+                    so it's results-driven within that daily cadence rather
+                    than guaranteed on a fixed clock. "New" is the only claim
+                    that's true regardless of which mode is active. */}
+                {nudge === "tkdl" && "New broadcast just dropped"}
                 {nudge === "tour" && `${activeRun?.difficulty} — resume where you left off`}
                 {nudge === "onThisDay" && (onThisDay?.wasWin
                   ? `You beat ${onThisDay?.opponentName} today, ${onThisDay?.yearsAgo} year${onThisDay?.yearsAgo === 1 ? "" : "s"} back`

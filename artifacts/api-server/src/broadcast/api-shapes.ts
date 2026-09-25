@@ -310,11 +310,31 @@ export const SLOT_TYPE_LABELS: Record<Exclude<SlotType, "manual">, string> = {
   midday: "Midday", evening: "Evening", night: "Late Night",
 };
 
-/** "NEW_LEADER" -> "New Leader", "180_MILESTONE" -> "180 Milestone" — a fully general transform (no per-type table, unlike graphic.kind above) because turning a story-type identifier into readable words needs no per-type judgement call the way "which existing graphic component" or "which existing scene" does. */
+/**
+ * "NEW_LEADER" -> "New Leader", "180_MILESTONE" -> "180 Milestone" — a
+ * fully general transform (no per-type table, unlike graphic.kind above)
+ * because turning a story-type identifier into readable words needs no
+ * per-type judgement call the way "which existing graphic component" or
+ * "which existing scene" does.
+ *
+ * Kept byte-for-byte in sync with theme.ts's own mirrored copy on the
+ * frontend (its own header comment says so) — that copy had a real bug
+ * here that this one happened not to hit yet: `word.charAt(0)` alone only
+ * produces correct Title Case when the source is already uppercase
+ * (STORY_TYPE), and silently no-ops on a lowercase source. This function's
+ * only current caller (editionTitle, below) always passes an uppercase
+ * storyType, so it never showed here — but a lowercase
+ * RunningOrderSlotPurpose value ("what_to_watch",
+ * "lighter_or_archive_or_callback") reaching this same transform some other
+ * way in the future would have hit the identical bug frontend-side did
+ * ("what_to_watch" rendering verbatim instead of "What To Watch").
+ * `.toUpperCase()` on the first letter makes this correct for either
+ * casing and changes nothing for the uppercase inputs it already handles.
+ */
 export function humanizeStoryType(storyType: string): string {
   return storyType
     .split("_")
-    .map(word => (/^\d+$/.test(word) ? word : word.charAt(0) + word.slice(1).toLowerCase()))
+    .map(word => (/^\d+$/.test(word) ? word : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()))
     .join(" ");
 }
 
