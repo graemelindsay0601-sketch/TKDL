@@ -64,6 +64,45 @@ function timeAgo(dateStr: string): string {
 const posColors = ["#ffd24a", "#c0c8d8", "#cd7f32"];
 const TIER_GLOW: Record<string, string> = { Gold: "#ffd24a", Silver: "#c0c8d8", Bronze: "#cd7f32", Platinum: "#e2e8f0", Diamond: "#00e5ff" };
 
+// ── FLASHBACK ────────────────────────────────────────────────────────────────
+// A small nostalgia hit: resurfaces a real match from today's date in an
+// earlier year (or, for a league too young to have one yet, one month back —
+// see GET /matches/flashback for the fallback logic). Deliberately distinct
+// from ForYouZone's existing "On This Day" priority nudge below, which is
+// viewer-relative (only fires when the logged-in player has their OWN
+// anniversary match today) — this one is league-wide, showing any player's
+// notable match on today's date so there's still something to see on days
+// with no personal anniversary. Renders nothing when there's no match to
+// show rather than an empty-state card, since most days simply won't have
+// one and that's fine.
+type FlashbackMatch = {
+  id: number; winnerName: string; loserName: string; stake: number;
+  gameType: string; eloChange: number; wasUpsetWin: boolean;
+  playedAt: string; unitsAgo: number; unit: "year" | "years" | "month";
+};
+function Flashback() {
+  const { data } = useFetch<FlashbackMatch | null>("/api/matches/flashback");
+  if (!data) return null;
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 rounded-xl flex-wrap"
+      style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.22)" }}>
+      <Calendar className="w-4 h-4 shrink-0" style={{ color: "#f59e0b" }} />
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-black uppercase tracking-wider mb-0.5"
+          style={{ fontFamily: "Oswald, sans-serif", color: "#f59e0b", fontSize: "0.6rem", letterSpacing: "0.14em" }}>
+          Flashback — {data.unitsAgo} {data.unit} ago
+        </div>
+        <div className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+          <span className="font-bold" style={{ color: "#fff" }}>{data.winnerName}</span> beat{" "}
+          <span className="font-bold" style={{ color: "#fff" }}>{data.loserName}</span>
+          {data.stake > 0 && <> for {data.stake} pts</>}
+          {data.wasUpsetWin && <span className="ml-1" style={{ color: "#a855f7" }}>· upset win</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── FRESHNESS BAR ────────────────────────────────────────────────────────────
 // "Welcome back, X — last visit Y ago" plus a "N new" count against the
 // already-loaded Pulse feed. Reads GET /hub/visit/:id, which also stamps
@@ -667,6 +706,8 @@ export default function Dashboard() {
       <PulseSection pulse={pulse} loading={pulseLoading} previousVisit={visit?.previousVisit ?? null} currentPlayerId={currentPlayer?.playerId ?? null} />
 
       <ExploreAndReference settings={appSettings} />
+
+      <Flashback />
 
       {/* ── LEADERBOARD + RECENT (kept, reference tables) ── */}
       <div className="lg:hidden flex rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>

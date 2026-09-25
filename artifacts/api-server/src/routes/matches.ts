@@ -87,6 +87,71 @@ router.get("/matches", async (req, res): Promise<void> => {
   res.json(matches);
 });
 
+// ── Flashback ────────────────────────────────────────────────────────────
+// A small nostalgia hit for the dashboard: resurfaces a real match played on
+// today's calendar date in an earlier year. Deliberately distinct from the
+// Hub's existing personal "On This Day" nudge (GET /hub/on-this-day/:playerId
+// — a viewer-relative "you beat X today, N years back" that only fires for
+// the logged-in player's own anniversary match): this one is league-wide,
+// surfacing ANY match on today's date regardless of who's viewing, so it
+// still has something to show for players who don't happen to have a
+// personal anniversary today. Prefers a genuine "N years ago" anniversary;
+// if the league isn't old enough yet for one to exist on any given day,
+// falls back to "this day, one month ago" so the widget still has something
+// most weeks rather than sitting empty through the league's first year.
+// Picks are deterministic (earliest match found), never random, so the
+// dashboard shows the same throwback all day instead of a different one on
+// every refresh.
+router.get("/matches/flashback", async (req, res): Promise<void> => {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  const year = now.getFullYear();
+
+  const anniversary = await db.execute(sql`
+    SELECT * FROM matches
+    WHERE EXTRACT(MONTH FROM played_at) = ${month}
+      AND EXTRACT(DAY FROM played_at) = ${day}
+      AND EXTRACT(YEAR FROM played_at) < ${year}
+    ORDER BY played_at ASC
+  `);
+  let rows = anniversary.rows as any[];
+  let unit: "years" | "months" = "years";
+
+  if (rows.length === 0) {
+    const lastMonth = new Date(now);
+    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    const monthly = await db.execute(sql`
+      SELECT * FROM matches
+      WHERE EXTRACT(MONTH FROM played_at) = ${lastMonth.getMonth() + 1}
+        AND EXTRACT(DAY FROM played_at) = ${lastMonth.getDate()}
+        AND EXTRACT(YEAR FROM played_at) = ${lastMonth.getFullYear()}
+      ORDER BY played_at ASC
+    `);
+    rows = monthly.rows as any[];
+    unit = "months";
+  }
+
+  if (rows.length === 0) { res.json(null); return; }
+
+  const m = rows[0] as any;
+  const playedAt = new Date(m.played_at);
+  const unitsAgo = unit === "years" ? year - playedAt.getFullYear() : 1;
+
+  res.json({
+    id: m.id,
+    winnerName: m.winner_name,
+    loserName: m.loser_name,
+    stake: m.stake,
+    gameType: m.game_type,
+    eloChange: m.elo_change,
+    wasUpsetWin: m.was_upset_win,
+    playedAt: m.played_at,
+    unitsAgo,
+    unit: unit === "years" ? (unitsAgo === 1 ? "year" : "years") : "month",
+  });
+});
+
 router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
   const parsed = SubmitMatchBody.safeParse(req.body);
   if (!parsed.success) {

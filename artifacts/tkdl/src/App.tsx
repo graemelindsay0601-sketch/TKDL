@@ -33,6 +33,7 @@ const Master501 = lazyWithRetry(() => import("@/pages/master501"), "master501");
 const HallOfFame = lazyWithRetry(() => import("@/pages/hall-of-fame"), "hall-of-fame");
 const Broadcast = lazyWithRetry(() => import("@/pages/broadcast"), "broadcast");
 const TkdlLive = lazyWithRetry(() => import("@/pages/tkdl-live"), "tkdl-live");
+const Kiosk = lazyWithRetry(() => import("@/pages/kiosk"), "kiosk");
 const TkdlLivePreview = import.meta.env.DEV ? lazy(() => import("@/pages/tkdl-live-preview")) : null;
 const Login = lazyWithRetry(() => import("@/pages/login"), "login");
 const Account = lazyWithRetry(() => import("@/pages/account"), "account");
@@ -83,6 +84,9 @@ function AppRoutes() {
       </Route>
       <Route path="/tkdl-live">
         <Suspense fallback={null}><TkdlLive /></Suspense>
+      </Route>
+      <Route path="/kiosk">
+        <Suspense fallback={null}><Kiosk /></Suspense>
       </Route>
       <Route path="/login">
         <RoutePage><Login /></RoutePage>
