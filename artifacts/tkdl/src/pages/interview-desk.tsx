@@ -6,10 +6,18 @@ import { useToast } from "@/hooks/use-toast";
 import { Send, X, UserX, Radio, Clock, AlarmClockOff } from "lucide-react";
 import { PRESENTERS, presenterPortraitSrc, type PresenterId, type PresenterState } from "@/features/broadcast/presenters/presenter-config";
 
-// Interview Desk — player-facing answer page. TEST/PREVIEW BUILD: the only
-// way a request currently reaches this page is the admin "test-fire" panel
-// (admin/interview-desk-test.tsx) — nothing in real gameplay creates one
-// yet. See routes/interview-desk.ts's own header for the full story.
+// Interview Desk — player-facing answer page. Real and permanent: a
+// request reaches this page either from the admin's manual test-fire panel
+// (admin/interview-desk-test.tsx, always is_test=true) or the real path —
+// routes/matches.ts calls interviewDeskService.ts's own
+// checkMatchTriggersForInterview() right after every singles match, which
+// creates a real (is_test=false) request whenever that match qualifies as
+// a MAJOR_UPSET, WIN_STREAK, or 180_MILESTONE. See routes/interview-desk.ts's
+// own header for the full story. (This comment used to say nothing in real
+// gameplay creates one yet — that was true when this page was first built,
+// but the real trigger has since shipped and this was never updated to say
+// so, which is worth knowing if you're hunting for a similarly stale claim
+// elsewhere in this feature.)
 //
 // Rebuilt as a real multi-beat conversation (opener → reaction → follow-up
 // → sign-off) after the first pass read as a single question-and-thanks

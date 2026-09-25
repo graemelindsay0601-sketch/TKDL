@@ -3,12 +3,17 @@ import { Mic, Send, Bell, X, Check, ExternalLink, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CollapsibleAdminSection } from "./collapsible-section";
 
-// Test/preview panel for the Interview Desk feature — the whole point is
-// that firing this is the ONLY way an interview_requests row gets created
-// right now. There is no hook anywhere in real gameplay yet (see
-// routes/interview-desk.ts's header) — this exists so the actual built
-// experience can be clicked through and approved before that hook gets
-// added, without any risk to anything already live, notifications included.
+// Manual test-fire panel for the Interview Desk feature. This used to be
+// the ONLY way an interview_requests row got created — that's no longer
+// true: routes/matches.ts calls interviewDeskService.ts's own
+// checkMatchTriggersForInterview() right after every singles match, which
+// creates a real (is_test=false) request whenever that match qualifies as
+// a MAJOR_UPSET, WIN_STREAK, or 180_MILESTONE (see routes/interview-desk.ts's
+// header for the full story). This panel still exists for firing one on
+// demand without waiting for a qualifying result — its history list below
+// now shows real fires alongside test ones (a badge marks which is which),
+// so it doubles as a way to confirm the real hook is actually working, not
+// just the manual button.
 type TriggerOption = { trigger_type: string; audience: "participant" | "spectator" };
 type Player = { id: number; name: string };
 type HistoryRow = {
@@ -16,6 +21,7 @@ type HistoryRow = {
   trigger_type: string;
   status: string;
   created_at: string;
+  is_test: boolean;
   player_name: string;
   audience: string;
   presenter: string;
@@ -114,7 +120,7 @@ export function InterviewDeskTest() {
     <CollapsibleAdminSection title="Interview Desk (Test / Preview)" icon={Mic} accent="#0066ff">
       <div className="px-4 py-4 space-y-4">
         <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
-          Manually fires a test interview request so you can click through the real page and see the real question bank, or just send the "hosts want a word" push on its own to confirm delivery — nothing here is wired into real matches, achievements, or the season yet.
+          Manually fires a test interview request so you can click through the real page and see the real question bank, or just send the "hosts want a word" push on its own to confirm delivery. Real invites also fire on their own for a qualifying match (a major upset, a win streak, a 180) — the history below shows both, so you can check those are landing too.
         </p>
 
         <div className="flex flex-wrap gap-3 items-end">
@@ -227,7 +233,7 @@ export function InterviewDeskTest() {
         {history.length > 0 && (
           <div className="pt-2 space-y-2">
             <div className="flex items-center gap-1.5 text-[0.65rem] uppercase font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
-              <History className="w-3 h-3" />Recent test fires
+              <History className="w-3 h-3" />Recent interviews (test + real)
             </div>
             <div className="space-y-1.5">
               {history.slice(0, 8).map((h) => (
@@ -239,7 +245,20 @@ export function InterviewDeskTest() {
                   className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs hover:bg-white/5 transition-colors"
                   style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
                 >
-                  <span style={{ color: "rgba(255,255,255,0.75)" }}>
+                  <span className="flex items-center gap-2" style={{ color: "rgba(255,255,255,0.75)" }}>
+                    {/* is_test badge — the whole reason this history list now includes real
+                        (is_test=false) rows alongside manual test-fires is so this panel can
+                        answer "is the real hook actually firing?" at a glance; without a way
+                        to tell rows apart that question is unanswerable from this list. */}
+                    <span
+                      className="px-1.5 py-0.5 rounded font-bold uppercase text-[0.55rem] shrink-0"
+                      style={{
+                        color: h.is_test ? "rgba(255,255,255,0.4)" : "#00e5a0",
+                        background: h.is_test ? "rgba(255,255,255,0.06)" : "rgba(0,229,160,0.12)",
+                      }}
+                    >
+                      {h.is_test ? "Test" : "Live"}
+                    </span>
                     <span style={{ color: "rgba(255,255,255,0.4)" }}>{h.trigger_type.replace(/_/g, " ")}</span> → {h.player_name}
                   </span>
                   <span

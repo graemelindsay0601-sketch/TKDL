@@ -128,15 +128,24 @@ router.post("/admin/interview-desk/test-notification", requireAdminSession, asyn
   }
 });
 
-// ── Admin: recent test fires, so the panel can show a running history ──────
+// ── Admin: recent interviews, so the panel can show a running history ──────
+// Used to be `WHERE r.is_test = true` — back when the admin test-fire panel
+// really was the only way an interview_requests row got created, that
+// filter was a no-op (every row was a test row anyway). Once
+// checkMatchTriggersForInterview() (routes/matches.ts) started creating
+// real (is_test=false) rows too, that same filter quietly started hiding
+// all of them from this panel's own history list — so an admin checking
+// "is the real hook actually firing" here would only ever see test fires,
+// and real interviews, however many had genuinely gone out, would look
+// like zero. Now returns both, with `is_test` in the payload so the panel
+// can badge which is which rather than conflating them.
 router.get("/admin/interview-desk/test-history", requireAdminSession, async (_req, res): Promise<void> => {
   const { rows } = await db.execute(sql`
-    SELECT r.id, r.trigger_type, r.status, r.created_at, p.name AS player_name,
+    SELECT r.id, r.trigger_type, r.status, r.created_at, r.is_test, p.name AS player_name,
            q.audience, q.presenter, q.prompt_text
     FROM interview_requests r
     JOIN players p ON p.id = r.player_id
     LEFT JOIN interview_questions q ON q.id = r.question_id
-    WHERE r.is_test = true
     ORDER BY r.created_at DESC
     LIMIT 20
   `);
