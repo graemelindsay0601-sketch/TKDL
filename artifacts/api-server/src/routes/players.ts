@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, or, desc, and, inArray, sql } from "drizzle-orm";
+import { eq, or, desc, and, inArray, sql, gte } from "drizzle-orm";
 import { db, playersTable, matchesTable, matchParticipantsTable, playerAchievementsTable, achievementsTable, seasonStandingsTable, seasonsTable, currencyTransactionsTable } from "@workspace/db";
 import { z } from "zod";
 import { computeIdentity } from "../lib/identity";
@@ -293,6 +293,78 @@ router.get("/players/:id/elo-history", async (req, res): Promise<void> => {
   }));
 
   res.json({ history, startElo: eloPoints[0], currentElo });
+});
+
+// ── Activity Heatmap: GitHub-style contribution calendar ────────────────────
+// A rolling 365-day window of match counts by day, same shape as a GitHub
+// contributions graph — darker/bigger squares on the player's busiest weeks.
+// Reuses the same "fetch this player's matches, process in JS" approach as
+// elo-history above rather than a GROUP BY query, since a year of one
+// player's matches is a small enough set that grouping client-side keeps
+// this endpoint simple and consistent with its neighbor.
+router.get("/players/:id/activity", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const id = params.data.id;
+
+  const [player] = await db.select().from(playersTable).where(eq(playersTable.id, id));
+  if (!player) { res.status(404).json({ error: "Player not found" }); return; }
+
+  const windowStart = new Date();
+  windowStart.setDate(windowStart.getDate() - 364);
+
+  const recentMatches = await db.select().from(matchesTable)
+    .where(and(
+      or(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, id)),
+      gte(matchesTable.playedAt, windowStart),
+    ));
+
+  const counts = new Map<string, number>();
+  for (const m of recentMatches) {
+    const day = new Date(m.playedAt).toISOString().slice(0, 10);
+    counts.set(day, (counts.get(day) ?? 0) + 1);
+  }
+
+  const days = Array.from(counts.entries())
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  res.json({ days, totalMatches: recentMatches.length, windowStart: windowStart.toISOString().slice(0, 10) });
+});
+
+// ── Nemesis Badge ────────────────────────────────────────────────────────
+// The single opponent who has beaten this player the most, career-wide.
+// Distinct from the h2h "Scouting Report" panel (stats.ts) in framing: this
+// is an always-on profile badge auto-computed for the player being viewed,
+// not a pre-match lookup between two chosen players. A 3-loss minimum keeps
+// a single unlucky result from crowning a "nemesis" off a tiny sample.
+const NEMESIS_MIN_LOSSES = 3;
+router.get("/players/:id/nemesis", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const id = params.data.id;
+
+  const [player] = await db.select().from(playersTable).where(eq(playersTable.id, id));
+  if (!player) { res.status(404).json({ error: "Player not found" }); return; }
+
+  const losses = await db.select().from(matchesTable).where(eq(matchesTable.loserId, id));
+  const byOpponent = new Map<number, { playerName: string; losses: number }>();
+  for (const m of losses) {
+    const cur = byOpponent.get(m.winnerId) ?? { playerName: m.winnerName, losses: 0 };
+    cur.losses += 1;
+    byOpponent.set(m.winnerId, cur);
+  }
+
+  let nemesis: { playerId: number; playerName: string; losses: number } | null = null;
+  for (const [opponentId, v] of byOpponent) {
+    if (!nemesis || v.losses > nemesis.losses) nemesis = { playerId: opponentId, playerName: v.playerName, losses: v.losses };
+  }
+  if (!nemesis || nemesis.losses < NEMESIS_MIN_LOSSES) { res.json(null); return; }
+
+  const winsAgainst = await db.select().from(matchesTable)
+    .where(and(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, nemesis.playerId)));
+
+  res.json({ ...nemesis, winsAgainst: winsAgainst.length });
 });
 
 router.get("/players/:id/achievements", async (req, res): Promise<void> => {

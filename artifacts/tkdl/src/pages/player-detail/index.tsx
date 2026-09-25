@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useState, useEffect, useMemo } from "react";
-import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare, Sparkles, Building2, Pin, Layers, Users, Ghost } from "lucide-react";
+import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare, Sparkles, Building2, Pin, Layers, Users, Ghost, Calendar, Swords } from "lucide-react";
 import { useAuth } from "@/context/auth";
 import {
   FormStrip, EloSparkline, AchievementCard,
@@ -15,6 +15,58 @@ import { TrophyCase } from "@/components/TrophyCase";
 import { FeaturedStatBadge } from "@/components/FeaturedStatBadge";
 import { useSpotlightValues } from "@/lib/statSpotlight";
 import { SeasonRecapModal } from "@/components/SeasonRecapCard";
+
+// Renders a GitHub-style contribution calendar: 7 rows (Sun–Sat) x up to 53
+// columns covering the trailing 365 days, padded at the front so the grid
+// always starts on a Sunday. Deliberately client-side date-range generation
+// (rather than asking the API for a padded/complete grid) so a player who
+// hasn't played in weeks still gets a full, evenly-spaced calendar instead
+// of a lopsided one built only from the days they have data for.
+function ActivityHeatmap({ days }: { days: { date: string; count: number }[] }) {
+  const countByDate = useMemo(() => new Map(days.map(d => [d.date, d.count])), [days]);
+  const cells = useMemo(() => {
+    const today = new Date();
+    const out: { date: string; count: number }[] = [];
+    for (let i = 364; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      out.push({ date: key, count: countByDate.get(key) ?? 0 });
+    }
+    return out;
+  }, [countByDate]);
+
+  const firstDow = new Date(cells[0].date + "T00:00:00").getDay();
+  const padded: ({ date: string; count: number } | null)[] = [...Array(firstDow).fill(null), ...cells];
+  const weeks: ({ date: string; count: number } | null)[][] = [];
+  for (let i = 0; i < padded.length; i += 7) weeks.push(padded.slice(i, i + 7));
+
+  const colorFor = (count: number) => {
+    if (count === 0) return "rgba(255,255,255,0.05)";
+    if (count === 1) return "rgba(0,229,160,0.35)";
+    if (count === 2) return "rgba(0,229,160,0.6)";
+    return "rgba(0,229,160,0.95)";
+  };
+
+  return (
+    <div className="flex gap-[3px] overflow-x-auto pb-1">
+      {weeks.map((week, wi) => (
+        <div key={wi} className="flex flex-col gap-[3px]">
+          {week.map((day, di) => (
+            <div
+              key={di}
+              title={day ? `${format(new Date(day.date + "T00:00:00"), "d MMM yyyy")} — ${day.count} match${day.count === 1 ? "" : "es"}` : undefined}
+              style={{
+                width: "11px", height: "11px", borderRadius: "2px",
+                background: day ? colorFor(day.count) : "transparent",
+              }}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function PlayerDetail() {
   const params = useParams<{ id: string }>();
@@ -46,6 +98,37 @@ export default function PlayerDetail() {
   const [openCareerJourney, setOpenCareerJourney] = useState(true);
 
   const [careerJourney, setCareerJourney] = useState<any[]>([]);
+  // Activity Heatmap — a GitHub-style rolling-365-day calendar of match
+  // frequency (see GET /players/:id/activity). Its own state/effect rather
+  // than folding into the batch Promise.all below, since it's independent
+  // of everything else that block fetches and keeping it separate means a
+  // slow activity query never blocks practice stats, trophies, etc. from
+  // rendering.
+  const [activity, setActivity] = useState<{ days: { date: string; count: number }[]; totalMatches: number } | null>(null);
+  const [openActivity, setOpenActivity] = useState(true);
+  useEffect(() => {
+    if (!playerId) return;
+    setActivity(null);
+    fetch(`/api/players/${playerId}/activity`)
+      .then(r => r.json())
+      .then(d => setActivity(d && Array.isArray(d.days) ? d : null))
+      .catch(() => setActivity(null));
+  }, [playerId]);
+
+  // Nemesis Badge — the opponent who beats this player most, career-wide
+  // (see GET /players/:id/nemesis). Rendered as a small pill next to the
+  // existing win/loss streak pills in the header, since it's the same kind
+  // of at-a-glance profile fact rather than a deep-dive stat.
+  const [nemesis, setNemesis] = useState<{ playerId: number; playerName: string; losses: number; winsAgainst: number } | null>(null);
+  useEffect(() => {
+    if (!playerId) return;
+    setNemesis(null);
+    fetch(`/api/players/${playerId}/nemesis`)
+      .then(r => r.json())
+      .then(d => setNemesis(d ?? null))
+      .catch(() => setNemesis(null));
+  }, [playerId]);
+
   const [practiceAgg, setPracticeAgg] = useState<any>(null);
   const [practiceSessions, setPracticeSessions] = useState<any[]>([]);
   const [gamerscore, setGamerscore] = useState<any>(null);
@@ -543,7 +626,7 @@ export default function PlayerDetail() {
           </div>
 
           {/* Streak alerts */}
-          {(streak >= 3 || lossStreak >= 3) && (
+          {(streak >= 3 || lossStreak >= 3 || nemesis) && (
             <div className="flex gap-2 mt-4 flex-wrap">
               {streak >= 3 && (
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold"
@@ -555,6 +638,13 @@ export default function PlayerDetail() {
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold"
                   style={{ background: "rgba(255,0,92,0.06)", border: "1px solid rgba(255,0,92,0.15)", color: "rgba(255,0,92,0.7)", fontFamily: "Oswald, sans-serif" }}>
                   <Skull className="w-3.5 h-3.5" />{lossStreak}L STREAK — COLD RUN
+                </div>
+              )}
+              {nemesis && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold"
+                  title={`${nemesis.winsAgainst}W–${nemesis.losses}L in this rivalry`}
+                  style={{ background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.3)", color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>
+                  <Swords className="w-3.5 h-3.5" />NEMESIS: {nemesis.playerName} ({nemesis.losses}L)
                 </div>
               )}
             </div>
@@ -699,6 +789,22 @@ export default function PlayerDetail() {
                 </div>
               );
             })}
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* ══ ACTIVITY HEATMAP ══ */}
+      {activity && activity.totalMatches > 0 && (
+        <CollapsibleSection
+          title="Activity"
+          icon={<Calendar className="w-4 h-4" />}
+          open={openActivity}
+          onToggle={() => setOpenActivity(v => !v)}
+          badge={`${activity.totalMatches} in the last year`}
+          accentColor="#00e5a0"
+        >
+          <div className="px-4 py-3">
+            <ActivityHeatmap days={activity.days} />
           </div>
         </CollapsibleSection>
       )}
