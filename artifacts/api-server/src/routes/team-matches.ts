@@ -20,6 +20,34 @@ const ListTeamMatchesQuery = z.object({
   limit: z.coerce.number().int().positive().max(500).optional().default(20),
 });
 
+// Splits a pot evenly across `count` recipients, remainder going to the
+// first ones by index — the same "base + remainder" pattern used for
+// winner shares below, now shared with the loser side too.
+function splitEvenly(pot: number, count: number): number[] {
+  const base = Math.floor(pot / count);
+  const remainder = pot - base * count;
+  return Array.from({ length: count }, (_, i) => base + (i < remainder ? 1 : 0));
+}
+
+// Every player pays/gains a flat `stake` when the teams are the same size —
+// that's the whole league's baseline expectation and must not change here.
+// Once the sides are uneven (Uneven Teams), the smaller side is genuinely
+// outnumbered: e.g. a lone player facing a pair of separate individuals
+// (not a shared-wallet doubles pair) is up against two independent stakes,
+// not one. So the pot moved is stake × the BIGGER side's size — not the
+// loser count — and is split evenly across whichever side is currently
+// losing, with the same remainder-to-the-first-few rule used everywhere
+// else in this file. For equal sizes, biggerSide === winnerCount ===
+// loserCount, so this reduces to the original flat-stake behavior exactly.
+function computeWagerShares(stake: number, winnerCount: number, loserCount: number) {
+  const pot = stake * Math.max(winnerCount, loserCount);
+  return {
+    pot,
+    winnerShares: splitEvenly(pot, winnerCount),
+    loserShares:  splitEvenly(pot, loserCount),
+  };
+}
+
 const router = Router();
 
 router.get("/team-matches", async (req, res): Promise<void> => {
@@ -103,10 +131,20 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
     }
   }
 
-  // Validate stake — must not exceed any player's balance
-  for (const p of [...winnerPlayersPreCheck, ...loserPlayersPreCheck]) {
-    if (stake > p.points) {
-      res.status(400).json({ error: `Stake (${stake}) exceeds ${p.name}'s balance (${p.points})` });
+  // Validate stake — only the LOSING side's balance is actually at risk
+  // (winners only ever gain, see the pot/share comment below), and once
+  // the teams are uneven a loser's real exposure isn't a flat `stake` —
+  // it's their share of a pot scaled to the bigger side. computeWagerShares
+  // (below, reused inside the transaction on the locked balances) is the
+  // single source of truth for what each loser actually owes; this is
+  // just the same computation run early against the pre-lock read for a
+  // cheap, obvious-case reject.
+  const preCheckShares = computeWagerShares(stake, winnerPlayersPreCheck.length, loserPlayersPreCheck.length);
+  for (let i = 0; i < loserPlayersPreCheck.length; i++) {
+    const p = loserPlayersPreCheck[i];
+    const owed = preCheckShares.loserShares[i];
+    if (owed > p.points) {
+      res.status(400).json({ error: `Stake exceeds ${p.name}'s balance (would owe ${owed}, has ${p.points})` });
       return;
     }
   }
@@ -125,7 +163,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
 
   let match: typeof matchesTable.$inferSelect;
   let eloChange: number;
-  let loserResults: { id: number; newPoints: number; eliminated: boolean }[];
+  let loserResults: { id: number; newPoints: number; eliminated: boolean; owed: number }[];
   let winnerResults: { id: number; share: number }[];
   let beforeSnapshot: RankablePlayer[];
 
@@ -150,8 +188,17 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
       for (const p of [...winnerPlayers, ...loserPlayers]) {
         if (p.status === "ELIMINATED") throw new TeamMatchConflictError(`${p.name} is eliminated and cannot play`);
       }
-      for (const p of [...winnerPlayers, ...loserPlayers]) {
-        if (stake > p.points) throw new TeamMatchConflictError(`Stake (${stake}) exceeds ${p.name}'s balance (${p.points})`);
+      // Only the losing side is actually at risk — winners never pay in
+      // this scheme, regardless of team size — and once the sides are
+      // uneven what a loser owes isn't the flat `stake` either. Recomputed
+      // here (not just trusted from the pre-check above) against the
+      // locked, authoritative balances, using the exact same shares that
+      // are about to be written below.
+      const { loserShares: lockedLoserShares } = computeWagerShares(stake, winnerPlayers.length, loserPlayers.length);
+      for (let i = 0; i < loserPlayers.length; i++) {
+        const p = loserPlayers[i];
+        const owed = lockedLoserShares[i];
+        if (owed > p.points) throw new TeamMatchConflictError(`Stake exceeds ${p.name}'s balance (would owe ${owed}, has ${p.points})`);
       }
 
       // ELO: use average team ELO, apply same change to all individuals
@@ -182,23 +229,21 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
       ];
       await tx.insert(matchParticipantsTable).values(participantRows);
 
-      // Wager split for uneven teams (e.g. 2v1, 3v2): each LOSING player still
-      // risks and pays exactly `stake`, same as a 1v1 — that's unchanged. But
-      // the old code also credited every WINNING player the full `stake`
-      // regardless of team size, which is only zero-sum when both teams are
-      // the same size. In a 2v1, that paid out 2×stake to the winners while
-      // only 1×stake was taken from the loser — points were being manufactured
-      // out of nowhere every uneven match. Fixed by pooling what the losing
-      // side actually paid in and splitting it evenly across the winning
-      // side; any remainder from an uneven split (pot not divisible by winner
-      // count) goes to the first players in the winning list so the total
-      // credited always exactly equals the total debited. For equal team
-      // sizes (including a plain 1v1) this produces the exact same per-player
-      // amount as before — no behavior change there.
-      const pot = stake * loserPlayers.length;
-      const baseShare = Math.floor(pot / winnerPlayers.length);
-      const remainder = pot - baseShare * winnerPlayers.length;
-      const winnerShares = winnerPlayers.map((_, i) => baseShare + (i < remainder ? 1 : 0));
+      // Wager split for uneven teams (e.g. 2v1, 3v2, or a lone player facing
+      // a pair of separate individuals like Kyle & Cammy rather than a
+      // shared-wallet doubles pair): the pot is stake × the BIGGER side's
+      // size — not just the loser count — because the smaller side is
+      // genuinely outnumbered and should risk/gain more than a flat stake,
+      // the same amount either way regardless of which side ends up
+      // winning. That pot is then split evenly across the losing side
+      // (what each of them pays) and, separately, evenly across the
+      // winning side (what each of them gains) — any remainder from an
+      // uneven split goes to the first players in each list, so the total
+      // credited to winners always exactly equals the total debited from
+      // losers. For equal team sizes (including a plain 1v1) biggerSide
+      // equals both counts, so this reduces to the exact same flat
+      // per-player amount as before — no behavior change there.
+      const { winnerShares, loserShares } = computeWagerShares(stake, winnerPlayers.length, loserPlayers.length);
 
       // Update winner players
       for (let i = 0; i < winnerPlayers.length; i++) {
@@ -223,10 +268,14 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
         }).where(eq(playersTable.id, p.id));
       }
 
-      // Update loser players — each pays the full stake, same as a 1v1
-      const txLoserResults: { id: number; newPoints: number; eliminated: boolean }[] = [];
-      for (const p of loserPlayers) {
-        const newPoints = Math.max(0, p.points - stake);
+      // Update loser players — each pays their own share (flat `stake` for
+      // equal team sizes, more than that for whoever's on the smaller side
+      // of an uneven match — see the pot/share comment above).
+      const txLoserResults: { id: number; newPoints: number; eliminated: boolean; owed: number }[] = [];
+      for (let i = 0; i < loserPlayers.length; i++) {
+        const p = loserPlayers[i];
+        const owed = loserShares[i];
+        const newPoints = Math.max(0, p.points - owed);
         const eliminated = newPoints === 0;
         const newLossStreak = p.currentLossStreak + 1;
         await tx.update(playersTable).set({
@@ -236,14 +285,14 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
           seasonGamesPlayed: p.seasonGamesPlayed + 1,
           careerLosses:      p.careerLosses + 1,
           careerGamesPlayed: p.careerGamesPlayed + 1,
-          careerPoints:      p.careerPoints - stake,
+          careerPoints:      p.careerPoints - owed,
           currentWinStreak:  0,
           currentLossStreak: newLossStreak,
           longestLossStreak: Math.max(p.longestLossStreak, newLossStreak),
           careerBiggestPointsFall: Math.max(p.careerBiggestPointsFall, p.peakPoints - newPoints),
           status:            eliminated ? "ELIMINATED" : p.status,
         }).where(eq(playersTable.id, p.id));
-        txLoserResults.push({ id: p.id, newPoints, eliminated });
+        txLoserResults.push({ id: p.id, newPoints, eliminated, owed });
       }
 
       // If any loser was eliminated, increment elimination count for all winners
@@ -324,8 +373,9 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
     eliminations: loserResults.filter(r => r.eliminated).map(r => r.id),
     // Per-player payout — only meaningful when team sizes differ (equal
     // teams all get the same `stake` share); lets the UI show an accurate
-    // "who got what" instead of assuming a flat stake per winner.
+    // "who got what" instead of assuming a flat stake per winner/loser.
     winnerShares: winnerResults,
+    loserShares:  loserResults.map(r => ({ id: r.id, owed: r.owed })),
     // Keyed by player id so the result screen can look up whichever player
     // is actually viewing (see lib/leaderboardRank.ts).
     rankChanges,

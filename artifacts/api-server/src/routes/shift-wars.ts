@@ -28,6 +28,15 @@ const RecordShiftWarsMatchBody = z.object({
   stake:        z.number().int().min(1), // Rules minimum is 1 — see wager.ts validateStake for why 0 has no legitimate case here.
   gameType:     z.string().optional().default("shift_wars_501"),
   notes:        z.string().optional(),
+  // How many individual players each department actually fielded for this
+  // match. Optional and defaults to 1v1 (a flat stake) — every normal Shift
+  // Wars match (no Uneven Teams toggle) never sends these, since it's
+  // always a single synthetic entry standing in for the whole department.
+  // Once Uneven Teams is toggled the fielded headcount can differ (e.g. 1
+  // player from Fresh vs 3 from Twilight) and the stake scales with it —
+  // see the pot calculation below.
+  winnerFieldedCount: z.number().int().positive().max(6).optional().default(1),
+  loserFieldedCount:  z.number().int().positive().max(6).optional().default(1),
 });
 
 const UpdateTeamPointsBody = z.object({
@@ -151,9 +160,21 @@ router.get("/shift-wars/matches", async (_req, res): Promise<void> => {
 router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
   const parsed = RecordShiftWarsMatchBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
-  const { winnerTeamId, loserTeamId, stake, gameType, notes } = parsed.data;
+  const { winnerTeamId, loserTeamId, stake, gameType, notes, winnerFieldedCount, loserFieldedCount } = parsed.data;
 
   if (winnerTeamId === loserTeamId) { res.status(400).json({ error: "A team cannot play itself" }); return; }
+
+  // Uneven Teams: whichever department fields fewer players still wagers
+  // the SAME flat stake as a balanced match would (there's no shared team
+  // wallet being split further here, unlike Team Match's per-player pot —
+  // Shift Wars always moves points between exactly two department pools).
+  // What scales is the effective stake itself: the pot is stake × the
+  // bigger side's fielded headcount, same principle as a lone player
+  // (Team Match) facing a pair of separate individuals rather than a
+  // shared-wallet doubles pair — outnumbering the other side means risking
+  // (or winning) more, not the same flat amount. A normal match (both
+  // counts default to 1) reduces this to stake × 1 = stake, unchanged.
+  const effectiveStake = stake * Math.max(winnerFieldedCount, loserFieldedCount);
 
   // Locked transaction for the same reason as doubles/matches.ts: reading
   // team balances, computing new ones in JS, and writing them back as
@@ -169,14 +190,14 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
       if (!winner || !loser) throw new ShiftWarsConflictError("One or both teams not found");
 
       const stakeError = validateStake(
-        stake,
+        effectiveStake,
         { points: winner.points, name: winner.name },
         { points: loser.points, name: loser.name },
       );
       if (stakeError) throw new ShiftWarsConflictError(stakeError);
 
       const { newWinnerPoints, newLoserPoints } = applyWager(
-        stake,
+        effectiveStake,
         { points: winner.points },
         { points: loser.points },
       );
@@ -195,9 +216,14 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
         WHERE id = ${loser.id}
       `);
 
+      // Store the effective (already-scaled) stake, not the nominal input —
+      // Shift Wars has no per-side breakdown to show elsewhere the way Team
+      // Match returns winnerShares, so this "stake" column is the only
+      // number the match history/notifications have for how many points
+      // actually moved between the two departments.
       const [match] = (await tx.execute(sql`
         INSERT INTO shift_wars_matches (winner_team_id, loser_team_id, stake, game_type, notes)
-        VALUES (${winner.id}, ${loser.id}, ${stake}, ${gameType}, ${notes ?? null})
+        VALUES (${winner.id}, ${loser.id}, ${effectiveStake}, ${gameType}, ${notes ?? null})
         RETURNING *
       `)).rows as any[];
 
@@ -249,7 +275,7 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
         const roster = rosterRows.rows as any[];
         const winnerPlayerIds = roster.filter(p => p.shift_wars_team_id === winnerTeamId).map(p => p.id);
         const loserPlayerIds  = roster.filter(p => p.shift_wars_team_id === loserTeamId).map(p => p.id);
-        await sendShiftWarsMatchResultNotification(winnerName, loserName, winnerPlayerIds, loserPlayerIds, stake);
+        await sendShiftWarsMatchResultNotification(winnerName, loserName, winnerPlayerIds, loserPlayerIds, effectiveStake);
 
         // Rank-change notifications for whichever department's standing
         // actually moved (see the diff computed above, before this IIFE).
@@ -281,8 +307,8 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
         if (winnerPlayerIds.length > 0) {
           await createAutoPost({
             playerId:        winnerPlayerIds[0],
-            content:         `🎯 ${winnerName} defeated ${loserName} (+${stake} pts)`,
-            autoMeta:        { type: "shift_wars_match", matchId: match.id, winnerTeamId, loserTeamId, stake },
+            content:         `🎯 ${winnerName} defeated ${loserName} (+${effectiveStake} pts)`,
+            autoMeta:        { type: "shift_wars_match", matchId: match.id, winnerTeamId, loserTeamId, stake: effectiveStake },
             notifyPlayerIds: loserPlayerIds,
           });
         }

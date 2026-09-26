@@ -19,8 +19,12 @@ export function validateStake(
   // require a real stake.
   if (!Number.isInteger(stake) || stake < 1)
     return "Stake must be a positive integer (minimum 1)";
-  if (stake > winner.points)
-    return `Stake (${stake}) exceeds ${winner.name}'s balance (${winner.points})`;
+  // Only the loser's balance is actually at risk — applyWager() below only
+  // ever adds to the winner's points, never subtracts, so a winner sitting
+  // on 0pts (a brand-new signup, or someone previously cleaned out) has
+  // nothing to lose by winning and shouldn't block the match. This used to
+  // check the winner's balance too, which meant a 0pt player couldn't even
+  // WIN a wagered match, let alone lose one.
   if (stake > loser.points)
     return `Stake (${stake}) exceeds ${loser.name}'s balance (${loser.points})`;
   return null;

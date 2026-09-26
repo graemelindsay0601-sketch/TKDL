@@ -404,10 +404,44 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     ? [shiftWarsTeam1, shiftWarsTeam2].filter((t): t is ShiftWarsTeam => !!t)
         .map(t => ({ id: t.id, name: t.name, points: t.points, elo: 0, status: "ACTIVE" }))
     : [...team1Players, ...team2Players].filter((p): p is Player => !!p);
-  const maxStake = activePlayers.length > 0 ? Math.min(...activePlayers.map(p => p.points)) : 0;
+  // The lowest-balance cap has to reflect what a player would ACTUALLY owe
+  // if their side loses, not a flat `stake` — and once the sides are
+  // uneven, that isn't flat either. Team Match (/api/team-matches) pools
+  // each loser's full stake and splits it across the winners using
+  // pot = stake × the BIGGER side's size, so a player on the smaller side
+  // ends up paying pot ÷ their own (smaller) side's size — more than a flat
+  // stake per opponent they're outnumbered by (e.g. a 1v2, Graeme risks 2×
+  // stake, not 1×, since Kyle and Cammy are separate individuals, not a
+  // shared wallet). Shift Wars with Uneven Teams toggled works the same way
+  // at the department level: whichever department loses pays stake × the
+  // bigger fielded headcount out of its one shared pool, with no further
+  // split since there's only one pool per side, not several individual
+  // losers. Either way, a player/department sitting on 0pts still shouldn't
+  // veto the match on their own — the backend floors a loser's balance at 0
+  // rather than letting it go negative — so 0-balance participants are
+  // dropped from the cap entirely rather than forcing it to 0.
+  const isTeamVsTeam = format === "1v1" || format === "2v2" || format === "3v3";
+  const biggerSide = Math.max(team1Size, team2Size) || 1;
+  let maxStake: number;
+  if (format === "shift-wars" && unevenActive) {
+    const deptCap = (t: ShiftWarsTeam | null) => t && t.points > 0 ? Math.floor(t.points / biggerSide) : 0;
+    const deptCaps = [deptCap(shiftWarsTeam1), deptCap(shiftWarsTeam2)].filter(c => c > 0);
+    maxStake = deptCaps.length > 0 ? Math.min(...deptCaps) : 0;
+  } else if (isTeamVsTeam) {
+    const sideCap = (p: Player | null, sideSize: number) => p && p.points > 0 ? Math.floor(p.points * sideSize / biggerSide) : 0;
+    const caps = [
+      ...team1Players.map(p => sideCap(p, team1Size)),
+      ...team2Players.map(p => sideCap(p, team2Size)),
+    ].filter(c => c > 0);
+    maxStake = caps.length > 0 ? Math.min(...caps) : 0;
+  } else {
+    const positiveBalances = activePlayers.map(p => p.points).filter(pts => pts > 0);
+    maxStake = positiveBalances.length > 0 ? Math.min(...positiveBalances) : 0;
+  }
+  const hasZeroBalancePlayer = activePlayers.some(p => p.points === 0);
   const stakeN   = parseInt(stake) || 0;
   const stakeErr = activePlayers.length > 0
-    ? (stakeN < 1 ? "Min stake is 1pt" : stakeN > maxStake ? `Max is ${maxStake}pts (lowest balance)` : "")
+    ? (stakeN < 1 ? "Min stake is 1pt" : (maxStake > 0 && stakeN > maxStake) ? `Max is ${maxStake}pts (lowest balance)` : "")
     : "";
 
   // Readiness check
@@ -469,13 +503,14 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       if (!shiftWarsTeam1 || !shiftWarsTeam2) return;
       if (unevenActive) {
         // Real individual players from each department's own roster,
-        // uneven counts allowed — but the result submitted below is
-        // unchanged: still a plain department-vs-department win/loss to
-        // /api/shift-wars/matches, same stake mechanic as always. Shift
-        // Wars pays out to the department's own shared points pool, not to
-        // individual players, so how many people from each side actually
-        // threw the darts doesn't change the payout math at all — only the
-        // live-scored match itself looks different.
+        // uneven counts allowed. The result submitted below is still a
+        // plain department-vs-department win/loss to /api/shift-wars/
+        // matches — Shift Wars pays out to the department's own shared
+        // points pool, not to individual players — but the submit step
+        // (below, near the shift-wars/matches fetch) now also sends each
+        // side's fielded headcount so a losing department fielding fewer
+        // people than the other pays stake × the bigger side's headcount
+        // out of its pool, not a flat stake.
         onStart({
           format: "shift-wars",
           team1: team1Players.filter((p): p is Player => !!p),
@@ -798,7 +833,13 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         <div className="pdc-card p-4" style={{ borderColor: stakeErr ? "rgba(255,0,92,0.3)" : "rgba(255,255,255,0.07)" }}>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>Stake</h2>
-            {activePlayers.length > 0 && <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>Max: {maxStake}pts per player</span>}
+            {activePlayers.length > 0 && (
+              <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
+                {maxStake > 0
+                  ? `Max: ${maxStake}pts per player${hasZeroBalancePlayer ? " (0pt players can't lose further)" : ""}`
+                  : "No balance cap — all selected players are at 0pts"}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <input
@@ -815,20 +856,28 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                 ? `Winner gets +${stakeN}pts from loser`
                 // Shift Wars always wagers department-vs-department — the
                 // stake moves between the two departments' own shared point
-                // pools (shift-wars.ts's applyWager) no matter how many
-                // individual players from each side actually threw, so this
-                // stays a flat stake regardless of unevenActive/team size.
+                // pools (shift-wars.ts's applyWager). With Uneven Teams
+                // toggled, the fielded headcount can differ (e.g. 1 player
+                // from Fresh vs 3 from Twilight), and the losing department
+                // pays stake × the bigger side's fielded count out of its
+                // one shared pool — not a flat stake — so a department that
+                // deliberately fields fewer people risks/gains more per
+                // match. With no size mismatch (or the toggle off), that
+                // multiplier is just 1 and it's a flat stake, same as ever.
                 : format === "shift-wars"
-                ? `Losing department pays ${stakeN}pts · winning department gains ${stakeN}pts`
+                ? (unevenActive && team1Size !== team2Size)
+                  ? `Losing department pays ${stakeN * Math.max(team1Size, team2Size)}pts (stake × ${Math.max(team1Size, team2Size)}, the bigger side's headcount) · winning department gains the same`
+                  : `Losing department pays ${stakeN}pts · winning department gains ${stakeN}pts`
                 // Uneven Teams' payout isn't a flat ±stake per player once
                 // the sides aren't the same size — /api/team-matches (the
                 // same endpoint this format submits to, see
-                // TeamModeSubmitSection in submit-match.tsx) pools each
-                // loser's full stake and splits it across the winners, so
-                // an uneven side changes who gets how much even though
-                // everyone still pays/receives from the SAME stake value.
+                // TeamModeSubmitSection in submit-match.tsx) pools the pot
+                // as stake × the BIGGER side's size and splits it across the
+                // winners, so a lone player facing a pair (Kyle & Cammy,
+                // separate wallets, not a shared doubles-team pool) risks
+                // and gains double a flat stake, not the same as them.
                 : (team1Size !== team2Size)
-                ? `Each loser pays ${stakeN}pts into a pot, split across the winners`
+                ? `Losing side pays ${stakeN * Math.max(team1Size, team2Size)}pts total into a pot, split across the winners — the smaller side risks more per player`
                 : `Each loser pays ${stakeN}pts · each winner gains ${stakeN}pts`}
             </p>
           )}
@@ -1102,6 +1151,14 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         const [team1Id, team2Id] = data.shiftWarsTeamIds;
         const winnerTeamId = result.winnerIdx === 0 ? team1Id : team2Id;
         const loserTeamId  = result.winnerIdx === 0 ? team2Id : team1Id;
+        // data.team1/data.team2 are the real fielded rosters when Uneven
+        // Teams was toggled (a single synthetic entry otherwise, length 1),
+        // so their lengths double as each side's fielded headcount — the
+        // backend scales the department-vs-department stake by the bigger
+        // side's headcount instead of treating it as flat once the sides
+        // are uneven (see shift-wars.ts).
+        const winnerFieldedCount = result.winnerIdx === 0 ? data.team1.length : data.team2.length;
+        const loserFieldedCount  = result.winnerIdx === 0 ? data.team2.length : data.team1.length;
         const shiftWarsResult = await fetch("/api/shift-wars/matches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1110,6 +1167,8 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
             loserTeamId,
             stake:    data.stake,
             gameType: data.gameType.key,
+            winnerFieldedCount,
+            loserFieldedCount,
           }),
         }).then(async r => {
           if (!r.ok) {
