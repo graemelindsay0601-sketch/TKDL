@@ -25,13 +25,20 @@ type Format = "1v1" | "2v2" | "3v3" | "uneven-teams" | "killer-ffa" | "doubles-e
 
 type SetupData = {
   format: Format;
-  team1: Player[];   // 1v1: [p1]; 2v2: [a,b]; 3v3: [a,b,c]; killer-ffa: all players; doubles-event: fixed draw team A's members; shift-wars: single synthetic entry standing in for the department team
+  team1: Player[];   // 1v1: [p1]; 2v2: [a,b]; 3v3: [a,b,c]; killer-ffa: all players; doubles-event: fixed draw team A's members; shift-wars: a single synthetic entry standing in for the department, or — with unevenTurnOrder — the real players fielded from it
   team2: Player[];   // killer-ffa: empty; doubles-event: fixed draw team B's members; shift-wars: same as team1 but for the other department
   gameType: GameTypeOption;
   stake: number;
   bullUp?: boolean;
   doublesTeamIds?: [number, number]; // doubles-event only: [team1Id, team2Id] for the season's fixed random-draw teams
   shiftWarsTeamIds?: [number, number]; // shift-wars only: [team1Id, team2Id] for the 3 fixed department teams
+  // Set whenever the match was set up through the Uneven Teams toggle with a
+  // format that stays literal at submission (currently just shift-wars —
+  // the 1v1/2v2/3v3 path instead relabels format itself to "uneven-teams",
+  // which is why this is a separate flag rather than the only signal).
+  // Drives the live scorer's full-pass turn order the same way format
+  // === "uneven-teams" does.
+  unevenTurnOrder?: boolean;
 };
 
 type EquippedCards = {
@@ -146,7 +153,11 @@ function DoublesTeamSlot({ label, color, value, onChange, exclude, teams }: {
 
 
 // ── Shift Wars: log a result for one of the 3 fixed department teams ───────────
-type ShiftWarsTeam = { id: number; name: string; points: number; wins: number; losses: number };
+// `players` mirrors what GET /shift-wars/teams already returns (routes/shift-wars.ts
+// joins the department roster in) — wasn't captured here until Uneven Teams
+// needed to know who's actually on each department, to field a real per-player
+// roster instead of always treating the whole department as a single player.
+type ShiftWarsTeam = { id: number; name: string; points: number; wins: number; losses: number; players: { id: number; name: string }[] };
 
 function useShiftWarsTeamsForPlay() {
   const [teams, setTeams]   = useState<ShiftWarsTeam[]>([]);
@@ -311,6 +322,19 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     setUnevenToggle(false);
   }, [format]);
 
+  // Shift Wars' Uneven Teams roster is scoped to whichever two departments
+  // are picked — changing either one invalidates any roster picks already
+  // made (they may not even belong to the new department), so clear them
+  // and drop back to a clean 1-a-side starting point rather than leaving
+  // stale, possibly-wrong picks selected underneath.
+  useEffect(() => {
+    if (format !== "shift-wars") return;
+    setTeam1Ids(["", "", "", "", "", ""]);
+    setTeam2Ids(["", "", "", "", "", ""]);
+    setUnevenCount1(1);
+    setUnevenCount2(1);
+  }, [format, shiftWarsTeam1Id, shiftWarsTeam2Id]);
+
   // Only the ranked 1v1 Competitive ladder should hide ELIMINATED players
   // (0 points this season) — everywhere else (1v1 Practice/Party/Mini-Games,
   // 2v2/3v3 Team Games, Killer FFA) is casual and unaffected by singles-ladder
@@ -337,15 +361,30 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const allSelected = [...allTeam1, ...allTeam2, ...allFfa];
 
   const teamSize = format === "2v2" ? 2 : format === "3v3" ? 3 : 1;
-  // Uneven Teams is a toggle on top of Singles/2v2/3v3, not its own format —
-  // see the Switch rendered in the player-selection section below.
-  const unevenEligible = format === "1v1" || format === "2v2" || format === "3v3";
+  // Uneven Teams is a toggle on top of Singles/2v2/3v3/Shift Wars, not its
+  // own format — see the Switch rendered in the player-selection section
+  // below. Shift Wars is the one case with an extra prerequisite: you can
+  // only field a real per-player roster once you've picked which two
+  // departments are actually facing off (see the toggle's render condition).
+  const unevenEligible = format === "1v1" || format === "2v2" || format === "3v3" || format === "shift-wars";
   const unevenActive   = unevenEligible && unevenToggle && unevenTeamsEnabled;
   // When active, each side has its own independent size instead of the
   // format's shared teamSize — this is the one case where the two sides
   // aren't required to match.
   const team1Size = unevenActive ? unevenCount1 : teamSize;
   const team2Size = unevenActive ? unevenCount2 : teamSize;
+  // Shift Wars' free player pool is each department's own assigned roster,
+  // not the whole player base — you can't field someone from Twilight on
+  // Fresh's side of the match. Every other uneven-eligible format keeps the
+  // normal free pick from the full active player list.
+  const swRoster1 = shiftWarsTeam1 ? players.filter(p => shiftWarsTeam1.players.some(sp => sp.id === p.id)) : [];
+  const swRoster2 = shiftWarsTeam2 ? players.filter(p => shiftWarsTeam2.players.some(sp => sp.id === p.id)) : [];
+  const unevenPool1 = format === "shift-wars" ? swRoster1 : players;
+  const unevenPool2 = format === "shift-wars" ? swRoster2 : players;
+  // Capped at 6 either way — team1Ids/team2Ids are fixed 6-slot arrays, the
+  // same ceiling /api/team-matches already enforces for winnerIds/loserIds.
+  const unevenCap1  = format === "shift-wars" ? Math.max(1, Math.min(6, swRoster1.length)) : 6;
+  const unevenCap2  = format === "shift-wars" ? Math.max(1, Math.min(6, swRoster2.length)) : 6;
 
   // Resolve selected player objects
   const resolveTeam = (ids: string[], size: number): (Player | null)[] =>
@@ -378,7 +417,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const team2Ready = (format === "1v1" && !unevenActive) ? true : team2Players.every(Boolean);
   const ffaReady   = format === "killer-ffa" && ffaPlayers.every(Boolean) && new Set(ffaIds.slice(0, ffaCount).filter(Boolean)).size === ffaCount;
   const doublesReady = format === "doubles-event" && !!doublesTeam1 && !!doublesTeam2 && doublesTeam1.id !== doublesTeam2.id;
-  const shiftWarsReady = format === "shift-wars" && !!shiftWarsTeam1 && !!shiftWarsTeam2 && shiftWarsTeam1.id !== shiftWarsTeam2.id;
+  const shiftWarsReady = format === "shift-wars" && !!shiftWarsTeam1 && !!shiftWarsTeam2 && shiftWarsTeam1.id !== shiftWarsTeam2.id
+    && (!unevenActive || (team1Players.every(Boolean) && team2Players.every(Boolean)));
 
   const playersReady = format === "killer-ffa" ? ffaReady
     : format === "doubles-event" ? doublesReady
@@ -427,6 +467,27 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       });
     } else if (format === "shift-wars") {
       if (!shiftWarsTeam1 || !shiftWarsTeam2) return;
+      if (unevenActive) {
+        // Real individual players from each department's own roster,
+        // uneven counts allowed — but the result submitted below is
+        // unchanged: still a plain department-vs-department win/loss to
+        // /api/shift-wars/matches, same stake mechanic as always. Shift
+        // Wars pays out to the department's own shared points pool, not to
+        // individual players, so how many people from each side actually
+        // threw the darts doesn't change the payout math at all — only the
+        // live-scored match itself looks different.
+        onStart({
+          format: "shift-wars",
+          team1: team1Players.filter((p): p is Player => !!p),
+          team2: team2Players.filter((p): p is Player => !!p),
+          gameType: selectedGame,
+          stake: stakeN,
+          bullUp,
+          shiftWarsTeamIds: [shiftWarsTeam1.id, shiftWarsTeam2.id],
+          unevenTurnOrder: true,
+        });
+        return;
+      }
       const shim = (t: ShiftWarsTeam): Player[] => [{ id: t.id, name: t.name, points: t.points, elo: 0, status: "ACTIVE" }];
       onStart({
         format,
@@ -519,8 +580,11 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
            deliberately avoided in the copy — custom-handicap-picker.tsx's
            1v1 Custom/Handicap tile already owns that word for a different
            mechanic (different starting scores per player, not different
-           side sizes) — see uneven-teams-picker.tsx's own header. */}
-        {unevenEligible && unevenTeamsEnabled && (
+           side sizes) — see uneven-teams-picker.tsx's own header. Shift
+           Wars additionally needs both departments picked first (below)
+           before it can offer a real per-player roster to build. */}
+        {unevenEligible && unevenTeamsEnabled
+          && (format !== "shift-wars" || (!!shiftWarsTeam1 && !!shiftWarsTeam2 && swRoster1.length > 0 && swRoster2.length > 0)) && (
           <button
             type="button"
             onClick={() => {
@@ -585,67 +649,6 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           </div>
         )}
 
-        {/* Uneven Teams active — independently sized rosters per side, 1-6 each */}
-        {unevenActive && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-4">
-              {/* Side A */}
-              <div className="space-y-2">
-                <div className="text-xs font-bold uppercase text-center py-1 rounded" style={{ background: "rgba(34,197,94,0.08)", color: "#22c55e", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>Side A</div>
-                {Array.from({ length: unevenCount1 }).map((_, i) => (
-                  <PlayerSlot key={i} label={`Player ${i + 1}`} color="#22c55e"
-                    value={team1Ids[i]} onChange={v => updateTeam(1, i, v)}
-                    exclude={allSelected.filter(id => id !== team1Ids[i])} players={players} />
-                ))}
-                <div className="flex gap-2">
-                  <button type="button" disabled={unevenCount1 >= 6}
-                    onClick={() => setUnevenCount1(n => Math.min(6, n + 1))}
-                    className="flex-1 py-2 rounded-lg text-xs font-bold uppercase"
-                    style={{ fontFamily: "Oswald, sans-serif", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)", color: unevenCount1 >= 6 ? "rgba(34,197,94,0.3)" : "#22c55e", cursor: unevenCount1 >= 6 ? "not-allowed" : "pointer" }}>
-                    + Add player
-                  </button>
-                  {unevenCount1 > 1 && (
-                    <button type="button"
-                      onClick={() => { updateTeam(1, unevenCount1 - 1, ""); setUnevenCount1(n => n - 1); }}
-                      className="px-3 py-2 rounded-lg text-xs font-bold uppercase"
-                      style={{ fontFamily: "Oswald, sans-serif", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)", cursor: "pointer" }}>
-                      −
-                    </button>
-                  )}
-                </div>
-              </div>
-              {/* Side B */}
-              <div className="space-y-2">
-                <div className="text-xs font-bold uppercase text-center py-1 rounded" style={{ background: "rgba(238,10,120,0.08)", color: "#ee0a78", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>Side B</div>
-                {Array.from({ length: unevenCount2 }).map((_, i) => (
-                  <PlayerSlot key={i} label={`Player ${i + 1}`} color="#ee0a78"
-                    value={team2Ids[i]} onChange={v => updateTeam(2, i, v)}
-                    exclude={allSelected.filter(id => id !== team2Ids[i])} players={players} />
-                ))}
-                <div className="flex gap-2">
-                  <button type="button" disabled={unevenCount2 >= 6}
-                    onClick={() => setUnevenCount2(n => Math.min(6, n + 1))}
-                    className="flex-1 py-2 rounded-lg text-xs font-bold uppercase"
-                    style={{ fontFamily: "Oswald, sans-serif", background: "rgba(238,10,120,0.08)", border: "1px solid rgba(238,10,120,0.25)", color: unevenCount2 >= 6 ? "rgba(238,10,120,0.3)" : "#ee0a78", cursor: unevenCount2 >= 6 ? "not-allowed" : "pointer" }}>
-                    + Add player
-                  </button>
-                  {unevenCount2 > 1 && (
-                    <button type="button"
-                      onClick={() => { updateTeam(2, unevenCount2 - 1, ""); setUnevenCount2(n => n - 1); }}
-                      className="px-3 py-2 rounded-lg text-xs font-bold uppercase"
-                      style={{ fontFamily: "Oswald, sans-serif", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)", cursor: "pointer" }}>
-                      −
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-            <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
-              Sides don't need to match — each side shares one running score, and the bigger side simply gets more throws per round from having more people to get through.
-            </p>
-          </div>
-        )}
-
         {/* Doubles Event — pick from the season's fixed random-draw teams */}
         {format === "doubles-event" && (
           !doublesTeamsLoaded ? (
@@ -664,7 +667,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           )
         )}
 
-        {/* Shift Wars — pick 2 of the 3 fixed department teams */}
+        {/* Shift Wars — pick 2 of the 3 fixed department teams. The Uneven
+           Teams roster builder (below) needs to know which two before it
+           can offer any players to pick from, so this always renders first. */}
         {format === "shift-wars" && (
           !shiftWarsTeamsLoaded ? (
             <div className="text-sm py-6 text-center" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Loading teams…</div>
@@ -673,13 +678,89 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
               No Shift Wars teams yet — ask an admin to set them up first.
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <ShiftWarsTeamSlot label="Team 1" color="#22c55e" value={shiftWarsTeam1Id} onChange={setShiftWarsTeam1Id}
-                exclude={[shiftWarsTeam2Id].filter(Boolean)} teams={shiftWarsTeams} />
-              <ShiftWarsTeamSlot label="Team 2" color="#ee0a78" value={shiftWarsTeam2Id} onChange={setShiftWarsTeam2Id}
-                exclude={[shiftWarsTeam1Id].filter(Boolean)} teams={shiftWarsTeams} />
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <ShiftWarsTeamSlot label="Team 1" color="#22c55e" value={shiftWarsTeam1Id} onChange={setShiftWarsTeam1Id}
+                  exclude={[shiftWarsTeam2Id].filter(Boolean)} teams={shiftWarsTeams} />
+                <ShiftWarsTeamSlot label="Team 2" color="#ee0a78" value={shiftWarsTeam2Id} onChange={setShiftWarsTeam2Id}
+                  exclude={[shiftWarsTeam1Id].filter(Boolean)} teams={shiftWarsTeams} />
+              </div>
+              {unevenTeamsEnabled && shiftWarsTeam1 && shiftWarsTeam2 && (swRoster1.length === 0 || swRoster2.length === 0) && (
+                <p className="text-xs" style={{ color: "rgba(255,210,74,0.6)", fontFamily: "Oswald, sans-serif" }}>
+                  {swRoster1.length === 0 ? shiftWarsTeam1.name : shiftWarsTeam2.name} has no players assigned yet — an admin needs to add some (Admin → Shift Wars) before Uneven Teams can build a roster for this pairing.
+                </p>
+              )}
             </div>
           )
+        )}
+
+        {/* Uneven Teams active — independently sized rosters per side, 1-6
+           each for Singles/2v2/3v3, capped at each department's own roster
+           size for Shift Wars (see unevenPool1/2 + unevenCap1/2 above). */}
+        {unevenActive && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-4">
+              {/* Side A */}
+              <div className="space-y-2">
+                <div className="text-xs font-bold uppercase text-center py-1 rounded" style={{ background: "rgba(34,197,94,0.08)", color: "#22c55e", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                  {format === "shift-wars" && shiftWarsTeam1 ? shiftWarsTeam1.name : "Side A"}
+                </div>
+                {Array.from({ length: unevenCount1 }).map((_, i) => (
+                  <PlayerSlot key={i} label={`Player ${i + 1}`} color="#22c55e"
+                    value={team1Ids[i]} onChange={v => updateTeam(1, i, v)}
+                    exclude={allSelected.filter(id => id !== team1Ids[i])} players={unevenPool1} />
+                ))}
+                <div className="flex gap-2">
+                  <button type="button" disabled={unevenCount1 >= unevenCap1}
+                    onClick={() => setUnevenCount1(n => Math.min(unevenCap1, n + 1))}
+                    className="flex-1 py-2 rounded-lg text-xs font-bold uppercase"
+                    style={{ fontFamily: "Oswald, sans-serif", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)", color: unevenCount1 >= unevenCap1 ? "rgba(34,197,94,0.3)" : "#22c55e", cursor: unevenCount1 >= unevenCap1 ? "not-allowed" : "pointer" }}>
+                    + Add player
+                  </button>
+                  {unevenCount1 > 1 && (
+                    <button type="button"
+                      onClick={() => { updateTeam(1, unevenCount1 - 1, ""); setUnevenCount1(n => n - 1); }}
+                      className="px-3 py-2 rounded-lg text-xs font-bold uppercase"
+                      style={{ fontFamily: "Oswald, sans-serif", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)", cursor: "pointer" }}>
+                      −
+                    </button>
+                  )}
+                </div>
+              </div>
+              {/* Side B */}
+              <div className="space-y-2">
+                <div className="text-xs font-bold uppercase text-center py-1 rounded" style={{ background: "rgba(238,10,120,0.08)", color: "#ee0a78", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                  {format === "shift-wars" && shiftWarsTeam2 ? shiftWarsTeam2.name : "Side B"}
+                </div>
+                {Array.from({ length: unevenCount2 }).map((_, i) => (
+                  <PlayerSlot key={i} label={`Player ${i + 1}`} color="#ee0a78"
+                    value={team2Ids[i]} onChange={v => updateTeam(2, i, v)}
+                    exclude={allSelected.filter(id => id !== team2Ids[i])} players={unevenPool2} />
+                ))}
+                <div className="flex gap-2">
+                  <button type="button" disabled={unevenCount2 >= unevenCap2}
+                    onClick={() => setUnevenCount2(n => Math.min(unevenCap2, n + 1))}
+                    className="flex-1 py-2 rounded-lg text-xs font-bold uppercase"
+                    style={{ fontFamily: "Oswald, sans-serif", background: "rgba(238,10,120,0.08)", border: "1px solid rgba(238,10,120,0.25)", color: unevenCount2 >= unevenCap2 ? "rgba(238,10,120,0.3)" : "#ee0a78", cursor: unevenCount2 >= unevenCap2 ? "not-allowed" : "pointer" }}>
+                    + Add player
+                  </button>
+                  {unevenCount2 > 1 && (
+                    <button type="button"
+                      onClick={() => { updateTeam(2, unevenCount2 - 1, ""); setUnevenCount2(n => n - 1); }}
+                      className="px-3 py-2 rounded-lg text-xs font-bold uppercase"
+                      style={{ fontFamily: "Oswald, sans-serif", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)", cursor: "pointer" }}>
+                      −
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
+              {format === "shift-wars"
+                ? "Sides don't need to match — pick real players from each department's own roster. The department result and wager are unaffected by headcount; only who's actually throwing does."
+                : "Sides don't need to match — each side shares one running score, and the bigger side simply gets more throws per round from having more people to get through."}
+            </p>
+          </div>
         )}
 
         {/* Killer FFA */}
@@ -732,6 +813,13 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
             <p className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
               {format === "1v1"
                 ? `Winner gets +${stakeN}pts from loser`
+                // Shift Wars always wagers department-vs-department — the
+                // stake moves between the two departments' own shared point
+                // pools (shift-wars.ts's applyWager) no matter how many
+                // individual players from each side actually threw, so this
+                // stays a flat stake regardless of unevenActive/team size.
+                : format === "shift-wars"
+                ? `Losing department pays ${stakeN}pts · winning department gains ${stakeN}pts`
                 // Uneven Teams' payout isn't a flat ±stake per player once
                 // the sides aren't the same size — /api/team-matches (the
                 // same endpoint this format submits to, see
@@ -1074,7 +1162,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
     if (!autoFired) { setAutoFired(true); void submit(); }
   }, []);
 
-  const formatLabel = data.format === "1v1" ? "1v1" : data.format === "2v2" ? "2v2 Doubles" : data.format === "3v3" ? "3v3 Triples" : data.format === "uneven-teams" ? `Uneven Teams (${data.team1.length}v${data.team2.length})` : data.format === "doubles-event" ? "Doubles Event" : data.format === "shift-wars" ? "Shift Wars" : `Killer ${data.team1.length}-player`;
+  const formatLabel = data.format === "1v1" ? "1v1" : data.format === "2v2" ? "2v2 Doubles" : data.format === "3v3" ? "3v3 Triples" : data.format === "uneven-teams" ? `Uneven Teams (${data.team1.length}v${data.team2.length})` : data.format === "doubles-event" ? "Doubles Event" : data.format === "shift-wars" ? (data.unevenTurnOrder ? `Shift Wars (${data.team1.length}v${data.team2.length})` : "Shift Wars") : `Killer ${data.team1.length}-player`;
 
   return (
     <div className="max-w-lg mx-auto space-y-6 text-center">
@@ -1304,13 +1392,18 @@ export default function Play() {
       ? [setupData.team1.map(p => p.name), setupData.team2.map(p => p.name)]
       : undefined;
 
-    // Uneven Teams is the only format where the two sides can be different
-    // sizes — see scorers.tsx's TeamX01Scorer/TeamCricketScorer turnOrder
-    // doc for what "full-pass" actually changes. Every other team format
-    // (2v2/3v3/Doubles Event/Shift Wars) leaves this undefined, so their
-    // turn order is completely unchanged from before this format existed.
+    // Uneven Teams sides can be different sizes — see scorers.tsx's
+    // TeamX01Scorer/TeamCricketScorer turnOrder doc for what "full-pass"
+    // actually changes. The 1v1/2v2/3v3 path signals this by relabeling
+    // format itself to "uneven-teams"; Shift Wars keeps format literal
+    // (its result still needs to post to /api/shift-wars/matches, not
+    // /api/team-matches), so it signals the same thing via unevenTurnOrder
+    // instead — see SetupData's own comment for why there are two signals.
+    // Every plain team format (2v2/3v3/Doubles Event/ordinary Shift Wars)
+    // leaves this undefined, so their turn order is unchanged from before
+    // Uneven Teams existed.
     const teamTurnOrder: "alternate" | "full-pass" | undefined =
-      setupData.format === "uneven-teams" ? "full-pass" : undefined;
+      (setupData.format === "uneven-teams" || setupData.unevenTurnOrder) ? "full-pass" : undefined;
 
     const playerNames: string[] | undefined = isKillerFfa
       ? setupData.team1.map(p => p.name)
