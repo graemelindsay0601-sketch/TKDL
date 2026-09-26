@@ -8069,11 +8069,30 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
 // ── Team X01 Scorer ────────────────────────────────────────────────────────────
 const TEAM_COLORS: [string, string] = ["#22c55e", "#ee0a78"];
 
-export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
+export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, turnOrder = "alternate" }: {
   teamNames: [string[], string[]];
   config: { startingScore: number; doubleOut?: boolean; doubleIn?: boolean };
   onWin: (w: 0|1, detail?: string) => void;
   onAbandon: () => void;
+  /**
+   * "alternate" (default — unchanged 2v2/3v3/existing-format behaviour):
+   * the turn passes to the OTHER side after every single visit, regardless
+   * of team size. Fine when both sides are the same size, since everyone
+   * still gets an equal share of turns over time either way.
+   *
+   * "full-pass" (new — Uneven Teams, play.tsx): the turn only passes to
+   * the other side once every one of the CURRENT side's own members has
+   * had a visit this cycle — a 1-player side gets one visit per cycle, a
+   * 2-player side gets two, and so on, before it hands back. This is what
+   * turns an uneven side (say 1 v 2) into a real handicap rather than a
+   * wash: the bigger side gets more darts per cycle purely from having
+   * more people to get through, with no special scoring maths on top.
+   * Real user request, confirmed against a walked-through scenario before
+   * building it: Graeme (solo) vs Kyle & Cammy, 501 each — Graeme throws,
+   * then Kyle throws, then Cammy throws, THEN it's back to Graeme, not
+   * strict turn-for-turn alternation between the two sides.
+   */
+  turnOrder?: "alternate" | "full-pass";
 }) {
   const safeTimeout = useSafeTimeout();
   const { startingScore = 501, doubleOut = true } = config;
@@ -8090,17 +8109,25 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
     return true;
   }, [doubleOut]);
 
-  const advanceTurn = useCallback((capturedTeam: 0|1) => {
+  const advanceTurn = useCallback((capturedTeam: 0|1, sideCompletedFullPass: boolean) => {
     setPlayerIdx(prev => {
       const n: [number,number] = [...prev] as [number,number];
       n[capturedTeam] = (n[capturedTeam] + 1) % teamNames[capturedTeam].length;
       return n;
     });
-    setTeamTurn(t => t === 0 ? 1 : 0);
+    // See this component's own turnOrder doc above — "alternate" always
+    // hands over; "full-pass" only hands over once this side has looped
+    // back round to its own first player (sideCompletedFullPass, computed
+    // by the caller from the SAME playerIdx this update is about to move
+    // on from, since the state setter above hasn't landed yet when this
+    // runs).
+    if (turnOrder === "alternate" || sideCompletedFullPass) {
+      setTeamTurn(t => t === 0 ? 1 : 0);
+    }
     setVisitDarts([]);
     setBust(false);
     setBustMsg("");
-  }, [teamNames]);
+  }, [teamNames, turnOrder]);
 
   const handleDart = useCallback((dart: Dart) => {
     if (bust || visitDarts.length >= 3) return;
@@ -8108,12 +8135,18 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
     const nv = [...visitDarts, dart];
     const cum = nv.reduce((s, d) => s + d.value, 0);
     const rem = scores[capturedTeam] - cum;
+    // Whether this visit is the last one in the current side's own
+    // rotation before it loops back to its first player — see
+    // advanceTurn's turnOrder doc for why this gates the handover in
+    // "full-pass" mode. Computed from the CURRENT playerIdx (pre-advance)
+    // since that's what determines where the NEXT advance lands.
+    const sideCompletedFullPass = (playerIdx[capturedTeam] + 1) % teamNames[capturedTeam].length === 0;
 
     if (rem < 0 || (rem === 1 && doubleOut)) {
       setBust(true);
       setBustMsg(rem < 0 ? "BUST — overshot!" : "BUST — can't leave 1!");
       setVisitDarts(nv);
-      safeTimeout(() => advanceTurn(capturedTeam), 1500);
+      safeTimeout(() => advanceTurn(capturedTeam, sideCompletedFullPass), 1500);
       return;
     }
     if (rem === 0) {
@@ -8124,7 +8157,7 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
         setBust(true);
         setBustMsg(doubleOut ? "BUST — must finish on a double!" : "BUST!");
         setVisitDarts(nv);
-        safeTimeout(() => advanceTurn(capturedTeam), 1500);
+        safeTimeout(() => advanceTurn(capturedTeam, sideCompletedFullPass), 1500);
       }
       return;
     }
@@ -8132,7 +8165,7 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
     if (nv.length === 3) {
       setScores(prev => { const n: [number,number] = [...prev] as [number,number]; n[capturedTeam] -= cum; return n; });
       setHistory(h => [...h, { team: capturedTeam, player: playerIdx[capturedTeam], score: cum, left: rem }]);
-      advanceTurn(capturedTeam);
+      advanceTurn(capturedTeam, sideCompletedFullPass);
     }
   }, [bust, visitDarts, teamTurn, scores, playerIdx, doubleOut, isValidOut, advanceTurn, onWin, teamNames]);
 
@@ -8217,11 +8250,13 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon }: {
 }
 
 // ── Team Cricket Scorer ────────────────────────────────────────────────────────
-export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAbandon }: {
+export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAbandon, turnOrder = "alternate" }: {
   teamNames: [string[], string[]];
   cutThroat?: boolean;
   onWin: (w: 0|1, detail?: string) => void;
   onAbandon: () => void;
+  /** Same "alternate" (unchanged default) / "full-pass" (new, Uneven Teams) turn-handover choice as TeamX01Scorer — see that component's own doc comment for the full reasoning. */
+  turnOrder?: "alternate" | "full-pass";
 }) {
   const safeTimeout = useSafeTimeout();
   const [marks, setMarks]           = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
@@ -8279,12 +8314,18 @@ export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAband
     if (nv.length === 3) {
       setVisitDarts([]);
       setLastHit("");
+      // Same "full-pass" gate as TeamX01Scorer's advanceTurn — computed
+      // from the CURRENT (pre-advance) playerIdx, since that's what
+      // determines where this side's rotation lands next.
+      const sideCompletedFullPass = (playerIdx[capturedTeam] + 1) % teamNames[capturedTeam].length === 0;
       setPlayerIdx(prev => {
         const n: [number,number] = [...prev] as [number,number];
         n[capturedTeam] = (n[capturedTeam] + 1) % teamNames[capturedTeam].length;
         return n;
       });
-      setTeamTurn(t => t === 0 ? 1 : 0);
+      if (turnOrder === "alternate" || sideCompletedFullPass) {
+        setTeamTurn(t => t === 0 ? 1 : 0);
+      }
     }
 
     safeTimeout(() => {
@@ -8297,7 +8338,7 @@ export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAband
         return m;
       });
     }, 50);
-  }, [visitDarts, teamTurn, cutThroat, teamNames, onWin, checkWin]);
+  }, [visitDarts, teamTurn, cutThroat, teamNames, onWin, checkWin, playerIdx, turnOrder]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => { if (visitDarts.length > 0) setVisitDarts(p => p.slice(0, -1)); };

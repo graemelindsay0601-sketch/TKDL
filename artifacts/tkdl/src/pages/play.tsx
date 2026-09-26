@@ -7,6 +7,7 @@ import { useSettings } from "@/hooks/use-settings";
 import { Swords, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, AlertCircle, User, Building2 } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
 import { CustomHandicapCard, CUSTOM_HANDICAP_KEY } from "@/components/custom-handicap-picker";
+import { UnevenX01Card, UnevenCricketCard, UNEVEN_X01_KEY, UNEVEN_CRICKET_KEY } from "@/components/uneven-teams-picker";
 import { RulesModal } from "@/components/rules-modal";
 import { MatchStatsCard } from "@/components/match-stats-card";
 import { CardEquipmentSelector } from "@/components/CardEquipmentSelector";
@@ -20,7 +21,7 @@ const PLAY_SNAPSHOT_KEY = "tkdl_play_snapshot";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Player = { id: number; name: string; points: number; elo: number; status: string };
-type Format = "1v1" | "2v2" | "3v3" | "killer-ffa" | "doubles-event" | "shift-wars";
+type Format = "1v1" | "2v2" | "3v3" | "uneven-teams" | "killer-ffa" | "doubles-event" | "shift-wars";
 
 type SetupData = {
   format: Format;
@@ -54,6 +55,13 @@ const FORMAT_OPTIONS: { key: Format; label: string; icon: string; desc: string; 
   { key: "1v1",        label: "1v1",             icon: "👤",  desc: "Head to head",                                          color: "#ff005c" },
   { key: "2v2",        label: "2v2 Team Game",   icon: "👥",  desc: "Any 2 players vs any 2 — casual, one-off",              color: "#38bdf8" },
   { key: "3v3",        label: "3v3 Triples",     icon: "👥",  desc: "Teams of 3 — casual, one-off",                          color: "#a78bfa" },
+  // "Handicap" is deliberately avoided here — custom-handicap-picker.tsx's
+  // 1v1 Custom/Handicap tile already owns that word for a different
+  // mechanic (different starting scores per player). This one keeps both
+  // sides on the same starting score; the edge for the bigger side is
+  // extra throws per round, not a score head start — see
+  // uneven-teams-picker.tsx's own header.
+  { key: "uneven-teams", label: "Uneven Teams", icon: "⚖️",  desc: "Any side size vs any side — e.g. 1v2 — bigger side gets more throws", color: "#f97316" },
   { key: "doubles-event", label: "Doubles Event", icon: "🎯", desc: "Official season event — fixed random-draw teams",       color: "#0066ff" },
   { key: "shift-wars", label: "Shift Wars", icon: "🏬",       desc: "Fixed department teams — Fresh, Twilight, Shift Leader", color: "#22c55e" },
   { key: "killer-ffa", label: "Killer Free-for-All", icon: "💀", desc: "3–6 individual players",                             color: "#ef4444" },
@@ -63,6 +71,7 @@ const TEAM_CATEGORIES: Record<Format, string[]> = {
   "1v1":            ["competitive", "practice", "party", "mini-games"],
   "2v2":            ["team"],
   "3v3":            ["team"],
+  "uneven-teams":   ["uneven"],
   "killer-ffa":     ["team"],
   "doubles-event":  ["team"],
   "shift-wars":     ["team"],
@@ -77,6 +86,7 @@ const TABS_BY_FORMAT: Record<Format, { key: string; label: string }[]> = {
   ],
   "2v2":            [{ key: "team", label: "Team Games" }],
   "3v3":            [{ key: "team", label: "Team Games" }],
+  "uneven-teams":   [{ key: "uneven", label: "Uneven Teams" }],
   "killer-ffa":     [{ key: "team", label: "Killer" }],
   "doubles-event":  [{ key: "team", label: "Team Games" }],
   "shift-wars":     [{ key: "team", label: "Team Games" }],
@@ -246,13 +256,30 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const { data: appSettings }  = useSettings();
   const doublesEventEnabled    = appSettings?.doubles_event_enabled ?? true;
   const shiftWarsEnabled       = appSettings?.shift_wars_enabled ?? false;
+  // Off by default, same as Shift Wars — Uneven Teams is brand new and still
+  // being tested (Admin → Feature Flags → Beta Features), so it's kept out
+  // of the Format list everyone else sees until it's explicitly turned on.
+  // This is what keeps it from getting mixed up with the formats already
+  // published/live for the whole league.
+  const unevenTeamsEnabled     = appSettings?.uneven_teams_enabled ?? false;
   const formatOptions          = FORMAT_OPTIONS
     .filter(f => f.key !== "doubles-event" || doublesEventEnabled)
-    .filter(f => f.key !== "shift-wars" || shiftWarsEnabled);
+    .filter(f => f.key !== "shift-wars" || shiftWarsEnabled)
+    .filter(f => f.key !== "uneven-teams" || unevenTeamsEnabled);
   const [gameTypes, setGameTypes] = useState<GameTypeOption[]>([]);
   const [format, setFormat]       = useState<Format>("1v1");
-  const [team1Ids, setTeam1Ids]   = useState<string[]>(["", "", ""]);
-  const [team2Ids, setTeam2Ids]   = useState<string[]>(["", "", ""]);
+  // Widened from 3 to 6 slots so the same backing arrays cover Uneven
+  // Teams' up-to-6-per-side roster (team-matches.ts's own existing
+  // winnerIds/loserIds cap) as well as 2v2/3v3 — resolveTeam() below
+  // always slices to whichever size actually applies, so this is a no-op
+  // for every existing format.
+  const [team1Ids, setTeam1Ids]   = useState<string[]>(["", "", "", "", "", ""]);
+  const [team2Ids, setTeam2Ids]   = useState<string[]>(["", "", "", "", "", ""]);
+  // Uneven Teams' own per-side roster size — defaults to 1 v 2 as a
+  // starting point (the exact shape of the scenario this format was built
+  // for), each independently adjustable 1–6.
+  const [unevenCount1, setUnevenCount1] = useState(1);
+  const [unevenCount2, setUnevenCount2] = useState(2);
   const [ffaCount, setFfaCount]   = useState(3);
   const [ffaIds, setFfaIds]       = useState<string[]>(["", "", "", "", "", ""]);
   const [selectedGame, setGame]   = useState<GameTypeOption | null>(null);
@@ -311,13 +338,18 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const allSelected = [...allTeam1, ...allTeam2, ...allFfa];
 
   const teamSize = format === "2v2" ? 2 : format === "3v3" ? 3 : 1;
+  // Uneven Teams: each side has its own independent size instead of one
+  // shared teamSize — this is the one format where the two sides aren't
+  // required to match.
+  const team1Size = format === "uneven-teams" ? unevenCount1 : teamSize;
+  const team2Size = format === "uneven-teams" ? unevenCount2 : teamSize;
 
   // Resolve selected player objects
   const resolveTeam = (ids: string[], size: number): (Player | null)[] =>
     ids.slice(0, size).map(id => players.find(p => p.id === Number(id)) ?? null);
 
-  const team1Players = resolveTeam(team1Ids, teamSize);
-  const team2Players = resolveTeam(team2Ids, teamSize);
+  const team1Players = resolveTeam(team1Ids, team1Size);
+  const team2Players = resolveTeam(team2Ids, team2Size);
   const ffaPlayers   = ffaIds.slice(0, ffaCount).map(id => players.find(p => p.id === Number(id)) ?? null);
 
   // Stake validation
@@ -496,6 +528,67 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           </div>
         )}
 
+        {/* Uneven Teams — independently sized rosters per side, 1-6 each */}
+        {format === "uneven-teams" && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-4">
+              {/* Side A */}
+              <div className="space-y-2">
+                <div className="text-xs font-bold uppercase text-center py-1 rounded" style={{ background: "rgba(34,197,94,0.08)", color: "#22c55e", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>Side A</div>
+                {Array.from({ length: unevenCount1 }).map((_, i) => (
+                  <PlayerSlot key={i} label={`Player ${i + 1}`} color="#22c55e"
+                    value={team1Ids[i]} onChange={v => updateTeam(1, i, v)}
+                    exclude={allSelected.filter(id => id !== team1Ids[i])} players={players} />
+                ))}
+                <div className="flex gap-2">
+                  <button type="button" disabled={unevenCount1 >= 6}
+                    onClick={() => setUnevenCount1(n => Math.min(6, n + 1))}
+                    className="flex-1 py-2 rounded-lg text-xs font-bold uppercase"
+                    style={{ fontFamily: "Oswald, sans-serif", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)", color: unevenCount1 >= 6 ? "rgba(34,197,94,0.3)" : "#22c55e", cursor: unevenCount1 >= 6 ? "not-allowed" : "pointer" }}>
+                    + Add player
+                  </button>
+                  {unevenCount1 > 1 && (
+                    <button type="button"
+                      onClick={() => { updateTeam(1, unevenCount1 - 1, ""); setUnevenCount1(n => n - 1); }}
+                      className="px-3 py-2 rounded-lg text-xs font-bold uppercase"
+                      style={{ fontFamily: "Oswald, sans-serif", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)", cursor: "pointer" }}>
+                      −
+                    </button>
+                  )}
+                </div>
+              </div>
+              {/* Side B */}
+              <div className="space-y-2">
+                <div className="text-xs font-bold uppercase text-center py-1 rounded" style={{ background: "rgba(238,10,120,0.08)", color: "#ee0a78", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>Side B</div>
+                {Array.from({ length: unevenCount2 }).map((_, i) => (
+                  <PlayerSlot key={i} label={`Player ${i + 1}`} color="#ee0a78"
+                    value={team2Ids[i]} onChange={v => updateTeam(2, i, v)}
+                    exclude={allSelected.filter(id => id !== team2Ids[i])} players={players} />
+                ))}
+                <div className="flex gap-2">
+                  <button type="button" disabled={unevenCount2 >= 6}
+                    onClick={() => setUnevenCount2(n => Math.min(6, n + 1))}
+                    className="flex-1 py-2 rounded-lg text-xs font-bold uppercase"
+                    style={{ fontFamily: "Oswald, sans-serif", background: "rgba(238,10,120,0.08)", border: "1px solid rgba(238,10,120,0.25)", color: unevenCount2 >= 6 ? "rgba(238,10,120,0.3)" : "#ee0a78", cursor: unevenCount2 >= 6 ? "not-allowed" : "pointer" }}>
+                    + Add player
+                  </button>
+                  {unevenCount2 > 1 && (
+                    <button type="button"
+                      onClick={() => { updateTeam(2, unevenCount2 - 1, ""); setUnevenCount2(n => n - 1); }}
+                      className="px-3 py-2 rounded-lg text-xs font-bold uppercase"
+                      style={{ fontFamily: "Oswald, sans-serif", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)", cursor: "pointer" }}>
+                      −
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
+              Sides don't need to match — each side shares one running score, and the bigger side simply gets more throws per round from having more people to get through.
+            </p>
+          </div>
+        )}
+
         {/* Doubles Event — pick from the season's fixed random-draw teams */}
         {format === "doubles-event" && (
           !doublesTeamsLoaded ? (
@@ -582,6 +675,15 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
             <p className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
               {format === "1v1"
                 ? `Winner gets +${stakeN}pts from loser`
+                // Uneven Teams' payout isn't a flat ±stake per player once
+                // the sides aren't the same size — /api/team-matches (the
+                // same endpoint this format submits to, see
+                // TeamModeSubmitSection in submit-match.tsx) pools each
+                // loser's full stake and splits it across the winners, so
+                // an uneven side changes who gets how much even though
+                // everyone still pays/receives from the SAME stake value.
+                : (team1Size !== team2Size)
+                ? `Each loser pays ${stakeN}pts into a pot, split across the winners`
                 : `Each loser pays ${stakeN}pts · each winner gains ${stakeN}pts`}
             </p>
           )}
@@ -619,8 +721,23 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
               onClear={() => setGame(g => (g?.key === CUSTOM_HANDICAP_KEY ? null : g))}
             />
           )}
+          {format === "uneven-teams" && (
+            <>
+              <UnevenX01Card
+                accent="#f97316"
+                selected={selectedGame?.key === UNEVEN_X01_KEY}
+                onSelect={gt => setGame(gt)}
+                onClear={() => setGame(g => (g?.key === UNEVEN_X01_KEY ? null : g))}
+              />
+              <UnevenCricketCard
+                accent="#f97316"
+                selected={selectedGame?.key === UNEVEN_CRICKET_KEY}
+                onSelect={gt => setGame(gt)}
+              />
+            </>
+          )}
           {tabGames.length === 0
-            ? (format === "1v1" ? null :
+            ? (format === "1v1" || format === "uneven-teams" ? null :
               <div className="col-span-2 text-center py-8 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
                 {format === "killer-ffa" ? `No Killer game found for ${ffaCount} players` : "No games in this category"}
               </div>)
@@ -705,7 +822,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
   const [analysisPlayerId, setAnalysisPlayerId] = useState<number | null>(null);
 
   // Resolve winner/loser for display and submission
-  const isTeam = data.format === "2v2" || data.format === "3v3" || data.format === "doubles-event" || data.format === "shift-wars";
+  const isTeam = data.format === "2v2" || data.format === "3v3" || data.format === "uneven-teams" || data.format === "doubles-event" || data.format === "shift-wars";
   const isKillerFfa = data.format === "killer-ffa";
 
   const winnerTeam: Player[] = isKillerFfa
@@ -896,7 +1013,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
     if (!autoFired) { setAutoFired(true); void submit(); }
   }, []);
 
-  const formatLabel = data.format === "1v1" ? "1v1" : data.format === "2v2" ? "2v2 Doubles" : data.format === "3v3" ? "3v3 Triples" : data.format === "doubles-event" ? "Doubles Event" : data.format === "shift-wars" ? "Shift Wars" : `Killer ${data.team1.length}-player`;
+  const formatLabel = data.format === "1v1" ? "1v1" : data.format === "2v2" ? "2v2 Doubles" : data.format === "3v3" ? "3v3 Triples" : data.format === "uneven-teams" ? `Uneven Teams (${data.team1.length}v${data.team2.length})` : data.format === "doubles-event" ? "Doubles Event" : data.format === "shift-wars" ? "Shift Wars" : `Killer ${data.team1.length}-player`;
 
   return (
     <div className="max-w-lg mx-auto space-y-6 text-center">
@@ -1119,12 +1236,20 @@ export default function Play() {
   }
 
   if (phase === "playing" && setupData) {
-    const isTeam      = setupData.format === "2v2" || setupData.format === "3v3" || setupData.format === "doubles-event" || setupData.format === "shift-wars";
+    const isTeam      = setupData.format === "2v2" || setupData.format === "3v3" || setupData.format === "uneven-teams" || setupData.format === "doubles-event" || setupData.format === "shift-wars";
     const isKillerFfa = setupData.format === "killer-ffa";
 
     const teamNames: [string[], string[]] | undefined = isTeam
       ? [setupData.team1.map(p => p.name), setupData.team2.map(p => p.name)]
       : undefined;
+
+    // Uneven Teams is the only format where the two sides can be different
+    // sizes — see scorers.tsx's TeamX01Scorer/TeamCricketScorer turnOrder
+    // doc for what "full-pass" actually changes. Every other team format
+    // (2v2/3v3/Doubles Event/Shift Wars) leaves this undefined, so their
+    // turn order is completely unchanged from before this format existed.
+    const teamTurnOrder: "alternate" | "full-pass" | undefined =
+      setupData.format === "uneven-teams" ? "full-pass" : undefined;
 
     const playerNames: string[] | undefined = isKillerFfa
       ? setupData.team1.map(p => p.name)
@@ -1151,6 +1276,7 @@ export default function Play() {
           teamNames={teamNames}
           playerNames={playerNames}
           bullUp={setupData.bullUp}
+          teamTurnOrder={teamTurnOrder}
           onWin={r => { setResult(r); setPhase("gameover"); }}
           onAbandon={reset}
           onPracticeStats={s => setMatchStats(s)}

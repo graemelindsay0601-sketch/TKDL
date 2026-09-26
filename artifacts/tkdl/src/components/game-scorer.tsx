@@ -218,7 +218,7 @@ function BullUpPhase({
 export function GameScorer({
   p1Name, p2Name, gameType, botConfig, onWin, onAbandon, onPracticeStats,
   legs, setsToWin, legsToWinSet,
-  teamNames, playerNames, soloMode, bullUp, scorerThemeColor,
+  teamNames, playerNames, soloMode, bullUp, scorerThemeColor, teamTurnOrder,
 }: {
   p1Name: string; p2Name: string;
   gameType: GameTypeOption;
@@ -237,6 +237,14 @@ export function GameScorer({
    *  wired into X01 and Cricket (the two primary 1v1 engines) for now. See
    *  practice.tsx for the only caller that ever supplies this. */
   scorerThemeColor?: string | null;
+  /**
+   * Passed straight through to TeamX01Scorer/TeamCricketScorer — see those
+   * components' own doc comments. Left undefined (-> "alternate") for
+   * every existing caller (2v2/3v3/Doubles Event/Shift Wars all keep their
+   * current turn-for-turn behaviour unchanged); only play.tsx's new
+   * "Uneven Teams" format passes "full-pass".
+   */
+  teamTurnOrder?: "alternate" | "full-pass";
 }) {
   const isBullUpApplicable = bullUp && !soloMode;
   const [starterIdx, setStarterIdx] = useState<0 | 1 | null>(isBullUpApplicable ? null : 0);
@@ -268,13 +276,13 @@ export function GameScorer({
     const cfg = safeParse(gameType.config);
     const win = (idx: number, detail?: string) => wrappedOnWin({ winnerIdx: idx, detail });
 
-  // ── Team engines (variable-length, 2v2 / 3v3) ────────────────────────────────
+  // ── Team engines (variable-length, 2v2 / 3v3 / Uneven Teams) ─────────────────
   if (gameType.engine === "TeamX01" && teamNames) {
-    return <TeamX01Scorer teamNames={teamNames} config={cfg as any} onWin={win} onAbandon={onAbandon} />;
+    return <TeamX01Scorer teamNames={teamNames} config={cfg as any} onWin={win} onAbandon={onAbandon} turnOrder={teamTurnOrder} />;
   }
 
   if (gameType.engine === "TeamCricket" && teamNames) {
-    return <TeamCricketScorer teamNames={teamNames} cutThroat={!!cfg.cutThroat} onWin={win} onAbandon={onAbandon} />;
+    return <TeamCricketScorer teamNames={teamNames} cutThroat={!!cfg.cutThroat} onWin={win} onAbandon={onAbandon} turnOrder={teamTurnOrder} />;
   }
 
   if (gameType.engine === "MultiKiller" && playerNames) {

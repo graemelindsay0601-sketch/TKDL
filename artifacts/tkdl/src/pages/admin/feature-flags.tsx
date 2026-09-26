@@ -44,6 +44,7 @@ export function FeatureFlags() {
   const [bossBattleOn,      setBossBattleOn]       = useState<boolean | null>(null);
   const [boardCurseOn,      setBoardCurseOn]       = useState<boolean | null>(null);
   const [shiftWarsOn,       setShiftWarsOn]        = useState<boolean | null>(null);
+  const [unevenTeamsOn,     setUnevenTeamsOn]      = useState<boolean | null>(null);
   const [stagedFlags,       setStagedFlags]        = useState<StagedFlag[] | null>(null);
   const [stagedBusy,        setStagedBusy]         = useState<string | null>(null);
   const { toast } = useToast();
@@ -108,12 +109,14 @@ export function FeatureFlags() {
         setBossBattleOn(s.boss_battle_enabled === true);
         setBoardCurseOn(s.board_curse_enabled === true);
         setShiftWarsOn(s.shift_wars_enabled === true);
+        setUnevenTeamsOn(s.uneven_teams_enabled === true);
       })
       .catch(() => {
         setLiveScorer(false);
         setCommunityOn(false); setMessagingOn(false); setNotificationsOn(false); setShadowLeagueOn(false); setCardClashOn(false);
         setDoublesEventOn(true);
         setHeatmapOn(false); setVoiceCalloutsOn(false); setBossBattleOn(false); setBoardCurseOn(false); setShiftWarsOn(false);
+        setUnevenTeamsOn(false);
       });
   }, []);
 
@@ -177,6 +180,7 @@ export function FeatureFlags() {
             {row("Boss Battle", "A ladder of CPU bosses with fixed debuffs built from Card Clash's effects system — arcade only, no Elo impact. Test the ladder yourself before turning it on for everyone", bossBattleOn, setBossBattleOn, "boss_battle_enabled", "Boss Battle live", "Boss Battle hidden")}
             {row("Board Curse", "A standalone mode where random curses strike as a leg goes on, getting worse the longer it runs — solo, vs a bot, or vs a friend. Arcade only, no Elo impact. Test it yourself before turning it on for everyone", boardCurseOn, setBoardCurseOn, "board_curse_enabled", "Board Curse live", "Board Curse hidden")}
             {row("Shift Wars", "A standing 3-team department competition (Fresh, Twilight, Shift Leader) using the same points/wager rules as the Doubles Event — fixed rosters, no random draw. Manage teams and rosters below once live", shiftWarsOn, setShiftWarsOn, "shift_wars_enabled", "Shift Wars live", "Shift Wars hidden")}
+            {row("Uneven Teams", "A Match Scorer format for any side size vs any side (e.g. 1v2) — one shared score per side, bigger side gets more throws per round instead of a score head start. Different from 'Turn this into a Team Match' on Submit Match, which settles individual points after a match already played elsewhere — this one plays live, right here in the scorer. Kept off the Format list until you turn it on", unevenTeamsOn, setUnevenTeamsOn, "uneven_teams_enabled", "Uneven Teams live", "Uneven Teams hidden")}
           </div>
         </div>
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />

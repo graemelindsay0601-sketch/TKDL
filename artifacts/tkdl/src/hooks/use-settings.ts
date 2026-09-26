@@ -15,6 +15,7 @@ export type AppSettings = {
   board_curse_enabled: boolean;
   shift_wars_enabled: boolean;
   tkdl_live_enabled: boolean;
+  uneven_teams_enabled: boolean;
 };
 
 // A hard refresh throws away React Query's in-memory cache along with
@@ -63,6 +64,7 @@ async function fetchSettings(): Promise<AppSettings> {
     board_curse_enabled: false,
     shift_wars_enabled: false,
     tkdl_live_enabled: false,
+    uneven_teams_enabled: false,
   };
   const data = await res.json() as AppSettings;
   writeCachedSettings(data);
