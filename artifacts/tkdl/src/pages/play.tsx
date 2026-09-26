@@ -55,13 +55,6 @@ const FORMAT_OPTIONS: { key: Format; label: string; icon: string; desc: string; 
   { key: "1v1",        label: "1v1",             icon: "👤",  desc: "Head to head",                                          color: "#ff005c" },
   { key: "2v2",        label: "2v2 Team Game",   icon: "👥",  desc: "Any 2 players vs any 2 — casual, one-off",              color: "#38bdf8" },
   { key: "3v3",        label: "3v3 Triples",     icon: "👥",  desc: "Teams of 3 — casual, one-off",                          color: "#a78bfa" },
-  // "Handicap" is deliberately avoided here — custom-handicap-picker.tsx's
-  // 1v1 Custom/Handicap tile already owns that word for a different
-  // mechanic (different starting scores per player). This one keeps both
-  // sides on the same starting score; the edge for the bigger side is
-  // extra throws per round, not a score head start — see
-  // uneven-teams-picker.tsx's own header.
-  { key: "uneven-teams", label: "Uneven Teams", icon: "⚖️",  desc: "Any side size vs any side — e.g. 1v2 — bigger side gets more throws", color: "#f97316" },
   { key: "doubles-event", label: "Doubles Event", icon: "🎯", desc: "Official season event — fixed random-draw teams",       color: "#0066ff" },
   { key: "shift-wars", label: "Shift Wars", icon: "🏬",       desc: "Fixed department teams — Fresh, Twilight, Shift Leader", color: "#22c55e" },
   { key: "killer-ffa", label: "Killer Free-for-All", icon: "💀", desc: "3–6 individual players",                             color: "#ef4444" },
@@ -257,15 +250,15 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const doublesEventEnabled    = appSettings?.doubles_event_enabled ?? true;
   const shiftWarsEnabled       = appSettings?.shift_wars_enabled ?? false;
   // Off by default, same as Shift Wars — Uneven Teams is brand new and still
-  // being tested (Admin → Feature Flags → Beta Features), so it's kept out
-  // of the Format list everyone else sees until it's explicitly turned on.
-  // This is what keeps it from getting mixed up with the formats already
-  // published/live for the whole league.
+  // being tested (Admin → Feature Flags → Beta Features). It isn't its own
+  // Format tile — it's a toggle that appears within Singles/2v2/3v3 once one
+  // of those is picked (see unevenEligible below), so it can't be confused
+  // with the formats already published/live for the whole league until this
+  // flag is switched on.
   const unevenTeamsEnabled     = appSettings?.uneven_teams_enabled ?? false;
   const formatOptions          = FORMAT_OPTIONS
     .filter(f => f.key !== "doubles-event" || doublesEventEnabled)
-    .filter(f => f.key !== "shift-wars" || shiftWarsEnabled)
-    .filter(f => f.key !== "uneven-teams" || unevenTeamsEnabled);
+    .filter(f => f.key !== "shift-wars" || shiftWarsEnabled);
   const [gameTypes, setGameTypes] = useState<GameTypeOption[]>([]);
   const [format, setFormat]       = useState<Format>("1v1");
   // Widened from 3 to 6 slots so the same backing arrays cover Uneven
@@ -275,11 +268,13 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   // for every existing format.
   const [team1Ids, setTeam1Ids]   = useState<string[]>(["", "", "", "", "", ""]);
   const [team2Ids, setTeam2Ids]   = useState<string[]>(["", "", "", "", "", ""]);
-  // Uneven Teams' own per-side roster size — defaults to 1 v 2 as a
-  // starting point (the exact shape of the scenario this format was built
-  // for), each independently adjustable 1–6.
+  // Uneven Teams' own per-side roster size, each independently adjustable
+  // 1–6 — seeded to the base format's normal team size the moment the
+  // toggle is switched on (see the Switch below), then freely adjustable
+  // from there.
   const [unevenCount1, setUnevenCount1] = useState(1);
   const [unevenCount2, setUnevenCount2] = useState(2);
+  const [unevenToggle, setUnevenToggle] = useState(false);
   const [ffaCount, setFfaCount]   = useState(3);
   const [ffaIds, setFfaIds]       = useState<string[]>(["", "", "", "", "", ""]);
   const [selectedGame, setGame]   = useState<GameTypeOption | null>(null);
@@ -305,11 +300,15 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
   }, []);
 
-  // Reset game selection and tab when format changes
+  // Reset game selection, tab, and the Uneven Teams toggle when format
+  // changes — switching the base format (e.g. Singles → 2v2) always starts
+  // Uneven Teams fresh rather than carrying over a roster shape that no
+  // longer matches what's on screen.
   useEffect(() => {
     setGame(null);
     const tabs = TABS_BY_FORMAT[format];
     setTab(tabs[0]?.key ?? "competitive");
+    setUnevenToggle(false);
   }, [format]);
 
   // Only the ranked 1v1 Competitive ladder should hide ELIMINATED players
@@ -338,11 +337,15 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const allSelected = [...allTeam1, ...allTeam2, ...allFfa];
 
   const teamSize = format === "2v2" ? 2 : format === "3v3" ? 3 : 1;
-  // Uneven Teams: each side has its own independent size instead of one
-  // shared teamSize — this is the one format where the two sides aren't
-  // required to match.
-  const team1Size = format === "uneven-teams" ? unevenCount1 : teamSize;
-  const team2Size = format === "uneven-teams" ? unevenCount2 : teamSize;
+  // Uneven Teams is a toggle on top of Singles/2v2/3v3, not its own format —
+  // see the Switch rendered in the player-selection section below.
+  const unevenEligible = format === "1v1" || format === "2v2" || format === "3v3";
+  const unevenActive   = unevenEligible && unevenToggle && unevenTeamsEnabled;
+  // When active, each side has its own independent size instead of the
+  // format's shared teamSize — this is the one case where the two sides
+  // aren't required to match.
+  const team1Size = unevenActive ? unevenCount1 : teamSize;
+  const team2Size = unevenActive ? unevenCount2 : teamSize;
 
   // Resolve selected player objects
   const resolveTeam = (ids: string[], size: number): (Player | null)[] =>
@@ -369,10 +372,10 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     : "";
 
   // Readiness check
-  const team1Ready = format === "1v1"
+  const team1Ready = (format === "1v1" && !unevenActive)
     ? (team1Ids[0] !== "" && team2Ids[0] !== "" && team1Ids[0] !== team2Ids[0])
     : team1Players.every(Boolean);
-  const team2Ready = format === "1v1" ? true : team2Players.every(Boolean);
+  const team2Ready = (format === "1v1" && !unevenActive) ? true : team2Players.every(Boolean);
   const ffaReady   = format === "killer-ffa" && ffaPlayers.every(Boolean) && new Set(ffaIds.slice(0, ffaCount).filter(Boolean)).size === ffaCount;
   const doublesReady = format === "doubles-event" && !!doublesTeam1 && !!doublesTeam2 && doublesTeam1.id !== doublesTeam2.id;
   const shiftWarsReady = format === "shift-wars" && !!shiftWarsTeam1 && !!shiftWarsTeam2 && shiftWarsTeam1.id !== shiftWarsTeam2.id;
@@ -434,6 +437,20 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         bullUp,
         shiftWarsTeamIds: [shiftWarsTeam1.id, shiftWarsTeam2.id],
       });
+    } else if (unevenActive) {
+      // Uneven Teams was reached via the toggle under Singles/2v2/3v3, not
+      // its own tile — but the match itself is submitted the same way
+      // regardless of which base format it started from, so the rest of
+      // the app (isTeam checks, formatLabel, the live scorer's turn order)
+      // only ever needs to know it was an Uneven Teams match.
+      onStart({
+        format: "uneven-teams",
+        team1: team1Players.filter((p): p is Player => !!p),
+        team2: team2Players.filter((p): p is Player => !!p),
+        gameType: selectedGame,
+        stake: stakeN,
+        bullUp,
+      });
     } else if (format === "1v1") {
       const p1 = players.find(p => String(p.id) === team1Ids[0])!;
       const p2 = players.find(p => String(p.id) === team2Ids[0])!;
@@ -494,8 +511,48 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           {format === "killer-ffa" ? "Players" : "Teams"}
         </h2>
 
+        {/* Uneven Teams toggle — available under Singles/2v2/3v3 once one of
+           those is picked, rather than being its own Format tile. Beta-gated
+           by the same admin flag (Feature Flags → Beta Features) that used
+           to gate the standalone tile, so it stays invisible to everyone
+           until it's explicitly turned on for testing. "Handicap" is
+           deliberately avoided in the copy — custom-handicap-picker.tsx's
+           1v1 Custom/Handicap tile already owns that word for a different
+           mechanic (different starting scores per player, not different
+           side sizes) — see uneven-teams-picker.tsx's own header. */}
+        {unevenEligible && unevenTeamsEnabled && (
+          <button
+            type="button"
+            onClick={() => {
+              const next = !unevenToggle;
+              setUnevenToggle(next);
+              if (next) { setUnevenCount1(teamSize); setUnevenCount2(teamSize); }
+            }}
+            className="w-full mb-3 px-4 py-3 rounded-xl flex items-center gap-3 transition-all text-left"
+            style={{
+              background: unevenToggle ? "rgba(249,115,22,0.08)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${unevenToggle ? "rgba(249,115,22,0.35)" : "rgba(255,255,255,0.07)"}`,
+              cursor: "pointer",
+            }}>
+            <span style={{ fontSize: 18 }}>⚖️</span>
+            <div className="flex-1">
+              <div className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: unevenToggle ? "#f97316" : "rgba(255,255,255,0.45)" }}>
+                Uneven Teams (Beta)
+              </div>
+              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem" }}>
+                Let one side have more players than the other — e.g. 1v2. Same starting score, bigger side just gets more throws per round.
+              </div>
+            </div>
+            <div className="w-10 h-5 rounded-full relative transition-all flex-shrink-0"
+              style={{ background: unevenToggle ? "rgba(249,115,22,0.5)" : "rgba(255,255,255,0.1)" }}>
+              <div className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
+                style={{ background: unevenToggle ? "#f97316" : "rgba(255,255,255,0.3)", left: unevenToggle ? "calc(100% - 18px)" : "2px" }} />
+            </div>
+          </button>
+        )}
+
         {/* 1v1 */}
-        {format === "1v1" && (
+        {format === "1v1" && !unevenActive && (
           <div className="grid grid-cols-2 gap-3">
             <PlayerSlot label="Player 1" color="#22c55e" value={team1Ids[0]} onChange={v => updateTeam(1, 0, v)}
               exclude={[team2Ids[0]].filter(Boolean)} players={players} />
@@ -505,7 +562,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         )}
 
         {/* 2v2 or 3v3 */}
-        {(format === "2v2" || format === "3v3") && (
+        {(format === "2v2" || format === "3v3") && !unevenActive && (
           <div className="grid grid-cols-2 gap-4">
             {/* Team 1 */}
             <div className="space-y-2">
@@ -528,8 +585,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           </div>
         )}
 
-        {/* Uneven Teams — independently sized rosters per side, 1-6 each */}
-        {format === "uneven-teams" && (
+        {/* Uneven Teams active — independently sized rosters per side, 1-6 each */}
+        {unevenActive && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-4">
               {/* Side A */}
@@ -693,7 +750,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       {/* Game type selection */}
       <div>
         <h2 className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>Game Type</h2>
-        {tabs.length > 1 && (
+        {!unevenActive && tabs.length > 1 && (
           <div className="flex gap-1 mb-3 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
             {tabs.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
@@ -713,7 +770,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
           {/* Custom / Handicap — head-to-head only; lets Player 1 and Player 2
              start on independently typed scores (e.g. 501 v 301). */}
-          {format === "1v1" && (
+          {format === "1v1" && !unevenActive && (
             <CustomHandicapCard
               accent="#ff005c"
               selected={selectedGame?.key === CUSTOM_HANDICAP_KEY}
@@ -721,7 +778,11 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
               onClear={() => setGame(g => (g?.key === CUSTOM_HANDICAP_KEY ? null : g))}
             />
           )}
-          {format === "uneven-teams" && (
+          {/* Uneven Teams only ever plays X01 or Cricket (the two engines
+             with a team variant), regardless of which base format (Singles/
+             2v2/3v3) the toggle was switched on from — so it always shows
+             just these two cards instead of that format's normal game list. */}
+          {unevenActive && (
             <>
               <UnevenX01Card
                 accent="#f97316"
@@ -736,8 +797,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
               />
             </>
           )}
-          {tabGames.length === 0
-            ? (format === "1v1" || format === "uneven-teams" ? null :
+          {!unevenActive && (tabGames.length === 0
+            ? (format === "1v1" ? null :
               <div className="col-span-2 text-center py-8 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
                 {format === "killer-ffa" ? `No Killer game found for ${ffaCount} players` : "No games in this category"}
               </div>)
@@ -745,7 +806,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                 <GameCard key={gt.key} gt={gt} selected={selectedGame?.key === gt.key}
                   onSelect={() => setGame(gt)} onRules={() => setRulesGame(gt)} />
               ))
-          }
+          )}
         </div>
         {selectedGame && (
           <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "rgba(255,0,92,0.06)", border: "1px solid rgba(255,0,92,0.2)" }}>
