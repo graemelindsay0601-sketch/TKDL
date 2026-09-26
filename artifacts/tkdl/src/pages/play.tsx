@@ -25,19 +25,22 @@ type Format = "1v1" | "2v2" | "3v3" | "uneven-teams" | "killer-ffa" | "doubles-e
 
 type SetupData = {
   format: Format;
-  team1: Player[];   // 1v1: [p1]; 2v2: [a,b]; 3v3: [a,b,c]; killer-ffa: all players; doubles-event: fixed draw team A's members; shift-wars: a single synthetic entry standing in for the department, or — with unevenTurnOrder — the real players fielded from it
-  team2: Player[];   // killer-ffa: empty; doubles-event: fixed draw team B's members; shift-wars: same as team1 but for the other department
+  team1: Player[];   // 1v1: [p1]; 2v2: [a,b]; 3v3: [a,b,c]; killer-ffa: all players; doubles-event: fixed draw team A's members, or — with unevenTurnOrder — however many of them actually showed up; shift-wars: a single synthetic entry standing in for the department, or — with unevenTurnOrder — the real players fielded from it
+  team2: Player[];   // killer-ffa: empty; doubles-event: fixed draw team B's members (same unevenTurnOrder note as team1); shift-wars: same as team1 but for the other department
   gameType: GameTypeOption;
   stake: number;
   bullUp?: boolean;
   doublesTeamIds?: [number, number]; // doubles-event only: [team1Id, team2Id] for the season's fixed random-draw teams
   shiftWarsTeamIds?: [number, number]; // shift-wars only: [team1Id, team2Id] for the 3 fixed department teams
   // Set whenever the match was set up through the Uneven Teams toggle with a
-  // format that stays literal at submission (currently just shift-wars —
+  // format that stays literal at submission (doubles-event and shift-wars —
   // the 1v1/2v2/3v3 path instead relabels format itself to "uneven-teams",
   // which is why this is a separate flag rather than the only signal).
   // Drives the live scorer's full-pass turn order the same way format
-  // === "uneven-teams" does.
+  // === "uneven-teams" does. For doubles-event/shift-wars this always means
+  // "short-handed within the same official team/department" — the two
+  // official ids in doublesTeamIds/shiftWarsTeamIds never change, only how
+  // many of each side's own players actually threw.
   unevenTurnOrder?: boolean;
 };
 
@@ -335,6 +338,17 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     setUnevenCount2(1);
   }, [format, shiftWarsTeam1Id, shiftWarsTeam2Id]);
 
+  // Same idea for Doubles Event's "short-handed" roster — scoped to
+  // whichever two official pairings are picked, since a "half of pairing A"
+  // pick makes no sense once pairing A changes to a different pairing.
+  useEffect(() => {
+    if (format !== "doubles-event") return;
+    setTeam1Ids(["", "", "", "", "", ""]);
+    setTeam2Ids(["", "", "", "", "", ""]);
+    setUnevenCount1(1);
+    setUnevenCount2(1);
+  }, [format, doublesTeam1Id, doublesTeam2Id]);
+
   // Only the ranked 1v1 Competitive ladder should hide ELIMINATED players
   // (0 points this season) — everywhere else (1v1 Practice/Party/Mini-Games,
   // 2v2/3v3 Team Games, Killer FFA) is casual and unaffected by singles-ladder
@@ -361,12 +375,21 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const allSelected = [...allTeam1, ...allTeam2, ...allFfa];
 
   const teamSize = format === "2v2" ? 2 : format === "3v3" ? 3 : 1;
-  // Uneven Teams is a toggle on top of Singles/2v2/3v3/Shift Wars, not its
-  // own format — see the Switch rendered in the player-selection section
-  // below. Shift Wars is the one case with an extra prerequisite: you can
-  // only field a real per-player roster once you've picked which two
-  // departments are actually facing off (see the toggle's render condition).
-  const unevenEligible = format === "1v1" || format === "2v2" || format === "3v3" || format === "shift-wars";
+  // Uneven Teams is a toggle on top of Singles/2v2/3v3/Doubles Event/Shift
+  // Wars, not its own format — see the Switch rendered in the
+  // player-selection section below. Doubles Event and Shift Wars both have
+  // an extra prerequisite: you can only field a real per-player roster once
+  // you've picked which two official pairings/departments are actually
+  // facing off (see the toggle's render condition). For these two, Uneven
+  // Teams NEVER lets you cross into a different pairing/department's
+  // players — it's strictly "how many of THIS side's own people showed up,"
+  // so the official winner/loser id and the real season standings are
+  // completely unaffected. Grouping players who aren't on the same official
+  // pairing (e.g. Kyle & Cammy vs Graeme) is a different, already-supported
+  // path: 2v2 Team Game's own Uneven Teams toggle, which settles against
+  // individual players' own points instead of a pairing's shared pool —
+  // there's no official pairing id to attach an invented grouping to.
+  const unevenEligible = format === "1v1" || format === "2v2" || format === "3v3" || format === "doubles-event" || format === "shift-wars";
   const unevenActive   = unevenEligible && unevenToggle && unevenTeamsEnabled;
   // When active, each side has its own independent size instead of the
   // format's shared teamSize — this is the one case where the two sides
@@ -374,17 +397,23 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const team1Size = unevenActive ? unevenCount1 : teamSize;
   const team2Size = unevenActive ? unevenCount2 : teamSize;
   // Shift Wars' free player pool is each department's own assigned roster,
-  // not the whole player base — you can't field someone from Twilight on
-  // Fresh's side of the match. Every other uneven-eligible format keeps the
-  // normal free pick from the full active player list.
+  // and Doubles Event's is each official pairing's own (2-3) members — never
+  // the whole player base, since you can't field someone from Twilight on
+  // Fresh's side, or someone from a different pairing on this one. Every
+  // other uneven-eligible format keeps the normal free pick from the full
+  // active player list.
   const swRoster1 = shiftWarsTeam1 ? players.filter(p => shiftWarsTeam1.players.some(sp => sp.id === p.id)) : [];
   const swRoster2 = shiftWarsTeam2 ? players.filter(p => shiftWarsTeam2.players.some(sp => sp.id === p.id)) : [];
-  const unevenPool1 = format === "shift-wars" ? swRoster1 : players;
-  const unevenPool2 = format === "shift-wars" ? swRoster2 : players;
+  const dRoster1  = doublesTeam1 ? players.filter(p => doublesTeam1.players.some(dp => dp.id === p.id)) : [];
+  const dRoster2  = doublesTeam2 ? players.filter(p => doublesTeam2.players.some(dp => dp.id === p.id)) : [];
+  const unevenPool1 = format === "shift-wars" ? swRoster1 : format === "doubles-event" ? dRoster1 : players;
+  const unevenPool2 = format === "shift-wars" ? swRoster2 : format === "doubles-event" ? dRoster2 : players;
   // Capped at 6 either way — team1Ids/team2Ids are fixed 6-slot arrays, the
   // same ceiling /api/team-matches already enforces for winnerIds/loserIds.
-  const unevenCap1  = format === "shift-wars" ? Math.max(1, Math.min(6, swRoster1.length)) : 6;
-  const unevenCap2  = format === "shift-wars" ? Math.max(1, Math.min(6, swRoster2.length)) : 6;
+  // A Doubles Event pairing only ever has 2-3 members anyway, so its own
+  // roster size is the real ceiling there.
+  const unevenCap1  = format === "shift-wars" ? Math.max(1, Math.min(6, swRoster1.length)) : format === "doubles-event" ? Math.max(1, Math.min(6, dRoster1.length)) : 6;
+  const unevenCap2  = format === "shift-wars" ? Math.max(1, Math.min(6, swRoster2.length)) : format === "doubles-event" ? Math.max(1, Math.min(6, dRoster2.length)) : 6;
 
   // Resolve selected player objects
   const resolveTeam = (ids: string[], size: number): (Player | null)[] =>
@@ -416,10 +445,14 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   // at the department level: whichever department loses pays stake × the
   // bigger fielded headcount out of its one shared pool, with no further
   // split since there's only one pool per side, not several individual
-  // losers. Either way, a player/department sitting on 0pts still shouldn't
-  // veto the match on their own — the backend floors a loser's balance at 0
-  // rather than letting it go negative — so 0-balance participants are
-  // dropped from the cap entirely rather than forcing it to 0.
+  // losers. Doubles Event's "short-handed" option works the same way at the
+  // pairing level: whichever pairing loses pays stake × the bigger side's
+  // fielded headcount out of its own shared pool — the official standings,
+  // so this still has to be right, not just a display nicety. Either way, a
+  // player/pairing/department sitting on 0pts still shouldn't veto the
+  // match on their own — the backend floors a loser's balance at 0 rather
+  // than letting it go negative — so 0-balance participants are dropped
+  // from the cap entirely rather than forcing it to 0.
   const isTeamVsTeam = format === "1v1" || format === "2v2" || format === "3v3";
   const biggerSide = Math.max(team1Size, team2Size) || 1;
   let maxStake: number;
@@ -427,6 +460,10 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     const deptCap = (t: ShiftWarsTeam | null) => t && t.points > 0 ? Math.floor(t.points / biggerSide) : 0;
     const deptCaps = [deptCap(shiftWarsTeam1), deptCap(shiftWarsTeam2)].filter(c => c > 0);
     maxStake = deptCaps.length > 0 ? Math.min(...deptCaps) : 0;
+  } else if (format === "doubles-event" && unevenActive) {
+    const pairCap = (t: DoublesTeam | null) => t && t.points > 0 ? Math.floor(t.points / biggerSide) : 0;
+    const pairCaps = [pairCap(doublesTeam1), pairCap(doublesTeam2)].filter(c => c > 0);
+    maxStake = pairCaps.length > 0 ? Math.min(...pairCaps) : 0;
   } else if (isTeamVsTeam) {
     const sideCap = (p: Player | null, sideSize: number) => p && p.points > 0 ? Math.floor(p.points * sideSize / biggerSide) : 0;
     const caps = [
@@ -450,7 +487,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     : team1Players.every(Boolean);
   const team2Ready = (format === "1v1" && !unevenActive) ? true : team2Players.every(Boolean);
   const ffaReady   = format === "killer-ffa" && ffaPlayers.every(Boolean) && new Set(ffaIds.slice(0, ffaCount).filter(Boolean)).size === ffaCount;
-  const doublesReady = format === "doubles-event" && !!doublesTeam1 && !!doublesTeam2 && doublesTeam1.id !== doublesTeam2.id;
+  const doublesReady = format === "doubles-event" && !!doublesTeam1 && !!doublesTeam2 && doublesTeam1.id !== doublesTeam2.id
+    && (!unevenActive || (team1Players.every(Boolean) && team2Players.every(Boolean)));
   const shiftWarsReady = format === "shift-wars" && !!shiftWarsTeam1 && !!shiftWarsTeam2 && shiftWarsTeam1.id !== shiftWarsTeam2.id
     && (!unevenActive || (team1Players.every(Boolean) && team2Players.every(Boolean)));
 
@@ -488,6 +526,28 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       onStart({ format, team1: ffaPlayers.filter((p): p is Player => !!p), team2: [], gameType: selectedGame, stake: stakeN });
     } else if (format === "doubles-event") {
       if (!doublesTeam1 || !doublesTeam2) return;
+      if (unevenActive) {
+        // Real individual players from each pairing's own roster, uneven
+        // counts allowed ("short-handed"). The result submitted below is
+        // still a plain pairing-vs-pairing win/loss to /api/doubles/matches
+        // — Doubles Event pays out to the pairing's own shared points pool
+        // and updates the real season standings, not individual players —
+        // but the submit step (near the doubles/matches fetch) now also
+        // sends each side's fielded headcount so a pairing fielding fewer
+        // of its own people than the other pays stake × the bigger side's
+        // headcount out of its pool, not a flat stake.
+        onStart({
+          format: "doubles-event",
+          team1: team1Players.filter((p): p is Player => !!p),
+          team2: team2Players.filter((p): p is Player => !!p),
+          gameType: selectedGame,
+          stake: stakeN,
+          bullUp,
+          doublesTeamIds: [doublesTeam1.id, doublesTeam2.id],
+          unevenTurnOrder: true,
+        });
+        return;
+      }
       const shim = (t: DoublesTeam): Player[] =>
         t.players.map(p => ({ id: p.id, name: p.name, points: t.points, elo: t.elo, status: "ACTIVE" }));
       onStart({
@@ -607,25 +667,41 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           {format === "killer-ffa" ? "Players" : "Teams"}
         </h2>
 
-        {/* Uneven Teams toggle — available under Singles/2v2/3v3 once one of
-           those is picked, rather than being its own Format tile. Beta-gated
-           by the same admin flag (Feature Flags → Beta Features) that used
-           to gate the standalone tile, so it stays invisible to everyone
-           until it's explicitly turned on for testing. "Handicap" is
-           deliberately avoided in the copy — custom-handicap-picker.tsx's
-           1v1 Custom/Handicap tile already owns that word for a different
-           mechanic (different starting scores per player, not different
-           side sizes) — see uneven-teams-picker.tsx's own header. Shift
-           Wars additionally needs both departments picked first (below)
-           before it can offer a real per-player roster to build. */}
+        {/* Uneven Teams toggle — available under Singles/2v2/3v3/Doubles
+           Event/Shift Wars once one of those is picked, rather than being
+           its own Format tile. Beta-gated by the same admin flag (Feature
+           Flags → Beta Features) that used to gate the standalone tile, so
+           it stays invisible to everyone until it's explicitly turned on
+           for testing. "Handicap" is deliberately avoided in the copy —
+           custom-handicap-picker.tsx's 1v1 Custom/Handicap tile already
+           owns that word for a different mechanic (different starting
+           scores per player, not different side sizes) — see
+           uneven-teams-picker.tsx's own header. Doubles Event and Shift
+           Wars additionally need both official pairings/departments picked
+           first (below) before they can offer a real per-player roster to
+           build from — and even then, that roster is scoped to each side's
+           own official members only (see unevenPool1/2 above), so this can
+           never cross two different pairings/departments into one side.
+           Crossing pairings (e.g. Kyle & Cammy vs Graeme, not on the same
+           official team) is 2v2 Team Game's job instead, further down this
+           same list. */}
         {unevenEligible && unevenTeamsEnabled
-          && (format !== "shift-wars" || (!!shiftWarsTeam1 && !!shiftWarsTeam2 && swRoster1.length > 0 && swRoster2.length > 0)) && (
+          && (format !== "shift-wars" || (!!shiftWarsTeam1 && !!shiftWarsTeam2 && swRoster1.length > 0 && swRoster2.length > 0))
+          && (format !== "doubles-event" || (!!doublesTeam1 && !!doublesTeam2 && dRoster1.length > 0 && dRoster2.length > 0)) && (
           <button
             type="button"
             onClick={() => {
               const next = !unevenToggle;
               setUnevenToggle(next);
-              if (next) { setUnevenCount1(teamSize); setUnevenCount2(teamSize); }
+              if (next) {
+                // Doubles Event starts from each pairing's own full roster —
+                // "short-handed" reads as starting whole and losing someone,
+                // not building up from one. Singles/2v2/3v3/Shift Wars keep
+                // their existing starting point (the format's normal size,
+                // or 1-a-side for Shift Wars) unchanged.
+                if (format === "doubles-event") { setUnevenCount1(unevenCap1); setUnevenCount2(unevenCap2); }
+                else { setUnevenCount1(teamSize); setUnevenCount2(teamSize); }
+              }
             }}
             className="w-full mb-3 px-4 py-3 rounded-xl flex items-center gap-3 transition-all text-left"
             style={{
@@ -639,7 +715,11 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                 Uneven Teams (Beta)
               </div>
               <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem" }}>
-                Let one side have more players than the other — e.g. 1v2. Same starting score, bigger side just gets more throws per round.
+                {format === "doubles-event"
+                  ? "Play short-handed — field fewer than your full pairing against a fully-fielded opponent. Same starting score, bigger side gets more throws per round; still counts for the season standings."
+                  : format === "shift-wars"
+                  ? "Field fewer players than the other department. Same starting score, bigger side gets more throws per round; still counts for the department standings."
+                  : "Let one side have more players than the other — e.g. 1v2. Same starting score, bigger side just gets more throws per round."}
               </div>
             </div>
             <div className="w-10 h-5 rounded-full relative transition-all flex-shrink-0"
@@ -731,14 +811,15 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
 
         {/* Uneven Teams active — independently sized rosters per side, 1-6
            each for Singles/2v2/3v3, capped at each department's own roster
-           size for Shift Wars (see unevenPool1/2 + unevenCap1/2 above). */}
+           size for Shift Wars or each pairing's own roster size for Doubles
+           Event (see unevenPool1/2 + unevenCap1/2 above). */}
         {unevenActive && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-4">
               {/* Side A */}
               <div className="space-y-2">
                 <div className="text-xs font-bold uppercase text-center py-1 rounded" style={{ background: "rgba(34,197,94,0.08)", color: "#22c55e", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
-                  {format === "shift-wars" && shiftWarsTeam1 ? shiftWarsTeam1.name : "Side A"}
+                  {format === "shift-wars" && shiftWarsTeam1 ? shiftWarsTeam1.name : format === "doubles-event" && doublesTeam1 ? doublesTeam1.teamName : "Side A"}
                 </div>
                 {Array.from({ length: unevenCount1 }).map((_, i) => (
                   <PlayerSlot key={i} label={`Player ${i + 1}`} color="#22c55e"
@@ -765,7 +846,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
               {/* Side B */}
               <div className="space-y-2">
                 <div className="text-xs font-bold uppercase text-center py-1 rounded" style={{ background: "rgba(238,10,120,0.08)", color: "#ee0a78", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
-                  {format === "shift-wars" && shiftWarsTeam2 ? shiftWarsTeam2.name : "Side B"}
+                  {format === "shift-wars" && shiftWarsTeam2 ? shiftWarsTeam2.name : format === "doubles-event" && doublesTeam2 ? doublesTeam2.teamName : "Side B"}
                 </div>
                 {Array.from({ length: unevenCount2 }).map((_, i) => (
                   <PlayerSlot key={i} label={`Player ${i + 1}`} color="#ee0a78"
@@ -868,6 +949,15 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                 ? (unevenActive && team1Size !== team2Size)
                   ? `Losing department pays ${stakeN * Math.max(team1Size, team2Size)}pts (stake × ${Math.max(team1Size, team2Size)}, the bigger side's headcount) · winning department gains the same`
                   : `Losing department pays ${stakeN}pts · winning department gains ${stakeN}pts`
+                // Doubles Event's short-handed option works the same way as
+                // Shift Wars above, one level down — the pairing (not an
+                // individual player) pays/gains, and it's the official
+                // pairing's real season standing, so fielding fewer than
+                // your full pairing genuinely risks/gains more.
+                : format === "doubles-event"
+                ? (unevenActive && team1Size !== team2Size)
+                  ? `Losing pairing pays ${stakeN * Math.max(team1Size, team2Size)}pts (stake × ${Math.max(team1Size, team2Size)}, the bigger side's headcount) · winning pairing gains the same`
+                  : `Losing pairing pays ${stakeN}pts · winning pairing gains ${stakeN}pts`
                 // Uneven Teams' payout isn't a flat ±stake per player once
                 // the sides aren't the same size — /api/team-matches (the
                 // same endpoint this format submits to, see
@@ -1128,6 +1218,14 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         const [team1Id, team2Id] = data.doublesTeamIds;
         const winnerTeamId = result.winnerIdx === 0 ? team1Id : team2Id;
         const loserTeamId  = result.winnerIdx === 0 ? team2Id : team1Id;
+        // data.team1/data.team2 are the real fielded rosters when Uneven
+        // Teams' short-handed option was used (the full pairing otherwise,
+        // length 2-3), so their lengths double as each side's fielded
+        // headcount — the backend scales the pairing-vs-pairing stake by
+        // the bigger side's headcount instead of treating it as flat once
+        // the sides are uneven (see doubles.ts).
+        const winnerFieldedCount = result.winnerIdx === 0 ? data.team1.length : data.team2.length;
+        const loserFieldedCount  = result.winnerIdx === 0 ? data.team2.length : data.team1.length;
         const doublesResult = await fetch("/api/doubles/matches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1136,6 +1234,8 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
             loserTeamId,
             stake:    data.stake,
             gameType: data.gameType.key,
+            winnerFieldedCount,
+            loserFieldedCount,
           }),
         }).then(async r => {
           if (!r.ok) {
@@ -1221,7 +1321,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
     if (!autoFired) { setAutoFired(true); void submit(); }
   }, []);
 
-  const formatLabel = data.format === "1v1" ? "1v1" : data.format === "2v2" ? "2v2 Doubles" : data.format === "3v3" ? "3v3 Triples" : data.format === "uneven-teams" ? `Uneven Teams (${data.team1.length}v${data.team2.length})` : data.format === "doubles-event" ? "Doubles Event" : data.format === "shift-wars" ? (data.unevenTurnOrder ? `Shift Wars (${data.team1.length}v${data.team2.length})` : "Shift Wars") : `Killer ${data.team1.length}-player`;
+  const formatLabel = data.format === "1v1" ? "1v1" : data.format === "2v2" ? "2v2 Doubles" : data.format === "3v3" ? "3v3 Triples" : data.format === "uneven-teams" ? `Uneven Teams (${data.team1.length}v${data.team2.length})` : data.format === "doubles-event" ? (data.unevenTurnOrder ? `Doubles Event (${data.team1.length}v${data.team2.length})` : "Doubles Event") : data.format === "shift-wars" ? (data.unevenTurnOrder ? `Shift Wars (${data.team1.length}v${data.team2.length})` : "Shift Wars") : `Killer ${data.team1.length}-player`;
 
   return (
     <div className="max-w-lg mx-auto space-y-6 text-center">

@@ -18,6 +18,19 @@ const RecordDoublesMatchBody = z.object({
   stake:        z.number().int().min(1), // Rules minimum is 1 — see wager.ts validateStake for why 0 has no legitimate case here.
   gameType:     z.string().optional().default("doubles_501"),
   notes:        z.string().optional(),
+  // How many of each official pairing's own players actually showed up and
+  // played, when Uneven Teams' "short-handed" option was used (e.g. one
+  // half of a pairing plays solo against the other pairing's full two).
+  // Optional and defaults to 1v1 (a flat stake) — a normal Doubles Event
+  // match never sends these. The official winner/loser TEAM ids are
+  // unchanged either way — a short-handed side still fields only its own
+  // pairing's players, so the result still belongs to that pairing and
+  // still updates the real season standings, just at a scaled stake. This
+  // never allows crossing two different pairings into one ad hoc side —
+  // that has no team id of its own to settle against, so it's a separate
+  // Team Match (/api/team-matches) instead, not a Doubles Event result.
+  winnerFieldedCount: z.number().int().positive().max(3).optional().default(1),
+  loserFieldedCount:  z.number().int().positive().max(3).optional().default(1),
 });
 
 const router = Router();
@@ -105,9 +118,17 @@ router.get("/seasons/:id/doubles/matches", async (req, res): Promise<void> => {
 router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
   const parsed = RecordDoublesMatchBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
-  const { winnerTeamId, loserTeamId, stake, gameType, notes } = parsed.data;
+  const { winnerTeamId, loserTeamId, stake, gameType, notes, winnerFieldedCount, loserFieldedCount } = parsed.data;
 
   if (winnerTeamId === loserTeamId) { res.status(400).json({ error: "A team cannot play itself" }); return; }
+
+  // Short-handed Uneven Teams: the pot is stake × the bigger side's fielded
+  // headcount, same principle as Team Match's uneven-size pot and Shift
+  // Wars' fielded-headcount scaling — a pairing that fields fewer of its
+  // own players against a fully-fielded opponent risks/gains more than a
+  // flat stake, not the same amount. A normal match (both counts default
+  // to 1) reduces this to stake × 1 = stake, unchanged.
+  const effectiveStake = stake * Math.max(winnerFieldedCount, loserFieldedCount);
 
   // Doubles now runs its own independent season lifecycle, separate from
   // Singles — filtering by league_type is required, not just isActive,
@@ -143,14 +164,14 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
       if (loser.is_eliminated)  throw new DoublesConflictError(`${loser.team_name} has been eliminated from doubles and cannot play`);
 
       const stakeError = validateStake(
-        stake,
+        effectiveStake,
         { points: winner.points, name: winner.team_name },
         { points: loser.points, name: loser.team_name },
       );
       if (stakeError) throw new DoublesConflictError(stakeError);
 
       const { newWinnerPoints, newLoserPoints, loserEliminated } = applyWager(
-        stake,
+        effectiveStake,
         { points: winner.points },
         { points: loser.points },
       );
@@ -173,9 +194,13 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
         WHERE id = ${loser.id}
       `);
 
+      // Store the effective (already-scaled) stake, not the nominal input —
+      // like Shift Wars, Doubles has no per-player breakdown to show
+      // elsewhere, so this "stake" column is the only number the match
+      // history/notifications have for how many points actually moved.
       const [match] = (await tx.execute(sql`
         INSERT INTO doubles_matches (season_id, winner_team_id, loser_team_id, stake, elo_change, game_type, notes)
-        VALUES (${activeSeason.id}, ${winner.id}, ${loser.id}, ${stake}, ${eloChange}, ${gameType}, ${notes ?? null})
+        VALUES (${activeSeason.id}, ${winner.id}, ${loser.id}, ${effectiveStake}, ${eloChange}, ${gameType}, ${notes ?? null})
         RETURNING *
       `)).rows as any[];
 
@@ -242,7 +267,7 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
       loserTeamRankChange,
     });
 
-    void checkDoublesAchievements(winnerPlayerIds, winnerTeamId, eloChange, stake);
+    void checkDoublesAchievements(winnerPlayerIds, winnerTeamId, eloChange, effectiveStake);
 
     // Push notifications (fire and forget — never delay the response). Doubles
     // had no notification integration at all before this; see the "no
@@ -251,7 +276,7 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
     void sendDoublesMatchResultNotification(
       winnerTeamName, loserTeamName,
       winnerPlayerIds, loserPlayerIds,
-      stake, eloChange,
+      effectiveStake, eloChange,
     );
 
     // League-wide ping — every other opted-in player, not just the two teams
@@ -270,13 +295,13 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
     // player, since community_posts.player_id is a single-player FK and
     // doubles has no single "submitter" the way singles matches do).
     void (async () => {
-      const parts: string[] = [`🎯 ${winnerTeamName} defeated ${loserTeamName} (+${eloChange} Elo, +${stake} pts)`];
+      const parts: string[] = [`🎯 ${winnerTeamName} defeated ${loserTeamName} (+${eloChange} Elo, +${effectiveStake} pts)`];
       if (loserEliminated) parts.push(`💀 ${loserTeamName} has been ELIMINATED!`);
 
       await createAutoPost({
         playerId:        winnerPlayerIds[0] ?? loserPlayerIds[0],
         content:         parts.join(" · "),
-        autoMeta:        { type: "doubles_match", matchId: match.id, winnerTeamId, loserTeamId, eloChange, stake, loserEliminated },
+        autoMeta:        { type: "doubles_match", matchId: match.id, winnerTeamId, loserTeamId, eloChange, stake: effectiveStake, loserEliminated },
         notifyPlayerIds: loserPlayerIds,
       });
     })();
