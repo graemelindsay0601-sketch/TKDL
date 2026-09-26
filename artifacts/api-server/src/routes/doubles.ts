@@ -2,8 +2,8 @@ import { Router } from "express";
 import { eq, and, sql } from "drizzle-orm";
 import { db, seasonsTable } from "@workspace/db";
 import { z } from "zod";
-import { applyEloChange, calcTier } from "../lib/elo";
-import { validateStake, applyWager } from "../lib/wager";
+import { applyEloChange, calcTier, ELO_FLOOR } from "../lib/elo";
+import { validateStake, applyWager, combinedPot, validateCombinedStake, applyCombinedWager, splitProportional } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { sendDoublesMatchResultNotification, sendMatchResultBroadcast, sendRankChangeNotifications } from "../services/notificationService";
 import { createAutoPost } from "../lib/communityNotify";
@@ -31,6 +31,27 @@ const RecordDoublesMatchBody = z.object({
   // Team Match (/api/team-matches) instead, not a Doubles Event result.
   winnerFieldedCount: z.number().int().positive().max(3).optional().default(1),
   loserFieldedCount:  z.number().int().positive().max(3).optional().default(1),
+});
+
+// A "combined side" match: one official pairing (solo) plays a single live
+// game against a temporary group made up of two or more OTHER official
+// pairings (combined) — e.g. Graeme's pairing taking on a made-up group
+// pulled from two different other pairings, as a handicap. See lib/wager.ts
+// (combinedPot/validateCombinedStake/applyCombinedWager) for the settlement
+// math and db/migrations/add_combined_matches.ts for the tables this writes
+// to. Deliberately a separate endpoint from POST /doubles/matches above —
+// that one keeps its existing exactly-two-teams shape untouched.
+const RecordDoublesCombinedMatchBody = z.object({
+  soloTeamId: z.number().int().positive(),
+  soloFieldedCount: z.number().int().positive().max(3).optional().default(1),
+  soloWon: z.boolean(),
+  combinedTeams: z.array(z.object({
+    teamId: z.number().int().positive(),
+    fieldedCount: z.number().int().positive().max(3).optional().default(1),
+  })).min(2, "A combined side needs at least 2 different pairings"),
+  stake: z.number().int().min(1),
+  gameType: z.string().optional().default("doubles_501"),
+  notes: z.string().optional(),
 });
 
 const router = Router();
@@ -312,6 +333,246 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
     }
     throw err;
   }
+});
+
+// ── Record a "combined side" doubles match ──────────────────────────────────
+
+router.post("/doubles/combined-matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
+  const parsed = RecordDoublesCombinedMatchBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
+  const { soloTeamId, soloFieldedCount, soloWon, combinedTeams, stake, gameType, notes } = parsed.data;
+
+  const combinedTeamIds = combinedTeams.map(c => c.teamId);
+  if (new Set(combinedTeamIds).size !== combinedTeamIds.length) {
+    res.status(400).json({ error: "Combined side cannot list the same pairing twice" }); return;
+  }
+  if (combinedTeamIds.includes(soloTeamId)) {
+    res.status(400).json({ error: "The solo pairing cannot also be part of the combined side" }); return;
+  }
+
+  const [activeSeason] = await db.select().from(seasonsTable)
+    .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "doubles")))
+    .limit(1);
+  if (!activeSeason) { res.status(400).json({ error: "No active Doubles Event season found" }); return; }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const allIds = [soloTeamId, ...combinedTeamIds];
+      // FOR UPDATE on every involved pairing (solo + all combined) — same
+      // "lock everything you're about to read-modify-write" reasoning as the
+      // 2-team version above, just generalized to N teams.
+      const teamRows = await tx.execute(sql`
+        SELECT * FROM doubles_teams
+        WHERE id = ANY(ARRAY[${sql.join(allIds.map(id => sql`${id}`), sql`, `)}]::int[])
+          AND season_id = ${activeSeason.id}
+        FOR UPDATE
+      `);
+      const teams = teamRows.rows as any[];
+      if (teams.length !== allIds.length) {
+        throw new DoublesConflictError("One or more pairings not found in the active season's doubles event");
+      }
+
+      const solo = teams.find(t => t.id === soloTeamId)!;
+      const combined = combinedTeamIds.map(id => teams.find(t => t.id === id)!);
+
+      if (solo.is_eliminated) throw new DoublesConflictError(`${solo.team_name} has been eliminated from doubles and cannot play`);
+      for (const c of combined) {
+        if (c.is_eliminated) throw new DoublesConflictError(`${c.team_name} has been eliminated from doubles and cannot play`);
+      }
+
+      const pot = combinedPot(stake, soloFieldedCount, combinedTeams);
+      const losingSide: "solo" | "combined" = soloWon ? "combined" : "solo";
+
+      const stakeError = validateCombinedStake(
+        pot, losingSide,
+        { points: solo.points, name: solo.team_name },
+        combined.map((c, i) => ({ points: c.points, name: c.team_name, fieldedCount: combinedTeams[i].fieldedCount })),
+      );
+      if (stakeError) throw new DoublesConflictError(stakeError);
+
+      const { newSoloPoints, soloPointsDelta, soloEliminated, combinedResults } = applyCombinedWager(
+        pot, losingSide,
+        { points: solo.points },
+        combined.map((c, i) => ({ points: c.points, fieldedCount: combinedTeams[i].fieldedCount })),
+      );
+
+      // Elo: the solo team's rating moves against a fielded-count-weighted
+      // average of the combined side's ratings — a stand-in for "how strong
+      // was what actually got fielded" — computed exactly like a normal 1v1
+      // Elo change, so the solo team takes that FULL swing (it genuinely
+      // played one whole match). Each combined-side team's own rating only
+      // moves by its proportional SHARE of that same swing, for the same
+      // "don't double-count one physical result" reason as the points split
+      // above — never the full swing each.
+      const combinedWeights = combinedTeams.map(c => c.fieldedCount);
+      const combinedTotalWeight = combinedWeights.reduce((a, b) => a + b, 0);
+      const virtualCombinedElo = Math.round(
+        combined.reduce((sum, c, i) => sum + c.elo * combinedWeights[i], 0) / combinedTotalWeight
+      );
+      const { newWinnerElo, newLoserElo, change: fullEloChange } = soloWon
+        ? applyEloChange(solo.elo, virtualCombinedElo)
+        : applyEloChange(virtualCombinedElo, solo.elo);
+      const newSoloElo = soloWon ? newWinnerElo : newLoserElo;
+      const soloEloDelta = newSoloElo - solo.elo;
+      const eloShares = splitProportional(fullEloChange, combinedWeights);
+
+      await tx.execute(sql`
+        UPDATE doubles_teams SET
+          points = ${newSoloPoints},
+          peak_points = GREATEST(peak_points, ${newSoloPoints}),
+          elo = ${newSoloElo},
+          wins = wins + ${soloWon ? 1 : 0},
+          losses = losses + ${soloWon ? 0 : 1},
+          is_eliminated = is_eliminated OR ${soloEliminated}
+        WHERE id = ${solo.id}
+      `);
+
+      const sideRows: { teamId: number; teamName: string; fieldedCount: number; pointsDelta: number; eloDelta: number; eliminated: boolean }[] = [];
+      for (let i = 0; i < combined.length; i++) {
+        const c = combined[i];
+        const cr = combinedResults[i];
+        const combinedWon = !soloWon;
+        const newElo = combinedWon ? c.elo + eloShares[i] : Math.max(ELO_FLOOR, c.elo - eloShares[i]);
+        const actualEloDelta = newElo - c.elo;
+        await tx.execute(sql`
+          UPDATE doubles_teams SET
+            points = ${cr.newPoints},
+            peak_points = GREATEST(peak_points, ${cr.newPoints}),
+            elo = ${newElo},
+            wins = wins + ${combinedWon ? 1 : 0},
+            losses = losses + ${combinedWon ? 0 : 1},
+            is_eliminated = is_eliminated OR ${cr.eliminated}
+          WHERE id = ${c.id}
+        `);
+        sideRows.push({
+          teamId: c.id, teamName: c.team_name, fieldedCount: combinedTeams[i].fieldedCount,
+          pointsDelta: cr.pointsDelta, eloDelta: actualEloDelta, eliminated: cr.eliminated,
+        });
+      }
+
+      const [match] = (await tx.execute(sql`
+        INSERT INTO doubles_combined_matches
+          (season_id, solo_team_id, solo_fielded_count, solo_won, stake, pot, solo_points_delta, solo_elo_delta, game_type, notes)
+        VALUES (${activeSeason.id}, ${solo.id}, ${soloFieldedCount}, ${soloWon}, ${stake}, ${pot}, ${soloPointsDelta}, ${soloEloDelta}, ${gameType}, ${notes ?? null})
+        RETURNING *
+      `)).rows as any[];
+
+      for (const side of sideRows) {
+        await tx.execute(sql`
+          INSERT INTO doubles_combined_match_sides (match_id, team_id, fielded_count, points_delta, elo_delta, eliminated)
+          VALUES (${match.id}, ${side.teamId}, ${side.fieldedCount}, ${side.pointsDelta}, ${side.eloDelta}, ${side.eliminated})
+        `);
+      }
+
+      return { match, solo, combined, sideRows, pot, soloPointsDelta, soloEloDelta };
+    });
+
+    res.status(201).json({
+      match: result.match,
+      soloTeamId: result.solo.id,
+      soloTeamName: result.solo.team_name,
+      soloWon,
+      pot: result.pot,
+      soloPointsDelta: result.soloPointsDelta,
+      soloEloDelta: result.soloEloDelta,
+      combinedSides: result.sideRows,
+    });
+
+    // Achievements — whichever side actually won gets credited, same as a
+    // normal doubles match. A combined-side win credits EACH contributing
+    // pairing's own win, since each of them genuinely did play and win.
+    const teamPlayerIds = (t: any): number[] =>
+      [t.player1_id, t.player2_id, t.player3_id].filter((id): id is number => id != null);
+    if (soloWon) {
+      void checkDoublesAchievements(teamPlayerIds(result.solo), result.solo.id, result.soloEloDelta, result.pot);
+    } else {
+      for (const side of result.sideRows) {
+        const team = result.combined.find(c => c.id === side.teamId)!;
+        void checkDoublesAchievements(teamPlayerIds(team), team.id, side.eloDelta, side.pointsDelta);
+      }
+    }
+
+    // Push notifications + auto community post (fire and forget) — same
+    // spirit as the normal doubles match integrations, phrased for a
+    // combined-side result. eloChange in the push body uses the solo team's
+    // own delta magnitude as the headline number, same as the pot.
+    void (async () => {
+      const combinedNames = result.sideRows.map(s => s.teamName).join(" & ");
+      const winnerText = soloWon ? result.solo.team_name : combinedNames;
+      const loserText = soloWon ? combinedNames : result.solo.team_name;
+      const winnerPlayerIds = soloWon ? teamPlayerIds(result.solo) : result.sideRows.flatMap(s => teamPlayerIds(result.combined.find(c => c.id === s.teamId)!));
+      const loserPlayerIds = soloWon ? result.sideRows.flatMap(s => teamPlayerIds(result.combined.find(c => c.id === s.teamId)!)) : teamPlayerIds(result.solo);
+      const firstWinnerPlayerId = winnerPlayerIds[0] ?? loserPlayerIds[0];
+
+      void sendDoublesMatchResultNotification(winnerText, loserText, winnerPlayerIds, loserPlayerIds, result.pot, Math.abs(result.soloEloDelta));
+      void sendMatchResultBroadcast([...winnerPlayerIds, ...loserPlayerIds], "🎯 Doubles Result", `${winnerText} beat ${loserText}`, { winnerText, loserText });
+
+      await createAutoPost({
+        playerId: firstWinnerPlayerId,
+        content: `🎯 ${winnerText} defeated ${loserText} in a combined-side handicap match (+${result.pot} pts)`,
+        autoMeta: {
+          type: "doubles_combined_match", matchId: result.match.id,
+          soloTeamId: result.solo.id, combinedTeamIds: result.sideRows.map(s => s.teamId),
+          pot: result.pot, soloWon,
+        },
+        notifyPlayerIds: loserPlayerIds,
+      });
+    })();
+  } catch (err) {
+    if (err instanceof DoublesConflictError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// ── Combined-side match history for a season ────────────────────────────────
+
+router.get("/seasons/:id/doubles/combined-matches", async (req, res): Promise<void> => {
+  const params = GetSeasonParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const matchRows = await db.execute(sql`
+    SELECT dcm.id, dcm.played_at, dcm.solo_team_id, st.team_name AS solo_team_name,
+           dcm.solo_fielded_count, dcm.solo_won, dcm.stake, dcm.pot,
+           dcm.solo_points_delta, dcm.solo_elo_delta, dcm.game_type, dcm.notes
+    FROM doubles_combined_matches dcm
+    JOIN doubles_teams st ON st.id = dcm.solo_team_id
+    WHERE dcm.season_id = ${params.data.id}
+    ORDER BY dcm.played_at DESC
+    LIMIT 100
+  `);
+  const matches = matchRows.rows as any[];
+  if (matches.length === 0) { res.json([]); return; }
+
+  const matchIds = matches.map(m => m.id);
+  const sideRows = await db.execute(sql`
+    SELECT s.match_id, s.team_id, t.team_name, s.fielded_count, s.points_delta, s.elo_delta, s.eliminated
+    FROM doubles_combined_match_sides s
+    JOIN doubles_teams t ON t.id = s.team_id
+    WHERE s.match_id = ANY(ARRAY[${sql.join(matchIds.map((id: number) => sql`${id}`), sql`, `)}]::int[])
+  `);
+  const sides = sideRows.rows as any[];
+
+  res.json(matches.map(m => ({
+    id: m.id,
+    playedAt: m.played_at,
+    soloTeamId: m.solo_team_id,
+    soloTeamName: m.solo_team_name,
+    soloFieldedCount: m.solo_fielded_count,
+    soloWon: m.solo_won,
+    stake: m.stake,
+    pot: m.pot,
+    soloPointsDelta: m.solo_points_delta,
+    soloEloDelta: m.solo_elo_delta,
+    gameType: m.game_type,
+    notes: m.notes,
+    combinedSides: sides.filter(s => s.match_id === m.id).map(s => ({
+      teamId: s.team_id, teamName: s.team_name, fieldedCount: s.fielded_count,
+      pointsDelta: s.points_delta, eloDelta: s.elo_delta, eliminated: s.eliminated,
+    })),
+  })));
 });
 
 export default router;

@@ -42,6 +42,22 @@ type SetupData = {
   // official ids in doublesTeamIds/shiftWarsTeamIds never change, only how
   // many of each side's own players actually threw.
   unevenTurnOrder?: boolean;
+  // Set only for a "combined side" match (doubles-event/shift-wars): one
+  // official team plays solo against a temporary group of 2+ OTHER official
+  // teams combined onto the other side — e.g. Graeme's pairing vs a made-up
+  // group pulled from two other pairings. team1/team2 above are still built
+  // (team1 = soloPlayers, team2 = every combined team's players flattened
+  // together) so the live scorer plays exactly like any other team-vs-team
+  // match; this field carries the per-official-team breakdown the backend
+  // needs to split the result back across each contributing team's own
+  // standings (see doubles.ts/shift-wars.ts's /combined-matches routes).
+  // Solo is always "Side A" (team1/doublesTeamIds[0]-equivalent) — the
+  // combined group is always "Side B".
+  combinedMatch?: {
+    soloTeamId: number;
+    soloPlayers: Player[];
+    combinedTeams: { teamId: number; players: Player[] }[];
+  };
 };
 
 type EquippedCards = {
@@ -300,6 +316,16 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [doublesTeam2Id, setDoublesTeam2Id] = useState("");
   const [shiftWarsTeam1Id, setShiftWarsTeam1Id] = useState("");
   const [shiftWarsTeam2Id, setShiftWarsTeam2Id] = useState("");
+  // "Combined side" match (doubles-event/shift-wars only): Side A stays a
+  // single official team (the "solo" side, unchanged); Side B can optionally
+  // absorb one or more EXTRA official teams into a temporary group, each
+  // with its own roster picker scoped to that team's own players — see
+  // combinedMode below. extraTeamIds holds each added team's id (or "" while
+  // unpicked); extraTeamPlayerIds holds that team's own fielded roster,
+  // keyed by its id.
+  const [combinedMode, setCombinedMode] = useState(false);
+  const [extraTeamIds, setExtraTeamIds] = useState<string[]>([]);
+  const [extraTeamPlayerIds, setExtraTeamPlayerIds] = useState<Record<string, string[]>>({});
 
   const { teams: allDoublesTeams, loaded: doublesTeamsLoaded } = useDoublesTeamsForPlay();
   const activeDoublesTeams = allDoublesTeams.filter(t => !t.isEliminated);
@@ -323,6 +349,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     const tabs = TABS_BY_FORMAT[format];
     setTab(tabs[0]?.key ?? "competitive");
     setUnevenToggle(false);
+    setCombinedMode(false);
+    setExtraTeamIds([]);
+    setExtraTeamPlayerIds({});
   }, [format]);
 
   // Shift Wars' Uneven Teams roster is scoped to whichever two departments
@@ -336,6 +365,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     setTeam2Ids(["", "", "", "", "", ""]);
     setUnevenCount1(1);
     setUnevenCount2(1);
+    setCombinedMode(false);
+    setExtraTeamIds([]);
+    setExtraTeamPlayerIds({});
   }, [format, shiftWarsTeam1Id, shiftWarsTeam2Id]);
 
   // Same idea for Doubles Event's "short-handed" roster — scoped to
@@ -347,6 +379,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     setTeam2Ids(["", "", "", "", "", ""]);
     setUnevenCount1(1);
     setUnevenCount2(1);
+    setCombinedMode(false);
+    setExtraTeamIds([]);
+    setExtraTeamPlayerIds({});
   }, [format, doublesTeam1Id, doublesTeam2Id]);
 
   // Only the ranked 1v1 Competitive ladder should hide ELIMINATED players
@@ -414,6 +449,29 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   // roster size is the real ceiling there.
   const unevenCap1  = format === "shift-wars" ? Math.max(1, Math.min(6, swRoster1.length)) : format === "doubles-event" ? Math.max(1, Math.min(6, dRoster1.length)) : 6;
   const unevenCap2  = format === "shift-wars" ? Math.max(1, Math.min(6, swRoster2.length)) : format === "doubles-event" ? Math.max(1, Math.min(6, dRoster2.length)) : 6;
+
+  // ── Combined side (doubles-event/shift-wars only) ─────────────────────────
+  // Side B can optionally absorb extra official teams into a temporary
+  // group. Each candidate list excludes Side A, Side B's own team, and
+  // whichever other extra teams are already picked, so the same official
+  // team never appears twice across the whole match.
+  type CombinableTeam = { id: number; name: string; players: { id: number; name: string }[] };
+  const combinableAll: CombinableTeam[] = format === "shift-wars"
+    ? shiftWarsTeams.map(t => ({ id: t.id, name: t.name, players: t.players }))
+    : format === "doubles-event"
+    ? activeDoublesTeams.map(t => ({ id: t.id, name: t.teamName, players: t.players }))
+    : [];
+  const soloTeamId   = format === "shift-wars" ? shiftWarsTeam1Id : format === "doubles-event" ? doublesTeam1Id : "";
+  const firstSideBId = format === "shift-wars" ? shiftWarsTeam2Id : format === "doubles-event" ? doublesTeam2Id : "";
+  const usedTeamIds = [soloTeamId, firstSideBId, ...extraTeamIds].filter(Boolean);
+  const rosterOfTeam = (teamId: string): { id: number; name: string }[] => {
+    const team = combinableAll.find(t => String(t.id) === teamId);
+    return team ? players.filter(p => team.players.some(tp => tp.id === p.id)) : [];
+  };
+  const canAddExtraTeam = combinableAll.length > usedTeamIds.length;
+  const combinedReady = !combinedMode || extraTeamIds.every(id =>
+    id !== "" && (extraTeamPlayerIds[id] ?? []).some(Boolean)
+  );
 
   // Resolve selected player objects
   const resolveTeam = (ids: string[], size: number): (Player | null)[] =>
@@ -488,9 +546,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const team2Ready = (format === "1v1" && !unevenActive) ? true : team2Players.every(Boolean);
   const ffaReady   = format === "killer-ffa" && ffaPlayers.every(Boolean) && new Set(ffaIds.slice(0, ffaCount).filter(Boolean)).size === ffaCount;
   const doublesReady = format === "doubles-event" && !!doublesTeam1 && !!doublesTeam2 && doublesTeam1.id !== doublesTeam2.id
-    && (!unevenActive || (team1Players.every(Boolean) && team2Players.every(Boolean)));
+    && (!unevenActive || (team1Players.every(Boolean) && team2Players.every(Boolean))) && combinedReady;
   const shiftWarsReady = format === "shift-wars" && !!shiftWarsTeam1 && !!shiftWarsTeam2 && shiftWarsTeam1.id !== shiftWarsTeam2.id
-    && (!unevenActive || (team1Players.every(Boolean) && team2Players.every(Boolean)));
+    && (!unevenActive || (team1Players.every(Boolean) && team2Players.every(Boolean))) && combinedReady;
 
   const playersReady = format === "killer-ffa" ? ffaReady
     : format === "doubles-event" ? doublesReady
@@ -526,6 +584,38 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       onStart({ format, team1: ffaPlayers.filter((p): p is Player => !!p), team2: [], gameType: selectedGame, stake: stakeN });
     } else if (format === "doubles-event") {
       if (!doublesTeam1 || !doublesTeam2) return;
+      if (unevenActive && combinedMode) {
+        // Side A (solo) plays one live match against Side B's group of 2+
+        // official pairings. Each combined pairing's own fielded roster is
+        // its own array here so the backend can split the result back
+        // across each one's own standing — see combinedMatch on SetupData.
+        const soloPlayers = team1Players.filter((p): p is Player => !!p);
+        const firstSideBPlayers = team2Players.filter((p): p is Player => !!p);
+        const extraTeams = extraTeamIds
+          .filter(id => id !== "")
+          .map(id => ({
+            teamId: Number(id),
+            players: (extraTeamPlayerIds[id] ?? [])
+              .map(pid => players.find(p => String(p.id) === pid))
+              .filter((p): p is Player => !!p),
+          }));
+        onStart({
+          format: "doubles-event",
+          team1: soloPlayers,
+          team2: [...firstSideBPlayers, ...extraTeams.flatMap(t => t.players)],
+          gameType: selectedGame,
+          stake: stakeN,
+          bullUp,
+          doublesTeamIds: [doublesTeam1.id, doublesTeam2.id],
+          unevenTurnOrder: true,
+          combinedMatch: {
+            soloTeamId: doublesTeam1.id,
+            soloPlayers,
+            combinedTeams: [{ teamId: doublesTeam2.id, players: firstSideBPlayers }, ...extraTeams],
+          },
+        });
+        return;
+      }
       if (unevenActive) {
         // Real individual players from each pairing's own roster, uneven
         // counts allowed ("short-handed"). The result submitted below is
@@ -561,6 +651,34 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       });
     } else if (format === "shift-wars") {
       if (!shiftWarsTeam1 || !shiftWarsTeam2) return;
+      if (unevenActive && combinedMode) {
+        const soloPlayers = team1Players.filter((p): p is Player => !!p);
+        const firstSideBPlayers = team2Players.filter((p): p is Player => !!p);
+        const extraTeams = extraTeamIds
+          .filter(id => id !== "")
+          .map(id => ({
+            teamId: Number(id),
+            players: (extraTeamPlayerIds[id] ?? [])
+              .map(pid => players.find(p => String(p.id) === pid))
+              .filter((p): p is Player => !!p),
+          }));
+        onStart({
+          format: "shift-wars",
+          team1: soloPlayers,
+          team2: [...firstSideBPlayers, ...extraTeams.flatMap(t => t.players)],
+          gameType: selectedGame,
+          stake: stakeN,
+          bullUp,
+          shiftWarsTeamIds: [shiftWarsTeam1.id, shiftWarsTeam2.id],
+          unevenTurnOrder: true,
+          combinedMatch: {
+            soloTeamId: shiftWarsTeam1.id,
+            soloPlayers,
+            combinedTeams: [{ teamId: shiftWarsTeam2.id, players: firstSideBPlayers }, ...extraTeams],
+          },
+        });
+        return;
+      }
       if (unevenActive) {
         // Real individual players from each department's own roster,
         // uneven counts allowed. The result submitted below is still a
@@ -846,7 +964,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
               {/* Side B */}
               <div className="space-y-2">
                 <div className="text-xs font-bold uppercase text-center py-1 rounded" style={{ background: "rgba(238,10,120,0.08)", color: "#ee0a78", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
-                  {format === "shift-wars" && shiftWarsTeam2 ? shiftWarsTeam2.name : format === "doubles-event" && doublesTeam2 ? doublesTeam2.teamName : "Side B"}
+                  {combinedMode && extraTeamIds.some(Boolean)
+                    ? [firstSideBId, ...extraTeamIds].filter(Boolean).map(id => combinableAll.find(t => String(t.id) === id)?.name).filter(Boolean).join(" & ")
+                    : format === "shift-wars" && shiftWarsTeam2 ? shiftWarsTeam2.name : format === "doubles-event" && doublesTeam2 ? doublesTeam2.teamName : "Side B"}
                 </div>
                 {Array.from({ length: unevenCount2 }).map((_, i) => (
                   <PlayerSlot key={i} label={`Player ${i + 1}`} color="#ee0a78"
@@ -876,6 +996,123 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                 ? "Sides don't need to match — pick real players from each department's own roster. The department result and wager are unaffected by headcount; only who's actually throwing does."
                 : "Sides don't need to match — each side shares one running score, and the bigger side simply gets more throws per round from having more people to get through."}
             </p>
+
+            {/* Combined side — Side A (solo) plays one live match against a
+               temporary group of 2+ OTHER official teams stacked onto Side B.
+               The result still counts for real season standings: Side A
+               takes the full swing, and each team on the combined side takes
+               its own proportional share (split by how many of its own
+               players it fielded) rather than each eating the full amount —
+               see doubles.ts/shift-wars.ts's /combined-matches routes. */}
+            {(format === "doubles-event" || format === "shift-wars") && !!soloTeamId && !!firstSideBId && (
+              <div className="pt-1 space-y-2" style={{ borderTop: "1px dashed rgba(255,255,255,0.08)" }}>
+                <button type="button"
+                  onClick={() => {
+                    const next = !combinedMode;
+                    setCombinedMode(next);
+                    if (!next) { setExtraTeamIds([]); setExtraTeamPlayerIds({}); }
+                  }}
+                  className="w-full flex items-center justify-between py-2 px-3 rounded-lg"
+                  style={{
+                    fontFamily: "Oswald, sans-serif",
+                    background: combinedMode ? "rgba(167,139,250,0.08)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${combinedMode ? "rgba(167,139,250,0.3)" : "rgba(255,255,255,0.07)"}`,
+                    cursor: "pointer",
+                  }}>
+                  <span className="text-xs font-black uppercase tracking-widest" style={{ color: combinedMode ? "#a78bfa" : "rgba(255,255,255,0.45)" }}>
+                    Combine another {format === "doubles-event" ? "pairing" : "department"} into Side B
+                  </span>
+                  <div className="relative w-9 h-5 rounded-full transition-colors"
+                    style={{ background: combinedMode ? "rgba(167,139,250,0.5)" : "rgba(255,255,255,0.1)" }}>
+                    <div className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
+                      style={{ background: combinedMode ? "#a78bfa" : "rgba(255,255,255,0.3)", left: combinedMode ? "calc(100% - 18px)" : "2px" }} />
+                  </div>
+                </button>
+                {combinedMode && (
+                  <div className="space-y-2 pl-1">
+                    <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
+                      One live match, one result — Side B's extra {format === "doubles-event" ? "pairing(s)" : "department(s)"} each keep their own win/loss, but only take their own share of the points{format === "doubles-event" ? "/Elo" : ""} swing, not the full amount. {format === "doubles-event" ? doublesTeam1?.teamName : shiftWarsTeam1?.name} stays the solo side and takes the full swing either way.
+                    </p>
+                    {extraTeamIds.map((id, idx) => {
+                      const candidates = combinableAll.filter(t => !usedTeamIds.includes(String(t.id)) || String(t.id) === id);
+                      const roster = rosterOfTeam(id);
+                      const picks = extraTeamPlayerIds[id] ?? [];
+                      return (
+                        <div key={idx} className="p-2 rounded-lg space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={id}
+                              onChange={e => {
+                                const newId = e.target.value;
+                                setExtraTeamIds(prev => prev.map((v, i) => i === idx ? newId : v));
+                                setExtraTeamPlayerIds(prev => {
+                                  const { [id]: _drop, ...rest } = prev;
+                                  return { ...rest, [newId]: [] };
+                                });
+                              }}
+                              className="flex-1 rounded-lg px-3 py-2 text-sm"
+                              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", fontFamily: "Oswald, sans-serif" }}>
+                              <option value="">Pick a {format === "doubles-event" ? "pairing" : "department"}…</option>
+                              {candidates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                            <button type="button"
+                              onClick={() => {
+                                setExtraTeamIds(prev => prev.filter((_, i) => i !== idx));
+                                setExtraTeamPlayerIds(prev => { const { [id]: _drop, ...rest } = prev; return rest; });
+                              }}
+                              className="px-3 py-2 rounded-lg text-xs font-bold uppercase"
+                              style={{ fontFamily: "Oswald, sans-serif", background: "rgba(255,0,92,0.08)", border: "1px solid rgba(255,0,92,0.25)", color: "#ff005c", cursor: "pointer" }}>
+                              Remove
+                            </button>
+                          </div>
+                          {id && (
+                            <div className="grid grid-cols-2 gap-2">
+                              {roster.map(p => {
+                                const selected = picks.includes(String(p.id));
+                                return (
+                                  <button key={p.id} type="button"
+                                    onClick={() => {
+                                      setExtraTeamPlayerIds(prev => {
+                                        const current = prev[id] ?? [];
+                                        const nextPicks = selected ? current.filter(pid => pid !== String(p.id)) : [...current, String(p.id)];
+                                        return { ...prev, [id]: nextPicks };
+                                      });
+                                    }}
+                                    className="py-1.5 px-2 rounded-lg text-xs text-left"
+                                    style={{
+                                      fontFamily: "Oswald, sans-serif",
+                                      background: selected ? "rgba(167,139,250,0.15)" : "rgba(255,255,255,0.03)",
+                                      border: `1px solid ${selected ? "rgba(167,139,250,0.4)" : "rgba(255,255,255,0.08)"}`,
+                                      color: selected ? "#a78bfa" : "rgba(255,255,255,0.5)",
+                                      cursor: "pointer",
+                                    }}>
+                                    {p.name}
+                                  </button>
+                                );
+                              })}
+                              {roster.length === 0 && (
+                                <p className="text-xs col-span-2" style={{ color: "rgba(255,210,74,0.6)", fontFamily: "Oswald, sans-serif" }}>No players assigned to this team yet.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <button type="button" disabled={!canAddExtraTeam}
+                      onClick={() => setExtraTeamIds(prev => [...prev, ""])}
+                      className="w-full py-2 rounded-lg text-xs font-bold uppercase"
+                      style={{
+                        fontFamily: "Oswald, sans-serif",
+                        background: "rgba(167,139,250,0.08)", border: "1px solid rgba(167,139,250,0.25)",
+                        color: canAddExtraTeam ? "#a78bfa" : "rgba(167,139,250,0.3)",
+                        cursor: canAddExtraTeam ? "pointer" : "not-allowed",
+                      }}>
+                      + Add another {format === "doubles-event" ? "pairing" : "department"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1214,6 +1451,39 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         setSubmittedMatchId(createdMatch.id);
         setViewerRankChange(createdMatch.winnerRankChange ?? 0);
         setViewerNewRank(createdMatch.newWinnerRank ?? null);
+      } else if (data.combinedMatch && (data.format === "doubles-event" || data.format === "shift-wars")) {
+        // Combined-side match: Side A (solo) played one live game against
+        // Side B's group of 2+ official teams. Checked before the plain
+        // doubles-event/shift-wars branches below since this needs its own
+        // endpoint (the per-team split doesn't fit winnerTeamId/loserTeamId).
+        const { soloTeamId, soloPlayers, combinedTeams } = data.combinedMatch;
+        const soloWon = result.winnerIdx === 0;
+        const endpoint = data.format === "doubles-event" ? "/api/doubles/combined-matches" : "/api/shift-wars/combined-matches";
+        const combinedResult = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            soloTeamId,
+            soloFieldedCount: soloPlayers.length,
+            soloWon,
+            combinedTeams: combinedTeams.map(t => ({ teamId: t.teamId, fieldedCount: t.players.length })),
+            stake:    data.stake,
+            gameType: data.gameType.key,
+          }),
+        }).then(async r => {
+          if (!r.ok) {
+            const body = await r.json().catch(() => ({}));
+            throw new Error((body as { error?: string }).error ?? `HTTP ${r.status}`);
+          }
+          return r.json();
+        });
+        // No single before/after rank makes sense here — 3+ official teams'
+        // standings all moved at once, not just "the two sides." The results
+        // screen still shows the pot/points swing from combinedResult itself.
+        void combinedResult;
+        setViewerRankChange(0);
+        setViewerNewRank(null);
+        await qc.invalidateQueries({ queryKey: [data.format === "doubles-event" ? "leaderboard-doubles" : "leaderboard-shiftwars"] });
       } else if (data.format === "doubles-event" && data.doublesTeamIds) {
         const [team1Id, team2Id] = data.doublesTeamIds;
         const winnerTeamId = result.winnerIdx === 0 ? team1Id : team2Id;
@@ -1321,7 +1591,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
     if (!autoFired) { setAutoFired(true); void submit(); }
   }, []);
 
-  const formatLabel = data.format === "1v1" ? "1v1" : data.format === "2v2" ? "2v2 Doubles" : data.format === "3v3" ? "3v3 Triples" : data.format === "uneven-teams" ? `Uneven Teams (${data.team1.length}v${data.team2.length})` : data.format === "doubles-event" ? (data.unevenTurnOrder ? `Doubles Event (${data.team1.length}v${data.team2.length})` : "Doubles Event") : data.format === "shift-wars" ? (data.unevenTurnOrder ? `Shift Wars (${data.team1.length}v${data.team2.length})` : "Shift Wars") : `Killer ${data.team1.length}-player`;
+  const formatLabel = data.format === "1v1" ? "1v1" : data.format === "2v2" ? "2v2 Doubles" : data.format === "3v3" ? "3v3 Triples" : data.format === "uneven-teams" ? `Uneven Teams (${data.team1.length}v${data.team2.length})` : data.format === "doubles-event" ? (data.combinedMatch ? `Doubles Event (Combined, ${data.team1.length}v${data.team2.length})` : data.unevenTurnOrder ? `Doubles Event (${data.team1.length}v${data.team2.length})` : "Doubles Event") : data.format === "shift-wars" ? (data.combinedMatch ? `Shift Wars (Combined, ${data.team1.length}v${data.team2.length})` : data.unevenTurnOrder ? `Shift Wars (${data.team1.length}v${data.team2.length})` : "Shift Wars") : `Killer ${data.team1.length}-player`;
 
   return (
     <div className="max-w-lg mx-auto space-y-6 text-center">

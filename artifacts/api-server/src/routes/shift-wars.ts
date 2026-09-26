@@ -2,7 +2,7 @@ import { Router } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { z } from "zod";
-import { validateStake, applyWager } from "../lib/wager";
+import { validateStake, applyWager, combinedPot, validateCombinedStake, applyCombinedWager } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { sendShiftWarsMatchResultNotification, sendMatchResultBroadcast, sendRankChangeNotifications } from "../services/notificationService";
@@ -37,6 +37,26 @@ const RecordShiftWarsMatchBody = z.object({
   // see the pot calculation below.
   winnerFieldedCount: z.number().int().positive().max(6).optional().default(1),
   loserFieldedCount:  z.number().int().positive().max(6).optional().default(1),
+});
+
+// A "combined side" match: one department plays alone (solo) against a
+// temporary group made up of the other department(s) combined — e.g. Fresh
+// alone vs Twilight + Shift Leader combined, as a handicap. See lib/wager.ts
+// (combinedPot/validateCombinedStake/applyCombinedWager, shared with
+// doubles.ts's own combined-match endpoint) for the settlement math and
+// db/migrations/add_combined_matches.ts for the tables this writes to.
+// Points-only, like every other Shift Wars match — no Elo here.
+const RecordShiftWarsCombinedMatchBody = z.object({
+  soloTeamId: z.number().int().positive(),
+  soloFieldedCount: z.number().int().positive().max(6).optional().default(1),
+  soloWon: z.boolean(),
+  combinedTeams: z.array(z.object({
+    teamId: z.number().int().positive(),
+    fieldedCount: z.number().int().positive().max(6).optional().default(1),
+  })).min(2, "A combined side needs at least 2 different departments"),
+  stake: z.number().int().min(1),
+  gameType: z.string().optional().default("shift_wars_501"),
+  notes: z.string().optional(),
 });
 
 const UpdateTeamPointsBody = z.object({
@@ -370,6 +390,200 @@ router.patch("/admin/shift-wars/players/:id/team", requireAdminSession, async (r
   `)).rows as any[];
   if (rows.length === 0) { res.status(404).json({ error: "Player not found" }); return; }
   res.json(rows[0]);
+});
+
+// ── Record a "combined side" Shift Wars match ────────────────────────────────
+
+router.post("/shift-wars/combined-matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
+  const parsed = RecordShiftWarsCombinedMatchBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
+  const { soloTeamId, soloFieldedCount, soloWon, combinedTeams, stake, gameType, notes } = parsed.data;
+
+  const combinedTeamIds = combinedTeams.map(c => c.teamId);
+  if (new Set(combinedTeamIds).size !== combinedTeamIds.length) {
+    res.status(400).json({ error: "Combined side cannot list the same department twice" }); return;
+  }
+  if (combinedTeamIds.includes(soloTeamId)) {
+    res.status(400).json({ error: "The solo department cannot also be part of the combined side" }); return;
+  }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const allIds = [soloTeamId, ...combinedTeamIds];
+      const teamRows = await tx.execute(sql`
+        SELECT * FROM shift_wars_teams
+        WHERE id = ANY(ARRAY[${sql.join(allIds.map(id => sql`${id}`), sql`, `)}]::int[])
+        FOR UPDATE
+      `);
+      const teams = teamRows.rows as any[];
+      if (teams.length !== allIds.length) throw new ShiftWarsConflictError("One or more departments not found");
+
+      const solo = teams.find(t => t.id === soloTeamId)!;
+      const combined = combinedTeamIds.map(id => teams.find(t => t.id === id)!);
+
+      const pot = combinedPot(stake, soloFieldedCount, combinedTeams);
+      const losingSide: "solo" | "combined" = soloWon ? "combined" : "solo";
+
+      const stakeError = validateCombinedStake(
+        pot, losingSide,
+        { points: solo.points, name: solo.name },
+        combined.map((c, i) => ({ points: c.points, name: c.name, fieldedCount: combinedTeams[i].fieldedCount })),
+      );
+      if (stakeError) throw new ShiftWarsConflictError(stakeError);
+
+      const { newSoloPoints, soloPointsDelta, combinedResults } = applyCombinedWager(
+        pot, losingSide,
+        { points: solo.points },
+        combined.map((c, i) => ({ points: c.points, fieldedCount: combinedTeams[i].fieldedCount })),
+      );
+
+      await tx.execute(sql`
+        UPDATE shift_wars_teams SET
+          points = ${newSoloPoints},
+          peak_points = GREATEST(peak_points, ${newSoloPoints}),
+          wins = wins + ${soloWon ? 1 : 0},
+          losses = losses + ${soloWon ? 0 : 1}
+        WHERE id = ${solo.id}
+      `);
+
+      const sideRows: { teamId: number; teamName: string; fieldedCount: number; pointsDelta: number }[] = [];
+      for (let i = 0; i < combined.length; i++) {
+        const c = combined[i];
+        const cr = combinedResults[i];
+        const combinedWon = !soloWon;
+        await tx.execute(sql`
+          UPDATE shift_wars_teams SET
+            points = ${cr.newPoints},
+            peak_points = GREATEST(peak_points, ${cr.newPoints}),
+            wins = wins + ${combinedWon ? 1 : 0},
+            losses = losses + ${combinedWon ? 0 : 1}
+          WHERE id = ${c.id}
+        `);
+        sideRows.push({ teamId: c.id, teamName: c.name, fieldedCount: combinedTeams[i].fieldedCount, pointsDelta: cr.pointsDelta });
+      }
+
+      const [match] = (await tx.execute(sql`
+        INSERT INTO shift_wars_combined_matches
+          (solo_team_id, solo_fielded_count, solo_won, stake, pot, solo_points_delta, game_type, notes)
+        VALUES (${solo.id}, ${soloFieldedCount}, ${soloWon}, ${stake}, ${pot}, ${soloPointsDelta}, ${gameType}, ${notes ?? null})
+        RETURNING *
+      `)).rows as any[];
+
+      for (const side of sideRows) {
+        await tx.execute(sql`
+          INSERT INTO shift_wars_combined_match_sides (match_id, team_id, fielded_count, points_delta)
+          VALUES (${match.id}, ${side.teamId}, ${side.fieldedCount}, ${side.pointsDelta})
+        `);
+      }
+
+      return { match, solo, combined, sideRows, pot, soloPointsDelta };
+    });
+
+    res.status(201).json({
+      match: result.match,
+      soloTeamId: result.solo.id,
+      soloTeamName: result.solo.name,
+      soloWon,
+      pot: result.pot,
+      soloPointsDelta: result.soloPointsDelta,
+      combinedSides: result.sideRows,
+    });
+
+    void checkShiftWarsAchievements(soloWon ? result.solo.id : result.sideRows[0].teamId);
+    if (!soloWon) {
+      for (const side of result.sideRows.slice(1)) void checkShiftWarsAchievements(side.teamId);
+    }
+
+    // Push notifications + auto community post (fire and forget) — same
+    // spirit as the normal Shift Wars match, phrased for a combined result.
+    void (async () => {
+      try {
+        const rosterRows = await db.execute(sql`
+          SELECT id, shift_wars_team_id FROM players
+          WHERE shift_wars_team_id = ANY(ARRAY[${sql.join([result.solo.id, ...result.combined.map(c => c.id)].map(id => sql`${id}`), sql`, `)}]::int[])
+        `);
+        const roster = rosterRows.rows as any[];
+        const soloPlayerIds = roster.filter(p => p.shift_wars_team_id === result.solo.id).map(p => p.id);
+        const combinedPlayerIds = roster.filter(p => result.combined.some(c => c.id === p.shift_wars_team_id)).map(p => p.id);
+
+        const combinedNames = result.sideRows.map(s => s.teamName).join(" & ");
+        const winnerText = soloWon ? result.solo.name : combinedNames;
+        const loserText = soloWon ? combinedNames : result.solo.name;
+        const winnerPlayerIds = soloWon ? soloPlayerIds : combinedPlayerIds;
+        const loserPlayerIds = soloWon ? combinedPlayerIds : soloPlayerIds;
+
+        await sendShiftWarsMatchResultNotification(winnerText, loserText, winnerPlayerIds, loserPlayerIds, result.pot);
+        void sendMatchResultBroadcast(
+          [...winnerPlayerIds, ...loserPlayerIds],
+          "🎯 Shift Wars Result",
+          `${winnerText} beat ${loserText}`,
+          { winnerText, loserText },
+        );
+        if (winnerPlayerIds.length > 0) {
+          await createAutoPost({
+            playerId: winnerPlayerIds[0],
+            content: `🎯 ${winnerText} defeated ${loserText} in a combined-side handicap match (+${result.pot} pts)`,
+            autoMeta: {
+              type: "shift_wars_combined_match", matchId: result.match.id,
+              soloTeamId: result.solo.id, combinedTeamIds: result.sideRows.map(s => s.teamId),
+              pot: result.pot, soloWon,
+            },
+            notifyPlayerIds: loserPlayerIds,
+          });
+        }
+      } catch (err) {
+        req.log?.error?.({ err }, "Failed to send Shift Wars combined-match result notifications");
+      }
+    })();
+  } catch (err) {
+    if (err instanceof ShiftWarsConflictError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+// ── Combined-side match history ─────────────────────────────────────────────
+
+router.get("/shift-wars/combined-matches", async (_req, res): Promise<void> => {
+  const matchRows = await db.execute(sql`
+    SELECT scm.id, scm.played_at, scm.solo_team_id, st.name AS solo_team_name,
+           scm.solo_fielded_count, scm.solo_won, scm.stake, scm.pot,
+           scm.solo_points_delta, scm.game_type, scm.notes
+    FROM shift_wars_combined_matches scm
+    JOIN shift_wars_teams st ON st.id = scm.solo_team_id
+    ORDER BY scm.played_at DESC
+    LIMIT 100
+  `);
+  const matches = matchRows.rows as any[];
+  if (matches.length === 0) { res.json([]); return; }
+
+  const matchIds = matches.map(m => m.id);
+  const sideRows = await db.execute(sql`
+    SELECT s.match_id, s.team_id, t.name AS team_name, s.fielded_count, s.points_delta
+    FROM shift_wars_combined_match_sides s
+    JOIN shift_wars_teams t ON t.id = s.team_id
+    WHERE s.match_id = ANY(ARRAY[${sql.join(matchIds.map((id: number) => sql`${id}`), sql`, `)}]::int[])
+  `);
+  const sides = sideRows.rows as any[];
+
+  res.json(matches.map(m => ({
+    id: m.id,
+    playedAt: m.played_at,
+    soloTeamId: m.solo_team_id,
+    soloTeamName: m.solo_team_name,
+    soloFieldedCount: m.solo_fielded_count,
+    soloWon: m.solo_won,
+    stake: m.stake,
+    pot: m.pot,
+    soloPointsDelta: m.solo_points_delta,
+    gameType: m.game_type,
+    notes: m.notes,
+    combinedSides: sides.filter(s => s.match_id === m.id).map(s => ({
+      teamId: s.team_id, teamName: s.team_name, fieldedCount: s.fielded_count, pointsDelta: s.points_delta,
+    })),
+  })));
 });
 
 export default router;

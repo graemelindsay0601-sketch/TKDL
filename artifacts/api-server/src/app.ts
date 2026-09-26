@@ -58,6 +58,7 @@ import { seedCosmeticDefinitions } from "./services/cosmetics-service";
 import { addLastSeenHubAtColumn } from "./db/migrations/add_last_seen_hub_at";
 import { addPendingPushNotifications } from "./db/migrations/add_pending_push_notifications";
 import { addSelfPlayUnlocks } from "./db/migrations/add_self_play_unlocks";
+import { addCombinedMatchesTables } from "./db/migrations/add_combined_matches";
 import { addAccountAccentCosmeticColumn } from "./db/migrations/add_account_accent_cosmetic";
 import { seedSelfPlayUnlockDefinitions } from "./services/self-play-unlocks-service";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
@@ -1426,6 +1427,8 @@ async function init() {
   await runInitStep("seedSelfPlayUnlockDefinitions", seedSelfPlayUnlockDefinitions);
   // Needs the notifications table to already exist (FK to notifications.id).
   await runInitStep("addPendingPushNotifications", addPendingPushNotifications);
+  // References doubles_teams/shift_wars_teams/seasons, all of which already exist by this point.
+  await runInitStep("addCombinedMatchesTables", addCombinedMatchesTables);
   await runInitStep("maybeAutoResetLeagueSeasons", maybeAutoResetLeagueSeasons);
   // Runs after maybeAutoResetLeagueSeasons so a reset firing on this exact
   // boot is immediately reconciled too, though with seasonReset.ts's fix
