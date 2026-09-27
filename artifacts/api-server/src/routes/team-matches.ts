@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { computeWagerShares } from "../lib/wager-pot";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable, matchParticipantsTable } from "@workspace/db";
 import { z } from "zod";
@@ -12,6 +13,7 @@ const TeamMatchBody = z.object({
   winnerIds: z.array(z.number().int().positive()).min(1).max(6),
   loserIds:  z.array(z.number().int().positive()).min(1).max(6),
   stake:     z.number().int().min(1), // Rules minimum is 1 — see wager.ts validateStake for why 0 has no legitimate case here.
+  stakeMode: z.enum(["per-player", "total"]).optional().default("per-player"),
   gameType:  z.string().optional().default("team_501"),
   notes:     z.string().optional(),
 });
@@ -19,34 +21,6 @@ const TeamMatchBody = z.object({
 const ListTeamMatchesQuery = z.object({
   limit: z.coerce.number().int().positive().max(500).optional().default(20),
 });
-
-// Splits a pot evenly across `count` recipients, remainder going to the
-// first ones by index — the same "base + remainder" pattern used for
-// winner shares below, now shared with the loser side too.
-function splitEvenly(pot: number, count: number): number[] {
-  const base = Math.floor(pot / count);
-  const remainder = pot - base * count;
-  return Array.from({ length: count }, (_, i) => base + (i < remainder ? 1 : 0));
-}
-
-// Every player pays/gains a flat `stake` when the teams are the same size —
-// that's the whole league's baseline expectation and must not change here.
-// Once the sides are uneven (Uneven Teams), the smaller side is genuinely
-// outnumbered: e.g. a lone player facing a pair of separate individuals
-// (not a shared-wallet doubles pair) is up against two independent stakes,
-// not one. So the pot moved is stake × the BIGGER side's size — not the
-// loser count — and is split evenly across whichever side is currently
-// losing, with the same remainder-to-the-first-few rule used everywhere
-// else in this file. For equal sizes, biggerSide === winnerCount ===
-// loserCount, so this reduces to the original flat-stake behavior exactly.
-function computeWagerShares(stake: number, winnerCount: number, loserCount: number) {
-  const pot = stake * Math.max(winnerCount, loserCount);
-  return {
-    pot,
-    winnerShares: splitEvenly(pot, winnerCount),
-    loserShares:  splitEvenly(pot, loserCount),
-  };
-}
 
 const router = Router();
 
@@ -80,7 +54,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
     return;
   }
 
-  const { winnerIds, loserIds, stake, gameType, notes } = parsed.data;
+  const { winnerIds, loserIds, stake, stakeMode, gameType, notes } = parsed.data;
 
   // Validate no overlap between teams
   const overlap = winnerIds.filter(id => loserIds.includes(id));
@@ -139,7 +113,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
   // single source of truth for what each loser actually owes; this is
   // just the same computation run early against the pre-lock read for a
   // cheap, obvious-case reject.
-  const preCheckShares = computeWagerShares(stake, winnerPlayersPreCheck.length, loserPlayersPreCheck.length);
+  const preCheckShares = computeWagerShares(stake, winnerPlayersPreCheck.length, loserPlayersPreCheck.length, stakeMode);
   for (let i = 0; i < loserPlayersPreCheck.length; i++) {
     const p = loserPlayersPreCheck[i];
     const owed = preCheckShares.loserShares[i];
@@ -194,7 +168,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
       // here (not just trusted from the pre-check above) against the
       // locked, authoritative balances, using the exact same shares that
       // are about to be written below.
-      const { loserShares: lockedLoserShares } = computeWagerShares(stake, winnerPlayers.length, loserPlayers.length);
+      const { loserShares: lockedLoserShares } = computeWagerShares(stake, winnerPlayers.length, loserPlayers.length, stakeMode);
       for (let i = 0; i < loserPlayers.length; i++) {
         const p = loserPlayers[i];
         const owed = lockedLoserShares[i];
@@ -229,21 +203,9 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
       ];
       await tx.insert(matchParticipantsTable).values(participantRows);
 
-      // Wager split for uneven teams (e.g. 2v1, 3v2, or a lone player facing
-      // a pair of separate individuals like Kyle & Cammy rather than a
-      // shared-wallet doubles pair): the pot is stake × the BIGGER side's
-      // size — not just the loser count — because the smaller side is
-      // genuinely outnumbered and should risk/gain more than a flat stake,
-      // the same amount either way regardless of which side ends up
-      // winning. That pot is then split evenly across the losing side
-      // (what each of them pays) and, separately, evenly across the
-      // winning side (what each of them gains) — any remainder from an
-      // uneven split goes to the first players in each list, so the total
-      // credited to winners always exactly equals the total debited from
-      // losers. For equal team sizes (including a plain 1v1) biggerSide
-      // equals both counts, so this reduces to the exact same flat
-      // per-player amount as before — no behavior change there.
-      const { winnerShares, loserShares } = computeWagerShares(stake, winnerPlayers.length, loserPlayers.length);
+      // Split the selected pot across both sides, keeping integer points
+      // conserved. Total mode does not multiply the wager by headcount.
+      const { winnerShares, loserShares } = computeWagerShares(stake, winnerPlayers.length, loserPlayers.length, stakeMode);
 
       // Update winner players
       for (let i = 0; i < winnerPlayers.length; i++) {

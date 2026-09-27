@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { wagerPot } from "../lib/wager-pot";
 import { eq, and, sql } from "drizzle-orm";
 import { db, seasonsTable } from "@workspace/db";
 import { z } from "zod";
@@ -16,19 +17,11 @@ const RecordDoublesMatchBody = z.object({
   winnerTeamId: z.number().int().positive(),
   loserTeamId:  z.number().int().positive(),
   stake:        z.number().int().min(1), // Rules minimum is 1 — see wager.ts validateStake for why 0 has no legitimate case here.
+  stakeMode: z.enum(["per-player", "total"]).optional().default("per-player"),
   gameType:     z.string().optional().default("doubles_501"),
   notes:        z.string().optional(),
-  // How many of each official pairing's own players actually showed up and
-  // played, when Uneven Teams' "short-handed" option was used (e.g. one
-  // half of a pairing plays solo against the other pairing's full two).
-  // Optional and defaults to 1v1 (a flat stake) — a normal Doubles Event
-  // match never sends these. The official winner/loser TEAM ids are
-  // unchanged either way — a short-handed side still fields only its own
-  // pairing's players, so the result still belongs to that pairing and
-  // still updates the real season standings, just at a scaled stake. This
-  // never allows crossing two different pairings into one ad hoc side —
-  // that has no team id of its own to settle against, so it's a separate
-  // Team Match (/api/team-matches) instead, not a Doubles Event result.
+  // Fielded counts support legacy per-player wagers. Total mode moves
+  // the entered stake between official team accounts regardless of count.
   winnerFieldedCount: z.number().int().positive().max(3).optional().default(1),
   loserFieldedCount:  z.number().int().positive().max(3).optional().default(1),
 });
@@ -50,6 +43,7 @@ const RecordDoublesCombinedMatchBody = z.object({
     fieldedCount: z.number().int().positive().max(3).optional().default(1),
   })).min(2, "A combined side needs at least 2 different pairings"),
   stake: z.number().int().min(1),
+  stakeMode: z.enum(["per-player", "total"]).optional().default("per-player"),
   gameType: z.string().optional().default("doubles_501"),
   notes: z.string().optional(),
 });
@@ -139,17 +133,12 @@ router.get("/seasons/:id/doubles/matches", async (req, res): Promise<void> => {
 router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
   const parsed = RecordDoublesMatchBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
-  const { winnerTeamId, loserTeamId, stake, gameType, notes, winnerFieldedCount, loserFieldedCount } = parsed.data;
+  const { winnerTeamId, loserTeamId, stake, stakeMode, gameType, notes, winnerFieldedCount, loserFieldedCount } = parsed.data;
 
   if (winnerTeamId === loserTeamId) { res.status(400).json({ error: "A team cannot play itself" }); return; }
 
-  // Short-handed Uneven Teams: the pot is stake × the bigger side's fielded
-  // headcount, same principle as Team Match's uneven-size pot and Shift
-  // Wars' fielded-headcount scaling — a pairing that fields fewer of its
-  // own players against a fully-fielded opponent risks/gains more than a
-  // flat stake, not the same amount. A normal match (both counts default
-  // to 1) reduces this to stake × 1 = stake, unchanged.
-  const effectiveStake = stake * Math.max(winnerFieldedCount, loserFieldedCount);
+  // New live matches send a total; omitted mode preserves old clients.
+  const effectiveStake = wagerPot(stake, winnerFieldedCount, loserFieldedCount, stakeMode);
 
   // Doubles now runs its own independent season lifecycle, separate from
   // Singles — filtering by league_type is required, not just isActive,
@@ -340,7 +329,7 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
 router.post("/doubles/combined-matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
   const parsed = RecordDoublesCombinedMatchBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
-  const { soloTeamId, soloFieldedCount, soloWon, combinedTeams, stake, gameType, notes } = parsed.data;
+  const { soloTeamId, soloFieldedCount, soloWon, combinedTeams, stake, stakeMode, gameType, notes } = parsed.data;
 
   const combinedTeamIds = combinedTeams.map(c => c.teamId);
   if (new Set(combinedTeamIds).size !== combinedTeamIds.length) {
@@ -380,7 +369,7 @@ router.post("/doubles/combined-matches", matchSubmitRateLimit, async (req, res):
         if (c.is_eliminated) throw new DoublesConflictError(`${c.team_name} has been eliminated from doubles and cannot play`);
       }
 
-      const pot = combinedPot(stake, soloFieldedCount, combinedTeams);
+      const pot = stakeMode === "total" ? stake : combinedPot(stake, soloFieldedCount, combinedTeams);
       const losingSide: "solo" | "combined" = soloWon ? "combined" : "solo";
 
       const stakeError = validateCombinedStake(

@@ -273,16 +273,19 @@ export function GameScorer({
       ? (result) => onWin({ ...result, winnerIdx: result.winnerIdx === 0 ? 1 : 0 })
       : onWin;
 
+    const orderedTeams: [string[], string[]] | undefined = teamNames
+      ? starterIdx === 1 ? [teamNames[1], teamNames[0]] : teamNames
+      : undefined;
     const cfg = safeParse(gameType.config);
     const win = (idx: number, detail?: string) => wrappedOnWin({ winnerIdx: idx, detail });
 
   // ── Team engines (variable-length, 2v2 / 3v3 / Uneven Teams) ─────────────────
   if (gameType.engine === "TeamX01" && teamNames) {
-    return <TeamX01Scorer teamNames={teamNames} config={cfg as any} onWin={win} onAbandon={onAbandon} turnOrder={teamTurnOrder} />;
+    return <TeamX01Scorer teamNames={orderedTeams!} config={cfg as any} onWin={win} onAbandon={onAbandon} turnOrder={teamTurnOrder} />;
   }
 
   if (gameType.engine === "TeamCricket" && teamNames) {
-    return <TeamCricketScorer teamNames={teamNames} cutThroat={!!cfg.cutThroat} onWin={win} onAbandon={onAbandon} turnOrder={teamTurnOrder} />;
+    return <TeamCricketScorer teamNames={orderedTeams!} cutThroat={!!cfg.cutThroat} onWin={win} onAbandon={onAbandon} turnOrder={teamTurnOrder} />;
   }
 
   if (gameType.engine === "MultiKiller" && playerNames) {

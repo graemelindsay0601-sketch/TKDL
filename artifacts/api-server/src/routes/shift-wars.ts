@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { wagerPot } from "../lib/wager-pot";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { z } from "zod";
@@ -26,15 +27,11 @@ const RecordShiftWarsMatchBody = z.object({
   winnerTeamId: z.number().int().positive(),
   loserTeamId:  z.number().int().positive(),
   stake:        z.number().int().min(1), // Rules minimum is 1 — see wager.ts validateStake for why 0 has no legitimate case here.
+  stakeMode: z.enum(["per-player", "total"]).optional().default("per-player"),
   gameType:     z.string().optional().default("shift_wars_501"),
   notes:        z.string().optional(),
-  // How many individual players each department actually fielded for this
-  // match. Optional and defaults to 1v1 (a flat stake) — every normal Shift
-  // Wars match (no Uneven Teams toggle) never sends these, since it's
-  // always a single synthetic entry standing in for the whole department.
-  // Once Uneven Teams is toggled the fielded headcount can differ (e.g. 1
-  // player from Fresh vs 3 from Twilight) and the stake scales with it —
-  // see the pot calculation below.
+  // Fielded counts support legacy per-player wagers. Total mode moves
+  // the entered stake between official team accounts regardless of count.
   winnerFieldedCount: z.number().int().positive().max(6).optional().default(1),
   loserFieldedCount:  z.number().int().positive().max(6).optional().default(1),
 });
@@ -55,6 +52,7 @@ const RecordShiftWarsCombinedMatchBody = z.object({
     fieldedCount: z.number().int().positive().max(6).optional().default(1),
   })).min(2, "A combined side needs at least 2 different departments"),
   stake: z.number().int().min(1),
+  stakeMode: z.enum(["per-player", "total"]).optional().default("per-player"),
   gameType: z.string().optional().default("shift_wars_501"),
   notes: z.string().optional(),
 });
@@ -180,21 +178,12 @@ router.get("/shift-wars/matches", async (_req, res): Promise<void> => {
 router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
   const parsed = RecordShiftWarsMatchBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
-  const { winnerTeamId, loserTeamId, stake, gameType, notes, winnerFieldedCount, loserFieldedCount } = parsed.data;
+  const { winnerTeamId, loserTeamId, stake, stakeMode, gameType, notes, winnerFieldedCount, loserFieldedCount } = parsed.data;
 
   if (winnerTeamId === loserTeamId) { res.status(400).json({ error: "A team cannot play itself" }); return; }
 
-  // Uneven Teams: whichever department fields fewer players still wagers
-  // the SAME flat stake as a balanced match would (there's no shared team
-  // wallet being split further here, unlike Team Match's per-player pot —
-  // Shift Wars always moves points between exactly two department pools).
-  // What scales is the effective stake itself: the pot is stake × the
-  // bigger side's fielded headcount, same principle as a lone player
-  // (Team Match) facing a pair of separate individuals rather than a
-  // shared-wallet doubles pair — outnumbering the other side means risking
-  // (or winning) more, not the same flat amount. A normal match (both
-  // counts default to 1) reduces this to stake × 1 = stake, unchanged.
-  const effectiveStake = stake * Math.max(winnerFieldedCount, loserFieldedCount);
+  // New live matches send a total; omitted mode preserves old clients.
+  const effectiveStake = wagerPot(stake, winnerFieldedCount, loserFieldedCount, stakeMode);
 
   // Locked transaction for the same reason as doubles/matches.ts: reading
   // team balances, computing new ones in JS, and writing them back as
@@ -397,7 +386,7 @@ router.patch("/admin/shift-wars/players/:id/team", requireAdminSession, async (r
 router.post("/shift-wars/combined-matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
   const parsed = RecordShiftWarsCombinedMatchBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
-  const { soloTeamId, soloFieldedCount, soloWon, combinedTeams, stake, gameType, notes } = parsed.data;
+  const { soloTeamId, soloFieldedCount, soloWon, combinedTeams, stake, stakeMode, gameType, notes } = parsed.data;
 
   const combinedTeamIds = combinedTeams.map(c => c.teamId);
   if (new Set(combinedTeamIds).size !== combinedTeamIds.length) {
@@ -421,7 +410,7 @@ router.post("/shift-wars/combined-matches", matchSubmitRateLimit, async (req, re
       const solo = teams.find(t => t.id === soloTeamId)!;
       const combined = combinedTeamIds.map(id => teams.find(t => t.id === id)!);
 
-      const pot = combinedPot(stake, soloFieldedCount, combinedTeams);
+      const pot = stakeMode === "total" ? stake : combinedPot(stake, soloFieldedCount, combinedTeams);
       const losingSide: "solo" | "combined" = soloWon ? "combined" : "solo";
 
       const stakeError = validateCombinedStake(
