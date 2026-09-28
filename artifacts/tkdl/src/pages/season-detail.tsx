@@ -3,7 +3,7 @@ import { useParams, useSearch, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
 import { format } from "date-fns";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactElement } from "react";
 import { Trophy, Calendar, Hash, ArrowLeft, Medal, Flame, Zap, Crown, BarChart3, Swords, Users, Skull, Building2, Coins, BookOpen, TrendingUp } from "lucide-react";
 import { useSettings } from "@/hooks/use-settings";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName } from "@/lib/cosmetics";
@@ -339,7 +339,7 @@ export default function SeasonDetail() {
             headline: `${highestStake.stake} pts`,
             sub: `${highestStake.winnerName} beat ${highestStake.loserName}`,
           },
-        ].filter(Boolean) as { key: string; icon: JSX.Element; color: string; label: string; headline: string; sub: string }[];
+        ].filter(Boolean) as { key: string; icon: ReactElement; color: string; label: string; headline: string; sub: string }[];
 
         if (stories.length === 0) return null;
 
@@ -403,7 +403,7 @@ export default function SeasonDetail() {
             headline: preview.hottestStreak.playerName,
             sub: `${preview.hottestStreak.streak} wins in a row`,
           },
-        ].filter(Boolean) as { key: string; icon: JSX.Element; color: string; label: string; headline: string; sub: string }[];
+        ].filter(Boolean) as { key: string; icon: ReactElement; color: string; label: string; headline: string; sub: string }[];
 
         return (
           <div className="pdc-card p-5" style={{ borderColor: "rgba(0,102,255,0.14)", background: "rgba(0,102,255,0.02)" }}>

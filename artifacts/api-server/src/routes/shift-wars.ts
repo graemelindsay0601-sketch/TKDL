@@ -10,6 +10,7 @@ import { sendShiftWarsMatchResultNotification, sendMatchResultBroadcast, sendRan
 import { createAutoPost } from "../lib/communityNotify";
 import { checkShiftWarsAchievements } from "../lib/shift-wars-achievements";
 import { rankShiftWarsTeams, type RankableShiftWarsTeam } from "../lib/leaderboardRank";
+import { logAdminAction } from "../lib/adminAudit";
 
 /**
  * Shift Wars — 3 fixed department teams (Fresh, Twilight, Shift Leader) competing
@@ -17,7 +18,8 @@ import { rankShiftWarsTeams, type RankableShiftWarsTeam } from "../lib/leaderboa
  *   - no random draw/reroll: the roster is a manual, permanent, admin-assigned
  *     department, not a season-drawn pairing
  *   - points-only, no ELO/tier ladder
- *   - not season-scoped: this is a standing competition, not reset each season
+ *   - fixed teams persist, while each result is attached to its monthly
+ *     Shift Wars season so history and corrections cannot cross a reset
  * A match is recorded purely as "Team A beat Team B, stake X" — same as Doubles
  * Event — no individual player attribution is needed for the match itself; the
  * roster exists only to show who's on which team.
@@ -71,6 +73,13 @@ const AssignPlayerTeamBody = z.object({
 const router = Router();
 
 class ShiftWarsConflictError extends Error {}
+
+async function activeShiftWarsSeasonId(): Promise<number | null> {
+  const rows = await db.execute(sql`
+    SELECT id FROM seasons WHERE is_active = true AND league_type = 'shift_wars' LIMIT 1
+  `);
+  return ((rows.rows as any[])[0]?.id as number | undefined) ?? null;
+}
 
 // ── Team standings + roster ─────────────────────────────────────────────────
 
@@ -182,6 +191,9 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
 
   if (winnerTeamId === loserTeamId) { res.status(400).json({ error: "A team cannot play itself" }); return; }
 
+  const seasonId = await activeShiftWarsSeasonId();
+  if (!seasonId) { res.status(400).json({ error: "No active Shift Wars season found" }); return; }
+
   // New live matches send a total; omitted mode preserves old clients.
   const effectiveStake = wagerPot(stake, winnerFieldedCount, loserFieldedCount, stakeMode);
 
@@ -231,8 +243,8 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
       // number the match history/notifications have for how many points
       // actually moved between the two departments.
       const [match] = (await tx.execute(sql`
-        INSERT INTO shift_wars_matches (winner_team_id, loser_team_id, stake, game_type, notes)
-        VALUES (${winner.id}, ${loser.id}, ${effectiveStake}, ${gameType}, ${notes ?? null})
+        INSERT INTO shift_wars_matches (season_id, winner_team_id, loser_team_id, stake, game_type, notes)
+        VALUES (${seasonId}, ${winner.id}, ${loser.id}, ${effectiveStake}, ${gameType}, ${notes ?? null})
         RETURNING *
       `)).rows as any[];
 
@@ -361,6 +373,12 @@ router.patch("/admin/shift-wars/teams/:id", requireAdminSession, async (req, res
     WHERE id = ${id}
     RETURNING *
   `)).rows as any[];
+  if(points!==undefined&&Number(existing.points)!==Number(newPoints)){
+    void logAdminAction(req,"shift_wars.team_points.edit","shift_wars_team",id,{teamName:existing.name,before:Number(existing.points),after:Number(newPoints)});
+  }
+  if(startingPoints!==undefined&&Number(existing.starting_points)!==Number(newStartingPoints)){
+    void logAdminAction(req,"shift_wars.starting_points.edit","shift_wars_team",id,{teamName:existing.name,before:Number(existing.starting_points),after:Number(newStartingPoints)});
+  }
   res.json(rows[0]);
 });
 
@@ -372,12 +390,24 @@ router.patch("/admin/shift-wars/players/:id/team", requireAdminSession, async (r
   const parsed = AssignPlayerTeamBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
 
+  const existingResult=await db.execute(sql`SELECT p.id,p.name,p.shift_wars_team_id,st.name team_name FROM players p LEFT JOIN shift_wars_teams st ON st.id=p.shift_wars_team_id WHERE p.id=${id}`);
+  const existing:any=existingResult.rows[0];
+  if(!existing){res.status(404).json({error:"Player not found"});return;}
+  let targetTeam:any=null;
+  if(parsed.data.teamId!==null){
+    const targetResult=await db.execute(sql`SELECT id,name FROM shift_wars_teams WHERE id=${parsed.data.teamId}`);
+    targetTeam=targetResult.rows[0];
+    if(!targetTeam){res.status(400).json({error:"Shift Wars team not found"});return;}
+  }
+
   const rows = (await db.execute(sql`
     UPDATE players SET shift_wars_team_id = ${parsed.data.teamId}
     WHERE id = ${id}
     RETURNING id, name, shift_wars_team_id
   `)).rows as any[];
-  if (rows.length === 0) { res.status(404).json({ error: "Player not found" }); return; }
+  if(Number(existing.shift_wars_team_id)!==Number(parsed.data.teamId)){
+    void logAdminAction(req,"shift_wars.roster.assign","player",id,{playerName:existing.name,beforeTeamId:existing.shift_wars_team_id,beforeTeamName:existing.team_name,afterTeamId:parsed.data.teamId,afterTeamName:targetTeam?.name??null});
+  }
   res.json(rows[0]);
 });
 
@@ -395,6 +425,9 @@ router.post("/shift-wars/combined-matches", matchSubmitRateLimit, async (req, re
   if (combinedTeamIds.includes(soloTeamId)) {
     res.status(400).json({ error: "The solo department cannot also be part of the combined side" }); return;
   }
+
+  const seasonId = await activeShiftWarsSeasonId();
+  if (!seasonId) { res.status(400).json({ error: "No active Shift Wars season found" }); return; }
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -453,8 +486,8 @@ router.post("/shift-wars/combined-matches", matchSubmitRateLimit, async (req, re
 
       const [match] = (await tx.execute(sql`
         INSERT INTO shift_wars_combined_matches
-          (solo_team_id, solo_fielded_count, solo_won, stake, pot, solo_points_delta, game_type, notes)
-        VALUES (${solo.id}, ${soloFieldedCount}, ${soloWon}, ${stake}, ${pot}, ${soloPointsDelta}, ${gameType}, ${notes ?? null})
+          (season_id, solo_team_id, solo_fielded_count, solo_won, stake, pot, solo_points_delta, game_type, notes)
+        VALUES (${seasonId}, ${solo.id}, ${soloFieldedCount}, ${soloWon}, ${stake}, ${pot}, ${soloPointsDelta}, ${gameType}, ${notes ?? null})
         RETURNING *
       `)).rows as any[];
 

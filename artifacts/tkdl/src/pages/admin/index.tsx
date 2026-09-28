@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Pencil, Check, Building2 } from "lucide-react";
+import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Pencil, Check, Building2, Activity } from "lucide-react";
 import { format } from "date-fns";
 
 import { ADMIN_PIN_KEY, PinScreen } from "./pin-screen";
@@ -35,6 +35,7 @@ import AdminCardClashPanel from "@/components/admin-card-clash-panel";
 import AdminChallengesPanel from "@/components/admin-challenges-panel";
 import AdminFeatureFlagsPanel from "@/components/admin-feature-flags-panel";
 import AdminBroadcastPanel from "@/components/admin-broadcast-panel";
+import { IntegrityHealth } from "./integrity-health";
 
 type ModeKey = "isActive" | "practiceEnabled" | "tourEnabled" | "m501Enabled" | "shadowBotEnabled";
 const PLAYER_MODES: { key: ModeKey; label: string; desc: string; color: string; emoji: string }[] = [
@@ -250,6 +251,10 @@ export default function Admin() {
       <GameTypesManager />
       <UserAccountsManager players={players} />
 
+      <CollapsibleAdminSection title="Integrity & Health" icon={Activity} accent="#a855f7" borderColor="rgba(168,85,247,0.2)" background="rgba(168,85,247,0.025)">
+        <IntegrityHealth />
+      </CollapsibleAdminSection>
+
       {/* Season Manager — Singles */}
       <CollapsibleAdminSection title="Season Manager (Singles)" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.15)" background="rgba(255,210,74,0.02)">
         <div className="p-5"><SeasonEditor /></div>
@@ -412,12 +417,12 @@ export default function Admin() {
           )}
         </CollapsibleAdminSection>
 
-        {/* Singles and ad-hoc team matches use the shared player ledger.
-            Doubles/Shift Wars use separate team ledgers and stay read-only
-            in Match Centre until they have their own exact correction APIs. */}
+        {/* Singles and ad-hoc team matches use the shared player ledger here.
+            Doubles and Shift Wars expose their latest-result correction in
+            their own season managers above. */}
         <CollapsibleAdminSection title="Singles & Team Match Corrections" icon={Swords} accent="#ff005c">
           <div className="px-4 py-3 flex items-center justify-between gap-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.015)" }}>
-            <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>The newest current-season result can be corrected or undone safely · Older, Doubles and Shift Wars results are available in Match Centre.</p>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>Correct or undo the newest Singles/team result here · Use the Doubles or Shift Wars manager for their latest result · Match Centre shows the full history.</p>
             <a href="/match-centre" className="text-xs font-black uppercase tracking-wider shrink-0" style={{ color: "#0066ff", fontFamily: "Oswald, sans-serif" }}>Open Match Centre →</a>
           </div>
           {isLoadingMatches ? (

@@ -31,9 +31,9 @@ import { logger } from "../../lib/logger";
  * match — only the size of the points/elo swing is shared, not whether it
  * counts.
  *
- * Shift Wars has no Elo/tier ladder and isn't season-scoped (see
- * routes/shift-wars.ts's own header comment) — its combined tables mirror
- * that: no elo_delta column, no season_id.
+ * Shift Wars has no Elo/tier ladder, so its combined table has no elo_delta.
+ * `add_shift_wars_match_season.ts` adds durable season ownership after these
+ * base tables exist, including for this combined-result table.
  */
 export async function addCombinedMatchesTables(): Promise<void> {
   try {

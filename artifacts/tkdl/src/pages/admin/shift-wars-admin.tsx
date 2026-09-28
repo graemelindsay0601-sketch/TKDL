@@ -8,6 +8,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { TeamMatchCorrection } from "./team-match-correction";
 
 type ShiftWarsTeam = {
   id: number;
@@ -173,6 +174,8 @@ export function ShiftWarsAdmin() {
           </div>
         ))}
       </div>
+
+      <TeamMatchCorrection league="shift_wars" onCorrected={reload} />
 
       {/* ── Roster assignment ── */}
       <div className="space-y-2">

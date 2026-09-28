@@ -81,6 +81,9 @@ import { addWeeklyChallengeYear } from "./db/migrations/add_weekly_challenge_yea
 import { addSeasonResetLock } from "./db/migrations/add_season_reset_lock";
 import { addUsersPlayerIdUnique } from "./db/migrations/add_users_player_id_unique";
 import { addMatchParticipantDeltas } from "./db/migrations/add_match_participant_deltas";
+import { addDoublesMatchDeltas } from "./db/migrations/add_doubles_match_deltas";
+import { addShiftWarsMatchSeason } from "./db/migrations/add_shift_wars_match_season";
+import { addIntegrityReviewAcknowledgements } from "./db/migrations/add_integrity_review_acknowledgements";
 import { seedBroadcastSettings } from "./broadcast/config";
 import { seedCardDefinitions } from "./services/card-definitions-service";
 import { challengeService } from "./services/challenge-service";
@@ -1433,6 +1436,9 @@ async function init() {
   await runInitStep("addPendingPushNotifications", addPendingPushNotifications);
   // References doubles_teams/shift_wars_teams/seasons, all of which already exist by this point.
   await runInitStep("addCombinedMatchesTables", addCombinedMatchesTables);
+  await runInitStep("addDoublesMatchDeltas", addDoublesMatchDeltas);
+  await runInitStep("addShiftWarsMatchSeason", addShiftWarsMatchSeason);
+  await runInitStep("addIntegrityReviewAcknowledgements", addIntegrityReviewAcknowledgements);
   await runInitStep("maybeAutoResetLeagueSeasons", maybeAutoResetLeagueSeasons);
   // Runs after maybeAutoResetLeagueSeasons so a reset firing on this exact
   // boot is immediately reconciled too, though with seasonReset.ts's fix

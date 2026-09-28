@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactElement } from "react";
 import { useAuth } from "@/context/auth";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -42,10 +42,10 @@ function normalizeMentionKey(s: string): string {
 // Splits a post's content into plain text and profile-linked "@token"
 // pieces, using the (small) list of players the backend actually resolved
 // for this post — never guesses at a mention the backend didn't resolve.
-function renderPostContent(content: string, mentions: { id: number; name: string }[] | undefined): (string | JSX.Element)[] {
+function renderPostContent(content: string, mentions: { id: number; name: string }[] | undefined): (string | ReactElement)[] {
   if (!mentions || mentions.length === 0) return [content];
   const byKey = new Map(mentions.map(m => [normalizeMentionKey(m.name), m]));
-  const parts: (string | JSX.Element)[] = [];
+  const parts: (string | ReactElement)[] = [];
   let lastIndex = 0;
   let key = 0;
   MENTION_TOKEN.lastIndex = 0;

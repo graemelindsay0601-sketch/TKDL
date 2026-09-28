@@ -547,20 +547,47 @@ router.post("/admin/test-comms", requireAdminSession, async (req, res): Promise<
 
 // ── Full data export (JSON backup) — requires admin session ───────────────────
 router.get("/admin/export", async (_req, res): Promise<void> => {
-  const [players, matches, seasons, standings, achievements, playerAchievements] = await Promise.all([
+  const [players, matches, matchParticipants, seasons, standings, achievements, playerAchievements,
+    doublesTeams, doublesMatches, doublesCombinedMatches, doublesCombinedSides,
+    shiftWarsTeams, shiftWarsMatches, shiftWarsCombinedMatches, shiftWarsCombinedSides, shiftWarsSeasonHistory,
+    gameTypes, settings, auditLog] = await Promise.all([
     db.select().from(playersTable),
     db.select().from(matchesTable),
+    db.select().from(matchParticipantsTable),
     db.select().from(seasonsTable),
     db.select().from(seasonStandingsTable),
     db.select().from(achievementsTable),
     db.select().from(playerAchievementsTable),
+    db.execute(sql`SELECT * FROM doubles_teams ORDER BY id`),
+    db.execute(sql`SELECT * FROM doubles_matches ORDER BY id`),
+    db.execute(sql`SELECT * FROM doubles_combined_matches ORDER BY id`),
+    db.execute(sql`SELECT * FROM doubles_combined_match_sides ORDER BY id`),
+    db.execute(sql`SELECT * FROM shift_wars_teams ORDER BY id`),
+    db.execute(sql`SELECT * FROM shift_wars_matches ORDER BY id`),
+    db.execute(sql`SELECT * FROM shift_wars_combined_matches ORDER BY id`),
+    db.execute(sql`SELECT * FROM shift_wars_combined_match_sides ORDER BY id`),
+    db.execute(sql`SELECT * FROM shift_wars_season_history ORDER BY id`),
+    db.execute(sql`SELECT * FROM game_types ORDER BY id`),
+    db.execute(sql`SELECT * FROM settings ORDER BY key`),
+    db.execute(sql`SELECT * FROM admin_audit_log ORDER BY id`),
   ]);
+  const data: Record<string, unknown[]> = {
+    players, matches, matchParticipants, seasons, standings, achievements, playerAchievements,
+    doublesTeams: doublesTeams.rows as unknown[], doublesMatches: doublesMatches.rows as unknown[],
+    doublesCombinedMatches: doublesCombinedMatches.rows as unknown[], doublesCombinedSides: doublesCombinedSides.rows as unknown[],
+    shiftWarsTeams: shiftWarsTeams.rows as unknown[], shiftWarsMatches: shiftWarsMatches.rows as unknown[],
+    shiftWarsCombinedMatches: shiftWarsCombinedMatches.rows as unknown[], shiftWarsCombinedSides: shiftWarsCombinedSides.rows as unknown[],
+    shiftWarsSeasonHistory: shiftWarsSeasonHistory.rows as unknown[], gameTypes: gameTypes.rows as unknown[],
+    settings: settings.rows as unknown[], auditLog: auditLog.rows as unknown[],
+  };
   const filename = `tkdl-backup-${new Date().toISOString().split("T")[0]}.json`;
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   res.json({
     exportedAt: new Date().toISOString(),
-    version: "1.0",
-    data: { players, matches, seasons, standings, achievements, playerAchievements },
+    version: "2.0",
+    format: "tkdl-league-backup",
+    manifest: Object.fromEntries(Object.entries(data).map(([name, rows]) => [name, rows.length])),
+    data,
   });
 });
 
@@ -587,12 +614,26 @@ router.post("/admin/seasons/:id/doubles/draw", async (req, res): Promise<void> =
   const [season] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, seasonId));
   if (!season) { res.status(404).json({ error: "Season not found" }); return; }
 
+  const beforeResult=await db.execute(sql`
+    SELECT
+      (SELECT COUNT(*)::int FROM doubles_teams WHERE season_id=${seasonId}) team_count,
+      (SELECT COUNT(*)::int FROM doubles_matches WHERE season_id=${seasonId}) standard_match_count,
+      (SELECT COUNT(*)::int FROM doubles_combined_matches WHERE season_id=${seasonId}) combined_match_count
+  `);
+  const before:any=beforeResult.rows[0]??{};
+
   const result = await drawDoublesTeams(seasonId, { force });
   if (!result.ok) {
     const status = result.error.startsWith("Doubles teams already exist") ? 409 : 400;
     res.status(status).json({ error: result.error });
     return;
   }
+  void logAdminAction(req,force?"doubles.teams.redraw":"doubles.teams.draw","season",seasonId,{
+    seasonName:season.name,
+    previousTeams:Number(before.team_count??0),
+    removedMatches:Number(before.standard_match_count??0)+Number(before.combined_match_count??0),
+    newTeams:result.teams.length,
+  });
   res.status(201).json({ teams: result.teams });
 });
 

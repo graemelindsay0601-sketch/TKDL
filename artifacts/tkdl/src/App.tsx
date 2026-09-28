@@ -41,6 +41,7 @@ const InterviewDeskPage = lazyWithRetry(() => import("@/pages/interview-desk"), 
 const Community = lazyWithRetry(() => import("@/pages/community"), "community");
 const HeadToHead = lazyWithRetry(() => import("@/pages/head-to-head"), "head-to-head");
 const MatchCentre = lazyWithRetry(() => import("@/pages/match-centre"), "match-centre");
+const MatchDetail = lazyWithRetry(() => import("@/pages/match-detail"), "match-detail");
 const NotFound = lazyWithRetry(() => import("@/pages/not-found"), "not-found");
 
 const queryClient = new QueryClient({
@@ -172,6 +173,9 @@ function AppRoutes() {
             </Route>
             <Route path="/h2h">
               <RoutePage><HeadToHead /></RoutePage>
+            </Route>
+            <Route path="/match-centre/:key">
+              <RoutePage><MatchDetail /></RoutePage>
             </Route>
             <Route path="/match-centre">
               <RoutePage><MatchCentre /></RoutePage>

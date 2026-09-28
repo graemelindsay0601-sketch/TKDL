@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { CollapsibleAdminSection } from "./collapsible-section";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const ENGINES    = ["X01", "Cricket", "Sequence", "HalveIt", "CountUp", "Killer", "Gotcha", "NearestBull", "Baseball", "HighScore", "NoBlack", "HighLow", "Custom"];
 const CATEGORIES = ["competitive", "practice", "party"];
@@ -33,10 +34,13 @@ export function GameTypesManager() {
 
   const toggle = async (id: number, enabled: boolean) => {
     setGameTypes(prev => prev.map(g => g.id === id ? { ...g, enabled } : g));
-    await fetch(`/api/admin/game-types/${id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled }),
-    });
+    try{
+      const response=await fetch(`/api/admin/game-types/${id}`, {method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled})});
+      if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.error??"Update rejected");}
+      const updated=await response.json();
+      setGameTypes(prev=>prev.map(g=>g.id===id?updated:g));
+      toast({title:`${updated.name} ${enabled?"enabled":"disabled"}`});
+    }catch(error){setGameTypes(prev=>prev.map(g=>g.id===id?{...g,enabled:!enabled}:g));toast({title:"Game type update failed",description:error instanceof Error?error.message:"Unknown error",variant:"destructive"});}
   };
 
   const startEdit = (g: GameTypeRow) => {
@@ -58,13 +62,12 @@ export function GameTypesManager() {
       setGameTypes(prev => prev.map(g => g.id === editingId ? updated : g));
       setEditingId(null);
       toast({ title: "Game type updated" });
-    }
+    }else{const body=await r.json().catch(()=>({}));toast({title:"Game type update failed",description:body.error??"Update rejected",variant:"destructive"});}
   };
 
   const deleteType = async (id: number, name: string) => {
-    await fetch(`/api/admin/game-types/${id}`, { method: "DELETE" });
-    setGameTypes(prev => prev.filter(g => g.id !== id));
-    toast({ title: `Deleted "${name}"` });
+    try{const response=await fetch(`/api/admin/game-types/${id}`, { method: "DELETE" });if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.error??"Delete rejected");}setGameTypes(prev => prev.filter(g => g.id !== id));toast({ title: `Deleted "${name}"` });}
+    catch(error){toast({title:"Game type not deleted",description:error instanceof Error?error.message:"Unknown error",variant:"destructive"});}
   };
 
   const addType = async () => {
@@ -158,9 +161,9 @@ export function GameTypesManager() {
                             {/* rgba(255,0,92,x) / hover:bg-red-900 matches the delete-button
                                 treatment in tour-data-manager.tsx, not this page's own
                                 plain-red rgba(255,100,100,x) -- 2026-09-25 consistency pass. */}
-                            <button onClick={() => deleteType(g.id, g.name)} className="p-1 rounded hover:bg-red-900/30 transition-colors" style={{ color: "rgba(255,0,92,0.6)" }} title="Delete">
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+                            <AlertDialog><AlertDialogTrigger asChild><button className="p-1 rounded hover:bg-red-900/30 transition-colors" style={{ color: "rgba(255,0,92,0.6)" }} title="Delete"><Trash2 className="w-3 h-3" /></button></AlertDialogTrigger>
+                              <AlertDialogContent style={{background:"hsl(240 20% 7%)",borderColor:"rgba(255,0,92,.3)"}}><AlertDialogHeader><AlertDialogTitle style={{color:"#ff005c",fontFamily:"Oswald, sans-serif"}}>Delete {g.name}?</AlertDialogTitle><AlertDialogDescription style={{color:"rgba(255,255,255,.55)"}}>This permanently removes the game type definition. If it has ever been used in a recorded match, TKDL will block deletion and ask you to disable it instead so match history remains readable.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={()=>void deleteType(g.id,g.name)} style={{background:"#ff005c",color:"#fff",border:"none"}}>Delete Unused Type</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </div>
                       )}

@@ -7,6 +7,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { TeamMatchCorrection } from "./team-match-correction";
 
 /**
  * Doubles Event now runs its own independent monthly season (see
@@ -52,7 +53,6 @@ export function DoublesSeasonManager() {
   const redraw = async () => {
     if (!current?.id) return;
     const hasTeams = teams.length > 0;
-    if (hasTeams && !confirm("This will wipe the current doubles teams and match history for this season and draw fresh random pairs. Continue?")) return;
     setDrawing(true);
     try {
       const res = await fetch(`/api/admin/seasons/${current.id}/doubles/draw`, {
@@ -119,11 +119,21 @@ export function DoublesSeasonManager() {
           <div className="text-xs uppercase tracking-wider font-bold flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
             <Users className="w-3.5 h-3.5" /> Teams
           </div>
-          <Button size="sm" disabled={drawing || !current} onClick={redraw}
+          {teams.length>0?<AlertDialog>
+            <AlertDialogTrigger asChild><Button size="sm" disabled={drawing || !current}
+              style={{ background: "#0066ff", border: "none", fontFamily: "Oswald, sans-serif" }}>
+              <Shuffle className="w-3.5 h-3.5 mr-1.5" />{drawing ? "Drawing…" : "Redraw Teams"}
+            </Button></AlertDialogTrigger>
+            <AlertDialogContent style={{background:"hsl(240 20% 7%)",borderColor:"rgba(255,0,92,.3)"}}>
+              <AlertDialogHeader><AlertDialogTitle className="flex items-center gap-2" style={{color:"#ff005c",fontFamily:"Oswald, sans-serif"}}><AlertTriangle className="w-5 h-5"/>Replace the current Doubles draw?</AlertDialogTitle>
+                <AlertDialogDescription style={{color:"rgba(255,255,255,.55)"}}>This permanently removes all {teams.length} current teams and the Doubles match history recorded in <strong style={{color:"#fff"}}>{current?.name}</strong>, then creates fresh random pairings. Download a backup first if these results may be needed.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter><AlertDialogCancel>Keep Current Teams</AlertDialogCancel><AlertDialogAction onClick={redraw} style={{background:"#ff005c",color:"#fff",border:"none"}}>Yes, Delete and Redraw</AlertDialogAction></AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>:<Button size="sm" disabled={drawing || !current} onClick={redraw}
             style={{ background: "#0066ff", border: "none", fontFamily: "Oswald, sans-serif" }}>
-            <Shuffle className="w-3.5 h-3.5 mr-1.5" />
-            {drawing ? "Drawing…" : teams.length > 0 ? "Redraw Teams" : "Start Doubles Draw"}
-          </Button>
+            <Shuffle className="w-3.5 h-3.5 mr-1.5" />{drawing ? "Drawing…" : "Start Doubles Draw"}
+          </Button>}
         </div>
 
         {teams.length === 0 ? (
@@ -143,6 +153,8 @@ export function DoublesSeasonManager() {
           </div>
         )}
       </div>
+
+      <TeamMatchCorrection league="doubles" onCorrected={load} />
 
       {/* Reset season */}
       <div className="pt-3 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>

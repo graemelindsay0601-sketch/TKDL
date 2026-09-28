@@ -68,6 +68,7 @@ function ResultCard({ match, featured = false }: { match: Match; featured?: bool
         {match.eloChange != null && <span>+{match.eloChange} Elo</span>}
         {match.seasonName && <span>{match.seasonName}</span>}
         <time>{format(new Date(match.playedAt), "HH:mm")}</time>
+        {!match.key.startsWith("p") && <Link className="mc-view-link" href={`/match-centre/${match.key}`}>MATCH REPORT <ChevronRight size={11}/></Link>}
       </div>
     </article>
   );

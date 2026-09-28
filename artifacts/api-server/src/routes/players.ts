@@ -8,6 +8,7 @@ import { gamerscoreForRarity, SHADOW_BOT_ACHIEVEMENT_DEFS } from "../lib/shadow-
 import { logger } from "../lib/logger";
 import { TITLE_DEFINITIONS, getAllPlayerTitles, checkAndGrantTitles } from "../lib/titles";
 import { requireAdminSession } from "../middleware/requireAdminSession";
+import { logAdminAction } from "../lib/adminAudit";
 
 const progressCache = new Map<number, { data: unknown; expiresAt: number }>();
 const PROGRESS_TTL_MS = 60_000;
@@ -123,8 +124,15 @@ router.patch("/players/:id", requireAdminSession, async (req, res): Promise<void
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = UpdatePlayerBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const [existing]=await db.select().from(playersTable).where(eq(playersTable.id,params.data.id));
+  if(!existing){res.status(404).json({error:"Player not found"});return;}
   const [player] = await db.update(playersTable).set(parsed.data).where(eq(playersTable.id, params.data.id)).returning();
-  if (!player) { res.status(404).json({ error: "Player not found" }); return; }
+  const changes:Record<string,{before:unknown;after:unknown}>={};
+  for(const [field,after] of Object.entries(parsed.data)){
+    const before=(existing as any)[field];
+    if(before!==after)changes[field]={before,after};
+  }
+  if(Object.keys(changes).length){void logAdminAction(req,"player.settings_update","player",player.id,{playerName:player.name,changes});}
   res.json(player);
 });
 

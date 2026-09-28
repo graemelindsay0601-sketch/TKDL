@@ -209,8 +209,12 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
       // elsewhere, so this "stake" column is the only number the match
       // history/notifications have for how many points actually moved.
       const [match] = (await tx.execute(sql`
-        INSERT INTO doubles_matches (season_id, winner_team_id, loser_team_id, stake, elo_change, game_type, notes)
-        VALUES (${activeSeason.id}, ${winner.id}, ${loser.id}, ${effectiveStake}, ${eloChange}, ${gameType}, ${notes ?? null})
+        INSERT INTO doubles_matches
+          (season_id, winner_team_id, loser_team_id, stake, elo_change,
+           winner_elo_delta, loser_elo_delta, loser_eliminated, game_type, notes)
+        VALUES
+          (${activeSeason.id}, ${winner.id}, ${loser.id}, ${effectiveStake}, ${eloChange},
+           ${newWinnerElo - winner.elo}, ${newLoserElo - loser.elo}, ${loserEliminated}, ${gameType}, ${notes ?? null})
         RETURNING *
       `)).rows as any[];
 

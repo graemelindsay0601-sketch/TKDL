@@ -35,6 +35,8 @@ import selfPlayUnlocksRouter from "./self-play-unlocks";
 import goalsRouter from "./goals";
 import liveMatchRouter from "./live-match";
 import matchCentreRouter from "./match-centre";
+import teamMatchCorrectionsRouter from "./team-match-corrections";
+import adminHealthRouter from "./admin-health";
 
 const router: IRouter = Router();
 
@@ -74,5 +76,7 @@ router.use(selfPlayUnlocksRouter);
 router.use(goalsRouter);
 router.use(liveMatchRouter);
 router.use(matchCentreRouter);
+router.use(teamMatchCorrectionsRouter);
+router.use(adminHealthRouter);
 
 export default router;

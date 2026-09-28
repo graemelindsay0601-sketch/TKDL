@@ -23,6 +23,84 @@ type CentreMatch = {
 
 const router = Router();
 
+type DetailKind = "league" | "doubles" | "doubles-combined" | "shift" | "shift-combined";
+function parseDetailKey(value: string): { kind: DetailKind; id: number } | null {
+  const match = /^(league|doubles-combined|doubles|shift-combined|shift)-(\d+)$/.exec(value);
+  if (!match || Number(match[2]) < 1) return null;
+  return { kind: match[1] as DetailKind, id: Number(match[2]) };
+}
+
+router.get("/match-centre/:key", async (req, res): Promise<void> => {
+  const parsed = parseDetailKey(String(req.params.key));
+  if (!parsed) { res.status(400).json({ error: "Invalid match reference" }); return; }
+
+  let result: any;
+  if (parsed.kind === "league") {
+    const [matchResult, participantResult] = await Promise.all([
+      db.execute(sql`SELECT m.*, s.name AS season_name FROM matches m LEFT JOIN seasons s ON s.id=m.season_id WHERE m.id=${parsed.id}`),
+      db.execute(sql`SELECT player_id, player_name, team, position, points_delta, elo_delta, caused_elimination FROM match_participants WHERE match_id=${parsed.id} ORDER BY team DESC, position`),
+    ]);
+    const row: any = matchResult.rows[0];
+    if (row) {
+      const participants = participantResult.rows as any[];
+      const teamGame = String(row.game_type).startsWith("team_") || row.game_type === "multi_killer";
+      const winnerPeople = participants.filter(p => p.team === "winner");
+      const loserPeople = participants.filter(p => p.team === "loser");
+      const sumDelta = (rows: any[], field: string, fallback: number) => rows.length && rows.every(p => p[field] != null)
+        ? rows.reduce((total, p) => total + Number(p[field]), 0) : fallback;
+      let context = null;
+      if (!teamGame) {
+        const h2h = await db.execute(sql`
+          SELECT COUNT(*)::int prior_meetings,
+            COUNT(*) FILTER (WHERE winner_id=${row.winner_id})::int winner_wins,
+            COUNT(*) FILTER (WHERE winner_id=${row.loser_id})::int loser_wins
+          FROM matches
+          WHERE played_at < ${row.played_at}
+            AND game_type NOT LIKE 'team_%' AND game_type <> 'multi_killer'
+            AND ((winner_id=${row.winner_id} AND loser_id=${row.loser_id}) OR (winner_id=${row.loser_id} AND loser_id=${row.winner_id}))
+        `);
+        const history:any=h2h.rows[0];
+        context={meetingNumber:Number(history.prior_meetings)+1,winnerWinsBefore:Number(history.winner_wins),loserWinsBefore:Number(history.loser_wins)};
+      }
+      result = {
+        key: req.params.key, mode: teamGame ? "team" : "singles", isCombined: teamGame && winnerPeople.length !== loserPeople.length,
+        playedAt: row.played_at, seasonName: row.season_name, gameType: row.game_type, notes: row.notes, stake: row.stake,
+        winner: { name: row.winner_name, pointsDelta: sumDelta(winnerPeople, "points_delta", row.stake), eloDelta: sumDelta(winnerPeople, "elo_delta", row.elo_change) },
+        loser: { name: row.loser_name, pointsDelta: sumDelta(loserPeople, "points_delta", -row.stake), eloDelta: sumDelta(loserPeople, "elo_delta", -row.elo_change) },
+        participants,
+        context,
+        stats: {
+          winner: { darts: row.winner_darts, scores100: row.winner_100s, scores140: row.winner_140s, scores170: row.winner_170s, scores180: row.winner_180s, checkoutAttempts: row.winner_checkout_attempts, checkoutHits: row.winner_checkout_hits },
+          loser: { darts: row.loser_darts, scores100: row.loser_100s, scores140: row.loser_140s, scores170: row.loser_170s, scores180: row.loser_180s, checkoutAttempts: row.loser_checkout_attempts, checkoutHits: row.loser_checkout_hits },
+        },
+      };
+    }
+  } else if (parsed.kind === "doubles") {
+    const q = await db.execute(sql`SELECT dm.*, s.name season_name, wt.team_name winner_name, lt.team_name loser_name FROM doubles_matches dm JOIN doubles_teams wt ON wt.id=dm.winner_team_id JOIN doubles_teams lt ON lt.id=dm.loser_team_id LEFT JOIN seasons s ON s.id=dm.season_id WHERE dm.id=${parsed.id}`);
+    const row: any = q.rows[0];
+    if (row) result = { key:req.params.key, mode:"doubles", isCombined:false, playedAt:row.played_at, seasonName:row.season_name, gameType:row.game_type, notes:row.notes, stake:row.stake, winner:{name:row.winner_name,pointsDelta:row.stake,eloDelta:row.winner_elo_delta ?? row.elo_change}, loser:{name:row.loser_name,pointsDelta:-row.stake,eloDelta:row.loser_elo_delta ?? -row.elo_change}, participants:[], stats:null };
+  } else {
+    const doubles = parsed.kind === "doubles-combined";
+    const shift = parsed.kind === "shift";
+    if (shift) {
+      const q = await db.execute(sql`SELECT sm.*, s.name season_name, wt.name winner_name, lt.name loser_name FROM shift_wars_matches sm JOIN shift_wars_teams wt ON wt.id=sm.winner_team_id JOIN shift_wars_teams lt ON lt.id=sm.loser_team_id LEFT JOIN seasons s ON s.id=sm.season_id WHERE sm.id=${parsed.id}`);
+      const row:any=q.rows[0];
+      if(row) result={key:req.params.key,mode:"shift_wars",isCombined:false,playedAt:row.played_at,seasonName:row.season_name,gameType:row.game_type,notes:row.notes,stake:row.stake,winner:{name:row.winner_name,pointsDelta:row.stake,eloDelta:null},loser:{name:row.loser_name,pointsDelta:-row.stake,eloDelta:null},participants:[],stats:null};
+    } else {
+      const main = doubles
+        ? await db.execute(sql`SELECT m.*, s.name season_name, t.team_name solo_name FROM doubles_combined_matches m JOIN doubles_teams t ON t.id=m.solo_team_id LEFT JOIN seasons s ON s.id=m.season_id WHERE m.id=${parsed.id}`)
+        : await db.execute(sql`SELECT m.*, s.name season_name, t.name solo_name FROM shift_wars_combined_matches m JOIN shift_wars_teams t ON t.id=m.solo_team_id LEFT JOIN seasons s ON s.id=m.season_id WHERE m.id=${parsed.id}`);
+      const sides = doubles
+        ? await db.execute(sql`SELECT t.team_name name, x.fielded_count, x.points_delta, x.elo_delta, x.eliminated FROM doubles_combined_match_sides x JOIN doubles_teams t ON t.id=x.team_id WHERE x.match_id=${parsed.id} ORDER BY x.id`)
+        : await db.execute(sql`SELECT t.name, x.fielded_count, x.points_delta, NULL::integer elo_delta, false eliminated FROM shift_wars_combined_match_sides x JOIN shift_wars_teams t ON t.id=x.team_id WHERE x.match_id=${parsed.id} ORDER BY x.id`);
+      const row:any=main.rows[0]; const sideRows=sides.rows as any[];
+      if(row){ const opposition=sideRows.map(x=>x.name).join(" + "); result={key:req.params.key,mode:doubles?"doubles":"shift_wars",isCombined:true,playedAt:row.played_at,seasonName:row.season_name,gameType:row.game_type,notes:row.notes,stake:row.pot,winner:{name:row.solo_won?row.solo_name:opposition,pointsDelta:row.solo_won?row.solo_points_delta:sideRows.reduce((n,x)=>n+Number(x.points_delta),0),eloDelta:doubles?(row.solo_won?row.solo_elo_delta:sideRows.reduce((n,x)=>n+Number(x.elo_delta),0)):null},loser:{name:row.solo_won?opposition:row.solo_name,pointsDelta:row.solo_won?sideRows.reduce((n,x)=>n+Number(x.points_delta),0):row.solo_points_delta,eloDelta:doubles?(row.solo_won?sideRows.reduce((n,x)=>n+Number(x.elo_delta),0):row.solo_elo_delta):null},participants:[{playerName:row.solo_name,team:"solo",position:0,fieldedCount:row.solo_fielded_count,pointsDelta:row.solo_points_delta,eloDelta:doubles?row.solo_elo_delta:null},...sideRows.map((x,i)=>({playerName:x.name,team:"opposition",position:i,fieldedCount:x.fielded_count,pointsDelta:x.points_delta,eloDelta:x.elo_delta,causedElimination:x.eliminated}))],stats:null}; }
+    }
+  }
+  if (!result) { res.status(404).json({ error: "Match not found" }); return; }
+  res.json(result);
+});
+
 // One read-only feed for the Match Centre. The league formats deliberately
 // keep their own write paths and tables; this endpoint only normalises their
 // public history after the fact, so it cannot affect scoring or standings.
@@ -68,18 +146,20 @@ router.get("/match-centre", async (_req, res): Promise<void> => {
     `),
     db.execute(sql`
       SELECT sm.id, sm.played_at, sm.stake, sm.game_type, sm.notes,
-             wt.name AS winner_name, lt.name AS loser_name
+             wt.name AS winner_name, lt.name AS loser_name, s.name AS season_name
       FROM shift_wars_matches sm
       JOIN shift_wars_teams wt ON wt.id = sm.winner_team_id
       JOIN shift_wars_teams lt ON lt.id = sm.loser_team_id
+      LEFT JOIN seasons s ON s.id = sm.season_id
       ORDER BY sm.played_at DESC
       LIMIT 500
     `),
     db.execute(sql`
       SELECT scm.id, scm.played_at, scm.solo_won, scm.pot, scm.game_type, scm.notes,
-             st.name AS solo_name
+             st.name AS solo_name, s.name AS season_name
       FROM shift_wars_combined_matches scm
       JOIN shift_wars_teams st ON st.id = scm.solo_team_id
+      LEFT JOIN seasons s ON s.id = scm.season_id
       ORDER BY scm.played_at DESC
       LIMIT 250
     `),
@@ -138,7 +218,7 @@ router.get("/match-centre", async (_req, res): Promise<void> => {
     key: `shift-${row.id}`, id: row.id, mode: "shift_wars", playedAt: row.played_at,
     winnerName: row.winner_name, loserName: row.loser_name, winnerPlayerIds: [], loserPlayerIds: [],
     stake: row.stake, eloChange: null, gameType: row.game_type,
-    seasonName: null, notes: row.notes, isCombined: false,
+    seasonName: row.season_name, notes: row.notes, isCombined: false,
   });
   for (const row of shiftCombinedResult.rows as any[]) {
     const combinedName = (shiftSides.get(row.id) ?? []).join(" + ");
@@ -147,7 +227,7 @@ router.get("/match-centre", async (_req, res): Promise<void> => {
       winnerName: row.solo_won ? row.solo_name : combinedName,
       loserName: row.solo_won ? combinedName : row.solo_name,
       winnerPlayerIds: [], loserPlayerIds: [], stake: row.pot, eloChange: null,
-      gameType: row.game_type, seasonName: null, notes: row.notes, isCombined: true,
+      gameType: row.game_type, seasonName: row.season_name, notes: row.notes, isCombined: true,
     });
   }
 

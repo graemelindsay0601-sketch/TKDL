@@ -4,7 +4,7 @@ import { Flame, Zap, Skull, Crown, Trophy, Rocket, Ghost, Gem, Star, Shield, Swo
 
 export interface CosmeticDefinition {
   id: string;
-  category: "NAME_STYLE" | "PROFILE_ICON" | "BANNER" | "FRAME" | "GLOW" | "RESULT_THEME" | "BUBBLE_COLOR" | "AVATAR_BADGE" | "LEADERBOARD_TAG" | "TAGLINE_STYLE" | "POST_ACCENT" | "STICKER" | "CHECKOUT_EFFECT" | "SCORER_THEME" | "PLAYER_CARD_FINISH" | "TROPHY_CASE_STYLE" | "RECAP_STYLE" | "RANK_UP_EFFECT";
+  category: "NAME_STYLE" | "PROFILE_ICON" | "BANNER" | "FRAME" | "GLOW" | "RESULT_THEME" | "BUBBLE_COLOR" | "AVATAR_BADGE" | "LEADERBOARD_TAG" | "TAGLINE_STYLE" | "POST_ACCENT" | "STICKER" | "CHECKOUT_EFFECT" | "SCORER_THEME" | "PLAYER_CARD_FINISH" | "TROPHY_CASE_STYLE" | "RECAP_STYLE" | "RANK_UP_EFFECT" | "ACCOUNT_ACCENT";
   name: string;
   rarity: "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
   price: number;
