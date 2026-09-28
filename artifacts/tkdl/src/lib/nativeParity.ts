@@ -107,15 +107,13 @@ export function useExitGuard(active: boolean, onExit: () => void): void {
 }
 
 // ── Interrupted-match recovery ─────────────────────────────────────────────
-// iOS Safari can silently kill a backgrounded tab under memory pressure —
-// something a native app's process usually survives. Recovering the exact
-// dart-by-dart state would mean every scorer engine serializing its own
-// state, which isn't worth the complexity for how rarely this bites. What IS
-// cheap: never lose the setup work (who's playing, what game, what stake).
-// This snapshots that the moment a match goes live and clears it the moment
-// the match ends normally (win or abandon) — so a snapshot still sitting
-// there on load means last time ended mid-match, and the setup screen can
-// offer a one-tap "same matchup again".
+// iOS Safari can silently kill a backgrounded tab under memory pressure.
+// This generic helper preserves setup/progress objects for modes that own a
+// single serializable state value (currently Master-501). The league scorer
+// has a richer, versioned checkpoint contract in scorer-recovery.ts and
+// play.tsx because each scoring engine must explicitly define which of its
+// state is safe to restore. Keeping this small helper avoids forcing that
+// heavier contract onto unrelated modes.
 export function useMatchSnapshot<T>(key: string, active: boolean, data: T | null): void {
   useEffect(() => {
     if (!active || data == null) return;

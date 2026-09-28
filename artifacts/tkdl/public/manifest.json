@@ -12,15 +12,9 @@
   "categories": ["sports", "games"],
   "screenshots": [
     {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "form_factor": "narrow"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "src": "/opengraph.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
       "form_factor": "wide"
     }
   ],
@@ -79,7 +73,7 @@
       "name": "Card Clash",
       "short_name": "Card Clash",
       "description": "Play a quick Card Clash game",
-      "url": "/?tab=card-clash",
+      "url": "/card-clash",
       "icons": [
         {
           "src": "/icon-192.png",
@@ -92,7 +86,7 @@
       "name": "Standings",
       "short_name": "Standings",
       "description": "Check the current league standings",
-      "url": "/?tab=standings",
+      "url": "/leaderboard",
       "icons": [
         {
           "src": "/icon-192.png",

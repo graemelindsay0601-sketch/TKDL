@@ -7,6 +7,7 @@ import { useState, useEffect, type ReactElement } from "react";
 import { Trophy, Calendar, Hash, ArrowLeft, Medal, Flame, Zap, Crown, BarChart3, Swords, Users, Skull, Building2, Coins, BookOpen, TrendingUp } from "lucide-react";
 import { useSettings } from "@/hooks/use-settings";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName } from "@/lib/cosmetics";
+import { ShareCardButton } from "@/components/ShareCardButton";
 
 function useSeasonMatches(seasonId: number) {
   const [data, setData] = useState<any[]>([]);
@@ -224,6 +225,25 @@ export default function SeasonDetail() {
                 <div className={`text-xl font-bold ${nameStyleClassName(championNameStyle)}`}
                   style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", ...nameStyleCSS(championNameStyle) }}>
                   {season.championName}
+                </div>
+                <div className="mt-2">
+                  <ShareCardButton
+                    filename={`tkdl-champion-${season.championName}`}
+                    label="Share champion"
+                    spec={{
+                      eyebrow: "League Champion",
+                      title: season.championName,
+                      subtitle: `${season.name} champion`,
+                      badge: "Champion",
+                      accent: "#ffd24a",
+                      secondaryAccent: "#ff005c",
+                      stats: [
+                        { label: "Season", value: season.name },
+                        { label: "Matches", value: String(matches.length || season.totalMatches || 0) },
+                        { label: "Status", value: "Champion" },
+                      ],
+                    }}
+                  />
                 </div>
               </div>
             </div>

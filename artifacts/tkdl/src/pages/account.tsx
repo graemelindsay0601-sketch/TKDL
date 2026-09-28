@@ -767,9 +767,19 @@ export default function AccountPage() {
 
   useEffect(() => {
     if (activeConvId === null) return;
-    void loadThread(activeConvId);
-    const id = setInterval(() => void loadThread(activeConvId), 5_000);
-    return () => clearInterval(id);
+    const refresh = () => {
+      if (document.visibilityState === "visible") void loadThread(activeConvId);
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void loadThread(activeConvId);
+    };
+    refresh();
+    const id = setInterval(refresh, 5_000);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [activeConvId, loadThread]);
 
   useEffect(() => {

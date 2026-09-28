@@ -15,10 +15,13 @@ import { useCurrentPlayer } from "@/context/auth";
 import { useCosmeticsCatalog, resultThemeColor, checkoutEffect, rankUpEffect } from "@/lib/cosmetics";
 import { CheckoutBurst } from "@/components/CheckoutBurst";
 import { PostMatchAnalysisModal } from "@/components/stats/post-match-analysis";
-import { useWakeLock, useZoomLock, useExitGuard, useMatchSnapshot, readMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
+import { MatchNightPresentation, type MatchNightSide } from "@/components/MatchNightPresentation";
+import { ShareCardButton } from "@/components/ShareCardButton";
+import { useWakeLock, useZoomLock, useExitGuard, readMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
 
 import { teamRoster, wagerShares, totalWagerError, validCombinedSelection, type WagerAccount } from "@/lib/live-scorer-setup";
 import type { LiveScoreState } from "@/lib/scorers";
+import { isScorerRecoveryState, recoveryMatchesEngine, type ScorerRecoveryState } from "@/lib/scorer-recovery";
 
 const PLAY_SNAPSHOT_KEY = "tkdl_play_snapshot";
 
@@ -65,10 +68,66 @@ type SetupData = {
   };
 };
 
+type PlayRecoverySnapshot = {
+  version: 2;
+  setupData: SetupData;
+  scorerState: ScorerRecoveryState | null;
+  player1Equipment: EquippedCards | null;
+  player2Equipment: EquippedCards | null;
+  equipmentPhase: "player1" | "player2" | "done";
+  savedAt: number;
+};
+
+type InterruptedMatch = {
+  setupData: SetupData;
+  scorerState: ScorerRecoveryState | null;
+  player1Equipment: EquippedCards | null;
+  player2Equipment: EquippedCards | null;
+  equipmentPhase: "player1" | "player2" | "done";
+};
+
+function decodeInterruptedMatch(value: unknown): InterruptedMatch | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<PlayRecoverySnapshot> & Partial<SetupData>;
+  if (candidate.version === 2 && candidate.setupData && typeof candidate.setupData === "object") {
+    const scorer = candidate.scorerState;
+    return {
+      setupData: candidate.setupData,
+      scorerState: isScorerRecoveryState(scorer) && recoveryMatchesEngine(scorer, candidate.setupData.gameType?.engine ?? "") ? scorer : null,
+      player1Equipment: candidate.player1Equipment ?? null,
+      player2Equipment: candidate.player2Equipment ?? null,
+      equipmentPhase: candidate.equipmentPhase === "player2" || candidate.equipmentPhase === "done" ? candidate.equipmentPhase : "player1",
+    };
+  }
+  // Backward compatibility with the original setup-only snapshot.
+  if (typeof candidate.format === "string" && Array.isArray(candidate.team1) && Array.isArray(candidate.team2) && candidate.gameType) {
+    return { setupData: candidate as SetupData, scorerState: null, player1Equipment: null, player2Equipment: null, equipmentPhase: "player1" };
+  }
+  return null;
+}
+
 type EquippedCards = {
   goodCards: Array<{ id: string; name: string }>;
   badCards: Array<{ id: string; name: string }>;
 };
+
+function matchNightSides(data: SetupData): MatchNightSide[] {
+  if (data.format === "killer-ffa") {
+    return data.team1.map(player => ({ title: player.name, members: [player.name], points: player.points, elo: player.elo }));
+  }
+  return [data.team1, data.team2].map((team, index) => {
+    const accountNames = data.wagerSides?.[index]?.map(account => account.name).filter(Boolean) ?? [];
+    const title = accountNames.length > 0 ? accountNames.join(" + ") : team.map(player => player.name).join(" & ");
+    const accountPoints = data.wagerSides?.[index]?.reduce((total, account) => total + account.points, 0);
+    const averageElo = team.length > 0 ? Math.round(team.reduce((total, player) => total + player.elo, 0) / team.length) : undefined;
+    return {
+      title,
+      members: team.map(player => player.name),
+      points: accountPoints ?? (team.length === 1 ? team[0]?.points : undefined),
+      elo: averageElo,
+    };
+  });
+}
 
 // ── Format config ───────────────────────────────────────────────────────────────
 // Note: "2v2 Team Game" and "Doubles Event" are deliberately labeled and
@@ -1668,6 +1727,28 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         />
       )}
 
+      {submitted && (
+        <ShareCardButton
+          className="w-full py-3"
+          filename={`tkdl-result-${winnerName}`}
+          label="Share result card"
+          spec={{
+            eyebrow: "Official Match Result",
+            title: winnerName,
+            subtitle: `${winnerName} defeated ${loserName}`,
+            badge: "Winner",
+            accent: textGlowColor,
+            secondaryAccent: themeColor,
+            stats: [
+              { label: "Format", value: formatLabel },
+              { label: "Game", value: data.gameType.name },
+              { label: data.stakeMode === "total" ? "Total wager" : "Stake", value: `${data.stake} pts` },
+            ],
+            footer: result.detail || "TKDL Match Night",
+          }}
+        />
+      )}
+
       <div className="grid grid-cols-2 gap-3">
         <button onClick={onBack} className="py-3 rounded-xl font-bold uppercase tracking-widest text-sm"
           style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.08)", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
@@ -1688,7 +1769,7 @@ export default function Play() {
   const currentUser                 = useCurrentPlayer();
   const cardClashEnabled            = appSettings?.card_clash_enabled ?? false;
 
-  const [phase, setPhase]           = useState<"setup" | "equipment" | "playing" | "gameover">("setup");
+  const [phase, setPhase]           = useState<"setup" | "equipment" | "intro" | "playing" | "gameover">("setup");
   const [setupData, setSetupData]   = useState<SetupData | null>(null);
   const [player1Equipment, setPlayer1Equipment] = useState<EquippedCards | null>(null);
   const [player2Equipment, setPlayer2Equipment] = useState<EquippedCards | null>(null);
@@ -1696,6 +1777,11 @@ export default function Play() {
   const [gameResult, setResult]     = useState<GameResult | null>(null);
   const [matchStats, setMatchStats] = useState<PracticeStats | null>(null);
   const [liveScore, setLiveScore]    = useState<LiveScoreState | null>(null);
+  const [scorerRecoveryState, setScorerRecoveryState] = useState<ScorerRecoveryState | null>(null);
+  const [showResultPresentation, setShowResultPresentation] = useState(false);
+  const [interruptedMatch, setInterruptedMatch] = useState<InterruptedMatch | null>(() =>
+    decodeInterruptedMatch(readMatchSnapshot<unknown>(PLAY_SNAPSHOT_KEY))
+  );
   const liveScoreRef                 = useRef<LiveScoreState | null>(null);
   const liveSessionIdRef             = useRef<string | null>(null);
   const liveFinishedRef              = useRef(false);
@@ -1707,17 +1793,23 @@ export default function Play() {
     const sessionId = liveSessionIdRef.current;
     if (!sessionId || !setupData) return;
     liveFinishedRef.current = true;
-    const winnerSide = result.winnerIdx as 0 | 1;
+    const isFreeForAll = setupData.format === "killer-ffa";
+    const winnerSide: 0 | 1 = isFreeForAll ? 0 : result.winnerIdx as 0 | 1;
     const sides: [string[], string[]] = [setupData.team1.map(player => player.name), setupData.team2.map(player => player.name)];
+    const winnerName = isFreeForAll
+      ? (setupData.team1[result.winnerIdx]?.name ?? "Winner")
+      : sides[winnerSide].join(" & ");
     void fetch("/api/live-match", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, status: "finished", winnerSide, winnerName: sides[winnerSide].join(" & "), format: broadcastFormat(setupData), game: setupData.gameType.name, sides, score: liveScoreRef.current }),
+      body: JSON.stringify({ sessionId, status: "finished", winnerSide, winnerName, format: broadcastFormat(setupData), game: setupData.gameType.name, sides, score: liveScoreRef.current }),
       keepalive: true,
     }).catch(() => {});
   };
 
   const reset = () => {
+    clearMatchSnapshot(PLAY_SNAPSHOT_KEY);
+    setInterruptedMatch(null);
     setPhase("setup");
     setSetupData(null);
     setPlayer1Equipment(null);
@@ -1726,12 +1818,29 @@ export default function Play() {
     setResult(null);
     setMatchStats(null);
     setLiveScore(null);
+    setScorerRecoveryState(null);
+    setShowResultPresentation(false);
   };
 
   // Native-app parity: keep the screen awake, stop pinch-zoom, and trap the
   // back button/swipe behind a confirmation for as long as a match is live —
   // see src/lib/nativeParity.ts for why each of these exists.
   const isLive = phase === "playing";
+
+  // The presentation screens are intentionally timed visual wrappers. The
+  // scorer and result submission remain the existing components underneath:
+  // an intro advances into the scorer, while the result screen overlays an
+  // already-mounted GameOverScreen so its save request is never delayed.
+  useEffect(() => {
+    if (phase !== "intro") return;
+    const timer = window.setTimeout(() => setPhase("playing"), 6_500);
+    return () => window.clearTimeout(timer);
+  }, [phase]);
+  useEffect(() => {
+    if (!showResultPresentation) return;
+    const timer = window.setTimeout(() => setShowResultPresentation(false), 5_500);
+    return () => window.clearTimeout(timer);
+  }, [showResultPresentation]);
 
   // Publish a short-lived heartbeat for the separate /broadcast screen.
   // The server expires it after 15 seconds, so a crashed/closed scorer can
@@ -1767,30 +1876,48 @@ export default function Play() {
 
   useWakeLock(isLive);
   useZoomLock(isLive);
-  useExitGuard(isLive, reset);
-  useMatchSnapshot(PLAY_SNAPSHOT_KEY, isLive, setupData);
+  useExitGuard(isLive || phase === "intro", reset);
+  useEffect(() => {
+    if ((phase !== "equipment" && phase !== "intro" && !isLive) || !setupData) return;
+    const snapshot: PlayRecoverySnapshot = {
+      version: 2, setupData, scorerState: scorerRecoveryState,
+      player1Equipment, player2Equipment, equipmentPhase, savedAt: Date.now(),
+    };
+    try { sessionStorage.setItem(PLAY_SNAPSHOT_KEY, JSON.stringify(snapshot)); } catch { /* recovery is best-effort */ }
+  }, [phase, isLive, setupData, scorerRecoveryState, player1Equipment, player2Equipment, equipmentPhase]);
 
   if (phase === "setup") {
-    const interrupted = readMatchSnapshot<SetupData>(PLAY_SNAPSHOT_KEY);
+    const interrupted = interruptedMatch;
     return (
       <>
         {interrupted && (
           <div className="max-w-2xl mx-auto mb-4 pdc-card p-3 flex items-center gap-3" style={{ borderColor: "rgba(255,210,74,0.3)", background: "rgba(255,210,74,0.06)" }}>
             <AlertCircle className="w-4 h-4 shrink-0" style={{ color: "#ffd24a" }} />
             <div className="flex-1 text-xs" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.6)" }}>
-              Your last match ({interrupted.team1.map(p => p.name).join(" & ")} vs {interrupted.team2.map(p => p.name).join(" & ") || "—"}, {interrupted.gameType.name}) looks like it got interrupted before a result was recorded.
+              Your last match ({interrupted.setupData.team1.map(p => p.name).join(" & ")} vs {interrupted.setupData.team2.map(p => p.name).join(" & ") || "—"}, {interrupted.setupData.gameType.name}) was interrupted. {interrupted.scorerState ? "The score, turn and current visit are ready to continue." : "The matchup is ready to restart."}
             </div>
             <button
               onClick={() => {
-                setSetupData(interrupted);
-                setPhase("playing");
+                const data = interrupted.setupData;
+                setSetupData(data);
+                setScorerRecoveryState(interrupted.scorerState);
+                setPlayer1Equipment(interrupted.player1Equipment);
+                setPlayer2Equipment(interrupted.player2Equipment);
+                setEquipmentPhase(interrupted.equipmentPhase);
+                if (interrupted.scorerState) {
+                  setPhase("playing");
+                } else if (cardClashEnabled && data.format !== "shift-wars" && (data.gameType.key === "x01" || data.gameType.key === "cricket")) {
+                  setPhase("equipment");
+                } else {
+                  setPhase("intro");
+                }
               }}
               className="shrink-0 text-xs font-bold uppercase px-3 py-1.5 rounded-lg"
               style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", background: "rgba(255,210,74,0.12)", border: "1px solid rgba(255,210,74,0.3)", cursor: "pointer" }}>
-              Same matchup again
+              {interrupted.scorerState ? "Resume score" : "Restart matchup"}
             </button>
             <button
-              onClick={() => clearMatchSnapshot(PLAY_SNAPSHOT_KEY)}
+              onClick={() => { clearMatchSnapshot(PLAY_SNAPSHOT_KEY); setInterruptedMatch(null); }}
               className="shrink-0 text-xs"
               style={{ color: "rgba(255,255,255,0.3)", cursor: "pointer" }}>
               Dismiss
@@ -1799,12 +1926,14 @@ export default function Play() {
         )}
         <SetupScreen onStart={d => {
           clearMatchSnapshot(PLAY_SNAPSHOT_KEY);
+          setInterruptedMatch(null);
+          setScorerRecoveryState(null);
           setSetupData(d);
           // Route to equipment selection if Card Clash is enabled and game type is X01 or CRICKET
           if (cardClashEnabled && d.format !== "shift-wars" && (d.gameType.key === "x01" || d.gameType.key === "cricket")) {
             setPhase("equipment");
           } else {
-            setPhase("playing");
+            setPhase("intro");
           }
         }} />
       </>
@@ -1827,7 +1956,7 @@ export default function Play() {
             setPlayer1Equipment(equipment);
             setEquipmentPhase("player2");
           }}
-          onCancel={() => setPhase("setup")}
+          onCancel={reset}
         />
       );
     }
@@ -1842,16 +1971,28 @@ export default function Play() {
           onSelect={(equipment) => {
             setPlayer2Equipment(equipment);
             setEquipmentPhase("done");
-            setPhase("playing");
+            setPhase("intro");
           }}
-          onCancel={() => {
-            setPlayer1Equipment(null);
-            setEquipmentPhase("player1");
-            setPhase("setup");
-          }}
+          onCancel={reset}
         />
       );
     }
+  }
+
+  if (phase === "intro" && setupData) {
+    return createPortal(
+      <MatchNightPresentation
+        mode="intro"
+        sides={matchNightSides(setupData)}
+        format={broadcastFormat(setupData)}
+        game={setupData.gameType.name}
+        stake={setupData.stake}
+        stakeMode={setupData.stakeMode}
+        onContinue={() => setPhase("playing")}
+        onCancel={reset}
+      />,
+      document.body,
+    );
   }
 
   if (phase === "playing" && setupData) {
@@ -1902,7 +2043,21 @@ export default function Play() {
           bullUp={setupData.bullUp}
           teamTurnOrder={teamTurnOrder}
           onLiveState={setLiveScore}
-          onWin={r => { finishLiveBroadcast(r); setResult(r); setPhase("gameover"); }}
+          initialRecovery={scorerRecoveryState}
+          onRecoveryState={(() => {
+            const engine = setupData.gameType.engine;
+            return engine === "X01" || engine === "Cricket" || engine === "TeamX01" || engine === "TeamCricket"
+              ? setScorerRecoveryState : undefined;
+          })()}
+          onWin={r => {
+            clearMatchSnapshot(PLAY_SNAPSHOT_KEY);
+            setInterruptedMatch(null);
+            setScorerRecoveryState(null);
+            finishLiveBroadcast(r);
+            setResult(r);
+            setShowResultPresentation(true);
+            setPhase("gameover");
+          }}
           onAbandon={reset}
           onPracticeStats={s => setMatchStats(s)}
         />
@@ -1912,7 +2067,25 @@ export default function Play() {
   }
 
   if (phase === "gameover" && gameResult && setupData) {
-    return <GameOverScreen result={gameResult} data={setupData} stats={matchStats} player1Equipment={player1Equipment} player2Equipment={player2Equipment} onBack={reset} />;
+    return (
+      <>
+        <GameOverScreen result={gameResult} data={setupData} stats={matchStats} player1Equipment={player1Equipment} player2Equipment={player2Equipment} onBack={reset} />
+        {showResultPresentation && createPortal(
+          <MatchNightPresentation
+            mode="result"
+            sides={matchNightSides(setupData)}
+            format={broadcastFormat(setupData)}
+            game={setupData.gameType.name}
+            stake={setupData.stake}
+            stakeMode={setupData.stakeMode}
+            winnerIndex={gameResult.winnerIdx}
+            resultDetail={gameResult.detail}
+            onContinue={() => setShowResultPresentation(false)}
+          />,
+          document.body,
+        )}
+      </>
+    );
   }
 
   return null;

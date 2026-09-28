@@ -20,15 +20,52 @@ export function usePushNotifications(playerId: number | null | undefined) {
       .catch((err) => console.error("Service Worker registration failed:", err));
   }, [supported]);
 
-  // Check subscription status
+  // Check subscription status and repair the server-side copy when needed.
+  // A push provider can reject a stale subscription (403/410), after which
+  // the API correctly removes its dead database row. The browser can still
+  // retain that subscription locally, though, so merely reporting
+  // "subscribed" here leaves the device permanently disconnected. Re-post
+  // a valid local subscription on sign-in, and replace it when it belongs to
+  // an older VAPID key. Both operations are safe/idempotent server upserts.
   useEffect(() => {
     if (!supported || !playerId) return;
     if (Notification.permission === "denied") { setState("denied"); return; }
 
     navigator.serviceWorker.ready.then(async (reg) => {
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) setState("subscribed");
-      else setState(Notification.permission === "granted" ? "granted" : "default");
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        setState(Notification.permission === "granted" ? "granted" : "default");
+        return;
+      }
+
+      const keyRes = await fetch("/api/notifications/vapid-public-key");
+      if (!keyRes.ok) { setState("default"); return; }
+      const { publicKey, enabled } = await keyRes.json() as { publicKey: string; enabled?: boolean };
+      if (!publicKey || enabled === false) { setState("default"); return; }
+
+      const currentKey = urlBase64ToUint8Array(publicKey);
+      const subscribedKey = sub.options.applicationServerKey
+        ? new Uint8Array(sub.options.applicationServerKey)
+        : null;
+      const keyMatches = subscribedKey !== null
+        && subscribedKey.length === currentKey.length
+        && subscribedKey.every((value, index) => value === currentKey[index]);
+
+      if (!keyMatches && Notification.permission === "granted") {
+        await sub.unsubscribe();
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: currentKey,
+        });
+      }
+
+      const repair = await fetch("/api/notifications/subscribe", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sub.toJSON()),
+      });
+      setState(repair.ok ? "subscribed" : "default");
     }).catch(() => setState("default"));
   }, [supported, playerId]);
 

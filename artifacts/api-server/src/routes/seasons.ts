@@ -27,7 +27,13 @@ router.get("/seasons", async (req, res): Promise<void> => {
   const playerMap = new Map(allPlayers.map(p => [p.id, p.name]));
   const enriched = seasons.map(s => ({
     ...s,
-    championName: s.championId ? (playerMap.get(s.championId) ?? null) : s.championName,
+    // Doubles and Shift Wars championId values identify teams, not players.
+    // Looking them up in playerMap can accidentally replace a saved team
+    // name when a team id happens to match a player id. Singles is the only
+    // league whose champion id belongs in the player table.
+    championName: s.leagueType === "singles" && s.championId
+      ? (playerMap.get(s.championId) ?? s.championName)
+      : s.championName,
   }));
   res.json(enriched);
 });

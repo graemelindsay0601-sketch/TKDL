@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowUpRight, Trophy, Target, Radio, Pause, Play, Maximize, ArrowLeft, Users, Zap, Crown, Activity, Medal } from "lucide-react";
+import { ArrowUpRight, Trophy, Target, Radio, Pause, Play, Maximize, ArrowLeft, Users, Zap, Crown, Activity, Medal, RotateCcw, FastForward, X, Sparkles } from "lucide-react";
 import "./broadcast.css";
 
 type Standing = { id: number; name: string; points: number; wins: number; losses: number; detail: string; out: boolean };
@@ -10,10 +10,79 @@ type League = { key: string; label: string; note: string; rows: Standing[] };
 type FeedItem = { type: string; text: string; accent: string };
 type Champion = { championName: string; name: string };
 type LiveMatch = { sessionId: string; status: "live" | "finished"; winnerSide?: 0 | 1; winnerName?: string; format: string; game: string; sides: [string[], string[]]; score: null | { mode: "x01" | "cricket"; scores: [number, number]; turn: 0 | 1; detail?: [string, string]; currentPlayer?: string; lastVisit?: string; checkout?: string }; updatedAt: string };
+type DrawTeam = { id: number; name: string; players: string[] };
 const time = (value: Date) => value.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 function matchDate(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Date unavailable" : date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function DoublesDrawShow({ teams, onClose, onFullscreen }: { teams: DrawTeam[]; onClose: () => void; onFullscreen: () => void }) {
+  const sequence = teams.flatMap((team, teamIndex) => team.players.map((name, memberIndex) => ({ name, teamIndex, memberIndex })));
+  const teamKey = teams.map(team => `${team.id}:${team.players.join("|")}`).join(";");
+  const [revealed, setRevealed] = useState(0);
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => { setRevealed(0); setPlaying(true); }, 700);
+    return () => window.clearTimeout(id);
+  }, [teamKey]);
+
+  useEffect(() => {
+    if (!playing) return;
+    if (revealed >= sequence.length) { setPlaying(false); return; }
+    const id = window.setTimeout(() => setRevealed(value => value + 1), revealed === 0 ? 750 : 920);
+    return () => window.clearTimeout(id);
+  }, [playing, revealed, sequence.length]);
+
+  const replay = () => { setRevealed(0); setPlaying(true); };
+  const revealAll = () => { setRevealed(sequence.length); setPlaying(false); };
+  const current = revealed > 0 ? sequence[revealed - 1] : null;
+  const currentTeam = current ? teams[current.teamIndex] : null;
+  const complete = sequence.length > 0 && revealed === sequence.length;
+  let offset = 0;
+
+  return <section className="ls-draw-show" aria-live="polite" aria-label="Official Doubles team draw">
+    <div className="ls-draw-grid" aria-hidden="true" />
+    <div className="ls-draw-header">
+      <div><span><Sparkles size={15}/> TKDL LIVE</span><strong>OFFICIAL DOUBLES DRAW</strong></div>
+      <div className="ls-draw-actions">
+        <button onClick={replay} disabled={playing} aria-label="Replay draw"><RotateCcw size={17}/><span>REPLAY</span></button>
+        <button onClick={revealAll} disabled={complete} aria-label="Reveal all teams"><FastForward size={17}/><span>REVEAL ALL</span></button>
+        <button onClick={onFullscreen} aria-label="Toggle fullscreen"><Maximize size={17}/></button>
+        <button onClick={onClose} aria-label="Close draw show"><X size={18}/></button>
+      </div>
+    </div>
+    <div className="ls-draw-progress"><i style={{ width: `${sequence.length ? (revealed / sequence.length) * 100 : 0}%` }}/></div>
+    <div className="ls-draw-stage">
+      <div className="ls-draw-board" aria-hidden="true"><i/><i/><i/><i/></div>
+      <div className="ls-draw-orbit" aria-hidden="true" />
+      <div className="ls-draw-reveal" key={`${revealed}-${playing}`}>
+        <span>{complete ? "THE DRAW IS COMPLETE" : current ? `TEAM ${current.teamIndex + 1} · ${current.memberIndex === 0 ? "FIRST PLAYER" : "PARTNER"}` : playing ? "SHUFFLING THE FIELD" : "READY TO DRAW"}</span>
+        <h2>{complete ? `${teams.length} TEAMS LOCKED` : current?.name ?? `${sequence.length} PLAYERS`}</h2>
+        <p>{complete ? "The official Doubles Event line-up is confirmed" : currentTeam ? `${currentTeam.name} is taking shape` : "Every name. Every partnership. Drawn live."}</p>
+      </div>
+      <div className="ls-draw-remaining">
+        {sequence.map((player, index) => <span key={`${player.teamIndex}-${player.memberIndex}`} className={index < revealed ? "drawn" : ""}>{player.name}</span>)}
+      </div>
+    </div>
+    <div className="ls-draw-team-ribbon">
+      {teams.map((team, teamIndex) => {
+        const start = offset;
+        const end = start + team.players.length;
+        offset = end;
+        const locked = revealed >= end;
+        const active = revealed > start && revealed < end;
+        return <article key={team.id} className={`${locked ? "locked" : ""} ${active ? "active" : ""}`}>
+          <div className="ls-draw-team-number">{String(teamIndex + 1).padStart(2, "0")}</div>
+          <div className="ls-draw-avatars">{team.players.map((name, memberIndex) => <i key={name} className={revealed > start + memberIndex ? "shown" : ""}>{revealed > start + memberIndex ? name.slice(0, 1).toUpperCase() : "?"}</i>)}</div>
+          <strong>{team.players.map((name, memberIndex) => revealed > start + memberIndex ? name : "Waiting…").join(" + ")}</strong>
+          <small>{locked ? "TEAM LOCKED" : active ? "PARTNER DRAW IN PROGRESS" : `${team.players.length} PLAYERS TO DRAW`}</small>
+        </article>;
+      })}
+    </div>
+    <div className="ls-draw-footer"><span><i/> LIVE DRAW</span><strong>{revealed} / {sequence.length} PLAYERS REVEALED</strong><small>{complete ? "GAME ON" : "TESCO KILBIRNIE DARTS LEAGUE"}</small></div>
+  </section>;
 }
 
 export default function Broadcast() {
@@ -32,6 +101,7 @@ export default function Broadcast() {
   const [now, setNow] = useState(new Date());
   const [fullscreenError, setFullscreenError] = useState(false);
   const [liveMatch, setLiveMatch] = useState<LiveMatch | null>(null);
+  const [drawShowOpen, setDrawShowOpen] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("doublesDraw") === "1");
 
   useEffect(() => {
     let disposed = false, busy = false;
@@ -71,23 +141,65 @@ export default function Broadcast() {
       } catch { if (!disposed) setIssue(true); }
       finally { busy = false; if (!disposed) setLoaded(true); }
     }
-    void refresh();
-    const interval = setInterval(() => void refresh(), 30_000);
-    const online = () => void refresh();
+    const poll = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    poll();
+    // League tables and completed results do not need live-score cadence.
+    // One refresh per minute halves this screen's database work, while the
+    // live-match poll below remains fast during an active game.
+    const interval = setInterval(poll, 60_000);
+    const online = poll;
+    document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("online", online);
-    return () => { disposed = true; controller.abort(); clearInterval(interval); window.removeEventListener("online", online); };
+    return () => {
+      disposed = true;
+      controller.abort();
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("online", online);
+    };
   }, []);
 
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(timer); }, []);
   useEffect(() => {
-    let disposed = false;
-    const refresh = () => fetch("/api/live-match", { cache: "no-store" })
-      .then(response => response.ok ? response.json() : Promise.reject())
-      .then(data => { if (!disposed) setLiveMatch(data.active ?? null); })
-      .catch(() => {});
+    let disposed = false, busy = false;
+    let timer: number | undefined;
+    const schedule = (delay: number) => {
+      if (!disposed) timer = window.setTimeout(() => void refresh(), delay);
+    };
+    const refresh = async () => {
+      if (disposed || busy) return;
+      if (document.visibilityState !== "visible") return;
+      busy = true;
+      let nextDelay = 4_000;
+      try {
+        const response = await fetch("/api/live-match", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const next = data.active ?? null;
+        if (!disposed) setLiveMatch(next);
+        // Idle screens can check less often. Once a match appears, retain the
+        // original 1.5 second cadence for fluent live score updates.
+        if (next?.status === "live") nextDelay = 1_500;
+      } catch { /* keep the last successful display */ }
+      finally { busy = false; schedule(nextDelay); }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      if (timer !== undefined) window.clearTimeout(timer);
+      void refresh();
+    };
     void refresh();
-    const timer = window.setInterval(refresh, 1_500);
-    return () => { disposed = true; window.clearInterval(timer); };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      disposed = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, []);
   useEffect(() => {
     if (paused) return;
@@ -109,6 +221,7 @@ export default function Broadcast() {
   const selectLeague = (key: string) => { const index = pages.findIndex(p => p.league.key === key); if (index >= 0) { setTransition(n => n + 1); setFrame(index); } };
   const singles = leagues.find(l => l.key === "singles");
   const doubles = leagues.find(l => l.key === "doubles");
+  const drawTeams: DrawTeam[] = (doubles?.rows ?? []).map(team => ({ id: team.id, name: team.name, players: team.detail.split(" / ").map(name => name.trim()).filter(Boolean) }));
   const activeSingles = singles?.rows.filter(p => !p.out) ?? [];
   const unbeaten = activeSingles.find(p => p.wins > 0 && p.losses === 0);
   const gap = activeSingles.length > 1 ? activeSingles[0].points - activeSingles[1].points : null;
@@ -123,7 +236,7 @@ export default function Broadcast() {
   ].filter(Boolean) as Array<{ tone: string; kicker: string; icon: typeof Trophy; headline: string; body: string }>;
   const spotlight = spotlights[spotlightFrame % Math.max(1, spotlights.length)];
   const SpotlightIcon = spotlight?.icon ?? Zap;
-  const fresh = updated && now.getTime() - updated.getTime() < 65_000 && !issue;
+  const fresh = updated && now.getTime() - updated.getTime() < 125_000 && !issue;
   async function fullscreen() {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -131,11 +244,18 @@ export default function Broadcast() {
       setFullscreenError(false);
     } catch { setFullscreenError(true); }
   }
+  function closeDrawShow() {
+    setDrawShowOpen(false);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("doublesDraw");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }
   return <main className="league-screen">
     <header className="ls-header">
       <div className="ls-brand"><span className="ls-mark"><Target size={28} /></span><div><strong>TKDL<span> / MATCHDAY</span></strong><small>TESCO KILBIRNIE DARTS LEAGUE</small></div></div>
       <div className="ls-header-right"><span className={`ls-status ${liveMatch ? "ls-status-live" : fresh ? "" : "ls-status-wait"}`}><i />{liveMatch ? "MATCH LIVE" : !loaded ? "CONNECTING" : fresh ? "AUTO-UPDATING" : "UPDATE DELAYED"}</span><time>{time(now)}</time><div className="ls-controls"><button onClick={() => setPaused(v => !v)} aria-label={paused ? "Resume rotation" : "Pause rotation"}>{paused ? <Play size={17}/> : <Pause size={17}/>}</button><button onClick={fullscreen} aria-label="Toggle fullscreen"><Maximize size={17}/></button><Link href="/" aria-label="Exit broadcast"><ArrowLeft size={17}/></Link></div></div>
     </header>
+    {drawShowOpen && loaded && <DoublesDrawShow teams={drawTeams} onClose={closeDrawShow} onFullscreen={() => void fullscreen()} />}
     {liveMatch && <section className="ls-live-match" aria-live="polite">
       <div className="ls-live-backdrop" aria-hidden="true">LIVE</div>
       <div className="ls-live-heading"><span><Radio size={16}/> LIVE FROM THE OCHE</span><strong>{liveMatch.format}</strong><i>{liveMatch.game}</i></div>

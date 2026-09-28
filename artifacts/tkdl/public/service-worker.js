@@ -3,8 +3,7 @@
  * Handles web push notifications, offline support, and caching
  */
 
-const CACHE_NAME = "tkdl-v8";
-const API_CACHE = "tkdl-api-v8";
+const CACHE_NAME = "tkdl-v9";
 
 // Files to cache for offline support
 const STATIC_ASSETS = [
@@ -31,7 +30,7 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME && cacheName !== API_CACHE) {
+          if (cacheName !== CACHE_NAME) {
             return caches.delete(cacheName);
           }
         })
@@ -41,7 +40,13 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Fetch: network-first for API, cache-first for assets
+// Fetch: network-only for API, cache-first for public assets.
+//
+// API responses can be tied to the signed-in player or admin session. Caching
+// every successful GET under only its URL allowed another person using the
+// same device offline to receive the previous session's cached messages,
+// notifications or admin export. The application shell remains available
+// offline, but private and live league data must always come from the server.
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -51,24 +56,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // API calls: network-first with fallback to cache
+  // API calls: never persist session-scoped or live data in Cache Storage.
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Cache successful API responses (clone before returning)
-          if (response && response.status === 200) {
-            const clonedResponse = response.clone();
-            caches.open(API_CACHE).then((c) => c.put(request, clonedResponse));
-          }
-          return response;
-        })
-        .catch(() => {
-          // Fallback to cached response if network fails
-          return caches.match(request).then((cached) => {
-            return cached || new Response("Network error", { status: 503 });
-          });
-        })
+      fetch(request).catch(() => new Response(
+        JSON.stringify({ error: "Offline — live TKDL data is unavailable" }),
+        { status: 503, headers: { "Content-Type": "application/json" } },
+      ))
     );
     return;
   }

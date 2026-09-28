@@ -213,6 +213,73 @@ router.get("/broadcast/current", async (req, res): Promise<void> => {
   }
 });
 
+// ── GET /broadcast/archive ──────────────────────────────────────────────
+// Previous Editions are already persisted in full in broadcast_editions.
+// The replay library therefore only needs a small, read-only listing; it
+// never rebuilds an Edition or writes anything when viewers browse it.
+router.get("/broadcast/archive", async (req, res): Promise<void> => {
+  if (!(await requireBroadcastAvailable(req, res))) return;
+  try {
+    const rows = await db.select().from(broadcastEditionsTable)
+      .where(eq(broadcastEditionsTable.status, "PUBLISHED"))
+      .orderBy(desc(broadcastEditionsTable.publishedAt), desc(broadcastEditionsTable.id))
+      .limit(40);
+
+    const items = rows.flatMap(row => {
+      if (!isEditionProgramme(row.programme)) return [];
+      const programme = row.programme as EditionProgramme;
+      return [{
+        id: row.id,
+        title: editionTitle({ slotType: row.slotType, scheduledFor: row.scheduledFor }, programme),
+        mode: programmeModeOf(programme),
+        slotType: row.slotType,
+        publishedAt: (row.publishedAt ?? row.createdAt).toISOString(),
+        durationSeconds: totalEstimatedSecondsForProgramme(programme),
+        segmentCount: programme.segments.length,
+        leagueTypes: [...new Set(programme.segments.map(segment => segment.leagueType).filter(Boolean))],
+      }];
+    });
+    res.json({ items });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+// ── GET /broadcast/archive/:id ─────────────────────────────────────────
+// Returns the same public, serialised scene shape as /broadcast/current,
+// without live overlays or lazy-build behaviour. The browser supplies a
+// fresh playback start time so every selected replay begins at its opening.
+router.get("/broadcast/archive/:id", async (req, res): Promise<void> => {
+  if (!(await requireBroadcastAvailable(req, res))) return;
+  const id = Number(paramStr(req.params.id));
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid Edition id" }); return; }
+  try {
+    const [row] = await db.select().from(broadcastEditionsTable)
+      .where(and(eq(broadcastEditionsTable.id, id), eq(broadcastEditionsTable.status, "PUBLISHED")))
+      .limit(1);
+    if (!row || !isEditionProgramme(row.programme)) { res.status(404).json({ error: "Edition not found" }); return; }
+
+    const programme = row.programme as EditionProgramme;
+    const headlines = programme.segments.filter(segment => segment.purpose === "headlines");
+    const body = programme.segments.filter(segment => segment.purpose !== "headlines");
+    res.json({
+      edition: {
+        id: row.id,
+        slotKey: row.slotKey,
+        slotType: row.slotType,
+        generatedAt: (row.publishedAt ?? row.createdAt).toISOString(),
+        dataCutoff: row.dataCutoff.toISOString(),
+        title: editionTitle({ slotType: row.slotType, scheduledFor: row.scheduledFor }, programme),
+        mode: programmeModeOf(programme),
+        headlines: headlines.map(segment => serializeSegment(segment, programmeSegmentId(segment))),
+        segments: body.map(segment => serializeSegment(segment, programmeSegmentId(segment))),
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
 router.get("/broadcast/live", async (req, res): Promise<void> => {
   if (!(await requireBroadcastAvailable(req, res))) return;
   try {

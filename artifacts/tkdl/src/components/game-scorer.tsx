@@ -16,6 +16,7 @@ import {
   DonkeyDerbyScorer, LimboScorer, SnakesLaddersScorer, QuackshotScorer, FightGameScorer,
   type LiveScoreState,
 } from "@/lib/scorers";
+import type { ScorerRecoveryState, X01RecoveryState, CricketRecoveryState, TeamX01RecoveryState, TeamCricketRecoveryState } from "@/lib/scorer-recovery";
 import { type BotConfig } from "@/lib/bot-engine";
 import { type PracticeStats } from "@/lib/stats-types";
 import { useNewScoringUI } from "@/lib/useNewScoringUI";
@@ -220,7 +221,7 @@ export function GameScorer({
   p1Name, p2Name, gameType, botConfig, onWin, onAbandon, onPracticeStats,
   legs, setsToWin, legsToWinSet,
   teamNames, playerNames, soloMode, bullUp, scorerThemeColor, teamTurnOrder,
-  onLiveState,
+  onLiveState, initialRecovery, onRecoveryState,
 }: {
   p1Name: string; p2Name: string;
   gameType: GameTypeOption;
@@ -248,9 +249,11 @@ export function GameScorer({
    */
   teamTurnOrder?: "alternate" | "full-pass";
   onLiveState?: (state: LiveScoreState) => void;
+  initialRecovery?: ScorerRecoveryState | null;
+  onRecoveryState?: (state: ScorerRecoveryState) => void;
 }) {
   const isBullUpApplicable = bullUp && !soloMode;
-  const [starterIdx, setStarterIdx] = useState<0 | 1 | null>(isBullUpApplicable ? null : 0);
+  const [starterIdx, setStarterIdx] = useState<0 | 1 | null>(() => initialRecovery?.starterIdx ?? (isBullUpApplicable ? null : 0));
   // Admin-preview-only redesign of the 8 party game scoring screens — see
   // useNewScoringUI() and /admin's Feature Flags panel ("New Scoring UI").
   // Everything else (X01, Cricket, Killer, every non-party engine) ignores
@@ -262,6 +265,18 @@ export function GameScorer({
       ? { ...state, scores: [state.scores[1], state.scores[0]], turn: state.turn === 0 ? 1 : 0, detail: state.detail ? [state.detail[1], state.detail[0]] : undefined }
       : state);
   }, [onLiveState, starterIdx]);
+  const reportX01Recovery = useCallback((state: X01RecoveryState) => {
+    if (starterIdx !== null) onRecoveryState?.({ version: 1, starterIdx, engine: "X01", state });
+  }, [onRecoveryState, starterIdx]);
+  const reportCricketRecovery = useCallback((state: CricketRecoveryState) => {
+    if (starterIdx !== null) onRecoveryState?.({ version: 1, starterIdx, engine: "Cricket", state });
+  }, [onRecoveryState, starterIdx]);
+  const reportTeamX01Recovery = useCallback((state: TeamX01RecoveryState) => {
+    if (starterIdx !== null) onRecoveryState?.({ version: 1, starterIdx, engine: "TeamX01", state });
+  }, [onRecoveryState, starterIdx]);
+  const reportTeamCricketRecovery = useCallback((state: TeamCricketRecoveryState) => {
+    if (starterIdx !== null) onRecoveryState?.({ version: 1, starterIdx, engine: "TeamCricket", state });
+  }, [onRecoveryState, starterIdx]);
 
   function renderInner() {
     if (starterIdx === null) {
@@ -291,11 +306,13 @@ export function GameScorer({
 
   // ── Team engines (variable-length, 2v2 / 3v3 / Uneven Teams) ─────────────────
   if (gameType.engine === "TeamX01" && teamNames) {
-    return <TeamX01Scorer teamNames={orderedTeams!} config={cfg as any} onWin={win} onAbandon={onAbandon} onLiveState={live} turnOrder={teamTurnOrder} />;
+    return <TeamX01Scorer teamNames={orderedTeams!} config={cfg as any} onWin={win} onAbandon={onAbandon} onLiveState={live} turnOrder={teamTurnOrder}
+      initialRecovery={initialRecovery?.engine === "TeamX01" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportTeamX01Recovery : undefined} />;
   }
 
   if (gameType.engine === "TeamCricket" && teamNames) {
-    return <TeamCricketScorer teamNames={orderedTeams!} cutThroat={!!cfg.cutThroat} onWin={win} onAbandon={onAbandon} onLiveState={live} turnOrder={teamTurnOrder} />;
+    return <TeamCricketScorer teamNames={orderedTeams!} cutThroat={!!cfg.cutThroat} onWin={win} onAbandon={onAbandon} onLiveState={live} turnOrder={teamTurnOrder}
+      initialRecovery={initialRecovery?.engine === "TeamCricket" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportTeamCricketRecovery : undefined} />;
   }
 
   if (gameType.engine === "MultiKiller" && playerNames) {
@@ -305,10 +322,12 @@ export function GameScorer({
   // ── Standard 1v1 engines ─────────────────────────────────────────────────────
   switch (gameType.engine) {
     case "X01":
-      return <X01Scorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} onLiveState={live} legs={legs} setsToWin={setsToWin} legsToWinSet={legsToWinSet} soloMode={soloMode} newScoringUI={newScoringUI} scorerThemeColor={scorerThemeColor} />;
+      return <X01Scorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} onLiveState={live} legs={legs} setsToWin={setsToWin} legsToWinSet={legsToWinSet} soloMode={soloMode} newScoringUI={newScoringUI} scorerThemeColor={scorerThemeColor}
+        initialRecovery={initialRecovery?.engine === "X01" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportX01Recovery : undefined} />;
 
     case "Cricket":
-      return <CricketScorer p1Name={ep1} p2Name={ep2} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} onLiveState={live} newScoringUI={newScoringUI} scorerThemeColor={scorerThemeColor} />;
+      return <CricketScorer p1Name={ep1} p2Name={ep2} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} onLiveState={live} newScoringUI={newScoringUI} scorerThemeColor={scorerThemeColor}
+        initialRecovery={initialRecovery?.engine === "Cricket" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportCricketRecovery : undefined} />;
 
     case "Killer":
       return <KillerScorer p1Name={ep1} p2Name={ep2} lives={(cfg.lives as number) ?? 3} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} newScoringUI={newScoringUI} />;

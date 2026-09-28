@@ -477,6 +477,7 @@ router.get("/stats/h2h", async (req, res): Promise<void> => {
     db.execute(drizzleSql`
       SELECT m.id, m.played_at, m.winner_id, m.winner_name, m.loser_id, m.loser_name,
              m.elo_change, m.stake, m.game_type,
+             m.was_upset_win,
              m.winner_darts, m.winner_100s, m.winner_140s, m.winner_170s, m.winner_180s,
              m.loser_darts, m.loser_100s, m.loser_140s, m.loser_170s, m.loser_180s,
              s.name AS season_name
@@ -485,7 +486,6 @@ router.get("/stats/h2h", async (req, res): Promise<void> => {
       WHERE (m.winner_id = ${p1} AND m.loser_id = ${p2})
          OR (m.winner_id = ${p2} AND m.loser_id = ${p1})
       ORDER BY m.played_at DESC
-      LIMIT 100
     `),
     // Scouting Report addition (2026-09-25): each player's most-played
     // game type across ALL of their own matches (not just this h2h
@@ -548,7 +548,7 @@ router.get("/stats/h2h", async (req, res): Promise<void> => {
   }
 
   // Career Comparison extras — computed over every match in this h2h
-  // (up to the 100-row cap above), not just the 25 returned as
+  // across their full rivalry, not just the 25 returned as
   // recentMatches, so the numbers stay accurate for a long-running rivalry.
   // 180s are tracked on both the winner AND loser side of a match record
   // (you can hit a 180 in a match you still lose), so both sides get summed
@@ -567,6 +567,30 @@ router.get("/stats/h2h", async (req, res): Promise<void> => {
     return darts.length ? Math.round(darts.reduce((a, b) => a + b, 0) / darts.length) : null;
   };
 
+  const serializeH2HMatch = (m: any) => ({
+    id:          m.id,
+    playedAt:    m.played_at,
+    winnerId:    m.winner_id,
+    winnerName:  m.winner_name,
+    loserId:     m.loser_id,
+    loserName:   m.loser_name,
+    eloChange:   m.elo_change,
+    stake:       m.stake,
+    gameType:    m.game_type,
+    seasonName:  m.season_name,
+    wasUpsetWin: m.was_upset_win,
+    winnerDarts: m.winner_darts,
+    winner100s:  m.winner_100s,
+    winner140s:  m.winner_140s,
+    winner170s:  m.winner_170s,
+    winner180s:  m.winner_180s,
+    loserDarts:  m.loser_darts,
+    loser100s:   m.loser_100s,
+    loser140s:   m.loser_140s,
+    loser170s:   m.loser_170s,
+    loser180s:   m.loser_180s,
+  });
+
   res.json({
     player1: {
       id: player1.id, name: player1.name, elo: player1.elo, tier: calcTier(player1.elo), wins: p1Wins, currentStreak: p1CurStreak,
@@ -577,28 +601,10 @@ router.get("/stats/h2h", async (req, res): Promise<void> => {
       total180s: total180sFor(p2), avgDartsToWin: avgDartsToWinFor(p2), favoriteGameType: favoriteGameTypeFor(p2),
     },
     totalMatches: rows.length,
-    recentMatches: rows.slice(0, 25).map((m: any) => ({
-      id:          m.id,
-      playedAt:    m.played_at,
-      winnerId:    m.winner_id,
-      winnerName:  m.winner_name,
-      loserId:     m.loser_id,
-      loserName:   m.loser_name,
-      eloChange:   m.elo_change,
-      stake:       m.stake,
-      gameType:    m.game_type,
-      seasonName:  m.season_name,
-      winnerDarts: m.winner_darts,
-      winner100s:  m.winner_100s,
-      winner140s:  m.winner_140s,
-      winner170s:  m.winner_170s,
-      winner180s:  m.winner_180s,
-      loserDarts:  m.loser_darts,
-      loser100s:   m.loser_100s,
-      loser140s:   m.loser_140s,
-      loser170s:   m.loser_170s,
-      loser180s:   m.loser_180s,
-    })),
+    recentMatches: rows.slice(0, 25).map(serializeH2HMatch),
+    // The visual timeline runs oldest -> newest and needs the full rivalry,
+    // while the compact form dots above deliberately stay capped at 25.
+    timelineMatches: rows.map(serializeH2HMatch),
   });
 });
 

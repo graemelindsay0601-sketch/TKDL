@@ -29,6 +29,7 @@ const PREVIEW_MATCHES: Match[] = [
   { key:"p5",id:5,mode:"singles",playedAt:new Date(Date.now()-18e7).toISOString(),winnerName:"Cavan",loserName:"Sean",winnerPlayerIds:[21],loserPlayerIds:[17],stake:15,eloChange:19,gameType:"Cricket",seasonName:"September 2026",notes:null,isCombined:false },
   { key:"p6",id:6,mode:"singles",playedAt:new Date(Date.now()-26e7).toISOString(),winnerName:"Sean",loserName:"Ryan",winnerPlayerIds:[17],loserPlayerIds:[20],stake:10,eloChange:14,gameType:"301",seasonName:"September 2026",notes:null,isCombined:false },
 ];
+const PAGE_SIZE = 30;
 
 function displayGame(gameType: string) {
   return gameType.replace(/^(team_|doubles_|shift_wars_)/, "").replaceAll("_", " ").replace(/\b\w/g, c => c.toUpperCase());
@@ -79,6 +80,7 @@ export default function MatchCentre() {
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<"all" | Mode>("all");
   const [query, setQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => {
     const preview = import.meta.env.DEV && new URLSearchParams(window.location.search).get("preview") === "1";
@@ -100,14 +102,18 @@ export default function MatchCentre() {
     );
   }, [feed, mode, query]);
 
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [mode, query]);
+
+  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+
   const groups = useMemo(() => {
     const map = new Map<string, Match[]>();
-    for (const match of filtered) {
+    for (const match of visible) {
       const key = format(new Date(match.playedAt), "yyyy-MM-dd");
       map.set(key, [...(map.get(key) ?? []), match]);
     }
     return [...map.entries()];
-  }, [filtered]);
+  }, [visible]);
 
   const latest = feed?.items[0];
   const totalPoints = (feed?.items ?? []).reduce((sum, m) => sum + m.stake, 0);
@@ -157,6 +163,12 @@ export default function MatchCentre() {
               <div className="mc-day-results">{matches.map(match => <ResultCard key={match.key} match={match}/>)}</div>
             </section>
           ))}
+          {!loading && filtered.length > 0 && (
+            <div className="mc-load-more">
+              <span>Showing {Math.min(visibleCount, filtered.length)} of {filtered.length} results</span>
+              {visibleCount < filtered.length && <button onClick={() => setVisibleCount(count => count + PAGE_SIZE)}>LOAD 30 MORE</button>}
+            </div>
+          )}
         </main>
 
         <aside className="mc-aside">

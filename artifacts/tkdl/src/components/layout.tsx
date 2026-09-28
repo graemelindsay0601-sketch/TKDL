@@ -1,10 +1,16 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays } from "lucide-react";
-import { ReactNode, useEffect, useState } from "react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw } from "lucide-react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { useGetStatsSummary, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
 import { useSettings } from "@/hooks/use-settings";
 import { NotificationOptInPrompt } from "@/components/NotificationOptInPrompt";
+import { useToast } from "@/hooks/use-toast";
+
+interface InstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
 
 const hubNav = [
   { href: "/",             label: "Hub",          icon: LayoutDashboard },
@@ -70,14 +76,6 @@ const configNav = [
   { href: "/admin",        label: "Admin",        icon: Shield          },
 ];
 
-const mobileNavItems = [
-  { href: "/",             label: "Hub",        icon: LayoutDashboard, color: "#0066ff"  },
-  { href: "/leaderboard",  label: "Standings",  icon: Trophy,          color: "#ffd24a"  },
-  { href: "/achievements", label: "Achievements", icon: Medal,          color: "#a855f7"  },
-  { href: "/practice",     label: "Practice",   icon: Dumbbell,        color: "#00e5a0"  },
-  { href: "/tour",         label: "Tour",       icon: Star,            color: "#a855f7"  },
-];
-
 type TickerEntry = { text: string; cls?: string };
 
 const ACCENT_CLS: Record<string, string> = {
@@ -88,24 +86,48 @@ const ACCENT_CLS: Record<string, string> = {
   green:  "accent-green",
 };
 
+/**
+ * Poll only while this page is actually visible. A forgotten background tab
+ * should not keep the Render service awake or keep querying the database.
+ * Refresh immediately when the user returns so badges do not feel stale.
+ */
+function useVisiblePolling(load: () => void | Promise<void>, intervalMs: number, enabled = true) {
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
+  useEffect(() => {
+    if (!enabled) return;
+    let running = false;
+    const refresh = async () => {
+      if (document.visibilityState !== "visible" || running) return;
+      running = true;
+      try { await loadRef.current(); } catch { /* retain the last successful value */ } finally { running = false; }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    void refresh();
+    const id = window.setInterval(() => void refresh(), intervalMs);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [enabled, intervalMs]);
+}
+
 function LiveTicker() {
   const { data: summary }     = useGetStatsSummary();
   const { data: leaderboard } = useGetLeaderboard();
   const [items, setItems]     = useState<TickerEntry[]>([]);
   const [feed, setFeed]       = useState<{ text: string; accent: string }[]>([]);
 
-  useEffect(() => {
-    let alive = true;
-    const load = () => {
-      fetch("/api/stats/live-feed")
-        .then(r => r.ok ? r.json() : [])
-        .then((data: { text: string; accent: string }[]) => { if (alive) setFeed(data); })
-        .catch(() => {});
-    };
-    load();
-    const id = setInterval(load, 60_000);
-    return () => { alive = false; clearInterval(id); };
-  }, []);
+  useVisiblePolling(async () => {
+    const response = await fetch("/api/stats/live-feed");
+    if (!response.ok) return;
+    const data = await response.json() as { text: string; accent: string }[];
+    setFeed(data);
+  }, 60_000);
 
   useEffect(() => {
     const entries: TickerEntry[] = [];
@@ -203,6 +225,9 @@ function AccountWidget({ unreadCount = 0, collapsed = false }: { unreadCount?: n
 export function Layout({ children }: { children: ReactNode }) {
   const [location]                  = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [updateReady, setUpdateReady] = useState(false);
+  const { toast } = useToast();
   const { data: summary }           = useGetStatsSummary();
   const { data: leaderboard }       = useGetLeaderboard();
   const eliminated                  = (summary as any)?.eliminatedCount ?? 0;
@@ -223,53 +248,72 @@ export function Layout({ children }: { children: ReactNode }) {
   const bossBattleEnabled = appSettings?.boss_battle_enabled ?? false;
   const boardCurseEnabled = appSettings?.board_curse_enabled ?? false;
   const tkdlLiveEnabled  = appSettings?.tkdl_live_enabled   ?? false;
-  const [unreadCount, setUnreadCount]   = useState(0);
+  const isStandalone = typeof window !== "undefined" && (window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
+  const isIos = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const canOfferInstall = !isStandalone && (installPrompt !== null || isIos);
+  const matchInProgressRoute = /^\/(play|practice|master501|card-clash|boss-battle|board-curse)(\/|$)/.test(location) || /^\/tour\/[^/]+/.test(location);
+
   useEffect(() => {
-    if (!authUser) return;
-    const load = () => {
-      fetch("/api/notifications/unread-count", { credentials: "include" })
-        .then(r => r.ok ? r.json() : { count: 0 })
-        .then((d: { count: number }) => setUnreadCount(d.count))
-        .catch(() => {});
+    const onInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
     };
-    load();
-    const id = setInterval(load, 30_000);
-    return () => clearInterval(id);
-  }, [authUser]);
+    const onInstalled = () => setInstallPrompt(null);
+    const onUpdate = () => setUpdateReady(true);
+    window.addEventListener("beforeinstallprompt", onInstallPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    window.addEventListener("sw-update", onUpdate);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onInstallPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+      window.removeEventListener("sw-update", onUpdate);
+    };
+  }, []);
+
+  async function offerInstall() {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      if (choice.outcome === "accepted") setInstallPrompt(null);
+      return;
+    }
+    toast({ title: "Install TKDL on iPhone", description: "In Safari, tap Share, then choose Add to Home Screen." });
+  }
+
+  const mobileNavItems = [
+    { href: "/",            label: "Hub",       icon: LayoutDashboard, color: "#0066ff" },
+    { href: "/leaderboard", label: "Standings", icon: Trophy,          color: "#ffd24a" },
+    liveScorer
+      ? { href: "/play",   label: "Score",     icon: Swords,          color: "#ff005c" }
+      : { href: "/submit", label: "Submit",    icon: Plus,            color: "#ff005c" },
+    { href: "/practice",    label: "Practice",  icon: Dumbbell,        color: "#00e5a0" },
+  ];
+  const [unreadCount, setUnreadCount]   = useState(0);
+  useVisiblePolling(async () => {
+    const response = await fetch("/api/notifications/unread-count", { credentials: "include" });
+    const data = response.ok ? await response.json() as { count: number } : { count: 0 };
+    setUnreadCount(data.count);
+  }, 30_000, Boolean(authUser));
 
   // Community nav badge — unread count scoped to community-flavoured
   // notification types only (post_approved/post_liked/post_commented/
   // auto_post_fired), separate from the account widget's all-types count above.
   const [communityUnread, setCommunityUnread] = useState(0);
-  useEffect(() => {
-    if (!authUser) return;
-    const load = () => {
-      fetch("/api/notifications/unread-count?types=post_approved,post_liked,post_commented,auto_post_fired", { credentials: "include" })
-        .then(r => r.ok ? r.json() : { count: 0 })
-        .then((d: { count: number }) => setCommunityUnread(d.count))
-        .catch(() => {});
-    };
-    load();
-    const id = setInterval(load, 30_000);
-    return () => clearInterval(id);
-  }, [authUser]);
+  useVisiblePolling(async () => {
+    const response = await fetch("/api/notifications/unread-count?types=post_approved,post_liked,post_commented,auto_post_fired", { credentials: "include" });
+    const data = response.ok ? await response.json() as { count: number } : { count: 0 };
+    setCommunityUnread(data.count);
+  }, 30_000, Boolean(authUser));
 
   // TKDL LIVE nav badge — lights up when a broadcast edition has published
   // since this player last opened /tkdl-live (see GET /broadcast/live-status
   // and the mark-seen call in pages/tkdl-live.tsx).
   const [hasNewEdition, setHasNewEdition] = useState(false);
-  useEffect(() => {
-    if (!authUser || !(tkdlLiveEnabled || authUser?.isAdmin)) return;
-    const load = () => {
-      fetch("/api/broadcast/live-status", { credentials: "include" })
-        .then(r => r.ok ? r.json() : { hasNewEdition: false })
-        .then((d: { hasNewEdition: boolean }) => setHasNewEdition(d.hasNewEdition))
-        .catch(() => {});
-    };
-    load();
-    const id = setInterval(load, 60_000);
-    return () => clearInterval(id);
-  }, [authUser, tkdlLiveEnabled]);
+  useVisiblePolling(async () => {
+    const response = await fetch("/api/broadcast/live-status", { credentials: "include" });
+    const data = response.ok ? await response.json() as { hasNewEdition: boolean } : { hasNewEdition: false };
+    setHasNewEdition(data.hasNewEdition);
+  }, 60_000, Boolean(authUser && (tkdlLiveEnabled || authUser.isAdmin)));
 
   // Desktop-only rail collapse — remembered per browser, never applies to
   // the mobile drawer (see .sidebar-rail.collapsed's min-width guard).
@@ -476,6 +520,16 @@ export function Layout({ children }: { children: ReactNode }) {
       {/* Account widget */}
       <AccountWidget unreadCount={unreadCount} collapsed={collapsed} />
 
+      {canOfferInstall && (
+        <button onClick={() => void offerInstall()}
+          className={`flex items-center gap-2 mx-2 my-1.5 px-3 py-2 rounded-xl transition-colors hover:bg-white/5 ${collapsed ? "justify-center px-2" : ""}`}
+          style={{ border: "1px solid rgba(0,229,160,0.18)", background: "rgba(0,229,160,0.045)", color: "#00e5a0" }}
+          title="Install TKDL" aria-label="Install TKDL">
+          <Download className="w-3.5 h-3.5 shrink-0" />
+          {!collapsed && <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem", letterSpacing: "0.08em", fontWeight: 700 }}>INSTALL TKDL</span>}
+        </button>
+      )}
+
       {/* Footer — season countdown. Skipped entirely when collapsed: nothing
           here is essential to icon-only navigation, and there isn't room to
           show it meaningfully at 66px. */}
@@ -555,7 +609,12 @@ export function Layout({ children }: { children: ReactNode }) {
               TKDL
             </span>
           </div>
-          <div style={{ width: "2.5rem" }} />
+          {canOfferInstall ? (
+            <button onClick={() => void offerInstall()} className="p-2 rounded-lg" title="Install TKDL" aria-label="Install TKDL"
+              style={{ color: "#00e5a0", background: "rgba(0,229,160,0.07)", border: "1px solid rgba(0,229,160,0.16)" }}>
+              <Download className="w-4 h-4" />
+            </button>
+          ) : <div style={{ width: "2.5rem" }} />}
         </header>
 
         <main className="flex-1 overflow-y-auto pb-20 lg:pb-10" style={{ position: "relative", zIndex: 1 }}>
@@ -568,6 +627,17 @@ export function Layout({ children }: { children: ReactNode }) {
       <LiveTicker />
 
       <NotificationOptInPrompt />
+
+      {updateReady && !matchInProgressRoute && (
+        <div className="fixed z-40 left-1/2 -translate-x-1/2 bottom-20 lg:bottom-10 flex items-center gap-3 rounded-xl px-4 py-3 shadow-2xl"
+          style={{ background: "rgba(8,8,15,.98)", border: "1px solid rgba(0,229,160,.3)", color: "#fff", maxWidth: "calc(100vw - 2rem)" }}>
+          <RefreshCw className="w-4 h-4 shrink-0" style={{ color: "#00e5a0" }} />
+          <div className="min-w-0"><strong className="block text-sm" style={{ fontFamily: "Oswald, sans-serif" }}>TKDL update ready</strong><span className="block text-xs text-white/45">Reload when convenient to use the latest version.</span></div>
+          <button onClick={() => window.location.reload()} className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold"
+            style={{ background: "#00e5a0", color: "#04100c", fontFamily: "Oswald, sans-serif" }}>RELOAD</button>
+          <button onClick={() => setUpdateReady(false)} aria-label="Dismiss update" className="shrink-0 text-white/35 hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+      )}
 
       {/* Bottom nav — tablet/mobile only (<1024px) */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 flex"

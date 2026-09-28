@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Shuffle, Users, RotateCcw, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
+import { Shuffle, Users, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, Tv } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -119,6 +119,12 @@ export function DoublesSeasonManager() {
           <div className="text-xs uppercase tracking-wider font-bold flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
             <Users className="w-3.5 h-3.5" /> Teams
           </div>
+          <div className="flex items-center gap-2">
+          {teams.length > 0 && <a href="/broadcast?doublesDraw=1" target="_blank" rel="noreferrer"
+            className="inline-flex items-center h-8 px-3 rounded-md text-xs font-bold"
+            style={{ background: "rgba(255,210,74,0.1)", color: "#ffd24a", border: "1px solid rgba(255,210,74,0.25)", fontFamily: "Oswald, sans-serif" }}>
+            <Tv className="w-3.5 h-3.5 mr-1.5" />Open Draw Show
+          </a>}
           {teams.length>0?<AlertDialog>
             <AlertDialogTrigger asChild><Button size="sm" disabled={drawing || !current}
               style={{ background: "#0066ff", border: "none", fontFamily: "Oswald, sans-serif" }}>
@@ -134,6 +140,7 @@ export function DoublesSeasonManager() {
             style={{ background: "#0066ff", border: "none", fontFamily: "Oswald, sans-serif" }}>
             <Shuffle className="w-3.5 h-3.5 mr-1.5" />{drawing ? "Drawing…" : "Start Doubles Draw"}
           </Button>}
+          </div>
         </div>
 
         {teams.length === 0 ? (

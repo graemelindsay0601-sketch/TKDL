@@ -1,6 +1,8 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { Link } from "wouter";
 import { BroadcastPlayer } from "@/features/broadcast/BroadcastPlayer";
+import { LeagueAwardsShow } from "@/features/broadcast/LeagueAwardsShow";
+import { ReplayLibrary } from "@/features/broadcast/ReplayLibrary";
 
 /**
  * TKDL LIVE — the automated broadcast "show" (see the handover doc's
@@ -30,6 +32,8 @@ const SHELL_STYLE: CSSProperties = {
 export default function TkdlLive() {
   const [status, setStatus] = useState<BroadcastStatus | null>(null);
   const [failed, setFailed] = useState(false);
+  const [showAwards, setShowAwards] = useState(false);
+  const [showReplays, setShowReplays] = useState(false);
 
   useEffect(() => {
     fetch("/api/broadcast/status", { credentials: "include" })
@@ -75,7 +79,15 @@ export default function TkdlLive() {
 
   return (
     <div className="fixed inset-0 select-none">
-      <BroadcastPlayer />
+      {!showAwards && !showReplays && <BroadcastPlayer />}
+
+      {showAwards && <LeagueAwardsShow onClose={() => setShowAwards(false)} />}
+      {showReplays && (
+        <ReplayLibrary
+          onClose={() => setShowReplays(false)}
+          onOpenAwards={() => { setShowReplays(false); setShowAwards(true); }}
+        />
+      )}
 
       {previewOnly && (
         // `top: max(1.5rem, ...)` instead of a plain `top-6` — on a phone
@@ -99,6 +111,24 @@ export default function TkdlLive() {
           full-bleed kiosk screen, previously reachable only by its own URL
           with no way across from here. */}
       <div className="absolute bottom-14 right-4 z-40 flex flex-col items-end gap-2">
+        <button
+          type="button"
+          onClick={() => setShowReplays(true)}
+          className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black uppercase transition-transform hover:scale-105"
+          style={{ color: "white", background: "rgba(7,5,15,0.84)", border: "1px solid rgba(255,255,255,0.18)", backdropFilter: "blur(10px)", letterSpacing: "0.13em" }}
+        >
+          Replay Library
+          <span aria-hidden="true">▶</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowAwards(true)}
+          className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black uppercase transition-transform hover:scale-105"
+          style={{ color: "#07030d", background: "#ffd24a", boxShadow: "0 0 24px rgba(255,210,74,0.3)", letterSpacing: "0.13em" }}
+        >
+          League Awards
+          <span aria-hidden="true">🏆</span>
+        </button>
         <Link href="/broadcast" className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.15em" }}>
           Standings Board →
         </Link>

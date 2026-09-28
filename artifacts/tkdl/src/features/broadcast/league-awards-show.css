@@ -1,0 +1,100 @@
+.league-awards {
+  --gold: #ffd24a;
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  overflow: hidden;
+  color: white;
+  font-family: Oswald, sans-serif;
+  background:
+    radial-gradient(circle at 50% 8%, rgba(255, 210, 74, .13), transparent 28%),
+    radial-gradient(circle at 9% 75%, rgba(255, 0, 92, .19), transparent 31%),
+    radial-gradient(circle at 91% 72%, rgba(0, 102, 255, .2), transparent 31%),
+    linear-gradient(145deg, #07030d 0%, #10091d 50%, #030817 100%);
+}
+
+.league-awards__grid { position: absolute; inset: 0; opacity: .14; background-image: linear-gradient(rgba(255,255,255,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.08) 1px, transparent 1px); background-size: 48px 48px; mask-image: linear-gradient(to bottom, transparent, black 35%, transparent); }
+.league-awards__spotlight { position: absolute; top: -38%; width: 35%; height: 125%; filter: blur(8px); opacity: .16; transform-origin: top; animation: awards-sweep 8s ease-in-out infinite alternate; clip-path: polygon(46% 0, 54% 0, 100% 100%, 0 100%); background: linear-gradient(to bottom, rgba(255,255,255,.7), transparent); }
+.league-awards__spotlight--left { left: 1%; transform: rotate(-12deg); }
+.league-awards__spotlight--right { right: 1%; transform: rotate(12deg); animation-delay: -4s; }
+
+.league-awards__header { position: absolute; z-index: 3; top: 0; left: 0; right: 0; min-height: 68px; display: flex; align-items: center; gap: 18px; padding: max(18px, env(safe-area-inset-top)) clamp(18px, 4vw, 56px) 12px; border-bottom: 1px solid rgba(255,255,255,.1); background: linear-gradient(180deg, rgba(4,2,8,.92), rgba(4,2,8,.42)); backdrop-filter: blur(14px); }
+.league-awards__brand { font-size: clamp(18px, 2.4vw, 28px); font-weight: 900; letter-spacing: .08em; }
+.league-awards__brand span { color: #ff005c; }
+.league-awards__programme { display: flex; align-items: center; gap: 7px; padding-left: 18px; border-left: 1px solid rgba(255,255,255,.2); color: var(--gold); font-size: 12px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; }
+.league-awards__close { margin-left: auto; width: 40px; height: 40px; display: grid; place-items: center; color: rgba(255,255,255,.72); border: 1px solid rgba(255,255,255,.14); border-radius: 50%; background: rgba(255,255,255,.06); transition: .2s ease; }
+.league-awards__close:hover { color: white; border-color: rgba(255,255,255,.4); transform: rotate(4deg) scale(1.05); }
+
+.league-awards__stage { position: absolute; z-index: 2; inset: 76px 0 72px; display: grid; place-items: center; padding: clamp(18px, 4vw, 48px); }
+.league-awards__intro { width: min(1080px, 94vw); text-align: center; animation: awards-enter .65s cubic-bezier(.2,.8,.2,1) both; }
+.league-awards__eyebrow { display: flex; align-items: center; justify-content: center; gap: 12px; color: rgba(255,255,255,.58); font-size: clamp(10px, 1.25vw, 13px); font-weight: 800; letter-spacing: .3em; text-transform: uppercase; }
+.league-awards__eyebrow span { width: 36px; height: 1px; background: currentColor; }
+.league-awards__intro h1 { margin: 5px 0 0; font-size: clamp(50px, 9vw, 122px); line-height: .92; font-style: italic; font-weight: 950; letter-spacing: -.045em; text-transform: uppercase; text-shadow: 0 8px 50px rgba(0,0,0,.7); }
+.league-awards__intro h1 em { color: var(--gold); font-style: normal; }
+.league-awards__lead { margin: 18px auto 28px; color: rgba(255,255,255,.61); font: 500 clamp(14px, 1.8vw, 19px)/1.5 Inter, sans-serif; }
+.league-awards__champions { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(10px, 2vw, 20px); }
+.league-awards__champion { position: relative; overflow: hidden; min-height: 154px; padding: 20px; text-align: left; border: 1px solid color-mix(in srgb, var(--league-accent) 55%, transparent); background: linear-gradient(145deg, color-mix(in srgb, var(--league-accent) 18%, rgba(12,7,20,.9)), rgba(12,7,20,.78)); box-shadow: 0 18px 50px rgba(0,0,0,.25); }
+.league-awards__champion::after { content: ""; position: absolute; height: 3px; left: 0; right: 0; bottom: 0; background: var(--league-accent); box-shadow: 0 0 24px var(--league-accent); }
+.league-awards__champion-top { display: flex; justify-content: space-between; color: var(--league-accent); font-size: 11px; font-weight: 900; letter-spacing: .2em; text-transform: uppercase; }
+.league-awards__champion-top svg { width: 20px; }
+.league-awards__champion strong { display: block; margin-top: 22px; font-size: clamp(23px, 3vw, 38px); line-height: 1; text-transform: uppercase; }
+.league-awards__champion small { display: block; margin-top: 9px; color: rgba(255,255,255,.5); font: 600 12px Inter, sans-serif; }
+
+.league-awards__award { --award-accent: #ffd24a; position: relative; width: min(1040px, 92vw); min-height: min(560px, 65vh); display: grid; grid-template-columns: minmax(230px, .78fr) 1.35fr; align-items: center; gap: clamp(26px, 6vw, 80px); padding: clamp(28px, 5vw, 72px); overflow: hidden; border: 1px solid color-mix(in srgb, var(--award-accent) 36%, transparent); background: linear-gradient(120deg, color-mix(in srgb, var(--award-accent) 9%, rgba(8,4,15,.96)), rgba(9,6,19,.92)); box-shadow: 0 35px 100px rgba(0,0,0,.45), inset 0 0 80px rgba(255,255,255,.02); animation: awards-enter .65s cubic-bezier(.2,.8,.2,1) both; }
+.league-awards__award::before { content: ""; position: absolute; inset: auto -10% -45% auto; width: 55%; aspect-ratio: 1; border: 1px solid color-mix(in srgb, var(--award-accent) 28%, transparent); border-radius: 50%; box-shadow: 0 0 0 34px color-mix(in srgb, var(--award-accent) 5%, transparent), 0 0 0 70px color-mix(in srgb, var(--award-accent) 3%, transparent); }
+.league-awards__award-number { position: absolute; top: 22px; left: 28px; color: rgba(255,255,255,.27); font-size: 10px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; }
+.league-awards__award-icon { position: relative; z-index: 1; width: min(240px, 28vw); aspect-ratio: 1; display: grid; place-items: center; justify-self: center; color: var(--award-accent); border: 1px solid color-mix(in srgb, var(--award-accent) 35%, transparent); border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--award-accent) 19%, transparent), transparent 66%); box-shadow: 0 0 80px color-mix(in srgb, var(--award-accent) 20%, transparent), inset 0 0 50px color-mix(in srgb, var(--award-accent) 8%, transparent); animation: awards-icon 5s ease-in-out infinite; }
+.league-awards__award-icon::before, .league-awards__award-icon::after { content: ""; position: absolute; border: 1px solid color-mix(in srgb, var(--award-accent) 24%, transparent); border-radius: 50%; inset: 13%; }
+.league-awards__award-icon::after { inset: -10%; border-style: dashed; animation: awards-spin 22s linear infinite; }
+.league-awards__award-icon svg { width: 43%; height: 43%; stroke-width: 1.35; filter: drop-shadow(0 0 15px var(--award-accent)); }
+.league-awards__award-copy { position: relative; z-index: 1; text-align: left; }
+.league-awards__award-copy .league-awards__eyebrow { justify-content: flex-start; color: var(--award-accent); }
+.league-awards__award-copy h2 { margin: 12px 0 8px; color: rgba(255,255,255,.74); font-size: clamp(23px, 4vw, 52px); font-style: italic; font-weight: 900; line-height: 1; text-transform: uppercase; }
+.league-awards__award-copy h3 { margin: 0; font-size: clamp(45px, 7vw, 92px); font-weight: 950; letter-spacing: -.045em; line-height: .92; text-transform: uppercase; text-shadow: 0 8px 40px rgba(0,0,0,.55); }
+.league-awards__stat { display: inline-block; margin-top: 24px; padding: 8px 13px; color: #07030d; background: var(--award-accent); font-size: clamp(15px, 2vw, 21px); font-weight: 950; letter-spacing: .05em; text-transform: uppercase; transform: skewX(-7deg); }
+.league-awards__award-copy p { max-width: 560px; margin: 18px 0 0; color: rgba(255,255,255,.55); font: 500 clamp(13px, 1.5vw, 17px)/1.55 Inter, sans-serif; }
+.league-awards__winner-stamp { position: absolute; top: 22px; right: 26px; display: flex; align-items: center; gap: 7px; color: var(--award-accent); font-size: 10px; font-weight: 900; letter-spacing: .2em; text-transform: uppercase; }
+.league-awards__winner-stamp svg { width: 15px; }
+
+.league-awards__controls { position: absolute; z-index: 4; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 9px; padding: 7px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; background: rgba(6,3,12,.75); backdrop-filter: blur(12px); }
+.league-awards__controls > button { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; color: rgba(255,255,255,.65); background: rgba(255,255,255,.07); }
+.league-awards__share { margin-left: -2px; }
+.league-awards__share button { min-height: 32px; padding-top: 5px; padding-bottom: 5px; white-space: nowrap; }
+.league-awards__controls svg { width: 16px; }
+.league-awards__progress { display: flex; gap: 5px; padding: 0 5px; }
+.league-awards__progress button { width: 14px; height: 4px; border-radius: 3px; background: rgba(255,255,255,.18); transition: .25s ease; }
+.league-awards__progress button.is-active { width: 32px; background: var(--gold); box-shadow: 0 0 10px rgba(255,210,74,.45); }
+.league-awards__bug { position: absolute; z-index: 3; right: 24px; bottom: 21px; display: flex; align-items: center; gap: 7px; color: rgba(255,255,255,.38); font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.league-awards__bug span { color: #ff005c; }
+.league-awards__state { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 13px; color: rgba(255,255,255,.55); }
+.league-awards__state svg { width: 60px; height: 60px; color: var(--gold); }
+.league-awards__state strong { color: white; font-size: 24px; text-transform: uppercase; }
+.league-awards__state span { font: 500 14px Inter, sans-serif; }
+.league-awards__loading { animation: awards-icon 1.5s ease-in-out infinite; }
+
+@keyframes awards-enter { from { opacity: 0; transform: translateY(24px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes awards-icon { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+@keyframes awards-spin { to { transform: rotate(360deg); } }
+@keyframes awards-sweep { from { transform: rotate(-18deg); } to { transform: rotate(18deg); } }
+
+@media (max-width: 720px) {
+  .league-awards__header { min-height: 58px; padding-left: 16px; padding-right: 16px; }
+  .league-awards__programme { font-size: 9px; padding-left: 10px; }
+  .league-awards__stage { top: 65px; padding: 14px; }
+  .league-awards__intro h1 { font-size: clamp(47px, 16vw, 76px); }
+  .league-awards__champions { grid-template-columns: 1fr; gap: 8px; }
+  .league-awards__champion { min-height: 88px; padding: 13px 15px; }
+  .league-awards__champion strong { margin-top: 11px; font-size: 22px; }
+  .league-awards__champion small { margin-top: 4px; }
+  .league-awards__award { min-height: 66vh; grid-template-columns: 1fr; align-content: center; gap: 19px; padding: 44px 24px 28px; text-align: center; }
+  .league-awards__award-icon { width: 135px; }
+  .league-awards__award-copy { text-align: center; }
+  .league-awards__award-copy .league-awards__eyebrow { justify-content: center; }
+  .league-awards__award-copy h3 { font-size: clamp(42px, 13vw, 67px); }
+  .league-awards__award-copy p { margin-left: auto; margin-right: auto; }
+  .league-awards__award-number, .league-awards__winner-stamp, .league-awards__bug { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .league-awards *, .league-awards *::before, .league-awards *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}

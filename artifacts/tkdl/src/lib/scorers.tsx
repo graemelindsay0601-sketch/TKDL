@@ -7,6 +7,7 @@ import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize, Shuffle, Grid3X3, Dices, Rabbit, Lock, Swords, Ship, EyeOff, Footprints, Award, PawPrint, ArrowDownToLine, LayoutGrid, Flame } from "lucide-react";
 import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHareHoundsVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart, botHighLowVisit, getOppositeSeg, botPickADoubleVisit, botNoughtsCrossesDart, botOcheRouletteVisit, botOneEightyVisit, botFivesVisit, botTennisVisit, botBattleshipShot, botBlindKillerVisit, botDonkeyDerbyVisit, botLimboVisit, botSnakesLaddersDart, botQuackshotVisit, botFightGameVisit, BOARD_ORDER } from "./bot-engine";
 import { type PracticeStats, type DartThrow } from "./stats-types";
+import type { X01StatsAccumulator, X01RecoveryState, CricketMarks, CricketUndoSnapshot, CricketRecoveryState, TeamX01RecoveryState, TeamCricketRecoveryState } from "./scorer-recovery";
 import { CardActivationOverlay } from "@/components/CardActivationOverlay";
 import { ChaosCardReveal } from "@/components/ChaosCardReveal";
 import { TKDLCard } from "@/components/TKDLCard";
@@ -661,7 +662,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
 export type LiveScoreState = { mode: "x01" | "cricket"; scores: [number, number]; turn: 0 | 1; detail?: [string, string]; currentPlayer?: string; lastVisit?: string; checkout?: string };
 
-export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor }: {
+export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState }: {
   p1Name: string; p2Name: string;
   config: {
     startingScore: number;
@@ -705,6 +706,8 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
    *  Only ever supplied by practice.tsx (own-account solo practice) — undefined/null
    *  everywhere else renders exactly as before. */
   scorerThemeColor?: string | null;
+  initialRecovery?: X01RecoveryState;
+  onRecoveryState?: (state: X01RecoveryState) => void;
 }) {
   const safeTimeout = useSafeTimeout();
   const { startingScore = 501, p1StartingScore, p2StartingScore, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo } = config;
@@ -723,18 +726,18 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     [startingScore, p1StartingScore, p2StartingScore],
   );
 
-  const [scores, setScores]         = useState<[number, number]>(startingScores);
-  const [legWins, setLegWins]       = useState<[number, number]>([0, 0]);
-  const [setWins, setSetWins]       = useState<[number, number]>([0, 0]);
-  const [legHistory, setLegHistory] = useState<(0|1)[]>([]); // Track who won each leg (for conditional cards)
-  const [started, setStarted]       = useState<[boolean, boolean]>([!doubleIn, !doubleIn]);
-  const [turn, setTurn]             = useState<0 | 1>(0);
-  const [legStarter, setLegStarter] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [scores, setScores]         = useState<[number, number]>(() => initialRecovery?.scores ?? startingScores);
+  const [legWins, setLegWins]       = useState<[number, number]>(() => initialRecovery?.legWins ?? [0, 0]);
+  const [setWins, setSetWins]       = useState<[number, number]>(() => initialRecovery?.setWins ?? [0, 0]);
+  const [legHistory, setLegHistory] = useState<(0|1)[]>(() => initialRecovery?.legHistory ?? []); // Track who won each leg (for conditional cards)
+  const [started, setStarted]       = useState<[boolean, boolean]>(() => initialRecovery?.started ?? [!doubleIn, !doubleIn]);
+  const [turn, setTurn]             = useState<0 | 1>(() => initialRecovery?.turn ?? 0);
+  const [legStarter, setLegStarter] = useState<0 | 1>(() => initialRecovery?.legStarter ?? 0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
   const [bust, setBust]             = useState(false);
   const [bustMsg, setBustMsg]       = useState("");
   const [freeRetriesUsed, setFreeRetriesUsed] = useState<[number, number]>([0, 0]); // Track free retries per player this turn
-  const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number; darts: Dart[]; boardMarkNotes?: BoardMarkVisitNote[] }[]>([]);
+  const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number; darts: Dart[]; boardMarkNotes?: BoardMarkVisitNote[] }[]>(() => initialRecovery?.history ?? []);
   useEffect(() => {
     const visitTotal = visitDarts.reduce((sum, dart) => sum + dart.value, 0);
     const liveScores: [number, number] = [...scores] as [number, number];
@@ -765,8 +768,8 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     setCallerVoiceURI(next);
     speak("G'day, this is your caller", { muted: false });
   };
-  const prevHistoryLen = useRef(0);
-  const prevLegWins = useRef<[number, number]>([0, 0]);
+  const prevHistoryLen = useRef(initialRecovery?.history.length ?? 0);
+  const prevLegWins = useRef<[number, number]>(initialRecovery?.legWins ?? [0, 0]);
   useEffect(() => {
     if (!voiceEnabled) return;
     if (history.length > prevHistoryLen.current) {
@@ -853,10 +856,23 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const botTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   // Practice stat accumulators (refs = no re-render, always fresh in callbacks)
-  const p1StatsRef = useRef({ darts: 0, score: 0, s100s: 0, s140s: 0, s170s: 0, s180s: 0, coAttempts: 0, coHits: 0, dartLog: [] as DartThrow[] });
+  const p1StatsRef = useRef<X01StatsAccumulator>(initialRecovery?.p1Stats ?? { darts: 0, score: 0, s100s: 0, s140s: 0, s170s: 0, s180s: 0, coAttempts: 0, coHits: 0, dartLog: [] });
   // P2 stats — only meaningful in human-vs-human (no bot) sessions
-  const p2StatsRef = useRef({ darts: 0, score: 0, s100s: 0, s140s: 0, s170s: 0, s180s: 0, coAttempts: 0, coHits: 0, dartLog: [] as DartThrow[] });
+  const p2StatsRef = useRef<X01StatsAccumulator>(initialRecovery?.p2Stats ?? { darts: 0, score: 0, s100s: 0, s140s: 0, s170s: 0, s180s: 0, coAttempts: 0, coHits: 0, dartLog: [] });
   const isHumanVsHuman = !botConfig;
+
+  const recoveryCallbackRef = useRef(onRecoveryState);
+  recoveryCallbackRef.current = onRecoveryState;
+  useEffect(() => {
+    if (bust) return; // a bust has a pending turn-advance timer; retain the last settled checkpoint
+    const visitTotal = visitDarts.reduce((sum, dart) => sum + dart.value, 0);
+    if (visitDarts.length > 0 && scores[turn] - visitTotal === 0) return; // winning dart is awaiting its leg/match transition
+    recoveryCallbackRef.current?.({
+      scores, legWins, setWins, legHistory, started, turn, legStarter, visitDarts, history,
+      p1Stats: { ...p1StatsRef.current, dartLog: [...p1StatsRef.current.dartLog] },
+      p2Stats: { ...p2StatsRef.current, dartLog: [...p2StatsRef.current.dartLog] },
+    });
+  }, [scores, legWins, setWins, legHistory, started, turn, legStarter, visitDarts, history, bust]);
 
   // Visit-score milestone buckets are cumulative, not exclusive — a 180 visit
   // is also a 170+, 140+, and 100+ visit, same convention real darts stats use.
@@ -2195,7 +2211,7 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
 const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
 
-export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor }: {
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState }: {
   p1Name: string; p2Name: string; cutThroat?: boolean; includesBull?: boolean; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
@@ -2221,6 +2237,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   /** SCORER_THEME cosmetic: accent colour for the live scoring surface's SectionCard
    *  and the mode title — see X01Scorer's scorerThemeColor for the full explanation. */
   scorerThemeColor?: string | null;
+  initialRecovery?: CricketRecoveryState;
+  onRecoveryState?: (state: CricketRecoveryState) => void;
 }) {
   const safeTimeout = useSafeTimeout();
   const numCount = includesBull ? 7 : 6;
@@ -2228,19 +2246,19 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   useEffect(() => { onLegStart?.(1); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const setsNeeded = setsToWin > 0 ? Math.ceil(setsToWin / 2) : 0;
   const legsNeeded = setsToWin > 0 ? Math.ceil(legsToWinSet / 2) : (legs ? Math.ceil(legs / 2) : 0);
-  const [marks, setMarks]       = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
-  const [scores, setScores]     = useState<[number,number]>([0,0]);
-  const [turn, setTurn]         = useState<0|1>(0);
-  const [legWins, setLegWins]       = useState<[number, number]>([0, 0]);
-  const [setWins, setSetWins]       = useState<[number, number]>([0, 0]);
-  const [legHistory, setLegHistory] = useState<(0|1)[]>([]);
-  const [legStarter, setLegStarter] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [lastHit, setLastHit]   = useState<string>("");
+  const [marks, setMarks]       = useState<CricketMarks>(() => initialRecovery?.marks ?? [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+  const [scores, setScores]     = useState<[number,number]>(() => initialRecovery?.scores ?? [0,0]);
+  const [turn, setTurn]         = useState<0|1>(() => initialRecovery?.turn ?? 0);
+  const [legWins, setLegWins]       = useState<[number, number]>(() => initialRecovery?.legWins ?? [0, 0]);
+  const [setWins, setSetWins]       = useState<[number, number]>(() => initialRecovery?.setWins ?? [0, 0]);
+  const [legHistory, setLegHistory] = useState<(0|1)[]>(() => initialRecovery?.legHistory ?? []);
+  const [legStarter, setLegStarter] = useState<0 | 1>(() => initialRecovery?.legStarter ?? 0);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
+  const [lastHit, setLastHit]   = useState<string>(() => initialRecovery?.lastHit ?? "");
   useEffect(() => {
     onLiveState?.({ mode: "cricket", scores, turn, detail: [`${marks[0].reduce((sum, value) => sum + Math.min(3, value), 0)} marks`, `${marks[1].reduce((sum, value) => sum + Math.min(3, value), 0)} marks`], lastVisit: lastHit || undefined });
   }, [marks, scores, turn, lastHit, onLiveState]);
-  const [snapHistory, setSnapHistory] = useState<{marks: [[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]], scores: [number,number], turn: 0|1, visitDarts: Dart[]}[]>([]);
+  const [snapHistory, setSnapHistory] = useState<CricketUndoSnapshot[]>(() => initialRecovery?.snapHistory ?? []);
   const [lockedNumbers, setLockedNumbers] = useState<[Set<number>, Set<number>]>([new Set(), new Set()]); // Track locked numbers per player (Number Prison, Re-Opening Block)
   const [protectedNumbers, setProtectedNumbers] = useState<[Set<number>, Set<number>]>([new Set(), new Set()]); // FIX 306: Numbers that can't be closed by opponent
   const [turnCounter, setTurnCounter] = useState<number>(1); // FIX 309: Track turn number in leg (1-based) for Early Closer
@@ -2784,6 +2802,14 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     }
     return null;
   };
+  const recoveryCallbackRef = useRef(onRecoveryState);
+  recoveryCallbackRef.current = onRecoveryState;
+  useEffect(() => {
+    if (checkWin(marks, scores) !== null) return; // retain the last settled checkpoint while a leg transition is pending
+    recoveryCallbackRef.current?.({ marks, scores, turn, legWins, setWins, legHistory, legStarter, visitDarts, lastHit, snapHistory });
+    // checkWin is intentionally derived from the state/config listed here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marks, scores, turn, legWins, setWins, legHistory, legStarter, visitDarts, lastHit, snapHistory, cutThroat, numCount]);
   // BUGFIX: the win-check below runs 50ms after EVERY dart, not just the one
   // that closes the leg. Once a player's numbers are all closed, checkWin
   // keeps returning that same winner for every dart thrown afterward (e.g.
@@ -8084,7 +8110,7 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
 // ── Team X01 Scorer ────────────────────────────────────────────────────────────
 const TEAM_COLORS: [string, string] = ["#22c55e", "#ee0a78"];
 
-export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState, turnOrder = "alternate" }: {
+export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState, turnOrder = "alternate", initialRecovery, onRecoveryState }: {
   teamNames: [string[], string[]];
   config: { startingScore: number; doubleOut?: boolean; doubleIn?: boolean };
   onWin: (w: 0|1, detail?: string) => void;
@@ -8109,16 +8135,18 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState
    * strict turn-for-turn alternation between the two sides.
    */
   turnOrder?: "alternate" | "full-pass";
+  initialRecovery?: TeamX01RecoveryState;
+  onRecoveryState?: (state: TeamX01RecoveryState) => void;
 }) {
   const safeTimeout = useSafeTimeout();
   const { startingScore = 501, doubleOut = true } = config;
-  const [scores, setScores]         = useState<[number, number]>([startingScore, startingScore]);
-  const [teamTurn, setTeamTurn]     = useState<0|1>(0);
-  const [playerIdx, setPlayerIdx]   = useState<[number, number]>([0, 0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [scores, setScores]         = useState<[number, number]>(() => initialRecovery?.scores ?? [startingScore, startingScore]);
+  const [teamTurn, setTeamTurn]     = useState<0|1>(() => initialRecovery?.teamTurn ?? 0);
+  const [playerIdx, setPlayerIdx]   = useState<[number, number]>(() => initialRecovery?.playerIdx ?? [0, 0]);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
   const [bust, setBust]             = useState(false);
   const [bustMsg, setBustMsg]       = useState("");
-  const [history, setHistory]       = useState<{ team:0|1; player:number; score:number; left:number }[]>([]);
+  const [history, setHistory]       = useState<{ team:0|1; player:number; score:number; left:number }[]>(() => initialRecovery?.history ?? []);
   useEffect(() => {
     const visitTotal = visitDarts.reduce((sum, dart) => sum + dart.value, 0);
     const liveScores: [number, number] = [...scores] as [number, number];
@@ -8127,6 +8155,15 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState
     const remaining = liveScores[teamTurn];
     onLiveState?.({ mode: "x01", scores: liveScores, turn: teamTurn, currentPlayer: teamNames[teamTurn][playerIdx[teamTurn]], lastVisit: latest ? `${latest.score} scored · ${latest.left} left` : undefined, checkout: remaining >= 2 && remaining <= 170 ? CHECKOUTS[remaining] : undefined });
   }, [scores, teamTurn, playerIdx, visitDarts, bust, history, onLiveState]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const recoveryCallbackRef = useRef(onRecoveryState);
+  recoveryCallbackRef.current = onRecoveryState;
+  useEffect(() => {
+    if (bust) return;
+    const visitTotal = visitDarts.reduce((sum, dart) => sum + dart.value, 0);
+    if (visitDarts.length > 0 && scores[teamTurn] - visitTotal === 0) return;
+    recoveryCallbackRef.current?.({ scores, teamTurn, playerIdx, visitDarts, history });
+  }, [scores, teamTurn, playerIdx, visitDarts, history, bust]);
 
   const isValidOut = useCallback((dart: Dart) => {
     if (doubleOut) return dart.multiplier === 2 || (dart.segment === 25 && dart.value === 50);
@@ -8274,7 +8311,7 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState
 }
 
 // ── Team Cricket Scorer ────────────────────────────────────────────────────────
-export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAbandon, onLiveState, turnOrder = "alternate" }: {
+export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAbandon, onLiveState, turnOrder = "alternate", initialRecovery, onRecoveryState }: {
   teamNames: [string[], string[]];
   cutThroat?: boolean;
   onWin: (w: 0|1, detail?: string) => void;
@@ -8282,14 +8319,16 @@ export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAband
   onLiveState?: (state: LiveScoreState) => void;
   /** Same "alternate" (unchanged default) / "full-pass" (new, Uneven Teams) turn-handover choice as TeamX01Scorer — see that component's own doc comment for the full reasoning. */
   turnOrder?: "alternate" | "full-pass";
+  initialRecovery?: TeamCricketRecoveryState;
+  onRecoveryState?: (state: TeamCricketRecoveryState) => void;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [marks, setMarks]           = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
-  const [scores, setScores]         = useState<[number,number]>([0,0]);
-  const [teamTurn, setTeamTurn]     = useState<0|1>(0);
-  const [playerIdx, setPlayerIdx]   = useState<[number,number]>([0,0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [lastHit, setLastHit]       = useState("");
+  const [marks, setMarks]           = useState<CricketMarks>(() => initialRecovery?.marks ?? [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+  const [scores, setScores]         = useState<[number,number]>(() => initialRecovery?.scores ?? [0,0]);
+  const [teamTurn, setTeamTurn]     = useState<0|1>(() => initialRecovery?.teamTurn ?? 0);
+  const [playerIdx, setPlayerIdx]   = useState<[number,number]>(() => initialRecovery?.playerIdx ?? [0,0]);
+  const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
+  const [lastHit, setLastHit]       = useState(() => initialRecovery?.lastHit ?? "");
   useEffect(() => {
     onLiveState?.({ mode: "cricket", scores, turn: teamTurn, currentPlayer: teamNames[teamTurn][playerIdx[teamTurn]], detail: [`${marks[0].reduce((sum, value) => sum + Math.min(3, value), 0)} marks`, `${marks[1].reduce((sum, value) => sum + Math.min(3, value), 0)} marks`], lastVisit: lastHit || undefined });
   }, [marks, scores, teamTurn, playerIdx, lastHit, onLiveState]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -8304,6 +8343,13 @@ export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAband
     }
     return null;
   }, [cutThroat]);
+
+  const recoveryCallbackRef = useRef(onRecoveryState);
+  recoveryCallbackRef.current = onRecoveryState;
+  useEffect(() => {
+    if (checkWin(marks, scores) !== null) return;
+    recoveryCallbackRef.current?.({ marks, scores, teamTurn, playerIdx, visitDarts, lastHit });
+  }, [marks, scores, teamTurn, playerIdx, visitDarts, lastHit, checkWin]);
 
   const handleDart = useCallback((dart: Dart) => {
     if (visitDarts.length >= 3) return;

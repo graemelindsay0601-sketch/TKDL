@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useParams } from "wouter";
 import { ArrowLeft, Trophy, Lock, Coins, Package, Zap, Users } from "lucide-react";
+import { ShareCardButton } from "@/components/ShareCardButton";
 
 type UnlockedBy = {
   playerId: number;
@@ -186,6 +187,26 @@ export default function AchievementDetailPage() {
                 <Users className="w-4 h-4" /> {data.totalUnlocks} {data.totalUnlocks === 1 ? "player has" : "players have"} earned this
               </div>
             </div>
+            {!isHidden && (
+              <div className="mt-5 flex justify-center md:justify-start">
+                <ShareCardButton
+                  filename={`tkdl-achievement-${data.name}`}
+                  label="Share achievement"
+                  spec={{
+                    eyebrow: `${SYSTEM_LABEL[data.system] ?? data.system} Achievement`,
+                    title: data.name,
+                    subtitle: data.description,
+                    badge: data.rarity ?? "Achievement",
+                    accent: rm.color,
+                    stats: [
+                      { label: "Rarity", value: data.rarity ?? "Award" },
+                      { label: "Category", value: data.category ?? "Career" },
+                      { label: "League unlocks", value: String(data.totalUnlocks) },
+                    ],
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

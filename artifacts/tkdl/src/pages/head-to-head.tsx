@@ -1,20 +1,71 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
 import { Link, useSearch } from "wouter";
-import { ArrowLeft, Swords, TrendingUp, Target, Flame, Trophy } from "lucide-react";
+import { ArrowLeft, Swords, TrendingUp, Target, Flame, Trophy, History, Crown, Coins, Gauge, Sparkles } from "lucide-react";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { useFetch } from "@/hooks/use-fetch";
+import "./head-to-head.css";
 
 type Player = { id: number; name: string; elo: number; tier: string; wins: number; currentStreak: number; total180s: number; avgDartsToWin: number | null };
 type H2HMatch = {
   id: number; playedAt: string; winnerId: number; winnerName: string;
   loserId: number; loserName: string; eloChange: number; stake: number;
   gameType: string; seasonName: string;
+  wasUpsetWin: boolean;
   winnerDarts: number | null; winner180s: number | null;
   loserDarts: number | null; loser180s: number | null;
 };
-type H2HData = { player1: Player; player2: Player; totalMatches: number; recentMatches: H2HMatch[] };
+type H2HData = { player1: Player; player2: Player; totalMatches: number; recentMatches: H2HMatch[]; timelineMatches?: H2HMatch[] };
 type PlayerOption = { id: number; name: string };
+
+type TimelineMatch = H2HMatch & {
+  p1Score: number;
+  p2Score: number;
+  streak: number;
+  badges: Array<"first" | "lead" | "level" | "upset" | "wager" | "swing" | "streak" | "latest">;
+};
+
+function buildTimeline(data: H2HData): TimelineMatch[] {
+  const matches = [...(data.timelineMatches ?? data.recentMatches)].sort((a, b) => new Date(a.playedAt).getTime() - new Date(b.playedAt).getTime());
+  const biggestWager = Math.max(0, ...matches.map(match => match.stake));
+  const biggestSwing = Math.max(0, ...matches.map(match => match.eloChange));
+  const biggestWagerMatchId = matches.find(match => biggestWager > 0 && match.stake === biggestWager)?.id;
+  const hasMeaningfulSwing = new Set(matches.map(match => match.eloChange)).size > 1;
+  const biggestSwingMatchId = matches.find(match => hasMeaningfulSwing && match.eloChange === biggestSwing)?.id;
+  let p1Score = 0;
+  let p2Score = 0;
+  let lastWinner = 0;
+  let streak = 0;
+  let establishedLeader = 0;
+
+  return matches.map((match, index) => {
+    const previousLeader = establishedLeader;
+    if (match.winnerId === data.player1.id) p1Score += 1;
+    else p2Score += 1;
+    const currentLeader = p1Score === p2Score ? 0 : p1Score > p2Score ? 1 : 2;
+    const winnerSide = match.winnerId === data.player1.id ? 1 : 2;
+    streak = lastWinner === winnerSide ? streak + 1 : 1;
+    lastWinner = winnerSide;
+
+    const badges: TimelineMatch["badges"] = [];
+    if (index === 0) badges.push("first");
+    if (match.wasUpsetWin) badges.push("upset");
+    if (match.id === biggestWagerMatchId) badges.push("wager");
+    if (match.id === biggestSwingMatchId) badges.push("swing");
+    if (previousLeader !== 0 && currentLeader !== 0 && currentLeader !== previousLeader) badges.push("lead");
+    if (index > 0 && currentLeader === 0) badges.push("level");
+    if (streak >= 3) badges.push("streak");
+    if (index === matches.length - 1) badges.push("latest");
+    if (currentLeader !== 0) establishedLeader = currentLeader;
+
+    return { ...match, p1Score, p2Score, streak, badges };
+  });
+}
+
+const BADGE_LABEL: Record<TimelineMatch["badges"][number], string> = {
+  first: "First meeting", lead: "Lead changed", level: "Level again", upset: "Upset win",
+  wager: "Biggest wager", swing: "Biggest Elo swing", streak: "Win streak", latest: "Latest chapter",
+};
 
 function WinBar({ p1Wins, p2Wins, p1Name, p2Name }: { p1Wins: number; p2Wins: number; p1Name: string; p2Name: string }) {
   const total = p1Wins + p2Wins;
@@ -61,12 +112,17 @@ export default function HeadToHead() {
   const params = new URLSearchParams(search);
   const [p1Id, setP1Id] = useState(params.get("p1") ? Number(params.get("p1")) : 0);
   const [p2Id, setP2Id] = useState(params.get("p2") ? Number(params.get("p2")) : 0);
+  const [showFullTimeline, setShowFullTimeline] = useState(false);
 
   const { data: players } = useFetch<PlayerOption[]>("/api/players");
   const h2hUrl = p1Id && p2Id && p1Id !== p2Id ? `/api/stats/h2h?p1=${p1Id}&p2=${p2Id}` : null;
   const { data: h2h, loading } = useFetch<H2HData>(h2hUrl);
 
   const activePlayers = players?.filter((p: any) => p.isActive !== false) ?? [];
+  const timeline = h2h ? buildTimeline(h2h) : [];
+  const visibleTimeline = showFullTimeline || timeline.length <= 8 ? timeline : [timeline[0], ...timeline.slice(-7)];
+
+  useEffect(() => setShowFullTimeline(false), [p1Id, p2Id]);
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -314,47 +370,73 @@ export default function HeadToHead() {
             </div>
           </div>
 
-          {/* Match history */}
-          {h2h.recentMatches.length > 0 && (
-            <div className="pdc-card overflow-hidden">
-              <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-                <Trophy className="w-4 h-4" style={{ color: "#ff005c" }} />
-                <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-                  Match History
-                </h2>
-              </div>
-              <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                {h2h.recentMatches.map(m => {
-                  const isP1Win = m.winnerId === h2h.player1.id;
+          {/* Rivalry timeline — every stored meeting in chronological order,
+              with milestones derived only from that match sequence. */}
+          {timeline.length > 0 && (
+            <section className="rivalry-timeline">
+              <header className="rivalry-timeline__header">
+                <div>
+                  <div className="rivalry-timeline__eyebrow"><History /> Rivalry story</div>
+                  <h2>How it unfolded</h2>
+                  <p>From the first meeting to the latest dart.</p>
+                </div>
+                <div className="rivalry-timeline__score">
+                  <span style={{ color: "#ff005c" }}>{h2h.player1.name} <b>{h2h.player1.wins}</b></span>
+                  <i>—</i>
+                  <span style={{ color: "#0066ff" }}><b>{h2h.player2.wins}</b> {h2h.player2.name}</span>
+                </div>
+              </header>
+
+              <div className="rivalry-timeline__track">
+                {visibleTimeline.map((match, index) => {
+                  const isP1Win = match.winnerId === h2h.player1.id;
+                  const accent = isP1Win ? "#ff005c" : "#0066ff";
+                  const isMilestone = match.badges.some(badge => badge !== "latest");
                   return (
-                    <div key={m.id} className="px-4 py-3 flex items-center gap-4">
-                      <div className="shrink-0 w-16 text-xs font-mono" style={{ color: "rgba(255,255,255,0.3)" }}>
-                        {format(new Date(m.playedAt), "dd MMM")}
+                    <article key={match.id} className={`rivalry-event ${isMilestone ? "rivalry-event--milestone" : ""}`} style={{ "--rivalry-accent": accent } as CSSProperties}>
+                      <div className="rivalry-event__rail">
+                        <span>{isMilestone ? <Crown /> : <Target />}</span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif" }}>
-                          <span style={{ color: isP1Win ? "#ff005c" : "rgba(255,0,92,0.4)" }}>{m.winnerName}</span>
-                          <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>beat</span>
-                          <span style={{ color: !isP1Win ? "#0066ff" : "rgba(0,102,255,0.4)" }}>{m.loserName}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>{m.gameType}</span>
-                          {m.seasonName && <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>· {m.seasonName}</span>}
-                        </div>
+                      <div className="rivalry-event__date">
+                        <strong>{format(new Date(match.playedAt), "dd MMM")}</strong>
+                        <span>{format(new Date(match.playedAt), "yyyy")}</span>
                       </div>
-                      <div className="shrink-0 text-right">
-                        <div className="text-xs font-bold" style={{ color: "#ffd24a", fontFamily: "Share Tech Mono, monospace" }}>
-                          ±{m.eloChange}
+                      <div className="rivalry-event__card">
+                        <div className="rivalry-event__topline">
+                          <span>Meeting {timeline.findIndex(item => item.id === match.id) + 1}</span>
+                          <b>{match.p1Score} — {match.p2Score}</b>
                         </div>
-                        {m.stake > 0 && (
-                          <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>{m.stake}pts</div>
+                        <h3><em>{match.winnerName}</em> beat {match.loserName}</h3>
+                        <div className="rivalry-event__details">
+                          <span>{match.gameType}</span>
+                          {match.seasonName && <span>{match.seasonName}</span>}
+                          {match.stake > 0 && <span><Coins /> {match.stake} pts</span>}
+                          {match.eloChange > 0 && <span><Gauge /> ±{match.eloChange} Elo</span>}
+                        </div>
+                        {match.badges.length > 0 && (
+                          <div className="rivalry-event__badges">
+                            {match.badges.map(badge => (
+                              <span key={badge} className={`rivalry-badge rivalry-badge--${badge}`}>
+                                {badge === "upset" && <Sparkles />}
+                                {badge === "wager" && <Coins />}
+                                {badge === "streak" && <Flame />}
+                                {BADGE_LABEL[badge]}{badge === "streak" ? ` · ${match.streak}` : ""}
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </div>
-                    </div>
+                    </article>
                   );
                 })}
               </div>
-            </div>
+
+              {timeline.length > 8 && (
+                <button className="rivalry-timeline__more" onClick={() => setShowFullTimeline(value => !value)}>
+                  {showFullTimeline ? "Show recent chapters" : `Show all ${timeline.length} meetings`}
+                </button>
+              )}
+            </section>
           )}
 
           {h2h.totalMatches === 0 && (
