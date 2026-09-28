@@ -60,9 +60,9 @@ describe("validateStake", () => {
     assert.notEqual(err, null);
   });
 
-  test("rejects a stake exceeding the winner's balance", () => {
+  test("allows a stake exceeding the winner's balance when the loser can cover it", () => {
     const err = validateStake(25, { points: 5, name: "Winner" }, { points: 100, name: "Loser" });
-    assert.match(err ?? "", /Winner's balance/);
+    assert.equal(err, null);
   });
 
   test("rejects a stake exceeding the loser's balance", () => {

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, desc, and, sql, or, inArray } from "drizzle-orm";
+import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable, matchParticipantsTable } from "@workspace/db";
 import { invalidateProgressCache } from "./players";
 import { z } from "zod";
@@ -14,6 +14,8 @@ import { sendMatchResultNotification, sendThreatAlertNotifications, sendMatchRes
 import { rankPlayersByPoints, type RankablePlayer } from "../lib/leaderboardRank";
 import { addCoinsToPlayer, removeCardFromPlayer } from "../services/card-shop-service";
 import { requireAdminSession } from "../middleware/requireAdminSession";
+import { logAdminAction } from "../lib/adminAudit";
+import { reverseRecordedParticipant } from "../lib/match-rollback";
 
 const SubmitMatchBody = z.object({
   winnerId:                z.number().int().positive(),
@@ -77,11 +79,11 @@ router.get("/matches", async (req, res): Promise<void> => {
   if (seasonId) {
     matches = await db.select().from(matchesTable)
       .where(eq(matchesTable.seasonId, seasonId))
-      .orderBy(desc(matchesTable.playedAt))
+      .orderBy(desc(matchesTable.playedAt), desc(matchesTable.id))
       .limit(limit);
   } else {
     matches = await db.select().from(matchesTable)
-      .orderBy(desc(matchesTable.playedAt))
+      .orderBy(desc(matchesTable.playedAt), desc(matchesTable.id))
       .limit(limit);
   }
   res.json(matches);
@@ -285,6 +287,7 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
         careerBiggestPointsFall: Math.max(l.careerBiggestPointsFall, l.peakPoints - wagerResult.newLoserPoints),
         status:           wagerResult.loserEliminated ? "ELIMINATED" : l.status,
         eliminationsCount: l.eliminationsCount,
+        timesEliminated:  l.timesEliminated + (wagerResult.loserEliminated ? 1 : 0),
       }).where(eq(playersTable.id, loserId));
 
       if (wagerResult.loserEliminated) {
@@ -594,6 +597,20 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
   const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, id));
   if (!match) { res.status(404).json({ error: "Match not found" }); return; }
 
+  const [activeSinglesSeason] = await db.select({ id: seasonsTable.id }).from(seasonsTable)
+    .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "singles"))).limit(1);
+  if (!activeSinglesSeason || match.seasonId !== activeSinglesSeason.id) {
+    res.status(409).json({ error: "Historical results are locked. Only matches in the active Singles season can be deleted." });
+    return;
+  }
+  const [latestMatch] = await db.select({ id: matchesTable.id }).from(matchesTable)
+    .where(eq(matchesTable.seasonId, activeSinglesSeason.id))
+    .orderBy(desc(matchesTable.playedAt), desc(matchesTable.id)).limit(1);
+  if (!latestMatch || latestMatch.id !== id) {
+    res.status(409).json({ error: "Only the newest result can be deleted safely. Undo newer results first." });
+    return;
+  }
+
   const [winner] = await db.select().from(playersTable).where(eq(playersTable.id, match.winnerId));
   const [loser]  = await db.select().from(playersTable).where(eq(playersTable.id, match.loserId));
   if (!winner || !loser) { res.status(404).json({ error: "Player not found" }); return; }
@@ -628,21 +645,25 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
       await tx.delete(matchParticipantsTable).where(eq(matchParticipantsTable.matchId, id));
     }
 
-    // Recalculate current streaks from remaining matches for a player. Only
-    // accurate for players who show up directly as a matchesTable
-    // winner/loser — i.e. singles matches, and a team match's captain. A
-    // team match's non-captain participants are never recorded in
-    // `matches` at all, so their streaks can't be recomputed this way —
-    // handled (left untouched) in the team-match branch below.
+    // Recalculate from both direct Singles rows and match_participants so a
+    // non-captain's team results count in the same order as their Singles.
     const calcStreak = async (pid: number) => {
-      const remaining = await tx.select().from(matchesTable)
-        .where(or(eq(matchesTable.winnerId, pid), eq(matchesTable.loserId, pid)))
-        .orderBy(desc(matchesTable.playedAt));
+      const result = await tx.execute(sql`
+        SELECT m.played_at,
+               CASE WHEN mp.player_id IS NOT NULL THEN mp.team = 'winner'
+                    ELSE m.winner_id = ${pid} END AS won
+        FROM matches m
+        LEFT JOIN match_participants mp
+          ON mp.match_id = m.id AND mp.player_id = ${pid}
+        WHERE m.winner_id = ${pid} OR m.loser_id = ${pid} OR mp.player_id = ${pid}
+        ORDER BY m.played_at DESC
+      `);
+      const remaining = result.rows as { won: boolean }[];
       if (!remaining.length) return { winStreak: 0, lossStreak: 0 };
-      const firstWon = remaining[0].winnerId === pid;
+      const firstWon = remaining[0].won;
       let count = 0;
       for (const m of remaining) {
-        if ((m.winnerId === pid) !== firstWon) break;
+        if (m.won !== firstWon) break;
         count++;
       }
       return firstWon ? { winStreak: count, lossStreak: 0 } : { winStreak: 0, lossStreak: count };
@@ -665,9 +686,41 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
       const allPlayerRows = await tx.select().from(playersTable).where(inArray(playersTable.id, allPlayerIds));
       const playerById = new Map(allPlayerRows.map(p => [p.id, p]));
 
+      const hasExactDeltas = participants.every(p => p.pointsDelta !== null && p.eloDelta !== null);
+      if (hasExactDeltas) {
+        const anyLoserWasEliminated = loserParticipants.some(p => p.causedElimination === true);
+        for (const participant of participants) {
+          const p = playerById.get(participant.playerId);
+          if (!p) continue;
+          const won = participant.team === "winner";
+          const streak = await calcStreak(p.id);
+          const restored = reverseRecordedParticipant(p, participant.pointsDelta!, participant.eloDelta!);
+          await tx.update(playersTable).set({
+            elo:               restored.elo,
+            points:            restored.points,
+            seasonWins:        Math.max(0, p.seasonWins - (won ? 1 : 0)),
+            seasonLosses:      Math.max(0, p.seasonLosses - (won ? 0 : 1)),
+            seasonGamesPlayed: Math.max(0, p.seasonGamesPlayed - 1),
+            careerWins:        Math.max(0, p.careerWins - (won ? 1 : 0)),
+            careerLosses:      Math.max(0, p.careerLosses - (won ? 0 : 1)),
+            careerGamesPlayed: Math.max(0, p.careerGamesPlayed - 1),
+            careerPoints:      restored.careerPoints,
+            currentWinStreak:  streak.winStreak,
+            currentLossStreak: streak.lossStreak,
+            ...(!won && participant.causedElimination
+              ? { timesEliminated: Math.max(0, p.timesEliminated - 1) }
+              : {}),
+            ...(!won && participant.causedElimination && p.status === "ELIMINATED" && restored.points > 0
+              ? { status: "ACTIVE" }
+              : {}),
+            ...(won && anyLoserWasEliminated ? { eliminationsCount: Math.max(0, p.eliminationsCount - 1) } : {}),
+          }).where(eq(playersTable.id, p.id));
+        }
+      } else {
+
       // Did any losing participant get eliminated by this match? The
-      // forward path bumps every winner's eliminationsCount once per
-      // eliminated loser on the losing team, so mirror that going back.
+      // forward path bumps every winner's eliminationsCount once when at
+      // least one losing player is eliminated, so mirror that going back.
       const eliminatedLoserIds = new Set<number>();
       for (const lp of loserParticipants) {
         const p = playerById.get(lp.playerId);
@@ -681,7 +734,7 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
         const p = playerById.get(wp.playerId);
         if (!p) continue;
         const share = winnerShares[i];
-        const streak = wp.position === 0 ? await calcStreak(p.id) : null;
+        const streak = await calcStreak(p.id);
         await tx.update(playersTable).set({
           elo:               Math.max(ELO_FLOOR, p.elo - match.eloChange),
           points:            Math.max(0, p.points - share),
@@ -690,10 +743,8 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
           careerWins:        Math.max(0, p.careerWins - 1),
           careerGamesPlayed: Math.max(0, p.careerGamesPlayed - 1),
           careerPoints:      p.careerPoints - share,
-          // Non-captain participants aren't recorded in `matches`, so their
-          // streak can't be recomputed from match history the way the
-          // captain's (position 0) can — left untouched rather than guessed.
-          ...(wp.position === 0 ? { currentWinStreak: streak!.winStreak, currentLossStreak: streak!.lossStreak } : {}),
+          currentWinStreak:  streak.winStreak,
+          currentLossStreak: streak.lossStreak,
           ...(anyLoserWasEliminated ? { eliminationsCount: Math.max(0, p.eliminationsCount - 1) } : {}),
         }).where(eq(playersTable.id, p.id));
       }
@@ -703,7 +754,7 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
         if (!p) continue;
         const restoredPoints = p.points + match.stake;
         const wasEliminated = eliminatedLoserIds.has(p.id);
-        const streak = lp.position === 0 ? await calcStreak(p.id) : null;
+        const streak = await calcStreak(p.id);
         await tx.update(playersTable).set({
           // The forward path clamps a loser's Elo loss at ELO_FLOOR, so a
           // participant already at (or pushed to) the floor had less than
@@ -719,10 +770,13 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
           seasonGamesPlayed: Math.max(0, p.seasonGamesPlayed - 1),
           careerLosses:      Math.max(0, p.careerLosses - 1),
           careerGamesPlayed: Math.max(0, p.careerGamesPlayed - 1),
-          careerPoints:      p.careerPoints - match.stake,
-          ...(lp.position === 0 ? { currentWinStreak: streak!.winStreak, currentLossStreak: streak!.lossStreak } : {}),
+          careerPoints:      p.careerPoints + match.stake,
+          currentWinStreak:  streak.winStreak,
+          currentLossStreak: streak.lossStreak,
           ...(wasEliminated ? { status: "ACTIVE" } : {}),
+          ...(wasEliminated ? { timesEliminated: Math.max(0, p.timesEliminated - 1) } : {}),
         }).where(eq(playersTable.id, p.id));
+      }
       }
     } else {
       // ── Regular 1v1 match: revert the two recorded players ─────────────
@@ -755,9 +809,11 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
         seasonGamesPlayed: Math.max(0, loser.seasonGamesPlayed - 1),
         careerLosses:      Math.max(0, loser.careerLosses - 1),
         careerGamesPlayed: Math.max(0, loser.careerGamesPlayed - 1),
+        careerPoints:      loser.careerPoints + match.stake,
         currentWinStreak:  lStreak.winStreak,
         currentLossStreak: lStreak.lossStreak,
         ...(loserWasEliminated ? { status: "ACTIVE" } : {}),
+        ...(loserWasEliminated ? { timesEliminated: Math.max(0, loser.timesEliminated - 1) } : {}),
       }).where(eq(playersTable.id, match.loserId));
     }
 
@@ -765,6 +821,15 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
     await tx.update(seasonsTable).set({
       totalMatches: sql`GREATEST(0, ${seasonsTable.totalMatches} - 1)`,
     }).where(eq(seasonsTable.id, match.seasonId));
+  });
+
+  void logAdminAction(req, "match.delete", "match", id, {
+    winner: match.winnerName,
+    loser: match.loserName,
+    gameType: match.gameType,
+    stake: match.stake,
+    seasonId: match.seasonId,
+    wasTeamMatch: participants.length > 0,
   });
 
   res.sendStatus(204);

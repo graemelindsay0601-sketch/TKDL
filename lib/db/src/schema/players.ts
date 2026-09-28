@@ -29,6 +29,9 @@ export const playersTable = pgTable("players", {
   // unlike the fields it's derived from.
   careerBiggestPointsFall: integer("career_biggest_points_fall").notNull().default(0),
   eliminationsCount: integer("eliminations_count").notNull().default(0),
+  // Number of times this player has personally been reduced to zero points.
+  // Kept separately from eliminationsCount, which counts eliminations inflicted.
+  timesEliminated: integer("times_eliminated").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   practiceEnabled:  boolean("practice_enabled").notNull().default(true),
   tourEnabled:      boolean("tour_enabled").notNull().default(true),

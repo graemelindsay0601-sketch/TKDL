@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useListPlayers, useSubmitMatch, getGetLeaderboardQueryKey, getGetStatsSummaryQueryKey, getGetRecentActivityQueryKey, getListMatchesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -7,7 +7,7 @@ import { useSettings } from "@/hooks/use-settings";
 import { Swords, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, AlertCircle, User, Building2 } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
 import { CustomHandicapCard, CUSTOM_HANDICAP_KEY } from "@/components/custom-handicap-picker";
-import { UnevenX01Card, UnevenCricketCard, UNEVEN_X01_KEY, UNEVEN_CRICKET_KEY } from "@/components/uneven-teams-picker";
+import { UnevenX01Card, UnevenCricketCard, UNEVEN_X01_KEY, UNEVEN_CRICKET_KEY, buildUnevenX01GameType } from "@/components/uneven-teams-picker";
 import { RulesModal } from "@/components/rules-modal";
 import { MatchStatsCard } from "@/components/match-stats-card";
 import { CardEquipmentSelector } from "@/components/CardEquipmentSelector";
@@ -18,6 +18,7 @@ import { PostMatchAnalysisModal } from "@/components/stats/post-match-analysis";
 import { useWakeLock, useZoomLock, useExitGuard, useMatchSnapshot, readMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
 
 import { teamRoster, wagerShares, totalWagerError, validCombinedSelection, type WagerAccount } from "@/lib/live-scorer-setup";
+import type { LiveScoreState } from "@/lib/scorers";
 
 const PLAY_SNAPSHOT_KEY = "tkdl_play_snapshot";
 
@@ -547,6 +548,17 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
     : format === "shift-wars" ? shiftWarsReady
     : (team1Ready && team2Ready);
   const canStart = playersReady && !!selectedGame && !stakeErr;
+  const startIssues: string[] = [];
+  if (unevenActive) {
+    if (officialFormat && (!soloTeamId || !firstSideBId)) startIssues.push("Choose an official team for both sides.");
+    const missingA = team1Players.filter(p => !p).length;
+    const missingB = team2Players.filter(p => !p).length;
+    if (missingA) startIssues.push(`Side A: select ${missingA} remaining player${missingA === 1 ? "" : "s"}, or remove unused slots with −.`);
+    if (missingB) startIssues.push(`Side B: select ${missingB} remaining player${missingB === 1 ? "" : "s"}, or remove unused slots with −.`);
+    if (combinedMode && !combinedReady) startIssues.push("Choose each additional team and at least one player from it, or turn off Combine another team.");
+    if (!selectedGame) startIssues.push("Select X01 or Cricket and enter a valid starting score.");
+    if (stakeErr) startIssues.push(stakeErr);
+  }
 
   // Game type filtering
   const allowedCats = TEAM_CATEGORIES[format];
@@ -789,6 +801,9 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
             onClick={() => {
               const next = !unevenToggle;
               setUnevenToggle(next);
+              // The visible default 501 must also be the selected game.
+              // Clear it on exit so an uneven engine cannot carry into normal play.
+              setGame(next ? buildUnevenX01GameType(501, true) : null);
               if (next) {
                 // Doubles Event starts from each pairing's own full roster —
                 // "short-handed" reads as starting whole and losing someone,
@@ -1270,9 +1285,16 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
       )}
 
       {/* Start button */}
+      {unevenActive && startIssues.length > 0 && (
+        <div id="uneven-start-issues" role="status" className="pdc-card p-3 text-sm" style={{ color: "#ffd24a" }}>
+          <p className="font-bold mb-1">Before you can start:</p>
+          <ul className="list-disc pl-5 space-y-1">{startIssues.map(issue => <li key={issue}>{issue}</li>)}</ul>
+        </div>
+      )}
       <button
         onClick={handleStart}
         disabled={!canStart}
+        aria-describedby={unevenActive && startIssues.length > 0 ? "uneven-start-issues" : undefined}
         className="w-full py-4 text-base font-black uppercase tracking-widest rounded-xl transition-all"
         style={{ background: canStart ? "linear-gradient(135deg, #ff005c, #cc0048)" : "rgba(255,255,255,0.04)",
           color: canStart ? "#fff" : "rgba(255,255,255,0.2)",
@@ -1673,6 +1695,27 @@ export default function Play() {
   const [equipmentPhase, setEquipmentPhase] = useState<"player1" | "player2" | "done">("player1");
   const [gameResult, setResult]     = useState<GameResult | null>(null);
   const [matchStats, setMatchStats] = useState<PracticeStats | null>(null);
+  const [liveScore, setLiveScore]    = useState<LiveScoreState | null>(null);
+  const liveScoreRef                 = useRef<LiveScoreState | null>(null);
+  const liveSessionIdRef             = useRef<string | null>(null);
+  const liveFinishedRef              = useRef(false);
+  liveScoreRef.current = liveScore;
+
+  const broadcastFormat = (data: SetupData) => data.format === "1v1" ? "Singles" : data.format === "doubles-event" ? "Doubles Event" : data.format === "shift-wars" ? "Shift Wars" : data.format === "uneven-teams" ? `Uneven Teams ${data.team1.length}v${data.team2.length}` : data.format.toUpperCase();
+
+  const finishLiveBroadcast = (result: GameResult) => {
+    const sessionId = liveSessionIdRef.current;
+    if (!sessionId || !setupData) return;
+    liveFinishedRef.current = true;
+    const winnerSide = result.winnerIdx as 0 | 1;
+    const sides: [string[], string[]] = [setupData.team1.map(player => player.name), setupData.team2.map(player => player.name)];
+    void fetch("/api/live-match", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, status: "finished", winnerSide, winnerName: sides[winnerSide].join(" & "), format: broadcastFormat(setupData), game: setupData.gameType.name, sides, score: liveScoreRef.current }),
+      keepalive: true,
+    }).catch(() => {});
+  };
 
   const reset = () => {
     setPhase("setup");
@@ -1682,12 +1725,46 @@ export default function Play() {
     setEquipmentPhase("player1");
     setResult(null);
     setMatchStats(null);
+    setLiveScore(null);
   };
 
   // Native-app parity: keep the screen awake, stop pinch-zoom, and trap the
   // back button/swipe behind a confirmation for as long as a match is live —
   // see src/lib/nativeParity.ts for why each of these exists.
   const isLive = phase === "playing";
+
+  // Publish a short-lived heartbeat for the separate /broadcast screen.
+  // The server expires it after 15 seconds, so a crashed/closed scorer can
+  // never leave an old match permanently covering the league rotation.
+  useEffect(() => {
+    if (!isLive || !setupData) return;
+    const sessionId = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    liveSessionIdRef.current = sessionId;
+    liveFinishedRef.current = false;
+    let stopped = false;
+    const format = broadcastFormat(setupData);
+    const publish = () => {
+      if (stopped) return;
+      void fetch("/api/live-match", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId, status: "live", format, game: setupData.gameType.name,
+          sides: [setupData.team1.map(player => player.name), setupData.team2.map(player => player.name)],
+          score: liveScoreRef.current,
+        }),
+      }).catch(() => {});
+    };
+    publish();
+    const timer = window.setInterval(publish, 3_000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      if (!liveFinishedRef.current) void fetch(`/api/live-match/${encodeURIComponent(sessionId)}`, { method: "DELETE", keepalive: true }).catch(() => {});
+      if (liveSessionIdRef.current === sessionId) liveSessionIdRef.current = null;
+    };
+  }, [isLive, setupData]);
+
   useWakeLock(isLive);
   useZoomLock(isLive);
   useExitGuard(isLive, reset);
@@ -1824,7 +1901,8 @@ export default function Play() {
           playerNames={playerNames}
           bullUp={setupData.bullUp}
           teamTurnOrder={teamTurnOrder}
-          onWin={r => { setResult(r); setPhase("gameover"); }}
+          onLiveState={setLiveScore}
+          onWin={r => { finishLiveBroadcast(r); setResult(r); setPhase("gameover"); }}
           onAbandon={reset}
           onPracticeStats={s => setMatchStats(s)}
         />

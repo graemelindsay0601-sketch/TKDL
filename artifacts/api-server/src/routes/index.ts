@@ -33,6 +33,8 @@ import hubRouter from "./hub";
 import interviewDeskRouter from "./interview-desk";
 import selfPlayUnlocksRouter from "./self-play-unlocks";
 import goalsRouter from "./goals";
+import liveMatchRouter from "./live-match";
+import matchCentreRouter from "./match-centre";
 
 const router: IRouter = Router();
 
@@ -70,5 +72,7 @@ router.use(hubRouter);
 router.use(interviewDeskRouter);
 router.use(selfPlayUnlocksRouter);
 router.use(goalsRouter);
+router.use(liveMatchRouter);
+router.use(matchCentreRouter);
 
 export default router;

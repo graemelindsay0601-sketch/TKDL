@@ -183,6 +183,16 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
       const winnerName = winnerPlayers.map(p => p.name).join(" & ");
       const loserName  = loserPlayers.map(p  => p.name).join(" & ");
 
+      // Persist every player's exact signed change. Headcounts alone cannot
+      // reconstruct a total-pot wager later, and a loser at the Elo floor
+      // may have lost less than the nominal team Elo change.
+      const { winnerShares, loserShares } = computeWagerShares(stake, winnerPlayers.length, loserPlayers.length, stakeMode);
+      const loserOutcomes = loserPlayers.map((p, i) => {
+        const newPoints = Math.max(0, p.points - loserShares[i]);
+        const newElo = Math.max(800, p.elo - lockedEloChange);
+        return { pointsDelta: newPoints - p.points, eloDelta: newElo - p.elo, causedElimination: newPoints === 0 };
+      });
+
       // Insert match record (first player in each team is the "captain")
       const [newMatch] = await tx.insert(matchesTable).values({
         seasonId:   activeSeason.id,
@@ -198,14 +208,20 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
 
       // Insert all participants
       const participantRows = [
-        ...winnerPlayers.map((p, i) => ({ matchId: newMatch.id, playerId: p.id, playerName: p.name, team: "winner" as const, position: i })),
-        ...loserPlayers.map((p, i)  => ({ matchId: newMatch.id, playerId: p.id, playerName: p.name, team: "loser" as const,  position: i })),
+        ...winnerPlayers.map((p, i) => ({
+          matchId: newMatch.id, playerId: p.id, playerName: p.name, team: "winner" as const, position: i,
+          pointsDelta: winnerShares[i], eloDelta: lockedEloChange, causedElimination: false,
+        })),
+        ...loserPlayers.map((p, i)  => ({
+          matchId: newMatch.id, playerId: p.id, playerName: p.name, team: "loser" as const, position: i,
+          pointsDelta: loserOutcomes[i].pointsDelta, eloDelta: loserOutcomes[i].eloDelta,
+          causedElimination: loserOutcomes[i].causedElimination,
+        })),
       ];
       await tx.insert(matchParticipantsTable).values(participantRows);
 
       // Split the selected pot across both sides, keeping integer points
       // conserved. Total mode does not multiply the wager by headcount.
-      const { winnerShares, loserShares } = computeWagerShares(stake, winnerPlayers.length, loserPlayers.length, stakeMode);
 
       // Update winner players
       for (let i = 0; i < winnerPlayers.length; i++) {
@@ -253,6 +269,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
           longestLossStreak: Math.max(p.longestLossStreak, newLossStreak),
           careerBiggestPointsFall: Math.max(p.careerBiggestPointsFall, p.peakPoints - newPoints),
           status:            eliminated ? "ELIMINATED" : p.status,
+          timesEliminated:   p.timesEliminated + (eliminated ? 1 : 0),
         }).where(eq(playersTable.id, p.id));
         txLoserResults.push({ id: p.id, newPoints, eliminated, owed });
       }

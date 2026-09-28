@@ -294,7 +294,7 @@ router.get("/stats/live-feed", async (req, res): Promise<void> => {
 });
 
 router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
-  const [players, practiceQ, tourQ, achievQ, biggestLossQ] = await Promise.all([
+  const [players, practiceQ, tourQ, achievQ, biggestLossQ, completedSeasons] = await Promise.all([
     db.select().from(playersTable),
     // Union both player1 and player2 perspectives — this used to only count
     // player1_id, so anyone who mostly played as P2 in two-player practice
@@ -334,6 +334,8 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
       FROM matches
       GROUP BY loser_id
     `),
+    db.select().from(seasonsTable)
+      .where(and(eq(seasonsTable.isActive, false), eq(seasonsTable.leagueType, "singles"))),
   ]);
 
   const practiceMap = new Map<number, { sessions: number; total_darts: number; total_180s: number }>();
@@ -347,6 +349,11 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
 
   const biggestLossMap = new Map<number, number>();
   for (const r of biggestLossQ.rows as any[]) biggestLossMap.set(Number(r.player_id), Number(r.max_stake));
+
+  const titleMap = new Map<number, number>();
+  for (const season of completedSeasons) {
+    if (season.championId) titleMap.set(season.championId, (titleMap.get(season.championId) ?? 0) + 1);
+  }
 
   const all = players.map(p => ({
     id:                 p.id,
@@ -362,33 +369,51 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
     // resets (see career_biggest_points_fall migration).
     careerBiggestPointsFall: p.careerBiggestPointsFall ?? 0,
     careerGamesPlayed:p.careerGamesPlayed ?? 0,
+    careerWinRate:    (p.careerGamesPlayed ?? 0) > 0 ? Math.round((p.careerWins / p.careerGamesPlayed) * 1000) / 10 : 0,
+    leagueTitles:     titleMap.get(p.id) ?? 0,
     sessions:         practiceMap.get(p.id)?.sessions    ?? 0,
     totalDarts:       practiceMap.get(p.id)?.total_darts ?? 0,
     total180s:        practiceMap.get(p.id)?.total_180s  ?? 0,
     tourTrophies:     tourMap.get(p.id)    ?? 0,
     achievements:     achievMap.get(p.id)  ?? 0,
     eliminationsCount: p.eliminationsCount ?? 0,
+    timesEliminated:   p.timesEliminated ?? 0,
     biggestSingleLoss: biggestLossMap.get(p.id) ?? 0,
   }));
 
-  const topBy = (key: keyof typeof all[0]) =>
-    [...all].sort((a, b) => (b[key] as number) - (a[key] as number)).slice(0, 3);
+  // Return the top three places rather than exactly three people. Anyone tied
+  // at the cutoff stays in the result so the UI can show honest joint ranks.
+  const rankedBy = (key: keyof typeof all[0], direction: "high" | "low" = "high", source = all) => {
+    const sorted = [...source].sort((a, b) => {
+      const delta = (a[key] as number) - (b[key] as number);
+      return (direction === "high" ? -delta : delta) || a.name.localeCompare(b.name) || a.id - b.id;
+    });
+    if (sorted.length <= 3) return sorted;
+    const cutoff = sorted[2][key] as number;
+    return sorted.filter(row => direction === "high" ? (row[key] as number) >= cutoff : (row[key] as number) <= cutoff);
+  };
+  const qualifiedWinRates = all.filter(p => p.careerGamesPlayed >= 10);
 
   res.json({
-    mostWins:          topBy("careerWins"),
-    highestElo:        topBy("careerPeakElo"),
-    mostPoints:        topBy("careerPoints"),
-    longestStreak:     topBy("longestWinStreak"),
-    mostSessions:      topBy("sessions"),
-    most180s:          topBy("total180s"),
-    mostTourTrophies:  topBy("tourTrophies"),
-    mostAchievements:  topBy("achievements"),
-    // Wall of Shame — same top-3-by-field shape, just sorted for the worst end.
-    mostLosses:        topBy("careerLosses"),
-    longestLossStreak: topBy("longestLossStreak"),
-    biggestPointsFall: topBy("careerBiggestPointsFall"),
-    mostEliminations:  topBy("eliminationsCount"),
-    biggestSingleLoss: topBy("biggestSingleLoss"),
+    mostTitles:        rankedBy("leagueTitles"),
+    mostWins:          rankedBy("careerWins"),
+    highestElo:        rankedBy("careerPeakElo"),
+    mostPoints:        rankedBy("careerPoints"),
+    longestStreak:     rankedBy("longestWinStreak"),
+    mostSessions:      rankedBy("sessions"),
+    most180s:          rankedBy("total180s"),
+    mostTourTrophies:  rankedBy("tourTrophies"),
+    mostAchievements:  rankedBy("achievements"),
+    longestLossStreak: rankedBy("longestLossStreak"),
+    biggestPointsFall: rankedBy("careerBiggestPointsFall"),
+    mostEliminations:  rankedBy("eliminationsCount"),
+    mostTimesEliminated: rankedBy("timesEliminated").filter(p => p.timesEliminated > 0),
+    biggestSingleLoss: rankedBy("biggestSingleLoss"),
+    lowestWinRate:     rankedBy("careerWinRate", "low", qualifiedWinRates),
+    champions: completedSeasons
+      .filter(season => season.championId && season.championName)
+      .sort((a, b) => String(b.endDate ?? b.startDate).localeCompare(String(a.endDate ?? a.startDate)) || b.id - a.id)
+      .map(season => ({ id: season.id, name: season.name, championId: season.championId, championName: season.championName, endDate: season.endDate })),
   });
 });
 

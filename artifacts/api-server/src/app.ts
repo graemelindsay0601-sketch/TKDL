@@ -66,6 +66,7 @@ import { up as createCardClashFavoritesTable } from "./db/migrations/add_card_cl
 import { addDailyChallengeKeyColumn } from "./db/migrations/add_daily_challenge_key";
 import { addLongestLossStreakColumn } from "./db/migrations/add_longest_loss_streak";
 import { addCareerBiggestPointsFallColumn } from "./db/migrations/add_career_biggest_points_fall";
+import { addTimesEliminatedColumn } from "./db/migrations/add_times_eliminated";
 import { addMatchWasUpsetWinColumn } from "./db/migrations/add_match_was_upset_win";
 import { addTkdlLiveBroadcastTables } from "./db/migrations/add_tkdl_live_broadcast";
 import { addBroadcastStorySeasonId } from "./db/migrations/add_broadcast_story_season_id";
@@ -79,6 +80,7 @@ import { addSeasonalQuestsUnique } from "./db/migrations/add_seasonal_quests_uni
 import { addWeeklyChallengeYear } from "./db/migrations/add_weekly_challenge_year";
 import { addSeasonResetLock } from "./db/migrations/add_season_reset_lock";
 import { addUsersPlayerIdUnique } from "./db/migrations/add_users_player_id_unique";
+import { addMatchParticipantDeltas } from "./db/migrations/add_match_participant_deltas";
 import { seedBroadcastSettings } from "./broadcast/config";
 import { seedCardDefinitions } from "./services/card-definitions-service";
 import { challengeService } from "./services/challenge-service";
@@ -1315,6 +1317,7 @@ async function init() {
   await runInitStep("addWeeklyChallengeYear", addWeeklyChallengeYear);
   await runInitStep("addSeasonResetLock", addSeasonResetLock);
   await runInitStep("addUsersPlayerIdUnique", addUsersPlayerIdUnique);
+  await runInitStep("addMatchParticipantDeltas", addMatchParticipantDeltas);
   await runInitStep("seedBroadcastSettings", seedBroadcastSettings);
   await runInitStep("seedCardDefinitions", seedCardDefinitions);
   await runInitStep("initializeFeaturedCardShopTables", initializeFeaturedCardShopTables);
@@ -1328,6 +1331,7 @@ async function init() {
   await runInitStep("addDailyChallengeKeyColumn", addDailyChallengeKeyColumn);
   await runInitStep("addLongestLossStreakColumn", addLongestLossStreakColumn);
   await runInitStep("addCareerBiggestPointsFallColumn", addCareerBiggestPointsFallColumn);
+  await runInitStep("addTimesEliminatedColumn", addTimesEliminatedColumn);
   // Restored September 18th — this step was accidentally dropped (import and
   // registration both) by a September 14th commit, which meant the
   // was_upset_win column was never actually added to `matches` in

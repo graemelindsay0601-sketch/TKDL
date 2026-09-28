@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, and, inArray, sql } from "drizzle-orm";
-import { db, playersTable, matchesTable, seasonsTable, seasonStandingsTable, achievementsTable, playerAchievementsTable } from "@workspace/db";
+import { eq, and, inArray, sql, desc } from "drizzle-orm";
+import { db, playersTable, matchesTable, matchParticipantsTable, seasonsTable, seasonStandingsTable, achievementsTable, playerAchievementsTable } from "@workspace/db";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import crypto from "crypto";
@@ -180,6 +180,25 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
   // edit) and recomputes every derived value from that locked state.
   const [matchPreCheck] = await db.select().from(matchesTable).where(eq(matchesTable.id, matchId));
   if (!matchPreCheck) { res.status(404).json({ error: "Match not found" }); return; }
+  const [activeSinglesSeason] = await db.select({ id: seasonsTable.id }).from(seasonsTable)
+    .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "singles"))).limit(1);
+  if (!activeSinglesSeason || matchPreCheck.seasonId !== activeSinglesSeason.id) {
+    res.status(409).json({ error: "Historical results are locked. Only matches in the active Singles season can be corrected." });
+    return;
+  }
+  const [latestMatch] = await db.select({ id: matchesTable.id }).from(matchesTable)
+    .where(eq(matchesTable.seasonId, activeSinglesSeason.id))
+    .orderBy(desc(matchesTable.playedAt), desc(matchesTable.id)).limit(1);
+  if (!latestMatch || latestMatch.id !== matchId) {
+    res.status(409).json({ error: "Only the newest result can be corrected safely. Undo newer results first." });
+    return;
+  }
+  const [teamParticipant] = await db.select({ id: matchParticipantsTable.id })
+    .from(matchParticipantsTable).where(eq(matchParticipantsTable.matchId, matchId)).limit(1);
+  if (teamParticipant) {
+    res.status(400).json({ error: "Team and uneven-team results cannot be changed with the two-player editor. Delete and re-enter the result instead." });
+    return;
+  }
 
   class MatchEditConflictError extends Error {}
 
@@ -220,13 +239,16 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
       origL.seasonGamesPlayed = Math.max(0, origL.seasonGamesPlayed - 1);
       origL.careerLosses      = Math.max(0, origL.careerLosses - 1);
       origL.careerGamesPlayed = Math.max(0, origL.careerGamesPlayed - 1);
+      origL.careerPoints      = origL.careerPoints + match.stake;
       if (loserWasElim) {
         origL.status = "ACTIVE";
+        origL.timesEliminated = Math.max(0, origL.timesEliminated - 1);
         origW.eliminationsCount = Math.max(0, origW.eliminationsCount - 1);
       }
 
       const newW = pm.get(winnerId)!;
       const newL = pm.get(loserId)!;
+      const newWasUpsetWin = newW.points < newL.points;
 
       const { newWinnerElo, newLoserElo, change: newEloChange } = applyEloChange(newW.elo, newL.elo);
       const newLoserPts    = Math.max(0, newL.points - stake);
@@ -249,6 +271,7 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
       newL.careerPoints      = newL.careerPoints - stake;
       if (newLoserElim) {
         newL.status = "ELIMINATED";
+        newL.timesEliminated = newL.timesEliminated + 1;
         newW.eliminationsCount = newW.eliminationsCount + 1;
       }
 
@@ -265,6 +288,7 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
           careerPoints:      p.careerPoints,
           status:            p.status,
           eliminationsCount: p.eliminationsCount,
+          timesEliminated:   p.timesEliminated,
         }).where(eq(playersTable.id, p.id));
       }
 
@@ -277,6 +301,7 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
         loserName:  newLPlayer.name,
         eloChange:  newEloChange,
         stake,
+        wasUpsetWin: newWasUpsetWin,
         ...(notes !== undefined ? { notes } : {}),
       }).where(eq(matchesTable.id, matchId)).returning();
 

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import {
-  useListPlayers, useUpdatePlayer, useResetSeason, useListMatches, useDeleteMatch,
+  useListPlayers, useUpdatePlayer, useResetSeason, useListMatches, useDeleteMatch, useGetCurrentSeason,
   getListPlayersQueryKey, getGetStatsSummaryQueryKey, getGetCurrentSeasonQueryKey,
   getListSeasonsQueryKey, getGetLeaderboardQueryKey, getListMatchesQueryKey,
   getGetRecentActivityQueryKey, getGetPlayerStatsQueryKey, getGetPlayerQueryKey,
@@ -45,9 +45,15 @@ const PLAYER_MODES: { key: ModeKey; label: string; desc: string; color: string; 
   { key: "shadowBotEnabled", label: "Shadow Bot", desc: "Can train against Shadow Bot",      color: "#f97316", emoji: "🤖" },
 ];
 
+function isTeamResult(match: any): boolean {
+  const type = String(match?.gameType ?? "");
+  return type.startsWith("team_") || type === "multi_killer";
+}
+
 export default function Admin() {
   const { data: players, isLoading: isLoadingPlayers } = useListPlayers();
-  const { data: matches, isLoading: isLoadingMatches } = useListMatches({ limit: 30 });
+  const { data: currentSeason } = useGetCurrentSeason();
+  const { data: matches, isLoading: isLoadingMatches } = useListMatches({ limit: 200, seasonId: currentSeason?.id });
   const updatePlayerMutation = useUpdatePlayer();
   const resetSeasonMutation  = useResetSeason();
   const deleteMatchMutation  = useDeleteMatch();
@@ -406,8 +412,14 @@ export default function Admin() {
           )}
         </CollapsibleAdminSection>
 
-        {/* Recent Matches */}
-        <CollapsibleAdminSection title="Recent Matches" icon={Swords} accent="#ff005c">
+        {/* Singles and ad-hoc team matches use the shared player ledger.
+            Doubles/Shift Wars use separate team ledgers and stay read-only
+            in Match Centre until they have their own exact correction APIs. */}
+        <CollapsibleAdminSection title="Singles & Team Match Corrections" icon={Swords} accent="#ff005c">
+          <div className="px-4 py-3 flex items-center justify-between gap-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.015)" }}>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>The newest current-season result can be corrected or undone safely · Older, Doubles and Shift Wars results are available in Match Centre.</p>
+            <a href="/match-centre" className="text-xs font-black uppercase tracking-wider shrink-0" style={{ color: "#0066ff", fontFamily: "Oswald, sans-serif" }}>Open Match Centre →</a>
+          </div>
           {isLoadingMatches ? (
             <div className="flex justify-center py-8"><div className="w-6 h-6 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} /></div>
           ) : (
@@ -453,18 +465,20 @@ export default function Admin() {
                           <span style={{ color: "rgba(255,255,255,0.25)" }}>def.</span>
                           <span style={{ color: "#ff005c" }}>{match.loserName}</span>
                           {match.stake > 0 && <span className="text-xs font-mono" style={{ color: "#ffd24a" }}>±{match.stake}pts</span>}
-                          {match.isTeamMatch && <span className="text-xs font-black px-1.5 py-0.5 rounded" style={{ background: "rgba(0,200,150,0.12)", color: "#00c896", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>TEAM</span>}
+                          {isTeamResult(match) && <span className="text-xs font-black px-1.5 py-0.5 rounded" style={{ background: "rgba(0,200,150,0.12)", color: "#00c896", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>TEAM</span>}
                         </div>
                         <div className="text-xs" style={{ color: "rgba(255,255,255,0.22)" }}>{format(new Date(match.playedAt), "MMM d, HH:mm")}</div>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-yellow-500/10"
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-yellow-500/10 disabled:opacity-20"
+                          disabled={isTeamResult(match) || match.id !== matches?.[0]?.id}
+                          title={isTeamResult(match) ? "Team results must be deleted and re-entered" : match.id !== matches?.[0]?.id ? "Undo newer results first" : "Edit result"}
                           onClick={() => { setEditingMatchId(match.id); setEditMatchForm({ winnerId: match.winnerId, loserId: match.loserId }); }}>
                           <Pencil className="h-3.5 w-3.5" style={{ color: "#ffd24a" }} />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/10"><Trash2 className="h-3.5 w-3.5" style={{ color: "#ff005c" }} /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/10 disabled:opacity-20" disabled={match.id !== matches?.[0]?.id} title={match.id !== matches?.[0]?.id ? "Undo newer results first" : "Delete result"}><Trash2 className="h-3.5 w-3.5" style={{ color: "#ff005c" }} /></Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(255,0,92,0.3)" }}>
                             <AlertDialogHeader>
