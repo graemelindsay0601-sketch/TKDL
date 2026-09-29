@@ -3,11 +3,14 @@ import type { ProgrammeSegment, RunningOrderSlotPurpose } from "./director-math.
 export type EditorialPlayer = {
   id: number;
   name: string;
+  elo: number;
   points: number;
   wins: number;
   losses: number;
   status: string;
   eliminationsCount: number;
+  currentWinStreak: number;
+  longestWinStreak: number;
 };
 
 export type EditorialMatch = {
@@ -365,6 +368,20 @@ export function buildEditorialFeatures(params: {
           position: index + 1, id: player.id, name: player.name,
           points: player.points, wins: player.wins, losses: player.losses,
         })),
+      },
+    });
+
+    const focusIndex = stableIndex(`${params.rotationKey}:player-focus`, table.length);
+    const focus = table[focusIndex];
+    const focusRank = focusIndex + 1;
+    features.push({
+      key: `player-focus-${focus.id}`, purpose: "player_focus", graphicKind: "ResultGraphic",
+      lineA: `Player Focus: ${focus.name} is ranked ${focusRank} in the current Singles table on ${focus.points} points.`,
+      lineB: `${focus.wins} wins, ${focus.losses} losses and a longest winning run of ${focus.longestWinStreak} give us the profile so far.`,
+      facts: {
+        featureTitle: "Player Focus", playerId: focus.id, playerName: focus.name,
+        rank: focusRank, points: focus.points, elo: focus.elo, wins: focus.wins, losses: focus.losses,
+        currentWinStreak: focus.currentWinStreak, longestWinStreak: focus.longestWinStreak,
       },
     });
   }

@@ -13,6 +13,10 @@ import { HeadlinesScene } from "./HeadlinesScene";
 import { BreakingScene } from "./BreakingScene";
 import { SpotlightScene } from "./SpotlightScene";
 import { ChampionScene } from "./ChampionScene";
+import { InterviewScene } from "./InterviewScene";
+import { FanVerdictScene } from "./FanVerdictScene";
+import { SeasonLaunchScene } from "./SeasonLaunchScene";
+import { PlayerFocusScene } from "./PlayerFocusScene";
 import type { SceneProps } from "./scene-support";
 
 export const SCENE_COMPONENTS: Record<Scene, ComponentType<SceneProps>> = {
@@ -24,10 +28,15 @@ export const SCENE_COMPONENTS: Record<Scene, ComponentType<SceneProps>> = {
   breaking: BreakingScene,
   spotlight: SpotlightScene,
   champion: ChampionScene,
+  interview: InterviewScene,
+  fan_verdict: FanVerdictScene,
+  season_launch: SeasonLaunchScene,
+  player_focus: PlayerFocusScene,
 };
 
 export type { SceneProps } from "./scene-support";
 export {
   DeskScene, AnalysisScene, GraphicScene, ResultScene,
-  HeadlinesScene, BreakingScene, SpotlightScene, ChampionScene,
+  HeadlinesScene, BreakingScene, SpotlightScene, ChampionScene, InterviewScene,
+  FanVerdictScene, SeasonLaunchScene, PlayerFocusScene,
 };

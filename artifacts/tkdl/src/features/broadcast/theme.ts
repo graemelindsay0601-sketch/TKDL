@@ -58,6 +58,10 @@ export const SCENE_LABEL: Record<Scene, string> = {
   breaking: "Breaking",
   spotlight: "Spotlight",
   champion: "Champion",
+  interview: "After the Oche",
+  fan_verdict: "Fan Verdict",
+  season_launch: "League Voices",
+  player_focus: "Player Focus",
 };
 
 /**

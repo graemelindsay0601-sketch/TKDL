@@ -52,6 +52,7 @@ import { StudioBackdrop, ShowTitleBar, ScreenPanel, PresenterOverlay, LowerThird
 import { LiveTicker } from "./LiveTicker";
 import { LiveInsertOverlay } from "./LiveInsertOverlay";
 import { LowerThird } from "./LowerThird";
+import { ProgrammeStrip } from "./ProgrammeStrip";
 import { LEAGUE_LABEL, SCENE_LABEL } from "./theme";
 import type { CurrentEdition, LiveOverlayItem, LiveTickerItem, Segment } from "./types";
 
@@ -320,6 +321,7 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
       <div data-broadcast-region="title-bar">
         <ShowTitleBar subtitle={`${edition.mode.replace("_", " ")} · ${cornerLabel}`} />
       </div>
+      {position && <ProgrammeStrip playlist={playlist} currentIndex={position.segmentIndex} invalidSegmentIds={invalidSegmentIds} />}
 
       <ScreenPanel framed={segment ? segment.scene !== "breaking" && segment.scene !== "champion" : true}>
         {segment && SceneComponent ? (

@@ -53,7 +53,7 @@ import type { SlotType } from "@workspace/db/schema";
 // 14.5 scene
 // ═══════════════════════════════════════════════════════════════════════
 
-export type Scene = "desk" | "analysis" | "graphic" | "result" | "headlines" | "breaking" | "spotlight" | "champion";
+export type Scene = "desk" | "analysis" | "graphic" | "result" | "headlines" | "breaking" | "spotlight" | "champion" | "interview" | "fan_verdict" | "season_launch" | "player_focus";
 
 /**
  * Story types dramatic enough that a MAJOR-treatment segment about one earns
@@ -78,6 +78,10 @@ export function sceneForSegment(segment: SceneInput): Scene {
   if (segment.purpose === "headlines") return "headlines";
   if (segment.purpose === "closing") return "desk";
   if (segment.purpose === "leaderboard_after_results") return "graphic";
+  if (segment.purpose === "player_interview") return "interview";
+  if (segment.purpose === "fan_verdict") return "fan_verdict";
+  if (segment.purpose === "season_launch") return "season_launch";
+  if (segment.purpose === "player_focus") return "player_focus";
   if (segment.storyType === "CHAMPION") return "champion";
   // storyId === null only ever happens for slot 9's documented no-LEAGUE-
   // story fallback (director.ts) — a hand-written "nothing to report on the

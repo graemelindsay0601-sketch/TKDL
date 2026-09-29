@@ -180,6 +180,24 @@ const QUESTION_BANK: Array<{
   { triggerType: "180_MILESTONE", audience: "participant", kind: "followup", presenter: "ton", promptText: "Any nerves stepping up after a maximum, or does it settle you?" },
   { triggerType: "180_MILESTONE", audience: "participant", kind: "followup", presenter: "chalky", promptText: "What's the secret — practice, or just a good night?" },
 
+  // ══════════════════════════ SEASON_LAUNCH ════════════════════════════
+  // Sent once to every active Singles player when a new season opens. The
+  // opener looks forward; the follow-up gives the previous campaign a
+  // proper closing thought. Completed answers feed TKDL LIVE's grouped
+  // "League Voices" launch segment rather than a stream of identical cards.
+  { triggerType: "SEASON_LAUNCH", audience: "participant", kind: "opener", presenter: "chalky", promptText: "New season, clean board — what are you aiming for this time?" },
+  { triggerType: "SEASON_LAUNCH", audience: "participant", kind: "opener", presenter: "ton", promptText: "What would make this new season a successful one for you?" },
+  { triggerType: "SEASON_LAUNCH", audience: "participant", kind: "opener", presenter: "chalky", promptText: "What are you bringing into this season that the rest of the league should notice?" },
+  { triggerType: "SEASON_LAUNCH", audience: "participant", kind: "opener", presenter: "ton", promptText: "Fresh start: title challenge, steady progress, or something else entirely?" },
+  { triggerType: "SEASON_LAUNCH", audience: "participant", kind: "opener", presenter: "chalky", promptText: "Where do you want to see your name when this season finishes?" },
+  { triggerType: "SEASON_LAUNCH", audience: "participant", kind: "opener", presenter: "ton", promptText: "Who's the player you most want to test yourself against this season?" },
+  { triggerType: "SEASON_LAUNCH", audience: "participant", kind: "followup", presenter: "ton", promptText: "What did last season teach you that you'll use this time around?" },
+  { triggerType: "SEASON_LAUNCH", audience: "participant", kind: "followup", presenter: "chalky", promptText: "Is there anything from last season you are determined to put right?" },
+  { triggerType: "SEASON_LAUNCH", audience: "participant", kind: "followup", presenter: "ton", promptText: "Which part of your game needs to improve if you're going to hit that target?" },
+  { triggerType: "SEASON_LAUNCH", audience: "participant", kind: "followup", presenter: "chalky", promptText: "What was your best moment last season, and can you build on it?" },
+  { triggerType: "SEASON_LAUNCH", audience: "participant", kind: "followup", presenter: "ton", promptText: "Any message for the rest of the league before the first darts are thrown?" },
+  { triggerType: "SEASON_LAUNCH", audience: "participant", kind: "followup", presenter: "chalky", promptText: "What should Chalky and Ton be saying about you by the end of this season?" },
+
   // ══════════════════════════ CHAMPION ═════════════════════════════════
   { triggerType: "CHAMPION", audience: "participant", kind: "opener", presenter: "ton", promptText: "Season champion. How's that landing right now?" },
   { triggerType: "CHAMPION", audience: "participant", kind: "opener", presenter: "chalky", promptText: "That's the title wrapped up. What got you there this season?" },

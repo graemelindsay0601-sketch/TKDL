@@ -371,6 +371,15 @@ export type RunningOrderSlotPurpose =
   // real storylines it features, several per Edition rather than the one
   // slot every other purpose here is confined to.
   | "season_highlight"
+  /** A completed real-player Interview Desk conversation, frozen into the
+   * Edition at build time and rendered by the dedicated interview scene. */
+  | "player_interview"
+  /** Frozen community-poll result presented as an on-air audience beat. */
+  | "fan_verdict"
+  /** Grouped launch-week answers from several active Singles players. */
+  | "season_launch"
+  /** Rotating on-air profile of one active Singles player. */
+  | "player_focus"
   /** Results-update utility shown immediately after the completed-match
    * rundown. It carries a full before/after standings payload rather than
    * borrowing one detector story's narrower league facts. */

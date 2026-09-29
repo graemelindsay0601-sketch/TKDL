@@ -11,7 +11,7 @@ export type LeagueType = "singles" | "doubles" | "shift_wars";
 
 // ── 14.5 segment shape ──────────────────────────────────────────────────
 
-export type Scene = "desk" | "analysis" | "graphic" | "result" | "headlines" | "breaking" | "spotlight" | "champion";
+export type Scene = "desk" | "analysis" | "graphic" | "result" | "headlines" | "breaking" | "spotlight" | "champion" | "interview" | "fan_verdict" | "season_launch" | "player_focus";
 
 export type GraphicKind =
   | "LeagueTableGraphic" | "TitlePredictorGraphic" | "MatchContextGraphic"

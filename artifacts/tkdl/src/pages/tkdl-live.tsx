@@ -3,6 +3,9 @@ import { Link } from "wouter";
 import { BroadcastPlayer } from "@/features/broadcast/BroadcastPlayer";
 import { LeagueAwardsShow } from "@/features/broadcast/LeagueAwardsShow";
 import { ReplayLibrary } from "@/features/broadcast/ReplayLibrary";
+import { LiveExtras } from "@/features/broadcast/LiveExtras";
+import { ChannelHome } from "@/features/broadcast/ChannelHome";
+import "./tkdl-live.css";
 
 /**
  * TKDL LIVE — the automated broadcast "show" (see the handover doc's
@@ -34,6 +37,8 @@ export default function TkdlLive() {
   const [failed, setFailed] = useState(false);
   const [showAwards, setShowAwards] = useState(false);
   const [showReplays, setShowReplays] = useState(false);
+  const [showExtras, setShowExtras] = useState(false);
+  const [showHome, setShowHome] = useState(true);
 
   useEffect(() => {
     fetch("/api/broadcast/status", { credentials: "include" })
@@ -79,7 +84,14 @@ export default function TkdlLive() {
 
   return (
     <div className="fixed inset-0 select-none">
-      {!showAwards && !showReplays && <BroadcastPlayer />}
+      {!showAwards && !showReplays && !showExtras && !showHome && <BroadcastPlayer />}
+
+      {showHome && <ChannelHome
+        onWatchLive={() => setShowHome(false)}
+        onOpenExtras={() => { setShowHome(false); setShowExtras(true); }}
+        onOpenReplays={() => { setShowHome(false); setShowReplays(true); }}
+        onOpenAwards={() => { setShowHome(false); setShowAwards(true); }}
+      />}
 
       {showAwards && <LeagueAwardsShow onClose={() => setShowAwards(false)} />}
       {showReplays && (
@@ -88,6 +100,7 @@ export default function TkdlLive() {
           onOpenAwards={() => { setShowReplays(false); setShowAwards(true); }}
         />
       )}
+      {showExtras && <LiveExtras onClose={() => setShowExtras(false)} />}
 
       {previewOnly && (
         // `top: max(1.5rem, ...)` instead of a plain `top-6` — on a phone
@@ -110,14 +123,32 @@ export default function TkdlLive() {
           guessed — /broadcast (the plain standings board) is the other
           full-bleed kiosk screen, previously reachable only by its own URL
           with no way across from here. */}
-      <div className="absolute bottom-14 right-4 z-40 flex flex-col items-end gap-2">
+      <nav className="tkdl-live-actions" aria-label="TKDL LIVE destinations">
+        <button
+          type="button"
+          onClick={() => setShowHome(true)}
+          className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black uppercase transition-transform hover:scale-105"
+          style={{ color: "#07030d", background: "white", border: "1px solid rgba(255,255,255,0.2)", letterSpacing: "0.13em" }}
+        >
+          <span className="tkdl-live-actions__label"><span className="tkdl-live-actions__desktop-label">Channel Home</span><span className="tkdl-live-actions__mobile-label">Home</span></span>
+          <span aria-hidden="true">⌂</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowExtras(true)}
+          className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black uppercase transition-transform hover:scale-105"
+          style={{ color: "white", background: "linear-gradient(90deg, rgba(255,0,92,0.82), rgba(0,102,255,0.82))", border: "1px solid rgba(255,255,255,0.2)", boxShadow: "0 0 24px rgba(255,0,92,0.18)", letterSpacing: "0.13em" }}
+        >
+          <span className="tkdl-live-actions__label"><span className="tkdl-live-actions__desktop-label">Inside the League</span><span className="tkdl-live-actions__mobile-label">Inside</span></span>
+          <span aria-hidden="true">◎</span>
+        </button>
         <button
           type="button"
           onClick={() => setShowReplays(true)}
           className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black uppercase transition-transform hover:scale-105"
           style={{ color: "white", background: "rgba(7,5,15,0.84)", border: "1px solid rgba(255,255,255,0.18)", backdropFilter: "blur(10px)", letterSpacing: "0.13em" }}
         >
-          Replay Library
+          <span className="tkdl-live-actions__label"><span className="tkdl-live-actions__desktop-label">Replay Library</span><span className="tkdl-live-actions__mobile-label">Replays</span></span>
           <span aria-hidden="true">▶</span>
         </button>
         <button
@@ -126,7 +157,7 @@ export default function TkdlLive() {
           className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black uppercase transition-transform hover:scale-105"
           style={{ color: "#07030d", background: "#ffd24a", boxShadow: "0 0 24px rgba(255,210,74,0.3)", letterSpacing: "0.13em" }}
         >
-          League Awards
+          <span className="tkdl-live-actions__label"><span className="tkdl-live-actions__desktop-label">League Awards</span><span className="tkdl-live-actions__mobile-label">Awards</span></span>
           <span aria-hidden="true">🏆</span>
         </button>
         <Link href="/broadcast" className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.15em" }}>
@@ -135,7 +166,7 @@ export default function TkdlLive() {
         <Link href="/" className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.15em" }}>
           ← Back to the Hub
         </Link>
-      </div>
+      </nav>
     </div>
   );
 }

@@ -4,11 +4,11 @@ import { buildEditorialFeatures, type EditorialMatch, type EditorialPlayer } fro
 
 const cutoff = new Date("2026-09-09T12:00:00Z");
 const players: EditorialPlayer[] = [
-  { id: 1, name: "Alpha", points: 40, wins: 5, losses: 1, status: "ACTIVE", eliminationsCount: 3 },
-  { id: 2, name: "Bravo", points: 19, wins: 2, losses: 4, status: "ACTIVE", eliminationsCount: 0 },
-  { id: 3, name: "Charlie", points: 8, wins: 1, losses: 5, status: "ACTIVE", eliminationsCount: 1 },
-  { id: 4, name: "Delta", points: 0, wins: 0, losses: 6, status: "ELIMINATED", eliminationsCount: 0 },
-  { id: 5, name: "Echo", points: 25, wins: 3, losses: 3, status: "ACTIVE", eliminationsCount: 0 },
+  { id: 1, name: "Alpha", elo: 1120, points: 40, wins: 5, losses: 1, status: "ACTIVE", eliminationsCount: 3, currentWinStreak: 2, longestWinStreak: 4 },
+  { id: 2, name: "Bravo", elo: 1040, points: 19, wins: 2, losses: 4, status: "ACTIVE", eliminationsCount: 0, currentWinStreak: 0, longestWinStreak: 2 },
+  { id: 3, name: "Charlie", elo: 980, points: 8, wins: 1, losses: 5, status: "ACTIVE", eliminationsCount: 1, currentWinStreak: 1, longestWinStreak: 3 },
+  { id: 4, name: "Delta", elo: 900, points: 0, wins: 0, losses: 6, status: "ELIMINATED", eliminationsCount: 0, currentWinStreak: 0, longestWinStreak: 1 },
+  { id: 5, name: "Echo", elo: 1080, points: 25, wins: 3, losses: 3, status: "ACTIVE", eliminationsCount: 0, currentWinStreak: 1, longestWinStreak: 3 },
 ];
 const matches: EditorialMatch[] = [
   { id: 10, winnerId: 1, loserId: 2, winnerName: "Alpha", loserName: "Bravo", stake: 4, playedAt: new Date("2026-09-07T18:00:00Z") },
@@ -112,6 +112,14 @@ describe("recurring editorial features", () => {
     });
     assert.equal(first.length, 1);
     assert.deepEqual(first, second);
+  });
+
+  test("player focus rotates a real player with only verified profile facts", () => {
+    const focus = broad().find(segment => segment.purpose === "player_focus");
+    assert.ok(focus);
+    assert.equal(focus?.facts?.featureTitle, "Player Focus");
+    assert.ok(players.some(player => player.id === focus?.facts?.playerId));
+    assert.match(focus?.dialogue.map(turn => turn.text).join(" ") ?? "", /current Singles table/);
   });
 
   test("host wager opinion is bounded by balances and explicitly not a recommendation", () => {

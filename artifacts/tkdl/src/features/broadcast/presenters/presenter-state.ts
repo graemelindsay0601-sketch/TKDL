@@ -25,6 +25,10 @@ const SCENE_STATE_PAIR: Record<Scene, readonly [PresenterState, PresenterState]>
   breaking: ["surprised", "speaking"],
   spotlight: ["amused", "confident"],
   champion: ["amused", "confident"],
+  interview: ["speaking", "confident"],
+  fan_verdict: ["explaining", "amused"],
+  season_launch: ["speaking", "confident"],
+  player_focus: ["explaining", "confident"],
 };
 
 export function activeStateForScene(scene: Scene, turnIndex: number): PresenterState {

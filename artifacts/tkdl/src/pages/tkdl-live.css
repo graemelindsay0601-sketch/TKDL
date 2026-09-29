@@ -1,0 +1,46 @@
+.tkdl-live-actions {
+  position: absolute;
+  right: 1rem;
+  bottom: 3.5rem;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.tkdl-live-actions__mobile-label {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  /* Dialogue and lower thirds occupy the bottom of the mobile broadcast.
+     Keep navigation in the quiet upper-right edge instead. */
+  .tkdl-live-actions {
+    top: max(4.75rem, calc(env(safe-area-inset-top) + 4rem));
+    right: 0.65rem;
+    bottom: auto;
+    gap: 0.38rem;
+  }
+
+  .tkdl-live-actions > button {
+    min-width: 6.6rem;
+    justify-content: space-between;
+    padding: 0.42rem 0.65rem;
+    font-size: 0.64rem;
+    box-shadow: 0 5px 18px rgba(0, 0, 0, 0.28) !important;
+    backdrop-filter: blur(12px);
+  }
+
+  .tkdl-live-actions__desktop-label {
+    display: none;
+  }
+
+  .tkdl-live-actions__mobile-label {
+    display: inline;
+  }
+
+  .tkdl-live-actions > a {
+    display: none;
+  }
+}

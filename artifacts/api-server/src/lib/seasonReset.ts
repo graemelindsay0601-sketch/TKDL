@@ -9,6 +9,7 @@ import { checkSeasonAchievements } from "./achievements";
 import { drawDoublesTeams } from "./doublesDraw";
 import { decideSinglesChampion } from "./singles-champion";
 import { createNotification } from "../services/notificationService";
+import { createSeasonLaunchInterviews } from "./interviewDeskService";
 
 /**
  * Guards a single league's reset sequence against a second concurrent
@@ -254,6 +255,22 @@ async function performSeasonResetLocked(overrideName?: string): Promise<typeof s
     }).returning();
     return inserted;
   });
+
+  if (currentSeason) {
+    try {
+      const batch = await createSeasonLaunchInterviews({
+        previousSeasonId: currentSeason.id,
+        previousSeasonName: currentSeason.name,
+        currentSeasonId: newSeason.id,
+        currentSeasonName: newSeason.name,
+      });
+      logger.info({ newSeasonId: newSeason.id, ...batch }, "Season Launch interview invitations prepared");
+    } catch (err) {
+      // The league reset is already complete at this point. A presentation
+      // extra must never turn a successful reset into a misleading 500.
+      logger.error({ err, newSeasonId: newSeason.id }, "Season Launch interview batch failed");
+    }
+  }
 
   logger.info({ newSeasonId: newSeason.id, name: newSeason.name }, "New singles season started");
   return newSeason;

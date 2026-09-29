@@ -79,6 +79,8 @@ import {
 } from "./story-types.ts";
 import { validateStoryFactCutoffs } from "./cutoff-snapshot-math.ts";
 import { buildEditorialFeatures } from "./editorial-features.ts";
+import { collectInterviewSegments } from "./interview-feature.ts";
+import { collectFanVerdictSegments } from "./fan-verdict.ts";
 
 // ── Fixed utility dialogue (11.1's required "opening" and "closing" slots,
 // and slot 10's own documented no-LEAGUE-story fallback — see director.ts's
@@ -865,6 +867,12 @@ async function buildEdition(params: {
     ? await detectAndUpdateStories({ cutoffStart: previous.dataCutoff, cutoffEnd })
     : await detectAndUpdateStories({ cutoffEnd });
 
+  const [interviewSegments, fanVerdictSegments] = await Promise.all([
+    collectInterviewSegments(storyState.cutoffStart, cutoffEnd, 1),
+    collectFanVerdictSegments(storyState.cutoffStart, cutoffEnd),
+  ]);
+  const audienceSegments = [...interviewSegments, ...fanVerdictSegments];
+
   const catchUpPool = seasonSweepStart
     ? await collectActiveSeasonSweepStories(seasonSweepStart, cutoffEnd)
     : seasonCatchUp
@@ -906,7 +914,7 @@ async function buildEdition(params: {
   // resolveCutoffStart() picked the real starting point instead, and THAT is
   // the value worth seeing if a match ever again goes missing at the seam
   // between "no previous Edition yet" and "first one published."
-  const scanSummary = `scanned (${storyState.cutoffStart.toISOString()}, ${storyState.cutoffEnd.toISOString()}]: singles=${storyState.newMatchesProcessed.singles} doubles=${storyState.newMatchesProcessed.doubles} shiftWars=${storyState.newMatchesProcessed.shiftWars}, storiesUpserted=${storyState.storiesUpserted}, previousEditionId=${previous?.id ?? "none"}, catchUp(singles)=${JSON.stringify(storyState.catchUpSeasonIds.singles)} catchUp(doubles)=${JSON.stringify(storyState.catchUpSeasonIds.doubles)}`;
+  const scanSummary = `scanned (${storyState.cutoffStart.toISOString()}, ${storyState.cutoffEnd.toISOString()}]: singles=${storyState.newMatchesProcessed.singles} doubles=${storyState.newMatchesProcessed.doubles} shiftWars=${storyState.newMatchesProcessed.shiftWars}, storiesUpserted=${storyState.storiesUpserted}, interviews=${interviewSegments.length}, fanVerdicts=${fanVerdictSegments.length}, previousEditionId=${previous?.id ?? "none"}, catchUp(singles)=${JSON.stringify(storyState.catchUpSeasonIds.singles)} catchUp(doubles)=${JSON.stringify(storyState.catchUpSeasonIds.doubles)}`;
 
   const seasonBoundaryEventOccurred = await anySeasonEndedInWindow(previous?.dataCutoff ?? new Date(0), cutoffEnd);
 
@@ -926,7 +934,7 @@ async function buildEdition(params: {
   const closedLeagueSeasons = await resolveClosedLeagueSeasons(cutoffEnd);
 
   const forced = isForcedRefresh({
-    seasonChampionOrResetEventOccurred: seasonBoundaryEventOccurred || closedLeagueSeasons.length > 0,
+    seasonChampionOrResetEventOccurred: seasonBoundaryEventOccurred || closedLeagueSeasons.length > 0 || audienceSegments.length > 0,
     noPublishedEditionExists: previous === null,
     adminForced,
   });
@@ -1180,12 +1188,13 @@ async function buildEdition(params: {
   // Persisted result stories remain the sole result narrative for a match:
   // represented match ids are excluded from Points Swing, while the other
   // features describe aggregates/current state rather than replaying winners.
-  if (closedLeagueSeasons.length === 0) {
+  if (closedLeagueSeasons.length === 0 && audienceSegments.length === 0) {
     const [editorialPlayers, editorialMatches, editorialStories] = await Promise.all([
       db.select({
-        id: playersTable.id, name: playersTable.name, points: playersTable.points,
+        id: playersTable.id, name: playersTable.name, elo: playersTable.elo, points: playersTable.points,
         wins: playersTable.seasonWins, losses: playersTable.seasonLosses, status: playersTable.status,
         eliminationsCount: playersTable.eliminationsCount,
+        currentWinStreak: playersTable.currentWinStreak, longestWinStreak: playersTable.longestWinStreak,
       }).from(playersTable).where(eq(playersTable.isActive, true)),
       db.select({
         id: matchesTable.id, winnerId: matchesTable.winnerId, loserId: matchesTable.loserId,
@@ -1225,6 +1234,11 @@ async function buildEdition(params: {
     const closingIndex = segments.findIndex(segment => segment.purpose === "closing");
     if (closingIndex >= 0) segments.splice(closingIndex, 0, ...editorial);
     else segments.push(...editorial);
+  }
+  if (audienceSegments.length > 0) {
+    const closingIndex = segments.findIndex(segment => segment.purpose === "closing");
+    if (closingIndex >= 0) segments.splice(closingIndex, 0, ...audienceSegments);
+    else segments.push(...audienceSegments);
   }
   segments.forEach((segment, index) => { segment.slot = index + 1; });
 

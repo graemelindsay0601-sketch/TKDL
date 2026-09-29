@@ -58,6 +58,19 @@ describe("sceneForSegment", () => {
     assert.equal(sceneForSegment(segment({ purpose: "closing", storyId: null, storyType: null })), "desk");
   });
 
+  test("a player interview uses its dedicated scene even without a story row", () => {
+    assert.equal(sceneForSegment(segment({ purpose: "player_interview", storyId: null, storyType: null })), "interview");
+  });
+
+  test("audience and season-launch formats use dedicated scenes", () => {
+    assert.equal(sceneForSegment(segment({ purpose: "fan_verdict", storyId: null, storyType: null })), "fan_verdict");
+    assert.equal(sceneForSegment(segment({ purpose: "season_launch", storyId: null, storyType: null })), "season_launch");
+  });
+
+  test("player focus uses its dedicated broadcast profile scene", () => {
+    assert.equal(sceneForSegment(segment({ purpose: "player_focus", storyId: null, storyType: null })), "player_focus");
+  });
+
   test("a CHAMPION story is always the champion scene, regardless of purpose", () => {
     assert.equal(sceneForSegment(segment({ purpose: "main_story", storyType: "CHAMPION" })), "champion");
   });
@@ -113,6 +126,21 @@ describe("serializeSegment", () => {
     assert.equal(api.type, "closing");
     assert.equal(api.graphic, null);
     assert.equal(api.estimatedSeconds, 6);
+  });
+
+  test("an interview transports its frozen question and answer facts to the dedicated scene", () => {
+    const api = serializeSegment(segment({
+      purpose: "player_interview",
+      storyId: null,
+      storyType: null,
+      graphicKind: "ResultGraphic",
+      facts: { interviewId: 14, playerName: "Graeme", openerAnswer: "I stayed patient." },
+    }), "slot-9-player-interview-utility");
+    assert.equal(api.scene, "interview");
+    assert.deepEqual(api.graphic, {
+      kind: "ResultGraphic",
+      data: { interviewId: 14, playerName: "Graeme", openerAnswer: "I stayed patient." },
+    });
   });
 
   test("the real (possibly wider-than-4-value) importance passes through untouched", () => {

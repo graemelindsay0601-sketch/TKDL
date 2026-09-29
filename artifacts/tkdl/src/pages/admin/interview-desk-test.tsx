@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Mic, Send, Bell, X, Check, ExternalLink, History } from "lucide-react";
+import { Mic, Send, Bell, X, Check, ExternalLink, History, Flag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CollapsibleAdminSection } from "./collapsible-section";
 
@@ -48,9 +48,11 @@ export function InterviewDeskTest() {
   const [playerId, setPlayerId] = useState<string>("");
   const [loading, setLoading]   = useState(false);
   const [notifLoading, setNotifLoading] = useState(false);
+  const [seasonLoading, setSeasonLoading] = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<{ requestId: number; playerName: string; expiresAt: string } | null>(null);
   const [notifResult, setNotifResult] = useState<{ playerName: string; requestId: number; push: PushResult } | null>(null);
+  const [seasonResult, setSeasonResult] = useState<{ currentSeason: string; previousSeason: string; created: number; skipped: number; failed: number } | null>(null);
 
   const refreshHistory = async () => {
     try {
@@ -116,12 +118,61 @@ export function InterviewDeskTest() {
     setBusy(false);
   };
 
+  const launchSeasonInterviews = async () => {
+    setSeasonLoading(true);
+    setSeasonResult(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/interview-desk/season-launch", { method: "POST" });
+      const body = await res.json();
+      if (!res.ok || !body.ok) throw new Error(body.detail ?? body.error ?? "Season Launch failed");
+      setSeasonResult({
+        currentSeason: body.currentSeason.name,
+        previousSeason: body.previousSeason.name,
+        created: body.batch.created,
+        skipped: body.batch.skipped,
+        failed: body.batch.failed,
+      });
+      toast({ title: body.batch.created > 0 ? "Season Launch invitations sent" : "Season Launch already prepared" });
+      refreshHistory();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't prepare Season Launch interviews.");
+      toast({ title: "Season Launch failed", variant: "destructive" });
+    }
+    setSeasonLoading(false);
+  };
+
   return (
     <CollapsibleAdminSection title="Interview Desk (Test / Preview)" icon={Mic} accent="#0066ff">
       <div className="px-4 py-4 space-y-4">
         <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
           Manually fires a test interview request so you can click through the real page and see the real question bank, or just send the "hosts want a word" push on its own to confirm delivery. Real invites also fire on their own for a qualifying match (a major upset, a win streak, a 180) — the history below shows both, so you can check those are landing too.
         </p>
+
+        <div className="rounded-xl p-3 flex flex-wrap items-center justify-between gap-3" style={{ background: "rgba(255,210,74,0.06)", border: "1px solid rgba(255,210,74,0.2)" }}>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
+              <Flag className="w-3.5 h-3.5" /> League Voices: Season Launch
+            </div>
+            <p className="mt-1 text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
+              Invite every active player to discuss last season and their aims for the current one. Safe to repeat: existing invitations are skipped.
+            </p>
+          </div>
+          <button
+            onClick={launchSeasonInterviews}
+            disabled={seasonLoading}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50"
+            style={{ background: "rgba(255,210,74,0.12)", border: "1px solid rgba(255,210,74,0.32)", color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}
+          >
+            {seasonLoading ? "Preparing…" : "Prepare current season"}
+          </button>
+        </div>
+
+        {seasonResult && (
+          <div className="text-xs px-3 py-2 rounded-lg" style={{ color: "rgba(255,255,255,0.65)", background: "rgba(0,229,160,0.07)", border: "1px solid rgba(0,229,160,0.2)" }}>
+            <strong style={{ color: "#00e5a0" }}>{seasonResult.currentSeason}</strong> using {seasonResult.previousSeason}: {seasonResult.created} created, {seasonResult.skipped} already prepared, {seasonResult.failed} failed.
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">

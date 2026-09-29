@@ -1,8 +1,8 @@
 import { Router, type Request, type Response } from "express";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import {
   db, broadcastEditionsTable, broadcastStoriesTable, broadcastPredictionSnapshotsTable,
-  playersTable,
+  playersTable, matchesTable, playerAchievementsTable, achievementsTable,
   type LeagueType,
 } from "@workspace/db";
 import { getFeatureStatus, isFeatureAvailable, FEATURES } from "../services/feature-flags-service";
@@ -311,6 +311,387 @@ router.get("/broadcast/predictor/:league", async (req, res): Promise<void> => {
       return;
     }
     res.json({ league, generatedAt: row.generatedAt.toISOString(), modelVersion: row.modelVersion, standings: row.payload });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+type PunditSnapshotRow = {
+  season_id: number;
+  season_name: string;
+  champion_id: number | null;
+  champion_name: string | null;
+  generated_at: Date;
+  payload: unknown;
+};
+
+type PunditPick = { playerId: number; playerName: string; probability: number };
+
+function rankedSinglesPicks(payload: unknown, names: ReadonlyMap<number, string>): PunditPick[] {
+  if (!Array.isArray(payload)) return [];
+  return payload
+    .filter((entry): entry is { entityId: number; titleProbability: number; isEliminated?: boolean } =>
+      !!entry && typeof entry === "object" && Number.isInteger((entry as any).entityId) && typeof (entry as any).titleProbability === "number" && !(entry as any).isEliminated,
+    )
+    .sort((a, b) => b.titleProbability - a.titleProbability)
+    .map(entry => ({ playerId: entry.entityId, playerName: names.get(entry.entityId) ?? `Player ${entry.entityId}`, probability: entry.titleProbability }));
+}
+
+// Chalky calls the model favourite; Ton backs the leading challenger. The
+// picks come from the first predictor snapshot saved for each season, so a
+// pundit cannot quietly change their answer once the title race develops.
+// Completed seasons are scored against the real stored champion.
+router.get("/broadcast/pundit-scoreboard", async (req, res): Promise<void> => {
+  if (!(await requireBroadcastAvailable(req, res))) return;
+  try {
+    const [historyResult, currentResult, playerRows] = await Promise.all([
+      db.execute(sql`
+        SELECT DISTINCT ON (ps.season_id)
+          ps.season_id, s.name AS season_name, s.champion_id, s.champion_name,
+          ps.generated_at, ps.payload
+        FROM broadcast_prediction_snapshots ps
+        JOIN seasons s ON s.id = ps.season_id
+        WHERE ps.snapshot_type = 'TITLE' AND ps.league_type = 'singles'
+          AND s.is_active = false AND s.champion_id IS NOT NULL
+        ORDER BY ps.season_id, ps.generated_at ASC
+      `),
+      db.execute(sql`
+        SELECT ps.season_id, s.name AS season_name, s.champion_id, s.champion_name,
+               ps.generated_at, ps.payload
+        FROM broadcast_prediction_snapshots ps
+        JOIN seasons s ON s.id = ps.season_id
+        WHERE ps.snapshot_type = 'TITLE' AND ps.league_type = 'singles' AND s.is_active = true
+        ORDER BY ps.generated_at DESC
+        LIMIT 1
+      `),
+      db.select({ id: playersTable.id, name: playersTable.name }).from(playersTable),
+    ]);
+
+    const names = new Map(playerRows.map(player => [player.id, player.name]));
+    const history = (historyResult.rows as unknown as PunditSnapshotRow[]).flatMap(row => {
+      const ranked = rankedSinglesPicks(row.payload, names);
+      if (ranked.length === 0) return [];
+      const chalky = ranked[0];
+      const ton = ranked[1] ?? ranked[0];
+      return [{
+        seasonId: row.season_id,
+        seasonName: row.season_name,
+        champion: { playerId: row.champion_id!, playerName: row.champion_name ?? names.get(row.champion_id!) ?? `Player ${row.champion_id}` },
+        generatedAt: new Date(row.generated_at).toISOString(),
+        chalky: { ...chalky, correct: chalky.playerId === row.champion_id },
+        ton: { ...ton, correct: ton.playerId === row.champion_id },
+      }];
+    }).sort((a, b) => b.seasonId - a.seasonId);
+
+    const currentRow = currentResult.rows[0] as unknown as PunditSnapshotRow | undefined;
+    const currentRanked = currentRow ? rankedSinglesPicks(currentRow.payload, names) : [];
+    const current = currentRow && currentRanked.length > 0 ? {
+      seasonId: currentRow.season_id,
+      seasonName: currentRow.season_name,
+      generatedAt: new Date(currentRow.generated_at).toISOString(),
+      chalky: currentRanked[0],
+      ton: currentRanked[1] ?? currentRanked[0],
+    } : null;
+
+    res.json({
+      totals: {
+        chalky: history.filter(item => item.chalky.correct).length,
+        ton: history.filter(item => item.ton.correct).length,
+        seasonsScored: history.length,
+      },
+      current,
+      history: history.slice(0, 8),
+    });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+// The public TKDL LIVE archive contains only finished, real interviews.
+// Test fires, declined requests and half-finished conversations stay out of
+// the programme-facing history.
+router.get("/broadcast/voices", async (req, res): Promise<void> => {
+  if (!(await requireBroadcastAvailable(req, res))) return;
+  try {
+    const { rows } = await db.execute(sql`
+      SELECT r.id, r.trigger_type, r.created_at, p.name AS player_name,
+             oq.presenter AS opener_presenter, oq.prompt_text AS opener_prompt,
+             oa.answer_text AS opener_answer,
+             fq.presenter AS followup_presenter, fq.prompt_text AS followup_prompt,
+             fa.answer_text AS followup_answer
+      FROM interview_requests r
+      JOIN players p ON p.id = r.player_id
+      JOIN interview_questions oq ON oq.id = r.question_id
+      JOIN interview_answers oa ON oa.request_id = r.id AND oa.turn = 'opener' AND oa.response_type = 'comment'
+      LEFT JOIN interview_questions fq ON fq.id = r.followup_question_id
+      LEFT JOIN interview_answers fa ON fa.request_id = r.id AND fa.turn = 'followup' AND fa.response_type = 'comment'
+      WHERE r.status = 'answered' AND r.is_test = false
+      ORDER BY r.created_at DESC
+      LIMIT 30
+    `);
+    res.json({
+      voices: rows.map((row: any) => ({
+        id: Number(row.id), triggerType: row.trigger_type, createdAt: new Date(row.created_at).toISOString(), playerName: row.player_name,
+        opener: { presenter: row.opener_presenter, question: row.opener_prompt, answer: row.opener_answer },
+        followup: row.followup_prompt && row.followup_answer
+          ? { presenter: row.followup_presenter, question: row.followup_prompt, answer: row.followup_answer }
+          : null,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+function playerStory(player: { rank: number; seasonWins: number; seasonLosses: number; currentWinStreak: number; currentLossStreak: number }): string {
+  const played = player.seasonWins + player.seasonLosses;
+  if (player.rank === 1 && played > 0) return "Sets the pace at the top of the current Singles standings.";
+  if (player.currentWinStreak >= 3) return `Carries a ${player.currentWinStreak}-match winning run into the next chapter of the season.`;
+  if (player.currentLossStreak >= 3) return `Looking for a response after ${player.currentLossStreak} consecutive defeats.`;
+  if (played === 0) return "Still waiting to write the first result of the current season.";
+  if (player.seasonWins === player.seasonLosses) return "The current campaign is balanced exactly between wins and defeats.";
+  return player.seasonWins > player.seasonLosses
+    ? "A winning current-season record keeps the campaign moving in the right direction."
+    : "The numbers leave room for a strong second-half response.";
+}
+
+function punditLines(player: { rank: number; seasonWins: number; seasonLosses: number; currentWinStreak: number; currentLossStreak: number; longestWinStreak: number }): { chalky: string; ton: string } {
+  const played = player.seasonWins + player.seasonLosses;
+  const winRate = played > 0 ? Math.round(player.seasonWins / played * 100) : 0;
+  const chalky = player.rank === 1 && played > 0
+    ? "Top of the table earns the attention. The challenge now is staying there."
+    : player.currentWinStreak >= 3
+      ? `${player.currentWinStreak} wins in a row is proper form. Confidence should be high.`
+      : played > 0
+        ? `${winRate}% wins this season tells you exactly where the campaign stands.`
+        : "No league result yet, so the first night will tell us far more than any prediction.";
+  const ton = player.currentLossStreak >= 3
+    ? `The response matters now. A ${player.currentLossStreak}-match losing run is there to be broken.`
+    : player.longestWinStreak >= 4
+      ? `We've already seen a ${player.longestWinStreak}-match career run. That ceiling is real.`
+      : "The next step is turning isolated results into a run the whole league notices.";
+  return { chalky, ton };
+}
+
+// One compact, read-only dataset for the Player Focus library. It reuses
+// existing league records and never writes a new profile or editorial claim.
+router.get("/broadcast/player-focus", async (req, res): Promise<void> => {
+  if (!(await requireBroadcastAvailable(req, res))) return;
+  try {
+    const players = await db.select({
+      id: playersTable.id, name: playersTable.name, elo: playersTable.elo, points: playersTable.points,
+      seasonWins: playersTable.seasonWins, seasonLosses: playersTable.seasonLosses,
+      careerWins: playersTable.careerWins, careerLosses: playersTable.careerLosses,
+      careerGamesPlayed: playersTable.careerGamesPlayed, careerPeakElo: playersTable.careerPeakElo,
+      currentWinStreak: playersTable.currentWinStreak, currentLossStreak: playersTable.currentLossStreak,
+      longestWinStreak: playersTable.longestWinStreak, eliminationsCount: playersTable.eliminationsCount,
+      avatarUpdatedAt: playersTable.avatarUpdatedAt,
+    }).from(playersTable).where(eq(playersTable.isActive, true));
+
+    if (players.length === 0) { res.json({ players: [] }); return; }
+    const playerIds = players.map(player => player.id);
+    const [matches, achievementRows, championRows, quoteResult, predictorRows] = await Promise.all([
+      db.select({
+        id: matchesTable.id, winnerId: matchesTable.winnerId, loserId: matchesTable.loserId,
+        winnerName: matchesTable.winnerName, loserName: matchesTable.loserName, playedAt: matchesTable.playedAt,
+        winner180s: matchesTable.winner180s, loser180s: matchesTable.loser180s,
+      }).from(matchesTable)
+        .where(or(inArray(matchesTable.winnerId, playerIds), inArray(matchesTable.loserId, playerIds)))
+        .orderBy(desc(matchesTable.playedAt)),
+      db.select({
+        playerId: playerAchievementsTable.playerId, name: achievementsTable.name,
+        icon: achievementsTable.icon, rarity: achievementsTable.rarity, unlockedAt: playerAchievementsTable.unlockedAt,
+      }).from(playerAchievementsTable)
+        .innerJoin(achievementsTable, eq(achievementsTable.id, playerAchievementsTable.achievementId))
+        .where(inArray(playerAchievementsTable.playerId, playerIds)),
+      db.execute(sql`SELECT player_id, COUNT(*)::int AS titles FROM season_standings WHERE player_id = ANY(${playerIds}) AND is_champion = true GROUP BY player_id`),
+      db.execute(sql`
+        SELECT DISTINCT ON (r.player_id) r.player_id, a.answer_text, r.created_at
+        FROM interview_requests r
+        JOIN interview_answers a ON a.request_id = r.id AND a.response_type = 'comment'
+        WHERE r.player_id = ANY(${playerIds}) AND r.status = 'answered' AND r.is_test = false
+        ORDER BY r.player_id, r.created_at DESC, CASE WHEN a.turn = 'followup' THEN 0 ELSE 1 END
+      `),
+      db.select({ payload: broadcastPredictionSnapshotsTable.payload })
+        .from(broadcastPredictionSnapshotsTable)
+        .where(and(eq(broadcastPredictionSnapshotsTable.snapshotType, "TITLE"), eq(broadcastPredictionSnapshotsTable.leagueType, "singles")))
+        .orderBy(desc(broadcastPredictionSnapshotsTable.generatedAt)).limit(1),
+    ]);
+
+    const rankById = new Map([...players].sort((a, b) => b.points - a.points || b.elo - a.elo).map((player, index) => [player.id, index + 1]));
+    const champions = new Map((championRows.rows as any[]).map(row => [Number(row.player_id), Number(row.titles)]));
+    const quotes = new Map((quoteResult.rows as any[]).map(row => [Number(row.player_id), { text: String(row.answer_text), createdAt: new Date(row.created_at).toISOString() }]));
+    const predictor = new Map<number, number>();
+    const predictionPayload = predictorRows[0]?.payload;
+    if (Array.isArray(predictionPayload)) for (const item of predictionPayload as any[]) {
+      if (Number.isInteger(item?.entityId) && typeof item?.titleProbability === "number") predictor.set(item.entityId, item.titleProbability);
+    }
+    const rarityWeight: Record<string, number> = { Mythic: 5, Legendary: 4, Epic: 3, Rare: 2, Common: 1 };
+
+    const profiles = players.map(player => {
+      const ownMatches = matches.filter(match => match.winnerId === player.id || match.loserId === player.id);
+      const recentForm = ownMatches.slice(0, 5).map(match => match.winnerId === player.id ? "W" : "L");
+      const rivalries = new Map<number, { opponentId: number; opponentName: string; meetings: number; wins: number; losses: number }>();
+      let total180s = 0;
+      for (const match of ownMatches) {
+        const won = match.winnerId === player.id;
+        const opponentId = won ? match.loserId : match.winnerId;
+        const entry = rivalries.get(opponentId) ?? { opponentId, opponentName: won ? match.loserName : match.winnerName, meetings: 0, wins: 0, losses: 0 };
+        entry.meetings += 1; won ? entry.wins += 1 : entry.losses += 1; rivalries.set(opponentId, entry);
+        total180s += Number(won ? match.winner180s ?? 0 : match.loser180s ?? 0);
+      }
+      const mainRivalry = [...rivalries.values()].sort((a, b) => b.meetings - a.meetings || Math.abs(a.wins - a.losses) - Math.abs(b.wins - b.losses))[0] ?? null;
+      const achievements = achievementRows.filter(row => row.playerId === player.id);
+      const standoutAchievement = [...achievements].sort((a, b) => (rarityWeight[b.rarity] ?? 0) - (rarityWeight[a.rarity] ?? 0) || b.unlockedAt.getTime() - a.unlockedAt.getTime())[0] ?? null;
+      const rank = rankById.get(player.id) ?? players.length;
+      const profileFacts = { rank, seasonWins: player.seasonWins, seasonLosses: player.seasonLosses, currentWinStreak: player.currentWinStreak, currentLossStreak: player.currentLossStreak, longestWinStreak: player.longestWinStreak };
+      return {
+        ...player, rank, championshipCount: champions.get(player.id) ?? 0, achievementCount: achievements.length,
+        standoutAchievement: standoutAchievement ? { name: standoutAchievement.name, icon: standoutAchievement.icon, rarity: standoutAchievement.rarity } : null,
+        total180s, recentForm, mainRivalry, titleProbability: predictor.get(player.id) ?? null,
+        latestQuote: quotes.get(player.id) ?? null, seasonStory: playerStory(profileFacts), pundits: punditLines(profileFacts),
+      };
+    }).sort((a, b) => a.rank - b.rank);
+
+    res.json({ players: profiles });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+type ChannelMatchRow = {
+  league_type: LeagueType; id: number; season_id: number | null; season_name: string | null;
+  winner_id: number; winner_name: string; loser_id: number; loser_name: string;
+  stake: number; game_type: string; played_at: Date | string; was_upset_win: boolean;
+};
+
+function londonDateKey(value: Date | string): string {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find(item => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function titleCaseIdentifier(value: string): string {
+  return value.toLowerCase().split("_").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
+
+// Channel Home is a single read-only editorial payload. Fetching it once
+// replaces three separate archive requests and keeps Render/database work
+// bounded when a viewer browses between Match Nights, Rivalry Files and
+// Season Documentaries.
+router.get("/broadcast/channel", async (req, res): Promise<void> => {
+  if (!(await requireBroadcastAvailable(req, res))) return;
+  try {
+    const [matchResult, seasonsResult, standingsResult, storyResult] = await Promise.all([
+      db.execute(sql`
+        SELECT 'singles'::text AS league_type, m.id, m.season_id, s.name AS season_name,
+               m.winner_id, m.winner_name, m.loser_id, m.loser_name,
+               m.stake, m.game_type, m.played_at, m.was_upset_win
+        FROM matches m LEFT JOIN seasons s ON s.id = m.season_id
+        UNION ALL
+        SELECT 'doubles'::text, m.id, m.season_id, s.name,
+               m.winner_team_id, wt.team_name, m.loser_team_id, lt.team_name,
+               m.stake, m.game_type, m.played_at, false
+        FROM doubles_matches m
+        JOIN doubles_teams wt ON wt.id = m.winner_team_id JOIN doubles_teams lt ON lt.id = m.loser_team_id
+        LEFT JOIN seasons s ON s.id = m.season_id
+        UNION ALL
+        SELECT 'shift_wars'::text, m.id, m.season_id, s.name,
+               m.winner_team_id, wt.name, m.loser_team_id, lt.name,
+               m.stake, m.game_type, m.played_at, false
+        FROM shift_wars_matches m
+        JOIN shift_wars_teams wt ON wt.id = m.winner_team_id JOIN shift_wars_teams lt ON lt.id = m.loser_team_id
+        LEFT JOIN seasons s ON s.id = m.season_id
+        ORDER BY played_at DESC
+      `),
+      db.execute(sql`
+        SELECT id, name, start_date, end_date, champion_id, champion_name, total_matches, league_type
+        FROM seasons WHERE is_active = false
+        ORDER BY end_date DESC NULLS LAST, id DESC
+        LIMIT 30
+      `),
+      db.execute(sql`
+        SELECT ss.season_id, ss.player_id, p.name AS player_name, ss.position, ss.wins, ss.losses, ss.points, ss.elo, ss.is_champion
+        FROM season_standings ss JOIN players p ON p.id = ss.player_id
+        JOIN seasons s ON s.id = ss.season_id
+        WHERE s.is_active = false
+        ORDER BY ss.season_id DESC, ss.position ASC
+      `),
+      db.execute(sql`
+        SELECT season_id, story_type, score, sentiment, facts
+        FROM broadcast_stories
+        WHERE season_id IS NOT NULL
+        ORDER BY season_id DESC, score DESC, id ASC
+      `),
+    ]);
+
+    const matches = (matchResult.rows as unknown as ChannelMatchRow[]).map(row => ({
+      leagueType: row.league_type, id: Number(row.id), seasonId: row.season_id === null ? null : Number(row.season_id), seasonName: row.season_name,
+      winnerId: Number(row.winner_id), winnerName: row.winner_name, loserId: Number(row.loser_id), loserName: row.loser_name,
+      stake: Number(row.stake ?? 0), gameType: row.game_type, playedAt: new Date(row.played_at).toISOString(), wasUpsetWin: !!row.was_upset_win,
+    }));
+
+    const byNight = new Map<string, typeof matches>();
+    for (const match of matches) {
+      const key = londonDateKey(match.playedAt);
+      const rows = byNight.get(key) ?? []; rows.push(match); byNight.set(key, rows);
+    }
+    const matchNights = [...byNight.entries()].slice(0, 18).map(([date, rows]) => {
+      const chronological = [...rows].sort((a, b) => Date.parse(a.playedAt) - Date.parse(b.playedAt));
+      const winnerCounts = new Map<string, number>();
+      for (const row of rows) winnerCounts.set(row.winnerName, (winnerCounts.get(row.winnerName) ?? 0) + 1);
+      const playerOfNight = [...winnerCounts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] ?? null;
+      const biggestWager = [...rows].sort((a, b) => b.stake - a.stake || a.id - b.id)[0] ?? null;
+      const upset = rows.find(row => row.wasUpsetWin) ?? null;
+      return {
+        date, matchCount: rows.length, leagueTypes: [...new Set(rows.map(row => row.leagueType))], pointsMoved: rows.reduce((sum, row) => sum + row.stake, 0),
+        playerOfNight: playerOfNight ? { name: playerOfNight[0], wins: playerOfNight[1] } : null,
+        biggestWager: biggestWager ? { matchId: biggestWager.id, leagueType: biggestWager.leagueType, stake: biggestWager.stake, winnerName: biggestWager.winnerName, loserName: biggestWager.loserName } : null,
+        upset: upset ? { matchId: upset.id, winnerName: upset.winnerName, loserName: upset.loserName } : null,
+        matches: chronological,
+      };
+    });
+
+    const singles = matches.filter(match => match.leagueType === "singles");
+    const rivalryMap = new Map<string, { player1Id: number; player1Name: string; player2Id: number; player2Name: string; player1Wins: number; player2Wins: number; matches: typeof singles }>();
+    for (const match of [...singles].reverse()) {
+      const lowFirst = match.winnerId < match.loserId;
+      const player1Id = lowFirst ? match.winnerId : match.loserId;
+      const player2Id = lowFirst ? match.loserId : match.winnerId;
+      const key = `${player1Id}:${player2Id}`;
+      const item = rivalryMap.get(key) ?? { player1Id, player1Name: lowFirst ? match.winnerName : match.loserName, player2Id, player2Name: lowFirst ? match.loserName : match.winnerName, player1Wins: 0, player2Wins: 0, matches: [] };
+      if (match.winnerId === player1Id) item.player1Wins++; else item.player2Wins++;
+      item.matches.push(match); rivalryMap.set(key, item);
+    }
+    const rivalries = [...rivalryMap.values()].filter(item => item.matches.length >= 2)
+      .sort((a, b) => b.matches.length - a.matches.length || Math.abs(a.player1Wins - a.player2Wins) - Math.abs(b.player1Wins - b.player2Wins))
+      .slice(0, 20).map((item, index) => ({
+        id: `${item.player1Id}-${item.player2Id}`, rank: index + 1, ...item,
+        latestMatch: item.matches[item.matches.length - 1], totalStake: item.matches.reduce((sum, match) => sum + match.stake, 0),
+        lead: item.player1Wins === item.player2Wins ? "Level" : `${item.player1Wins > item.player2Wins ? item.player1Name : item.player2Name} leads by ${Math.abs(item.player1Wins - item.player2Wins)}`,
+      }));
+
+    const standings = standingsResult.rows as any[];
+    const stories = storyResult.rows as any[];
+    const documentaries = (seasonsResult.rows as any[]).map(season => {
+      const seasonMatches = matches.filter(match => match.seasonId === Number(season.id));
+      const seasonStandings = standings.filter(row => Number(row.season_id) === Number(season.id)).map(row => ({
+        playerId: Number(row.player_id), playerName: row.player_name, position: Number(row.position), wins: Number(row.wins), losses: Number(row.losses), points: Number(row.points), elo: Number(row.elo), isChampion: !!row.is_champion,
+      }));
+      const highlights = stories.filter(row => Number(row.season_id) === Number(season.id)).slice(0, 8).map(row => ({ storyType: row.story_type, label: titleCaseIdentifier(row.story_type), score: Number(row.score), sentiment: row.sentiment, facts: row.facts }));
+      const biggestWager = [...seasonMatches].sort((a, b) => b.stake - a.stake || a.id - b.id)[0] ?? null;
+      const wins = new Map<string, number>(); for (const match of seasonMatches) wins.set(match.winnerName, (wins.get(match.winnerName) ?? 0) + 1);
+      const mostWins = [...wins].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] ?? null;
+      return {
+        id: Number(season.id), name: season.name, leagueType: season.league_type, startDate: season.start_date, endDate: season.end_date,
+        championId: season.champion_id === null ? null : Number(season.champion_id), championName: season.champion_name,
+        matchCount: seasonMatches.length || Number(season.total_matches ?? 0), standings: seasonStandings, highlights,
+        biggestWager: biggestWager ? { stake: biggestWager.stake, winnerName: biggestWager.winnerName, loserName: biggestWager.loserName } : null,
+        mostWins: mostWins ? { name: mostWins[0], wins: mostWins[1] } : null,
+      };
+    });
+
+    res.json({ matchNights, rivalries, documentaries });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }

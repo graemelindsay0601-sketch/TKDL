@@ -146,10 +146,11 @@ export async function createInterviewRequest(
   // the admin panel's own "Send Test Notification" button, which needs to
   // await the real ok/reason/sentTo result to actually confirm delivery
   // (see sendTestInterviewInviteNotification) rather than assume success.
-  notifyMode: "fire-and-forget" | "diagnostic" = "fire-and-forget"
+  notifyMode: "fire-and-forget" | "diagnostic" = "fire-and-forget",
+  expiresAtOverride?: Date,
 ): Promise<CreatedInterviewRequest> {
   const opener = await pickQuestion(triggerType, audience, "opener", playerId, true);
-  const expiresAt = await getNextBroadcastGenerationTime();
+  const expiresAt = expiresAtOverride ?? await getNextBroadcastGenerationTime();
 
   const inserted = (
     await db.execute(sql`
@@ -162,7 +163,9 @@ export async function createInterviewRequest(
   // data.url is what lets both the in-app notification list and the push
   // banner's click take the player straight to this specific interview
   // rather than just opening the app and leaving them to go find it.
-  const notifTitle = "🎙️ The hosts want a word";
+  const notifTitle = triggerType === "SEASON_LAUNCH"
+    ? "🎙️ TKDL LIVE Season Launch"
+    : "🎙️ The hosts want a word";
   const notifBody = opener.prompt_text;
   const notifData = { url: `/interview-desk/${inserted.id}`, triggerType, expiresAt: inserted.expires_at };
 
@@ -185,6 +188,104 @@ export async function createInterviewRequest(
     expiresAt: inserted.expires_at,
     notification,
   };
+}
+
+export type SeasonLaunchInterviewBatch = {
+  created: number;
+  skipped: number;
+  failed: number;
+};
+
+/**
+ * Invites every active Singles player once for a newly-created season.
+ * The request identity lives in trigger_context.currentSeasonId, so a
+ * retry can safely fill any gaps without duplicating successful invites.
+ * Season-launch answers stay open for 72 hours: unlike a post-match quote,
+ * this is a launch-week feature and must not expire minutes after a manual
+ * reset that happens just before a scheduled Edition.
+ */
+export async function createSeasonLaunchInterviews(params: {
+  previousSeasonId: number;
+  previousSeasonName: string;
+  currentSeasonId: number;
+  currentSeasonName: string;
+}): Promise<SeasonLaunchInterviewBatch> {
+  const players = (await db.execute(sql`
+    SELECT p.id, ss.position, ss.wins, ss.losses, ss.points
+    FROM players p
+    LEFT JOIN season_standings ss
+      ON ss.player_id = p.id AND ss.season_id = ${params.previousSeasonId}
+    WHERE p.is_active = TRUE
+    ORDER BY p.name ASC
+  `)).rows as Array<{ id: number; position: number | null; wins: number | null; losses: number | null; points: number | null }>;
+
+  const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+  const result: SeasonLaunchInterviewBatch = { created: 0, skipped: 0, failed: 0 };
+
+  for (const player of players) {
+    try {
+      const existing = (await db.execute(sql`
+        SELECT 1 FROM interview_requests
+        WHERE player_id = ${player.id}
+          AND trigger_type = 'SEASON_LAUNCH'
+          AND trigger_context->>'currentSeasonId' = ${String(params.currentSeasonId)}
+        LIMIT 1
+      `)).rows[0];
+      if (existing) {
+        result.skipped++;
+        continue;
+      }
+
+      await createInterviewRequest(player.id, "SEASON_LAUNCH", "participant", {
+        source: "season_reset",
+        previousSeasonId: params.previousSeasonId,
+        previousSeasonName: params.previousSeasonName,
+        currentSeasonId: params.currentSeasonId,
+        currentSeasonName: params.currentSeasonName,
+        previousPosition: player.position,
+        previousWins: player.wins,
+        previousLosses: player.losses,
+        previousPoints: player.points,
+      }, false, "fire-and-forget", expiresAt);
+      result.created++;
+    } catch (err) {
+      result.failed++;
+      logger.error({ err, playerId: player.id, currentSeasonId: params.currentSeasonId }, "Interview Desk: season-launch invite failed");
+    }
+  }
+
+  return result;
+}
+
+/** Admin/test entry point for preparing the current season's launch batch.
+ * Uses the same idempotent worker as the automatic reset hook, so pressing
+ * it twice reports skips rather than sending duplicate invitations. */
+export async function createCurrentSeasonLaunchInterviews(): Promise<{
+  currentSeason: { id: number; name: string };
+  previousSeason: { id: number; name: string };
+  batch: SeasonLaunchInterviewBatch;
+}> {
+  const currentSeason = (await db.execute(sql`
+    SELECT id, name FROM seasons
+    WHERE league_type = 'singles' AND is_active = TRUE
+    ORDER BY id DESC LIMIT 1
+  `)).rows[0] as { id: number; name: string } | undefined;
+  if (!currentSeason) throw new Error("No active Singles season found");
+
+  const previousSeason = (await db.execute(sql`
+    SELECT id, name FROM seasons
+    WHERE league_type = 'singles' AND is_active = FALSE AND id < ${currentSeason.id}
+    ORDER BY id DESC LIMIT 1
+  `)).rows[0] as { id: number; name: string } | undefined;
+  if (!previousSeason) throw new Error("No previous Singles season found");
+
+  const batch = await createSeasonLaunchInterviews({
+    previousSeasonId: previousSeason.id,
+    previousSeasonName: previousSeason.name,
+    currentSeasonId: currentSeason.id,
+    currentSeasonName: currentSeason.name,
+  });
+  return { currentSeason, previousSeason, batch };
 }
 
 export type AdvanceResult =

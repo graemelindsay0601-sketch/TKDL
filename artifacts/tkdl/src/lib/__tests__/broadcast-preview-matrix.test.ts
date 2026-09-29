@@ -16,7 +16,7 @@ describe("TKDL LIVE development preview matrix", () => {
       ),
     );
 
-    assert.equal(paths.length, 64);
+    assert.equal(paths.length, Object.keys(PREVIEW_VIEWPORTS).length * PREVIEW_SCENES.length * PREVIEW_MODES.length);
     for (const scene of PREVIEW_SCENES) {
       for (const mode of PREVIEW_MODES) {
         assert.equal(paths.filter((path) => path.includes(`scene=${scene}`) && path.includes(`mode=${mode}`)).length, 2);

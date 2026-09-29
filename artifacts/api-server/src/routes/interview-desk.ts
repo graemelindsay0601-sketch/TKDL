@@ -30,7 +30,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdminSession } from "../middleware/requireAdminSession";
-import { createInterviewRequest, advanceInterview } from "../lib/interviewDeskService";
+import { createInterviewRequest, createCurrentSeasonLaunchInterviews, advanceInterview } from "../lib/interviewDeskService";
 import type { InterviewAudience } from "../lib/interviewDeskMigration";
 import { logger } from "../lib/logger";
 
@@ -125,6 +125,20 @@ router.post("/admin/interview-desk/test-notification", requireAdminSession, asyn
     const detail = err?.cause?.message ?? err?.message ?? String(err);
     logger.error({ err }, "POST /admin/interview-desk/test-notification failed");
     res.status(400).json({ error: "Failed to send test notification", detail });
+  }
+});
+
+// Admin launch for the current season, useful for enabling the feature in an
+// already-running campaign and for verifying the full player-invite flow.
+// Idempotent per player/current season: repeat clicks create no duplicates.
+router.post("/admin/interview-desk/season-launch", requireAdminSession, async (_req, res): Promise<void> => {
+  try {
+    const result = await createCurrentSeasonLaunchInterviews();
+    res.json({ ok: true, ...result });
+  } catch (err: any) {
+    const detail = err?.cause?.message ?? err?.message ?? String(err);
+    logger.error({ err }, "POST /admin/interview-desk/season-launch failed");
+    res.status(400).json({ error: "Failed to prepare Season Launch interviews", detail });
   }
 });
 
