@@ -8,6 +8,7 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { getStartupStatus } from "./lib/startup-state";
 import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetLeagueSeasons, initializeSeasonResetScheduler } from "./lib/seasonReset";
 import { addLeaguesTable } from "./db/migrations/add_leagues_table";
@@ -137,6 +138,8 @@ if (!process.env.ADMIN_PIN) {
 }
 
 const app: Express = express();
+const frontendDist = process.env.FRONTEND_DIST
+  ?? path.resolve(process.cwd(), "artifacts/tkdl/dist/public");
 
 app.use(
   pinoHttp({
@@ -147,6 +150,46 @@ app.use(
     },
   }),
 );
+
+// This endpoint deliberately sits before sessions, rate limits and every
+// database-backed route. Render can therefore hand the browser the built SPA
+// as soon as Node opens its port, while main.tsx waits here until all routes
+// needed for scoring and standings are safe to use.
+app.get("/api/startup", (_req, res) => {
+  const status = getStartupStatus();
+  res.status(status.phase === "failed" ? 500 : 200).json(status);
+});
+
+app.use("/api", (req, res, next) => {
+  if (req.path === "/startup") return next();
+  const status = getStartupStatus();
+  if (status.ready) return next();
+  res.set("Retry-After", "2");
+  res.status(503).json({ error: "TKDL is starting", startup: status });
+});
+
+// Static assets do not need a session or a database connection. Serving them
+// before express-session is especially important on a Render cold start: a
+// returning browser sends its session cookie with `/`, and the old order made
+// even index.html wait for Postgres before the wake screen could appear.
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(frontendDist, {
+    setHeaders(res, filePath) {
+      if (/\/(service-worker|sw)\.js$/i.test(filePath.replaceAll("\\", "/"))) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      } else if (/\.(js|css|png|jpg|gif|svg|woff|woff2|ttf|eot)$/i.test(filePath)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
+    },
+  }));
+  app.use((req, res, next) => {
+    const status = getStartupStatus();
+    if (status.ready || req.method !== "GET" || req.path.startsWith("/api/")) return next();
+    const lastSegment = req.path.split("/").pop() ?? "";
+    if (lastSegment.includes(".")) return res.status(404).end();
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
 
 // PERFORMANCE: Cache static assets in browser (prevents re-download)
 // Mobile users benefit massively - no re-download on page reload
@@ -277,9 +320,6 @@ app.use("/api", router);
 
 // In production, serve the built frontend and handle client-side routing
 if (process.env.NODE_ENV === "production") {
-  const frontendDist = process.env.FRONTEND_DIST
-    ?? path.resolve(process.cwd(), "artifacts/tkdl/dist/public");
-  app.use(express.static(frontendDist));
   app.get("/{*splat}", (req, res) => {
     // Anything reaching here didn't match a real static file above. A
     // request for a client-side ROUTE (e.g. /dashboard, /player/42) has no
@@ -1292,15 +1332,21 @@ async function seedUsers() {
  * guard only fires on something actually catastrophic (e.g. the database
  * itself unreachable), not on any one of the ~40 individual steps below.
  */
+let collectingSchemaFailures = false;
+let schemaFailureCount = 0;
+
 async function runInitStep(name: string, fn: () => Promise<unknown> | unknown): Promise<void> {
   try {
     await fn();
   } catch (err) {
+    if (collectingSchemaFailures) schemaFailureCount++;
     logger.error({ err, step: name }, `Startup step "${name}" failed — continuing with the rest of init()`);
   }
 }
 
-async function init() {
+async function initSchemaAndData(): Promise<boolean> {
+  collectingSchemaFailures = true;
+  schemaFailureCount = 0;
   // Multi-tenant foundation — must run before anything that reads/writes
   // league-scoped tables (seedSettings included, right below).
   await runInitStep("addLeaguesTable", addLeaguesTable);
@@ -1324,12 +1370,6 @@ async function init() {
   await runInitStep("seedBroadcastSettings", seedBroadcastSettings);
   await runInitStep("seedCardDefinitions", seedCardDefinitions);
   await runInitStep("initializeFeaturedCardShopTables", initializeFeaturedCardShopTables);
-
-  // Initialize featured card shop - rotate featured cards daily
-  await runInitStep("rotateFeatureCards", async () => {
-    const { rotateFeatureCards } = await import("./services/featured-card-shop-service");
-    await rotateFeatureCards();
-  });
 
   await runInitStep("addDailyChallengeKeyColumn", addDailyChallengeKeyColumn);
   await runInitStep("addLongestLossStreakColumn", addLongestLossStreakColumn);
@@ -1439,26 +1479,33 @@ async function init() {
   await runInitStep("addDoublesMatchDeltas", addDoublesMatchDeltas);
   await runInitStep("addShiftWarsMatchSeason", addShiftWarsMatchSeason);
   await runInitStep("addIntegrityReviewAcknowledgements", addIntegrityReviewAcknowledgements);
-  await runInitStep("maybeAutoResetLeagueSeasons", maybeAutoResetLeagueSeasons);
-  // Runs after maybeAutoResetLeagueSeasons so a reset firing on this exact
-  // boot is immediately reconciled too, though with seasonReset.ts's fix
-  // that reset no longer touches these columns at all — this step's real
-  // job is repairing values any earlier reset already wiped. Safe to run
-  // every startup: see backfill_current_streaks.ts's own comment for why
-  // this recompute can never introduce a wrong value.
-  await runInitStep("backfillCurrentStreaks", backfillCurrentStreaks);
   await runInitStep("seedPlayoffMatches", seedPlayoffMatches);
+  await runInitStep("seedSessions", seedSessions);
+  await runInitStep("seedUsers", seedUsers);
+  await runInitStep("seedTitles", seedTitles);
 
-  // Initialize scheduled systems
+  collectingSchemaFailures = false;
+  const clean = schemaFailureCount === 0;
+  logger.info({ clean, failedSteps: schemaFailureCount }, "Startup schema and seed validation complete");
+  return clean;
+}
+
+async function initRuntime() {
+  // Everything below can safely start after scoring and standings become
+  // available. This keeps ordinary Render wake-ups from waiting for
+  // maintenance, editorial generation and timer registration.
+  await runInitStep("maybeAutoResetLeagueSeasons", maybeAutoResetLeagueSeasons);
+  await runInitStep("backfillCurrentStreaks", backfillCurrentStreaks);
+  await runInitStep("rotateFeatureCards", async () => {
+    const { rotateFeatureCards } = await import("./services/featured-card-shop-service");
+    await rotateFeatureCards();
+  });
   await runInitStep("initializeCoachTipsScheduler", initializeCoachTipsScheduler);
   await runInitStep("initializeRankSnapshotScheduler", initializeRankSnapshotScheduler);
   await runInitStep("initializePushBatchScheduler", initializePushBatchScheduler);
   await runInitStep("initializeFeaturedCardScheduler", initializeFeaturedCardScheduler);
   await runInitStep("initializeCommunityTopPostScheduler", initializeCommunityTopPostScheduler);
   await runInitStep("initializeSeasonResetScheduler", initializeSeasonResetScheduler);
-  await runInitStep("seedSessions", seedSessions);
-  await runInitStep("seedUsers", seedUsers);
-  await runInitStep("seedTitles", seedTitles);
   void sweepAllPlayerTitles().catch((err) => // grant any titles earned via existing achievements — fire-and-forget, but caught so a rejection can't become an unhandled crash
     logger.error({ err }, "sweepAllPlayerTitles failed (non-blocking)"));
 
@@ -1468,11 +1515,15 @@ async function init() {
     await checkAndEndSeasonIfNeeded();
   });
 
-  logger.info("Startup init complete");
+  logger.info("Deferred runtime startup complete");
 }
 
-export async function initApp() {
-  await init();
+export async function initApp(): Promise<boolean> {
+  return initSchemaAndData();
+}
+
+export async function initRuntimeApp() {
+  await initRuntime();
 }
 
 export default app;

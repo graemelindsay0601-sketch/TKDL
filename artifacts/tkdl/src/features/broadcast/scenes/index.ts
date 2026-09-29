@@ -17,6 +17,7 @@ import { InterviewScene } from "./InterviewScene";
 import { FanVerdictScene } from "./FanVerdictScene";
 import { SeasonLaunchScene } from "./SeasonLaunchScene";
 import { PlayerFocusScene } from "./PlayerFocusScene";
+import { PowerRankingsScene } from "./PowerRankingsScene";
 import type { SceneProps } from "./scene-support";
 
 export const SCENE_COMPONENTS: Record<Scene, ComponentType<SceneProps>> = {
@@ -32,11 +33,12 @@ export const SCENE_COMPONENTS: Record<Scene, ComponentType<SceneProps>> = {
   fan_verdict: FanVerdictScene,
   season_launch: SeasonLaunchScene,
   player_focus: PlayerFocusScene,
+  power_rankings: PowerRankingsScene,
 };
 
 export type { SceneProps } from "./scene-support";
 export {
   DeskScene, AnalysisScene, GraphicScene, ResultScene,
   HeadlinesScene, BreakingScene, SpotlightScene, ChampionScene, InterviewScene,
-  FanVerdictScene, SeasonLaunchScene, PlayerFocusScene,
+  FanVerdictScene, SeasonLaunchScene, PlayerFocusScene, PowerRankingsScene,
 };

@@ -62,6 +62,7 @@ export const SCENE_LABEL: Record<Scene, string> = {
   fan_verdict: "Fan Verdict",
   season_launch: "League Voices",
   player_focus: "Player Focus",
+  power_rankings: "Power Rankings",
 };
 
 /**

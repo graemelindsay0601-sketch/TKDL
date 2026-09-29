@@ -81,6 +81,7 @@ import { validateStoryFactCutoffs } from "./cutoff-snapshot-math.ts";
 import { buildEditorialFeatures } from "./editorial-features.ts";
 import { collectInterviewSegments } from "./interview-feature.ts";
 import { collectFanVerdictSegments } from "./fan-verdict.ts";
+import type { PowerRankingMatch } from "./power-rankings.ts";
 
 // ── Fixed utility dialogue (11.1's required "opening" and "closing" slots,
 // and slot 10's own documented no-LEAGUE-story fallback — see director.ts's
@@ -1189,7 +1190,7 @@ async function buildEdition(params: {
   // represented match ids are excluded from Points Swing, while the other
   // features describe aggregates/current state rather than replaying winners.
   if (closedLeagueSeasons.length === 0 && audienceSegments.length === 0) {
-    const [editorialPlayers, editorialMatches, editorialStories] = await Promise.all([
+    const [editorialPlayers, editorialMatches, editorialStories, powerRankingResult] = await Promise.all([
       db.select({
         id: playersTable.id, name: playersTable.name, elo: playersTable.elo, points: playersTable.points,
         wins: playersTable.seasonWins, losses: playersTable.seasonLosses, status: playersTable.status,
@@ -1213,7 +1214,35 @@ async function buildEdition(params: {
         sql`${broadcastStoriesTable.detectedAt} <= ${cutoffEnd}`,
         sql`${broadcastStoriesTable.seasonId} IN (SELECT id FROM seasons WHERE league_type = 'singles' AND is_active = true)`,
       )),
+      db.execute(sql`
+        SELECT 'singles'::text AS league_type, m.id, m.winner_id, m.winner_name, m.loser_id, m.loser_name,
+               m.stake, m.played_at, m.was_upset_win
+        FROM matches m JOIN seasons s ON s.id = m.season_id AND s.is_active = true
+        WHERE m.played_at <= ${cutoffEnd}
+        UNION ALL
+        SELECT 'doubles'::text, m.id, m.winner_team_id, wt.team_name, m.loser_team_id, lt.team_name,
+               m.stake, m.played_at, false
+        FROM doubles_matches m
+        JOIN doubles_teams wt ON wt.id = m.winner_team_id JOIN doubles_teams lt ON lt.id = m.loser_team_id
+        JOIN seasons s ON s.id = m.season_id AND s.is_active = true
+        WHERE m.played_at <= ${cutoffEnd}
+        UNION ALL
+        SELECT 'shift_wars'::text, m.id, m.winner_team_id, wt.name, m.loser_team_id, lt.name,
+               m.stake, m.played_at, false
+        FROM shift_wars_matches m
+        JOIN shift_wars_teams wt ON wt.id = m.winner_team_id JOIN shift_wars_teams lt ON lt.id = m.loser_team_id
+        JOIN seasons s ON s.id = m.season_id AND s.is_active = true
+        WHERE m.played_at <= ${cutoffEnd}
+      `),
     ]);
+    const powerRankingMatches = (powerRankingResult.rows as unknown as Array<{
+      league_type: LeagueType; id: number; winner_id: number; winner_name: string; loser_id: number;
+      loser_name: string; stake: number; played_at: Date | string; was_upset_win: boolean;
+    }>).map((row): PowerRankingMatch => ({
+      leagueType: row.league_type, id: Number(row.id), winnerId: Number(row.winner_id), winnerName: row.winner_name,
+      loserId: Number(row.loser_id), loserName: row.loser_name, stake: Number(row.stake ?? 0),
+      playedAt: new Date(row.played_at).toISOString(), wasUpsetWin: !!row.was_upset_win,
+    }));
     const representedMatchIds = new Set<number>();
     for (const segment of segments) {
       if (segment.storyId === null) continue;
@@ -1230,6 +1259,7 @@ async function buildEdition(params: {
       rotationKey: seedSlotKey,
       broad: isSeasonCatchUp,
       representedMatchIds,
+      powerRankingMatches,
     });
     const closingIndex = segments.findIndex(segment => segment.purpose === "closing");
     if (closingIndex >= 0) segments.splice(closingIndex, 0, ...editorial);

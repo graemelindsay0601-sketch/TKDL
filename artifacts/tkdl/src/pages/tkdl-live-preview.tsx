@@ -287,6 +287,38 @@ const SCENE_SEGMENTS: Record<Scene, Segment> = {
     validityRules: [],
     estimatedSeconds: 15,
   },
+  power_rankings: {
+    id: "preview-power-rankings",
+    type: "power_rankings",
+    leagueType: "singles",
+    storyId: null,
+    importance: "utility",
+    scene: "power_rankings",
+    dialogue: dialogue(
+      ["A", "Power Rankings time. We are counting down the five strongest Singles form lines right now."],
+      ["B", "At number five, Jamie. A form rating of 56, with two wins from the latest five."],
+      ["A", "At number four, Robert. Three wins from five have moved him into the conversation."],
+      ["B", "At number three, Sean. The recent results keep him firmly among the form players."],
+      ["A", "At number two, Graeme. Four wins from five and a positive points swing."],
+      ["B", "Richard owns the number one spot. The pressure numbers back up the results."],
+    ),
+    graphic: {
+      kind: "FormWatchGraphic",
+      data: {
+        featureTitle: "Power Rankings: On Air", leagueType: "singles", leagueLabel: "Singles",
+        rows: [
+          { id: 1, name: "Richard", rank: 1, score: 87, movement: 1, recentForm: ["W", "W", "W", "L", "W"], wins: 4, losses: 1, pointsDelta: 19 },
+          { id: 16, name: "Graeme", rank: 2, score: 82, movement: 1, recentForm: ["W", "W", "L", "W", "W"], wins: 4, losses: 1, pointsDelta: 14 },
+          { id: 3, name: "Sean", rank: 3, score: 72, movement: -2, recentForm: ["L", "W", "W", "W", "L"], wins: 3, losses: 2, pointsDelta: 7 },
+          { id: 4, name: "Robert", rank: 4, score: 66, movement: 0, recentForm: ["W", "L", "W", "L", "W"], wins: 3, losses: 2, pointsDelta: 3 },
+          { id: 5, name: "Jamie", rank: 5, score: 56, movement: null, recentForm: ["L", "W", "L", "W", "L"], wins: 2, losses: 3, pointsDelta: -2 },
+        ],
+      },
+    },
+    championInfo: null,
+    validityRules: [],
+    estimatedSeconds: 72,
+  },
 };
 
 const TICKER_ITEMS: LiveTickerItem[] = [

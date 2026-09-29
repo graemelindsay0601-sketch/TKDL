@@ -71,6 +71,10 @@ describe("sceneForSegment", () => {
     assert.equal(sceneForSegment(segment({ purpose: "player_focus", storyId: null, storyType: null })), "player_focus");
   });
 
+  test("power rankings use their dedicated countdown scene", () => {
+    assert.equal(sceneForSegment(segment({ purpose: "power_rankings", storyId: null, storyType: null })), "power_rankings");
+  });
+
   test("a CHAMPION story is always the champion scene, regardless of purpose", () => {
     assert.equal(sceneForSegment(segment({ purpose: "main_story", storyType: "CHAMPION" })), "champion");
   });

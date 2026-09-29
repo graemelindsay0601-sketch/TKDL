@@ -89,11 +89,57 @@ if ("serviceWorker" in navigator && !import.meta.env.DEV) {
 }
 
 function renderApp() {
-  createRoot(document.getElementById("root")!).render(<App />);
+  const root = document.getElementById("root")!;
+  root.replaceChildren();
+  createRoot(root).render(<App />);
+}
+
+type StartupStatus = { ready: boolean; phase: "starting" | "database" | "schema" | "ready" | "failed"; message: string };
+
+function renderWakeScreen(message: string, elapsedSeconds: number) {
+  const root = document.getElementById("root");
+  if (!root) return;
+  root.innerHTML = `
+    <main style="position:fixed;inset:0;display:grid;place-items:center;padding:24px;color:white;background:radial-gradient(circle at 18% 15%,rgba(255,0,92,.2),transparent 34%),radial-gradient(circle at 82% 85%,rgba(0,102,255,.18),transparent 36%),#05030b;font-family:Oswald,Arial,sans-serif">
+      <section style="width:min(520px,100%);text-align:center">
+        <div style="font-size:clamp(34px,10vw,64px);font-weight:950;font-style:italic;letter-spacing:-.045em;line-height:.9">TKDL <span style="color:#ff005c">LIVE</span></div>
+        <div style="width:54px;height:4px;margin:24px auto;background:linear-gradient(90deg,#ff005c,#ffd24a);box-shadow:0 0 22px rgba(255,0,92,.7);animation:tkdl-wake 1.1s ease-in-out infinite alternate"></div>
+        <h1 style="margin:0;font-size:22px;text-transform:uppercase;letter-spacing:.08em">Waking TKDL</h1>
+        <p id="tkdl-wake-message" style="margin:9px 0 0;color:rgba(255,255,255,.52);font:500 13px/1.55 Inter,Arial,sans-serif"></p>
+        <p id="tkdl-wake-time" style="margin:18px 0 0;color:rgba(255,255,255,.25);font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase"></p>
+      </section>
+      <style>@keyframes tkdl-wake{from{transform:scaleX(.35);opacity:.45}to{transform:scaleX(1);opacity:1}}</style>
+    </main>`;
+  const messageNode = document.getElementById("tkdl-wake-message");
+  const timeNode = document.getElementById("tkdl-wake-time");
+  if (messageNode) messageNode.textContent = message;
+  if (timeNode) timeNode.textContent = `${elapsedSeconds}s · Score submission and standings will open together when ready`;
+}
+
+async function waitForServerReady(): Promise<void> {
+  const startedAt = Date.now();
+  renderWakeScreen("Connecting to the server…", 0);
+  for (;;) {
+    try {
+      const response = await fetch("/api/startup", { cache: "no-store" });
+      const status = await response.json() as StartupStatus;
+      if (status.ready) return;
+      renderWakeScreen(status.message || "Preparing the league…", Math.floor((Date.now() - startedAt) / 1000));
+    } catch {
+      renderWakeScreen("The server is still waking. Retrying automatically…", Math.floor((Date.now() - startedAt) / 1000));
+    }
+    await new Promise(resolve => window.setTimeout(resolve, 1_500));
+  }
 }
 
 async function startApp() {
-  if (!import.meta.env.DEV || !("serviceWorker" in navigator)) {
+  if (!import.meta.env.DEV) {
+    await waitForServerReady();
+    renderApp();
+    return;
+  }
+
+  if (!("serviceWorker" in navigator)) {
     renderApp();
     return;
   }

@@ -24,6 +24,7 @@ import {
   programmeSegmentId, programmeModeOf, totalEstimatedSecondsForProgramme, classifyEditionLength,
   type EditionProgramme,
 } from "../broadcast/director-math";
+import { buildPowerRankings } from "../broadcast/power-rankings";
 
 /**
  * TKDL LIVE — the automated broadcast "show" feature (handover doc section
@@ -561,6 +562,7 @@ router.get("/broadcast/player-focus", async (req, res): Promise<void> => {
 
 type ChannelMatchRow = {
   league_type: LeagueType; id: number; season_id: number | null; season_name: string | null;
+  season_active: boolean | null;
   winner_id: number; winner_name: string; loser_id: number; loser_name: string;
   stake: number; game_type: string; played_at: Date | string; was_upset_win: boolean;
 };
@@ -584,19 +586,19 @@ router.get("/broadcast/channel", async (req, res): Promise<void> => {
   try {
     const [matchResult, seasonsResult, standingsResult, storyResult] = await Promise.all([
       db.execute(sql`
-        SELECT 'singles'::text AS league_type, m.id, m.season_id, s.name AS season_name,
+        SELECT 'singles'::text AS league_type, m.id, m.season_id, s.name AS season_name, s.is_active AS season_active,
                m.winner_id, m.winner_name, m.loser_id, m.loser_name,
                m.stake, m.game_type, m.played_at, m.was_upset_win
         FROM matches m LEFT JOIN seasons s ON s.id = m.season_id
         UNION ALL
-        SELECT 'doubles'::text, m.id, m.season_id, s.name,
+        SELECT 'doubles'::text, m.id, m.season_id, s.name, s.is_active,
                m.winner_team_id, wt.team_name, m.loser_team_id, lt.team_name,
                m.stake, m.game_type, m.played_at, false
         FROM doubles_matches m
         JOIN doubles_teams wt ON wt.id = m.winner_team_id JOIN doubles_teams lt ON lt.id = m.loser_team_id
         LEFT JOIN seasons s ON s.id = m.season_id
         UNION ALL
-        SELECT 'shift_wars'::text, m.id, m.season_id, s.name,
+        SELECT 'shift_wars'::text, m.id, m.season_id, s.name, s.is_active,
                m.winner_team_id, wt.name, m.loser_team_id, lt.name,
                m.stake, m.game_type, m.played_at, false
         FROM shift_wars_matches m
@@ -626,7 +628,7 @@ router.get("/broadcast/channel", async (req, res): Promise<void> => {
     ]);
 
     const matches = (matchResult.rows as unknown as ChannelMatchRow[]).map(row => ({
-      leagueType: row.league_type, id: Number(row.id), seasonId: row.season_id === null ? null : Number(row.season_id), seasonName: row.season_name,
+      leagueType: row.league_type, id: Number(row.id), seasonId: row.season_id === null ? null : Number(row.season_id), seasonName: row.season_name, seasonActive: row.season_active,
       winnerId: Number(row.winner_id), winnerName: row.winner_name, loserId: Number(row.loser_id), loserName: row.loser_name,
       stake: Number(row.stake ?? 0), gameType: row.game_type, playedAt: new Date(row.played_at).toISOString(), wasUpsetWin: !!row.was_upset_win,
     }));
@@ -691,7 +693,18 @@ router.get("/broadcast/channel", async (req, res): Promise<void> => {
       };
     });
 
-    res.json({ matchNights, rivalries, documentaries });
+    const rankingSource = (["singles", "doubles", "shift_wars"] as LeagueType[]).flatMap(leagueType => {
+      const leagueMatches = matches.filter(match => match.leagueType === leagueType);
+      const activeMatches = leagueMatches.filter(match => match.seasonActive === true);
+      return activeMatches.length ? activeMatches : leagueMatches;
+    });
+    const powerRankings = {
+      singles: buildPowerRankings(rankingSource, "singles"),
+      doubles: buildPowerRankings(rankingSource, "doubles"),
+      shift_wars: buildPowerRankings(rankingSource, "shift_wars"),
+    };
+
+    res.json({ matchNights, rivalries, documentaries, powerRankings });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }

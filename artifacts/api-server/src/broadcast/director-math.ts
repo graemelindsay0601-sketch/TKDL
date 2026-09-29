@@ -380,6 +380,8 @@ export type RunningOrderSlotPurpose =
   | "season_launch"
   /** Rotating on-air profile of one active Singles player. */
   | "player_focus"
+  /** Data-backed form table revealed from fifth to first on air. */
+  | "power_rankings"
   /** Results-update utility shown immediately after the completed-match
    * rundown. It carries a full before/after standings payload rather than
    * borrowing one detector story's narrower league facts. */

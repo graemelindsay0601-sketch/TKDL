@@ -1,6 +1,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { buildEditorialFeatures, type EditorialMatch, type EditorialPlayer } from "../editorial-features.ts";
+import type { PowerRankingMatch } from "../power-rankings.ts";
 
 const cutoff = new Date("2026-09-09T12:00:00Z");
 const players: EditorialPlayer[] = [
@@ -14,6 +15,11 @@ const matches: EditorialMatch[] = [
   { id: 10, winnerId: 1, loserId: 2, winnerName: "Alpha", loserName: "Bravo", stake: 4, playedAt: new Date("2026-09-07T18:00:00Z") },
   { id: 11, winnerId: 3, loserId: 1, winnerName: "Charlie", loserName: "Alpha", stake: 9, playedAt: new Date("2026-09-08T18:00:00Z") },
   { id: 12, winnerId: 2, loserId: 3, winnerName: "Bravo", loserName: "Charlie", stake: 6, playedAt: new Date("2026-09-10T18:00:00Z") },
+];
+const powerRankingMatches: PowerRankingMatch[] = [
+  { leagueType: "doubles", id: 201, winnerId: 20, winnerName: "Alpha & Bravo", loserId: 21, loserName: "Charlie & Delta", stake: 5, playedAt: "2026-09-08T19:00:00Z", wasUpsetWin: false },
+  { leagueType: "doubles", id: 202, winnerId: 20, winnerName: "Alpha & Bravo", loserId: 22, loserName: "Echo & Foxtrot", stake: 7, playedAt: "2026-09-09T19:00:00Z", wasUpsetWin: false },
+  { leagueType: "doubles", id: 203, winnerId: 22, winnerName: "Echo & Foxtrot", loserId: 21, loserName: "Charlie & Delta", stake: 4, playedAt: "2026-09-09T20:00:00Z", wasUpsetWin: false },
 ];
 
 function broad(representedMatchIds = new Set<number>()) {
@@ -31,6 +37,7 @@ function broad(representedMatchIds = new Set<number>()) {
     rotationKey: "week-37",
     broad: true,
     representedMatchIds,
+    powerRankingMatches,
   });
 }
 
@@ -40,7 +47,7 @@ describe("recurring editorial features", () => {
     const allText = segments.flatMap(segment => segment.dialogue.map(turn => turn.text)).join(" ");
     const wager = segments.find(segment => segment.facts?.featureTitle === "Wager of the Week");
     assert.equal(wager?.facts?.stake, 9);
-    assert.doesNotMatch(allText, /giant-killer|rankings/i);
+    assert.doesNotMatch(allText, /giant-killer/i);
     assert.doesNotMatch(allText, /2026-09-10|6 points.*Wager of the Week/i);
   });
 
@@ -120,6 +127,17 @@ describe("recurring editorial features", () => {
     assert.equal(focus?.facts?.featureTitle, "Player Focus");
     assert.ok(players.some(player => player.id === focus?.facts?.playerId));
     assert.match(focus?.dialogue.map(turn => turn.text).join(" ") ?? "", /current Singles table/);
+  });
+
+  test("power rankings create a reverse countdown from verified form rows", () => {
+    const ranking = broad().find(segment => segment.purpose === "power_rankings");
+    assert.ok(ranking);
+    assert.equal(ranking?.leagueType, "doubles");
+    assert.equal(ranking?.facts?.featureTitle, "Power Rankings: On Air");
+    assert.ok(Array.isArray(ranking?.facts?.rows));
+    assert.match(ranking?.dialogue[0]?.text ?? "", /Power Rankings time/);
+    assert.match(ranking?.dialogue.at(-1)?.text ?? "", /number one spot/);
+    assert.ok((ranking?.dialogue.length ?? 0) > 3);
   });
 
   test("host wager opinion is bounded by balances and explicitly not a recommendation", () => {

@@ -20,6 +20,7 @@ export const PREVIEW_SCENES: readonly Scene[] = [
   "fan_verdict",
   "season_launch",
   "player_focus",
+  "power_rankings",
 ];
 
 export const PREVIEW_OVERLAYS = ["none", "just_in", "breaking"] as const satisfies readonly (LiveOverlayClass | "none")[];

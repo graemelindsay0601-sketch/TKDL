@@ -1,4 +1,5 @@
 import type { ProgrammeSegment, RunningOrderSlotPurpose } from "./director-math.ts";
+import { buildPowerRankings, type PowerRankingMatch } from "./power-rankings.ts";
 
 export type EditorialPlayer = {
   id: number;
@@ -38,6 +39,8 @@ type Feature = {
   lineA: string;
   lineB: string;
   facts: Record<string, unknown>;
+  leagueType?: ProgrammeSegment["leagueType"];
+  dialogue?: ProgrammeSegment["dialogue"];
 };
 
 function turn(text: string) {
@@ -99,6 +102,7 @@ export function buildEditorialFeatures(params: {
   rotationKey: string;
   broad: boolean;
   representedMatchIds?: ReadonlySet<number>;
+  powerRankingMatches?: readonly PowerRankingMatch[];
 }): ProgrammeSegment[] {
   const active = params.players
     .filter(player => player.status !== "ELIMINATED" && player.points > 0)
@@ -109,6 +113,40 @@ export function buildEditorialFeatures(params: {
     .sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime() || a.id - b.id);
   const features: Feature[] = [];
   const matchesById = new Map(completed.map(match => [match.id, match]));
+
+  const rankingLeagues = (["singles", "doubles", "shift_wars"] as const)
+    .map(leagueType => ({ leagueType, rows: buildPowerRankings([...(params.powerRankingMatches ?? [])], leagueType, 5) }))
+    .filter(entry => entry.rows.length >= 2);
+  if (rankingLeagues.length > 0) {
+    const ranking = rankingLeagues[stableIndex(`${params.rotationKey}:power-rankings`, rankingLeagues.length)];
+    const leagueLabel = ranking.leagueType === "shift_wars" ? "Shift Wars" : ranking.leagueType === "doubles" ? "Doubles" : "Singles";
+    const reverseOrder = [...ranking.rows].reverse();
+    const dialogue = [
+      { speaker: "A" as const, text: `Power Rankings time. We are counting down the five strongest ${leagueLabel} form lines right now.`, holdSeconds: 6 },
+      ...reverseOrder.map((row, index) => ({
+        speaker: (index % 2 === 0 ? "B" : "A") as "A" | "B",
+        text: `At number ${row.rank}, ${row.name}. A form rating of ${row.score}, with ${row.wins} ${row.wins === 1 ? "win" : "wins"} from the latest ${row.wins + row.losses}.`,
+        holdSeconds: 6,
+      })),
+      { speaker: "B" as const, text: `${ranking.rows[0].name} owns the number one spot. ${ranking.rows[0].tonVerdict}`, holdSeconds: 8 },
+    ];
+    features.push({
+      key: `power-rankings-${ranking.leagueType}`,
+      purpose: "power_rankings",
+      graphicKind: "FormWatchGraphic",
+      lineA: dialogue[0].text,
+      lineB: dialogue[dialogue.length - 1].text,
+      leagueType: ranking.leagueType,
+      dialogue,
+      facts: {
+        featureTitle: "Power Rankings: On Air",
+        leagueType: ranking.leagueType,
+        leagueLabel,
+        rows: ranking.rows,
+        revealOrder: reverseOrder.map(row => row.id),
+      },
+    });
+  }
 
   if (active.length > 0) {
     const lowest = active[0];
@@ -324,16 +362,6 @@ export function buildEditorialFeatures(params: {
     facts: { featureTitle: "Elimination Leader", playerId: eliminationLeader.id, playerName: eliminationLeader.name, eliminations: eliminationLeader.eliminationsCount },
   });
 
-  if (params.players.length >= 5) {
-    const top = [...params.players].sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name) || a.id - b.id).slice(0, 5);
-    features.push({
-      key: "power-five", purpose: "analysis_or_predictor", graphicKind: "LeagueTableGraphic",
-      lineA: `Power Five: the current table top five are ${top.map(player => player.name).join(", ")}.`,
-      lineB: "This is the table order as recorded, not a subjective power rating.",
-      facts: { featureTitle: "Power Five", rows: top.map((player, index) => ({ position: index + 1, id: player.id, name: player.name, points: player.points, wins: player.wins, losses: player.losses })) },
-    });
-  }
-
   if (active.length >= 2) {
     const contenders = [...active].sort((a, b) => b.points - a.points || b.wins - a.wins || a.id - b.id);
     const [first, second] = contenders;
@@ -403,9 +431,9 @@ export function buildEditorialFeatures(params: {
       storyId: null,
       supportingStoryIds: [],
       storyType: null,
-      leagueType: "singles",
+      leagueType: feature.leagueType ?? "singles",
       lifecycleAtBroadcast: null,
-      dialogue: [a, b],
+      dialogue: feature.dialogue ?? [a, b],
       validityRules: [],
       facts: feature.facts,
       ...(feature.graphicKind ? { graphicKind: feature.graphicKind } : {}),
