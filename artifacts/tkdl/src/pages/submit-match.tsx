@@ -897,7 +897,7 @@ function DoublesSubmitSection() {
   if (activeTeams.length === 0) {
     return (
       <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
-        No doubles teams yet this season — ask an admin to run the random draw first.
+        Doubles draw pending — submissions will unlock automatically when the new season teams are ready.
       </div>
     );
   }

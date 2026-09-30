@@ -26,7 +26,16 @@ import { isScorerRecoveryState, recoveryMatchesEngine, type ScorerRecoveryState 
 const PLAY_SNAPSHOT_KEY = "tkdl_play_snapshot";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type Player = { id: number; name: string; points: number; elo: number; status: string; balanceName?: string };
+type Player = {
+  id: number;
+  name: string;
+  points: number;
+  elo: number;
+  status: string;
+  balanceName?: string;
+  avatarUpdatedAt?: string | null;
+  tagline?: string | null;
+};
 type Format = "1v1" | "2v2" | "3v3" | "uneven-teams" | "killer-ffa" | "doubles-event" | "shift-wars";
 
 type SetupData = {
@@ -113,7 +122,13 @@ type EquippedCards = {
 
 function matchNightSides(data: SetupData): MatchNightSide[] {
   if (data.format === "killer-ffa") {
-    return data.team1.map(player => ({ title: player.name, members: [player.name], points: player.points, elo: player.elo }));
+    return data.team1.map(player => ({
+      title: player.name,
+      members: [player.name],
+      players: [{ id: player.id, name: player.name, avatarUpdatedAt: player.avatarUpdatedAt, tagline: player.tagline }],
+      points: player.points,
+      elo: player.elo,
+    }));
   }
   return [data.team1, data.team2].map((team, index) => {
     const accountNames = data.wagerSides?.[index]?.map(account => account.name).filter(Boolean) ?? [];
@@ -123,6 +138,12 @@ function matchNightSides(data: SetupData): MatchNightSide[] {
     return {
       title,
       members: team.map(player => player.name),
+      players: team.map(player => ({
+        id: player.id,
+        name: player.name,
+        avatarUpdatedAt: player.avatarUpdatedAt,
+        tagline: player.tagline,
+      })),
       points: accountPoints ?? (team.length === 1 ? team[0]?.points : undefined),
       elo: averageElo,
     };
@@ -940,7 +961,7 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
             <div className="text-sm py-6 text-center" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Loading teams…</div>
           ) : activeDoublesTeams.length === 0 ? (
             <div className="text-sm py-6 text-center" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-              No doubles teams yet this season — ask an admin to run the random draw first.
+              Doubles draw pending — this match format will unlock automatically when the new season teams are ready.
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">

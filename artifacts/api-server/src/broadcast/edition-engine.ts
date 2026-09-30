@@ -1393,7 +1393,7 @@ export async function ensureCurrentBroadcastEdition(now: Date = new Date()): Pro
   const config = await getBroadcastConfig();
   const slot = resolveLogicalSlot(now, { middayTime: config.middayTime, eveningTime: config.eveningTime, nightTime: config.nightTime, timezone: config.timezone, singleDailyEpisode: config.singleDailyEpisode });
 
-  await maybeAutoResetLeagueSeasons();
+  await maybeAutoResetLeagueSeasons(now);
 
   const claim = await claimBuildOwnership(slot, now, config.programmeVersion);
   if (claim.kind === "terminal") {

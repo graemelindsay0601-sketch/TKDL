@@ -10,6 +10,13 @@ import { drawDoublesTeams } from "./doublesDraw";
 import { decideSinglesChampion } from "./singles-champion";
 import { createNotification } from "../services/notificationService";
 import { createSeasonLaunchInterviews } from "./interviewDeskService";
+import {
+  londonMonthKey,
+  londonSeasonName,
+  manualResetTiming,
+  monthlyRolloverTiming,
+  type SeasonResetTiming,
+} from "./season-calendar";
 
 /**
  * Guards a single league's reset sequence against a second concurrent
@@ -21,6 +28,8 @@ import { createSeasonLaunchInterviews } from "./interviewDeskService";
  * builds, which needed a heartbeat instead.
  */
 const SEASON_RESET_LOCK_STALE_MS = 5 * 60 * 1000;
+const DOUBLES_DRAW_RETRY_MS = 5 * 60 * 1000;
+const doublesDrawLastAttempt = new Map<number, number>();
 
 export class SeasonResetLockedError extends Error {
   constructor(leagueType: LeagueType) {
@@ -57,13 +66,10 @@ async function releaseSeasonResetLock(leagueType: LeagueType, holder: string): P
   }
 }
 
-function newSeasonName(overrideName?: string): { name: string; startDate: string } {
-  const now = new Date();
-  const monthName = now.toLocaleString("en-GB", { month: "long" });
-  const year = now.getFullYear();
+function newSeasonName(overrideName: string | undefined, timing: SeasonResetTiming): { name: string; startDate: string } {
   return {
-    name: overrideName ?? `${monthName} ${year}`,
-    startDate: now.toISOString().split("T")[0],
+    name: overrideName ?? londonSeasonName(timing.now),
+    startDate: timing.startDate,
   };
 }
 
@@ -73,19 +79,25 @@ function newSeasonName(overrideName?: string): { name: string; startDate: string
 // to league_type='singles' — Doubles and Shift Wars each have their own
 // independent lifecycle below, and no longer ride along with this one (see
 // db/migrations/add_season_league_type.ts for why that used to be a bug).
-export async function performSeasonReset(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
+export async function performSeasonReset(
+  overrideName?: string,
+  timing: SeasonResetTiming = manualResetTiming(),
+): Promise<typeof seasonsTable.$inferSelect> {
   const lockHolder = randomUUID();
-  if (!(await claimSeasonResetLock("singles", lockHolder, new Date()))) {
+  if (!(await claimSeasonResetLock("singles", lockHolder, timing.now))) {
     throw new SeasonResetLockedError("singles");
   }
   try {
-    return await performSeasonResetLocked(overrideName);
+    return await performSeasonResetLocked(overrideName, timing);
   } finally {
     await releaseSeasonResetLock("singles", lockHolder);
   }
 }
 
-async function performSeasonResetLocked(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
+async function performSeasonResetLocked(
+  overrideName: string | undefined,
+  timing: SeasonResetTiming,
+): Promise<typeof seasonsTable.$inferSelect> {
   const [currentSeason] = await db
     .select()
     .from(seasonsTable)
@@ -166,7 +178,7 @@ async function performSeasonResetLocked(overrideName?: string): Promise<typeof s
     // of whether there was a previous season to close.
     await db.update(seasonsTable).set({
       isActive: false,
-      endDate: new Date().toISOString().split("T")[0],
+      endDate: timing.endDate,
       // Prefer a champion already recorded on the season row (set via the
       // playoff-match flow) over `champion` being null here — that only
       // happens if the recorded champion has since left the active roster,
@@ -249,7 +261,7 @@ async function performSeasonResetLocked(overrideName?: string): Promise<typeof s
       })
       .where(eq(playersTable.isActive, true));
 
-    const { name, startDate } = newSeasonName(overrideName);
+    const { name, startDate } = newSeasonName(overrideName, timing);
     const [inserted] = await tx.insert(seasonsTable).values({
       name, startDate, isActive: true, leagueType: "singles",
     }).returning();
@@ -281,19 +293,25 @@ async function performSeasonResetLocked(overrideName?: string): Promise<typeof s
 // (the team with the most points is champion — there's no single "player"
 // champion here, so championId stays null and championName carries the
 // team name), then open a new one and draw fresh random pairs for it.
-export async function performDoublesSeasonReset(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
+export async function performDoublesSeasonReset(
+  overrideName?: string,
+  timing: SeasonResetTiming = manualResetTiming(),
+): Promise<typeof seasonsTable.$inferSelect> {
   const lockHolder = randomUUID();
-  if (!(await claimSeasonResetLock("doubles", lockHolder, new Date()))) {
+  if (!(await claimSeasonResetLock("doubles", lockHolder, timing.now))) {
     throw new SeasonResetLockedError("doubles");
   }
   try {
-    return await performDoublesSeasonResetLocked(overrideName);
+    return await performDoublesSeasonResetLocked(overrideName, timing);
   } finally {
     await releaseSeasonResetLock("doubles", lockHolder);
   }
 }
 
-async function performDoublesSeasonResetLocked(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
+async function performDoublesSeasonResetLocked(
+  overrideName: string | undefined,
+  timing: SeasonResetTiming,
+): Promise<typeof seasonsTable.$inferSelect> {
   const [currentSeason] = await db
     .select()
     .from(seasonsTable)
@@ -314,12 +332,12 @@ async function performDoublesSeasonResetLocked(overrideName?: string): Promise<t
   // Close the old season (if any) and open the new one together — a crash
   // between the two used to be able to leave the league with no active
   // doubles season at all.
-  const { name, startDate } = newSeasonName(overrideName);
+  const { name, startDate } = newSeasonName(overrideName, timing);
   const newSeason = await db.transaction(async (tx) => {
     if (currentSeason) {
       await tx.update(seasonsTable).set({
         isActive: false,
-        endDate: new Date().toISOString().split("T")[0],
+        endDate: timing.endDate,
         championName: closedChampionName,
       }).where(eq(seasonsTable.id, currentSeason.id));
     }
@@ -353,68 +371,76 @@ async function performDoublesSeasonResetLocked(overrideName?: string): Promise<t
 // into shift_wars_season_history before wiping it, then reset every team's
 // points/record back to its configured starting_points. The roster and
 // teams themselves are permanent and never touched here.
-export async function performShiftWarsSeasonReset(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
+export async function performShiftWarsSeasonReset(
+  overrideName?: string,
+  timing: SeasonResetTiming = manualResetTiming(),
+): Promise<typeof seasonsTable.$inferSelect> {
   const lockHolder = randomUUID();
-  if (!(await claimSeasonResetLock("shift_wars", lockHolder, new Date()))) {
+  if (!(await claimSeasonResetLock("shift_wars", lockHolder, timing.now))) {
     throw new SeasonResetLockedError("shift_wars");
   }
   try {
-    return await performShiftWarsSeasonResetLocked(overrideName);
+    return await performShiftWarsSeasonResetLocked(overrideName, timing);
   } finally {
     await releaseSeasonResetLock("shift_wars", lockHolder);
   }
 }
 
-async function performShiftWarsSeasonResetLocked(overrideName?: string): Promise<typeof seasonsTable.$inferSelect> {
+async function performShiftWarsSeasonResetLocked(
+  overrideName: string | undefined,
+  timing: SeasonResetTiming,
+): Promise<typeof seasonsTable.$inferSelect> {
   const [currentSeason] = await db
     .select()
     .from(seasonsTable)
     .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "shift_wars")))
     .limit(1);
 
-  if (currentSeason) {
-    try {
-      const swRows = (await db.execute(sql`SELECT * FROM shift_wars_teams ORDER BY points DESC, name ASC`)).rows as any[];
-      let champion: string | null = null;
-      if (swRows.length > 0) {
-        const topPoints = swRows[0].points;
-        champion = swRows[0].name;
-        for (const t of swRows) {
-          await db.execute(sql`
-            INSERT INTO shift_wars_season_history (season_id, team_id, team_name, points, wins, losses, is_champion)
-            VALUES (${currentSeason.id}, ${t.id}, ${t.name}, ${t.points}, ${t.wins}, ${t.losses}, ${t.points === topPoints})
-          `);
-        }
-        logger.info({ seasonId: currentSeason.id }, "Shift Wars season history snapshot saved");
+  const { name, startDate } = newSeasonName(overrideName, timing);
+  const newSeason = await db.transaction(async tx => {
+    if (currentSeason) {
+      const swRows = (await tx.execute(sql`
+        SELECT * FROM shift_wars_teams ORDER BY points DESC, name ASC
+      `)).rows as any[];
+      const topPoints = swRows[0]?.points;
+      const champion = swRows[0]?.name ?? null;
+
+      // Remove any partial snapshot left by an older pre-transaction reset,
+      // then recreate the final table inside this transaction.
+      await tx.execute(sql`DELETE FROM shift_wars_season_history WHERE season_id = ${currentSeason.id}`);
+      for (const team of swRows) {
+        await tx.execute(sql`
+          INSERT INTO shift_wars_season_history (season_id, team_id, team_name, points, wins, losses, is_champion)
+          VALUES (${currentSeason.id}, ${team.id}, ${team.name}, ${team.points}, ${team.wins}, ${team.losses}, ${team.points === topPoints})
+        `);
       }
 
-      await db.update(seasonsTable).set({
+      await tx.update(seasonsTable).set({
         isActive: false,
-        endDate: new Date().toISOString().split("T")[0],
+        endDate: timing.endDate,
         championName: champion,
       }).where(eq(seasonsTable.id, currentSeason.id));
-    } catch (err) {
-      logger.error({ err, seasonId: currentSeason.id }, "Shift Wars season history snapshot failed");
     }
-  }
 
-  const { name, startDate } = newSeasonName(overrideName);
-  const [newSeason] = await db.insert(seasonsTable).values({
-    name, startDate, isActive: true, leagueType: "shift_wars",
-  }).returning();
+    const [inserted] = await tx.insert(seasonsTable).values({
+      name, startDate, isActive: true, leagueType: "shift_wars",
+    }).returning();
 
-  try {
-    await db.execute(sql`
+    await tx.execute(sql`
       UPDATE shift_wars_teams SET
         points      = starting_points,
         peak_points = starting_points,
         wins        = 0,
         losses      = 0
     `);
-    logger.info("Shift Wars points reset for new season");
-  } catch (err) {
-    logger.error({ err }, "Shift Wars points reset failed");
+
+    return inserted;
+  });
+
+  if (currentSeason) {
+    logger.info({ seasonId: currentSeason.id }, "Shift Wars season history snapshot saved");
   }
+  logger.info("Shift Wars points reset for new season");
 
   logger.info({ newSeasonId: newSeason.id, name: newSeason.name }, "New Shift Wars season started");
   return newSeason;
@@ -425,9 +451,59 @@ async function performShiftWarsSeasonResetLocked(overrideName?: string): Promise
 // calendar month — Doubles or Shift Wars starting mid-August no longer
 // forces (or gets forced by) a Singles reset on September 1st just because
 // they used to share one row.
+async function ensureDoublesSeasonDrawn(
+  season: typeof seasonsTable.$inferSelect,
+  now: Date,
+): Promise<void> {
+  const existing = (await db.execute(sql`
+    SELECT id FROM doubles_teams WHERE season_id = ${season.id} LIMIT 1
+  `)).rows;
+  if (existing.length > 0) {
+    doublesDrawLastAttempt.delete(season.id);
+    return;
+  }
+
+  // TKDL LIVE also performs the season-readiness check while looking for a
+  // new Edition. If a draw cannot yet run (for example fewer than two active
+  // players), avoid turning its minute poll into a minute-by-minute draw and
+  // log retry. A normal rollover still attempts immediately.
+  const lastAttempt = doublesDrawLastAttempt.get(season.id) ?? 0;
+  if (now.getTime() - lastAttempt < DOUBLES_DRAW_RETRY_MS) return;
+  doublesDrawLastAttempt.set(season.id, now.getTime());
+
+  // Use the same cross-process lock as a reset. Startup, the broadcast
+  // builder and the scheduled check can all notice an empty season at once;
+  // only one of them should actually create the pairings.
+  const lockHolder = randomUUID();
+  if (!(await claimSeasonResetLock("doubles", lockHolder, now))) {
+    logger.info({ seasonId: season.id }, "Doubles draw recovery deferred — another season task is running");
+    return;
+  }
+
+  try {
+    const recheck = (await db.execute(sql`
+      SELECT id FROM doubles_teams WHERE season_id = ${season.id} LIMIT 1
+    `)).rows;
+    if (recheck.length > 0) return;
+
+    const draw = await drawDoublesTeams(season.id);
+    if (draw.ok) {
+      logger.info({ seasonId: season.id, teams: draw.teams.length }, "Doubles waiting season automatically drawn");
+    } else {
+      logger.warn({ seasonId: season.id, error: draw.error }, "Doubles waiting season is not ready to draw yet");
+    }
+  } catch (err) {
+    logger.error({ err, seasonId: season.id }, "Doubles automatic draw recovery failed");
+  } finally {
+    await releaseSeasonResetLock("doubles", lockHolder);
+  }
+}
+
 async function maybeAutoResetLeague(
   leagueType: LeagueType,
-  resetFn: () => Promise<typeof seasonsTable.$inferSelect>,
+  resetFn: (timing: SeasonResetTiming) => Promise<typeof seasonsTable.$inferSelect>,
+  now: Date,
+  ensureReady?: (season: typeof seasonsTable.$inferSelect, now: Date) => Promise<void>,
 ): Promise<void> {
   const [current] = await db
     .select()
@@ -437,18 +513,22 @@ async function maybeAutoResetLeague(
     .limit(1);
 
   if (!current) {
-    logger.info({ leagueType }, "No active season found on startup, skipping auto-reset");
+    logger.info({ leagueType }, "No active season found — creating the current month's season automatically");
+    const created = await resetFn(monthlyRolloverTiming(now));
+    await ensureReady?.(created, now);
     return;
   }
 
-  const start = new Date(current.startDate);
-  const now = new Date();
-  const sameMonth = start.getMonth() === now.getMonth() && start.getFullYear() === now.getFullYear();
+  // startDate is a calendar date, so compare its YYYY-MM portion directly.
+  // Parsing it through Date would move it between dates in some server
+  // time zones around midnight.
+  const sameMonth = current.startDate.slice(0, 7) === londonMonthKey(now);
 
   if (!sameMonth) {
     logger.info({ leagueType, currentSeasonId: current.id }, "Auto season reset triggered (new month)");
     try {
-      await resetFn();
+      const created = await resetFn(monthlyRolloverTiming(now));
+      await ensureReady?.(created, now);
     } catch (err) {
       if (err instanceof SeasonResetLockedError) {
         // Expected, not a failure: something else (a manual admin reset, or
@@ -460,13 +540,21 @@ async function maybeAutoResetLeague(
       }
       throw err;
     }
+    return;
   }
+
+  await ensureReady?.(current, now);
 }
 
-export async function maybeAutoResetLeagueSeasons(): Promise<void> {
-  await maybeAutoResetLeague("singles", () => performSeasonReset());
-  await maybeAutoResetLeague("doubles", () => performDoublesSeasonReset());
-  await maybeAutoResetLeague("shift_wars", () => performShiftWarsSeasonReset());
+export async function maybeAutoResetLeagueSeasons(now = new Date()): Promise<void> {
+  await maybeAutoResetLeague("singles", timing => performSeasonReset(undefined, timing), now);
+  await maybeAutoResetLeague(
+    "doubles",
+    timing => performDoublesSeasonReset(undefined, timing),
+    now,
+    ensureDoublesSeasonDrawn,
+  );
+  await maybeAutoResetLeague("shift_wars", timing => performShiftWarsSeasonReset(undefined, timing), now);
 }
 
 // ── Scheduled auto-reset ─────────────────────────────────────────────────
@@ -481,9 +569,10 @@ export async function maybeAutoResetLeagueSeasons(): Promise<void> {
 // month), so a daily cadence is safe to run indefinitely.
 export function initializeSeasonResetScheduler(): void {
   try {
-    // Every day at 00:15 UTC — after the 00:05 featured-card rotation, well
-    // clear of midnight-boundary races.
-    cron.schedule("15 0 * * *", async () => {
+    // Run at league midnight in both GMT and BST. The daily cadence is a
+    // recovery path: only day one can normally cause a rollover, while a
+    // later check can repair a transient failure or finish a delayed draw.
+    cron.schedule("0 0 * * *", async () => {
       try {
         await maybeAutoResetLeagueSeasons();
         logger.info("Season auto-reset: daily check complete");
@@ -492,9 +581,10 @@ export function initializeSeasonResetScheduler(): void {
       }
     }, {
       runOnInit: false,
+      timezone: "Europe/London",
     });
 
-    logger.info("Season auto-reset scheduler initialized (daily at 00:15 UTC)");
+    logger.info("Season auto-reset scheduler initialized (daily at 00:00 Europe/London)");
   } catch (error) {
     logger.error({ error }, "Failed to initialize season auto-reset scheduler");
   }

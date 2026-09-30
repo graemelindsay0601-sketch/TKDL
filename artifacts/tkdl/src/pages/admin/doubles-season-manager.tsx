@@ -108,8 +108,11 @@ export function DoublesSeasonManager() {
           </div>
         </div>
         <span className="flex items-center gap-1 text-xs px-2 py-1 rounded shrink-0"
-          style={{ background: "rgba(255,0,92,0.15)", color: "#ff005c", border: "1px solid rgba(255,0,92,0.3)" }}>
-          <span className="live-dot" style={{ width: 5, height: 5 }} />LIVE
+          style={teams.length > 0
+            ? { background: "rgba(255,0,92,0.15)", color: "#ff005c", border: "1px solid rgba(255,0,92,0.3)" }
+            : { background: "rgba(255,210,74,0.12)", color: "#ffd24a", border: "1px solid rgba(255,210,74,0.28)" }}>
+          <span className={teams.length > 0 ? "live-dot" : ""} style={{ width: 5, height: 5, borderRadius: "50%", background: teams.length > 0 ? undefined : "#ffd24a" }} />
+          {teams.length > 0 ? "LIVE" : "WAITING FOR DRAW"}
         </span>
       </div>
 
@@ -144,7 +147,9 @@ export function DoublesSeasonManager() {
         </div>
 
         {teams.length === 0 ? (
-          <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>No doubles teams yet for this season.</div>
+          <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+            Waiting for the automatic draw. This check retries on startup and at league midnight; the button above remains available as a fallback.
+          </div>
         ) : (
           <div className="space-y-1">
             {teams.map((t: any) => (

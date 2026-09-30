@@ -52,6 +52,69 @@ const router = Router();
 
 class DoublesConflictError extends Error {}
 
+// ── Partnership chemistry across every Doubles season ────────────────────────
+
+router.get("/doubles/chemistry", async (_req, res): Promise<void> => {
+  const rows = await db.execute(sql`
+    WITH team_members AS (
+      SELECT dt.id AS team_id, dt.season_id, dt.wins, dt.losses,
+             s.name AS season_name, s.start_date, s.is_active,
+             member.player_id
+      FROM doubles_teams dt
+      JOIN seasons s ON s.id = dt.season_id AND s.league_type = 'doubles'
+      CROSS JOIN LATERAL (
+        VALUES (dt.player1_id), (dt.player2_id), (dt.player3_id)
+      ) AS member(player_id)
+      WHERE member.player_id IS NOT NULL
+    ), partnerships AS (
+      SELECT left_member.player_id AS player1_id,
+             right_member.player_id AS player2_id,
+             left_member.season_id, left_member.season_name,
+             left_member.start_date, left_member.is_active,
+             left_member.wins, left_member.losses
+      FROM team_members left_member
+      JOIN team_members right_member
+        ON right_member.team_id = left_member.team_id
+       AND right_member.player_id > left_member.player_id
+    )
+    SELECT partnership.player1_id, p1.name AS player1_name,
+           partnership.player2_id, p2.name AS player2_name,
+           COUNT(*)::int AS seasons_together,
+           SUM(partnership.wins)::int AS wins,
+           SUM(partnership.losses)::int AS losses,
+           BOOL_OR(partnership.is_active) AS current_pairing,
+           (ARRAY_AGG(partnership.season_name ORDER BY partnership.start_date DESC))[1] AS latest_season_name,
+           MAX(partnership.start_date) AS last_teamed_at
+    FROM partnerships partnership
+    JOIN players p1 ON p1.id = partnership.player1_id
+    JOIN players p2 ON p2.id = partnership.player2_id
+    GROUP BY partnership.player1_id, p1.name, partnership.player2_id, p2.name
+    ORDER BY (SUM(partnership.wins) + SUM(partnership.losses)) DESC,
+             SUM(partnership.wins) DESC, COUNT(*) DESC,
+             p1.name ASC, p2.name ASC
+  `);
+
+  res.json((rows.rows as any[]).map(row => {
+    const wins = Number(row.wins ?? 0);
+    const losses = Number(row.losses ?? 0);
+    const matches = wins + losses;
+    return {
+      player1Id: Number(row.player1_id),
+      player1Name: row.player1_name,
+      player2Id: Number(row.player2_id),
+      player2Name: row.player2_name,
+      seasonsTogether: Number(row.seasons_together),
+      wins,
+      losses,
+      matches,
+      winRate: matches > 0 ? Math.round((wins / matches) * 100) : null,
+      currentPairing: Boolean(row.current_pairing),
+      latestSeasonName: row.latest_season_name,
+      lastTeamedAt: row.last_teamed_at,
+    };
+  }));
+});
+
 // ── Team standings for a season ─────────────────────────────────────────────────
 
 router.get("/seasons/:id/doubles/teams", async (req, res): Promise<void> => {

@@ -647,7 +647,7 @@ export default function SeasonDetail() {
                 </div>
               ) : doublesTeams.length === 0 ? (
                 <div className="px-4 py-10 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
-                  No doubles teams yet — an admin needs to run the random draw for the current Doubles Event season.
+                  Doubles draw pending — the new season teams will appear automatically when the draw completes.
                 </div>
               ) : (
                 <>

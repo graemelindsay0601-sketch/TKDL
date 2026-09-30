@@ -163,6 +163,52 @@ function DoublesRow({ team, idx }: { team: any; idx: number }) {
   );
 }
 
+function DoublesChemistry({ partnerships }: { partnerships: any[] }) {
+  if (partnerships.length === 0) return null;
+  const strongestMatchCount = Math.max(...partnerships.map(pair => pair.matches), 1);
+
+  return (
+    <section className="pdc-card p-4 mt-5" style={{ borderColor: "rgba(0,102,255,0.2)", background: "linear-gradient(145deg,rgba(0,102,255,0.07),rgba(255,255,255,0.015))" }}>
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <div className="flex items-center gap-2 text-xs uppercase tracking-widest font-black" style={{ fontFamily: "Oswald, sans-serif", color: "#38bdf8" }}>
+            <Users className="w-4 h-4" /> Partnership Chemistry
+          </div>
+          <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Every pairing across every Doubles Event season, including partnerships formed inside a triple.</p>
+        </div>
+        <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ color: "#0066ff", background: "rgba(0,102,255,0.12)", border: "1px solid rgba(0,102,255,0.22)" }}>{partnerships.length} pairings</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+        {partnerships.map((pair, index) => {
+          const activityWidth = pair.matches > 0 ? Math.max(8, Math.round((pair.matches / strongestMatchCount) * 100)) : 4;
+          return (
+            <article key={`${pair.player1Id}-${pair.player2Id}`} className="rounded-xl p-3" style={{ background: "rgba(5,3,11,0.55)", border: `1px solid ${pair.currentPairing ? "rgba(255,210,74,0.3)" : "rgba(255,255,255,0.07)"}` }}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 font-black uppercase truncate" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>
+                  <Link href={`/players/${pair.player1Id}`} className="hover:underline">{pair.player1Name}</Link>
+                  <span style={{ color: "#0066ff" }}> + </span>
+                  <Link href={`/players/${pair.player2Id}`} className="hover:underline">{pair.player2Name}</Link>
+                </div>
+                {pair.currentPairing
+                  ? <span className="shrink-0 text-[0.58rem] font-black uppercase px-1.5 py-0.5 rounded" style={{ color: "#ffd24a", background: "rgba(255,210,74,0.1)" }}>Current</span>
+                  : index === 0 && pair.matches > 0 ? <span className="shrink-0 text-[0.58rem] font-black uppercase px-1.5 py-0.5 rounded" style={{ color: "#38bdf8", background: "rgba(56,189,248,0.1)" }}>Most played</span> : null}
+              </div>
+              <div className="flex items-center gap-3 mt-2 text-xs" style={{ color: "rgba(255,255,255,0.42)" }}>
+                <span><b style={{ color: "#22c55e" }}>{pair.wins}W</b> · <b style={{ color: "#ff005c" }}>{pair.losses}L</b></span>
+                <span>{pair.winRate === null ? "No matches yet" : `${pair.winRate}% win rate`}</span>
+                <span>{pair.seasonsTogether} season{pair.seasonsTogether === 1 ? "" : "s"}</span>
+              </div>
+              <div className="h-1 rounded-full mt-2.5 overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <div className="h-full rounded-full" style={{ width: `${activityWidth}%`, background: pair.currentPairing ? "linear-gradient(90deg,#ffd24a,#0066ff)" : "linear-gradient(90deg,#0066ff,#38bdf8)" }} />
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function ShiftWarsRow({ team, idx }: { team: any; idx: number }) {
   const isTop3 = idx < 3;
   const pColor = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
@@ -494,6 +540,11 @@ export default function Standings() {
     },
     enabled:  mode === "doubles",
   });
+  const { data: doublesChemistryData } = useQuery({
+    queryKey: ["doubles-chemistry"],
+    queryFn: () => fetch("/api/doubles/chemistry").then(r => r.json()),
+    enabled: mode === "doubles",
+  });
   const { data: shiftWarsData, isLoading: shiftWarsLoading } = useQuery({
     queryKey: ["leaderboard-shiftwars"],
     queryFn:  () => fetch("/api/shift-wars/teams").then(r => r.json()),
@@ -525,6 +576,7 @@ export default function Standings() {
   const m501Rows      = (m501Data    ?? []) as any[];
   const recordsRows   = (recordsData ?? []) as any[];
   const doublesRows   = (doublesData ?? []) as any[];
+  const doublesChemistryRows = Array.isArray(doublesChemistryData) ? doublesChemistryData as any[] : [];
   const shiftWarsRows = (shiftWarsData ?? []) as any[];
   const shiftWarsHistoryRows = (shiftWarsHistoryData ?? []) as any[];
   const maxDarts   = Math.max(...botRows.map(r => r.totalDarts), 1);
@@ -544,7 +596,7 @@ export default function Standings() {
     tour:        <>Tour trophy cabinet rankings across all 61 tours</>,
     master501:   <>Tier progression · win/loss · best avg · 180s · checkout %</>,
     records:     <>Highest single-leg checkouts ever recorded in practice</>,
-    doubles:     <>Randomly drawn 2-player teams · runs alongside the main season</>,
+    doubles:     <>Randomly drawn 2–3 player teams · partnership history across every season</>,
     shiftwars:   <>Fixed department teams · points only, no reroll</>,
   };
 
@@ -703,9 +755,10 @@ export default function Standings() {
               {doublesRows.map((team, idx) => <DoublesRow key={team.id} team={team} idx={idx} />)}
               {doublesRows.length === 0 && (
                 <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
-                  No doubles teams yet this season — an admin needs to run the random draw.
+                  Doubles draw pending — teams will appear here automatically when the new season draw completes.
                 </div>
               )}
+              <DoublesChemistry partnerships={doublesChemistryRows} />
             </div>
           )}
 
