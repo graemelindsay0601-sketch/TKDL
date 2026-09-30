@@ -66,11 +66,14 @@ router.get("/notifications/unread-count", async (req, res): Promise<void> => {
           WHERE player_id = ${playerId} AND read_at IS NULL AND type = ANY(${types}::text[])
         `)
       : await db.execute(sql`
-          SELECT COUNT(*)::int AS count
+          SELECT
+            COUNT(*)::int AS count,
+            COUNT(*) FILTER (WHERE type = ANY(${["post_approved", "post_liked", "post_commented", "auto_post_fired"]}::text[]))::int AS community_count
           FROM notifications
           WHERE player_id = ${playerId} AND read_at IS NULL
         `);
-    res.json(rows.rows[0] ?? { count: 0 });
+    const row = rows.rows[0] as { count?: number; community_count?: number } | undefined;
+    res.json({ count: row?.count ?? 0, ...(types.length === 0 ? { communityCount: row?.community_count ?? 0 } : {}) });
   } catch {
     res.json({ count: 0 });
   }

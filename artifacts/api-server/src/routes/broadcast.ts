@@ -47,8 +47,8 @@ import { buildPowerRankings } from "../broadcast/power-rankings";
  *
  * isAdmin comes from req.session.isAdmin (set at login in routes/auth.ts,
  * the same real session flag requireAdminSession.ts checks) — NOT from
- * req.user, which is never actually populated anywhere in this codebase
- * (see the now-dead isAdmin check in card-clash.ts's /feature-status route).
+ * req.user, which is never actually populated anywhere in this codebase.
+ * Card Clash's feature-status route now follows this same session pattern.
  */
 
 const router = Router();

@@ -39,7 +39,7 @@ import { paramStr } from "../lib/http";
 const router = Router();
 
 // === AUTO-FIX CARD CLASH ON STARTUP ===
-async function autoFixCardClash() {
+export async function initializeCardClashSchema() {
   try {
     logger.info("🔧 [STARTUP] Running Card Clash auto-fix...");
 
@@ -71,13 +71,34 @@ async function autoFixCardClash() {
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS cards_used_in_match JSON`,
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_1_points_earned INTEGER DEFAULT 0`,
       sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS player_2_points_earned INTEGER DEFAULT 0`,
-      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS is_mock BOOLEAN NOT NULL DEFAULT false`,
+      // The Drizzle schema and every query in this feature use 0/1. Older
+      // startup code created this as BOOLEAN on a fresh database, which made
+      // inserts and `is_mock = 0` filters fail depending on database history.
+      sql`ALTER TABLE card_clash_matches ADD COLUMN IF NOT EXISTS is_mock INTEGER NOT NULL DEFAULT 0`,
       // Drop NOT NULL on season_id so matches can exist without a season
       sql`ALTER TABLE card_clash_matches ALTER COLUMN season_id DROP NOT NULL`,
       sql`ALTER TABLE card_clash_matches DROP CONSTRAINT IF EXISTS card_clash_matches_season_id_card_clash_seasons_id_fk`,
     ]) {
       try { await db.execute(alter); } catch (e) { logger.warn({ e }, "matches column alter skipped"); }
     }
+    // Repair any database that already received the incorrect BOOLEAN
+    // version before the declaration above was corrected.
+    await db.execute(sql`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'card_clash_matches'
+            AND column_name = 'is_mock'
+            AND data_type = 'boolean'
+        ) THEN
+          ALTER TABLE card_clash_matches ALTER COLUMN is_mock DROP DEFAULT;
+          ALTER TABLE card_clash_matches
+            ALTER COLUMN is_mock TYPE INTEGER USING (CASE WHEN is_mock THEN 1 ELSE 0 END);
+          ALTER TABLE card_clash_matches ALTER COLUMN is_mock SET DEFAULT 0;
+        END IF;
+      END $$
+    `);
     logger.info("✓ card_clash_matches columns verified");
 
     // Fix 1: Ensure card_pity_system table exists with correct schema
@@ -124,9 +145,6 @@ async function autoFixCardClash() {
     logger.error({ error }, "⚠️ [STARTUP] Card Clash auto-fix failed - may need manual intervention");
   }
 }
-
-// Run auto-fix on module load
-autoFixCardClash().catch(err => logger.error({ err }, "Auto-fix error during startup"));
 
 // Admin gate — see middleware/requireAdminSession.ts. Previously this checked
 // a raw PIN sent with every request; now it trusts the same rate-limited
@@ -867,9 +885,11 @@ import { getFeatureStatus, FEATURES } from "../services/feature-flags-service";
 
 router.get("/feature-status", async (req: Request, res: Response) => {
   try {
-    // Get player ID from session/auth if available
-    const userId = (req as any).user?.playerId;
-    const isAdmin = (req as any).user?.isAdmin ?? false;
+    // This app stores auth on the session; req.user is never populated.
+    // Reading req.user here made every real admin look logged out and meant
+    // admin-only feature previews were always reported as unavailable.
+    const userId = (req.session as any)?.playerId ?? null;
+    const isAdmin = (req.session as any)?.isAdmin === true;
 
     // Return all feature statuses
     const [cardShop, coins, cardClash] = await Promise.all([
@@ -900,11 +920,21 @@ router.post("/login/daily", async (req: Request, res: Response) => {
       return;
     }
 
+    const sessionPlayerId = Number((req.session as any)?.playerId);
+    if (!Number.isInteger(sessionPlayerId) || sessionPlayerId < 1) {
+      res.status(401).json({ error: "Login required" });
+      return;
+    }
+    if (sessionPlayerId !== Number(playerId)) {
+      res.status(403).json({ error: "You can only claim your own daily reward" });
+      return;
+    }
+
     const { cardClashLoginService } = await import("../services/card-clash-login-service");
-    const reward = await cardClashLoginService.handleDailyLogin(playerId);
+    const reward = await cardClashLoginService.handleDailyLogin(sessionPlayerId);
 
     // Check login-streak achievements (fire-and-forget)
-    checkAndAwardCCAchievements(playerId).catch(() => {});
+    checkAndAwardCCAchievements(sessionPlayerId).catch(() => {});
     res.json({ success: true, reward });
   } catch (error) {
     logger.error({ error }, "Daily login error:");

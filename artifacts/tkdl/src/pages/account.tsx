@@ -525,7 +525,12 @@ export default function AccountPage() {
   const [statSaving, setStatSaving] = useState(false);
 
   // ── Tab + Community state ────────────────────────────────────────────
-  const [activeTab,        setActiveTab]       = useState<"overview" | "activity" | "achievements" | "coach" | "social" | "stats" | "analytics" | "cards" | "challenges" | "cosmetics" | "wallet">("overview");
+  type AccountTab = "overview" | "activity" | "achievements" | "coach" | "social" | "stats" | "analytics" | "cards" | "challenges" | "cosmetics" | "wallet";
+  const ACCOUNT_TABS: readonly AccountTab[] = ["overview", "activity", "achievements", "coach", "social", "stats", "analytics", "cards", "challenges", "cosmetics", "wallet"];
+  const [activeTab, setActiveTab] = useState<AccountTab>(() => {
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    return ACCOUNT_TABS.includes(requested as AccountTab) ? requested as AccountTab : "overview";
+  });
   const [socialTab,        setSocialTab]       = useState<"dms" | "notifications" | "photos">("dms");
   const [achSource,        setAchSource]       = useState<"league" | "bot" | "tour" | "m501">("league");
   const [coachDrills,      setCoachDrills]     = useState<any[]>([]);
@@ -566,32 +571,68 @@ export default function AccountPage() {
   const msgFileRef = useRef<HTMLInputElement>(null);
   const threadRef  = useRef<HTMLDivElement>(null);
 
+  const accountLoadPlayer = useRef<number | null>(null);
+  const accountLoadGroups = useRef(new Set<string>());
+  const claimAccountLoad = (playerId: number, group: string) => {
+    if (accountLoadPlayer.current !== playerId) {
+      accountLoadPlayer.current = playerId;
+      accountLoadGroups.current.clear();
+    }
+    if (accountLoadGroups.current.has(group)) return false;
+    accountLoadGroups.current.add(group);
+    return true;
+  };
+
+  // Load the identity and season data used by the persistent account header
+  // first. Heavier activity and achievement systems are fetched only for the
+  // tabs that render them, so a direct link to Cards, Wallet or Social no
+  // longer fans out across every account subsystem.
   useEffect(() => {
-    if (!user?.playerId) return;
+    if (!user?.playerId || !claimAccountLoad(user.playerId, "base")) return;
     const id = user.playerId;
     void Promise.all([
       fetch(`/api/players/${id}/stats`).then(r => r.ok ? r.json() : null).then(setStats),
       fetch(`/api/players/${id}/gamerscore`).then(r => r.ok ? r.json() : null).then(setGamerscore),
-      fetch(`/api/players/${id}/practice-stats`).then(r => r.ok ? r.json() : null).then(setPractice),
-      fetch(`/api/master501/progress/${id}`).then(r => r.ok ? r.json() : null).then(setM501),
-      fetch(`/api/tour/trophies/${id}`).then(r => r.ok ? r.json() : []).then(setTrophies),
-      fetch(`/api/tour/runs/${id}`).then(r => r.ok ? r.json() : []).then(setTourRuns),
-      fetch(`/api/players/${id}/shadow-bot-stats`).then(r => r.ok ? r.json() : null).then(setShadow),
-      fetch(`/api/players/${id}/shadow-achievements`).then(r => r.ok ? r.json() : []).then(setShadowAchs),
-      fetch(`/api/tour/achievements/${id}`).then(r => r.ok ? r.json() : []).then(setTourAchs),
-      fetch(`/api/players/${id}/achievement-progress`).then(r => r.ok ? r.json() : []).then(setAchProgress),
       fetch(`/api/players/${id}/elo-history`).then(r => r.ok ? r.json() : {}).then((d: any) => setEloHistory(d.history ?? [])),
       fetch(`/api/players/${id}/titles`).then(r => r.ok ? r.json() : []).then(setTitleList),
     ]);
   }, [user?.playerId]);
 
   useEffect(() => {
-    if (!user?.playerId) return;
+    if (!user?.playerId || !["overview", "activity"].includes(activeTab) || !claimAccountLoad(user.playerId, "activity")) return;
+    const id = user.playerId;
+    void Promise.all([
+      fetch(`/api/players/${id}/practice-stats`).then(r => r.ok ? r.json() : null).then(setPractice),
+      fetch(`/api/master501/progress/${id}`).then(r => r.ok ? r.json() : null).then(setM501),
+      fetch(`/api/tour/trophies/${id}`).then(r => r.ok ? r.json() : []).then(setTrophies),
+      fetch(`/api/tour/runs/${id}`).then(r => r.ok ? r.json() : []).then(setTourRuns),
+      fetch(`/api/players/${id}/shadow-bot-stats`).then(r => r.ok ? r.json() : null).then(setShadow),
+    ]);
+  }, [activeTab, user?.playerId]);
+
+  useEffect(() => {
+    if (!user?.playerId || !["overview", "achievements"].includes(activeTab) || !claimAccountLoad(user.playerId, "achievement-progress")) return;
+    fetch(`/api/players/${user.playerId}/achievement-progress`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setAchProgress);
+  }, [activeTab, user?.playerId]);
+
+  useEffect(() => {
+    if (!user?.playerId || activeTab !== "achievements" || !claimAccountLoad(user.playerId, "achievement-catalogs")) return;
+    const id = user.playerId;
+    void Promise.all([
+      fetch(`/api/players/${id}/shadow-achievements`).then(r => r.ok ? r.json() : []).then(setShadowAchs),
+      fetch(`/api/tour/achievements/${id}`).then(r => r.ok ? r.json() : []).then(setTourAchs),
+    ]);
+  }, [activeTab, user?.playerId]);
+
+  useEffect(() => {
+    if (!user?.playerId || activeTab !== "achievements") return;
     fetch(`/api/players/${user.playerId}/pinned-achievements`)
       .then(r => r.ok ? r.json() : null)
       .then(d => setPins(Array.isArray(d?.pins) ? d.pins : []))
       .catch(() => {});
-  }, [user?.playerId]);
+  }, [activeTab, user?.playerId]);
 
   const isPinned = (system: string, key: string) => pins.some(p => p.system === system && p.key === key);
   const togglePin = (system: string, key: string, display: { name: string; icon: string; rarity: string | null }) => {
@@ -652,18 +693,6 @@ export default function AccountPage() {
     if (r.ok) setThreadMessages(await r.json());
   }, []);
 
-  // ── Jump to a specific tab from ?tab=<id> URL param ──────────────────────
-  // Lets other pages (the Hub's wallet card, so far) deep-link straight to
-  // e.g. /account?tab=cosmetics instead of landing on Overview and making
-  // the player find Customize themselves.
-  useEffect(() => {
-    const tabParam = new URLSearchParams(window.location.search).get("tab");
-    if (tabParam && ["overview", "activity", "achievements", "coach", "social", "stats", "analytics", "cards", "challenges", "cosmetics"].includes(tabParam)) {
-      setActiveTab(tabParam as typeof activeTab);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // ── Open DM from ?dm=<playerId> URL param ────────────────────────────────
   useEffect(() => {
     if (!user?.playerId) return;
@@ -711,9 +740,9 @@ export default function AccountPage() {
 
   useEffect(() => {
     if (!user?.playerId || !notifsEnabled) return;
-    fetch("/api/notifications", { credentials: "include" })
-      .then(r => r.ok ? r.json() : [])
-      .then((data: any[]) => setUnreadNotifCount(data.filter((n: any) => !n.read_at).length))
+    fetch("/api/notifications/unread-count", { credentials: "include" })
+      .then(r => r.ok ? r.json() : { count: 0 })
+      .then((data: { count?: number }) => setUnreadNotifCount(data.count ?? 0))
       .catch(() => {});
   }, [user?.playerId, notifsEnabled]);
 
@@ -949,12 +978,12 @@ export default function AccountPage() {
   // here uses (see the CosmeticsShop-owned `owned.ownedIds` pattern).
   const [ownedCosmeticIds, setOwnedCosmeticIds] = useState<string[]>([]);
   useEffect(() => {
-    if (!user?.playerId) return;
+    if (!user?.playerId || activeTab !== "social") return;
     fetch(`/api/players/${user.playerId}/cosmetics`)
       .then(r => (r.ok ? r.json() : null))
       .then(data => setOwnedCosmeticIds(data?.ownedIds ?? []))
       .catch(() => {});
-  }, [user?.playerId]);
+  }, [activeTab, user?.playerId]);
   const ownedStickers = cosmeticsCatalog.filter(c => c.category === "STICKER" && ownedCosmeticIds.includes(c.id));
 
   const recentForm: ("W" | "L")[] = useMemo(() => {
@@ -2418,6 +2447,7 @@ export default function AccountPage() {
                         )}
                         {msg.photo_content_type && (
                           <img src={`/api/messages/${msg.id}/photo`} alt="photo"
+                            loading="lazy" decoding="async"
                             className="mt-1 rounded-xl max-w-full" style={{ maxHeight: 200 }} />
                         )}
                         {msg.sticker_id && (

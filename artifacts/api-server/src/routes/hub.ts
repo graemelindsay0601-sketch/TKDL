@@ -72,7 +72,16 @@ type PulseItem = {
   timestamp: string;
 };
 
+let pulseCache: { data: PulseItem[]; expiresAt: number } | null = null;
+const PULSE_CACHE_TTL_MS = 20_000;
+
 router.get("/hub/pulse", async (_req, res): Promise<void> => {
+  const now = Date.now();
+  if (pulseCache && now < pulseCache.expiresAt) {
+    res.json(pulseCache.data);
+    return;
+  }
+
   try {
     const [matches, doublesMatches, shiftWarsMatches, trophies, achievements, posts] = await Promise.all([
       db.execute(sql`
@@ -178,7 +187,9 @@ router.get("/hub/pulse", async (_req, res): Promise<void> => {
     ];
 
     items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    res.json(items.slice(0, 25));
+    const feed = items.slice(0, 25);
+    pulseCache = { data: feed, expiresAt: Date.now() + PULSE_CACHE_TTL_MS };
+    res.json(feed);
   } catch (err) {
     logger.error({ err }, "Failed to get hub pulse feed");
     res.status(500).json({ error: "Failed to get hub pulse feed" });

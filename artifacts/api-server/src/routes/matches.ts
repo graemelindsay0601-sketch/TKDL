@@ -424,9 +424,16 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
     }
   })();
 
-  // Check achievements
-  await checkMatchAchievements(winnerId, loserId, true,  stake, loserPointsBefore, winnerPointsBefore, loserEliminated, match.seasonId, eloChange);
-  await checkMatchAchievements(loserId,  winnerId, false, stake, loserPointsBefore, winnerPointsBefore, false, match.seasonId, eloChange);
+  // Achievement checks perform several historical aggregate queries per
+  // player. The match and standings are already committed above, and no
+  // achievement data is part of this response, so waiting for both complete
+  // scans only holds the scorer on "Submitting" and delays its leaderboard
+  // refresh. Keep them reliable but outside the response path, matching the
+  // existing title/interview/community/notification follow-up work below.
+  void Promise.all([
+    checkMatchAchievements(winnerId, loserId, true,  stake, loserPointsBefore, winnerPointsBefore, loserEliminated, match.seasonId, eloChange),
+    checkMatchAchievements(loserId,  winnerId, false, stake, loserPointsBefore, winnerPointsBefore, false, match.seasonId, eloChange),
+  ]).catch(err => console.error("Post-match achievement check error:", err));
   void checkAndGrantTitles(winnerId);
   void checkAndGrantTitles(loserId);
 

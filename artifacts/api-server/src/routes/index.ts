@@ -20,7 +20,7 @@ import communityRouter     from "./community";
 import messagesRouter      from "./messages";
 import notificationsRouter from "./notifications";
 import statsDetailedRouter from "./stats-detailed";
-import cardClashRouter     from "./card-clash";
+import cardClashRouter, { initializeCardClashSchema } from "./card-clash";
 import challengesRouter    from "./challenges";
 import cardClashSettingsRouter from "./card-clash-settings";
 import cardClashFavoritesRouter from "./card-clash-favorites";
@@ -80,3 +80,4 @@ router.use(teamMatchCorrectionsRouter);
 router.use(adminHealthRouter);
 
 export default router;
+export { initializeCardClashSchema };

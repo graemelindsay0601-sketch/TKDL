@@ -20,8 +20,13 @@ export function initializePushBatchScheduler(): void {
     const job = cron.schedule("*/5 * * * *", () => {
       flushDuePushNotifications().catch(err => logger.error({ err }, "Push batch flush failed"));
     }, {
-      runOnInit: false, // Don't fire immediately on boot — matches coachTipsScheduler.ts's posture
+      runOnInit: false,
     });
+
+    // Render's free service can be asleep when a queued row becomes due.
+    // Flush once on every wake/start instead of making an overdue push wait
+    // for the next five-minute cron boundary as well.
+    void flushDuePushNotifications().catch(err => logger.error({ err }, "Initial push batch flush failed"));
 
     logger.info("Push batch scheduler initialized (every 5 minutes)");
 

@@ -29,6 +29,7 @@ interface NotificationPreferences {
   direct_messages: boolean;
   achievements: boolean;
   community_activity: boolean;
+  daily_push_limit: 0 | 3 | 5 | 10;
 }
 
 export function NotificationCenter({ playerId }: { playerId: number }) {
@@ -232,6 +233,48 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
               }
               style={{ cursor: "pointer", width: "16px", height: "16px" }}
             />
+          </div>
+
+          {/* Delivery volume */}
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "16px",
+            padding: "10px 0",
+            borderBottom: "1px solid rgba(255,255,255,0.1)",
+            marginBottom: "10px",
+          }}>
+            <label htmlFor="daily-push-limit" style={{ fontSize: "12px" }}>
+              <div>Daily push limit</div>
+              <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", marginTop: "2px", lineHeight: 1.4 }}>
+                Unlimited delivers alerts as they happen outside quiet hours. A limit queues extras until the next day.
+              </div>
+            </label>
+            <select
+              id="daily-push-limit"
+              value={preferences.daily_push_limit ?? 0}
+              onChange={(e) => setPreferences({
+                ...preferences,
+                daily_push_limit: Number(e.target.value) as 0 | 3 | 5 | 10,
+              })}
+              disabled={!preferences.push_enabled}
+              style={{
+                flexShrink: 0,
+                border: "1px solid rgba(255,255,255,0.18)",
+                borderRadius: "6px",
+                background: "#17131f",
+                color: "#fff",
+                padding: "7px 8px",
+                fontSize: "12px",
+                opacity: preferences.push_enabled ? 1 : 0.5,
+              }}
+            >
+              <option value={0}>Unlimited</option>
+              <option value={3}>3 per day</option>
+              <option value={5}>5 per day</option>
+              <option value={10}>10 per day</option>
+            </select>
           </div>
 
           {/* Per-type toggles, each with what actually fires it spelled out —

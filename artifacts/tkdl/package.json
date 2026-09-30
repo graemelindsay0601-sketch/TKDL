@@ -77,7 +77,6 @@
     "@uppy/aws-s3": "^5.1.0",
     "@uppy/core": "^5.2.0",
     "@uppy/dashboard": "^5.1.1",
-    "@uppy/react": "^5.2.0",
-    "onnxruntime-web": "^1.26.0"
+    "@uppy/react": "^5.2.0"
   }
 }

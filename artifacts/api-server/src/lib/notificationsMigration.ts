@@ -54,6 +54,7 @@ export async function seedNotificationTables() {
         coach_tips BOOLEAN DEFAULT true,
         announcements BOOLEAN DEFAULT true,
         private_mode BOOLEAN DEFAULT false,
+        daily_push_limit INTEGER NOT NULL DEFAULT 0,
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )
     `);
@@ -96,6 +97,12 @@ export async function seedNotificationTables() {
     await db.execute(sql`
       ALTER TABLE notification_preferences
         ADD COLUMN IF NOT EXISTS private_mode BOOLEAN DEFAULT false
+    `);
+    // 0 = unlimited/immediate delivery (subject to quiet hours). Players
+    // who prefer fewer pushes can choose a cap in Account → Notifications.
+    await db.execute(sql`
+      ALTER TABLE notification_preferences
+        ADD COLUMN IF NOT EXISTS daily_push_limit INTEGER NOT NULL DEFAULT 0
     `);
 
     // threat_alerts on an existing (already-created) table — see the

@@ -6,7 +6,7 @@ import {
   cardInventoryTable,
   cardDefinitionsTable,
 } from "@workspace/db";
-import { eq, and, or, desc, sql } from "drizzle-orm";
+import { eq, and, or, desc, sql, isNull } from "drizzle-orm";
 import { addCoinsToPlayer, removeCardFromPlayer } from "./card-shop-service";
 import { applyX01CardModifiers, applyCricketCardModifiers, calculateCardClashPoints } from "./card-score-integration";
 import { logger } from "../lib/logger";
@@ -245,7 +245,7 @@ export async function finishCardClashMatch(
   cardsUsedInMatch?: string[] | Array<{ cardId: string; usedBy: number }>,
   player1PointsEarned: number = 0,
   player2PointsEarned: number = 0,
-  isChaosMatch: boolean = false
+  _isChaosMatch: boolean = false
 ) {
   const match = await db
     .select()
@@ -254,6 +254,21 @@ export async function finishCardClashMatch(
     .limit(1);
 
   if (!match[0]) throw new Error("Match not found");
+
+  const playerIds = [match[0].player1Id, match[0].player2Id];
+  if (!playerIds.includes(winnerId)) {
+    throw new Error("Winner must be one of the players in this match");
+  }
+
+  // Result screens can retry after a slow response or be submitted twice by
+  // a double tap. Once a winner is present, return the completed row instead
+  // of paying coins, challenges and leaderboard wins a second time.
+  if (match[0].winnerId !== null) {
+    if (match[0].winnerId !== winnerId) {
+      throw new Error("This match already has a different recorded winner");
+    }
+    return match[0];
+  }
 
   const loser = match[0].player1Id === winnerId ? match[0].player2Id : match[0].player1Id;
   
@@ -284,6 +299,10 @@ export async function finishCardClashMatch(
       }
     }
   }
+
+  if (parsedCards.some(card => !playerIds.includes(card.usedBy))) {
+    throw new Error("A used card was attributed to a player outside this match");
+  }
   
   const cardsUsed = parsedCards;
   const winnerCardsUsed = cardsUsed.filter(c => c.usedBy === winnerId).length;
@@ -298,7 +317,7 @@ export async function finishCardClashMatch(
   const loserCoins = COIN_REWARDS.LOSS_BASE + (loserCardsUsed * COIN_REWARDS.PER_CARD_USED);
 
   // Update match
-  await db
+  const claimed = await db
     .update(cardClashMatchesTable)
     .set({
       winnerId,
@@ -314,7 +333,23 @@ export async function finishCardClashMatch(
       // once a match had gone through this path.
       cardsUsedInMatch: cardsUsed,
     })
-    .where(eq(cardClashMatchesTable.id, matchId));
+    .where(and(
+      eq(cardClashMatchesTable.id, matchId),
+      isNull(cardClashMatchesTable.winnerId),
+    ))
+    .returning();
+
+  // Two devices/taps can pass the initial read before either update lands.
+  // The conditional update above lets only one request claim completion.
+  if (!claimed[0]) {
+    const [completed] = await db
+      .select()
+      .from(cardClashMatchesTable)
+      .where(eq(cardClashMatchesTable.id, matchId))
+      .limit(1);
+    if (completed?.winnerId === winnerId) return completed;
+    throw new Error("This match was completed by another request");
+  }
 
   // Award coins to both players (batched - single DB operation)
   const { awardCoinsToMultiplePlayers } = await import("./card-shop-service");
@@ -369,7 +404,10 @@ export async function finishCardClashMatch(
   // player's own collection, so they must never touch real inventory. Without
   // this check, a chaos-drawn card that happened to share an id with a card
   // the player separately owns from packs would get wrongly decremented.
-  if (!isChaosMatch) {
+  // Use the mode stored when the match began. The browser's finish payload
+  // is not authoritative and could otherwise label a normal match as Chaos
+  // mode to prevent its used cards being consumed.
+  if (!match[0].isChaosMatch) {
     for (const card of cardsUsed) {
       try {
         const realCardId = await resolveCardUuid(card.cardId);

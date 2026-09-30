@@ -91,7 +91,7 @@ const ACCENT_CLS: Record<string, string> = {
  * should not keep the Render service awake or keep querying the database.
  * Refresh immediately when the user returns so badges do not feel stale.
  */
-function useVisiblePolling(load: () => void | Promise<void>, intervalMs: number, enabled = true) {
+function useVisiblePolling(load: () => void | Promise<void>, intervalMs: number, enabled = true, initialDelayMs = 0) {
   const loadRef = useRef(load);
   loadRef.current = load;
 
@@ -106,14 +106,15 @@ function useVisiblePolling(load: () => void | Promise<void>, intervalMs: number,
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") void refresh();
     };
-    void refresh();
+    const initialId = window.setTimeout(() => void refresh(), initialDelayMs);
     const id = window.setInterval(() => void refresh(), intervalMs);
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.clearInterval(id);
+      window.clearTimeout(initialId);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [enabled, intervalMs]);
+  }, [enabled, initialDelayMs, intervalMs]);
 }
 
 function LiveTicker() {
@@ -127,7 +128,7 @@ function LiveTicker() {
     if (!response.ok) return;
     const data = await response.json() as { text: string; accent: string }[];
     setFeed(data);
-  }, 60_000);
+  }, 60_000, true, 2_000);
 
   useEffect(() => {
     const entries: TickerEntry[] = [];
@@ -289,21 +290,16 @@ export function Layout({ children }: { children: ReactNode }) {
     { href: "/practice",    label: "Practice",  icon: Dumbbell,        color: "#00e5a0" },
   ];
   const [unreadCount, setUnreadCount]   = useState(0);
-  useVisiblePolling(async () => {
-    const response = await fetch("/api/notifications/unread-count", { credentials: "include" });
-    const data = response.ok ? await response.json() as { count: number } : { count: 0 };
-    setUnreadCount(data.count);
-  }, 30_000, Boolean(authUser));
-
-  // Community nav badge — unread count scoped to community-flavoured
-  // notification types only (post_approved/post_liked/post_commented/
-  // auto_post_fired), separate from the account widget's all-types count above.
   const [communityUnread, setCommunityUnread] = useState(0);
   useVisiblePolling(async () => {
-    const response = await fetch("/api/notifications/unread-count?types=post_approved,post_liked,post_commented,auto_post_fired", { credentials: "include" });
-    const data = response.ok ? await response.json() as { count: number } : { count: 0 };
-    setCommunityUnread(data.count);
+    const response = await fetch("/api/notifications/unread-count", { credentials: "include" });
+    const data = response.ok ? await response.json() as { count: number; communityCount?: number } : { count: 0, communityCount: 0 };
+    setUnreadCount(data.count);
+    setCommunityUnread(data.communityCount ?? 0);
   }, 30_000, Boolean(authUser));
+
+  // The same response also carries the Community-only subtotal, avoiding a
+  // second session lookup and database count every 30 seconds on every page.
 
   // TKDL LIVE nav badge — lights up when a broadcast edition has published
   // since this player last opened /tkdl-live (see GET /broadcast/live-status

@@ -4,28 +4,28 @@ import { useFavorites } from "@/hooks/useFavorites";
 // Map card names to their visual representations
 const CARD_VISUAL_MAP: Record<string, { image: string; color: string }> = {
   // X01 GOOD
-  "Big Game Player": { image: "/cards/x01-good-grid.png", color: "#00e5ff" },
-  "Power Surge": { image: "/cards/x01-good-grid.png", color: "#00e5ff" },
-  "Treble Hunter": { image: "/cards/x01-good-grid.png", color: "#00e5ff" },
-  "Unstoppable Checkout": { image: "/cards/x01-good-grid.png", color: "#00e5ff" },
-  "Banking Strategy": { image: "/cards/x01-good-grid.png", color: "#00e5ff" },
-  "Checkout Confidence": { image: "/cards/x01-good-grid.png", color: "#00e5ff" },
-  "Exact Finish": { image: "/cards/x01-good-grid.png", color: "#00e5ff" },
-  "High Pressure": { image: "/cards/x01-good-grid.png", color: "#00e5ff" },
-  "Perfect Rhythm": { image: "/cards/x01-good-grid.png", color: "#00e5ff" },
-  "High Roller": { image: "/cards/x01-good-grid.png", color: "#00e5ff" },
+  "Big Game Player": { image: "/cards/x01-good-grid.webp", color: "#00e5ff" },
+  "Power Surge": { image: "/cards/x01-good-grid.webp", color: "#00e5ff" },
+  "Treble Hunter": { image: "/cards/x01-good-grid.webp", color: "#00e5ff" },
+  "Unstoppable Checkout": { image: "/cards/x01-good-grid.webp", color: "#00e5ff" },
+  "Banking Strategy": { image: "/cards/x01-good-grid.webp", color: "#00e5ff" },
+  "Checkout Confidence": { image: "/cards/x01-good-grid.webp", color: "#00e5ff" },
+  "Exact Finish": { image: "/cards/x01-good-grid.webp", color: "#00e5ff" },
+  "High Pressure": { image: "/cards/x01-good-grid.webp", color: "#00e5ff" },
+  "Perfect Rhythm": { image: "/cards/x01-good-grid.webp", color: "#00e5ff" },
+  "High Roller": { image: "/cards/x01-good-grid.webp", color: "#00e5ff" },
   
   // CRICKET GOOD
-  "Number Revival": { image: "/cards/cricket-good-grid.png", color: "#00ff88" },
-  "Precision Focus": { image: "/cards/cricket-good-grid.png", color: "#00ff88" },
-  "Bullseye Master": { image: "/cards/cricket-good-grid.png", color: "#00ff88" },
-  "Fearless Finisher": { image: "/cards/cricket-good-grid.png", color: "#00ff88" },
-  "Opening Spree": { image: "/cards/cricket-good-grid.png", color: "#00ff88" },
-  "Consistent Striker": { image: "/cards/cricket-good-grid.png", color: "#00ff88" },
-  "Fail-Safe": { image: "/cards/cricket-good-grid.png", color: "#00ff88" },
-  "Target Acquisition": { image: "/cards/cricket-good-grid.png", color: "#00ff88" },
-  "Closing Streak": { image: "/cards/cricket-good-grid.png", color: "#00ff88" },
-  "Bull Control": { image: "/cards/cricket-good-grid.png", color: "#00ff88" },
+  "Number Revival": { image: "/cards/cricket-good-grid.webp", color: "#00ff88" },
+  "Precision Focus": { image: "/cards/cricket-good-grid.webp", color: "#00ff88" },
+  "Bullseye Master": { image: "/cards/cricket-good-grid.webp", color: "#00ff88" },
+  "Fearless Finisher": { image: "/cards/cricket-good-grid.webp", color: "#00ff88" },
+  "Opening Spree": { image: "/cards/cricket-good-grid.webp", color: "#00ff88" },
+  "Consistent Striker": { image: "/cards/cricket-good-grid.webp", color: "#00ff88" },
+  "Fail-Safe": { image: "/cards/cricket-good-grid.webp", color: "#00ff88" },
+  "Target Acquisition": { image: "/cards/cricket-good-grid.webp", color: "#00ff88" },
+  "Closing Streak": { image: "/cards/cricket-good-grid.webp", color: "#00ff88" },
+  "Bull Control": { image: "/cards/cricket-good-grid.webp", color: "#00ff88" },
 };
 
 export function CardCollection({ playerId }: { playerId: number }) {
@@ -65,7 +65,7 @@ export function CardCollection({ playerId }: { playerId: number }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "12px" }}>
         {collection.map((card) => {
           const visual = CARD_VISUAL_MAP[card.cardName] || { 
-            image: card.gameMode === "Cricket" ? "/cards/cricket-good-grid.png" : "/cards/x01-good-grid.png",
+            image: card.gameMode === "Cricket" ? "/cards/cricket-good-grid.webp" : "/cards/x01-good-grid.webp",
             color: "#ffd24a"
           };
           

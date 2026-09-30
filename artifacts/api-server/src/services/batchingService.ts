@@ -1,7 +1,7 @@
 /**
  * Notification Batching & Quiet Hours - Phase 7
  * Implements smart notification delivery:
- * - Max 3 non-critical notifications per day
+ * - Player-selected daily cap (unlimited by default)
  * - Quiet hours: 11pm-8am (no non-critical notifications)
  * - Critical notifications bypass all rules
  * - Batching window: group similar notifications together
@@ -22,6 +22,9 @@ export interface NotificationBatchConfig {
   notificationType: string;
   isUrgent: boolean; // Critical notifications bypass batching
   currentHour: number;
+  // 0 means unlimited. This is a per-player preference rather than a
+  // league-wide hard cap, so players can choose how busy their phone is.
+  maxDailyNotifications?: number;
 }
 
 export interface BatchingResult {
@@ -32,7 +35,48 @@ export interface BatchingResult {
 
 const QUIET_HOURS_START = 23; // 11 PM
 const QUIET_HOURS_END = 8;   // 8 AM
-const MAX_DAILY_NOTIFICATIONS = 3;
+const LEAGUE_TIME_ZONE = "Europe/London";
+
+type LondonDateParts = { year: number; month: number; day: number; hour: number };
+
+function getLondonDateParts(date: Date): LondonDateParts {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: LEAGUE_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find(part => part.type === type)?.value ?? 0);
+  return { year: value("year"), month: value("month"), day: value("day"), hour: value("hour") };
+}
+
+/** Convert a Europe/London wall-clock time to its real UTC instant. */
+function londonWallTimeToDate(year: number, month: number, day: number, hour: number): Date {
+  const targetWallTime = Date.UTC(year, month - 1, day, hour, 0, 0, 0);
+  let timestamp = targetWallTime;
+  // One correction normally suffices; a second keeps this reliable across
+  // the GMT/BST boundary where the London offset changes.
+  for (let i = 0; i < 2; i++) {
+    const actual = getLondonDateParts(new Date(timestamp));
+    const actualWallTime = Date.UTC(actual.year, actual.month - 1, actual.day, actual.hour, 0, 0, 0);
+    timestamp += targetWallTime - actualWallTime;
+  }
+  return new Date(timestamp);
+}
+
+function nextLondonMorning(now: Date, forceTomorrow: boolean): Date {
+  const london = getLondonDateParts(now);
+  const calendar = new Date(Date.UTC(london.year, london.month - 1, london.day + (forceTomorrow ? 1 : 0)));
+  return londonWallTimeToDate(
+    calendar.getUTCFullYear(),
+    calendar.getUTCMonth() + 1,
+    calendar.getUTCDate(),
+    QUIET_HOURS_END,
+  );
+}
 
 /**
  * Check if current time is within quiet hours
@@ -46,19 +90,21 @@ export function isInQuietHours(hour: number): boolean {
 }
 
 /**
- * Count non-critical notifications sent to player today
+ * Count pushes actually delivered to the player today. Counting rows in
+ * `notifications` was wrong for two reasons: inbox-only notifications were
+ * treated as pushes, and the new notification had already been inserted by
+ * the time this check ran, so it counted itself before it was sent.
  */
 export async function countTodayNotifications(
   playerId: number
 ): Promise<number> {
   try {
     const result = await db.execute(sql`
-      SELECT COUNT(*) as count
-      FROM notifications
+      SELECT COUNT(DISTINCT notification_id) as count
+      FROM notification_analytics
       WHERE player_id = ${playerId}
-      AND created_at >= CURRENT_DATE
-      AND type != 'threat_alert'
-      AND type != 'rank_change'
+      AND (sent_at AT TIME ZONE 'Europe/London')::date =
+          (NOW() AT TIME ZONE 'Europe/London')::date
     `);
 
     return parseInt((result.rows[0] as any).count || 0);
@@ -91,12 +137,16 @@ export async function checkBatchingRules(
     };
   }
 
-  // Check daily limit
-  const sentToday = await countTodayNotifications(config.playerId);
-  if (sentToday >= MAX_DAILY_NOTIFICATIONS) {
+  // Check the player's chosen daily limit. Missing/zero means unlimited,
+  // which is also the default for existing players after the migration.
+  const dailyLimit = config.maxDailyNotifications ?? 0;
+  const sentToday = dailyLimit > 0
+    ? await countTodayNotifications(config.playerId)
+    : 0;
+  if (dailyLimit > 0 && sentToday >= dailyLimit) {
     return {
       shouldSend: false,
-      reason: `Daily notification limit (${MAX_DAILY_NOTIFICATIONS}) reached. Will be queued for tomorrow.`,
+      reason: `Your daily notification limit (${dailyLimit}) has been reached. Will be queued for tomorrow.`,
       batchingDelay: calculateDelayToNextQuietHourEnd()
     };
   }
@@ -112,20 +162,8 @@ export async function checkBatchingRules(
  */
 function calculateDelayToQuietHourEnd(currentHour: number): number {
   const now = new Date();
-  let targetHour = QUIET_HOURS_END; // 8 AM
-
-  if (currentHour < QUIET_HOURS_END) {
-    // Before 8 AM - send at 8 AM today
-    const target = new Date();
-    target.setHours(QUIET_HOURS_END, 0, 0, 0);
-    return Math.max(0, target.getTime() - now.getTime());
-  } else {
-    // After 8 AM - send at 8 AM tomorrow
-    const target = new Date();
-    target.setDate(target.getDate() + 1);
-    target.setHours(QUIET_HOURS_END, 0, 0, 0);
-    return Math.max(0, target.getTime() - now.getTime());
-  }
+  const target = nextLondonMorning(now, currentHour >= QUIET_HOURS_END);
+  return Math.max(0, target.getTime() - now.getTime());
 }
 
 /**
@@ -133,12 +171,7 @@ function calculateDelayToQuietHourEnd(currentHour: number): number {
  */
 function calculateDelayToNextQuietHourEnd(): number {
   const now = new Date();
-  const target = new Date();
-
-  // Set to 8 AM tomorrow
-  target.setDate(target.getDate() + 1);
-  target.setHours(QUIET_HOURS_END, 0, 0, 0);
-
+  const target = nextLondonMorning(now, true);
   return Math.max(0, target.getTime() - now.getTime());
 }
 
@@ -181,29 +214,24 @@ export async function queueNotificationForBatching(
  * Get next available send window for a player
  */
 export async function getNextSendWindow(
-  playerId: number
+  playerId: number,
+  maxDailyNotifications: number = 0
 ): Promise<{ hour: number; timestamp: Date }> {
   const now = new Date();
-  let checkHour = now.getHours();
+  const checkHour = getLondonDateParts(now).hour;
 
   // If in quiet hours, next window is at 8 AM
   if (isInQuietHours(checkHour)) {
-    const nextWindow = new Date();
-    if (checkHour < QUIET_HOURS_END) {
-      nextWindow.setHours(QUIET_HOURS_END, 0, 0, 0);
-    } else {
-      nextWindow.setDate(nextWindow.getDate() + 1);
-      nextWindow.setHours(QUIET_HOURS_END, 0, 0, 0);
-    }
+    const nextWindow = nextLondonMorning(now, checkHour >= QUIET_HOURS_END);
     return { hour: QUIET_HOURS_END, timestamp: nextWindow };
   }
 
   // Check if daily limit reached
-  const sentToday = await countTodayNotifications(playerId);
-  if (sentToday >= MAX_DAILY_NOTIFICATIONS) {
-    const nextWindow = new Date();
-    nextWindow.setDate(nextWindow.getDate() + 1);
-    nextWindow.setHours(QUIET_HOURS_END, 0, 0, 0);
+  const sentToday = maxDailyNotifications > 0
+    ? await countTodayNotifications(playerId)
+    : 0;
+  if (maxDailyNotifications > 0 && sentToday >= maxDailyNotifications) {
+    const nextWindow = nextLondonMorning(now, true);
     return { hour: QUIET_HOURS_END, timestamp: nextWindow };
   }
 

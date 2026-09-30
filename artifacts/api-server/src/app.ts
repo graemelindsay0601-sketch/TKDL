@@ -6,7 +6,7 @@ import path from "path";
 import pinoHttp from "pino-http";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
-import router from "./routes";
+import router, { initializeCardClashSchema } from "./routes";
 import { logger } from "./lib/logger";
 import { getStartupStatus } from "./lib/startup-state";
 import { seedAchievements } from "./lib/achievements";
@@ -17,6 +17,7 @@ import { getDefaultLeagueId } from "./lib/currentLeague";
 import { addPerformanceIndexes } from "./db/migrations/add_performance_indexes";
 import { addPerformanceIndexes2 } from "./db/migrations/add_performance_indexes_2";
 import { addPerformanceIndexes3 } from "./db/migrations/add_performance_indexes_3";
+import { addPerformanceIndexes4 } from "./db/migrations/add_performance_indexes_4";
 import { ensureAdminAuditTable } from "./lib/adminAudit";
 import { seedTourSystem } from "./lib/tourSeed";
 import { ensureCardClashAchievementTables } from "./lib/card-clash-achievements";
@@ -96,7 +97,7 @@ import { initializeCommunityTopPostScheduler } from "./services/communityTopPost
 import webpush from "web-push";
 import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
 import bcrypt from "bcryptjs";
-import { db } from "@workspace/db";
+import { db, pool } from "@workspace/db";
 import { playersTable, seasonsTable, matchesTable, seasonStandingsTable, settingsTable, gameTypesTable, usersTable } from "@workspace/db";
 import { eq, count, sql } from "drizzle-orm";
 
@@ -214,9 +215,14 @@ app.use((req, res, next) => {
     res.set('Cache-Control', 'public, max-age=31536000, immutable');
     res.set('ETag', undefined); // Let browser use max-age, not ETag
   }
-  // Cache API responses for 5 minutes for leaderboards/standings
+  // Standings change immediately after a submitted result. A five-minute
+  // browser cache here made Singles look stale even though POST /matches had
+  // already committed the new points; Doubles and Shift Wars appeared
+  // instant only because their URLs do not match this rule. React Query
+  // already keeps a short in-memory copy, so the HTTP layer must revalidate
+  // against the server whenever the client explicitly refreshes it.
   else if (req.url.match(/^\/api\/(standings|leaderboard)/)) {
-    res.set('Cache-Control', 'public, max-age=300');
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   }
   // Don't cache dynamic content
   else {
@@ -247,7 +253,10 @@ if (!process.env.SESSION_SECRET) {
 const PgSession = connectPg(session);
 app.use(session({
   store: new PgSession({
-    conString: process.env.DATABASE_URL,
+    // Reuse the application's min:0 pool rather than creating a second
+    // independent pg.Pool just for sessions. This keeps one connection
+    // budget and lets every idle connection drain together on the free tier.
+    pool,
     tableName: "sessions",
     createTableIfMissing: false,
     // connect-pg-simple's default is a DELETE query every 15 minutes,
@@ -1353,6 +1362,10 @@ async function initSchemaAndData(): Promise<boolean> {
   await runInitStep("addSettingsLeagueId", addSettingsLeagueId);
   await runInitStep("seedSettings", seedSettings);
   await runInitStep("initializeCardTables", initializeCardTables);
+  // Card Clash used to mutate its schema as a fire-and-forget side effect of
+  // importing the route module. Keeping it in the readiness-gated startup
+  // sequence prevents requests racing those ALTER TABLE statements.
+  await runInitStep("initializeCardClashSchema", initializeCardClashSchema);
   await runInitStep("ensureCardClashAchievementTables", ensureCardClashAchievementTables);
   await runInitStep("initializeFeatureFlags", initializeFeatureFlags);
   await runInitStep("addTkdlLiveBroadcastTables", addTkdlLiveBroadcastTables);
@@ -1483,6 +1496,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runInitStep("seedSessions", seedSessions);
   await runInitStep("seedUsers", seedUsers);
   await runInitStep("seedTitles", seedTitles);
+  await runInitStep("addPerformanceIndexes4", addPerformanceIndexes4);
 
   collectingSchemaFailures = false;
   const clean = schemaFailureCount === 0;

@@ -166,7 +166,12 @@ async function shouldSendNotification(payload: NotificationPayload, prefs: any):
     playerId: payload.playerId,
     notificationType: payload.type,
     isUrgent: isCritical,
-    currentHour: new Date().getHours()
+    currentHour: Number(new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London",
+      hour: "2-digit",
+      hour12: false,
+    }).format(new Date())),
+    maxDailyNotifications: Number(prefs.daily_push_limit ?? 0),
   });
 
   if (!batchingResult.shouldSend) {
@@ -531,17 +536,21 @@ const NOTIFICATION_PREF_KEYS = [
   "coach_tips", "announcements", "private_mode",
 ] as const;
 
+type NotificationPreferenceUpdate =
+  Partial<Record<(typeof NOTIFICATION_PREF_KEYS)[number], boolean>> &
+  { daily_push_limit?: number };
+
 export async function updateNotificationPreferences(
   playerId: number,
-  prefs: Partial<Record<(typeof NOTIFICATION_PREF_KEYS)[number], boolean>>
+  prefs: NotificationPreferenceUpdate
 ): Promise<void> {
   const p = prefs;
   await db.execute(sql`
-    INSERT INTO notification_preferences (player_id, push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode)
+    INSERT INTO notification_preferences (player_id, push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode, daily_push_limit)
     VALUES (
       ${playerId},
       ${p.push_enabled ?? true}, ${p.match_results ?? true}, ${p.rank_changes ?? true}, ${p.threat_alerts ?? true},
-      ${p.coach_tips ?? true}, ${p.announcements ?? true}, ${p.private_mode ?? false}
+      ${p.coach_tips ?? true}, ${p.announcements ?? true}, ${p.private_mode ?? false}, ${p.daily_push_limit ?? 0}
     )
     ON CONFLICT (player_id) DO UPDATE SET
       push_enabled  = COALESCE(${p.push_enabled ?? null}, notification_preferences.push_enabled),
@@ -551,6 +560,7 @@ export async function updateNotificationPreferences(
       coach_tips    = COALESCE(${p.coach_tips ?? null}, notification_preferences.coach_tips),
       announcements = COALESCE(${p.announcements ?? null}, notification_preferences.announcements),
       private_mode  = COALESCE(${p.private_mode ?? null}, notification_preferences.private_mode),
+      daily_push_limit = COALESCE(${p.daily_push_limit ?? null}, notification_preferences.daily_push_limit),
       updated_at    = NOW()
   `);
 }
