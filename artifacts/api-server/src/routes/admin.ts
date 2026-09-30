@@ -323,7 +323,7 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
   res.json({ match: result.updated, eloChange: result.newEloChange });
 });
 
-// ── Delete player (cascade all related data) ──────────────────────────────────
+// ── Retire player while preserving league history ────────────────────────────
 router.delete("/admin/players/:id", async (req, res): Promise<void> => {
   const playerId = Number(req.params.id);
   if (isNaN(playerId)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -332,34 +332,11 @@ router.delete("/admin/players/:id", async (req, res): Promise<void> => {
     .from(playersTable).where(eq(playersTable.id, playerId));
   if (!player) { res.status(404).json({ error: "Player not found" }); return; }
 
-  // This cascade is 12 separate statements across 9 tables with no FK-level
-  // ON DELETE CASCADE backing it up — previously unwrapped, so a crash or DB
-  // error partway through (e.g. after clearing achievements but before the
-  // player row itself is deleted) left the player half-deleted: still
-  // present, but missing achievement/title/tour history with no way to tell
-  // that happened short of noticing it. A transaction makes it all-or-nothing.
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`DELETE FROM player_achievements        WHERE player_id = ${playerId}`);
-    await tx.execute(sql`DELETE FROM season_standings           WHERE player_id = ${playerId}`);
-    await tx.execute(sql`DELETE FROM player_titles              WHERE player_id = ${playerId}`);
-    await tx.execute(sql`DELETE FROM shadow_bot_achievements    WHERE player_id = ${playerId}`);
-    await tx.execute(sql`DELETE FROM player_tour_achievements   WHERE player_id = ${playerId}`);
-    await tx.execute(sql`DELETE FROM tour_trophies              WHERE player_id = ${playerId}`);
-    await tx.execute(sql`DELETE FROM player_tour_runs           WHERE player_id = ${playerId}`);
-    await tx.execute(sql`DELETE FROM practice_sessions          WHERE player1_id = ${playerId} OR player2_id = ${playerId}`);
-    await tx.execute(sql`DELETE FROM users                      WHERE player_id = ${playerId}`);
+  await db.update(playersTable).set({ isActive: false }).where(eq(playersTable.id, playerId));
 
-    await tx.delete(matchesTable).where(eq(matchesTable.winnerId, playerId));
-    await tx.delete(matchesTable).where(eq(matchesTable.loserId, playerId));
-
-    await tx.execute(sql`UPDATE seasons SET champion_id = NULL, champion_name = NULL WHERE champion_id = ${playerId}`);
-
-    await tx.delete(playersTable).where(eq(playersTable.id, playerId));
-  });
-
-  req.log.info({ playerId, name: player.name }, "Player deleted by admin");
-  void logAdminAction(req, "player.delete", "player", playerId, { name: player.name });
-  res.json({ ok: true, deleted: player.name });
+  req.log.info({ playerId, name: player.name }, "Player retired by admin");
+  void logAdminAction(req, "player.retire", "player", playerId, { name: player.name });
+  res.json({ ok: true, retired: player.name });
 });
 
 // ── Override player Elo ────────────────────────────────────────────────────────

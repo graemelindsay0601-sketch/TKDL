@@ -409,19 +409,22 @@ router.post("/community/polls", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Provide between 2 and 6 options" }); return;
   }
 
-  const result = await db.execute(sql`
-    INSERT INTO community_posts (player_id, content, post_type, status, approved_at)
-    VALUES (${playerId}, ${trimmedQuestion}, 'poll', 'approved', NOW())
-    RETURNING id
-  `);
-  const postId = (result.rows[0] as any).id as number;
-
-  for (let i = 0; i < cleanOptions.length; i++) {
-    await db.execute(sql`
-      INSERT INTO community_poll_options (post_id, label, sort_order)
-      VALUES (${postId}, ${cleanOptions[i]}, ${i})
+  const postId = await db.transaction(async (tx) => {
+    const result = await tx.execute(sql`
+      INSERT INTO community_posts (player_id, content, post_type, status, approved_at)
+      VALUES (${playerId}, ${trimmedQuestion}, 'poll', 'approved', NOW())
+      RETURNING id
     `);
-  }
+    const id = (result.rows[0] as any).id as number;
+
+    for (let i = 0; i < cleanOptions.length; i++) {
+      await tx.execute(sql`
+        INSERT INTO community_poll_options (post_id, label, sort_order)
+        VALUES (${id}, ${cleanOptions[i]}, ${i})
+      `);
+    }
+    return id;
+  });
 
   res.status(201).json({ id: postId });
 });

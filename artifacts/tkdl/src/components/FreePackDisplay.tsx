@@ -19,6 +19,7 @@ export function FreePackDisplay({ playerId, onClaimPack }: FreePackDisplayProps)
   } | null>(null);
   const [isAvailable, setIsAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [nextAvailableAt, setNextAvailableAt] = useState<Date | null>(null);
 
   useEffect(() => {
     const checkPackAvailability = async () => {
@@ -30,9 +31,10 @@ export function FreePackDisplay({ playerId, onClaimPack }: FreePackDisplayProps)
         setIsAvailable(data.canClaim || false);
 
         if (!data.canClaim && data.hoursUntilAvailable > 0) {
-          // Calculate next available time
-          const nextDate = new Date(Date.now() + data.hoursUntilAvailable * 60 * 60 * 1000);
-          updateCountdown(nextDate);
+          setNextAvailableAt(new Date(Date.now() + data.hoursUntilAvailable * 60 * 60 * 1000));
+        } else {
+          setNextAvailableAt(null);
+          setTimeUntilNext(null);
         }
       } catch (err) {
         console.error('Error checking free pack:', err);
@@ -46,13 +48,16 @@ export function FreePackDisplay({ playerId, onClaimPack }: FreePackDisplayProps)
     return () => clearInterval(interval);
   }, [playerId]);
 
-  const updateCountdown = (nextDate: Date) => {
+  useEffect(() => {
+    if (!nextAvailableAt) return;
+
     const update = () => {
       const now = new Date();
-      const diff = nextDate.getTime() - now.getTime();
+      const diff = nextAvailableAt.getTime() - now.getTime();
 
       if (diff <= 0) {
         setIsAvailable(true);
+        setNextAvailableAt(null);
         setTimeUntilNext(null);
       } else {
         const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -65,7 +70,7 @@ export function FreePackDisplay({ playerId, onClaimPack }: FreePackDisplayProps)
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  };
+  }, [nextAvailableAt]);
 
   const handleClaimPack = async () => {
     try {
@@ -85,6 +90,8 @@ export function FreePackDisplay({ playerId, onClaimPack }: FreePackDisplayProps)
       if (data.success) {
         onClaimPack?.();
         setIsAvailable(false);
+        setNextAvailableAt(null);
+        setTimeUntilNext(null);
       } else {
         throw new Error(data.message);
       }

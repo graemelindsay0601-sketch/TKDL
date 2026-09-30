@@ -23,6 +23,7 @@ import { seedCardDefinitions, getAllCardDefinitions, toggleCardAvailability } fr
 import { challengeService } from "../services/challenge-service";
 import { seasonalQuestService } from "../services/seasonal-quest-service";
 import { logger } from "../lib/logger";
+import { cardClashDebugLogRateLimit } from "../middleware/writeRateLimit";
 import {
   checkAndAwardCCAchievements,
   getCCAchievementsForPlayer,
@@ -1782,20 +1783,24 @@ router.post("/shop/featured/purchase-status/batch", async (req: Request, res: Re
  * admin panel. No admin auth here — any client finishing a match can post
  * its own log; only reading them back is admin-gated below.
  */
-router.post("/debug-log", async (req: Request, res: Response) => {
+router.post("/debug-log", cardClashDebugLogRateLimit, async (req: Request, res: Response) => {
   try {
     const { player1Id, player2Id, gameMode, isChaosMode, isChaosLabMode, logText } = req.body;
     if (!logText || typeof logText !== "string") {
       return res.status(400).json({ error: "logText required" });
     }
-    // Cap stored size defensively — a match log should never realistically
-    // approach this, but avoid ever storing something unbounded.
-    const trimmed = logText.length > 2_000_000 ? logText.slice(0, 2_000_000) + "\n...[truncated]" : logText;
-    const result = await db.execute(sql`
-      INSERT INTO card_clash_debug_logs (player_1_id, player_2_id, game_mode, is_chaos_mode, is_chaos_lab_mode, log_text)
-      VALUES (${player1Id ?? null}, ${player2Id ?? null}, ${gameMode ?? null}, ${!!isChaosMode}, ${!!isChaosLabMode}, ${trimmed})
-      RETURNING id
-    `);
+    const maxLogLength = 100_000;
+    const trimmed = logText.length > maxLogLength ? logText.slice(0, maxLogLength) + "\n...[truncated]" : logText;
+    const result = await db.transaction(async (tx) => {
+      // Debug logs are temporary diagnostics, not league history. Keeping a
+      // rolling month prevents this optional feature consuming the free DB.
+      await tx.execute(sql`DELETE FROM card_clash_debug_logs WHERE created_at < NOW() - INTERVAL '30 days'`);
+      return tx.execute(sql`
+        INSERT INTO card_clash_debug_logs (player_1_id, player_2_id, game_mode, is_chaos_mode, is_chaos_lab_mode, log_text)
+        VALUES (${player1Id ?? null}, ${player2Id ?? null}, ${gameMode ?? null}, ${!!isChaosMode}, ${!!isChaosLabMode}, ${trimmed})
+        RETURNING id
+      `);
+    });
     return res.json({ success: true, id: (result as any).rows?.[0]?.id ?? null });
   } catch (error) {
     logger.error({ error }, "Failed to save Card Clash debug log");

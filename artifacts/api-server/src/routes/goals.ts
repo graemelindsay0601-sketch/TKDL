@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { sql } from "drizzle-orm";
-import { db, playersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db } from "@workspace/db";
 import { z } from "zod";
 
 const router = Router();
@@ -30,18 +29,19 @@ const CreateGoalBody = z.object({
 
 const MAX_ACTIVE_GOALS = 3;
 
-async function currentValueFor(playerId: number, goalType: GoalType): Promise<number> {
-  if (goalType === "elo" || goalType === "career_wins") {
-    const [player] = await db.select().from(playersTable).where(eq(playersTable.id, playerId));
-    if (!player) return 0;
-    return goalType === "elo" ? player.elo : player.careerWins;
-  }
-  // achievements: total unlocked in the core system, same scope as the
-  // "X achievements to unlock" count on rules.tsx (GET /achievements/counts).
-  const rows = await db.execute(sql`
-    SELECT COUNT(*)::int AS cnt FROM player_achievements WHERE player_id = ${playerId}
-  `);
-  return (rows.rows as { cnt: number }[])[0]?.cnt ?? 0;
+async function currentValuesFor(playerId: number): Promise<Record<GoalType, number>> {
+  const row = (await db.execute(sql`
+    SELECT p.elo,
+           p.career_wins,
+           (SELECT COUNT(*)::int FROM player_achievements pa WHERE pa.player_id = p.id) AS achievements
+    FROM players p
+    WHERE p.id = ${playerId}
+  `)).rows[0] as { elo: number; career_wins: number; achievements: number } | undefined;
+  return {
+    elo: row?.elo ?? 0,
+    career_wins: row?.career_wins ?? 0,
+    achievements: row?.achievements ?? 0,
+  };
 }
 
 // ── GET /players/:id/goals ───────────────────────────────────────────────
@@ -59,25 +59,18 @@ router.get("/players/:id/goals", async (req, res): Promise<void> => {
       ORDER BY achieved_at IS NOT NULL, created_at DESC
     `)).rows as { id: number; goal_type: GoalType; target_value: number; created_at: string; achieved_at: string | null }[];
 
-    const goals = await Promise.all(rows.map(async (r) => {
-      const currentValue = await currentValueFor(params.data.id, r.goal_type);
-      let achievedAt = r.achieved_at;
-      // Lazily mark achieved the first time this is read after crossing the
-      // target, so "achieved 3 days ago" reflects when it actually happened
-      // rather than always showing "just now" on whatever page load notices.
-      if (!achievedAt && currentValue >= r.target_value) {
-        await db.execute(sql`UPDATE player_goals SET achieved_at = NOW() WHERE id = ${r.id} AND achieved_at IS NULL`);
-        achievedAt = new Date().toISOString();
-      }
+    const currentValues = await currentValuesFor(params.data.id);
+    const goals = rows.map((r) => {
+      const currentValue = currentValues[r.goal_type];
       return {
         id: r.id,
         goalType: r.goal_type,
         targetValue: r.target_value,
         currentValue,
         createdAt: r.created_at,
-        achievedAt,
+        achievedAt: r.achieved_at,
       };
-    }));
+    });
 
     res.json({ goals });
   } catch (err) {
@@ -108,7 +101,7 @@ router.post("/goals", async (req, res): Promise<void> => {
       return;
     }
 
-    const currentValue = await currentValueFor(playerId, goalType);
+    const currentValue = (await currentValuesFor(playerId))[goalType];
     if (targetValue <= currentValue) {
       res.status(400).json({ error: `You're already at ${currentValue} — set a target above that` });
       return;

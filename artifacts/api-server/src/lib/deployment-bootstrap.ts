@@ -32,3 +32,29 @@ export async function markBootstrapComplete(versionKey: string): Promise<void> {
     ON CONFLICT (version_key) DO NOTHING
   `);
 }
+
+/**
+ * Unlike app_bootstrap_versions (one row per Render deploy), this ledger is
+ * permanent. A named schema migration that has succeeded once against this
+ * database never needs to repeat after every later push.
+ */
+export async function ensureSchemaMigrationLedger(): Promise<void> {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS app_schema_migrations (
+      migration_key TEXT PRIMARY KEY,
+      completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
+export async function loadCompletedSchemaMigrations(): Promise<Set<string>> {
+  const result = await db.execute(sql`SELECT migration_key FROM app_schema_migrations`);
+  return new Set((result.rows as { migration_key: string }[]).map(row => row.migration_key));
+}
+
+export async function markSchemaMigrationComplete(migrationKey: string): Promise<void> {
+  await db.execute(sql`
+    INSERT INTO app_schema_migrations (migration_key) VALUES (${migrationKey})
+    ON CONFLICT (migration_key) DO NOTHING
+  `);
+}

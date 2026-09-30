@@ -36,6 +36,19 @@ export const bossBattleRateLimit = rateLimit({
   skip: () => process.env.NODE_ENV !== "production",
 });
 
+/** Card Clash match diagnostics are deliberately fire-and-forget and do not
+ * require a login, so protect the storage endpoint independently from normal
+ * gameplay. Twenty completed-match logs per IP in ten minutes is comfortably
+ * above real use while stopping a buggy client from filling the database. */
+export const cardClashDebugLogRateLimit = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many diagnostic logs submitted — please try again later" },
+  skip: () => process.env.NODE_ENV !== "production",
+});
+
 /** Shared limiter for authenticated, no-per-action-cost write endpoints —
  *  community posts/reactions/comments and direct messages so far. These are
  *  authenticated (unlike the two above) but still cost nothing to fire, so a

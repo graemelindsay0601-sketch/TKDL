@@ -21,6 +21,7 @@ const ACTION_LABELS: Record<string, string> = {
   "shift_wars.match.delete": "Shift Wars result removed",
   "standings.edit":          "Standings edited",
   "player.delete":           "Player deleted",
+  "player.retire":           "Player retired",
   "player.elo_override":     "Elo overridden",
   "season.reset":            "Season reset",
   "playoff.match_recorded":  "Playoff match recorded",

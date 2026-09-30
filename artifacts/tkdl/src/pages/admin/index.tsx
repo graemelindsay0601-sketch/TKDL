@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Pencil, Check, Building2, Activity } from "lucide-react";
+import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, UserMinus, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Pencil, Check, Building2, Activity } from "lucide-react";
 import { format } from "date-fns";
 
 import { ADMIN_PIN_KEY, PinScreen } from "./pin-screen";
@@ -69,30 +69,30 @@ export default function Admin() {
   const [editMatchForm, setEditMatchForm]         = useState({ winnerId: 0, loserId: 0 });
   const [editMatchLoading, setEditMatchLoading]   = useState(false);
   const [unlocked, setUnlocked]                   = useState(() => sessionStorage.getItem(ADMIN_PIN_KEY) === "1");
-  const [deletingPlayerId, setDeletingPlayerId]   = useState<number | null>(null);
+  const [retiringPlayerId, setRetiringPlayerId]   = useState<number | null>(null);
   const [expandedPlayers, setExpandedPlayers]     = useState<Set<number>>(new Set());
   const [modeToggling, setModeToggling]           = useState<string | null>(null);
 
   if (!unlocked) return <PinScreen onUnlock={() => setUnlocked(true)} />;
 
-  const handleDeletePlayer = async (id: number, name: string) => {
-    setDeletingPlayerId(id);
+  const handleRetirePlayer = async (id: number, name: string) => {
+    setRetiringPlayerId(id);
     try {
       const res = await fetch(`/api/admin/players/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (res.ok) {
-        toast({ title: `${name} deleted`, description: "Player and all related data removed." });
+        toast({ title: `${name} retired`, description: "Removed from the active league. Their history and account are preserved." });
         queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListMatchesQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetLeaderboardQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
       } else {
-        toast({ title: "Delete failed", description: data.error ?? "Unknown error", variant: "destructive" });
+        toast({ title: "Retirement failed", description: data.error ?? "Unknown error", variant: "destructive" });
       }
     } catch (e: any) {
-      toast({ title: "Delete failed", description: e.message, variant: "destructive" });
+      toast({ title: "Retirement failed", description: e.message, variant: "destructive" });
     }
-    setDeletingPlayerId(null);
+    setRetiringPlayerId(null);
   };
 
   const handleToggleActive = (id: number, current: boolean) => {
@@ -369,24 +369,24 @@ export default function Admin() {
                       </button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-red-500/10" disabled={deletingPlayerId === player.id}>
-                            {deletingPlayerId === player.id
+                          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-red-500/10" disabled={retiringPlayerId === player.id}>
+                            {retiringPlayerId === player.id
                               ? <div className="w-3 h-3 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
-                              : <Trash2 className="h-3 w-3" style={{ color: "rgba(255,0,92,0.5)" }} />}
+                              : <UserMinus className="h-3 w-3" style={{ color: "rgba(255,0,92,0.5)" }} />}
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent style={{ background: "hsl(240 20% 7%)", borderColor: "rgba(255,0,92,0.3)" }}>
                           <AlertDialogHeader>
                             <AlertDialogTitle className="flex items-center gap-2" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
-                              <AlertTriangle className="w-5 h-5" /> Delete {player.name}?
+                              <AlertTriangle className="w-5 h-5" /> Retire {player.name}?
                             </AlertDialogTitle>
                             <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
-                              This permanently removes <strong style={{ color: "#fff" }}>{player.name}</strong> and all their data — matches, achievements, titles, tour runs, and their login account. This cannot be undone.
+                              This removes <strong style={{ color: "#fff" }}>{player.name}</strong> from the active league while preserving their matches, achievements, titles and login account. You can restore them later with the League toggle.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeletePlayer(player.id, player.name)} style={{ background: "#ff005c", color: "#fff", border: "none" }}>Delete Forever</AlertDialogAction>
+                            <AlertDialogAction onClick={() => handleRetirePlayer(player.id, player.name)} style={{ background: "#ff005c", color: "#fff", border: "none" }}>Retire Player</AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>

@@ -9,6 +9,7 @@ import connectPg from "connect-pg-simple";
 import router, { initializeCardClashSchema } from "./routes";
 import { logger } from "./lib/logger";
 import { getStartupStatus } from "./lib/startup-state";
+import { ensureSchemaMigrationLedger, loadCompletedSchemaMigrations, markSchemaMigrationComplete } from "./lib/deployment-bootstrap";
 import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetLeagueSeasons, initializeSeasonResetScheduler } from "./lib/seasonReset";
 import { addLeaguesTable } from "./db/migrations/add_leagues_table";
@@ -956,6 +957,65 @@ async function seedPlayerGoals() {
     )
   `);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_player_goals_player ON player_goals(player_id)`);
+
+  // Achievement timestamps belong to the event that crossed the target,
+  // not to whichever later page view happened to notice it. Database
+  // triggers cover every match/achievement write path in one place and let
+  // GET /players/:id/goals remain a read-only, cache-friendly endpoint.
+  await db.execute(sql`
+    CREATE OR REPLACE FUNCTION mark_numeric_player_goals_achieved()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      UPDATE player_goals
+      SET achieved_at = NOW()
+      WHERE player_id = NEW.id
+        AND achieved_at IS NULL
+        AND ((goal_type = 'elo' AND NEW.elo >= target_value)
+          OR (goal_type = 'career_wins' AND NEW.career_wins >= target_value));
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql
+  `);
+  await db.execute(sql`DROP TRIGGER IF EXISTS trg_mark_numeric_player_goals ON players`);
+  await db.execute(sql`
+    CREATE TRIGGER trg_mark_numeric_player_goals
+    AFTER UPDATE OF elo, career_wins ON players
+    FOR EACH ROW EXECUTE FUNCTION mark_numeric_player_goals_achieved()
+  `);
+
+  await db.execute(sql`
+    CREATE OR REPLACE FUNCTION mark_achievement_goals_achieved()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      UPDATE player_goals g
+      SET achieved_at = NOW()
+      WHERE g.player_id = NEW.player_id
+        AND g.goal_type = 'achievements'
+        AND g.achieved_at IS NULL
+        AND (SELECT COUNT(*) FROM player_achievements pa WHERE pa.player_id = NEW.player_id) >= g.target_value;
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql
+  `);
+  await db.execute(sql`DROP TRIGGER IF EXISTS trg_mark_achievement_goals ON player_achievements`);
+  await db.execute(sql`
+    CREATE TRIGGER trg_mark_achievement_goals
+    AFTER INSERT ON player_achievements
+    FOR EACH ROW EXECUTE FUNCTION mark_achievement_goals_achieved()
+  `);
+
+  // One-time-safe backfill for goals crossed before these triggers existed.
+  await db.execute(sql`
+    UPDATE player_goals g
+    SET achieved_at = NOW()
+    FROM players p
+    WHERE g.player_id = p.id
+      AND g.achieved_at IS NULL
+      AND ((g.goal_type = 'elo' AND p.elo >= g.target_value)
+        OR (g.goal_type = 'career_wins' AND p.career_wins >= g.target_value)
+        OR (g.goal_type = 'achievements' AND
+          (SELECT COUNT(*) FROM player_achievements pa WHERE pa.player_id = p.id) >= g.target_value))
+  `);
   logger.info("Player goals table ready");
 }
 
@@ -1343,23 +1403,61 @@ async function seedUsers() {
  */
 let collectingSchemaFailures = false;
 let schemaFailureCount = 0;
+let completedSchemaMigrations = new Set<string>();
+let schemaMigrationLedgerReady = false;
+let startupStepTimings: { name: string; durationMs: number; ok: boolean; skipped?: boolean }[] = [];
 
-async function runInitStep(name: string, fn: () => Promise<unknown> | unknown): Promise<void> {
+async function runInitStep(name: string, fn: () => Promise<unknown> | unknown): Promise<boolean> {
+  const startedAt = Date.now();
   try {
     await fn();
+    const durationMs = Date.now() - startedAt;
+    startupStepTimings.push({ name, durationMs, ok: true });
+    if (durationMs >= 250) logger.info({ step: name, durationMs }, "Slow startup step complete");
+    return true;
   } catch (err) {
+    const durationMs = Date.now() - startedAt;
+    startupStepTimings.push({ name, durationMs, ok: false });
     if (collectingSchemaFailures) schemaFailureCount++;
-    logger.error({ err, step: name }, `Startup step "${name}" failed — continuing with the rest of init()`);
+    logger.error({ err, step: name, durationMs }, `Startup step "${name}" failed — continuing with the rest of init()`);
+    return false;
   }
 }
+
+async function runMigrationStep(name: string, fn: () => Promise<unknown> | unknown): Promise<void> {
+  if (schemaMigrationLedgerReady && completedSchemaMigrations.has(name)) {
+    startupStepTimings.push({ name, durationMs: 0, ok: true, skipped: true });
+    return;
+  }
+
+  const ok = await runInitStep(name, fn);
+  if (!ok || !schemaMigrationLedgerReady) return;
+
+  const recorded = await runInitStep(`${name}:record`, () => markSchemaMigrationComplete(name));
+  if (recorded) completedSchemaMigrations.add(name);
+}
+
+// Only use runMigrationStep for immutable migrations that propagate failure
+// to their caller. Several older migration helpers deliberately catch errors
+// per statement so later statements can continue; those remain runInitStep
+// checks because marking a partially-applied helper complete would prevent a
+// later deployment from repairing it.
 
 async function initSchemaAndData(): Promise<boolean> {
   collectingSchemaFailures = true;
   schemaFailureCount = 0;
+  startupStepTimings = [];
+  completedSchemaMigrations = new Set();
+  schemaMigrationLedgerReady = await runInitStep("ensureSchemaMigrationLedger", ensureSchemaMigrationLedger);
+  if (schemaMigrationLedgerReady) {
+    schemaMigrationLedgerReady = await runInitStep("loadCompletedSchemaMigrations", async () => {
+      completedSchemaMigrations = await loadCompletedSchemaMigrations();
+    });
+  }
   // Multi-tenant foundation — must run before anything that reads/writes
   // league-scoped tables (seedSettings included, right below).
-  await runInitStep("addLeaguesTable", addLeaguesTable);
-  await runInitStep("addSettingsLeagueId", addSettingsLeagueId);
+  await runMigrationStep("addLeaguesTable", addLeaguesTable);
+  await runMigrationStep("addSettingsLeagueId", addSettingsLeagueId);
   await runInitStep("seedSettings", seedSettings);
   await runInitStep("initializeCardTables", initializeCardTables);
   // Card Clash used to mutate its schema as a fire-and-forget side effect of
@@ -1379,15 +1477,15 @@ async function initSchemaAndData(): Promise<boolean> {
   await runInitStep("addWeeklyChallengeYear", addWeeklyChallengeYear);
   await runInitStep("addSeasonResetLock", addSeasonResetLock);
   await runInitStep("addUsersPlayerIdUnique", addUsersPlayerIdUnique);
-  await runInitStep("addMatchParticipantDeltas", addMatchParticipantDeltas);
+  await runMigrationStep("addMatchParticipantDeltas", addMatchParticipantDeltas);
   await runInitStep("seedBroadcastSettings", seedBroadcastSettings);
   await runInitStep("seedCardDefinitions", seedCardDefinitions);
   await runInitStep("initializeFeaturedCardShopTables", initializeFeaturedCardShopTables);
 
-  await runInitStep("addDailyChallengeKeyColumn", addDailyChallengeKeyColumn);
-  await runInitStep("addLongestLossStreakColumn", addLongestLossStreakColumn);
-  await runInitStep("addCareerBiggestPointsFallColumn", addCareerBiggestPointsFallColumn);
-  await runInitStep("addTimesEliminatedColumn", addTimesEliminatedColumn);
+  await runMigrationStep("addDailyChallengeKeyColumn", addDailyChallengeKeyColumn);
+  await runMigrationStep("addLongestLossStreakColumn", addLongestLossStreakColumn);
+  await runMigrationStep("addCareerBiggestPointsFallColumn", addCareerBiggestPointsFallColumn);
+  await runMigrationStep("addTimesEliminatedColumn", addTimesEliminatedColumn);
   // Restored September 18th — this step was accidentally dropped (import and
   // registration both) by a September 14th commit, which meant the
   // was_upset_win column was never actually added to `matches` in
@@ -1405,11 +1503,11 @@ async function initSchemaAndData(): Promise<boolean> {
   // bank for both the admin test-fire route and the real trigger hook.
   await runInitStep("initializeInterviewDeskTables", initializeInterviewDeskTables);
   await runInitStep("seedInterviewQuestionBank", seedInterviewQuestionBank);
-  await runInitStep("addFavoritesColumn", addFavoritesColumn);
-  await runInitStep("addAchievementRewards", addAchievementRewards);
-  await runInitStep("addAchievementSeasonColumn", addAchievementSeasonColumn);
-  await runInitStep("createCardClashPlayerSettingsTable", createCardClashPlayerSettingsTable);
-  await runInitStep("createCardClashFavoritesTable", createCardClashFavoritesTable);
+  await runMigrationStep("addFavoritesColumn", addFavoritesColumn);
+  await runMigrationStep("addAchievementRewards", addAchievementRewards);
+  await runMigrationStep("addAchievementSeasonColumn", addAchievementSeasonColumn);
+  await runMigrationStep("createCardClashPlayerSettingsTable", createCardClashPlayerSettingsTable);
+  await runMigrationStep("createCardClashFavoritesTable", createCardClashFavoritesTable);
   await runInitStep("addPlayerAvatarImage", addPlayerAvatarImage);
   await runInitStep("addDirectMessagePhotoImage", addDirectMessagePhotoImage);
   await runInitStep("addCommunityPostPhotoImage", addCommunityPostPhotoImage);
@@ -1458,8 +1556,8 @@ async function initSchemaAndData(): Promise<boolean> {
   // Doubles and Shift Wars their own season row (re-parenting Doubles'
   // current teams onto it) and needs both those tables and a real active
   // singles season to already exist.
-  await runInitStep("addSeasonLeagueType", addSeasonLeagueType);
-  await runInitStep("addLastSeenBroadcastEditionColumn", addLastSeenBroadcastEditionColumn);
+  await runMigrationStep("addSeasonLeagueType", addSeasonLeagueType);
+  await runMigrationStep("addLastSeenBroadcastEditionColumn", addLastSeenBroadcastEditionColumn);
   await runInitStep("addCosmeticsTables", addCosmeticsTables);
   await runInitStep("addEquippedCosmeticsColumns", addEquippedCosmeticsColumns);
   await runInitStep("addBannerFrameCosmeticColumns", addBannerFrameCosmeticColumns);
@@ -1491,16 +1589,29 @@ async function initSchemaAndData(): Promise<boolean> {
   await runInitStep("addCombinedMatchesTables", addCombinedMatchesTables);
   await runInitStep("addDoublesMatchDeltas", addDoublesMatchDeltas);
   await runInitStep("addShiftWarsMatchSeason", addShiftWarsMatchSeason);
-  await runInitStep("addIntegrityReviewAcknowledgements", addIntegrityReviewAcknowledgements);
+  await runMigrationStep("addIntegrityReviewAcknowledgements", addIntegrityReviewAcknowledgements);
   await runInitStep("seedPlayoffMatches", seedPlayoffMatches);
   await runInitStep("seedSessions", seedSessions);
   await runInitStep("seedUsers", seedUsers);
   await runInitStep("seedTitles", seedTitles);
-  await runInitStep("addPerformanceIndexes4", addPerformanceIndexes4);
+  await runMigrationStep("addPerformanceIndexes4", addPerformanceIndexes4);
 
   collectingSchemaFailures = false;
   const clean = schemaFailureCount === 0;
-  logger.info({ clean, failedSteps: schemaFailureCount }, "Startup schema and seed validation complete");
+  const executed = startupStepTimings.filter(step => !step.skipped);
+  const skipped = startupStepTimings.length - executed.length;
+  const slowestSteps = executed
+    .filter(step => !step.name.endsWith(":record"))
+    .sort((a, b) => b.durationMs - a.durationMs)
+    .slice(0, 8)
+    .map(({ name, durationMs, ok }) => ({ name, durationMs, ok }));
+  logger.info({
+    clean,
+    failedSteps: schemaFailureCount,
+    totalDurationMs: executed.reduce((sum, step) => sum + step.durationMs, 0),
+    migrationsSkipped: skipped,
+    slowestSteps,
+  }, "Startup schema and seed validation complete");
   return clean;
 }
 
