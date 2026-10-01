@@ -188,6 +188,8 @@ export interface MatchInput {
   loser180s?: number;
   loserCheckoutAttempts?: number;
   loserCheckoutHits?: number;
+  /** Optional client-supplied key so a retried submission returns the already-recorded match instead of creating a duplicate. */
+  idempotencyKey?: string;
 }
 
 export interface Season {

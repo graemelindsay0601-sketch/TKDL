@@ -3,7 +3,7 @@ import { wagerPot } from "../lib/wager-pot";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { z } from "zod";
-import { validateStake, applyWager, combinedPot, validateCombinedStake, applyCombinedWager } from "../lib/wager";
+import { validateStake, applyWager, combinedPot, validateCombinedStake, applyCombinedWager, multiMatchPot, validateMultiStake, applyMultiWager } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { sendShiftWarsMatchResultNotification, sendMatchResultBroadcast, sendRankChangeNotifications } from "../services/notificationService";
@@ -36,6 +36,8 @@ const RecordShiftWarsMatchBody = z.object({
   // the entered stake between official team accounts regardless of count.
   winnerFieldedCount: z.number().int().positive().max(6).optional().default(1),
   loserFieldedCount:  z.number().int().positive().max(6).optional().default(1),
+  // Optional client-supplied key — see db/migrations/add_match_result_idempotency.ts.
+  idempotencyKey: z.string().min(1).max(100).optional(),
 });
 
 // A "combined side" match: one department plays alone (solo) against a
@@ -57,6 +59,26 @@ const RecordShiftWarsCombinedMatchBody = z.object({
   stakeMode: z.enum(["per-player", "total"]).optional().default("per-player"),
   gameType: z.string().optional().default("shift_wars_501"),
   notes: z.string().optional(),
+  // Optional client-supplied key — see db/migrations/add_match_result_idempotency.ts.
+  idempotencyKey: z.string().min(1).max(100).optional(),
+});
+
+// A "multi-team" match: all 3 departments play ONE live elimination game
+// together (MultiKillerScorer on the frontend — the same engine Singles'
+// Killer Free-for-All already uses), with a single overall winner. Shift
+// Wars only ever has 3 fixed departments, so this is always exactly 3 —
+// unlike Doubles Event's multi-team match, which can have more pairings.
+// See lib/wager.ts (multiMatchPot/validateMultiStake/applyMultiWager) for
+// the settlement math and db/migrations/add_multi_matches.ts for the tables
+// this writes to. Points-only, like every other Shift Wars match — no Elo.
+const RecordShiftWarsMultiMatchBody = z.object({
+  participantTeamIds: z.array(z.number().int().positive()).length(3, "Shift Wars multi-team matches are always all 3 departments"),
+  winnerTeamId: z.number().int().positive(),
+  stake: z.number().int().min(1),
+  gameType: z.string().optional().default("shift_wars_501"),
+  notes: z.string().optional(),
+  // Optional client-supplied key — see db/migrations/add_match_result_idempotency.ts.
+  idempotencyKey: z.string().min(1).max(100).optional(),
 });
 
 const UpdateTeamPointsBody = z.object({
@@ -187,7 +209,24 @@ router.get("/shift-wars/matches", async (_req, res): Promise<void> => {
 router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
   const parsed = RecordShiftWarsMatchBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
-  const { winnerTeamId, loserTeamId, stake, stakeMode, gameType, notes, winnerFieldedCount, loserFieldedCount } = parsed.data;
+  const { winnerTeamId, loserTeamId, stake, stakeMode, gameType, notes, winnerFieldedCount, loserFieldedCount, idempotencyKey } = parsed.data;
+
+  // A retried submission reuses the same key — return the match already
+  // recorded instead of re-running the whole handler. See matches.ts's own
+  // identical check for the full reasoning; the partial unique index from
+  // add_match_result_idempotency.ts is the real backstop for a true
+  // concurrent double-submit, caught further below.
+  if (idempotencyKey) {
+    const existingRows = (await db.execute(sql`SELECT m.*, wt.name AS winner_name, lt.name AS loser_name FROM shift_wars_matches m JOIN shift_wars_teams wt ON wt.id = m.winner_team_id JOIN shift_wars_teams lt ON lt.id = m.loser_team_id WHERE m.idempotency_key = ${idempotencyKey} LIMIT 1`)).rows as any[];
+    if (existingRows[0]) {
+      const existing = existingRows[0];
+      res.status(200).json({
+        match: existing, winnerName: existing.winner_name, loserName: existing.loser_name,
+        newWinnerTeamRank: null, newLoserTeamRank: null, winnerTeamRankChange: 0, loserTeamRankChange: 0,
+      });
+      return;
+    }
+  }
 
   if (winnerTeamId === loserTeamId) { res.status(400).json({ error: "A team cannot play itself" }); return; }
 
@@ -243,8 +282,8 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
       // number the match history/notifications have for how many points
       // actually moved between the two departments.
       const [match] = (await tx.execute(sql`
-        INSERT INTO shift_wars_matches (season_id, winner_team_id, loser_team_id, stake, game_type, notes)
-        VALUES (${seasonId}, ${winner.id}, ${loser.id}, ${effectiveStake}, ${gameType}, ${notes ?? null})
+        INSERT INTO shift_wars_matches (season_id, winner_team_id, loser_team_id, stake, game_type, notes, idempotency_key)
+        VALUES (${seasonId}, ${winner.id}, ${loser.id}, ${effectiveStake}, ${gameType}, ${notes ?? null}, ${idempotencyKey ?? null})
         RETURNING *
       `)).rows as any[];
 
@@ -342,6 +381,17 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
       res.status(400).json({ error: err.message });
       return;
     }
+    if (idempotencyKey && (err as { code?: string }).code === "23505") {
+      const existingRows = (await db.execute(sql`SELECT m.*, wt.name AS winner_name, lt.name AS loser_name FROM shift_wars_matches m JOIN shift_wars_teams wt ON wt.id = m.winner_team_id JOIN shift_wars_teams lt ON lt.id = m.loser_team_id WHERE m.idempotency_key = ${idempotencyKey} LIMIT 1`)).rows as any[];
+      if (existingRows[0]) {
+        const existing = existingRows[0];
+        res.status(200).json({
+          match: existing, winnerName: existing.winner_name, loserName: existing.loser_name,
+          newWinnerTeamRank: null, newLoserTeamRank: null, winnerTeamRankChange: 0, loserTeamRankChange: 0,
+        });
+        return;
+      }
+    }
     throw err;
   }
 });
@@ -413,10 +463,48 @@ router.patch("/admin/shift-wars/players/:id/team", requireAdminSession, async (r
 
 // ── Record a "combined side" Shift Wars match ────────────────────────────────
 
+// Reconstructs the exact success-response shape for an already-recorded
+// combined-side match, by idempotency key — see
+// loadDoublesCombinedMatchResponse in doubles.ts for the identical reasoning
+// (used by both the pre-check below and the race fallback in the catch
+// block). Returns null when no match with that key exists yet.
+async function loadShiftWarsCombinedMatchResponse(idempotencyKey: string): Promise<unknown | null> {
+  const matchRows = (await db.execute(sql`
+    SELECT scm.*, st.name AS solo_team_name
+    FROM shift_wars_combined_matches scm
+    JOIN shift_wars_teams st ON st.id = scm.solo_team_id
+    WHERE scm.idempotency_key = ${idempotencyKey}
+    LIMIT 1
+  `)).rows as any[];
+  const match = matchRows[0];
+  if (!match) return null;
+
+  const sideRows = (await db.execute(sql`
+    SELECT s.team_id, t.name AS team_name, s.fielded_count, s.points_delta
+    FROM shift_wars_combined_match_sides s
+    JOIN shift_wars_teams t ON t.id = s.team_id
+    WHERE s.match_id = ${match.id}
+  `)).rows as any[];
+
+  return {
+    match, soloTeamId: match.solo_team_id, soloTeamName: match.solo_team_name, soloWon: match.solo_won,
+    pot: match.pot, soloPointsDelta: match.solo_points_delta,
+    combinedSides: sideRows.map(s => ({ teamId: s.team_id, teamName: s.team_name, fieldedCount: s.fielded_count, pointsDelta: s.points_delta })),
+  };
+}
+
 router.post("/shift-wars/combined-matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
   const parsed = RecordShiftWarsCombinedMatchBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
-  const { soloTeamId, soloFieldedCount, soloWon, combinedTeams, stake, stakeMode, gameType, notes } = parsed.data;
+  const { soloTeamId, soloFieldedCount, soloWon, combinedTeams, stake, stakeMode, gameType, notes, idempotencyKey } = parsed.data;
+
+  // A retried submission reuses the same key — return the match already
+  // recorded instead of re-running the whole handler. See matches.ts's own
+  // identical check for the full reasoning.
+  if (idempotencyKey) {
+    const existing = await loadShiftWarsCombinedMatchResponse(idempotencyKey);
+    if (existing) { res.status(200).json(existing); return; }
+  }
 
   const combinedTeamIds = combinedTeams.map(c => c.teamId);
   if (new Set(combinedTeamIds).size !== combinedTeamIds.length) {
@@ -486,8 +574,8 @@ router.post("/shift-wars/combined-matches", matchSubmitRateLimit, async (req, re
 
       const [match] = (await tx.execute(sql`
         INSERT INTO shift_wars_combined_matches
-          (season_id, solo_team_id, solo_fielded_count, solo_won, stake, pot, solo_points_delta, game_type, notes)
-        VALUES (${seasonId}, ${solo.id}, ${soloFieldedCount}, ${soloWon}, ${stake}, ${pot}, ${soloPointsDelta}, ${gameType}, ${notes ?? null})
+          (season_id, solo_team_id, solo_fielded_count, solo_won, stake, pot, solo_points_delta, game_type, notes, idempotency_key)
+        VALUES (${seasonId}, ${solo.id}, ${soloFieldedCount}, ${soloWon}, ${stake}, ${pot}, ${soloPointsDelta}, ${gameType}, ${notes ?? null}, ${idempotencyKey ?? null})
         RETURNING *
       `)).rows as any[];
 
@@ -562,6 +650,10 @@ router.post("/shift-wars/combined-matches", matchSubmitRateLimit, async (req, re
       res.status(400).json({ error: err.message });
       return;
     }
+    if (idempotencyKey && (err as { code?: string }).code === "23505") {
+      const existing = await loadShiftWarsCombinedMatchResponse(idempotencyKey);
+      if (existing) { res.status(200).json(existing); return; }
+    }
     throw err;
   }
 });
@@ -604,6 +696,216 @@ router.get("/shift-wars/combined-matches", async (_req, res): Promise<void> => {
     notes: m.notes,
     combinedSides: sides.filter(s => s.match_id === m.id).map(s => ({
       teamId: s.team_id, teamName: s.team_name, fieldedCount: s.fielded_count, pointsDelta: s.points_delta,
+    })),
+  })));
+});
+
+// ── Record a "multi-team" Shift Wars match (all 3 departments, one winner) ──
+
+// Same purpose as loadShiftWarsCombinedMatchResponse above, for the
+// multi-team shape — used by both the pre-check below and the catch-block
+// race fallback.
+async function loadShiftWarsMultiMatchResponse(idempotencyKey: string): Promise<unknown | null> {
+  const matchRows = (await db.execute(sql`
+    SELECT mm.*, wt.name AS winner_team_name
+    FROM shift_wars_multi_matches mm
+    JOIN shift_wars_teams wt ON wt.id = mm.winner_team_id
+    WHERE mm.idempotency_key = ${idempotencyKey}
+    LIMIT 1
+  `)).rows as any[];
+  const match = matchRows[0];
+  if (!match) return null;
+
+  const loserRows = (await db.execute(sql`
+    SELECT p.team_id, t.name AS team_name, p.points_delta
+    FROM shift_wars_multi_match_participants p
+    JOIN shift_wars_teams t ON t.id = p.team_id
+    WHERE p.match_id = ${match.id} AND p.is_winner = false
+  `)).rows as any[];
+
+  return {
+    match, winnerTeamId: match.winner_team_id, winnerTeamName: match.winner_team_name, pot: match.pot,
+    losers: loserRows.map(l => ({ teamId: l.team_id, teamName: l.team_name, pointsDelta: l.points_delta })),
+  };
+}
+
+router.post("/shift-wars/multi-matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
+  const parsed = RecordShiftWarsMultiMatchBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
+  const { participantTeamIds, winnerTeamId, stake, gameType, notes, idempotencyKey } = parsed.data;
+
+  // A retried submission reuses the same key — return the match already
+  // recorded instead of re-running the whole handler. See matches.ts's own
+  // identical check for the full reasoning.
+  if (idempotencyKey) {
+    const existing = await loadShiftWarsMultiMatchResponse(idempotencyKey);
+    if (existing) { res.status(200).json(existing); return; }
+  }
+
+  if (new Set(participantTeamIds).size !== participantTeamIds.length) {
+    res.status(400).json({ error: "A department cannot play itself twice in the same multi-team match" }); return;
+  }
+  if (!participantTeamIds.includes(winnerTeamId)) {
+    res.status(400).json({ error: "The winning department must be one of the participants" }); return;
+  }
+
+  const seasonId = await activeShiftWarsSeasonId();
+  if (!seasonId) { res.status(400).json({ error: "No active Shift Wars season found" }); return; }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const teamRows = await tx.execute(sql`
+        SELECT * FROM shift_wars_teams
+        WHERE id = ANY(ARRAY[${sql.join(participantTeamIds.map(id => sql`${id}`), sql`, `)}]::int[])
+        FOR UPDATE
+      `);
+      const teams = teamRows.rows as any[];
+      if (teams.length !== participantTeamIds.length) throw new ShiftWarsConflictError("One or more departments not found");
+
+      const winner = teams.find(t => t.id === winnerTeamId)!;
+      const losers = teams.filter(t => t.id !== winnerTeamId);
+
+      const pot = multiMatchPot(stake, participantTeamIds.length);
+      const stakeError = validateMultiStake(stake, losers.map(l => ({ points: l.points, name: l.name })));
+      if (stakeError) throw new ShiftWarsConflictError(stakeError);
+
+      const { newWinnerPoints, loserResults } = applyMultiWager(
+        pot,
+        { points: winner.points },
+        losers.map(l => ({ points: l.points })),
+        stake,
+      );
+
+      await tx.execute(sql`
+        UPDATE shift_wars_teams SET
+          points = ${newWinnerPoints},
+          peak_points = GREATEST(peak_points, ${newWinnerPoints}),
+          wins = wins + 1
+        WHERE id = ${winner.id}
+      `);
+
+      const loserRows: { teamId: number; teamName: string; pointsDelta: number; eliminated: boolean }[] = [];
+      for (let i = 0; i < losers.length; i++) {
+        const l = losers[i];
+        const lr = loserResults[i];
+        await tx.execute(sql`
+          UPDATE shift_wars_teams SET points = ${lr.newPoints}, losses = losses + 1 WHERE id = ${l.id}
+        `);
+        loserRows.push({ teamId: l.id, teamName: l.name, pointsDelta: lr.newPoints - l.points, eliminated: lr.eliminated });
+      }
+
+      const [match] = (await tx.execute(sql`
+        INSERT INTO shift_wars_multi_matches
+          (season_id, winner_team_id, participant_count, stake, pot, game_type, notes, idempotency_key)
+        VALUES (${seasonId}, ${winner.id}, ${participantTeamIds.length}, ${stake}, ${pot}, ${gameType}, ${notes ?? null}, ${idempotencyKey ?? null})
+        RETURNING *
+      `)).rows as any[];
+
+      await tx.execute(sql`
+        INSERT INTO shift_wars_multi_match_participants (match_id, team_id, is_winner, points_delta, eliminated)
+        VALUES (${match.id}, ${winner.id}, true, ${pot}, false)
+      `);
+      for (const lr of loserRows) {
+        await tx.execute(sql`
+          INSERT INTO shift_wars_multi_match_participants (match_id, team_id, is_winner, points_delta, eliminated)
+          VALUES (${match.id}, ${lr.teamId}, false, ${lr.pointsDelta}, ${lr.eliminated})
+        `);
+      }
+
+      return { match, winner, losers, loserRows, pot };
+    });
+
+    res.status(201).json({
+      match: result.match,
+      winnerTeamId: result.winner.id,
+      winnerTeamName: result.winner.name,
+      pot: result.pot,
+      losers: result.loserRows,
+    });
+
+    void checkShiftWarsAchievements(result.winner.id);
+
+    // Push notifications + auto community post (fire and forget) — same
+    // spirit as the normal Shift Wars match, phrased for a multi-team result.
+    void (async () => {
+      try {
+        const rosterRows = await db.execute(sql`
+          SELECT id, shift_wars_team_id FROM players
+          WHERE shift_wars_team_id = ANY(ARRAY[${sql.join(participantTeamIds.map(id => sql`${id}`), sql`, `)}]::int[])
+        `);
+        const roster = rosterRows.rows as any[];
+        const winnerPlayerIds = roster.filter(p => p.shift_wars_team_id === result.winner.id).map(p => p.id);
+        const loserPlayerIds  = roster.filter(p => result.losers.some(l => l.id === p.shift_wars_team_id)).map(p => p.id);
+        const loserNames = result.loserRows.map(l => l.teamName).join(", ");
+
+        await sendShiftWarsMatchResultNotification(result.winner.name, loserNames, winnerPlayerIds, loserPlayerIds, result.pot);
+        void sendMatchResultBroadcast(
+          [...winnerPlayerIds, ...loserPlayerIds],
+          "🎯 Shift Wars Result",
+          `${result.winner.name} won a 3-way multi-match`,
+          { winnerName: result.winner.name, loserNames },
+        );
+        if (winnerPlayerIds.length > 0) {
+          await createAutoPost({
+            playerId: winnerPlayerIds[0],
+            content: `🎯 ${result.winner.name} won a 3-way Shift Wars multi-match (beat ${loserNames}) (+${result.pot} pts)`,
+            autoMeta: { type: "shift_wars_multi_match", matchId: result.match.id, winnerTeamId: result.winner.id, loserTeamIds: result.loserRows.map(l => l.teamId), pot: result.pot },
+            notifyPlayerIds: loserPlayerIds,
+          });
+        }
+      } catch (err) {
+        req.log?.error?.({ err }, "Failed to send Shift Wars multi-match result notifications");
+      }
+    })();
+  } catch (err) {
+    if (err instanceof ShiftWarsConflictError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    if (idempotencyKey && (err as { code?: string }).code === "23505") {
+      const existing = await loadShiftWarsMultiMatchResponse(idempotencyKey);
+      if (existing) { res.status(200).json(existing); return; }
+    }
+    throw err;
+  }
+});
+
+// ── Multi-team match history ─────────────────────────────────────────────────
+
+router.get("/shift-wars/multi-matches", async (_req, res): Promise<void> => {
+  const matchRows = await db.execute(sql`
+    SELECT mm.id, mm.played_at, mm.winner_team_id, wt.name AS winner_team_name,
+           mm.participant_count, mm.stake, mm.pot, mm.game_type, mm.notes
+    FROM shift_wars_multi_matches mm
+    JOIN shift_wars_teams wt ON wt.id = mm.winner_team_id
+    ORDER BY mm.played_at DESC
+    LIMIT 100
+  `);
+  const matches = matchRows.rows as any[];
+  if (matches.length === 0) { res.json([]); return; }
+
+  const matchIds = matches.map(m => m.id);
+  const participantRows = await db.execute(sql`
+    SELECT p.match_id, p.team_id, t.name AS team_name, p.is_winner, p.points_delta, p.eliminated
+    FROM shift_wars_multi_match_participants p
+    JOIN shift_wars_teams t ON t.id = p.team_id
+    WHERE p.match_id = ANY(ARRAY[${sql.join(matchIds.map((id: number) => sql`${id}`), sql`, `)}]::int[])
+  `);
+  const participants = participantRows.rows as any[];
+
+  res.json(matches.map(m => ({
+    id: m.id,
+    playedAt: m.played_at,
+    winnerTeamId: m.winner_team_id,
+    winnerTeamName: m.winner_team_name,
+    participantCount: m.participant_count,
+    stake: m.stake,
+    pot: m.pot,
+    gameType: m.game_type,
+    notes: m.notes,
+    participants: participants.filter(p => p.match_id === m.id).map(p => ({
+      teamId: p.team_id, teamName: p.team_name, isWinner: p.is_winner,
+      pointsDelta: p.points_delta, eliminated: p.eliminated,
     })),
   })));
 });

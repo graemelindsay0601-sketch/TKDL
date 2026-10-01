@@ -95,6 +95,7 @@ export async function createAutoPost(opts: {
     const result = await db.execute(sql`
       INSERT INTO community_posts (player_id, content, post_type, auto_meta, status)
       VALUES (${opts.playerId}, ${opts.content}, 'auto', ${JSON.stringify(opts.autoMeta)}, 'approved')
+      ON CONFLICT DO NOTHING
       RETURNING id
     `);
     const postId = (result.rows[0] as any)?.id as number | undefined;

@@ -99,16 +99,21 @@ router.post("/players", requireAdminSession, async (req, res): Promise<void> => 
   const parsed = CreatePlayerBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const { name, playerId } = parsed.data;
-  const count = await db.select({ id: playersTable.id }).from(playersTable);
-  const autoId = `P${String(count.length + 1).padStart(3, "0")}`;
-  const [player] = await db.insert(playersTable).values({
-    name,
-    playerId: playerId ?? autoId,
-    status: "ACTIVE",
-    points: 25,
-    peakPoints: 25,
-  }).returning();
-  res.status(201).json(player);
+  try {
+    const player=await db.transaction(async tx=>{
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('tkdl-player-code'))`);
+      const duplicate=await tx.execute(sql`SELECT id FROM players WHERE lower(trim(name))=lower(${name.trim()}) LIMIT 1`);
+      if(duplicate.rows.length)throw new Error("PLAYER_NAME_EXISTS");
+      const code=playerId??String((await tx.execute(sql`SELECT COALESCE(MAX(CASE WHEN player_id ~ '^P[0-9]+$' THEN substring(player_id FROM 2)::integer ELSE 0 END),0)+1 next_number FROM players`)).rows[0]?.next_number??1);
+      const resolvedCode=playerId??`P${code.padStart(3,"0")}`;
+      const [inserted]=await tx.insert(playersTable).values({name:name.trim(),playerId:resolvedCode,status:"ACTIVE",points:25,peakPoints:25}).returning();
+      return inserted;
+    });
+    res.status(201).json(player);
+  }catch(err){
+    if(err instanceof Error&&err.message==="PLAYER_NAME_EXISTS"){res.status(409).json({error:"A player with this name already exists"});return;}
+    logger.error({err},"POST /players failed");res.status(500).json({error:"Failed to create player"});
+  }
 });
 
 router.get("/players/:id", async (req, res): Promise<void> => {

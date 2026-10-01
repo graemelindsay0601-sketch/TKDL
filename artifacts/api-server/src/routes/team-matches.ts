@@ -16,6 +16,8 @@ const TeamMatchBody = z.object({
   stakeMode: z.enum(["per-player", "total"]).optional().default("per-player"),
   gameType:  z.string().optional().default("team_501"),
   notes:     z.string().optional(),
+  // Optional client-supplied key — see db/migrations/add_match_result_idempotency.ts.
+  idempotencyKey: z.string().min(1).max(100).optional(),
 });
 
 const ListTeamMatchesQuery = z.object({
@@ -54,7 +56,22 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
     return;
   }
 
-  const { winnerIds, loserIds, stake, stakeMode, gameType, notes } = parsed.data;
+  const { winnerIds, loserIds, stake, stakeMode, gameType, notes, idempotencyKey } = parsed.data;
+
+  // A retried submission reuses the same key — return the match already
+  // recorded instead of re-running the whole handler (which would both
+  // insert a genuine duplicate and re-fire the notification/community-post
+  // side effects below a second time). See matches.ts's own identical check
+  // for the full reasoning; the partial unique index from
+  // add_match_result_idempotency.ts is the real backstop for a true
+  // concurrent double-submit, caught further below.
+  if (idempotencyKey) {
+    const [existing] = await db.select().from(matchesTable).where(eq(matchesTable.idempotencyKey, idempotencyKey)).limit(1);
+    if (existing) {
+      res.status(200).json({ match: existing, eloChange: existing.eloChange, eliminations: [], winnerShares: [], loserShares: [], rankChanges: {} });
+      return;
+    }
+  }
 
   // Validate no overlap between teams
   const overlap = winnerIds.filter(id => loserIds.includes(id));
@@ -204,6 +221,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
         eloChange:  lockedEloChange,
         gameType:   gameType ?? "team_501",
         notes:      notes ?? null,
+        idempotencyKey: idempotencyKey ?? null,
       }).returning();
 
       // Insert all participants
@@ -314,6 +332,13 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
       res.status(400).json({ error: err.message });
       return;
     }
+    if (idempotencyKey && (err as { code?: string }).code === "23505") {
+      const [existing] = await db.select().from(matchesTable).where(eq(matchesTable.idempotencyKey, idempotencyKey)).limit(1);
+      if (existing) {
+        res.status(200).json({ match: existing, eloChange: existing.eloChange, eliminations: [], winnerShares: [], loserShares: [], rankChanges: {} });
+        return;
+      }
+    }
     throw err;
   }
 
@@ -365,7 +390,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
   // (sendRankChangeNotifications above), so a team match result itself was
   // otherwise invisible outside the app. Matches how Singles/Doubles/Shift
   // Wars all already notify their own participants.
-  void sendTeamMatchResultNotification(match.winnerName, match.loserName, winnerIds, loserIds, stake, eloChange);
+  void sendTeamMatchResultNotification(match.winnerName, match.loserName, winnerIds, loserIds, stake, eloChange, `team-match:${match.id}`);
 
   // Auto community post (fire and forget — never delay the response). Team
   // Matches never had any community-feed integration before this — mirrors

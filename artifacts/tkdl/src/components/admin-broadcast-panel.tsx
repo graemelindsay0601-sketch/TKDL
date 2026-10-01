@@ -7,7 +7,7 @@ import React, { useState, useEffect } from "react";
 // again. POST /api/admin/broadcast/regenerate (forceRebuildCurrentEdition)
 // already existed to reclaim a terminal slot on demand, but nothing in the
 // app could call it. This panel is that missing button, styled to match
-// admin-feature-flags-panel.tsx's own look.
+// the rest of the admin control room.
 
 const D = {
   card:    "rgba(255,255,255,0.04)",

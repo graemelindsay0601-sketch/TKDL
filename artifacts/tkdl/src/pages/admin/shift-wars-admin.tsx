@@ -187,7 +187,7 @@ export function ShiftWarsAdmin() {
             const current = teamOf(p.id);
             return (
               <div key={p.id} className="grid items-center gap-2 px-3 py-1.5 rounded"
-                style={{ gridTemplateColumns: "1fr 10rem", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                style={{ gridTemplateColumns: "minmax(0,1fr) minmax(7rem,10rem)", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
                 <span className="text-sm truncate" style={{ color: "rgba(255,255,255,0.7)" }}>{p.name}</span>
                 <select
                   defaultValue={current?.id ?? ""}

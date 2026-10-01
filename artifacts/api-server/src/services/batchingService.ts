@@ -191,13 +191,19 @@ export async function queueNotificationForBatching(
   notificationId: number,
   delayMs: number,
   message: QueuedPushMessage
-): Promise<void> {
-  try {
-    const sendAfter = new Date(Date.now() + delayMs);
+): Promise<number> {
+  const sendAfter = new Date(Date.now() + Math.max(0, delayMs));
 
-    await db.execute(sql`
+  try {
+    const result = await db.execute(sql`
       INSERT INTO pending_push_notifications (player_id, notification_id, title, body, data, send_after)
       VALUES (${playerId}, ${notificationId}, ${message.title}, ${message.body}, ${JSON.stringify(message.data || {})}, ${sendAfter})
+      ON CONFLICT (notification_id) DO UPDATE SET
+        title = EXCLUDED.title,
+        body = EXCLUDED.body,
+        data = EXCLUDED.data,
+        send_after = LEAST(pending_push_notifications.send_after, EXCLUDED.send_after)
+      RETURNING id
     `);
 
     logger.info({
@@ -205,8 +211,10 @@ export async function queueNotificationForBatching(
       notificationId,
       delayMinutes: Math.round(delayMs / 60000)
     }, "Notification queued for batching");
+    return Number((result.rows[0] as any).id);
   } catch (error) {
     logger.error({ error }, "Error queueing notification for batching");
+    throw error;
   }
 }
 

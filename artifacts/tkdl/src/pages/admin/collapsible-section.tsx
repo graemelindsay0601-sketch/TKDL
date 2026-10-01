@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 export function CollapsibleAdminSection({
-  title, icon: Icon, accent, badge, children, borderColor, background,
+  title, icon: Icon, accent, badge, children, borderColor, background, sectionId, defaultOpen = false,
 }: {
   title: string;
   icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
@@ -11,11 +11,30 @@ export function CollapsibleAdminSection({
   children: React.ReactNode;
   borderColor?: string;
   background?: string;
+  sectionId?: string;
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const storageKey = useMemo(
+    () => `tkdl:admin-section:${sectionId ?? title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+    [sectionId, title],
+  );
+  const [open, setOpen] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(storageKey);
+      return saved == null ? defaultOpen : saved === "1";
+    } catch { return defaultOpen; }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem(storageKey, open ? "1" : "0"); } catch { /* storage is optional */ }
+  }, [open, storageKey]);
+  useEffect(() => {
+    const collapse = () => setOpen(false);
+    window.addEventListener("tkdl-admin-collapse-all", collapse);
+    return () => window.removeEventListener("tkdl-admin-collapse-all", collapse);
+  }, []);
   const col = accent ?? "rgba(255,255,255,0.5)";
   return (
-    <div className="pdc-card overflow-hidden" style={{ borderColor, background }}>
+    <div id={sectionId} className="pdc-card overflow-hidden scroll-mt-24" style={{ borderColor, background }}>
       <div className="flex items-center border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
         <button
           className="flex-1 flex items-center gap-2 px-5 py-3 hover:bg-white/[0.02] transition-colors min-w-0"

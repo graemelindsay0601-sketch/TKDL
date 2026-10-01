@@ -7,6 +7,7 @@ import { db } from "@workspace/db";
 import { sql, eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { checkBatchingRules, queueNotificationForBatching } from "./batchingService";
+import { buildMatchResultNotifications, type MatchResultFormat } from "../lib/match-result-notifications";
 
 // The "community" types (dm_received through auto_post_fired) used to run
 // through a second, parallel createNotification() in lib/communityNotify.ts
@@ -46,6 +47,7 @@ export interface NotificationPayload {
   actorId?: number | null;
   entityId?: number | null;
   entityType?: string | null;
+  dedupeKey?: string;
 }
 
 export interface PushSubscription {
@@ -71,15 +73,21 @@ export async function createNotification(payload: NotificationPayload): Promise<
     // /notifications already falls back to via COALESCE(body, message) for
     // the older message-shaped rows.
     const { rows: [notification] } = await db.execute(sql`
-      INSERT INTO notifications (player_id, type, title, body, message, data, actor_id, entity_id, entity_type)
+      INSERT INTO notifications (player_id, type, title, body, message, data, actor_id, entity_id, entity_type, dedupe_key)
       VALUES (
         ${payload.playerId}, ${payload.type}, ${payload.title}, ${payload.body}, ${payload.body}, ${JSON.stringify(payload.data || {})},
-        ${payload.actorId ?? null}, ${payload.entityId ?? null}, ${payload.entityType ?? null}
+        ${payload.actorId ?? null}, ${payload.entityId ?? null}, ${payload.entityType ?? null}, ${payload.dedupeKey ?? null}
       )
+      ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
       RETURNING id
     `);
 
-    const notificationId = (notification as any).id;
+    let notificationId = (notification as any)?.id as number | undefined;
+    if (!notificationId && payload.dedupeKey) {
+      const existing = await db.execute(sql`SELECT id FROM notifications WHERE dedupe_key = ${payload.dedupeKey} LIMIT 1`);
+      notificationId = Number((existing.rows[0] as any)?.id);
+    }
+    if (!notificationId) throw new Error("Notification insert returned no id");
     
     // Check player preferences
     const prefs = await db.execute(sql`
@@ -92,22 +100,25 @@ export async function createNotification(payload: NotificationPayload): Promise<
     const { shouldSend, batchingDelay } = await shouldSendNotification(payload, preference);
 
     if (shouldSend) {
-      // Send push notification asynchronously (don't wait)
-      sendPushNotification(payload.playerId, notificationId, {
+      // Persist before attempting delivery. A Render sleep/restart can now
+      // interrupt the network request without losing the push forever.
+      const pendingId = await queueNotificationForBatching(payload.playerId, notificationId, 0, {
         title: payload.title,
         body: payload.body,
         data: payload.data || {},
-      }).catch(err => logger.error({ err }, "Failed to send push notification"));
+      });
+      void deliverQueuedPushNotification(pendingId)
+        .catch(err => logger.error({ err, pendingId }, "Failed to deliver immediate push notification"));
     } else if (batchingDelay) {
       // Quiet hours / daily cap deferred this one — queue it for
       // pushBatchScheduler.ts to deliver once send_after arrives, instead of
       // silently dropping the push the way this used to (see
       // queueNotificationForBatching's header in batchingService.ts).
-      queueNotificationForBatching(payload.playerId, notificationId, batchingDelay, {
+      await queueNotificationForBatching(payload.playerId, notificationId, batchingDelay, {
         title: payload.title,
         body: payload.body,
         data: payload.data || {},
-      }).catch(err => logger.error({ err }, "Failed to queue deferred push notification"));
+      });
     }
 
     return notificationId;
@@ -341,11 +352,18 @@ export async function sendTestInterviewInviteNotification(
  * exact same delivery path for a deferred/batched push instead of a second,
  * hand-copied implementation that could drift from this one.
  */
+export type PushDeliveryResult = {
+  status: "delivered" | "no_subscriptions" | "failed";
+  sent: number;
+  failed: number;
+  lastError?: string;
+};
+
 export async function sendPushNotification(
   playerId: number,
   notificationId: number,
   message: { title: string; body: string; data: Record<string, any> }
-): Promise<void> {
+): Promise<PushDeliveryResult> {
   try {
     // Get push subscriptions for this player
     const subs = await db.execute(sql`
@@ -355,11 +373,14 @@ export async function sendPushNotification(
 
     if (subs.rows.length === 0) {
       logger.debug(`No push subscriptions for player ${playerId}`);
-      return;
+      return { status: "no_subscriptions", sent: 0, failed: 0 };
     }
 
     const webPush = await import("web-push");
     
+    let sent = 0;
+    let failed = 0;
+    let lastError: string | undefined;
     for (const sub of subs.rows as any[]) {
       try {
         await webPush.sendNotification(
@@ -404,6 +425,7 @@ export async function sendPushNotification(
           INSERT INTO notification_analytics (notification_id, player_id, sent_at)
           VALUES (${notificationId}, ${playerId}, NOW())
         `);
+        sent++;
       } catch (err: any) {
         // 410 Gone, or 403 = this subscription's key doesn't match our
         // current VAPID keys — permanently dead either way. See the
@@ -413,11 +435,26 @@ export async function sendPushNotification(
             DELETE FROM push_subscriptions WHERE endpoint = ${sub.endpoint}
           `);
         }
+        failed++;
+        lastError = err?.body || err?.message || String(err);
         logger.error({ err }, `Failed to send push to ${sub.endpoint}`);
       }
     }
+    if (sent > 0) return { status: "delivered", sent, failed, lastError };
+
+    // If every failed subscription was permanently invalid it has just been
+    // deleted. There is nothing useful to retry until the player subscribes
+    // again, so treat that as a terminal no-subscription outcome.
+    const remaining = await db.execute(sql`
+      SELECT 1 FROM push_subscriptions WHERE player_id = ${playerId} LIMIT 1
+    `);
+    if (remaining.rows.length === 0) {
+      return { status: "no_subscriptions", sent: 0, failed, lastError };
+    }
+    return { status: "failed", sent: 0, failed, lastError };
   } catch (err) {
     logger.error({ err }, `Failed to send push notification for notification ${notificationId}`);
+    return { status: "failed", sent: 0, failed: 1, lastError: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -429,27 +466,79 @@ export async function sendPushNotification(
  * batching flow; before this existed, checkBatchingRules() computed a real
  * delay but nothing ever acted on it once the notification was deferred.
  */
+type PendingPushRow = {
+  id: number;
+  player_id: number;
+  notification_id: number;
+  title: string;
+  body: string;
+  data: Record<string, any> | null;
+  attempt_count: number;
+};
+
+async function claimDuePushNotifications(limit = 200, pendingId?: number): Promise<PendingPushRow[]> {
+  const result = await db.execute(sql`
+    UPDATE pending_push_notifications
+    SET attempt_count = attempt_count + 1, last_attempt_at = NOW()
+    WHERE id IN (
+      SELECT id FROM pending_push_notifications
+      WHERE sent_at IS NULL
+        AND send_after <= NOW()
+        AND (last_attempt_at IS NULL OR last_attempt_at < NOW() - INTERVAL '10 minutes')
+        ${pendingId == null ? sql`` : sql`AND id = ${pendingId}`}
+      ORDER BY send_after ASC
+      LIMIT ${limit}
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING id, player_id, notification_id, title, body, data, attempt_count
+  `);
+  return result.rows as PendingPushRow[];
+}
+
+function retryDelayMinutes(attemptCount: number): number {
+  return Math.min(60, 5 * Math.pow(2, Math.max(0, attemptCount - 1)));
+}
+
+async function deliverClaimedPush(row: PendingPushRow): Promise<"delivered" | "failed"> {
+  const result = await sendPushNotification(row.player_id, row.notification_id, {
+    title: row.title,
+    body: row.body,
+    data: row.data || {},
+  });
+  if (result.status !== "failed") {
+    await db.execute(sql`
+      UPDATE pending_push_notifications
+      SET sent_at = NOW(), last_error = NULL
+      WHERE id = ${row.id}
+    `);
+    return "delivered";
+  }
+
+  const retryAt = new Date(Date.now() + retryDelayMinutes(row.attempt_count) * 60_000);
+  await db.execute(sql`
+    UPDATE pending_push_notifications
+    SET send_after = ${retryAt}, last_error = ${result.lastError ?? "Push service temporarily failed"}
+    WHERE id = ${row.id}
+  `);
+  return "failed";
+}
+
+export async function deliverQueuedPushNotification(pendingId: number): Promise<boolean> {
+  const [row] = await claimDuePushNotifications(1, pendingId);
+  if (!row) return false;
+  return (await deliverClaimedPush(row)) === "delivered";
+}
+
 export async function flushDuePushNotifications(): Promise<{ delivered: number; failed: number }> {
   let delivered = 0;
   let failed = 0;
   try {
-    const due = await db.execute(sql`
-      SELECT id, player_id, notification_id, title, body, data
-      FROM pending_push_notifications
-      WHERE sent_at IS NULL AND send_after <= NOW()
-      ORDER BY send_after ASC
-      LIMIT 200
-    `);
+    const due = await claimDuePushNotifications();
 
-    for (const row of due.rows as any[]) {
+    for (const row of due) {
       try {
-        await sendPushNotification(row.player_id, row.notification_id, {
-          title: row.title,
-          body: row.body,
-          data: row.data || {},
-        });
-        await db.execute(sql`UPDATE pending_push_notifications SET sent_at = NOW() WHERE id = ${row.id}`);
-        delivered++;
+        if ((await deliverClaimedPush(row)) === "delivered") delivered++;
+        else failed++;
       } catch (err) {
         logger.error({ err, pendingId: row.id }, "Failed to deliver a queued push notification");
         failed++;
@@ -619,40 +708,31 @@ export async function sendMatchResultNotification(
   winnerName: string,
   loserName: string,
   stake: number,
-  eloChange: number
+  eloChange: number,
+  sourceKey?: string,
+): Promise<void> {
+  return sendParticipantResultNotifications("singles", winnerName, loserName, [winnerId], [loserId], stake, eloChange, sourceKey);
+}
+
+async function sendParticipantResultNotifications(
+  format: MatchResultFormat,
+  winnerLabel: string,
+  loserLabel: string,
+  winnerPlayerIds: number[],
+  loserPlayerIds: number[],
+  stake: number,
+  eloChange?: number,
+  sourceKey?: string,
 ): Promise<void> {
   try {
-    // Winner notification
-    await createNotification({
-      playerId: winnerId,
+    const rows = buildMatchResultNotifications({ format, winnerLabel, loserLabel, winnerPlayerIds, loserPlayerIds, stake, eloChange });
+    await Promise.all(rows.map(row => createNotification({
+      ...row,
       type: "match_result",
-      title: `Victory!`,
-      body: `You beat ${loserName} • +${eloChange} ELO • ±${stake} pts`,
-      data: {
-        matchWinnerId: winnerId,
-        matchLoserId: loserId,
-        eloChange,
-        stake,
-        result: "win",
-      },
-    });
-
-    // Loser notification
-    await createNotification({
-      playerId: loserId,
-      type: "match_result",
-      title: `Match Loss`,
-      body: `Lost to ${winnerName} • -${eloChange} ELO • ±${stake} pts`,
-      data: {
-        matchWinnerId: winnerId,
-        matchLoserId: loserId,
-        eloChange,
-        stake,
-        result: "loss",
-      },
-    });
+      dedupeKey: sourceKey ? `${sourceKey}:participant:${row.playerId}:${row.data.result}` : undefined,
+    })));
   } catch (err) {
-    logger.error({ err }, "Failed to send match result notifications");
+    logger.error({ err, format }, "Failed to queue participant match result notifications");
   }
 }
 
@@ -670,28 +750,10 @@ export async function sendDoublesMatchResultNotification(
   winnerPlayerIds: number[],
   loserPlayerIds: number[],
   stake: number,
-  eloChange: number
+  eloChange: number,
+  sourceKey?: string,
 ): Promise<void> {
-  try {
-    await Promise.all([
-      ...winnerPlayerIds.map(playerId => createNotification({
-        playerId,
-        type: "match_result",
-        title: "Victory!",
-        body: `${winnerTeamName} beat ${loserTeamName} • +${eloChange} ELO • ±${stake} pts`,
-        data: { winnerTeamName, loserTeamName, eloChange, stake, result: "win" },
-      })),
-      ...loserPlayerIds.map(playerId => createNotification({
-        playerId,
-        type: "match_result",
-        title: "Match Loss",
-        body: `${loserTeamName} lost to ${winnerTeamName} • -${eloChange} ELO • ±${stake} pts`,
-        data: { winnerTeamName, loserTeamName, eloChange, stake, result: "loss" },
-      })),
-    ]);
-  } catch (err) {
-    logger.error({ err }, "Failed to send doubles match result notifications");
-  }
+  return sendParticipantResultNotifications("doubles", winnerTeamName, loserTeamName, winnerPlayerIds, loserPlayerIds, stake, eloChange, sourceKey);
 }
 
 /**
@@ -711,28 +773,10 @@ export async function sendTeamMatchResultNotification(
   winnerPlayerIds: number[],
   loserPlayerIds: number[],
   stake: number,
-  eloChange: number
+  eloChange: number,
+  sourceKey?: string,
 ): Promise<void> {
-  try {
-    await Promise.all([
-      ...winnerPlayerIds.map(playerId => createNotification({
-        playerId,
-        type: "match_result",
-        title: "Team Match Victory!",
-        body: `${winnerTeamName} beat ${loserTeamName} • +${eloChange} ELO • ±${stake} pts`,
-        data: { winnerTeamName, loserTeamName, eloChange, stake, result: "win" },
-      })),
-      ...loserPlayerIds.map(playerId => createNotification({
-        playerId,
-        type: "match_result",
-        title: "Team Match Loss",
-        body: `${loserTeamName} lost to ${winnerTeamName} • -${eloChange} ELO • ±${stake} pts`,
-        data: { winnerTeamName, loserTeamName, eloChange, stake, result: "loss" },
-      })),
-    ]);
-  } catch (err) {
-    logger.error({ err }, "Failed to send team match result notifications");
-  }
+  return sendParticipantResultNotifications("team", winnerTeamName, loserTeamName, winnerPlayerIds, loserPlayerIds, stake, eloChange, sourceKey);
 }
 
 /**
@@ -745,28 +789,10 @@ export async function sendShiftWarsMatchResultNotification(
   loserTeamName: string,
   winnerPlayerIds: number[],
   loserPlayerIds: number[],
-  stake: number
+  stake: number,
+  sourceKey?: string,
 ): Promise<void> {
-  try {
-    await Promise.all([
-      ...winnerPlayerIds.map(playerId => createNotification({
-        playerId,
-        type: "match_result",
-        title: "Shift Wars Victory!",
-        body: `${winnerTeamName} beat ${loserTeamName} • ±${stake} pts`,
-        data: { winnerTeamName, loserTeamName, stake, result: "win" },
-      })),
-      ...loserPlayerIds.map(playerId => createNotification({
-        playerId,
-        type: "match_result",
-        title: "Shift Wars Loss",
-        body: `${loserTeamName} lost to ${winnerTeamName} • ±${stake} pts`,
-        data: { winnerTeamName, loserTeamName, stake, result: "loss" },
-      })),
-    ]);
-  } catch (err) {
-    logger.error({ err }, "Failed to send Shift Wars match result notifications");
-  }
+  return sendParticipantResultNotifications("shift_wars", winnerTeamName, loserTeamName, winnerPlayerIds, loserPlayerIds, stake, undefined, sourceKey);
 }
 
 /**
@@ -781,7 +807,8 @@ export async function sendMatchResultBroadcast(
   excludePlayerIds: number[],
   title: string,
   body: string,
-  data?: Record<string, any>
+  data?: Record<string, any>,
+  sourceKey?: string,
 ): Promise<void> {
   try {
     const rest = await db.execute(sql`
@@ -789,15 +816,16 @@ export async function sendMatchResultBroadcast(
       WHERE is_active = true
         AND id <> ALL(ARRAY[${sql.join(excludePlayerIds.map(id => sql`${id}`), sql`, `)}]::int[])
     `);
-    for (const p of rest.rows as any[]) {
-      void createNotification({
+    await Promise.all((rest.rows as any[]).map(p =>
+      createNotification({
         playerId: p.id,
         type: "match_result",
         title,
         body,
         data: { ...data, broadcast: true },
-      });
-    }
+        dedupeKey: sourceKey ? `${sourceKey}:broadcast:${p.id}` : undefined,
+      }),
+    ));
   } catch (err) {
     logger.error({ err }, "Failed to send match result broadcast");
   }

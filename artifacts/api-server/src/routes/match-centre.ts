@@ -23,9 +23,9 @@ type CentreMatch = {
 
 const router = Router();
 
-type DetailKind = "league" | "doubles" | "doubles-combined" | "shift" | "shift-combined";
+type DetailKind = "league" | "doubles" | "doubles-combined" | "doubles-multi" | "shift" | "shift-combined" | "shift-multi";
 function parseDetailKey(value: string): { kind: DetailKind; id: number } | null {
-  const match = /^(league|doubles-combined|doubles|shift-combined|shift)-(\d+)$/.exec(value);
+  const match = /^(league|doubles-combined|doubles-multi|doubles|shift-combined|shift-multi|shift)-(\d+)$/.exec(value);
   if (!match || Number(match[2]) < 1) return null;
   return { kind: match[1] as DetailKind, id: Number(match[2]) };
 }
@@ -79,6 +79,36 @@ router.get("/match-centre/:key", async (req, res): Promise<void> => {
     const q = await db.execute(sql`SELECT dm.*, s.name season_name, wt.team_name winner_name, lt.team_name loser_name FROM doubles_matches dm JOIN doubles_teams wt ON wt.id=dm.winner_team_id JOIN doubles_teams lt ON lt.id=dm.loser_team_id LEFT JOIN seasons s ON s.id=dm.season_id WHERE dm.id=${parsed.id}`);
     const row: any = q.rows[0];
     if (row) result = { key:req.params.key, mode:"doubles", isCombined:false, playedAt:row.played_at, seasonName:row.season_name, gameType:row.game_type, notes:row.notes, stake:row.stake, winner:{name:row.winner_name,pointsDelta:row.stake,eloDelta:row.winner_elo_delta ?? row.elo_change}, loser:{name:row.loser_name,pointsDelta:-row.stake,eloDelta:row.loser_elo_delta ?? -row.elo_change}, participants:[], stats:null };
+  } else if (parsed.kind === "doubles-multi" || parsed.kind === "shift-multi") {
+    // 3+ official teams, one live elimination match — last team standing
+    // wins the full pot, everyone else pays the flat stake (see
+    // routes/doubles.ts|shift-wars.ts's own /multi-matches endpoints and
+    // lib/wager.ts's applyMultiWager). "winner" here is the single survivor;
+    // "loser" aggregates every eliminated team, same join-the-names
+    // convention the combined-match branch above uses for its own
+    // multi-team opposition side.
+    const multiDoubles = parsed.kind === "doubles-multi";
+    const main = multiDoubles
+      ? await db.execute(sql`SELECT m.*, s.name season_name, wt.team_name winner_name FROM doubles_multi_matches m JOIN doubles_teams wt ON wt.id=m.winner_team_id LEFT JOIN seasons s ON s.id=m.season_id WHERE m.id=${parsed.id}`)
+      : await db.execute(sql`SELECT m.*, s.name season_name, wt.name winner_name FROM shift_wars_multi_matches m JOIN shift_wars_teams wt ON wt.id=m.winner_team_id LEFT JOIN seasons s ON s.id=m.season_id WHERE m.id=${parsed.id}`);
+    const participantRows = multiDoubles
+      ? await db.execute(sql`SELECT t.team_name name, p.is_winner, p.points_delta, p.elo_delta, p.eliminated FROM doubles_multi_match_participants p JOIN doubles_teams t ON t.id=p.team_id WHERE p.match_id=${parsed.id} ORDER BY p.is_winner DESC, p.id`)
+      : await db.execute(sql`SELECT t.name, p.is_winner, p.points_delta, NULL::integer elo_delta, p.eliminated FROM shift_wars_multi_match_participants p JOIN shift_wars_teams t ON t.id=p.team_id WHERE p.match_id=${parsed.id} ORDER BY p.is_winner DESC, p.id`);
+    const row: any = main.rows[0];
+    const people = participantRows.rows as any[];
+    if (row && people.length > 0) {
+      const winnerRow = people.find(p => p.is_winner);
+      const loserRows = people.filter(p => !p.is_winner);
+      const loserNames = loserRows.map(p => p.name).join(" + ");
+      result = {
+        key: req.params.key, mode: multiDoubles ? "doubles" : "shift_wars", isCombined: false,
+        playedAt: row.played_at, seasonName: row.season_name, gameType: row.game_type, notes: row.notes, stake: row.pot,
+        winner: { name: row.winner_name, pointsDelta: winnerRow?.points_delta ?? row.pot, eloDelta: multiDoubles ? (winnerRow?.elo_delta ?? row.elo_change) : null },
+        loser: { name: loserNames, pointsDelta: loserRows.reduce((n, p) => n + Number(p.points_delta), 0), eloDelta: multiDoubles ? loserRows.reduce((n, p) => n + Number(p.elo_delta), 0) : null },
+        participants: people.map((p, i) => ({ playerName: p.name, team: p.is_winner ? "winner" : "loser", position: i, pointsDelta: p.points_delta, eloDelta: p.elo_delta, causedElimination: p.eliminated })),
+        stats: null,
+      };
+    }
   } else {
     const doubles = parsed.kind === "doubles-combined";
     const shift = parsed.kind === "shift";
@@ -105,7 +135,7 @@ router.get("/match-centre/:key", async (req, res): Promise<void> => {
 // keep their own write paths and tables; this endpoint only normalises their
 // public history after the fact, so it cannot affect scoring or standings.
 router.get("/match-centre", async (_req, res): Promise<void> => {
-  const [leagueResult, participantResult, doublesResult, doublesCombinedResult, doublesCombinedSidesResult, shiftResult, shiftCombinedResult, shiftCombinedSidesResult] = await Promise.all([
+  const [leagueResult, participantResult, doublesResult, doublesCombinedResult, doublesCombinedSidesResult, shiftResult, shiftCombinedResult, shiftCombinedSidesResult, doublesMultiResult, doublesMultiLosersResult, shiftMultiResult, shiftMultiLosersResult] = await Promise.all([
     db.execute(sql`
       SELECT m.*, s.name AS season_name
       FROM matches m
@@ -169,6 +199,42 @@ router.get("/match-centre", async (_req, res): Promise<void> => {
       JOIN shift_wars_teams st ON st.id = ss.team_id
       ORDER BY ss.match_id, ss.id
     `),
+    // 3+ official pairings/departments, one live elimination match (see
+    // db/migrations/add_multi_matches.ts). One winner row per match plus a
+    // "losers" side query (mirroring doublesCombinedSidesResult's pattern
+    // above) to join every eliminated team's name for the feed label.
+    db.execute(sql`
+      SELECT dmm.id, dmm.played_at, dmm.stake, dmm.pot, dmm.elo_change, dmm.game_type, dmm.notes,
+             wt.team_name AS winner_name, s.name AS season_name
+      FROM doubles_multi_matches dmm
+      JOIN doubles_teams wt ON wt.id = dmm.winner_team_id
+      LEFT JOIN seasons s ON s.id = dmm.season_id
+      ORDER BY dmm.played_at DESC
+      LIMIT 250
+    `),
+    db.execute(sql`
+      SELECT p.match_id, t.team_name
+      FROM doubles_multi_match_participants p
+      JOIN doubles_teams t ON t.id = p.team_id
+      WHERE p.is_winner = false
+      ORDER BY p.match_id, p.id
+    `),
+    db.execute(sql`
+      SELECT smm.id, smm.played_at, smm.stake, smm.pot, smm.game_type, smm.notes,
+             wt.name AS winner_name, s.name AS season_name
+      FROM shift_wars_multi_matches smm
+      JOIN shift_wars_teams wt ON wt.id = smm.winner_team_id
+      LEFT JOIN seasons s ON s.id = smm.season_id
+      ORDER BY smm.played_at DESC
+      LIMIT 250
+    `),
+    db.execute(sql`
+      SELECT p.match_id, t.name AS team_name
+      FROM shift_wars_multi_match_participants p
+      JOIN shift_wars_teams t ON t.id = p.team_id
+      WHERE p.is_winner = false
+      ORDER BY p.match_id, p.id
+    `),
   ]);
 
   const participants = new Map<number, { winner: number[]; loser: number[] }>();
@@ -185,6 +251,8 @@ router.get("/match-centre", async (_req, res): Promise<void> => {
   };
   const doublesSides = groupNames(doublesCombinedSidesResult.rows as any[], "team_name");
   const shiftSides = groupNames(shiftCombinedSidesResult.rows as any[], "team_name");
+  const doublesMultiLosers = groupNames(doublesMultiLosersResult.rows as any[], "team_name");
+  const shiftMultiLosers = groupNames(shiftMultiLosersResult.rows as any[], "team_name");
 
   const items: CentreMatch[] = [];
   for (const row of leagueResult.rows as any[]) {
@@ -230,6 +298,23 @@ router.get("/match-centre", async (_req, res): Promise<void> => {
       gameType: row.game_type, seasonName: row.season_name, notes: row.notes, isCombined: true,
     });
   }
+  // 3+-team multi-matches: not a handicap/combined-side match (every
+  // participant is a full official team), so isCombined stays false — the
+  // frontend's "HANDICAP" badge would be a misleading label here. The
+  // joined loser names already communicate "more than one opponent" on
+  // their own, the same way doubles/shift "combined" entries do.
+  for (const row of doublesMultiResult.rows as any[]) items.push({
+    key: `doubles-multi-${row.id}`, id: row.id, mode: "doubles", playedAt: row.played_at,
+    winnerName: row.winner_name, loserName: (doublesMultiLosers.get(row.id) ?? []).join(" + "),
+    winnerPlayerIds: [], loserPlayerIds: [], stake: row.pot, eloChange: row.elo_change,
+    gameType: row.game_type, seasonName: row.season_name, notes: row.notes, isCombined: false,
+  });
+  for (const row of shiftMultiResult.rows as any[]) items.push({
+    key: `shift-multi-${row.id}`, id: row.id, mode: "shift_wars", playedAt: row.played_at,
+    winnerName: row.winner_name, loserName: (shiftMultiLosers.get(row.id) ?? []).join(" + "),
+    winnerPlayerIds: [], loserPlayerIds: [], stake: row.pot, eloChange: null,
+    gameType: row.game_type, seasonName: row.season_name, notes: row.notes, isCombined: false,
+  });
 
   items.sort((a, b) => new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime());
   const counts = items.reduce<Record<string, number>>((acc, item) => {

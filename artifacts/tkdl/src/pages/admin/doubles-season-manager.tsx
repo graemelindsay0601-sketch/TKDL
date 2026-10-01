@@ -8,6 +8,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { TeamMatchCorrection } from "./team-match-correction";
+import { apiFetchJson } from "@/lib/api-fetch";
 
 /**
  * Doubles Event now runs its own independent monthly season (see
@@ -31,13 +32,13 @@ export function DoublesSeasonManager() {
     setLoading(true);
     try {
       const [currentRes, pastRes] = await Promise.all([
-        fetch("/api/seasons/current?leagueType=doubles").then(r => r.json()),
-        fetch("/api/admin/seasons/doubles").then(r => r.json()),
+        apiFetchJson<any>("/api/seasons/current?leagueType=doubles"),
+        apiFetchJson<any[]>("/api/admin/seasons/doubles"),
       ]);
       setCurrent(currentRes ?? null);
       setPastSeasons(Array.isArray(pastRes) ? pastRes.filter((s: any) => !s.isActive) : []);
       if (currentRes?.id) {
-        const t = await fetch(`/api/seasons/${currentRes.id}/doubles/teams`).then(r => r.json());
+        const t = await apiFetchJson<any[]>(`/api/seasons/${currentRes.id}/doubles/teams`);
         setTeams(Array.isArray(t) ? t : []);
       } else {
         setTeams([]);
@@ -151,10 +152,10 @@ export function DoublesSeasonManager() {
             Waiting for the automatic draw. This check retries on startup and at league midnight; the button above remains available as a fallback.
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-1 overflow-x-auto pb-1">
             {teams.map((t: any) => (
               <div key={t.id} className="grid items-center gap-2 px-3 py-2 rounded"
-                style={{ gridTemplateColumns: "1.5rem 1fr 3.5rem 3.5rem 3.5rem", background: t.isEliminated ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", opacity: t.isEliminated ? 0.5 : 1 }}>
+                style={{ gridTemplateColumns: "1.5rem minmax(8rem,1fr) 3.5rem 3.5rem 3.5rem", minWidth:"22rem", background: t.isEliminated ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", opacity: t.isEliminated ? 0.5 : 1 }}>
                 <span className="text-xs font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)" }}>{t.position}</span>
                 <span className="text-xs font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.8)" }}>{t.teamName}</span>
                 <span className="text-xs text-center font-mono" style={{ color: "rgba(255,255,255,0.5)" }}>{t.wins}-{t.losses}</span>

@@ -9,7 +9,12 @@ const router = Router();
 const ELO_FLOOR = 800;
 
 type League = "doubles" | "shift_wars";
-type MatchKind = "standard" | "combined";
+// "multi" = the 3+-team live-elimination format (doubles-multi/shift-wars-
+// 3-way — see db/migrations/add_multi_matches.ts). It reuses the same
+// undo-the-newest-result-only pattern as "standard"/"combined" below, just
+// with N participant rows instead of a fixed winner+loser (or solo+sides)
+// shape.
+type MatchKind = "standard" | "combined" | "multi";
 
 class CorrectionConflictError extends Error {
   constructor(message: string, readonly status = 409) {
@@ -22,7 +27,7 @@ function parseLeague(value: string): League | null {
 }
 
 function parseKind(value: string): MatchKind | null {
-  return value === "standard" || value === "combined" ? value : null;
+  return value === "standard" || value === "combined" || value === "multi" ? value : null;
 }
 
 async function activeSeason(executor: any, league: League): Promise<any | null> {
@@ -43,6 +48,8 @@ async function latestResult(executor: any, league: League, season: any): Promise
           SELECT 'standard'::text AS kind, id, played_at FROM doubles_matches WHERE season_id = ${season.id}
           UNION ALL
           SELECT 'combined'::text AS kind, id, played_at FROM doubles_combined_matches WHERE season_id = ${season.id}
+          UNION ALL
+          SELECT 'multi'::text AS kind, id, played_at FROM doubles_multi_matches WHERE season_id = ${season.id}
         ) recent
         ORDER BY played_at DESC, kind ASC, id DESC
         LIMIT 1
@@ -55,6 +62,9 @@ async function latestResult(executor: any, league: League, season: any): Promise
           UNION ALL
           SELECT 'combined'::text AS kind, id, played_at
           FROM shift_wars_combined_matches WHERE season_id = ${season.id}
+          UNION ALL
+          SELECT 'multi'::text AS kind, id, played_at
+          FROM shift_wars_multi_matches WHERE season_id = ${season.id}
         ) recent
         ORDER BY played_at DESC, kind ASC, id DESC
         LIMIT 1
@@ -93,6 +103,34 @@ async function buildPreview(executor: any, league: League, latest: { kind: Match
     };
   }
 
+  if (league === "doubles" && latest.kind === "multi") {
+    const parentRows = await executor.execute(sql`
+      SELECT m.*, wt.team_name AS winner_name
+      FROM doubles_multi_matches m JOIN doubles_teams wt ON wt.id = m.winner_team_id
+      WHERE m.id = ${latest.id}
+    `);
+    const m = (parentRows.rows as any[])[0];
+    if (!m) return null;
+    const participantRows = await executor.execute(sql`
+      SELECT p.*, t.team_name, t.points, t.elo, t.is_eliminated
+      FROM doubles_multi_match_participants p JOIN doubles_teams t ON t.id = p.team_id
+      WHERE p.match_id = ${latest.id} ORDER BY p.is_winner DESC, p.id
+    `);
+    const people = participantRows.rows as any[];
+    const loserNames = people.filter(p => !p.is_winner).map(p => p.team_name).join(" + ");
+    return {
+      league, kind: latest.kind, id: m.id, playedAt: m.played_at,
+      title: `${m.winner_name} won a ${people.length}-team multi-match (beat ${loserNames})`,
+      subtitle: `Doubles Multi-Team · ${m.pot} point pot`, notes: m.notes, exact: true,
+      teams: people.map(p => ({
+        id: p.team_id, name: p.team_name, result: p.is_winner ? "win" : "loss",
+        pointsNow: p.points, pointsAfter: restoredValue(p.points, p.points_delta),
+        eloNow: p.elo, eloAfter: restoredValue(p.elo, p.elo_delta),
+        reactivates: !p.is_winner && p.is_eliminated && restoredValue(p.points, p.points_delta) > 0,
+      })),
+    };
+  }
+
   if (league === "doubles") {
     const parentRows = await executor.execute(sql`
       SELECT m.*, t.team_name AS solo_name, t.points AS solo_points, t.elo AS solo_elo, t.is_eliminated AS solo_is_eliminated
@@ -116,6 +154,32 @@ async function buildPreview(executor: any, league: League, latest: { kind: Match
         { id: m.solo_team_id, name: m.solo_name, result: m.solo_won ? "win" : "loss", pointsNow: m.solo_points, pointsAfter: restoredValue(m.solo_points, m.solo_points_delta), eloNow: m.solo_elo, eloAfter: restoredValue(m.solo_elo, m.solo_elo_delta), reactivates: !m.solo_won && m.solo_is_eliminated && restoredValue(m.solo_points, m.solo_points_delta) > 0 },
         ...sides.map(s => ({ id: s.team_id, name: s.team_name, result: m.solo_won ? "loss" : "win", pointsNow: s.points, pointsAfter: restoredValue(s.points, s.points_delta), eloNow: s.elo, eloAfter: restoredValue(s.elo, s.elo_delta), reactivates: s.eliminated && s.is_eliminated && restoredValue(s.points, s.points_delta) > 0 })),
       ],
+    };
+  }
+
+  if (latest.kind === "multi") {
+    const parentRows = await executor.execute(sql`
+      SELECT m.*, wt.name AS winner_name
+      FROM shift_wars_multi_matches m JOIN shift_wars_teams wt ON wt.id = m.winner_team_id
+      WHERE m.id = ${latest.id}
+    `);
+    const m = (parentRows.rows as any[])[0];
+    if (!m) return null;
+    const participantRows = await executor.execute(sql`
+      SELECT p.*, t.name AS team_name, t.points
+      FROM shift_wars_multi_match_participants p JOIN shift_wars_teams t ON t.id = p.team_id
+      WHERE p.match_id = ${latest.id} ORDER BY p.is_winner DESC, p.id
+    `);
+    const people = participantRows.rows as any[];
+    const loserNames = people.filter(p => !p.is_winner).map(p => p.team_name).join(" + ");
+    return {
+      league, kind: latest.kind, id: m.id, playedAt: m.played_at,
+      title: `${m.winner_name} won a ${people.length}-team multi-match (beat ${loserNames})`,
+      subtitle: `Shift Wars 3-Way · ${m.pot} point pot`, notes: m.notes, exact: true,
+      teams: people.map(p => ({
+        id: p.team_id, name: p.team_name, result: p.is_winner ? "win" : "loss",
+        pointsNow: p.points, pointsAfter: restoredValue(p.points, p.points_delta),
+      })),
     };
   }
 
@@ -177,6 +241,44 @@ router.get("/admin/team-match-corrections/:league/latest", requireAdminSession, 
 });
 
 async function rollbackDoubles(tx: any, kind: MatchKind, id: number): Promise<void> {
+  if (kind === "multi") {
+    const parents = await tx.execute(sql`
+      SELECT m.* FROM doubles_multi_matches m WHERE m.id = ${id} FOR UPDATE OF m
+    `);
+    const m = (parents.rows as any[])[0];
+    if (!m) throw new CorrectionConflictError("Doubles multi-team result not found", 404);
+    const participantRows = await tx.execute(sql`
+      SELECT p.*, t.points, t.elo, t.wins, t.losses, t.is_eliminated
+      FROM doubles_multi_match_participants p JOIN doubles_teams t ON t.id = p.team_id
+      WHERE p.match_id = ${id} ORDER BY p.id FOR UPDATE OF p, t
+    `);
+    const people = participantRows.rows as any[];
+    const restored: { teamId: number; result: ReturnType<typeof reverseTeamLedger> }[] = [];
+    try {
+      for (const p of people) {
+        restored.push({
+          teamId: p.team_id,
+          result: reverseTeamLedger(
+            { points: p.points, elo: p.elo, wins: p.wins, losses: p.losses, isEliminated: p.is_eliminated },
+            { pointsDelta: p.points_delta, eloDelta: p.elo_delta, won: p.is_winner, causedElimination: !p.is_winner && p.eliminated },
+          ),
+        });
+      }
+    } catch {
+      throw new CorrectionConflictError("A team balance was manually reduced after this result. Restore it before undoing the match.");
+    }
+    for (const { teamId, result } of restored) {
+      await tx.execute(sql`
+        UPDATE doubles_teams SET points = ${result.points}, elo = ${result.elo!}, wins = ${result.wins}, losses = ${result.losses}, is_eliminated = ${result.isEliminated!}
+        WHERE id = ${teamId}
+      `);
+    }
+    // doubles_multi_match_participants rows cascade-delete with the parent
+    // (ON DELETE CASCADE, see db/migrations/add_multi_matches.ts).
+    await tx.execute(sql`DELETE FROM doubles_multi_matches WHERE id = ${id}`);
+    return;
+  }
+
   if (kind === "standard") {
     const rows = await tx.execute(sql`
       SELECT dm.*, wt.points AS winner_points, wt.elo AS winner_elo, wt.wins AS winner_wins, wt.losses AS winner_losses,
@@ -256,6 +358,38 @@ async function rollbackDoubles(tx: any, kind: MatchKind, id: number): Promise<vo
 }
 
 async function rollbackShiftWars(tx: any, kind: MatchKind, id: number): Promise<void> {
+  if (kind === "multi") {
+    const parents = await tx.execute(sql`
+      SELECT m.* FROM shift_wars_multi_matches m WHERE m.id = ${id} FOR UPDATE OF m
+    `);
+    const m = (parents.rows as any[])[0];
+    if (!m) throw new CorrectionConflictError("Shift Wars multi-team result not found", 404);
+    const participantRows = await tx.execute(sql`
+      SELECT p.*, t.points, t.wins, t.losses
+      FROM shift_wars_multi_match_participants p JOIN shift_wars_teams t ON t.id = p.team_id
+      WHERE p.match_id = ${id} ORDER BY p.id FOR UPDATE OF p, t
+    `);
+    const people = participantRows.rows as any[];
+    const restored: { teamId: number; result: ReturnType<typeof reverseTeamLedger> }[] = [];
+    try {
+      for (const p of people) {
+        restored.push({
+          teamId: p.team_id,
+          result: reverseTeamLedger({ points: p.points, wins: p.wins, losses: p.losses }, { pointsDelta: p.points_delta, won: p.is_winner }),
+        });
+      }
+    } catch {
+      throw new CorrectionConflictError("A team balance was manually reduced after this result. Restore it before undoing the match.");
+    }
+    for (const { teamId, result } of restored) {
+      await tx.execute(sql`UPDATE shift_wars_teams SET points = ${result.points}, wins = ${result.wins}, losses = ${result.losses} WHERE id = ${teamId}`);
+    }
+    // shift_wars_multi_match_participants rows cascade-delete with the
+    // parent (ON DELETE CASCADE, see db/migrations/add_multi_matches.ts).
+    await tx.execute(sql`DELETE FROM shift_wars_multi_matches WHERE id = ${id}`);
+    return;
+  }
+
   if (kind === "standard") {
     const rows = await tx.execute(sql`
       SELECT m.*, wt.points AS winner_points, wt.wins AS winner_wins, wt.losses AS winner_losses,
@@ -336,8 +470,8 @@ router.delete("/admin/team-match-corrections/:league/:kind/:id", requireAdminSes
       // in the approved Community feed. Broadcast stories are resolved rather
       // than deleted so an already-aired edition never loses its source row.
       const autoType = league === "doubles"
-        ? (kind === "standard" ? "doubles_match" : "doubles_combined_match")
-        : (kind === "standard" ? "shift_wars_match" : "shift_wars_combined_match");
+        ? (kind === "standard" ? "doubles_match" : kind === "multi" ? "doubles_multi_match" : "doubles_combined_match")
+        : (kind === "standard" ? "shift_wars_match" : kind === "multi" ? "shift_wars_multi_match" : "shift_wars_combined_match");
       await tx.execute(sql`
         UPDATE community_posts SET status = 'rejected'
         WHERE post_type = 'auto'

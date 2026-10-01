@@ -49,6 +49,7 @@ export async function logAdminAction(
   entityId: string | number | null,
   details?: Record<string, unknown>,
 ): Promise<void> {
+  (req as any).__tkdlAdminAuditLogged = true;
   try {
     const adminPlayerId = (req.session as any)?.playerId ?? null;
     await db.execute(sql`

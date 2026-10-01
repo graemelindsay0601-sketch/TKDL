@@ -8,6 +8,7 @@ import { Trophy, Calendar, Hash, ArrowLeft, Medal, Flame, Zap, Crown, BarChart3,
 import { useSettings } from "@/hooks/use-settings";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName } from "@/lib/cosmetics";
 import { ShareCardButton } from "@/components/ShareCardButton";
+import { apiFetchJson } from "@/lib/api-fetch";
 
 function useSeasonMatches(seasonId: number) {
   const [data, setData] = useState<any[]>([]);
@@ -15,8 +16,7 @@ function useSeasonMatches(seasonId: number) {
   useEffect(() => {
     if (!seasonId) return;
     setLoading(true);
-    fetch(`/api/seasons/${seasonId}/matches`)
-      .then(r => r.json())
+    apiFetchJson<any[]>(`/api/seasons/${seasonId}/matches`)
       .then(d => { setData(Array.isArray(d) ? d : []); setLoading(false); })
       .catch(() => setLoading(false));
   }, [seasonId]);
@@ -37,8 +37,7 @@ function useSeasonPreview(seasonId: number) {
   const [data, setData] = useState<SeasonPreview | null>(null);
   useEffect(() => {
     if (!seasonId) return;
-    fetch(`/api/seasons/${seasonId}/preview`)
-      .then(r => r.json())
+    apiFetchJson<SeasonPreview>(`/api/seasons/${seasonId}/preview`)
       .then(d => setData(d ?? null))
       .catch(() => setData(null));
   }, [seasonId]);
@@ -55,8 +54,7 @@ function useSeasonPreview(seasonId: number) {
 function useCurrentLeagueSeasonId(leagueType: "doubles" | "shift_wars"): number | null {
   const [id, setId] = useState<number | null>(null);
   useEffect(() => {
-    fetch(`/api/seasons/current?leagueType=${leagueType}`)
-      .then(r => r.json())
+    apiFetchJson<any>(`/api/seasons/current?leagueType=${leagueType}`)
       .then(d => setId(d?.id ?? null))
       .catch(() => setId(null));
   }, [leagueType]);
@@ -71,8 +69,7 @@ function useDoublesTeams() {
     if (currentSeasonId === null) return;
     if (!currentSeasonId) { setData([]); setLoading(false); return; }
     setLoading(true);
-    fetch(`/api/seasons/${currentSeasonId}/doubles/teams`)
-      .then(r => r.json())
+    apiFetchJson<any[]>(`/api/seasons/${currentSeasonId}/doubles/teams`)
       .then(d => { setData(Array.isArray(d) ? d : []); setLoading(false); })
       .catch(() => setLoading(false));
   }, [currentSeasonId]);
@@ -87,8 +84,7 @@ function useDoublesMatches() {
     if (currentSeasonId === null) return;
     if (!currentSeasonId) { setData([]); setLoading(false); return; }
     setLoading(true);
-    fetch(`/api/seasons/${currentSeasonId}/doubles/matches`)
-      .then(r => r.json())
+    apiFetchJson<any[]>(`/api/seasons/${currentSeasonId}/doubles/matches`)
       .then(d => { setData(Array.isArray(d) ? d : []); setLoading(false); })
       .catch(() => setLoading(false));
   }, [currentSeasonId]);
@@ -105,8 +101,7 @@ function useSeasonShiftWars() {
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     setLoading(true);
-    fetch("/api/shift-wars/teams")
-      .then(r => r.json())
+    apiFetchJson<any[]>("/api/shift-wars/teams")
       .then(d => { setData(Array.isArray(d) ? d : []); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);

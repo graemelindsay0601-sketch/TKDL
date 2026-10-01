@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 export type AppSettings = {
   live_scorer_enabled: boolean;
@@ -39,6 +40,19 @@ function readCachedSettings(): AppSettings | undefined {
   }
 }
 
+export function applySettingsPatch(queryClient: QueryClient, patch: Partial<AppSettings>): void {
+  queryClient.setQueryData<AppSettings>(["app-settings"], current => {
+    const next = { ...(current ?? readCachedSettings() ?? {}), ...patch } as AppSettings;
+    writeCachedSettings(next);
+    return next;
+  });
+}
+
+export function replaceAppSettings(queryClient: QueryClient, settings: AppSettings): void {
+  writeCachedSettings(settings);
+  queryClient.setQueryData(["app-settings"], settings);
+}
+
 function writeCachedSettings(settings: AppSettings): void {
   try {
     localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(settings));
@@ -48,7 +62,7 @@ function writeCachedSettings(settings: AppSettings): void {
 }
 
 async function fetchSettings(): Promise<AppSettings> {
-  const res = await fetch("/api/settings");
+  const res = await fetch("/api/settings", { cache: "no-store" });
   if (!res.ok) return {
     live_scorer_enabled: false,
     community_enabled: false,
@@ -72,6 +86,21 @@ async function fetchSettings(): Promise<AppSettings> {
 }
 
 export function useSettings() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== SETTINGS_CACHE_KEY || !event.newValue) return;
+      try {
+        queryClient.setQueryData(["app-settings"], JSON.parse(event.newValue) as AppSettings);
+      } catch {
+        // A malformed cache entry is ignored; the next server refresh repairs it.
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [queryClient]);
+
   return useQuery({
     queryKey: ["app-settings"],
     queryFn: fetchSettings,
@@ -85,5 +114,10 @@ export function useSettings() {
     // not "skip checking for a while."
     initialData: readCachedSettings,
     initialDataUpdatedAt: 0,
+    // Feature flags are operational controls. A small background refresh
+    // means an admin change reaches already-open devices without a hard
+    // refresh, while remaining negligible for Render and PostgreSQL.
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
 }

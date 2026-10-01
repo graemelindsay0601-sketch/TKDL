@@ -1,0 +1,37 @@
+name: Wake TKDL for monthly season rollover
+
+on:
+  schedule:
+    # GitHub cron uses UTC. During BST, 23:05 UTC on the previous date is
+    # 00:05 in London; during GMT, 00:05 UTC on day one is 00:05 in London.
+    # Days 28-31 cover every possible final day without daily wake-ups.
+    - cron: "5 23 28-31 * *"
+    - cron: "5 0 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wake-and-wait-until-ready:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Wake the free Render service and wait for startup recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          startup_url="https://tkdl-wt7y.onrender.com/api/startup"
+
+          for attempt in {1..16}; do
+            body="$(curl --silent --show-error --location --max-time 45 "$startup_url" || true)"
+            if [[ "$body" == *'"ready":true'* ]]; then
+              echo "TKDL is ready. Monthly rollover recovery has run."
+              exit 0
+            fi
+            echo "TKDL is still waking (attempt $attempt/16)."
+            sleep 20
+          done
+
+          echo "TKDL did not become ready before the wake job timed out."
+          exit 1

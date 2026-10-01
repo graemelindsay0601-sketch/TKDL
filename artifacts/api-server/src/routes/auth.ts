@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, usersTable, playersTable } from "@workspace/db";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
@@ -15,7 +15,7 @@ const LoginBody = z.object({
 
 const ChangePasswordBody = z.object({
   currentPassword: z.string().min(1),
-  newPassword:     z.string().min(6),
+  newPassword:     z.string().min(8),
 });
 
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
@@ -117,8 +117,83 @@ router.get("/admin/users", requireAdminSession, async (req, res): Promise<void> 
 // ── POST /api/admin/users ─────────────────────────────────────────────────────
 const CreateUserBody = z.object({
   playerId: z.number().int().positive(),
-  password: z.string().min(4),
+  password: z.string().min(8),
   isAdmin:  z.boolean().optional().default(false),
+});
+
+const OnboardPlayerBody = z.object({
+  name:             z.string().trim().min(1).max(80),
+  password:         z.string().min(8),
+  isAdmin:          z.boolean().optional().default(false),
+  isActive:         z.boolean().optional().default(true),
+  practiceEnabled:  z.boolean().optional().default(true),
+  tourEnabled:      z.boolean().optional().default(true),
+  m501Enabled:      z.boolean().optional().default(true),
+  shadowBotEnabled: z.boolean().optional().default(true),
+});
+
+// Create the league profile and login together. Previously the admin page made
+// two separate requests, so a failed account insert left an orphaned player.
+router.post("/admin/onboard-player", requireAdminSession, async (req, res): Promise<void> => {
+  const parsed = OnboardPlayerBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  try {
+    const result = await db.transaction(async tx => {
+      // Serialise player-code allocation so two admins cannot both choose P012.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('tkdl-player-code'))`);
+
+      const duplicate = await tx.execute(sql`
+        SELECT id FROM players WHERE lower(trim(name)) = lower(${parsed.data.name}) LIMIT 1
+      `);
+      if (duplicate.rows.length > 0) throw new Error("PLAYER_NAME_EXISTS");
+
+      const nextCode = await tx.execute(sql`
+        SELECT COALESCE(MAX(
+          CASE WHEN player_id ~ '^P[0-9]+$' THEN substring(player_id FROM 2)::integer ELSE 0 END
+        ), 0) + 1 AS next_number
+        FROM players
+      `);
+      const nextNumber = Number((nextCode.rows[0] as any)?.next_number ?? 1);
+      const playerCode = `P${String(nextNumber).padStart(3, "0")}`;
+
+      const [player] = await tx.insert(playersTable).values({
+        name: parsed.data.name,
+        playerId: playerCode,
+        status: parsed.data.isActive ? "ACTIVE" : "INACTIVE",
+        isActive: parsed.data.isActive,
+        points: 25,
+        peakPoints: 25,
+        practiceEnabled: parsed.data.practiceEnabled,
+        tourEnabled: parsed.data.tourEnabled,
+        m501Enabled: parsed.data.m501Enabled,
+        shadowBotEnabled: parsed.data.shadowBotEnabled,
+      }).returning();
+
+      const baseUsername = player.name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "") || `player_${player.id}`;
+      const usernameRows = await tx.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, baseUsername));
+      const username = usernameRows.length > 0 ? `${baseUsername}_${player.id}` : baseUsername;
+      const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+      const [user] = await tx.insert(usersTable).values({
+        username,
+        passwordHash,
+        playerId: player.id,
+        isAdmin: parsed.data.isAdmin,
+      }).returning({ id: usersTable.id, username: usersTable.username, playerId: usersTable.playerId, isAdmin: usersTable.isAdmin });
+
+      return { player, user };
+    });
+
+    logger.info({ playerId: result.player.id, userId: result.user.id }, "Player and account onboarded");
+    res.status(201).json({ player: result.player, user: { ...result.user, playerName: result.player.name } });
+  } catch (err) {
+    if (err instanceof Error && err.message === "PLAYER_NAME_EXISTS") {
+      res.status(409).json({ error: "A player with this name already exists" });
+      return;
+    }
+    logger.error({ err }, "Player onboarding failed");
+    res.status(500).json({ error: "Could not create the player and account. Nothing was added." });
+  }
 });
 
 router.post("/admin/users", requireAdminSession, async (req, res): Promise<void> => {
@@ -163,7 +238,7 @@ router.post("/admin/users", requireAdminSession, async (req, res): Promise<void>
 });
 
 // ── POST /api/admin/users/:id/reset-password ──────────────────────────────────
-const ResetPasswordBody = z.object({ password: z.string().min(4) });
+const ResetPasswordBody = z.object({ password: z.string().min(8) });
 
 router.post("/admin/users/:id/reset-password", requireAdminSession, async (req, res): Promise<void> => {
   const userId = Number(req.params.id);

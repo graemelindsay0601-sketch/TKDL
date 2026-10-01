@@ -42,6 +42,10 @@ const SubmitMatchBody = z.object({
   // Card Clash integration: cards used in this match, keyed by winner/loser
   // (not player1/player2) so cards get consumed from — and coins awarded
   // to — whichever player actually equipped them.
+  // Optional client-supplied key — see db/migrations/add_match_result_idempotency.ts
+  // for why. A client that doesn't send one gets no protection, exactly
+  // like before this field existed.
+  idempotencyKey:          z.string().min(1).max(100).optional(),
   cardsUsedInMatch:        z.object({
     winner: z.object({
       goodCards: z.array(z.object({ id: z.string(), name: z.string() })).optional().default([]),
@@ -165,8 +169,32 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
     winnerId, loserId, stake, gameType, notes,
     winnerDarts, winner100s, winner140s, winner170s, winner180s, winnerCheckoutAttempts, winnerCheckoutHits,
     loserDarts, loser100s, loser140s, loser170s, loser180s, loserCheckoutAttempts, loserCheckoutHits,
-    cardsUsedInMatch,
+    cardsUsedInMatch, idempotencyKey,
   } = parsed.data;
+
+  // A retried submission (the frontend's own "Retry" link after a
+  // failed/timed-out request, most realistically a slow Render cold start)
+  // reuses the same key, so return the match already recorded instead of
+  // re-running the whole handler — which would both insert a genuine
+  // duplicate (double points/Elo) and re-fire every achievement/title/
+  // notification/community-post side effect below for a second time. This
+  // check has to happen before ANY of that other work, not just before the
+  // insert. The partial unique index added in
+  // add_match_result_idempotency.ts is the real backstop against a true
+  // concurrent double-submit; this is just the fast, common sequential-retry
+  // path that skips redoing the transaction entirely.
+  if (idempotencyKey) {
+    const [existing] = await db.select().from(matchesTable).where(eq(matchesTable.idempotencyKey, idempotencyKey)).limit(1);
+    if (existing) {
+      res.status(200).json({
+        ...existing,
+        newWinnerPoints: null, newLoserPoints: null,
+        newWinnerRank: null, newLoserRank: null,
+        winnerRankChange: 0, loserRankChange: 0,
+      });
+      return;
+    }
+  }
 
   if (winnerId === loserId) {
     res.status(400).json({ error: "Winner and loser must be different players" });
@@ -241,6 +269,7 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
         eloChange:              eloResult.change,
         gameType:               gameType ?? "501",
         notes:                  notes ?? null,
+        idempotencyKey:         idempotencyKey ?? null,
         winnerDarts:            winnerDarts ?? null,
         winner100s:             winner100s ?? null,
         winner140s:             winner140s ?? null,
@@ -332,6 +361,23 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
     if (err instanceof MatchConflictError) {
       res.status(400).json({ error: err.message });
       return;
+    }
+    // A true concurrent double-submit with the same idempotencyKey (two
+    // requests that both passed the pre-check above before either had
+    // inserted) hits the partial unique index from
+    // add_match_result_idempotency.ts instead — the real backstop the
+    // pre-check can't cover. Postgres' unique-violation code is '23505'.
+    if (idempotencyKey && (err as { code?: string }).code === "23505") {
+      const [existing] = await db.select().from(matchesTable).where(eq(matchesTable.idempotencyKey, idempotencyKey)).limit(1);
+      if (existing) {
+        res.status(200).json({
+          ...existing,
+          newWinnerPoints: null, newLoserPoints: null,
+          newWinnerRank: null, newLoserRank: null,
+          winnerRankChange: 0, loserRankChange: 0,
+        });
+        return;
+      }
     }
     throw err;
   }
@@ -498,7 +544,8 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
   void (async () => {
     try {
       // Match result notification
-      await sendMatchResultNotification(winnerId, loserId, winner.name, loser.name, stake, eloChange);
+      const resultSourceKey = `singles:${match.id}`;
+      await sendMatchResultNotification(winnerId, loserId, winner.name, loser.name, stake, eloChange, resultSourceKey);
 
       // League-wide ping — every other opted-in player, not just the two
       // who played. Uses the same "Match Results" preference toggle as the
@@ -508,6 +555,7 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
         "🎯 Match Result",
         `${winner.name} beat ${loser.name} • ${gameType === "Cricket" ? "Cricket" : `${gameType} Singles`}`,
         { winnerId, loserId, gameType },
+        resultSourceKey,
       );
 
       // Threat alert notifications (if gap < 15 points) — sent to whichever

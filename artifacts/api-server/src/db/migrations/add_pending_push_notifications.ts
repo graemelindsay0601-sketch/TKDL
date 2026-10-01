@@ -30,8 +30,28 @@ export async function addPendingPushNotifications(): Promise<void> {
         data JSONB NOT NULL DEFAULT '{}'::jsonb,
         send_after TIMESTAMP WITH TIME ZONE NOT NULL,
         sent_at TIMESTAMP WITH TIME ZONE,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        last_attempt_at TIMESTAMP WITH TIME ZONE,
+        last_error TEXT,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
       )
+    `);
+    // Existing installs already have this table. Keep the migration
+    // idempotent so the delivery outbox can be upgraded in place.
+    await db.execute(sql`ALTER TABLE pending_push_notifications ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE pending_push_notifications ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP WITH TIME ZONE`);
+    await db.execute(sql`ALTER TABLE pending_push_notifications ADD COLUMN IF NOT EXISTS last_error TEXT`);
+    // One notification is one delivery job. Remove legacy duplicate queue
+    // rows before enforcing that rule; the oldest row retains the earliest
+    // requested delivery time.
+    await db.execute(sql`
+      DELETE FROM pending_push_notifications newer
+      USING pending_push_notifications older
+      WHERE newer.notification_id = older.notification_id AND newer.id > older.id
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS pending_push_notifications_notification_id_idx
+      ON pending_push_notifications(notification_id)
     `);
     // Partial index — the scheduler only ever queries the unsent, due rows,
     // and that set stays small (most rows flip to sent_at within minutes of

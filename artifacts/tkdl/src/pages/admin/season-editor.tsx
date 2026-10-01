@@ -146,10 +146,10 @@ export function SeasonEditor() {
                   <div className="text-xs uppercase tracking-wider mb-2 font-bold" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
                     Standings — click champion trophy to crown a player
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1 overflow-x-auto pb-1">
                     {season.standings.map((s: any) => (
                       <div key={s.playerId} className="grid items-center gap-2 px-3 py-2 rounded"
-                        style={{ gridTemplateColumns: "1.5rem 7rem 3.5rem 3.5rem 3.5rem 3.5rem auto", background: s.isChampion ? "rgba(255,210,74,0.06)" : "rgba(255,255,255,0.03)", border: s.isChampion ? "1px solid rgba(255,210,74,0.2)" : "1px solid rgba(255,255,255,0.06)" }}>
+                        style={{ gridTemplateColumns: "1.5rem 7rem 3.5rem 3.5rem 3.5rem 3.5rem auto", minWidth:"25rem", background: s.isChampion ? "rgba(255,210,74,0.06)" : "rgba(255,255,255,0.03)", border: s.isChampion ? "1px solid rgba(255,210,74,0.2)" : "1px solid rgba(255,255,255,0.06)" }}>
                         <span className="text-xs font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)" }}>{s.position}</span>
                         <span className="text-xs font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: s.isChampion ? "#ffd24a" : "rgba(255,255,255,0.8)" }}>
                           {s.playerName}{s.isChampion && " 🏆"}

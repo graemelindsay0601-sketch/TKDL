@@ -12,7 +12,12 @@ html {
 
 body {
   width: 100vw;
+  /* 100vh first as a fallback for browsers without dvh support; 100dvh
+     overrides it where supported so the layout doesn't get cut off/resized
+     by mobile browser chrome (address bar) showing or hiding — matches the
+     dvh approach already used deliberately in lib/scorers.tsx and layout.tsx. */
   height: 100vh;
+  height: 100dvh;
   overflow: auto;
   -webkit-user-select: none;
   user-select: none;

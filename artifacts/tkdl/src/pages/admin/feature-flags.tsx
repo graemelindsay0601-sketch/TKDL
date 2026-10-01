@@ -4,6 +4,7 @@ import { Swords, Dumbbell, Crosshair, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { CollapsibleAdminSection } from "./collapsible-section";
+import { applySettingsPatch, replaceAppSettings, type AppSettings } from "@/hooks/use-settings";
 
 // Friendly display names for the two-stage (admin-preview → live-for-everyone)
 // flags stored in featureFlagsTable, as opposed to the simple on/off flags
@@ -51,7 +52,7 @@ export function FeatureFlags() {
   const queryClient = useQueryClient();
 
   const loadStagedFlags = () => {
-    fetch("/api/admin/feature-flags", { credentials: "include" })
+    return fetch("/api/admin/feature-flags", { credentials: "include" })
       .then(r => r.ok ? r.json() : [])
       .then((rows: StagedFlag[]) => setStagedFlags(rows.filter(r => STAGED_FLAG_LABELS[r.featureName])))
       .catch(() => setStagedFlags([]));
@@ -71,23 +72,36 @@ export function FeatureFlags() {
     setStagedBusy(featureName);
     try {
       if (target === "live") {
-        await fetch(`/api/admin/feature-flags/${featureName}/enable-all`, { method: "POST", credentials: "include" });
-      } else if (target === "preview") {
-        await fetch(`/api/admin/feature-flags/${featureName}/admin-test`, {
-          method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ enabled: true }),
-        });
-      } else {
-        await fetch(`/api/admin/feature-flags/${featureName}/disable`, { method: "POST", credentials: "include" });
-        await fetch(`/api/admin/feature-flags/${featureName}/admin-test`, {
+        const preview = await fetch(`/api/admin/feature-flags/${featureName}/admin-test`, {
           method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ enabled: false }),
         });
+        if (!preview.ok) throw new Error((await preview.json().catch(() => null))?.error ?? "Could not finish preview");
+        const response = await fetch(`/api/admin/feature-flags/${featureName}/enable-all`, { method: "POST", credentials: "include" });
+        if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? "Could not enable feature");
+      } else if (target === "preview") {
+        const disabled = await fetch(`/api/admin/feature-flags/${featureName}/disable`, { method: "POST", credentials: "include" });
+        if (!disabled.ok) throw new Error((await disabled.json().catch(() => null))?.error ?? "Could not enter preview");
+        const response = await fetch(`/api/admin/feature-flags/${featureName}/admin-test`, {
+          method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: true }),
+        });
+        if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? "Could not enable preview");
+      } else {
+        const disabled = await fetch(`/api/admin/feature-flags/${featureName}/disable`, { method: "POST", credentials: "include" });
+        if (!disabled.ok) throw new Error((await disabled.json().catch(() => null))?.error ?? "Could not disable feature");
+        const preview = await fetch(`/api/admin/feature-flags/${featureName}/admin-test`, {
+          method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: false }),
+        });
+        if (!preview.ok) throw new Error((await preview.json().catch(() => null))?.error ?? "Could not disable preview");
       }
-      loadStagedFlags();
+      await loadStagedFlags();
+      const settingsResponse = await fetch("/api/settings", { cache: "no-store" });
+      if (settingsResponse.ok) replaceAppSettings(queryClient, await settingsResponse.json() as AppSettings);
       toast({ title: `${label} — ${target === "live" ? "live for everyone" : target === "preview" ? "admin preview only" : "hidden"}` });
-    } catch {
-      toast({ title: "Error", description: "Failed to update feature flag", variant: "destructive" });
+    } catch (error) {
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to update feature flag", variant: "destructive" });
     } finally {
       setStagedBusy(null);
     }
@@ -122,18 +136,17 @@ export function FeatureFlags() {
 
   const patchSetting = async (key: string, val: boolean, label: string) => {
     try {
-      await fetch(`/api/admin/settings/${key}`, {
+      const response = await fetch(`/api/admin/settings/${key}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ value: String(val) }),
       });
-      // Every page reading useSettings() has its own cached copy of
-      // /api/settings — without this, a toggle here doesn't reach an
-      // already-open tab (e.g. Practice) until its 5-minute staleTime
-      // expires or the user hard-refreshes.
-      queryClient.invalidateQueries({ queryKey: ["app-settings"] });
+      if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? "Failed to update setting");
+      applySettingsPatch(queryClient, { [key]: val } as Partial<AppSettings>);
       toast({ title: label });
-    } catch {
-      toast({ title: "Error", description: "Failed to update setting", variant: "destructive" });
+    } catch (error) {
+      await queryClient.invalidateQueries({ queryKey: ["app-settings"] });
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to update setting", variant: "destructive" });
+      throw error;
     }
   };
 
@@ -146,7 +159,11 @@ export function FeatureFlags() {
       <Switch
         checked={val === true}
         disabled={val === null}
-        onCheckedChange={v => { setter(v); void patchSetting(key, v, v ? onLabel : offLabel); }}
+        onCheckedChange={v => {
+          const previous = val === true;
+          setter(v);
+          void patchSetting(key, v, v ? onLabel : offLabel).catch(() => setter(previous));
+        }}
       />
     </div>
   );

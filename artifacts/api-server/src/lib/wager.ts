@@ -119,6 +119,67 @@ export function validateCombinedStake(
 // team's own points move by only its proportional SHARE of that same pot —
 // so one physical result never reads as two separate full wins or losses
 // for the two (or more) teams that combined into one side.
+// ── Multi-team matches (3+ official teams, one live game, last-team-standing) ──
+//
+// Doubles Event and Shift Wars both also support a "multi-team" match: 3 or
+// more official teams (pairings or departments) play ONE live elimination
+// game together (MultiKillerScorer on the frontend), with a single overall
+// winner. Settlement mirrors exactly how Singles' existing Killer FFA mode
+// already works via team-matches.ts (one winner vs N-1 losers, "per-player"
+// stakeMode): every losing team pays the flat entered stake, and the winning
+// team takes the whole pot — stake × (N-1) — in one go. Deliberately the
+// same simple, symmetric model as Killer FFA rather than the combined-side
+// match's proportional split, since every participant here is a genuine
+// equal, independent entrant (unlike a combined side's uneven sub-groups).
+export interface MultiMatchParticipant {
+  teamId: number;
+  name: string;
+  points: number;
+  elo: number;
+}
+
+export function multiMatchPot(stake: number, participantCount: number): number {
+  return stake * Math.max(1, participantCount - 1);
+}
+
+// Only the losing teams are ever at risk (same "winner's balance is never
+// checked" principle as every other wager path) — each must individually be
+// able to afford the flat stake, same as any other match.
+export function validateMultiStake(
+  stake: number,
+  losers: Pick<MultiMatchParticipant, "points" | "name">[],
+): string | null {
+  if (!Number.isInteger(stake) || stake < 1) return "Stake must be a positive integer (minimum 1)";
+  for (const loser of losers) {
+    if (stake > loser.points) return `Stake (${stake}) exceeds ${loser.name}'s balance (${loser.points})`;
+  }
+  return null;
+}
+
+// Winner takes the full pot in one move; every loser pays the flat stake and
+// (same floor behavior as every other wager path) can never go below 0.
+// Elo: the winner's rating moves once against the average of every losing
+// team's rating (same approximation Team Match already uses for Killer FFA
+// in routes/team-matches.ts), and that same change magnitude is mirrored
+// onto every loser rather than computing N-1 separate Elo changes — one
+// physical result, one Elo swing, same reasoning as every other team match.
+export function applyMultiWager(
+  pot: number,
+  winner: Pick<MultiMatchParticipant, "points">,
+  losers: Pick<MultiMatchParticipant, "points">[],
+  stake: number,
+): {
+  newWinnerPoints: number;
+  loserResults: { newPoints: number; eliminated: boolean }[];
+} {
+  const newWinnerPoints = winner.points + pot;
+  const loserResults = losers.map(loser => {
+    const newPoints = Math.max(0, loser.points - stake);
+    return { newPoints, eliminated: newPoints === 0 };
+  });
+  return { newWinnerPoints, loserResults };
+}
+
 export function applyCombinedWager(
   pot: number,
   losingSide: "solo" | "combined",

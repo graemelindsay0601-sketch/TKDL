@@ -36,7 +36,7 @@ type Player = {
   avatarUpdatedAt?: string | null;
   tagline?: string | null;
 };
-type Format = "1v1" | "2v2" | "3v3" | "uneven-teams" | "killer-ffa" | "doubles-event" | "shift-wars";
+type Format = "1v1" | "2v2" | "3v3" | "uneven-teams" | "killer-ffa" | "doubles-event" | "shift-wars" | "doubles-multi" | "shift-wars-multi";
 
 type SetupData = {
   format: Format;
@@ -75,6 +75,17 @@ type SetupData = {
     soloPlayers: Player[];
     combinedTeams: { teamId: number; players: Player[] }[];
   };
+  // Set only for a "multi-team" match (doubles-multi/shift-wars-multi): 3+
+  // official teams (pairings, or for Shift Wars always all 3 departments)
+  // play ONE live elimination game together (MultiKillerScorer — the same
+  // engine Killer FFA already uses for individual players), with a single
+  // overall survivor who takes the whole wager. team1 holds one synthetic
+  // Player entry per participating team (team2 is unused, same shape as
+  // killer-ffa's team1/team2 split); multiTeamIds carries each entry's own
+  // official team id in the same order, since the live scorer only ever
+  // sees names/points, never ids — see doubles.ts/shift-wars.ts's
+  // /multi-matches routes for the settlement this submits to.
+  multiTeamIds?: number[];
 };
 
 type PlayRecoverySnapshot = {
@@ -121,7 +132,7 @@ type EquippedCards = {
 };
 
 function matchNightSides(data: SetupData): MatchNightSide[] {
-  if (data.format === "killer-ffa") {
+  if (data.format === "killer-ffa" || data.format === "doubles-multi" || data.format === "shift-wars-multi") {
     return data.team1.map(player => ({
       title: player.name,
       members: [player.name],
@@ -150,6 +161,20 @@ function matchNightSides(data: SetupData): MatchNightSide[] {
   });
 }
 
+// The stake entered on the Setup screen is always a PER-PLAYER amount (same
+// meaning as a plain 1v1/2v2/3v3 stake) — when the two sides field different
+// headcounts, the actual pot that changes hands scales up to whichever side
+// is bigger (same "bigger side risks/gains more" rule the backend applies in
+// wager.ts/wager-pot.ts), then splits across each side's accounts by weight
+// (fielded headcount). This mirrors that scaling for display, so the
+// pre-submit preview and the post-match breakdown both show the number that
+// will actually move, not the raw per-player figure typed into the input.
+function wagerPotScale(sides: [WagerAccount[], WagerAccount[]] | undefined): number {
+  if (!sides) return 1;
+  const sideWeight = (side: WagerAccount[]) => side.reduce((sum, a) => sum + a.weight, 0);
+  return Math.max(sideWeight(sides[0]), sideWeight(sides[1])) || 1;
+}
+
 // ── Format config ───────────────────────────────────────────────────────────────
 // Note: "2v2 Team Game" and "Doubles Event" are deliberately labeled and
 // described differently — they're easy to conflate otherwise. 2v2 is any
@@ -169,6 +194,8 @@ const FORMAT_OPTIONS: { key: Format; label: string; icon: string; desc: string; 
   { key: "doubles-event", label: "Doubles Event", icon: "🎯", desc: "Official season event — fixed random-draw teams",       color: "#0066ff" },
   { key: "shift-wars", label: "Shift Wars", icon: "🏬",       desc: "Fixed department teams — Fresh, Twilight, Shift Leader", color: "#22c55e" },
   { key: "killer-ffa", label: "Killer Free-for-All", icon: "💀", desc: "3–6 individual players",                             color: "#ef4444" },
+  { key: "doubles-multi", label: "Doubles Multi-Team", icon: "🎯", desc: "3–6 official pairings, one match, last team standing", color: "#0066ff" },
+  { key: "shift-wars-multi", label: "Shift Wars 3-Way", icon: "🏬", desc: "All 3 departments, one match, last team standing", color: "#22c55e" },
 ];
 
 const TEAM_CATEGORIES: Record<Format, string[]> = {
@@ -179,6 +206,8 @@ const TEAM_CATEGORIES: Record<Format, string[]> = {
   "killer-ffa":     ["team"],
   "doubles-event":  ["team"],
   "shift-wars":     ["team"],
+  "doubles-multi":  ["team"],
+  "shift-wars-multi": ["team"],
 };
 
 const TABS_BY_FORMAT: Record<Format, { key: string; label: string }[]> = {
@@ -194,6 +223,8 @@ const TABS_BY_FORMAT: Record<Format, { key: string; label: string }[]> = {
   "killer-ffa":     [{ key: "team", label: "Killer" }],
   "doubles-event":  [{ key: "team", label: "Team Games" }],
   "shift-wars":     [{ key: "team", label: "Team Games" }],
+  "doubles-multi":  [{ key: "team", label: "Killer" }],
+  "shift-wars-multi": [{ key: "team", label: "Killer" }],
 };
 
 // ── Doubles Event: log a result for the season's fixed random-draw teams ───────
@@ -373,7 +404,9 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
   const unevenTeamsEnabled     = appSettings?.uneven_teams_enabled ?? false;
   const formatOptions          = FORMAT_OPTIONS
     .filter(f => f.key !== "doubles-event" || doublesEventEnabled)
-    .filter(f => f.key !== "shift-wars" || shiftWarsEnabled);
+    .filter(f => f.key !== "shift-wars" || shiftWarsEnabled)
+    .filter(f => f.key !== "doubles-multi" || doublesEventEnabled)
+    .filter(f => f.key !== "shift-wars-multi" || shiftWarsEnabled);
   const [gameTypes, setGameTypes] = useState<GameTypeOption[]>([]);
   const [format, setFormat]       = useState<Format>("1v1");
   // Widened from 3 to 6 slots so the same backing arrays cover Uneven
@@ -411,6 +444,13 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
   const [combinedMode, setCombinedMode] = useState(false);
   const [extraTeamIds, setExtraTeamIds] = useState<string[]>([]);
   const [extraTeamPlayerIds, setExtraTeamPlayerIds] = useState<Record<string, string[]>>({});
+  // "Multi-team" match (doubles-multi/shift-wars-multi only): 3+ official
+  // teams play one live elimination game together — a flat list, not two
+  // sides. Doubles needs a real picker (3-6 of however many pairings exist
+  // this season, seeded to 3 empty slots); Shift Wars never does — there are
+  // only ever 3 departments total, so this is auto-filled with all of them
+  // the moment that format is picked (see the effect below).
+  const [multiTeamIds, setMultiTeamIds] = useState<string[]>(["", "", ""]);
 
   const { teams: allDoublesTeams, loaded: doublesTeamsLoaded } = useDoublesTeamsForPlay();
   const activeDoublesTeams = allDoublesTeams.filter(t => !t.isEliminated);
@@ -437,7 +477,17 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
     setCombinedMode(false);
     setExtraTeamIds([]);
     setExtraTeamPlayerIds({});
+    setMultiTeamIds(["", "", ""]);
   }, [format]);
+
+  // Shift Wars Multi-Team always means "all 3 departments" — there's nothing
+  // to pick, so fill it in automatically the moment the format and the
+  // department list are both ready, rather than making the user select
+  // what's already the only possible choice.
+  useEffect(() => {
+    if (format !== "shift-wars-multi" || shiftWarsTeams.length === 0) return;
+    setMultiTeamIds(shiftWarsTeams.map(t => String(t.id)));
+  }, [format, shiftWarsTeams]);
 
   // Shift Wars' Uneven Teams roster is scoped to whichever two departments
   // are picked — changing either one invalidates any roster picks already
@@ -551,6 +601,24 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
   const team2Players = resolveTeam(team2Ids, team2Size, unevenPool2);
   const ffaPlayers   = ffaIds.slice(0, ffaCount).map(id => players.find(p => p.id === Number(id)) ?? null);
 
+  // Multi-team match (doubles-multi/shift-wars-multi) — resolve each picked
+  // id against the right official-team pool and build one synthetic Player
+  // entry per team, same convention as the "shim" used for a balanced
+  // doubles/shift-wars match elsewhere in this file (team account's own
+  // points/elo stand in for a "player").
+  const multiActive = format === "doubles-multi" || format === "shift-wars-multi";
+  const multiMax = format === "doubles-multi" ? 6 : 3;
+  const multiParticipants: Player[] = !multiActive ? [] : multiTeamIds.filter(Boolean).map(id => {
+    if (format === "doubles-multi") {
+      const t = activeDoublesTeams.find(t => String(t.id) === id);
+      return t ? { id: t.id, name: t.teamName, points: t.points, elo: t.elo, status: "ACTIVE" } : null;
+    }
+    const t = shiftWarsTeams.find(t => String(t.id) === id);
+    return t ? { id: t.id, name: t.name, points: t.points, elo: 0, status: "ACTIVE" } : null;
+  }).filter((p): p is Player => !!p);
+  const multiReady = multiActive && multiParticipants.length >= 3
+    && new Set(multiTeamIds.filter(Boolean)).size === multiTeamIds.filter(Boolean).length;
+
   const officialFormat = format === "doubles-event" || format === "shift-wars";
   const totalWager = unevenActive || officialFormat;
   const account = (id: string, count: number): WagerAccount[] => {
@@ -570,12 +638,23 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
     ...(unevenActive && combinedMode ? extraTeamIds.flatMap(id => (extraTeamPlayerIds[id] ?? []).flatMap(pid => rosterOfTeam(id).filter(p => String(p.id) === pid))) : []),
   ];
   function onStart(data: SetupData) {
-    commitSetup({ ...data, stakeMode: totalWager ? "total" : "per-player", ...(totalWager ? { wagerSides } : {}) });
+    // Always "per-player" — the figure typed into Stake is per player, and
+    // the backend (wagerPot/combinedPot in wager-pot.ts/wager.ts) is what
+    // scales it up to the real pot when the sides field different headcounts.
+    // A previous version of this screen sent "total" here whenever Uneven
+    // Teams/Doubles/Shift Wars was active, which told the backend to treat
+    // the typed number as the WHOLE pot already — so e.g. a 5pt stake in a
+    // 1-vs-2 match moved a flat 5pts for everyone instead of scaling to a
+    // 10pt pot (5 per head on the bigger side). wagerSides/wagerPotScale
+    // below are purely for the on-screen preview of that same scaled split.
+    commitSetup({ ...data, stakeMode: "per-player", ...(totalWager ? { wagerSides } : {}) });
   }
 
   // Stake validation
   const activePlayers: Player[] = format === "killer-ffa"
     ? ffaPlayers.filter((p): p is Player => !!p)
+    : multiActive
+    ? multiParticipants
     : format === "doubles-event"
     ? [doublesTeam1, doublesTeam2].filter((t): t is DoublesTeam => !!t)
         .map(t => ({ id: t.id, name: t.teamName, points: t.points, elo: t.elo, status: "ACTIVE" }))
@@ -608,7 +687,9 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
   }
   const hasZeroBalancePlayer = activePlayers.some(p => p.points === 0);
   const stakeN = Number(stake);
-  const stakeErr = totalWager ? totalWagerError(stakeN, wagerSides) : activePlayers.length > 0
+  // The real pot once headcount scaling is applied — see wagerPotScale.
+  const effectivePot = stakeN * wagerPotScale(wagerSides);
+  const stakeErr = totalWager ? totalWagerError(effectivePot, wagerSides) : activePlayers.length > 0
     ? (!Number.isSafeInteger(stakeN) || stakeN < 1 ? "Enter a whole-number stake of at least 1pt" : (maxStake > 0 && stakeN > maxStake) ? `Max is ${maxStake}pts (lowest balance)` : "")
     : "";
 
@@ -624,6 +705,7 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
     && (!unevenActive || (team1Players.every(Boolean) && team2Players.every(Boolean))) && combinedReady;
 
   const playersReady = format === "killer-ffa" ? ffaReady
+    : multiActive ? multiReady
     : format === "doubles-event" ? doublesReady
     : format === "shift-wars" ? shiftWarsReady
     : (team1Ready && team2Ready);
@@ -644,11 +726,13 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
   const allowedCats = TEAM_CATEGORIES[format];
   const tabGames = gameTypes.filter(g => {
     if (g.enabled === false) return false;
-    if (format === "killer-ffa") {
-      // Only show MultiKiller games, filter by player count
+    if (format === "killer-ffa" || multiActive) {
+      // Only show MultiKiller games, filter by player count — multi-team
+      // matches reuse the exact same engine/config shape as Singles' Killer
+      // FFA, just with pairing/department names standing in for players.
       if (g.engine !== "MultiKiller") return false;
       const cfg = JSON.parse(g.config ?? "{}") as { playerCount?: number };
-      return cfg.playerCount === ffaCount;
+      return cfg.playerCount === (multiActive ? multiParticipants.length : ffaCount);
     }
     return allowedCats.includes(g.category) && g.category === tab;
   });
@@ -666,6 +750,19 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
     if (!canStart || !selectedGame) return;
     if (format === "killer-ffa") {
       onStart({ format, team1: ffaPlayers.filter((p): p is Player => !!p), team2: [], gameType: selectedGame, stake: stakeN });
+    } else if (multiActive) {
+      // 3+ official teams (pairings or departments) in one live elimination
+      // match — same shape as Killer FFA above, just with team entities
+      // standing in for individual players. multiTeamIds carries each
+      // participant's real doubles/shift-wars team id through to submit().
+      onStart({
+        format,
+        team1: multiParticipants,
+        team2: [],
+        gameType: selectedGame,
+        stake: stakeN,
+        multiTeamIds: multiParticipants.map(p => p.id),
+      });
     } else if (format === "doubles-event") {
       if (!doublesTeam1 || !doublesTeam2) return;
       if (unevenActive && combinedMode) {
@@ -1220,14 +1317,84 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
             </div>
           </div>
         )}
+
+        {/* Doubles Multi-Team — 3-6 official pairings, one live elimination
+           match (MultiKillerScorer), last pairing standing wins. Mirrors
+           Killer FFA's player-count UI above, just picking official teams
+           instead of individuals. */}
+        {format === "doubles-multi" && (
+          !doublesTeamsLoaded ? (
+            <div className="text-sm py-6 text-center" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Loading teams…</div>
+          ) : activeDoublesTeams.length < 3 ? (
+            <div className="text-sm py-6 text-center" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+              Need at least 3 active pairings for a multi-team match.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
+                3–6 official pairings play one live Killer-style match together. Last pairing standing wins the full pot; every other pairing pays the flat stake. Counts for real season Doubles.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {multiTeamIds.map((id, i) => (
+                  <DoublesTeamSlot key={i} label={`Pairing ${i + 1}`} color={["#22c55e","#ee0a78","#ffd24a","#38bdf8","#f97316","#a78bfa"][i]}
+                    value={id} onChange={v => setMultiTeamIds(prev => { const n = [...prev]; n[i] = v; return n; })}
+                    exclude={multiTeamIds.filter(x => x !== id && x !== "")} teams={activeDoublesTeams} />
+                ))}
+              </div>
+              <div className="flex gap-2">
+                {multiTeamIds.length < multiMax && (
+                  <button type="button" onClick={() => setMultiTeamIds(prev => [...prev, ""])}
+                    className="px-3 py-2 rounded-lg text-xs font-bold uppercase"
+                    style={{ fontFamily: "Oswald, sans-serif", background: "rgba(0,102,255,0.08)", border: "1px solid rgba(0,102,255,0.25)", color: "#0066ff", cursor: "pointer" }}>
+                    + Add pairing
+                  </button>
+                )}
+                {multiTeamIds.length > 3 && (
+                  <button type="button" onClick={() => setMultiTeamIds(prev => prev.slice(0, -1))}
+                    className="px-3 py-2 rounded-lg text-xs font-bold uppercase"
+                    style={{ fontFamily: "Oswald, sans-serif", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)", cursor: "pointer" }}>
+                    − Remove last
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        )}
+
+        {/* Shift Wars 3-Way — always all 3 departments (there are only ever
+           3), auto-filled by the useEffect above, so this is a read-only
+           roster display rather than an interactive picker. */}
+        {format === "shift-wars-multi" && (
+          !shiftWarsTeamsLoaded ? (
+            <div className="text-sm py-6 text-center" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Loading teams…</div>
+          ) : shiftWarsTeams.length < 3 ? (
+            <div className="text-sm py-6 text-center" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+              Need all 3 Shift Wars departments set up for a 3-way match.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
+                All 3 departments play one live Killer-style match together. Last department standing wins the full pot; the other two each pay the flat stake. Counts for the department standings.
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {shiftWarsTeams.map((t, i) => (
+                  <div key={t.id} className="pdc-card p-3 text-center" style={{ borderColor: "rgba(255,255,255,0.12)" }}>
+                    <div className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: ["#22c55e","#ee0a78","#38bdf8"][i % 3] }}>{t.name}</div>
+                    <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>{t.points}pts</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        )}
       </div>
 
       {/* Stake */}
-      {format !== "killer-ffa" || activePlayers.length > 0 ? (
+      {(format !== "killer-ffa" && !multiActive) || activePlayers.length > 0 ? (
         <div className="pdc-card p-4" style={{ borderColor: stakeErr ? "rgba(255,0,92,0.3)" : "rgba(255,255,255,0.07)" }}>
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>{totalWager ? "Total wager" : "Stake"}</h2>
-            {!totalWager && activePlayers.length > 0 && (
+            <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>Stake{totalWager ? " (per player)" : ""}</h2>
+            {activePlayers.length > 0 && (
               <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
                 {maxStake > 0
                   ? `Max: ${maxStake}pts per player${hasZeroBalancePlayer ? " (0pt players can't lose further)" : ""}`
@@ -1245,9 +1412,12 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
           </div>
           {totalWager && Number.isSafeInteger(stakeN) && stakeN > 0 && (
             <div className="mt-3 space-y-2 text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>
-              <p>{stakeN}pts total changes hands. {officialFormat ? "Only the selected teams' balances change; singles points are untouched." : "Split between the players on each side."}</p>
+              <p>
+                {stakeN}pts per player{effectivePot !== stakeN ? ` — ${effectivePot}pts total pot (sides aren't even, so it scales up to the bigger side)` : " total"} changes hands.{" "}
+                {officialFormat ? "Only the selected teams' balances change; singles points are untouched." : "Split between the players on each side."}
+              </p>
               {wagerSides.map((side, index) => {
-                const shares = wagerShares(stakeN, side);
+                const shares = wagerShares(effectivePot, side);
                 return <p key={index}>Side {index === 0 ? "A" : "B"}: {side.map((a, i) => `${a.name} — ${shares[i]}pts (${a.points} available)`).join(" · ")}. Gain if they win; pay if they lose.</p>;
               })}
               {combinedMode && <p>Combined-team shares follow the number of players each team fields; any odd point goes to the largest remainder, then selection order.</p>}
@@ -1319,7 +1489,7 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
           {!unevenActive && (tabGames.length === 0
             ? (format === "1v1" ? null :
               <div className="col-span-2 text-center py-8 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
-                {format === "killer-ffa" ? `No Killer game found for ${ffaCount} players` : "No games in this category"}
+                {format === "killer-ffa" ? `No Killer game found for ${ffaCount} players` : multiActive ? `No Killer game found for ${multiParticipants.length} teams` : "No games in this category"}
               </div>)
             : tabGames.map(gt => (
                 <GameCard key={gt.key} gt={gt} selected={selectedGame?.key === gt.key}
@@ -1338,8 +1508,8 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
         )}
       </div>
 
-      {/* Bull Up toggle (all non-FFA formats) */}
-      {format !== "killer-ffa" && (
+      {/* Bull Up toggle (all non-FFA formats; multi-team matches are FFA too) */}
+      {format !== "killer-ffa" && !multiActive && (
         <button onClick={() => setBullUp(v => !v)}
           className="w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all"
           style={{
@@ -1384,8 +1554,10 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
         {canStart
           ? format === "killer-ffa"
             ? `Start Killer — ${ffaCount} Players`
+            : multiActive
+            ? `Start Killer — ${multiParticipants.length} Teams`
             : `Start — ${selectedGame?.name}`
-          : format === "killer-ffa" ? "Select players & game" : (format === "doubles-event" || format === "shift-wars") ? "Select teams, game & stake" : "Select players, game & stake"}
+          : format === "killer-ffa" ? "Select players & game" : multiActive ? "Select teams & game" : (format === "doubles-event" || format === "shift-wars") ? "Select teams, game & stake" : "Select players, game & stake"}
         {canStart && <ChevronRight className="inline ml-2 w-5 h-5" />}
       </button>
 
@@ -1395,8 +1567,16 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
 }
 
 // ── Game Over Screen ───────────────────────────────────────────────────────────
-function GameOverScreen({ result, data, stats, player1Equipment, player2Equipment, onBack }: {
-  result: GameResult; data: SetupData; stats: PracticeStats | null; player1Equipment: EquippedCards | null; player2Equipment: EquippedCards | null; onBack: () => void;
+function GameOverScreen({ result, data, stats, player1Equipment, player2Equipment, idempotencyKey, onBack }: {
+  result: GameResult; data: SetupData; stats: PracticeStats | null; player1Equipment: EquippedCards | null; player2Equipment: EquippedCards | null;
+  // Generated once by the parent the instant a winner is decided (before
+  // this screen's own auto-submit even fires) and held stable across this
+  // screen's whole lifetime — including a manual "Retry" after a failed or
+  // timed-out request — so a retried submission is recognized server-side
+  // as the same attempt instead of writing a genuine duplicate match. See
+  // db/migrations/add_match_result_idempotency.ts.
+  idempotencyKey: string | null;
+  onBack: () => void;
 }) {
   const { toast }   = useToast();
   const qc          = useQueryClient();
@@ -1410,17 +1590,25 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
 
   // Resolve winner/loser for display and submission
   const isTeam = data.format === "2v2" || data.format === "3v3" || data.format === "uneven-teams" || data.format === "doubles-event" || data.format === "shift-wars";
+  const isMultiTeam = data.format === "doubles-multi" || data.format === "shift-wars-multi";
   const isKillerFfa = data.format === "killer-ffa";
+  // Doubles-multi/Shift-wars-multi reuse the exact same single-winner,
+  // rest-eliminated shape as Killer FFA — just with team entities in
+  // data.team1 instead of individual players.
+  const isFreeForAllResult = isKillerFfa || isMultiTeam;
 
-  const winnerTeam: Player[] = isKillerFfa
+  const winnerTeam: Player[] = isFreeForAllResult
     ? [data.team1[result.winnerIdx]]
     : (result.winnerIdx === 0 ? data.team1 : data.team2);
-  const loserTeam: Player[] = isKillerFfa
+  const loserTeam: Player[] = isFreeForAllResult
     ? data.team1.filter((_, i) => i !== result.winnerIdx)
     : (result.winnerIdx === 0 ? data.team2 : data.team1);
 
   const winnerName = winnerTeam.map(p => p.name).join(" & ");
   const loserName  = loserTeam.map(p  => p.name).join(" & ");
+  // The real pot once headcount scaling is applied (see wagerPotScale) —
+  // data.stake is always the per-player figure typed on the Setup screen.
+  const effectivePot = data.stake * wagerPotScale(data.wagerSides);
 
   // RESULT_THEME / CHECKOUT_EFFECT cosmetics — same wiring as practice.tsx's
   // PracticeOverScreen, ported to the real-match win screen. themeColor and
@@ -1485,6 +1673,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           loserId:                loser.id,
           stake:                  data.stake,
           gameType:               data.gameType.key,
+          ...(idempotencyKey ? { idempotencyKey } : {}),
           ...(wStats.darts !== undefined ? { winnerDarts:            wStats.darts  } : {}),
           ...(wStats.s100s !== undefined ? { winner100s:             wStats.s100s  } : {}),
           ...(wStats.s140s !== undefined ? { winner140s:             wStats.s140s  } : {}),
@@ -1532,6 +1721,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
             stake:    data.stake,
             stakeMode: data.stakeMode,
             gameType: data.gameType.key,
+            ...(idempotencyKey ? { idempotencyKey } : {}),
           }),
         }).then(async r => {
           if (!r.ok) {
@@ -1549,10 +1739,16 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         const [team1Id, team2Id] = data.doublesTeamIds;
         const winnerTeamId = result.winnerIdx === 0 ? team1Id : team2Id;
         const loserTeamId  = result.winnerIdx === 0 ? team2Id : team1Id;
-        // Retain fielded counts for legacy snapshots; total mode keeps
-        // the wager fixed regardless of how many players threw.
-        const winnerFieldedCount = result.winnerIdx === 0 ? data.team1.length : data.team2.length;
-        const loserFieldedCount  = result.winnerIdx === 0 ? data.team2.length : data.team1.length;
+        // Only a genuinely short-handed/Uneven Teams match (unevenTurnOrder)
+        // fields a real, possibly-mismatched headcount — data.team1/team2
+        // list EVERY member of the official pairing for a normal balanced
+        // match (so the scorer/roster display has both names), which is not
+        // the same thing as how many players the wager should scale by.
+        // Sending that pairing size here for an ordinary match used to
+        // silently double the stake (pot = stake × max(2,2)); forcing both
+        // to 1 for a balanced match keeps it flat, same as it's always been.
+        const winnerFieldedCount = data.unevenTurnOrder ? (result.winnerIdx === 0 ? data.team1.length : data.team2.length) : 1;
+        const loserFieldedCount  = data.unevenTurnOrder ? (result.winnerIdx === 0 ? data.team2.length : data.team1.length) : 1;
         const doublesResult = await fetch("/api/doubles/matches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1564,6 +1760,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
             gameType: data.gameType.key,
             winnerFieldedCount,
             loserFieldedCount,
+            ...(idempotencyKey ? { idempotencyKey } : {}),
           }),
         }).then(async r => {
           if (!r.ok) {
@@ -1579,10 +1776,12 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         const [team1Id, team2Id] = data.shiftWarsTeamIds;
         const winnerTeamId = result.winnerIdx === 0 ? team1Id : team2Id;
         const loserTeamId  = result.winnerIdx === 0 ? team2Id : team1Id;
-        // Retain fielded counts for legacy snapshots; total mode keeps
-        // the wager fixed regardless of how many players threw.
-        const winnerFieldedCount = result.winnerIdx === 0 ? data.team1.length : data.team2.length;
-        const loserFieldedCount  = result.winnerIdx === 0 ? data.team2.length : data.team1.length;
+        // Only a genuinely short-handed/Uneven Teams match (unevenTurnOrder)
+        // fields a real, possibly-mismatched headcount — see the matching
+        // comment in the Doubles Event branch above for why a balanced
+        // match forces both to 1 instead of the department's real roster size.
+        const winnerFieldedCount = data.unevenTurnOrder ? (result.winnerIdx === 0 ? data.team1.length : data.team2.length) : 1;
+        const loserFieldedCount  = data.unevenTurnOrder ? (result.winnerIdx === 0 ? data.team2.length : data.team1.length) : 1;
         const shiftWarsResult = await fetch("/api/shift-wars/matches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1594,6 +1793,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
             gameType: data.gameType.key,
             winnerFieldedCount,
             loserFieldedCount,
+            ...(idempotencyKey ? { idempotencyKey } : {}),
           }),
         }).then(async r => {
           if (!r.ok) {
@@ -1605,6 +1805,32 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         setViewerRankChange(shiftWarsResult?.winnerTeamRankChange ?? 0);
         setViewerNewRank(shiftWarsResult?.newWinnerTeamRank ?? null);
         await qc.invalidateQueries({ queryKey: ["leaderboard-shiftwars"] });
+      } else if (isMultiTeam && data.multiTeamIds) {
+        // 3+ official teams, one live elimination match — last team
+        // standing wins the full pot, every other team pays the flat stake.
+        // No single winner/loser rank-change figure to show (multiple teams
+        // move at once), same treatment as the combined-match branch above.
+        const endpoint = data.format === "doubles-multi" ? "/api/doubles/multi-matches" : "/api/shift-wars/multi-matches";
+        await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            participantTeamIds: data.multiTeamIds,
+            winnerTeamId: data.multiTeamIds[result.winnerIdx],
+            stake: data.stake,
+            gameType: data.gameType.key,
+            ...(idempotencyKey ? { idempotencyKey } : {}),
+          }),
+        }).then(async r => {
+          if (!r.ok) {
+            const body = await r.json().catch(() => ({}));
+            throw new Error((body as { error?: string }).error ?? `HTTP ${r.status}`);
+          }
+          return r.json();
+        });
+        setViewerRankChange(0);
+        setViewerNewRank(null);
+        await qc.invalidateQueries({ queryKey: [data.format === "doubles-multi" ? "leaderboard-doubles" : "leaderboard-shiftwars"] });
       } else {
         const teamResult = await fetch("/api/team-matches", {
           method: "POST",
@@ -1615,6 +1841,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
             stake:     data.stake,
             stakeMode: data.stakeMode,
             gameType:  data.gameType.key,
+            ...(idempotencyKey ? { idempotencyKey } : {}),
           }),
         }).then(async r => {
           if (!r.ok) {
@@ -1627,7 +1854,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         setViewerRankChange(viewerChange?.rankChange ?? 0);
         setViewerNewRank(viewerChange?.newRank ?? null);
       }
-      if (data.format !== "doubles-event" && data.format !== "shift-wars") {
+      if (data.format !== "doubles-event" && data.format !== "shift-wars" && !isMultiTeam) {
         await qc.invalidateQueries({ queryKey: getGetLeaderboardQueryKey() });
         await qc.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
         await qc.invalidateQueries({ queryKey: getGetRecentActivityQueryKey() });
@@ -1647,7 +1874,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
     if (!autoFired) { setAutoFired(true); void submit(); }
   }, []);
 
-  const formatLabel = data.format === "1v1" ? "1v1" : data.format === "2v2" ? "2v2 Doubles" : data.format === "3v3" ? "3v3 Triples" : data.format === "uneven-teams" ? `Uneven Teams (${data.team1.length}v${data.team2.length})` : data.format === "doubles-event" ? (data.combinedMatch ? `Doubles Event (Combined, ${data.team1.length}v${data.team2.length})` : data.unevenTurnOrder ? `Doubles Event (${data.team1.length}v${data.team2.length})` : "Doubles Event") : data.format === "shift-wars" ? (data.combinedMatch ? `Shift Wars (Combined, ${data.team1.length}v${data.team2.length})` : data.unevenTurnOrder ? `Shift Wars (${data.team1.length}v${data.team2.length})` : "Shift Wars") : `Killer ${data.team1.length}-player`;
+  const formatLabel = data.format === "1v1" ? "1v1" : data.format === "2v2" ? "2v2 Doubles" : data.format === "3v3" ? "3v3 Triples" : data.format === "uneven-teams" ? `Uneven Teams (${data.team1.length}v${data.team2.length})` : data.format === "doubles-event" ? (data.combinedMatch ? `Doubles Event (Combined, ${data.team1.length}v${data.team2.length})` : data.unevenTurnOrder ? `Doubles Event (${data.team1.length}v${data.team2.length})` : "Doubles Event") : data.format === "shift-wars" ? (data.combinedMatch ? `Shift Wars (Combined, ${data.team1.length}v${data.team2.length})` : data.unevenTurnOrder ? `Shift Wars (${data.team1.length}v${data.team2.length})` : "Shift Wars") : data.format === "doubles-multi" ? `Doubles Multi-Team (${data.team1.length} pairings)` : data.format === "shift-wars-multi" ? `Shift Wars 3-Way` : `Killer ${data.team1.length}-player`;
 
   return (
     <div className="max-w-lg mx-auto space-y-6 text-center">
@@ -1658,7 +1885,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           {burstEffect && <CheckoutBurst emoji={burstEffect.emoji} color={burstEffect.color} />}
         </div>
         <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-          {isTeam ? "Winning Team" : isKillerFfa ? "Survivor" : "Winner"}
+          {isTeam ? "Winning Team" : isFreeForAllResult ? "Survivor" : "Winner"}
         </div>
         <div className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.08em", textShadow: `0 0 30px ${textGlowColor}66` }}>
           {winnerName}
@@ -1694,7 +1921,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           ["Game",          data.gameType.name],
           ["Winner" + (isTeam ? "s" : ""), winnerName],
           ["Loser" + (isTeam ? "s" : ""),  loserName],
-          [data.stakeMode === "total" ? "Total wager" : "Stake", `${data.stake} pts${data.stakeMode === "total" ? " total" : " per player"}`],
+          ["Stake", data.wagerSides && effectivePot !== data.stake ? `${data.stake} pts per player (${effectivePot} pts total pot)` : `${data.stake} pts`],
         ].map(([k, v]) => (
           <div key={k} className="flex justify-between text-sm">
             <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>{k}</span>
@@ -1703,11 +1930,11 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         ))}
       </div>
 
-      {data.stakeMode === "total" && data.wagerSides && (
+      {data.wagerSides && (
         <div className="pdc-card p-4 text-left space-y-2">
           <div className="text-xs uppercase tracking-widest">{submitted ? "Points change" : "Points to be recorded"}</div>
           {data.wagerSides.flatMap((side, index) => {
-            const shares = wagerShares(data.stake, side);
+            const shares = wagerShares(effectivePot, side);
             return side.map((a, i) => <div key={`${index}-${i}`} className="flex justify-between text-sm"><span>{a.name}</span><span>{index === result.winnerIdx ? "+" : "−"}{shares[i]}pts</span></div>);
           })}
         </div>
@@ -1763,7 +1990,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
             stats: [
               { label: "Format", value: formatLabel },
               { label: "Game", value: data.gameType.name },
-              { label: data.stakeMode === "total" ? "Total wager" : "Stake", value: `${data.stake} pts` },
+              { label: "Stake", value: data.wagerSides && effectivePot !== data.stake ? `${data.stake} pts/player (${effectivePot} total)` : `${data.stake} pts` },
             ],
             footer: result.detail || "TKDL Match Night",
           }}
@@ -1806,6 +2033,11 @@ export default function Play() {
   const liveScoreRef                 = useRef<LiveScoreState | null>(null);
   const liveSessionIdRef             = useRef<string | null>(null);
   const liveFinishedRef              = useRef(false);
+  // Generated fresh the instant a winner is decided (see onWin below) and
+  // held stable for the rest of this match attempt, including a manual
+  // "Retry" after a failed/timed-out submission — see
+  // GameOverScreen's own idempotencyKey prop comment for why.
+  const matchIdempotencyKeyRef       = useRef<string | null>(null);
   liveScoreRef.current = liveScore;
 
   const broadcastFormat = (data: SetupData) => data.format === "1v1" ? "Singles" : data.format === "doubles-event" ? "Doubles Event" : data.format === "shift-wars" ? "Shift Wars" : data.format === "uneven-teams" ? `Uneven Teams ${data.team1.length}v${data.team2.length}` : data.format.toUpperCase();
@@ -1814,7 +2046,7 @@ export default function Play() {
     const sessionId = liveSessionIdRef.current;
     if (!sessionId || !setupData) return;
     liveFinishedRef.current = true;
-    const isFreeForAll = setupData.format === "killer-ffa";
+    const isFreeForAll = setupData.format === "killer-ffa" || setupData.format === "doubles-multi" || setupData.format === "shift-wars-multi";
     const winnerSide: 0 | 1 = isFreeForAll ? 0 : result.winnerIdx as 0 | 1;
     const sides: [string[], string[]] = [setupData.team1.map(player => player.name), setupData.team2.map(player => player.name)];
     const winnerName = isFreeForAll
@@ -1831,6 +2063,7 @@ export default function Play() {
   const reset = () => {
     clearMatchSnapshot(PLAY_SNAPSHOT_KEY);
     setInterruptedMatch(null);
+    matchIdempotencyKeyRef.current = null;
     setPhase("setup");
     setSetupData(null);
     setPlayer1Equipment(null);
@@ -2018,7 +2251,10 @@ export default function Play() {
 
   if (phase === "playing" && setupData) {
     const isTeam      = setupData.format === "2v2" || setupData.format === "3v3" || setupData.format === "uneven-teams" || setupData.format === "doubles-event" || setupData.format === "shift-wars";
-    const isKillerFfa = setupData.format === "killer-ffa";
+    // Doubles-multi/Shift-wars-multi drive the live scorer exactly like
+    // Killer FFA — a flat playerNames list feeding MultiKillerScorer — just
+    // with pairing/department names standing in for individual players.
+    const isKillerFfa = setupData.format === "killer-ffa" || setupData.format === "doubles-multi" || setupData.format === "shift-wars-multi";
 
     const teamNames: [string[], string[]] | undefined = isTeam
       ? [setupData.team1.map(p => p.name), setupData.team2.map(p => p.name)]
@@ -2074,6 +2310,11 @@ export default function Play() {
             clearMatchSnapshot(PLAY_SNAPSHOT_KEY);
             setInterruptedMatch(null);
             setScorerRecoveryState(null);
+            // Generated once, right here, before GameOverScreen's own
+            // auto-submit even fires — see matchIdempotencyKeyRef's own
+            // comment above and GameOverScreen's idempotencyKey prop.
+            matchIdempotencyKeyRef.current = typeof crypto.randomUUID === "function"
+              ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
             finishLiveBroadcast(r);
             setResult(r);
             setShowResultPresentation(true);
@@ -2090,7 +2331,7 @@ export default function Play() {
   if (phase === "gameover" && gameResult && setupData) {
     return (
       <>
-        <GameOverScreen result={gameResult} data={setupData} stats={matchStats} player1Equipment={player1Equipment} player2Equipment={player2Equipment} onBack={reset} />
+        <GameOverScreen result={gameResult} data={setupData} stats={matchStats} player1Equipment={player1Equipment} player2Equipment={player2Equipment} idempotencyKey={matchIdempotencyKeyRef.current} onBack={reset} />
         {showResultPresentation && createPortal(
           <MatchNightPresentation
             mode="result"

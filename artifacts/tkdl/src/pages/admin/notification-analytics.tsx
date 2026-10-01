@@ -19,6 +19,7 @@ interface NotificationStats {
 export function NotificationAnalytics() {
   const [stats, setStats] = useState<NotificationStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -26,13 +27,14 @@ export function NotificationAnalytics() {
   }, []);
 
   const fetchAnalytics = async () => {
+    setLoading(true);
+    setError("");
     try {
       const res = await fetch("/api/admin/notifications/analytics");
-      if (res.ok) {
-        setStats(await res.json());
-      }
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Could not load notification analytics");
+      setStats(await res.json());
     } catch (err) {
-      console.error("Failed to load analytics", err);
+      setError(err instanceof Error ? err.message : "Could not load notification analytics");
     } finally {
       setLoading(false);
     }
@@ -50,6 +52,7 @@ export function NotificationAnalytics() {
     // out of step with every other admin panel. Colors/thresholds unchanged.
     <CollapsibleAdminSection title="Notification Analytics (Last 30 Days)" icon={BarChart3} accent="#38bdf8">
       <div className="px-4 py-4">
+        {error && <div className="mb-3 rounded-lg p-3 text-sm" style={{ border: "1px solid rgba(255,0,92,.3)", color: "#ff7aa8" }}>{error}</div>}
         {loading ? (
           <div className="text-center py-5 text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
             Loading analytics...

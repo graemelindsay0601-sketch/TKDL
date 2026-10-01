@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/context/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -13,16 +13,11 @@ import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { LoginGate } from "@/components/LoginGate";
 import { NotificationCenter } from "@/components/notification-center";
 import { CoinBalance } from "@/components/CoinBalance";
-import { TransactionHistory } from "@/components/TransactionHistory";
-import { CardCollectionBook } from "@/components/CardCollectionBook";
-import { PlayerChallenges } from "@/components/PlayerChallenges";
-import { OverallStats, ByGameType, Trends, DartAnalysis, CategoryStatsEnhanced, AdvancedAnalyticsDashboard } from "@/components/stats";
 import { StreakWidget } from "@/components/stats/streak-widget";
 import { TimeOfDayPerformance } from "@/components/stats/time-of-day-performance";
 import { DrillProgressTracker } from "@/components/stats/drill-progress-tracker";
 import { AdaptiveDifficulty } from "@/components/stats/adaptive-difficulty";
 import { LogDrillModal, type LoggableDrill } from "@/components/stats/log-drill-modal";
-import { CosmeticsShop } from "@/components/CosmeticsShop";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, bubbleColorStyle, avatarBadgeIcon, taglineStyleCSS, stickerEmoji, accountAccentColor, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
 import { TrophyCase } from "@/components/TrophyCase";
 import { FeaturedStatBadge } from "@/components/FeaturedStatBadge";
@@ -32,6 +27,21 @@ import { SPOTLIGHT_STATS, SPOTLIGHT_STAT_KEYS, useSpotlightValues } from "@/lib/
 // visual-consistency sweep caught it; importing instead of redefining
 // keeps it from drifting again.
 import { TIER_COLORS } from "@/components/tier-badge";
+import { apiFetchJsonOr } from "@/lib/api-fetch";
+
+// These panels are substantial and only appear after selecting their tab.
+// Keeping them out of the initial Account chunk makes Overview faster while
+// preserving the exact components and UI once a tab is opened.
+const OverallStats = lazy(() => import("@/components/stats/overall-stats").then(m => ({ default: m.OverallStats })));
+const ByGameType = lazy(() => import("@/components/stats/by-game-type").then(m => ({ default: m.ByGameType })));
+const Trends = lazy(() => import("@/components/stats/trends").then(m => ({ default: m.Trends })));
+const DartAnalysis = lazy(() => import("@/components/stats/dart-analysis").then(m => ({ default: m.DartAnalysis })));
+const CategoryStatsEnhanced = lazy(() => import("@/components/stats/category-stats-enhanced").then(m => ({ default: m.CategoryStatsEnhanced })));
+const AdvancedAnalyticsDashboard = lazy(() => import("@/components/stats/advanced-analytics").then(m => ({ default: m.AdvancedAnalyticsDashboard })));
+const TransactionHistory = lazy(() => import("@/components/TransactionHistory").then(m => ({ default: m.TransactionHistory })));
+const CardCollectionBook = lazy(() => import("@/components/CardCollectionBook").then(m => ({ default: m.CardCollectionBook })));
+const PlayerChallenges = lazy(() => import("@/components/PlayerChallenges").then(m => ({ default: m.PlayerChallenges })));
+const CosmeticsShop = lazy(() => import("@/components/CosmeticsShop").then(m => ({ default: m.CosmeticsShop })));
 
 function EloSparkline({ history }: { history: { elo: number }[] }) {
   if (history.length < 2) return null;
@@ -591,29 +601,28 @@ export default function AccountPage() {
     if (!user?.playerId || !claimAccountLoad(user.playerId, "base")) return;
     const id = user.playerId;
     void Promise.all([
-      fetch(`/api/players/${id}/stats`).then(r => r.ok ? r.json() : null).then(setStats),
-      fetch(`/api/players/${id}/gamerscore`).then(r => r.ok ? r.json() : null).then(setGamerscore),
-      fetch(`/api/players/${id}/elo-history`).then(r => r.ok ? r.json() : {}).then((d: any) => setEloHistory(d.history ?? [])),
-      fetch(`/api/players/${id}/titles`).then(r => r.ok ? r.json() : []).then(setTitleList),
+      apiFetchJsonOr<any>(`/api/players/${id}/stats`, null).then(setStats),
+      apiFetchJsonOr<any>(`/api/players/${id}/gamerscore`, null).then(setGamerscore),
+      apiFetchJsonOr<any>(`/api/players/${id}/elo-history`, {}).then((d: any) => setEloHistory(d.history ?? [])),
+      apiFetchJsonOr<any[]>(`/api/players/${id}/titles`, []).then(setTitleList),
     ]);
   }, [user?.playerId]);
 
   useEffect(() => {
-    if (!user?.playerId || !["overview", "activity"].includes(activeTab) || !claimAccountLoad(user.playerId, "activity")) return;
+    if (!user?.playerId || activeTab !== "activity" || !claimAccountLoad(user.playerId, "activity")) return;
     const id = user.playerId;
     void Promise.all([
-      fetch(`/api/players/${id}/practice-stats`).then(r => r.ok ? r.json() : null).then(setPractice),
-      fetch(`/api/master501/progress/${id}`).then(r => r.ok ? r.json() : null).then(setM501),
-      fetch(`/api/tour/trophies/${id}`).then(r => r.ok ? r.json() : []).then(setTrophies),
-      fetch(`/api/tour/runs/${id}`).then(r => r.ok ? r.json() : []).then(setTourRuns),
-      fetch(`/api/players/${id}/shadow-bot-stats`).then(r => r.ok ? r.json() : null).then(setShadow),
+      apiFetchJsonOr<any>(`/api/players/${id}/practice-stats`, null).then(setPractice),
+      apiFetchJsonOr<any>(`/api/master501/progress/${id}`, null).then(setM501),
+      apiFetchJsonOr<any[]>(`/api/tour/trophies/${id}`, []).then(setTrophies),
+      apiFetchJsonOr<any[]>(`/api/tour/runs/${id}`, []).then(setTourRuns),
+      apiFetchJsonOr<any>(`/api/players/${id}/shadow-bot-stats`, null).then(setShadow),
     ]);
   }, [activeTab, user?.playerId]);
 
   useEffect(() => {
-    if (!user?.playerId || !["overview", "achievements"].includes(activeTab) || !claimAccountLoad(user.playerId, "achievement-progress")) return;
-    fetch(`/api/players/${user.playerId}/achievement-progress`)
-      .then(r => r.ok ? r.json() : [])
+    if (!user?.playerId || activeTab !== "achievements" || !claimAccountLoad(user.playerId, "achievement-progress")) return;
+    apiFetchJsonOr<any[]>(`/api/players/${user.playerId}/achievement-progress`, [])
       .then(setAchProgress);
   }, [activeTab, user?.playerId]);
 
@@ -877,7 +886,7 @@ export default function AccountPage() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPwd !== confirmPwd) { toast({ title: "Passwords don't match", variant: "destructive" }); return; }
-    if (newPwd.length < 6)     { toast({ title: "Password must be at least 6 characters", variant: "destructive" }); return; }
+    if (newPwd.length < 8)     { toast({ title: "Password must be at least 8 characters", variant: "destructive" }); return; }
     setPwdLoad(true);
     try {
       const res  = await fetch("/api/auth/password", {
@@ -2775,6 +2784,7 @@ export default function AccountPage() {
         </div>
       )}
 
+      <Suspense fallback={<div className="pdc-card p-6 text-center" style={{ color: "rgba(255,255,255,.45)" }}>Loading account section…</div>}>
       {/* ── Stats Tab ─────────────────────────────────────────────── */}
       {activeTab === "stats" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -2867,6 +2877,7 @@ export default function AccountPage() {
           </SectionCard>
         </div>
       )}
+      </Suspense>
 
     </div>
   );

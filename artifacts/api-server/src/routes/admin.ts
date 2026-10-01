@@ -339,6 +339,10 @@ router.delete("/admin/players/:id", async (req, res): Promise<void> => {
   res.json({ ok: true, retired: player.name });
 });
 
+router.get("/admin/session", (_req, res): void => {
+  res.json({ ok: true });
+});
+
 // ── Override player Elo ────────────────────────────────────────────────────────
 const EloOverrideBody = z.object({ elo: z.number().int().min(800).max(2000) });
 
@@ -524,47 +528,80 @@ router.post("/admin/test-comms", requireAdminSession, async (req, res): Promise<
 
 // ── Full data export (JSON backup) — requires admin session ───────────────────
 router.get("/admin/export", async (_req, res): Promise<void> => {
-  const [players, matches, matchParticipants, seasons, standings, achievements, playerAchievements,
-    doublesTeams, doublesMatches, doublesCombinedMatches, doublesCombinedSides,
-    shiftWarsTeams, shiftWarsMatches, shiftWarsCombinedMatches, shiftWarsCombinedSides, shiftWarsSeasonHistory,
-    gameTypes, settings, auditLog] = await Promise.all([
-    db.select().from(playersTable),
-    db.select().from(matchesTable),
-    db.select().from(matchParticipantsTable),
-    db.select().from(seasonsTable),
-    db.select().from(seasonStandingsTable),
-    db.select().from(achievementsTable),
-    db.select().from(playerAchievementsTable),
-    db.execute(sql`SELECT * FROM doubles_teams ORDER BY id`),
-    db.execute(sql`SELECT * FROM doubles_matches ORDER BY id`),
-    db.execute(sql`SELECT * FROM doubles_combined_matches ORDER BY id`),
-    db.execute(sql`SELECT * FROM doubles_combined_match_sides ORDER BY id`),
-    db.execute(sql`SELECT * FROM shift_wars_teams ORDER BY id`),
-    db.execute(sql`SELECT * FROM shift_wars_matches ORDER BY id`),
-    db.execute(sql`SELECT * FROM shift_wars_combined_matches ORDER BY id`),
-    db.execute(sql`SELECT * FROM shift_wars_combined_match_sides ORDER BY id`),
-    db.execute(sql`SELECT * FROM shift_wars_season_history ORDER BY id`),
-    db.execute(sql`SELECT * FROM game_types ORDER BY id`),
-    db.execute(sql`SELECT * FROM settings ORDER BY key`),
-    db.execute(sql`SELECT * FROM admin_audit_log ORDER BY id`),
+  // Back up every domain table, including newer features added after the old
+  // hand-maintained 19-table list. Authentication secrets and ephemeral job
+  // locks are deliberately excluded. Names come from pg_tables and are
+  // restricted to plain PostgreSQL identifiers before being interpolated.
+  const excludedTables = new Set([
+    "sessions", "users", "push_subscriptions", "pending_push_notifications", "notification_batches",
+    "card_clash_debug_logs", "app_schema_migrations", "app_bootstrap_versions",
+    "season_reset_lock", "broadcast_admin_build_lock",
   ]);
-  const data: Record<string, unknown[]> = {
-    players, matches, matchParticipants, seasons, standings, achievements, playerAchievements,
-    doublesTeams: doublesTeams.rows as unknown[], doublesMatches: doublesMatches.rows as unknown[],
-    doublesCombinedMatches: doublesCombinedMatches.rows as unknown[], doublesCombinedSides: doublesCombinedSides.rows as unknown[],
-    shiftWarsTeams: shiftWarsTeams.rows as unknown[], shiftWarsMatches: shiftWarsMatches.rows as unknown[],
-    shiftWarsCombinedMatches: shiftWarsCombinedMatches.rows as unknown[], shiftWarsCombinedSides: shiftWarsCombinedSides.rows as unknown[],
-    shiftWarsSeasonHistory: shiftWarsSeasonHistory.rows as unknown[], gameTypes: gameTypes.rows as unknown[],
-    settings: settings.rows as unknown[], auditLog: auditLog.rows as unknown[],
-  };
+  const tableResult = await db.execute(sql`
+    SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename
+  `);
+  const tableNames = (tableResult.rows as any[])
+    .map(row => String(row.tablename))
+    .filter(name => /^[a-z][a-z0-9_]*$/.test(name) && !excludedTables.has(name));
+  const entries = await Promise.all(tableNames.map(async tableName => {
+    const rows = await db.execute(sql.raw(`SELECT * FROM "${tableName}" ORDER BY 1`));
+    return [tableName, rows.rows as unknown[]] as const;
+  }));
+  const data: Record<string, unknown[]> = Object.fromEntries(entries);
+  // Keep account ownership available for recovery without ever exporting a
+  // password hash. A restored installation can set fresh passwords.
+  const accountDirectory = await db.execute(sql`
+    SELECT id,username,player_id,is_admin,created_at,last_login_at FROM users ORDER BY id
+  `);
+  data.account_directory = accountDirectory.rows as unknown[];
   const filename = `tkdl-backup-${new Date().toISOString().split("T")[0]}.json`;
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  void logAdminAction(_req,"backup.export","backup",null,{tables:Object.keys(data).length,rows:Object.values(data).reduce((sum,rows)=>sum+rows.length,0),version:"3.0"});
   res.json({
     exportedAt: new Date().toISOString(),
-    version: "2.0",
+    version: "3.0",
     format: "tkdl-league-backup",
+    excludedForSecurity: [...excludedTables, "users.password_hash"],
     manifest: Object.fromEntries(Object.entries(data).map(([name, rows]) => [name, rows.length])),
     data,
+  });
+});
+
+const BackupPreviewBody = z.object({
+  format: z.literal("tkdl-league-backup"),
+  version: z.literal("3.0"),
+  exportedAt: z.string().datetime(),
+  manifest: z.record(z.string(), z.number().int().nonnegative()),
+});
+
+// Compare backup metadata with the live database without uploading any rows
+// or writing anything. The browser validates the actual file contents first.
+router.post("/admin/backup/preview", async (req, res): Promise<void> => {
+  const parsed=BackupPreviewBody.safeParse(req.body);
+  if(!parsed.success){res.status(400).json({error:"Unsupported or malformed backup manifest"});return;}
+  const excluded=new Set(["sessions","users","push_subscriptions","pending_push_notifications","notification_batches","card_clash_debug_logs","app_schema_migrations","app_bootstrap_versions","season_reset_lock","broadcast_admin_build_lock"]);
+  const publicTables=await db.execute(sql`SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename`);
+  const allowed=(publicTables.rows as any[]).map(row=>String(row.tablename)).filter(name=>/^[a-z][a-z0-9_]*$/.test(name)&&!excluded.has(name));
+  const comparisons=await Promise.all(Object.entries(parsed.data.manifest).map(async([table,backupRows])=>{
+    if(table==="account_directory"){
+      const current=await db.execute(sql`SELECT COUNT(*)::int count FROM users`);
+      const currentRows=Number((current.rows[0] as any)?.count??0);
+      return {table,backupRows,currentRows,delta:backupRows-currentRows,available:true,securityFiltered:true};
+    }
+    if(!allowed.includes(table))return {table,backupRows,currentRows:null,delta:null,available:false,securityFiltered:false};
+    const current=await db.execute(sql.raw(`SELECT COUNT(*)::int count FROM "${table}"`));
+    const currentRows=Number((current.rows[0] as any)?.count??0);
+    return {table,backupRows,currentRows,delta:backupRows-currentRows,available:true,securityFiltered:false};
+  }));
+  const manifestTables=new Set(Object.keys(parsed.data.manifest));
+  res.json({
+    readOnly:true,exportedAt:parsed.data.exportedAt,
+    backupRows:Object.values(parsed.data.manifest).reduce((n,v)=>n+v,0),
+    currentRows:comparisons.reduce((n,row)=>n+(row.currentRows??0),0),
+    comparisons:comparisons.sort((a,b)=>Math.abs(Number(b.delta??0))-Math.abs(Number(a.delta??0))||a.table.localeCompare(b.table)),
+    tablesMissingFromBackup:allowed.filter(table=>!manifestTables.has(table)),
+    unavailableTables:comparisons.filter(row=>!row.available).map(row=>row.table),
+    restoreEnabled:false,
   });
 });
 

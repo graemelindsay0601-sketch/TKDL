@@ -1056,7 +1056,9 @@ svg[class*="w-16"], svg[class*="h-16"] {
 .sm-tab.sm-tab-active .sm-tab-ic { background: #fff; color: #14141a; box-shadow: 0 0 14px rgba(255,255,255,0.5); }
 
 .sm-chip {
-  width: 38px; height: 38px; border-radius: 50%;
+  /* 44px min touch target (was 38px) — these are the stake-preset chips in the
+     match-submission flow, the highest-traffic tap targets in the app. */
+  width: 44px; height: 44px; border-radius: 50%;
   font-family: 'Oswald', sans-serif; font-weight: 800; font-size: 0.76rem;
   cursor: pointer; color: rgba(255,255,255,0.72);
   background: radial-gradient(circle at 32% 28%, #232329, #101014 72%);
@@ -1075,7 +1077,10 @@ svg[class*="w-16"], svg[class*="h-16"] {
 .sm-custom-input {
   flex: 1; min-width: 0; background: #000; border: 1px solid rgba(255,255,255,0.14);
   border-radius: 9px; padding: 8px 12px;
-  font-family: var(--app-font-mono); font-weight: 700; font-size: 0.9rem;
+  font-family: var(--app-font-mono); font-weight: 700;
+  /* 16px, not 0.9rem (14.4px) — anything smaller triggers iOS Safari's
+     zoom-on-focus on this custom stake-amount input. */
+  font-size: 16px;
   color: var(--color-gold); text-align: right;
   box-shadow: inset 0 2px 7px rgba(0,0,0,0.75);
 }

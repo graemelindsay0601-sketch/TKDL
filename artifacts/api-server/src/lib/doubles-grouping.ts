@@ -77,3 +77,33 @@ export function buildFairDoublesGroups<T extends DoublesCandidate>(
 
   return groups;
 }
+
+/**
+ * Keeps the reigning two-player champions together, then applies the normal
+ * fair triple rotation and random pairing to everybody else. If the saved
+ * pair is incomplete, duplicated or no longer active, fall back to a full
+ * draw rather than producing an invalid team.
+ */
+export function buildDoublesGroupsWithDefendingPair<T extends DoublesCandidate>(
+  candidates: readonly T[],
+  previousTriples: readonly PreviousTriple[],
+  defendingPairIds: readonly number[] | null,
+  random: () => number = Math.random,
+): { groups: T[][]; defendingPairKept: boolean } {
+  if (!defendingPairIds || defendingPairIds.length !== 2 || defendingPairIds[0] === defendingPairIds[1]) {
+    return { groups: buildFairDoublesGroups(candidates, previousTriples, random), defendingPairKept: false };
+  }
+
+  const candidateMap = new Map(candidates.map(candidate => [candidate.id, candidate]));
+  const defendingPair = defendingPairIds.map(id => candidateMap.get(id)).filter((player): player is T => !!player);
+  if (defendingPair.length !== 2) {
+    return { groups: buildFairDoublesGroups(candidates, previousTriples, random), defendingPairKept: false };
+  }
+
+  const defendingIds = new Set(defendingPairIds);
+  const remaining = candidates.filter(candidate => !defendingIds.has(candidate.id));
+  return {
+    groups: [defendingPair, ...buildFairDoublesGroups(remaining, previousTriples, random)],
+    defendingPairKept: true,
+  };
+}

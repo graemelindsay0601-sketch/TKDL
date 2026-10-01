@@ -6,6 +6,7 @@ import { Link, useSearch } from "wouter";
 import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal, Zap, Users, Building2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useSettings } from "@/hooks/use-settings";
+import { apiFetchJson } from "@/lib/api-fetch";
 import { useCosmeticsCatalog, glowRowStyle, leaderboardTagStyle, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
 
 type Mode = "season" | "doubles" | "shiftwars" | "career" | "achievements" | "bot" | "tour" | "master501" | "records";
@@ -500,63 +501,64 @@ export default function Standings() {
   const { data: appSettings } = useSettings();
   const shiftWarsEnabled = appSettings?.shift_wars_enabled ?? false;
 
-  const { data: leaderboard,   isLoading: seasonLoading }  = useGetLeaderboard();
-  const { data: careerData,    isLoading: careerLoading }   = useQuery({
+  const { data: leaderboard,   isLoading: seasonLoading, isError: seasonError }  = useGetLeaderboard();
+  const { data: careerData,    isLoading: careerLoading, isError: careerError }   = useQuery({
     queryKey: ["leaderboard-career", careerSort],
-    queryFn:  () => fetch(`/api/leaderboard/career?sortBy=${careerSort}`).then(r => r.json()),
+    queryFn:  () => apiFetchJson(`/api/leaderboard/career?sortBy=${careerSort}`),
     enabled:  mode === "career",
   });
-  const { data: achData,       isLoading: achLoading }      = useQuery({
+  const { data: achData,       isLoading: achLoading, isError: achError }      = useQuery({
     queryKey: ["leaderboard-achievements"],
-    queryFn:  () => fetch("/api/leaderboard/achievements").then(r => r.json()),
+    queryFn:  () => apiFetchJson("/api/leaderboard/achievements"),
     enabled:  mode === "achievements",
   });
-  const { data: botData,       isLoading: botLoading }      = useQuery({
+  const { data: botData,       isLoading: botLoading, isError: botError }      = useQuery({
     queryKey: ["leaderboard-bot"],
-    queryFn:  () => fetch("/api/leaderboard/bot").then(r => r.json()),
+    queryFn:  () => apiFetchJson("/api/leaderboard/bot"),
     enabled:  mode === "bot",
   });
-  const { data: tourData,      isLoading: tourLoading }     = useQuery({
+  const { data: tourData,      isLoading: tourLoading, isError: tourError }     = useQuery({
     queryKey: ["leaderboard-tour"],
-    queryFn:  () => fetch("/api/leaderboard/tour").then(r => r.json()),
+    queryFn:  () => apiFetchJson("/api/leaderboard/tour"),
     enabled:  mode === "tour",
   });
-  const { data: m501Data,      isLoading: m501Loading }     = useQuery({
+  const { data: m501Data,      isLoading: m501Loading, isError: m501Error }     = useQuery({
     queryKey: ["leaderboard-master501"],
-    queryFn:  () => fetch("/api/master501/leaderboard").then(r => r.json()),
+    queryFn:  () => apiFetchJson("/api/master501/leaderboard"),
     enabled:  mode === "master501",
   });
-  const { data: recordsData,   isLoading: recordsLoading }  = useQuery({
+  const { data: recordsData,   isLoading: recordsLoading, isError: recordsError }  = useQuery({
     queryKey: ["leaderboard-records"],
-    queryFn:  () => fetch("/api/stats/checkout-records").then(r => r.json()),
+    queryFn:  () => apiFetchJson("/api/stats/checkout-records"),
     enabled:  mode === "records",
   });
-  const { data: doublesData,   isLoading: doublesLoading }  = useQuery({
+  const { data: doublesData,   isLoading: doublesLoading, isError: doublesError }  = useQuery({
     queryKey: ["leaderboard-doubles"],
     queryFn:  async () => {
-      const season = await fetch("/api/seasons/current?leagueType=doubles").then(r => r.json());
+      const season = await apiFetchJson<any>("/api/seasons/current?leagueType=doubles");
       if (!season?.id) return [];
-      return fetch(`/api/seasons/${season.id}/doubles/teams`).then(r => r.json());
+      return apiFetchJson(`/api/seasons/${season.id}/doubles/teams`);
     },
     enabled:  mode === "doubles",
   });
   const { data: doublesChemistryData } = useQuery({
     queryKey: ["doubles-chemistry"],
-    queryFn: () => fetch("/api/doubles/chemistry").then(r => r.json()),
+    queryFn: () => apiFetchJson("/api/doubles/chemistry"),
     enabled: mode === "doubles",
   });
-  const { data: shiftWarsData, isLoading: shiftWarsLoading } = useQuery({
+  const { data: shiftWarsData, isLoading: shiftWarsLoading, isError: shiftWarsError } = useQuery({
     queryKey: ["leaderboard-shiftwars"],
-    queryFn:  () => fetch("/api/shift-wars/teams").then(r => r.json()),
+    queryFn:  () => apiFetchJson("/api/shift-wars/teams"),
     enabled:  mode === "shiftwars",
   });
   const { data: shiftWarsHistoryData } = useQuery({
     queryKey: ["leaderboard-shiftwars-history"],
-    queryFn:  () => fetch("/api/shift-wars/history").then(r => r.json()),
+    queryFn:  () => apiFetchJson("/api/shift-wars/history"),
     enabled:  mode === "shiftwars",
   });
 
   const isLoading = { season: seasonLoading, career: careerLoading, achievements: achLoading, bot: botLoading, tour: tourLoading, master501: m501Loading, records: recordsLoading, doubles: doublesLoading, shiftwars: shiftWarsLoading }[mode];
+  const isError = { season: seasonError, career: careerError, achievements: achError, bot: botError, tour: tourError, master501: m501Error, records: recordsError, doubles: doublesError, shiftwars: shiftWarsError }[mode];
 
   // Row-glow cosmetic lookup — leaderboard entries carry equippedGlowId,
   // resolved against the shared cosmetics catalog (same module-level cache
@@ -704,7 +706,12 @@ export default function Standings() {
         </div>
       )}
 
-      {isLoading ? <Spinner /> : (
+      {isLoading ? <Spinner /> : isError ? (
+        <div className="pdc-card px-6 py-12 text-center">
+          <div className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c" }}>Couldn’t load these standings</div>
+          <div className="text-sm mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>The server may still be waking. Try this tab again in a moment.</div>
+        </div>
+      ) : (
         <>
           {/* ── Season ── */}
           {mode === "season" && (

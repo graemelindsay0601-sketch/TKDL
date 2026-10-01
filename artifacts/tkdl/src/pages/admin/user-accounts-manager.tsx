@@ -21,6 +21,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
   const [newName, setNewName]             = useState("");
   const [newPwd, setNewPwd]               = useState("");
   const [newIsAdmin, setNewIsAdmin]       = useState(false);
+  const [newModes, setNewModes]           = useState({ isActive: true, practiceEnabled: true, tourEnabled: true, m501Enabled: true, shadowBotEnabled: true });
   const [creatingNew, setCreatingNew]     = useState(false);
   const [loaded, setLoaded]               = useState(false);
   const queryClient = useQueryClient();
@@ -59,7 +60,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
 
   const handleReset = async (userId: number) => {
     const pwd = resetPwd[userId];
-    if (!pwd || pwd.length < 4) { toast({ title: "Password too short (min 4 chars)", variant: "destructive" }); return; }
+    if (!pwd || pwd.length < 8) { toast({ title: "Password too short (minimum 8 characters)", variant: "destructive" }); return; }
     setResetting(userId);
     const res = await fetch(`/api/admin/users/${userId}/reset-password`, {
       method: "POST", credentials: "include", headers: adminHeaders(), body: JSON.stringify({ password: pwd }),
@@ -79,29 +80,21 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
     e.preventDefault();
     if (!newName.trim()) return;
     setCreatingNew(true);
-    const playerRes = await fetch("/api/players", {
+    const onboardRes = await fetch("/api/admin/onboard-player", {
       method: "POST", credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName.trim() }),
+      body: JSON.stringify({ name: newName.trim(), password: newPwd, isAdmin: newIsAdmin, ...newModes }),
     });
-    const playerData = await playerRes.json();
-    if (!playerRes.ok) {
-      toast({ title: "Failed to create player", description: playerData.error ?? "Unknown error", variant: "destructive" });
-      setCreatingNew(false); return;
-    }
-    const userRes = await fetch("/api/admin/users", {
-      method: "POST", credentials: "include", headers: adminHeaders(),
-      body: JSON.stringify({ playerId: playerData.id, password: newPwd, isAdmin: newIsAdmin }),
-    });
-    const userData = await userRes.json();
-    if (userRes.ok) {
-      toast({ title: `${playerData.name} added to the league!`, description: `Login: @${userData.username} — password shown above.` });
-      setRevealed(p => ({ ...p, [userData.id]: newPwd }));
+    const data = await onboardRes.json();
+    if (onboardRes.ok) {
+      toast({ title: `${data.player.name} added!`, description: `Login: @${data.user.username} — password shown above.` });
+      setRevealed(p => ({ ...p, [data.user.id]: newPwd }));
       setNewName(""); setNewPwd(""); setNewIsAdmin(false); setShowNewPlayer(false);
+      setNewModes({ isActive: true, practiceEnabled: true, tourEnabled: true, m501Enabled: true, shadowBotEnabled: true });
       queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
       void load();
     } else {
-      toast({ title: "Player created but account failed", description: userData.error, variant: "destructive" });
+      toast({ title: "Nothing was added", description: data.error, variant: "destructive" });
     }
     setCreatingNew(false);
   };
@@ -156,7 +149,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <input type="text" placeholder="New password (min 4 chars)" value={resetPwd[acc.id] ?? ""} onChange={e => setResetPwd(p => ({ ...p, [acc.id]: e.target.value }))}
+                  <input type="text" placeholder="New password (minimum 8 characters)" value={resetPwd[acc.id] ?? ""} onChange={e => setResetPwd(p => ({ ...p, [acc.id]: e.target.value }))}
                     className="flex-1 rounded-lg px-3 py-1.5 text-xs outline-none"
                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff", fontFamily: "Oswald, sans-serif" }} />
                   <button onClick={() => handleReset(acc.id)} disabled={resetting === acc.id}
@@ -177,7 +170,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
         {loaded && playersWithoutAccount.length > 0 && (
           <form onSubmit={handleCreate} className="space-y-3">
             <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.52rem", letterSpacing: "0.18em", color: "rgba(255,255,255,0.2)", textTransform: "uppercase", marginBottom: "0.25rem" }}>Create New Account</div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="block mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.14em", color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>Player</label>
                 <select value={createPlayerId} onChange={e => setCreatePlayerId(e.target.value)} required
@@ -189,7 +182,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
               </div>
               <div>
                 <label className="block mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.14em", color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>Initial Password</label>
-                <input type="text" placeholder="Set their password" value={createPwd} onChange={e => setCreatePwd(e.target.value)} required minLength={4}
+                <input type="text" placeholder="Set their password" value={createPwd} onChange={e => setCreatePwd(e.target.value)} required minLength={8}
                   className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                   style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", fontFamily: "Oswald, sans-serif" }} />
               </div>
@@ -219,7 +212,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
         {showNewPlayer && (
           <form onSubmit={handleCreateNewPlayer} className="mt-4 space-y-3 rounded-xl p-4" style={{ background: "rgba(0,229,160,0.03)", border: "1px solid rgba(0,229,160,0.12)" }}>
             <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.52rem", letterSpacing: "0.18em", color: "rgba(0,229,160,0.5)", textTransform: "uppercase", marginBottom: "0.25rem" }}>Register New Player + Account</div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="block mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.14em", color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>Full Name</label>
                 <input type="text" placeholder="e.g. Jamie Smith" value={newName} onChange={e => setNewName(e.target.value)} required
@@ -228,9 +221,23 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
               </div>
               <div>
                 <label className="block mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.14em", color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>Initial Password</label>
-                <input type="text" placeholder="Set their password" value={newPwd} onChange={e => setNewPwd(e.target.value)} required minLength={4}
+                <input type="text" placeholder="Set their password" value={newPwd} onChange={e => setNewPwd(e.target.value)} required minLength={8}
                   className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                   style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", fontFamily: "Oswald, sans-serif" }} />
+              </div>
+            </div>
+            <div>
+              <div className="mb-2" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.14em", color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>Access from day one</div>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  ["isActive", "League"], ["practiceEnabled", "Practice"], ["tourEnabled", "Tour"],
+                  ["m501Enabled", "Master 501"], ["shadowBotEnabled", "Shadow Bot"],
+                ] as const).map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-pointer" style={{ background: newModes[key] ? "rgba(0,229,160,0.08)" : "rgba(255,255,255,0.03)", border: `1px solid ${newModes[key] ? "rgba(0,229,160,0.2)" : "rgba(255,255,255,0.07)"}` }}>
+                    <input type="checkbox" checked={newModes[key]} onChange={e => setNewModes(m => ({ ...m, [key]: e.target.checked }))} style={{ accentColor: "#00e5a0" }} />
+                    <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", color: newModes[key] ? "#00e5a0" : "rgba(255,255,255,0.35)" }}>{label}</span>
+                  </label>
+                ))}
               </div>
             </div>
             <div className="flex items-center justify-between">

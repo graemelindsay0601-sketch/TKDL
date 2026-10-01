@@ -1,27 +1,11 @@
 import {
   useListPlayers,
-  useCreatePlayer,
-  getListPlayersQueryKey,
-  getGetStatsSummaryQueryKey,
 } from "@workspace/api-client-react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Plus, Skull, Flame, Target, Search } from "lucide-react";
+import { Skull, Flame, Target, Search } from "lucide-react";
 import { useState } from "react";
 import { TierBadge, TIER_COLORS as TIER_ELO_COLOR } from "@/components/tier-badge";
-
-const formSchema = z.object({
-  name:     z.string().min(1, "Name is required"),
-  nickname: z.string().optional(),
-});
 
 const RANK_COLORS: Record<number, string> = {
   0: "#ffd24a", 1: "#ff008c", 2: "#00aaff", 3: "#ff5050", 4: "#00ffaa",
@@ -215,32 +199,8 @@ function PlayerCard({ player, leaderboardRank }: { player: any; leaderboardRank?
 
 export default function Players() {
   const { data: players, isLoading } = useListPlayers();
-  const createPlayerMutation = useCreatePlayer();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"points" | "elo" | "streak" | "name">("points");
-
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: { name: "", nickname: "" },
-  });
-
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    createPlayerMutation.mutate({ data: values }, {
-      onSuccess: (data: any) => {
-        toast({ title: "Player Registered", description: `${data.name} has joined the league.` });
-        form.reset();
-        setIsOpen(false);
-        queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
-      },
-      onError: (error: any) => {
-        toast({ title: "Error", description: error.message ?? "Failed.", variant: "destructive" });
-      },
-    });
-  }
 
   const q = search.trim().toLowerCase();
   const matchesSearch = (p: any) =>
@@ -277,41 +237,6 @@ export default function Players() {
             {active.length} active{eliminated.length > 0 ? ` · ${eliminated.length} eliminated` : ""}{inactive.length > 0 ? ` · ${inactive.length} inactive` : ""}
           </p>
         </div>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2 rounded-xl" style={{ background: "#ff005c", border: "none", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
-              <Plus className="h-4 w-4" /> Add Player
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Register New Player</DialogTitle>
-              <DialogDescription>New players start with 25 points and Silver ELO (1000).</DialogDescription>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField control={form.control} name="name" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl><Input placeholder="John Doe" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="nickname" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nickname (optional)</FormLabel>
-                    <FormControl><Input placeholder="The Sniper" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <Button type="submit" className="w-full rounded-xl" disabled={createPlayerMutation.isPending}
-                  style={{ background: "#ff005c", border: "none" }}>
-                  {createPlayerMutation.isPending ? "Registering…" : "Register Player"}
-                </Button>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
       </div>
 
       {!isLoading && (players?.length ?? 0) > 0 && (

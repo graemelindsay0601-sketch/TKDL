@@ -19,6 +19,7 @@ import { addPerformanceIndexes } from "./db/migrations/add_performance_indexes";
 import { addPerformanceIndexes2 } from "./db/migrations/add_performance_indexes_2";
 import { addPerformanceIndexes3 } from "./db/migrations/add_performance_indexes_3";
 import { addPerformanceIndexes4 } from "./db/migrations/add_performance_indexes_4";
+import { addPerformanceIndexes5 } from "./db/migrations/add_performance_indexes_5";
 import { ensureAdminAuditTable } from "./lib/adminAudit";
 import { seedTourSystem } from "./lib/tourSeed";
 import { ensureCardClashAchievementTables } from "./lib/card-clash-achievements";
@@ -62,6 +63,7 @@ import { addLastSeenHubAtColumn } from "./db/migrations/add_last_seen_hub_at";
 import { addPendingPushNotifications } from "./db/migrations/add_pending_push_notifications";
 import { addSelfPlayUnlocks } from "./db/migrations/add_self_play_unlocks";
 import { addCombinedMatchesTables } from "./db/migrations/add_combined_matches";
+import { addMultiMatchesTables } from "./db/migrations/add_multi_matches";
 import { addAccountAccentCosmeticColumn } from "./db/migrations/add_account_accent_cosmetic";
 import { seedSelfPlayUnlockDefinitions } from "./services/self-play-unlocks-service";
 import { createCardClashPlayerSettingsTable } from "./db/migrations/create_card_clash_player_settings";
@@ -87,6 +89,8 @@ import { addMatchParticipantDeltas } from "./db/migrations/add_match_participant
 import { addDoublesMatchDeltas } from "./db/migrations/add_doubles_match_deltas";
 import { addShiftWarsMatchSeason } from "./db/migrations/add_shift_wars_match_season";
 import { addIntegrityReviewAcknowledgements } from "./db/migrations/add_integrity_review_acknowledgements";
+import { addPostMatchIdempotency } from "./db/migrations/add_post_match_idempotency";
+import { addMatchResultIdempotencyKeys } from "./db/migrations/add_match_result_idempotency";
 import { seedBroadcastSettings } from "./broadcast/config";
 import { seedCardDefinitions } from "./services/card-definitions-service";
 import { challengeService } from "./services/challenge-service";
@@ -1585,16 +1589,25 @@ async function initSchemaAndData(): Promise<boolean> {
   await runInitStep("seedSelfPlayUnlockDefinitions", seedSelfPlayUnlockDefinitions);
   // Needs the notifications table to already exist (FK to notifications.id).
   await runInitStep("addPendingPushNotifications", addPendingPushNotifications);
+  await runMigrationStep("addPostMatchIdempotency", addPostMatchIdempotency);
   // References doubles_teams/shift_wars_teams/seasons, all of which already exist by this point.
   await runInitStep("addCombinedMatchesTables", addCombinedMatchesTables);
+  // Same prerequisites as addCombinedMatchesTables, same reasoning — 3+-way
+  // multi-team matches, additive tables, see add_multi_matches.ts.
+  await runInitStep("addMultiMatchesTables", addMultiMatchesTables);
   await runInitStep("addDoublesMatchDeltas", addDoublesMatchDeltas);
   await runInitStep("addShiftWarsMatchSeason", addShiftWarsMatchSeason);
   await runMigrationStep("addIntegrityReviewAcknowledgements", addIntegrityReviewAcknowledgements);
+  // Runs after addCombinedMatchesTables/addMultiMatchesTables above since it
+  // ALTERs all seven match tables those create or that already existed —
+  // see add_match_result_idempotency.ts for why.
+  await runMigrationStep("addMatchResultIdempotencyKeys", addMatchResultIdempotencyKeys);
   await runInitStep("seedPlayoffMatches", seedPlayoffMatches);
   await runInitStep("seedSessions", seedSessions);
   await runInitStep("seedUsers", seedUsers);
   await runInitStep("seedTitles", seedTitles);
   await runMigrationStep("addPerformanceIndexes4", addPerformanceIndexes4);
+  await runMigrationStep("addPerformanceIndexes5", addPerformanceIndexes5);
 
   collectingSchemaFailures = false;
   const clean = schemaFailureCount === 0;

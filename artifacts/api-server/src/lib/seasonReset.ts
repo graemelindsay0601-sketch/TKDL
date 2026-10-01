@@ -30,6 +30,15 @@ import {
 const SEASON_RESET_LOCK_STALE_MS = 5 * 60 * 1000;
 const DOUBLES_DRAW_RETRY_MS = 5 * 60 * 1000;
 const doublesDrawLastAttempt = new Map<number, number>();
+const automationStatus: { lastCheckedAt: string | null; lastSucceededAt: string | null; lastError: string | null } = {
+  lastCheckedAt: null,
+  lastSucceededAt: null,
+  lastError: null,
+};
+
+export function getSeasonAutomationStatus() {
+  return { ...automationStatus };
+}
 
 export class SeasonResetLockedError extends Error {
   constructor(leagueType: LeagueType) {
@@ -354,7 +363,10 @@ async function performDoublesSeasonResetLocked(
   try {
     const draw = await drawDoublesTeams(newSeason.id);
     if (draw.ok) {
-      logger.info({ seasonId: newSeason.id, teams: draw.teams.length }, "Doubles Event drawn for new season");
+      logger.info(
+        { seasonId: newSeason.id, teams: draw.teams.length, defendingPairKept: draw.defendingPairKept },
+        "Doubles Event drawn for new season",
+      );
     } else {
       logger.warn({ seasonId: newSeason.id, error: draw.error }, "Doubles Event draw skipped");
     }
@@ -547,14 +559,22 @@ async function maybeAutoResetLeague(
 }
 
 export async function maybeAutoResetLeagueSeasons(now = new Date()): Promise<void> {
-  await maybeAutoResetLeague("singles", timing => performSeasonReset(undefined, timing), now);
-  await maybeAutoResetLeague(
-    "doubles",
-    timing => performDoublesSeasonReset(undefined, timing),
-    now,
-    ensureDoublesSeasonDrawn,
-  );
-  await maybeAutoResetLeague("shift_wars", timing => performShiftWarsSeasonReset(undefined, timing), now);
+  automationStatus.lastCheckedAt = new Date().toISOString();
+  try {
+    await maybeAutoResetLeague("singles", timing => performSeasonReset(undefined, timing), now);
+    await maybeAutoResetLeague(
+      "doubles",
+      timing => performDoublesSeasonReset(undefined, timing),
+      now,
+      ensureDoublesSeasonDrawn,
+    );
+    await maybeAutoResetLeague("shift_wars", timing => performShiftWarsSeasonReset(undefined, timing), now);
+    automationStatus.lastSucceededAt = new Date().toISOString();
+    automationStatus.lastError = null;
+  } catch (error) {
+    automationStatus.lastError = error instanceof Error ? error.message : String(error);
+    throw error;
+  }
 }
 
 // ── Scheduled auto-reset ─────────────────────────────────────────────────
@@ -569,22 +589,35 @@ export async function maybeAutoResetLeagueSeasons(now = new Date()): Promise<voi
 // month), so a daily cadence is safe to run indefinitely.
 export function initializeSeasonResetScheduler(): void {
   try {
-    // Run at league midnight in both GMT and BST. The daily cadence is a
-    // recovery path: only day one can normally cause a rollover, while a
-    // later check can repair a transient failure or finish a delayed draw.
+    // Run at league midnight when the service is awake.
     cron.schedule("0 0 * * *", async () => {
       try {
         await maybeAutoResetLeagueSeasons();
-        logger.info("Season auto-reset: daily check complete");
+        logger.info("Season auto-reset: midnight check complete");
       } catch (error) {
-        logger.error({ error }, "Season auto-reset: scheduled check failed");
+        logger.error({ error }, "Season auto-reset: midnight check failed");
       }
     }, {
       runOnInit: false,
       timezone: "Europe/London",
     });
 
-    logger.info("Season auto-reset scheduler initialized (daily at 00:00 Europe/London)");
+    // A failed midnight database call should not leave the old season open
+    // for a whole day. This cheap idempotent check also handles a free Render
+    // instance that wakes later in the morning: three indexed season reads
+    // per hour are negligible, and only a stale month performs writes.
+    cron.schedule("5 * * * *", async () => {
+      try {
+        await maybeAutoResetLeagueSeasons();
+      } catch (error) {
+        logger.error({ error }, "Season auto-reset: hourly recovery check failed");
+      }
+    }, {
+      runOnInit: false,
+      timezone: "Europe/London",
+    });
+
+    logger.info("Season auto-reset scheduler initialized (midnight + hourly recovery, Europe/London)");
   } catch (error) {
     logger.error({ error }, "Failed to initialize season auto-reset scheduler");
   }

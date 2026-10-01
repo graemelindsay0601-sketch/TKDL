@@ -36,6 +36,12 @@ export const matchesTable = pgTable("matches", {
   // ("win N times as underdog") accurately instead of inferring the count
   // from whether a lower-tier achievement was already granted.
   wasUpsetWin:             boolean("was_upset_win").notNull().default(false),
+  // Optional client-supplied key so a retried submission (e.g. after a
+  // timed-out request during a Render cold start) returns the already-
+  // recorded match instead of writing a genuine duplicate. Nullable — see
+  // add_match_result_idempotency.ts for the partial unique index that
+  // actually enforces uniqueness only when a key is present.
+  idempotencyKey:          text("idempotency_key"),
 }, (t) => [
   index("matches_season_id_idx").on(t.seasonId),
   index("matches_winner_id_idx").on(t.winnerId),

@@ -3,12 +3,13 @@ import { Link } from "wouter";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
 import { Calendar, Trophy, Hash, Clock, ChevronDown, ChevronUp, Plus, Check, X, Target } from "lucide-react";
+import { apiFetchJson, apiFetchJsonOr } from "@/lib/api-fetch";
 
 // Fetch players hook
 function usePlayers() {
   const [players, setPlayers] = useState<any[]>([]);
   useEffect(() => {
-    fetch("/api/players").then(r => r.json()).then(d => setPlayers(Array.isArray(d) ? d.filter((p:any) => p.isActive) : []));
+    apiFetchJsonOr<any[]>("/api/players", []).then(d => setPlayers(Array.isArray(d) ? d.filter((p:any) => p.isActive) : []));
   }, []);
   return players;
 }
@@ -18,7 +19,7 @@ function useSeasonMvp(id: number, enabled: boolean) {
   const [mvp, setMvp] = useState<{ playerId: number; playerName: string; wins: number } | null>(null);
   useEffect(() => {
     if (!enabled || !id) return;
-    fetch(`/api/seasons/${id}/mvp`).then(r => r.json()).then(d => setMvp(d)).catch(() => {});
+    apiFetchJsonOr<any>(`/api/seasons/${id}/mvp`, null).then(d => setMvp(d));
   }, [id, enabled]);
   return mvp;
 }
@@ -28,7 +29,7 @@ function useSeasonDetail(id: number) {
   const [data, setData] = useState<any>(null);
   useEffect(() => {
     if (!id) return;
-    fetch(`/api/seasons/${id}`).then(r => r.json()).then(setData).catch(() => {});
+    apiFetchJsonOr<any>(`/api/seasons/${id}`, null).then(setData);
   }, [id]);
   return data;
 }
@@ -40,7 +41,7 @@ function usePlayoff(seasonId: number, enabled: boolean) {
   const refresh = () => {
     if (!enabled) return;
     setLoading(true);
-    fetch(`/api/seasons/${seasonId}/playoff`).then(r => r.json()).then(d => { setMatches(Array.isArray(d) ? d : []); setLoading(false); }).catch(() => setLoading(false));
+    apiFetchJson<any[]>(`/api/seasons/${seasonId}/playoff`).then(d => { setMatches(Array.isArray(d) ? d : []); setLoading(false); }).catch(() => setLoading(false));
   };
   useEffect(refresh, [seasonId, enabled]);
   return { matches, loading, refresh };

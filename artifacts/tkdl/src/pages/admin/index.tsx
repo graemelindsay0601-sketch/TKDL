@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
-  useListPlayers, useUpdatePlayer, useResetSeason, useListMatches, useDeleteMatch, useGetCurrentSeason,
+  useListPlayers, useResetSeason, useListMatches, useDeleteMatch, useGetCurrentSeason,
   getListPlayersQueryKey, getGetStatsSummaryQueryKey, getGetCurrentSeasonQueryKey,
   getListSeasonsQueryKey, getGetLeaderboardQueryKey, getListMatchesQueryKey,
   getGetRecentActivityQueryKey, getGetPlayerStatsQueryKey, getGetPlayerQueryKey,
@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, UserMinus, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Pencil, Check, Building2, Activity } from "lucide-react";
+import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, UserMinus, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Pencil, Check, Building2, Activity, Search, ChevronsUp, Radio, Layers3, Gamepad2 } from "lucide-react";
 import { format } from "date-fns";
 
 import { ADMIN_PIN_KEY, PinScreen } from "./pin-screen";
@@ -31,11 +31,36 @@ import { DataManagement } from "./data-management";
 import { AuditLog } from "./audit-log";
 import { AnnouncementsManager } from "./announcements-manager";
 import { NotificationAnalytics } from "./notification-analytics";
-import AdminCardClashPanel from "@/components/admin-card-clash-panel";
-import AdminChallengesPanel from "@/components/admin-challenges-panel";
-import AdminFeatureFlagsPanel from "@/components/admin-feature-flags-panel";
-import AdminBroadcastPanel from "@/components/admin-broadcast-panel";
+import { NotificationDeliveryHistory } from "./notification-delivery-history";
 import { IntegrityHealth } from "./integrity-health";
+import { OperationsDashboard } from "./operations-dashboard";
+
+const AdminCardClashPanel = lazy(() => import("@/components/admin-card-clash-panel"));
+const AdminChallengesPanel = lazy(() => import("@/components/admin-challenges-panel"));
+const AdminBroadcastPanel = lazy(() => import("@/components/admin-broadcast-panel"));
+
+const ADMIN_TOOLS = [
+  ["operations", "Operations Centre", "status season notifications database"],
+  ["feature-flags", "Feature Flags", "access settings toggles"],
+  ["game-types", "Game Types", "scorer formats"],
+  ["user-accounts", "User Accounts", "login password players"],
+  ["integrity-health", "Integrity & Health", "league checks problems"],
+  ["singles-season", "Singles Season", "standings playoffs"],
+  ["doubles-season", "Doubles Event", "draw teams champions"],
+  ["shift-wars", "Shift Wars", "teams roster points"],
+  ["roster", "Roster", "player access modes"],
+  ["match-corrections", "Match Corrections", "edit delete results"],
+  ["notifications", "Notifications", "delivery history queue analytics test"],
+  ["tkdl-live-admin", "TKDL Live", "broadcast editions show"],
+  ["card-clash-admin", "Card Clash", "cards coins matches"],
+  ["challenges-admin", "Challenges", "daily weekly"],
+  ["data-backup", "Data Backup", "export recovery"],
+  ["audit-log", "Audit Log", "admin history"],
+] as const;
+
+function AdminLoading() {
+  return <div className="p-5 text-sm text-white/35">Loading admin tool…</div>;
+}
 
 type ModeKey = "isActive" | "practiceEnabled" | "tourEnabled" | "m501Enabled" | "shadowBotEnabled";
 const PLAYER_MODES: { key: ModeKey; label: string; desc: string; color: string; emoji: string }[] = [
@@ -52,10 +77,37 @@ function isTeamResult(match: any): boolean {
 }
 
 export default function Admin() {
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(ADMIN_PIN_KEY) === "1");
+
+  useEffect(() => {
+    if (!unlocked) return;
+    let cancelled = false;
+    const checkSession = () => fetch("/api/admin/session", { cache: "no-store" }).then(response => {
+      if (!cancelled && !response.ok) {
+        sessionStorage.removeItem(ADMIN_PIN_KEY);
+        setUnlocked(false);
+      }
+    }).catch(() => {});
+    void checkSession();
+    const timer = window.setInterval(() => { if (!document.hidden) void checkSession(); }, 60_000);
+    const onVisibility = () => { if (!document.hidden) void checkSession(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    const relock = () => {
+      sessionStorage.removeItem(ADMIN_PIN_KEY);
+      setUnlocked(false);
+    };
+    window.addEventListener("tkdl-admin-unauthorized", relock);
+    return () => { cancelled = true; window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisibility); window.removeEventListener("tkdl-admin-unauthorized", relock); };
+  }, [unlocked]);
+
+  if (!unlocked) return <PinScreen onUnlock={() => setUnlocked(true)} />;
+  return <AdminContent onLock={() => setUnlocked(false)} />;
+}
+
+function AdminContent({ onLock }: { onLock: () => void }) {
   const { data: players, isLoading: isLoadingPlayers } = useListPlayers();
   const { data: currentSeason } = useGetCurrentSeason();
   const { data: matches, isLoading: isLoadingMatches } = useListMatches({ limit: 200, seasonId: currentSeason?.id });
-  const updatePlayerMutation = useUpdatePlayer();
   const resetSeasonMutation  = useResetSeason();
   const deleteMatchMutation  = useDeleteMatch();
   const { toast } = useToast();
@@ -68,12 +120,15 @@ export default function Admin() {
   const [editingMatchId, setEditingMatchId]       = useState<number | null>(null);
   const [editMatchForm, setEditMatchForm]         = useState({ winnerId: 0, loserId: 0 });
   const [editMatchLoading, setEditMatchLoading]   = useState(false);
-  const [unlocked, setUnlocked]                   = useState(() => sessionStorage.getItem(ADMIN_PIN_KEY) === "1");
+  const [toolSearch, setToolSearch]               = useState("");
   const [retiringPlayerId, setRetiringPlayerId]   = useState<number | null>(null);
   const [expandedPlayers, setExpandedPlayers]     = useState<Set<number>>(new Set());
   const [modeToggling, setModeToggling]           = useState<string | null>(null);
 
-  if (!unlocked) return <PinScreen onUnlock={() => setUnlocked(true)} />;
+  const matchingTools = useMemo(() => {
+    const needle = toolSearch.trim().toLowerCase();
+    return needle ? ADMIN_TOOLS.filter(([, label, tags]) => `${label} ${tags}`.toLowerCase().includes(needle)) : ADMIN_TOOLS;
+  }, [toolSearch]);
 
   const handleRetirePlayer = async (id: number, name: string) => {
     setRetiringPlayerId(id);
@@ -95,23 +150,13 @@ export default function Admin() {
     setRetiringPlayerId(null);
   };
 
-  const handleToggleActive = (id: number, current: boolean) => {
-    updatePlayerMutation.mutate(
-      { id, data: { isActive: !current } },
-      {
-        onSuccess: () => { toast({ title: "Player Updated" }); queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() }); },
-        onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-      }
-    );
-  };
-
   const handleModeToggle = async (playerId: number, field: ModeKey, newVal: boolean) => {
     const key = `${playerId}:${field}`;
     setModeToggling(key);
     try {
       const res = await fetch(`/api/players/${playerId}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [field]: newVal }),
+        body: JSON.stringify(field === "isActive" ? { isActive: newVal, status: newVal ? "ACTIVE" : "INACTIVE" } : { [field]: newVal }),
       });
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
@@ -225,11 +270,11 @@ export default function Admin() {
   return (
     <div className="space-y-8">
       <div className="pdc-divider" />
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <ShieldAlert className="w-6 h-6" style={{ color: "#ff005c", filter: "drop-shadow(0 0 6px rgba(255,0,92,0.6))" }} />
           <div>
-            <h1 className="text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c", textShadow: "0 0 20px rgba(255,0,92,0.4)" }}>Admin Panel</h1>
+            <h1 className="text-3xl sm:text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c", textShadow: "0 0 20px rgba(255,0,92,0.4)" }}>Admin Panel</h1>
             <p className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>League management · Dangerous operations</p>
           </div>
         </div>
@@ -239,7 +284,7 @@ export default function Admin() {
             // stays authorized even after the UI locks itself.
             fetch("/api/admin/lock", { method: "POST" }).catch(() => {});
             sessionStorage.removeItem(ADMIN_PIN_KEY);
-            setUnlocked(false);
+            onLock();
           }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold hover:bg-white/5 transition-colors"
           style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -247,26 +292,46 @@ export default function Admin() {
         </button>
       </div>
 
-      <FeatureFlags />
-      <GameTypesManager />
-      <UserAccountsManager players={players} />
+      <div className="pdc-card p-4 space-y-3" style={{ borderColor: "rgba(255,255,255,0.09)" }}>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <label className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" />
+            <Input value={toolSearch} onChange={event => setToolSearch(event.target.value)} placeholder="Find an admin tool…" className="pl-9" style={{ background: "rgba(255,255,255,.035)", borderColor: "rgba(255,255,255,.1)" }} />
+          </label>
+          <Button variant="outline" onClick={() => window.dispatchEvent(new Event("tkdl-admin-collapse-all"))} className="gap-2 text-xs uppercase" style={{ borderColor: "rgba(255,255,255,.12)", color: "rgba(255,255,255,.6)" }}><ChevronsUp className="w-4 h-4" />Collapse all</Button>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {matchingTools.map(([id, label]) => <button key={id} onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })} className="px-2.5 py-1 rounded text-[11px] font-bold uppercase tracking-wider" style={{ background: "rgba(255,255,255,.035)", border: "1px solid rgba(255,255,255,.08)", color: "rgba(255,255,255,.52)", fontFamily: "Oswald, sans-serif" }}>{label}</button>)}
+          {matchingTools.length === 0 && <span className="text-xs text-white/30">No admin tool matches that search.</span>}
+        </div>
+      </div>
 
-      <CollapsibleAdminSection title="Integrity & Health" icon={Activity} accent="#a855f7" borderColor="rgba(168,85,247,0.2)" background="rgba(168,85,247,0.025)">
+      <OperationsDashboard />
+
+      <div className="flex items-center gap-2 text-xs uppercase tracking-[.18em] font-bold text-white/30"><Layers3 className="w-4 h-4" />Access and configuration</div>
+
+      <div id="feature-flags" className="scroll-mt-24"><FeatureFlags /></div>
+      <div id="game-types" className="scroll-mt-24"><GameTypesManager /></div>
+      <div id="user-accounts" className="scroll-mt-24"><UserAccountsManager players={players} /></div>
+
+      <div className="flex items-center gap-2 text-xs uppercase tracking-[.18em] font-bold text-white/30"><Trophy className="w-4 h-4" />League operations</div>
+
+      <CollapsibleAdminSection sectionId="integrity-health" title="Integrity & Health" icon={Activity} accent="#a855f7" borderColor="rgba(168,85,247,0.2)" background="rgba(168,85,247,0.025)">
         <IntegrityHealth />
       </CollapsibleAdminSection>
 
       {/* Season Manager — Singles */}
-      <CollapsibleAdminSection title="Season Manager (Singles)" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.15)" background="rgba(255,210,74,0.02)">
+      <CollapsibleAdminSection sectionId="singles-season" title="Season Manager (Singles)" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.15)" background="rgba(255,210,74,0.02)">
         <div className="p-5"><SeasonEditor /></div>
       </CollapsibleAdminSection>
 
       {/* Season Manager — Doubles Event */}
-      <CollapsibleAdminSection title="Season Manager (Doubles Event)" icon={Users} accent="#0066ff" borderColor="rgba(0,102,255,0.15)" background="rgba(0,102,255,0.02)">
+      <CollapsibleAdminSection sectionId="doubles-season" title="Season Manager (Doubles Event)" icon={Users} accent="#0066ff" borderColor="rgba(0,102,255,0.15)" background="rgba(0,102,255,0.02)">
         <div className="p-5"><DoublesSeasonManager /></div>
       </CollapsibleAdminSection>
 
       {/* Shift Wars (roster/points + its own season manager) */}
-      <CollapsibleAdminSection title="Shift Wars" icon={Building2} accent="#22c55e" borderColor="rgba(34,197,94,0.15)" background="rgba(34,197,94,0.02)">
+      <CollapsibleAdminSection sectionId="shift-wars" title="Shift Wars" icon={Building2} accent="#22c55e" borderColor="rgba(34,197,94,0.15)" background="rgba(34,197,94,0.02)">
         <div className="p-5"><ShiftWarsAdmin /></div>
       </CollapsibleAdminSection>
 
@@ -341,7 +406,7 @@ export default function Admin() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Roster */}
-        <CollapsibleAdminSection title="Roster" icon={Users} accent="#0066ff">
+        <CollapsibleAdminSection sectionId="roster" title="Roster" icon={Users} accent="#0066ff">
           {isLoadingPlayers ? (
             <div className="flex justify-center py-8"><div className="w-6 h-6 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} /></div>
           ) : (
@@ -420,7 +485,7 @@ export default function Admin() {
         {/* Singles and ad-hoc team matches use the shared player ledger here.
             Doubles and Shift Wars expose their latest-result correction in
             their own season managers above. */}
-        <CollapsibleAdminSection title="Singles & Team Match Corrections" icon={Swords} accent="#ff005c">
+        <CollapsibleAdminSection sectionId="match-corrections" title="Singles & Team Match Corrections" icon={Swords} accent="#ff005c">
           <div className="px-4 py-3 flex items-center justify-between gap-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.015)" }}>
             <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>Correct or undo the newest Singles/team result here · Use the Doubles or Shift Wars manager for their latest result · Match Centre shows the full history.</p>
             <a href="/match-centre" className="text-xs font-black uppercase tracking-wider shrink-0" style={{ color: "#0066ff", fontFamily: "Oswald, sans-serif" }}>Open Match Centre →</a>
@@ -434,7 +499,7 @@ export default function Admin() {
                   {editingMatchId === match.id ? (
                     <div className="px-4 py-3 space-y-2.5" style={{ background: "rgba(255,210,74,0.04)", borderLeft: "3px solid rgba(255,210,74,0.4)" }}>
                       <div className="text-xs font-black uppercase tracking-wider mb-1" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", fontSize: "0.6rem" }}>Edit Match Result</div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
                           <label className="text-xs uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem" }}>Winner</label>
                           <select value={editMatchForm.winnerId} onChange={e => setEditMatchForm(f => ({ ...f, winnerId: Number(e.target.value) }))}
@@ -509,16 +574,20 @@ export default function Admin() {
         </CollapsibleAdminSection>
       </div>
 
-      <TestComms />
+      <div className="flex items-center gap-2 text-xs uppercase tracking-[.18em] font-bold text-white/30"><Radio className="w-4 h-4" />Communications and content</div>
+
+      <div id="notifications" className="scroll-mt-24"><TestComms /></div>
       <InterviewDeskTest />
-      <DataManagement />
-      <AuditLog />
+      <div id="data-backup" className="scroll-mt-24"><DataManagement /></div>
+      <div id="audit-log" className="scroll-mt-24"><AuditLog /></div>
       <AnnouncementsManager />
       <NotificationAnalytics />
-      <AdminCardClashPanel />
-      <AdminChallengesPanel />
-      <AdminFeatureFlagsPanel />
-      <AdminBroadcastPanel />
+      <NotificationDeliveryHistory />
+      <CollapsibleAdminSection sectionId="tkdl-live-admin" title="TKDL Live Control Room" icon={Radio} accent="#ff005c"><Suspense fallback={<AdminLoading />}><AdminBroadcastPanel /></Suspense></CollapsibleAdminSection>
+
+      <div className="flex items-center gap-2 text-xs uppercase tracking-[.18em] font-bold text-white/30"><Gamepad2 className="w-4 h-4" />Games and diagnostics</div>
+      <CollapsibleAdminSection sectionId="card-clash-admin" title="Card Clash Administration" icon={Gamepad2} accent="#00b4ff"><Suspense fallback={<AdminLoading />}><AdminCardClashPanel /></Suspense></CollapsibleAdminSection>
+      <CollapsibleAdminSection sectionId="challenges-admin" title="Challenge Administration" icon={Trophy} accent="#22c55e"><Suspense fallback={<AdminLoading />}><AdminChallengesPanel /></Suspense></CollapsibleAdminSection>
       <SweepTool />
       <PracticeAnalytics />
     </div>

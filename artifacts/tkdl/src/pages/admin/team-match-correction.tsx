@@ -21,7 +21,7 @@ type CorrectionTeam = {
 
 type CorrectionPreview = {
   league: "doubles" | "shift_wars";
-  kind: "standard" | "combined";
+  kind: "standard" | "combined" | "multi";
   id: number;
   playedAt: string;
   title: string;
@@ -101,8 +101,8 @@ export function TeamMatchCorrection({
                 {preview.subtitle} · {format(new Date(preview.playedAt), "d MMM, HH:mm")}
               </div>
             </div>
-            <span className="text-[10px] font-black uppercase tracking-wider rounded px-2 py-1" style={{ color: preview.kind === "combined" ? "#00c896" : accent, background: preview.kind === "combined" ? "rgba(0,200,150,0.1)" : `${accent}14` }}>
-              {preview.kind === "combined" ? "Uneven" : "Standard"}
+            <span className="text-[10px] font-black uppercase tracking-wider rounded px-2 py-1" style={{ color: preview.kind === "combined" ? "#00c896" : preview.kind === "multi" ? "#ffd24a" : accent, background: preview.kind === "combined" ? "rgba(0,200,150,0.1)" : preview.kind === "multi" ? "rgba(255,210,74,0.1)" : `${accent}14` }}>
+              {preview.kind === "combined" ? "Uneven" : preview.kind === "multi" ? "Multi-Team" : "Standard"}
             </span>
           </div>
 

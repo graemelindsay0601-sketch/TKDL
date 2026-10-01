@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { buildFairDoublesGroups, type PreviousTriple } from "../doubles-grouping.ts";
+import { buildDoublesGroupsWithDefendingPair, buildFairDoublesGroups, type PreviousTriple } from "../doubles-grouping.ts";
 
 const players = Array.from({ length: 7 }, (_, index) => ({ id: index + 1 }));
 
@@ -39,5 +39,30 @@ describe("buildFairDoublesGroups", () => {
       .map(player => player.id));
 
     assert.deepEqual(tripleIds, new Set([3, 4, 5]));
+  });
+});
+
+describe("buildDoublesGroupsWithDefendingPair", () => {
+  test("keeps both reigning champions together and draws everyone else", () => {
+    const result = buildDoublesGroupsWithDefendingPair(players, [], [2, 6], () => 0.4);
+
+    assert.equal(result.defendingPairKept, true);
+    assert.deepEqual(result.groups[0].map(player => player.id), [2, 6]);
+    assert.deepEqual(result.groups.map(group => group.length).sort(), [2, 2, 3]);
+    assert.deepEqual(new Set(result.groups.flat().map(player => player.id)), new Set(players.map(player => player.id)));
+  });
+
+  test("falls back to a full fair draw when a champion is no longer active", () => {
+    const activePlayers = players.filter(player => player.id !== 6);
+    const result = buildDoublesGroupsWithDefendingPair(activePlayers, [], [2, 6], () => 0.4);
+
+    assert.equal(result.defendingPairKept, false);
+    assert.deepEqual(result.groups.map(group => group.length), [2, 2, 2]);
+  });
+
+  test("does not treat a three-player champion team as a defending pair", () => {
+    const result = buildDoublesGroupsWithDefendingPair(players, [], null, () => 0.4);
+    assert.equal(result.defendingPairKept, false);
+    assert.deepEqual(result.groups.map(group => group.length).sort(), [2, 2, 3]);
   });
 });

@@ -3,11 +3,182 @@ import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { logAdminAction } from "../lib/adminAudit";
+import { flushDuePushNotifications } from "../services/notificationService";
+import { getSeasonAutomationStatus, maybeAutoResetLeagueSeasons } from "../lib/seasonReset";
+import { londonMonthKey, londonSeasonName } from "../lib/season-calendar";
 
 const router = Router();
 
+router.get("/admin/operations/season-preview", requireAdminSession, async (_req, res): Promise<void> => {
+  const [seasons, singles, doubles, shiftWars, playerCountRows] = await Promise.all([
+    db.execute(sql`SELECT id,name,league_type,start_date FROM seasons WHERE is_active=true ORDER BY league_type,id DESC`),
+    db.execute(sql`
+      WITH ranked AS (
+        SELECT id,name,points,elo,DENSE_RANK() OVER(ORDER BY points DESC) place
+        FROM players WHERE is_active=true AND status='ACTIVE'
+      )
+      SELECT id,name,points,elo,place FROM ranked WHERE place=1 ORDER BY name
+    `),
+    db.execute(sql`
+      WITH current_season AS (
+        SELECT id FROM seasons WHERE league_type='doubles' AND is_active=true ORDER BY id DESC LIMIT 1
+      ), leader AS (
+        SELECT dt.id,dt.team_name,dt.player1_id,dt.player2_id,dt.player3_id,dt.points,dt.elo
+        FROM doubles_teams dt JOIN current_season cs ON cs.id=dt.season_id
+        ORDER BY dt.points DESC,dt.elo DESC,dt.id ASC LIMIT 1
+      )
+      SELECT l.*,
+        (SELECT COUNT(*)::int FROM players WHERE is_active=true) active_players,
+        COALESCE((SELECT bool_and(p.is_active) FROM players p WHERE p.id IN (l.player1_id,l.player2_id)),false) pair_active
+      FROM leader l
+    `),
+    db.execute(sql`SELECT id,name,points,starting_points,wins,losses FROM shift_wars_teams ORDER BY points DESC,id ASC`),
+    db.execute(sql`SELECT COUNT(*)::int count FROM players WHERE is_active=true`),
+  ]);
+  const now=new Date();
+  const nextMonth=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()+1,1,0,5));
+  const seasonRows=seasons.rows as any[];
+  const singlesLeaders=singles.rows as any[];
+  const dbl:any=doubles.rows[0]??{};
+  const activePlayers=Number((playerCountRows.rows[0] as any)?.count??0);
+  const nextTeamCount=activePlayers<2?0:Math.floor(activePlayers/2);
+  res.json({
+    generatedAt:now.toISOString(), nextSeasonName:londonSeasonName(nextMonth),
+    currentSeasons:seasonRows.map(row=>({id:Number(row.id),name:row.name,leagueType:row.league_type,startDate:row.start_date})),
+    singles:{
+      activePlayers,
+      leaders:singlesLeaders.map(row=>({id:Number(row.id),name:row.name,points:Number(row.points),elo:Number(row.elo)})),
+      blockedByTie:singlesLeaders.length>1,
+      effect:"Active players reset to 25 points; Elo and career records remain.",
+    },
+    doubles:{
+      champion:dbl.team_name??null, championPoints:dbl.points==null?null:Number(dbl.points), activePlayers,
+      nextTeamCount, createsThreePlayerTeam:activePlayers>=3&&activePlayers%2===1,
+      defendingPairKept:Boolean(dbl.team_name&&dbl.player3_id==null&&dbl.pair_active===true),
+      effect:"Current teams and results remain in season history; a fresh draw opens for the new season.",
+    },
+    shiftWars:{
+      champion:(shiftWars.rows[0] as any)?.name??null,
+      teams:(shiftWars.rows as any[]).map(row=>({id:Number(row.id),name:row.name,currentPoints:Number(row.points),resetTo:Number(row.starting_points)})),
+      effect:"Each department returns to its configured monthly starting points; roster assignments stay in place.",
+    },
+    writesPerformed:false,
+  });
+});
+
+router.get("/admin/notifications/delivery-history", requireAdminSession, async (req, res): Promise<void> => {
+  const requestedLimit = Number(req.query.limit ?? 100);
+  const limit = Number.isFinite(requestedLimit) ? Math.min(250, Math.max(10, Math.trunc(requestedLimit))) : 100;
+  const result = await db.execute(sql`
+    WITH analytics AS (
+      SELECT notification_id, MAX(sent_at) sent_at, MAX(opened_at) opened_at,
+        MAX(clicked_at) clicked_at, MAX(clicked_link) clicked_link
+      FROM notification_analytics GROUP BY notification_id
+    )
+    SELECT n.id,n.player_id,p.name player_name,n.type,
+      COALESCE(n.title,n.message,'Notification') title,n.created_at,n.read_at,
+      q.send_after,q.sent_at queue_sent_at,q.attempt_count,q.last_attempt_at,q.last_error,
+      a.sent_at analytics_sent_at,a.opened_at,a.clicked_at,a.clicked_link,
+      CASE
+        WHEN a.clicked_at IS NOT NULL THEN 'clicked'
+        WHEN a.opened_at IS NOT NULL THEN 'opened'
+        WHEN COALESCE(q.sent_at,a.sent_at) IS NOT NULL THEN 'delivered'
+        WHEN q.id IS NOT NULL AND q.attempt_count > 0 THEN 'retrying'
+        WHEN q.id IS NOT NULL THEN 'queued'
+        ELSE 'in_app'
+      END delivery_status
+    FROM notifications n
+    JOIN players p ON p.id=n.player_id
+    LEFT JOIN pending_push_notifications q ON q.notification_id=n.id
+    LEFT JOIN analytics a ON a.notification_id=n.id
+    ORDER BY n.created_at DESC,n.id DESC
+    LIMIT ${limit}
+  `);
+  res.json((result.rows as any[]).map(row => ({
+    id:Number(row.id), playerId:Number(row.player_id), playerName:row.player_name,
+    type:row.type, title:row.title, createdAt:row.created_at, readAt:row.read_at,
+    sendAfter:row.send_after, sentAt:row.queue_sent_at??row.analytics_sent_at??null,
+    attemptCount:Number(row.attempt_count??0), lastAttemptAt:row.last_attempt_at,
+    lastError:row.last_error, openedAt:row.opened_at, clickedAt:row.clicked_at,
+    clickedLink:row.clicked_link, status:row.delivery_status,
+  })));
+});
+
+router.get("/admin/operations", requireAdminSession, async (_req, res): Promise<void> => {
+  const [seasonRows, queueRows, doublesRows, lockRows, recentRows] = await Promise.all([
+    db.execute(sql`
+      SELECT id,name,league_type,start_date,end_date
+      FROM seasons WHERE is_active=true ORDER BY league_type,id DESC
+    `),
+    db.execute(sql`
+      SELECT
+        COUNT(*) FILTER (WHERE sent_at IS NULL)::int pending,
+        COUNT(*) FILTER (WHERE sent_at IS NULL AND send_after<=NOW())::int due,
+        COUNT(*) FILTER (WHERE sent_at IS NULL AND attempt_count>0)::int retrying,
+        MIN(created_at) FILTER (WHERE sent_at IS NULL) oldest_pending,
+        MAX(last_attempt_at) last_attempt,
+        (SELECT last_error FROM pending_push_notifications WHERE sent_at IS NULL AND last_error IS NOT NULL ORDER BY last_attempt_at DESC NULLS LAST LIMIT 1) last_error
+      FROM pending_push_notifications
+    `),
+    db.execute(sql`
+      WITH current_season AS (
+        SELECT id FROM seasons WHERE league_type='doubles' AND is_active=true ORDER BY id DESC LIMIT 1
+      ), previous_season AS (
+        SELECT id FROM seasons WHERE league_type='doubles' AND is_active=false ORDER BY end_date DESC NULLS LAST,id DESC LIMIT 1
+      ), previous_champion AS (
+        SELECT dt.player1_id,dt.player2_id,dt.player3_id,dt.team_name
+        FROM doubles_teams dt JOIN previous_season ps ON ps.id=dt.season_id
+        ORDER BY dt.points DESC,dt.elo DESC,dt.id ASC LIMIT 1
+      )
+      SELECT cs.id season_id,
+        (SELECT COUNT(*)::int FROM doubles_teams WHERE season_id=cs.id) team_count,
+        (SELECT COUNT(*)::int FROM doubles_teams WHERE season_id=cs.id AND player3_id IS NOT NULL) three_player_teams,
+        pc.team_name defending_team,
+        (pc.team_name IS NOT NULL AND pc.player3_id IS NULL) defending_pair_available,
+        CASE WHEN pc.team_name IS NULL OR pc.player3_id IS NOT NULL THEN NULL ELSE EXISTS(
+          SELECT 1 FROM doubles_teams dt WHERE dt.season_id=cs.id AND dt.player3_id IS NULL
+          AND ((dt.player1_id=pc.player1_id AND dt.player2_id=pc.player2_id) OR (dt.player1_id=pc.player2_id AND dt.player2_id=pc.player1_id))
+        ) END defending_pair_kept
+      FROM current_season cs LEFT JOIN previous_champion pc ON true
+    `),
+    db.execute(sql`SELECT league_type,locked_at FROM season_reset_lock WHERE locked_at IS NOT NULL ORDER BY league_type`),
+    db.execute(sql`SELECT action,created_at FROM admin_audit_log ORDER BY created_at DESC LIMIT 1`),
+  ]);
+
+  const now = new Date();
+  const londonNow = new Intl.DateTimeFormat("en-GB", { timeZone:"Europe/London", dateStyle:"medium", timeStyle:"short", hourCycle:"h23" }).format(now);
+  const currentMonthKey = londonMonthKey(now);
+  const seasons = (seasonRows.rows as any[]).map(row => ({
+    id:Number(row.id), name:row.name, leagueType:row.league_type, startDate:row.start_date,
+    currentMonth:String(row.start_date).slice(0,7) === currentMonthKey,
+  }));
+  const queue:any = queueRows.rows[0] ?? {};
+  const doubles:any = doublesRows.rows[0] ?? {};
+  res.json({
+    generatedAt:new Date().toISOString(), database:"online", londonNow,
+    seasonAutomation:{...getSeasonAutomationStatus(),schedule:"League midnight plus hourly recovery at 5 minutes past"},
+    seasons,
+    notificationQueue:{ pending:Number(queue.pending??0),due:Number(queue.due??0),retrying:Number(queue.retrying??0),oldestPending:queue.oldest_pending??null,lastAttempt:queue.last_attempt??null,lastError:queue.last_error??null },
+    doubles:{ seasonId:doubles.season_id?Number(doubles.season_id):null,teamCount:Number(doubles.team_count??0),threePlayerTeams:Number(doubles.three_player_teams??0),defendingTeam:doubles.defending_team??null,defendingPairAvailable:doubles.defending_pair_available===true,defendingPairKept:doubles.defending_pair_kept??null },
+    resetLocks:(lockRows.rows as any[]).map(row=>({leagueType:row.league_type,lockedAt:row.locked_at})),
+    lastAdminAction:recentRows.rows[0]??null,
+  });
+});
+
+router.post("/admin/operations/retry-notifications", requireAdminSession, async (req, res): Promise<void> => {
+  const result = await flushDuePushNotifications();
+  void logAdminAction(req,"notifications.retry_due","notification_queue",null,result);
+  res.json({ok:true,...result});
+});
+
+router.post("/admin/operations/run-season-check", requireAdminSession, async (req, res): Promise<void> => {
+  await maybeAutoResetLeagueSeasons();
+  void logAdminAction(req,"season.automation_check","season",null,{});
+  res.json({ok:true,checkedAt:new Date().toISOString()});
+});
+
 router.get("/admin/integrity-health", requireAdminSession, async (_req, res): Promise<void> => {
-  const [seasonRows, negativeRows, recordRows, orphanRows, malformedTeamRows, shiftSeasonRows, duplicateUnlockRows, orphanUnlockRows, legacyRollbackRows, doublesUnlockRows, activityRows, inactiveRows, titleTieRows, acknowledgementRows] = await Promise.all([
+  const [seasonRows, negativeRows, recordRows, orphanRows, malformedTeamRows, shiftSeasonRows, duplicateUnlockRows, orphanUnlockRows, legacyRollbackRows, doublesUnlockRows, activityRows, inactiveRows, titleTieRows, acknowledgementRows, lifecycleRows] = await Promise.all([
     db.execute(sql`SELECT league_type, COUNT(*)::int count FROM seasons WHERE is_active=true GROUP BY league_type`),
     db.execute(sql`
       SELECT 'Player' entity_type, id entity_id, name entity_name, points value FROM players WHERE points < 0
@@ -53,6 +224,7 @@ router.get("/admin/integrity-health", requireAdminSession, async (_req, res): Pr
       SELECT id,name,points FROM ranked WHERE place=1 ORDER BY name
     `),
     db.execute(sql`SELECT issue_key, reviewed_at FROM integrity_review_acknowledgements`),
+    db.execute(sql`SELECT id,name,is_active,status FROM players WHERE (is_active=true AND status='INACTIVE') OR (is_active=false AND status<>'INACTIVE') ORDER BY name`),
   ]);
 
   const issues: any[] = [];
@@ -63,6 +235,7 @@ router.get("/admin/integrity-health", requireAdminSession, async (_req, res): Pr
   }
   for (const row of negativeRows.rows as any[]) issues.push({ area:"Balances", severity:"error", title:`${row.entity_name} has ${row.value} points`, detail:`Negative balance on ${row.entity_type.toLowerCase()}.`, action:"Check recent results and the admin audit before correcting the balance.", href:row.entity_type==="Player"?`/players/${row.entity_id}`:undefined });
   for (const row of recordRows.rows as any[]) issues.push({ area:"Player records", severity:"error", title:`${row.name}'s played totals do not add up`, detail:`Season ${row.season_games_played} vs ${Number(row.season_wins)+Number(row.season_losses)}; career ${row.career_games_played} vs ${Number(row.career_wins)+Number(row.career_losses)}.`, action:"Compare the player's match history with their totals before editing the record.", href:`/players/${row.id}` });
+  for(const row of lifecycleRows.rows as any[])issues.push({area:"Player access",severity:"warning",title:`${row.name} has conflicting league status`,detail:`League access is ${row.is_active?"on":"off"}, but their record status is ${row.status}.`,action:"Open Roster and toggle League access off and on once to synchronise the record.",href:"/admin"});
   if (orphanRows.rows.length) issues.push({ area:"Match history", severity:"error", title:`${orphanRows.rows.length} orphaned match participant rows`, detail:"A participant points to a missing match or player.", action:"Inspect the source result and database backup before removing any orphaned row.", href:"/match-centre" });
   if (malformedTeamRows.rows.length) issues.push({ area:"Match history", severity:"error", title:`${malformedTeamRows.rows.length} team results have incomplete participant data`, detail:"These results cannot show or reverse every participant reliably.", action:"Open the first affected report and compare it with the original score sheet.", href:`/match-centre/league-${(malformedTeamRows.rows[0] as any).id}` });
   const missingShift:any=shiftSeasonRows.rows[0] ?? {};
@@ -84,6 +257,7 @@ router.get("/admin/integrity-health", requireAdminSession, async (_req, res): Pr
   const checks = [
     { name:"Active seasons", status:["singles","doubles","shift_wars"].every(x=>(active.get(x)??0)===1)?"pass":"fail", detail:"One current season per competition" },
     { name:"Player records", status:recordRows.rows.length?"fail":"pass", detail:`${recordRows.rows.length} mismatched records` },
+    { name:"Player lifecycle", status:lifecycleRows.rows.length?"review":"pass", detail:lifecycleRows.rows.length?`${lifecycleRows.rows.length} access/status mismatches`:"League access and status agree" },
     { name:"Match links", status:(orphanRows.rows.length||malformedTeamRows.rows.length)?"fail":"pass", detail:`${orphanRows.rows.length} orphan rows, ${malformedTeamRows.rows.length} incomplete team results` },
     { name:"Balances", status:negativeRows.rows.length?"fail":"pass", detail:`${negativeRows.rows.length} negative balances` },
     { name:"Achievement records", status:(duplicateUnlockRows.rows.length||orphanUnlockRows.rows.length)?"fail":unreviewedAchievements.length?"review":"pass", detail:unreviewedAchievements.length?`${unreviewedAchievements.length} badges need a manual look`:achievementReview.length?`${achievementReview.length} flagged badges reviewed`:"No badges need a manual look" },

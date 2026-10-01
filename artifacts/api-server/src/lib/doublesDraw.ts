@@ -1,6 +1,6 @@
 import { sql, eq } from "drizzle-orm";
 import { db, playersTable } from "@workspace/db";
-import { buildFairDoublesGroups, type PreviousTriple } from "./doubles-grouping";
+import { buildDoublesGroupsWithDefendingPair, type PreviousTriple } from "./doubles-grouping";
 
 // Doubles teams start with a bigger shared pool than singles (25pts) since it's split between 2-3 players.
 export const DOUBLES_STARTING_POINTS = 50;
@@ -16,7 +16,7 @@ export const DOUBLES_STARTING_POINTS = 50;
 export async function drawDoublesTeams(
   seasonId: number,
   opts?: { force?: boolean }
-): Promise<{ ok: true; teams: any[] } | { ok: false; error: string }> {
+): Promise<{ ok: true; teams: any[]; defendingPairKept: boolean } | { ok: false; error: string }> {
   const force = opts?.force ?? false;
 
   return db.transaction(async tx => {
@@ -56,7 +56,32 @@ export async function drawDoublesTeams(
       player3Id: Number(row.player3_id),
     })) as PreviousTriple[];
 
-    const groups = buildFairDoublesGroups(eligible, previousTriples);
+    // Find the top team from the immediately preceding completed Doubles
+    // season. Only a genuine two-player team can defend as a pair; a past
+    // odd-roster triple falls back to the normal fair draw.
+    const previousChampion = (await tx.execute(sql`
+      WITH previous_season AS (
+        SELECT id
+        FROM seasons
+        WHERE league_type = 'doubles' AND is_active = false AND id <> ${seasonId}
+        ORDER BY end_date DESC NULLS LAST, id DESC
+        LIMIT 1
+      )
+      SELECT dt.player1_id, dt.player2_id, dt.player3_id
+      FROM doubles_teams dt
+      JOIN previous_season ps ON ps.id = dt.season_id
+      ORDER BY dt.points DESC, dt.elo DESC, dt.id ASC
+      LIMIT 1
+    `)).rows[0] as { player1_id: number; player2_id: number; player3_id: number | null } | undefined;
+
+    const defendingPairIds = previousChampion && previousChampion.player3_id == null
+      ? [Number(previousChampion.player1_id), Number(previousChampion.player2_id)]
+      : null;
+    const { groups, defendingPairKept } = buildDoublesGroupsWithDefendingPair(
+      eligible,
+      previousTriples,
+      defendingPairIds,
+    );
 
     const created: any[] = [];
     for (const team of groups) {
@@ -69,6 +94,6 @@ export async function drawDoublesTeams(
       created.push(row);
     }
 
-    return { ok: true as const, teams: created };
+    return { ok: true as const, teams: created, defendingPairKept };
   });
 }

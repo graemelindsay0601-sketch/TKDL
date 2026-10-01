@@ -40,6 +40,10 @@ const ACTION_LABELS: Record<string, string> = {
   "game_type.disabled":       "Game type disabled",
   "game_type.deleted":        "Game type deleted",
   "player.settings_update":   "Player settings changed",
+  "admin.request":            "Admin setting changed",
+  "notifications.retry_due":  "Notification queue retried",
+  "season.automation_check":  "Season automation checked",
+  "backup.export":            "Backup exported",
 };
 
 const ACTION_COLORS: Record<string, string> = {
@@ -64,6 +68,10 @@ const ACTION_COLORS: Record<string, string> = {
   "game_type.disabled": "#ffd24a",
   "game_type.deleted": "#ff005c",
   "player.settings_update": "#0066ff",
+  "admin.request": "#a78bfa",
+  "notifications.retry_due": "#38bdf8",
+  "season.automation_check": "#ffd24a",
+  "backup.export": "#22c55e",
 };
 
 function summarize(row: AuditRow, nameById: Map<number, string>): string {
@@ -91,6 +99,14 @@ function summarize(row: AuditRow, nameById: Map<number, string>): string {
     }
     case "season.reset":
       return `${d.leagueType ?? "singles"} — "${d.name ?? "New season"}"`;
+    case "admin.request":
+      return `${d.method ?? "WRITE"} ${row.entity_id ?? "admin operation"} · completed`;
+    case "notifications.retry_due":
+      return `${d.delivered ?? 0} delivered · ${d.failed ?? 0} still waiting`;
+    case "season.automation_check":
+      return "Singles, Doubles and Shift Wars checked";
+    case "backup.export":
+      return `Version ${d.version ?? "?"} · ${d.tables ?? "?"} tables · ${d.rows ?? "?"} rows`;
     case "playoff.match_recorded":
       return `${d.round} — ${nameOf(d.player1Id)} vs ${nameOf(d.player2Id)}${d.winnerId ? `, winner: ${nameOf(d.winnerId)}` : ""}`;
     case "playoff.match_edit":
@@ -193,16 +209,16 @@ export function AuditLog() {
             {visibleRows.map(row => {
               const color = ACTION_COLORS[row.action] ?? "#9ca3af";
               return (
-                <div key={row.id} className="flex items-start gap-3 px-3 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.02)" }}>
-                  <div className="text-xs shrink-0 w-32 pt-0.5" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "monospace" }}>
+                <div key={row.id} className="flex flex-wrap sm:flex-nowrap items-start gap-x-3 gap-y-1.5 px-3 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.02)" }}>
+                  <div className="text-xs shrink-0 sm:w-32 pt-0.5" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "monospace" }}>
                     {format(new Date(row.created_at), "d MMM HH:mm")}
                   </div>
-                  <div className="shrink-0 w-40">
+                  <div className="shrink-0 sm:w-40">
                     <span className="text-xs font-bold uppercase px-2 py-0.5 rounded" style={{ background: `${color}18`, color, letterSpacing: "0.04em" }}>
                       {ACTION_LABELS[row.action] ?? row.action}
                     </span>
                   </div>
-                  <div className="text-sm flex-1 min-w-0 truncate" style={{ color: "rgba(255,255,255,0.65)" }} title={summarize(row, nameById)}>
+                  <div className="text-sm basis-full sm:basis-auto flex-1 min-w-0 break-words sm:truncate" style={{ color: "rgba(255,255,255,0.65)" }} title={summarize(row, nameById)}>
                     {summarize(row, nameById)}
                   </div>
                   {row.admin_player_name && (

@@ -23,6 +23,7 @@ import { TierBadge } from "@/components/tier-badge";
 import { useSettings } from "@/hooks/use-settings";
 import { useFetch } from "@/hooks/use-fetch";
 import { useCurrentPlayer } from "@/context/auth";
+import { apiFetchJson } from "@/lib/api-fetch";
 
 const TIER_COLOR: Record<string, string> = {
   Diamond:  "#38bdf8",
@@ -48,39 +49,41 @@ type FormValues = z.infer<typeof formSchema>;
 function useDoublesTeamsForSubmit() {
   const [teams, setTeams]     = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   const reload = () => {
     setLoading(true);
-    fetch("/api/seasons/current?leagueType=doubles")
-      .then(r => r.json())
+    setError(false);
+    apiFetchJson<any>("/api/seasons/current?leagueType=doubles")
       .then(season => {
         if (!season?.id) { setTeams([]); return null; }
-        return fetch(`/api/seasons/${season.id}/doubles/teams`).then(r => r.json());
+        return apiFetchJson<any[]>(`/api/seasons/${season.id}/doubles/teams`);
       })
       .then(data => { if (Array.isArray(data)) setTeams(data); })
-      .catch(() => setTeams([]))
+      .catch(() => { setTeams([]); setError(true); })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => { reload(); }, []);
-  return { teams, loading, reload };
+  return { teams, loading, error, reload };
 }
 
 function useShiftWarsTeamsForSubmit() {
   const [teams, setTeams]     = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   const reload = () => {
     setLoading(true);
-    fetch("/api/shift-wars/teams")
-      .then(r => r.ok ? r.json() : [])
+    setError(false);
+    apiFetchJson<any[]>("/api/shift-wars/teams")
       .then(data => { if (Array.isArray(data)) setTeams(data); })
-      .catch(() => setTeams([]))
+      .catch(() => { setTeams([]); setError(true); })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => { reload(); }, []);
-  return { teams, loading, reload };
+  return { teams, loading, error, reload };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -684,7 +687,7 @@ function TeamModePlayerCard({ player: p, isYou, isWinner, isLoser, disabled, onC
 function ShiftWarsSubmitSection() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { teams, loading, reload } = useShiftWarsTeamsForSubmit();
+  const { teams, loading, error, reload } = useShiftWarsTeamsForSubmit();
 
   const [winnerTeamId, setWinnerTeamId] = useState<number | null>(null);
   const [loserTeamId, setLoserTeamId]   = useState<number | null>(null);
@@ -744,6 +747,10 @@ function ShiftWarsSubmitSection() {
         <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#22c55e" }} />
       </div>
     );
+  }
+
+  if (error) {
+    return <div className="pdc-card px-6 py-12 text-center text-sm" style={{ color: "#ff7b9d" }}>Couldn’t load Shift Wars teams. The server may still be waking — try again in a moment.</div>;
   }
 
   if (teams.length === 0) {
@@ -831,7 +838,7 @@ function ShiftWarsTeamCard({ team: t, isWinner, isLoser, isOther, disabled, onCl
 function DoublesSubmitSection() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { teams, loading, reload } = useDoublesTeamsForSubmit();
+  const { teams, loading, error, reload } = useDoublesTeamsForSubmit();
 
   const [winnerTeamId, setWinnerTeamId] = useState<number | null>(null);
   const [loserTeamId, setLoserTeamId]   = useState<number | null>(null);
@@ -892,6 +899,10 @@ function DoublesSubmitSection() {
         <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#0066ff" }} />
       </div>
     );
+  }
+
+  if (error) {
+    return <div className="pdc-card px-6 py-12 text-center text-sm" style={{ color: "#ff7b9d" }}>Couldn’t load the Doubles draw. The server may still be waking — try again in a moment.</div>;
   }
 
   if (activeTeams.length === 0) {

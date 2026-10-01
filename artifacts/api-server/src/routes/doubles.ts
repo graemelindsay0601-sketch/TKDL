@@ -3,8 +3,8 @@ import { wagerPot } from "../lib/wager-pot";
 import { eq, and, sql } from "drizzle-orm";
 import { db, seasonsTable } from "@workspace/db";
 import { z } from "zod";
-import { applyEloChange, calcTier, ELO_FLOOR } from "../lib/elo";
-import { validateStake, applyWager, combinedPot, validateCombinedStake, applyCombinedWager, splitProportional } from "../lib/wager";
+import { applyEloChange, calcEloChange, calcTier, ELO_FLOOR } from "../lib/elo";
+import { validateStake, applyWager, combinedPot, validateCombinedStake, applyCombinedWager, splitProportional, multiMatchPot, validateMultiStake, applyMultiWager } from "../lib/wager";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { sendDoublesMatchResultNotification, sendMatchResultBroadcast, sendRankChangeNotifications } from "../services/notificationService";
 import { createAutoPost } from "../lib/communityNotify";
@@ -24,6 +24,8 @@ const RecordDoublesMatchBody = z.object({
   // the entered stake between official team accounts regardless of count.
   winnerFieldedCount: z.number().int().positive().max(3).optional().default(1),
   loserFieldedCount:  z.number().int().positive().max(3).optional().default(1),
+  // Optional client-supplied key — see db/migrations/add_match_result_idempotency.ts.
+  idempotencyKey: z.string().min(1).max(100).optional(),
 });
 
 // A "combined side" match: one official pairing (solo) plays a single live
@@ -46,6 +48,27 @@ const RecordDoublesCombinedMatchBody = z.object({
   stakeMode: z.enum(["per-player", "total"]).optional().default("per-player"),
   gameType: z.string().optional().default("doubles_501"),
   notes: z.string().optional(),
+  // Optional client-supplied key — see db/migrations/add_match_result_idempotency.ts.
+  idempotencyKey: z.string().min(1).max(100).optional(),
+});
+
+// A "multi-team" match: 3 or more official pairings play ONE live elimination
+// game together (MultiKillerScorer on the frontend — the same engine Singles'
+// Killer Free-for-All already uses), with a single overall winner. See
+// lib/wager.ts (multiMatchPot/validateMultiStake/applyMultiWager) for the
+// settlement math and db/migrations/add_multi_matches.ts for the tables this
+// writes to. Every losing pairing pays the flat entered stake; the winning
+// pairing takes the whole pot in one go — same simple model Killer FFA
+// already uses via team-matches.ts, not the combined-side match's
+// proportional split (every participant here is a full, independent team).
+const RecordDoublesMultiMatchBody = z.object({
+  participantTeamIds: z.array(z.number().int().positive()).min(3, "A multi-team match needs at least 3 pairings").max(6),
+  winnerTeamId: z.number().int().positive(),
+  stake: z.number().int().min(1),
+  gameType: z.string().optional().default("doubles_501"),
+  notes: z.string().optional(),
+  // Optional client-supplied key — see db/migrations/add_match_result_idempotency.ts.
+  idempotencyKey: z.string().min(1).max(100).optional(),
 });
 
 const router = Router();
@@ -196,7 +219,24 @@ router.get("/seasons/:id/doubles/matches", async (req, res): Promise<void> => {
 router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
   const parsed = RecordDoublesMatchBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
-  const { winnerTeamId, loserTeamId, stake, stakeMode, gameType, notes, winnerFieldedCount, loserFieldedCount } = parsed.data;
+  const { winnerTeamId, loserTeamId, stake, stakeMode, gameType, notes, winnerFieldedCount, loserFieldedCount, idempotencyKey } = parsed.data;
+
+  // A retried submission reuses the same key — return the match already
+  // recorded instead of re-running the whole handler. See matches.ts's own
+  // identical check for the full reasoning; the partial unique index from
+  // add_match_result_idempotency.ts is the real backstop for a true
+  // concurrent double-submit, caught further below.
+  if (idempotencyKey) {
+    const existingRows = (await db.execute(sql`SELECT * FROM doubles_matches WHERE idempotency_key = ${idempotencyKey} LIMIT 1`)).rows as any[];
+    if (existingRows[0]) {
+      const existing = existingRows[0];
+      res.status(200).json({
+        match: existing, eloChange: existing.elo_change, loserEliminated: existing.loser_eliminated,
+        newWinnerTeamRank: null, newLoserTeamRank: null, winnerTeamRankChange: 0, loserTeamRankChange: 0,
+      });
+      return;
+    }
+  }
 
   if (winnerTeamId === loserTeamId) { res.status(400).json({ error: "A team cannot play itself" }); return; }
 
@@ -274,10 +314,10 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
       const [match] = (await tx.execute(sql`
         INSERT INTO doubles_matches
           (season_id, winner_team_id, loser_team_id, stake, elo_change,
-           winner_elo_delta, loser_elo_delta, loser_eliminated, game_type, notes)
+           winner_elo_delta, loser_elo_delta, loser_eliminated, game_type, notes, idempotency_key)
         VALUES
           (${activeSeason.id}, ${winner.id}, ${loser.id}, ${effectiveStake}, ${eloChange},
-           ${newWinnerElo - winner.elo}, ${newLoserElo - loser.elo}, ${loserEliminated}, ${gameType}, ${notes ?? null})
+           ${newWinnerElo - winner.elo}, ${newLoserElo - loser.elo}, ${loserEliminated}, ${gameType}, ${notes ?? null}, ${idempotencyKey ?? null})
         RETURNING *
       `)).rows as any[];
 
@@ -387,16 +427,70 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
       res.status(400).json({ error: err.message });
       return;
     }
+    if (idempotencyKey && (err as { code?: string }).code === "23505") {
+      const existingRows = (await db.execute(sql`SELECT * FROM doubles_matches WHERE idempotency_key = ${idempotencyKey} LIMIT 1`)).rows as any[];
+      if (existingRows[0]) {
+        const existing = existingRows[0];
+        res.status(200).json({
+          match: existing, eloChange: existing.elo_change, loserEliminated: existing.loser_eliminated,
+          newWinnerTeamRank: null, newLoserTeamRank: null, winnerTeamRankChange: 0, loserTeamRankChange: 0,
+        });
+        return;
+      }
+    }
     throw err;
   }
 });
 
 // ── Record a "combined side" doubles match ──────────────────────────────────
 
+// Reconstructs the exact success-response shape for an already-recorded
+// combined-side match, by idempotency key — used both by the pre-check at
+// the top of the handler below (the common sequential-retry path) and by
+// the race fallback in its catch block (a true concurrent double-submit
+// caught by the partial unique index from
+// add_match_result_idempotency.ts). Returns null when no match with that
+// key exists yet, so the caller falls through to the normal insert path.
+async function loadDoublesCombinedMatchResponse(idempotencyKey: string): Promise<unknown | null> {
+  const matchRows = (await db.execute(sql`
+    SELECT dcm.*, st.team_name AS solo_team_name
+    FROM doubles_combined_matches dcm
+    JOIN doubles_teams st ON st.id = dcm.solo_team_id
+    WHERE dcm.idempotency_key = ${idempotencyKey}
+    LIMIT 1
+  `)).rows as any[];
+  const match = matchRows[0];
+  if (!match) return null;
+
+  const sideRows = (await db.execute(sql`
+    SELECT s.team_id, t.team_name, s.fielded_count, s.points_delta, s.elo_delta, s.eliminated
+    FROM doubles_combined_match_sides s
+    JOIN doubles_teams t ON t.id = s.team_id
+    WHERE s.match_id = ${match.id}
+  `)).rows as any[];
+
+  return {
+    match, soloTeamId: match.solo_team_id, soloTeamName: match.solo_team_name, soloWon: match.solo_won,
+    pot: match.pot, soloPointsDelta: match.solo_points_delta, soloEloDelta: match.solo_elo_delta,
+    combinedSides: sideRows.map(s => ({
+      teamId: s.team_id, teamName: s.team_name, fieldedCount: s.fielded_count,
+      pointsDelta: s.points_delta, eloDelta: s.elo_delta, eliminated: s.eliminated,
+    })),
+  };
+}
+
 router.post("/doubles/combined-matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
   const parsed = RecordDoublesCombinedMatchBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
-  const { soloTeamId, soloFieldedCount, soloWon, combinedTeams, stake, stakeMode, gameType, notes } = parsed.data;
+  const { soloTeamId, soloFieldedCount, soloWon, combinedTeams, stake, stakeMode, gameType, notes, idempotencyKey } = parsed.data;
+
+  // A retried submission reuses the same key — return the match already
+  // recorded instead of re-running the whole handler. See matches.ts's own
+  // identical check for the full reasoning.
+  if (idempotencyKey) {
+    const existing = await loadDoublesCombinedMatchResponse(idempotencyKey);
+    if (existing) { res.status(200).json(existing); return; }
+  }
 
   const combinedTeamIds = combinedTeams.map(c => c.teamId);
   if (new Set(combinedTeamIds).size !== combinedTeamIds.length) {
@@ -508,8 +602,8 @@ router.post("/doubles/combined-matches", matchSubmitRateLimit, async (req, res):
 
       const [match] = (await tx.execute(sql`
         INSERT INTO doubles_combined_matches
-          (season_id, solo_team_id, solo_fielded_count, solo_won, stake, pot, solo_points_delta, solo_elo_delta, game_type, notes)
-        VALUES (${activeSeason.id}, ${solo.id}, ${soloFieldedCount}, ${soloWon}, ${stake}, ${pot}, ${soloPointsDelta}, ${soloEloDelta}, ${gameType}, ${notes ?? null})
+          (season_id, solo_team_id, solo_fielded_count, solo_won, stake, pot, solo_points_delta, solo_elo_delta, game_type, notes, idempotency_key)
+        VALUES (${activeSeason.id}, ${solo.id}, ${soloFieldedCount}, ${soloWon}, ${stake}, ${pot}, ${soloPointsDelta}, ${soloEloDelta}, ${gameType}, ${notes ?? null}, ${idempotencyKey ?? null})
         RETURNING *
       `)).rows as any[];
 
@@ -579,6 +673,10 @@ router.post("/doubles/combined-matches", matchSubmitRateLimit, async (req, res):
       res.status(400).json({ error: err.message });
       return;
     }
+    if (idempotencyKey && (err as { code?: string }).code === "23505") {
+      const existing = await loadDoublesCombinedMatchResponse(idempotencyKey);
+      if (existing) { res.status(200).json(existing); return; }
+    }
     throw err;
   }
 });
@@ -627,6 +725,237 @@ router.get("/seasons/:id/doubles/combined-matches", async (req, res): Promise<vo
     combinedSides: sides.filter(s => s.match_id === m.id).map(s => ({
       teamId: s.team_id, teamName: s.team_name, fieldedCount: s.fielded_count,
       pointsDelta: s.points_delta, eloDelta: s.elo_delta, eliminated: s.eliminated,
+    })),
+  })));
+});
+
+// ── Record a "multi-team" doubles match (3+ pairings, one winner) ──────────
+
+// Same purpose as loadDoublesCombinedMatchResponse above, for the multi-team
+// shape — see its comment for why this exists in both the pre-check and the
+// catch-block race fallback below.
+async function loadDoublesMultiMatchResponse(idempotencyKey: string): Promise<unknown | null> {
+  const matchRows = (await db.execute(sql`
+    SELECT dmm.*, wt.team_name AS winner_team_name
+    FROM doubles_multi_matches dmm
+    JOIN doubles_teams wt ON wt.id = dmm.winner_team_id
+    WHERE dmm.idempotency_key = ${idempotencyKey}
+    LIMIT 1
+  `)).rows as any[];
+  const match = matchRows[0];
+  if (!match) return null;
+
+  const loserRows = (await db.execute(sql`
+    SELECT p.team_id, t.team_name, p.points_delta, p.elo_delta
+    FROM doubles_multi_match_participants p
+    JOIN doubles_teams t ON t.id = p.team_id
+    WHERE p.match_id = ${match.id} AND p.is_winner = false
+  `)).rows as any[];
+
+  return {
+    match, winnerTeamId: match.winner_team_id, winnerTeamName: match.winner_team_name,
+    pot: match.pot, eloChange: match.elo_change,
+    losers: loserRows.map(l => ({ teamId: l.team_id, teamName: l.team_name, pointsDelta: l.points_delta, eloDelta: l.elo_delta })),
+  };
+}
+
+router.post("/doubles/multi-matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
+  const parsed = RecordDoublesMultiMatchBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.message }); return; }
+  const { participantTeamIds, winnerTeamId, stake, gameType, notes, idempotencyKey } = parsed.data;
+
+  // A retried submission reuses the same key — return the match already
+  // recorded instead of re-running the whole handler. See matches.ts's own
+  // identical check for the full reasoning.
+  if (idempotencyKey) {
+    const existing = await loadDoublesMultiMatchResponse(idempotencyKey);
+    if (existing) { res.status(200).json(existing); return; }
+  }
+
+  if (new Set(participantTeamIds).size !== participantTeamIds.length) {
+    res.status(400).json({ error: "A pairing cannot play itself twice in the same multi-team match" }); return;
+  }
+  if (!participantTeamIds.includes(winnerTeamId)) {
+    res.status(400).json({ error: "The winning pairing must be one of the participants" }); return;
+  }
+
+  const [activeSeason] = await db.select().from(seasonsTable)
+    .where(and(eq(seasonsTable.isActive, true), eq(seasonsTable.leagueType, "doubles")))
+    .limit(1);
+  if (!activeSeason) { res.status(400).json({ error: "No active Doubles Event season found" }); return; }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      // FOR UPDATE on every participant — same "lock everything you're about
+      // to read-modify-write" reasoning as the combined-match endpoint above.
+      const teamRows = await tx.execute(sql`
+        SELECT * FROM doubles_teams
+        WHERE id = ANY(ARRAY[${sql.join(participantTeamIds.map(id => sql`${id}`), sql`, `)}]::int[])
+          AND season_id = ${activeSeason.id}
+        FOR UPDATE
+      `);
+      const teams = teamRows.rows as any[];
+      if (teams.length !== participantTeamIds.length) {
+        throw new DoublesConflictError("One or more pairings not found in the active season's doubles event");
+      }
+      for (const t of teams) {
+        if (t.is_eliminated) throw new DoublesConflictError(`${t.team_name} has been eliminated from doubles and cannot play`);
+      }
+
+      const winner = teams.find(t => t.id === winnerTeamId)!;
+      const losers = teams.filter(t => t.id !== winnerTeamId);
+
+      const pot = multiMatchPot(stake, participantTeamIds.length);
+      const stakeError = validateMultiStake(stake, losers.map(l => ({ points: l.points, name: l.team_name })));
+      if (stakeError) throw new DoublesConflictError(stakeError);
+
+      const { newWinnerPoints, loserResults } = applyMultiWager(
+        pot,
+        { points: winner.points },
+        losers.map(l => ({ points: l.points })),
+        stake,
+      );
+
+      // One Elo change: the winner's rating moves against the average of
+      // every losing pairing's rating, and that same magnitude is mirrored
+      // onto every loser — same approximation Team Match already uses for
+      // Killer FFA (one physical result, one Elo swing), not N separate
+      // 1-vs-1 computations.
+      const avgLoserElo = Math.round(losers.reduce((sum, l) => sum + l.elo, 0) / losers.length);
+      const eloChange = calcEloChange(winner.elo, avgLoserElo);
+      const newWinnerElo = winner.elo + eloChange;
+
+      await tx.execute(sql`
+        UPDATE doubles_teams SET
+          points = ${newWinnerPoints},
+          peak_points = GREATEST(peak_points, ${newWinnerPoints}),
+          elo = ${newWinnerElo},
+          wins = wins + 1
+        WHERE id = ${winner.id}
+      `);
+
+      const loserRows: { teamId: number; teamName: string; pointsDelta: number; eloDelta: number; eliminated: boolean }[] = [];
+      for (let i = 0; i < losers.length; i++) {
+        const l = losers[i];
+        const lr = loserResults[i];
+        const newElo = Math.max(ELO_FLOOR, l.elo - eloChange);
+        await tx.execute(sql`
+          UPDATE doubles_teams SET
+            points = ${lr.newPoints},
+            elo = ${newElo},
+            losses = losses + 1,
+            is_eliminated = is_eliminated OR ${lr.eliminated}
+          WHERE id = ${l.id}
+        `);
+        loserRows.push({ teamId: l.id, teamName: l.team_name, pointsDelta: lr.newPoints - l.points, eloDelta: newElo - l.elo, eliminated: lr.eliminated });
+      }
+
+      const [match] = (await tx.execute(sql`
+        INSERT INTO doubles_multi_matches
+          (season_id, winner_team_id, participant_count, stake, pot, elo_change, game_type, notes, idempotency_key)
+        VALUES (${activeSeason.id}, ${winner.id}, ${participantTeamIds.length}, ${stake}, ${pot}, ${eloChange}, ${gameType}, ${notes ?? null}, ${idempotencyKey ?? null})
+        RETURNING *
+      `)).rows as any[];
+
+      await tx.execute(sql`
+        INSERT INTO doubles_multi_match_participants (match_id, team_id, is_winner, points_delta, elo_delta, eliminated)
+        VALUES (${match.id}, ${winner.id}, true, ${pot}, ${eloChange}, false)
+      `);
+      for (const lr of loserRows) {
+        await tx.execute(sql`
+          INSERT INTO doubles_multi_match_participants (match_id, team_id, is_winner, points_delta, elo_delta, eliminated)
+          VALUES (${match.id}, ${lr.teamId}, false, ${lr.pointsDelta}, ${lr.eloDelta}, ${lr.eliminated})
+        `);
+      }
+
+      return { match, winner, losers, loserRows, pot, eloChange };
+    });
+
+    res.status(201).json({
+      match: result.match,
+      winnerTeamId: result.winner.id,
+      winnerTeamName: result.winner.team_name,
+      pot: result.pot,
+      eloChange: result.eloChange,
+      losers: result.loserRows,
+    });
+
+    const teamPlayerIds = (t: any): number[] =>
+      [t.player1_id, t.player2_id, t.player3_id].filter((id): id is number => id != null);
+    void checkDoublesAchievements(teamPlayerIds(result.winner), result.winner.id, result.eloChange, result.pot);
+
+    // Push notifications + auto community post (fire and forget) — same
+    // spirit as every other doubles match integration, phrased for a
+    // multi-team result.
+    void (async () => {
+      const loserNames = result.loserRows.map(l => l.teamName).join(", ");
+      const winnerPlayerIds = teamPlayerIds(result.winner);
+      const loserPlayerIds = result.losers.flatMap(teamPlayerIds);
+
+      void sendDoublesMatchResultNotification(result.winner.team_name, loserNames, winnerPlayerIds, loserPlayerIds, result.pot, result.eloChange);
+      void sendMatchResultBroadcast([...winnerPlayerIds, ...loserPlayerIds], "🎯 Doubles Result", `${result.winner.team_name} won a ${result.losers.length + 1}-team multi-match`, { winnerTeamName: result.winner.team_name, loserNames });
+
+      await createAutoPost({
+        playerId: winnerPlayerIds[0],
+        content: `🎯 ${result.winner.team_name} won a ${result.losers.length + 1}-pairing multi-team match (beat ${loserNames}) (+${result.pot} pts)`,
+        autoMeta: { type: "doubles_multi_match", matchId: result.match.id, winnerTeamId: result.winner.id, loserTeamIds: result.loserRows.map(l => l.teamId), pot: result.pot },
+        notifyPlayerIds: loserPlayerIds,
+      });
+    })();
+  } catch (err) {
+    if (err instanceof DoublesConflictError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    if (idempotencyKey && (err as { code?: string }).code === "23505") {
+      const existing = await loadDoublesMultiMatchResponse(idempotencyKey);
+      if (existing) { res.status(200).json(existing); return; }
+    }
+    throw err;
+  }
+});
+
+// ── Multi-team match history for a season ───────────────────────────────────
+
+router.get("/seasons/:id/doubles/multi-matches", async (req, res): Promise<void> => {
+  const params = GetSeasonParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const matchRows = await db.execute(sql`
+    SELECT dmm.id, dmm.played_at, dmm.winner_team_id, wt.team_name AS winner_team_name,
+           dmm.participant_count, dmm.stake, dmm.pot, dmm.elo_change, dmm.game_type, dmm.notes
+    FROM doubles_multi_matches dmm
+    JOIN doubles_teams wt ON wt.id = dmm.winner_team_id
+    WHERE dmm.season_id = ${params.data.id}
+    ORDER BY dmm.played_at DESC
+    LIMIT 100
+  `);
+  const matches = matchRows.rows as any[];
+  if (matches.length === 0) { res.json([]); return; }
+
+  const matchIds = matches.map(m => m.id);
+  const participantRows = await db.execute(sql`
+    SELECT p.match_id, p.team_id, t.team_name, p.is_winner, p.points_delta, p.elo_delta, p.eliminated
+    FROM doubles_multi_match_participants p
+    JOIN doubles_teams t ON t.id = p.team_id
+    WHERE p.match_id = ANY(ARRAY[${sql.join(matchIds.map((id: number) => sql`${id}`), sql`, `)}]::int[])
+  `);
+  const participants = participantRows.rows as any[];
+
+  res.json(matches.map(m => ({
+    id: m.id,
+    playedAt: m.played_at,
+    winnerTeamId: m.winner_team_id,
+    winnerTeamName: m.winner_team_name,
+    participantCount: m.participant_count,
+    stake: m.stake,
+    pot: m.pot,
+    eloChange: m.elo_change,
+    gameType: m.game_type,
+    notes: m.notes,
+    participants: participants.filter(p => p.match_id === m.id).map(p => ({
+      teamId: p.team_id, teamName: p.team_name, isWinner: p.is_winner,
+      pointsDelta: p.points_delta, eloDelta: p.elo_delta, eliminated: p.eliminated,
     })),
   })));
 });

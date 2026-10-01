@@ -37,8 +37,32 @@ import liveMatchRouter from "./live-match";
 import matchCentreRouter from "./match-centre";
 import teamMatchCorrectionsRouter from "./team-match-corrections";
 import adminHealthRouter from "./admin-health";
+import { logAdminAction } from "../lib/adminAudit";
 
 const router: IRouter = Router();
+
+// Catch consequential admin writes that do not have a richer, purpose-built
+// audit entry. Routes that call logAdminAction themselves set a request flag
+// and are not duplicated here. Passwords, PINs and request bodies are never
+// copied into this generic record.
+router.use((req, res, next) => {
+  const method = req.method.toUpperCase();
+  const isMutation = method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE";
+  const path = req.path;
+  const isAdminOperation = path.startsWith("/admin/")
+    || path.includes("/card-clash/admin/")
+    || path.includes("/challenges/admin/")
+    || /^\/seasons\/(?:reset|doubles\/reset|shift-wars\/reset)$/.test(path);
+
+  if (isMutation && isAdminOperation && !path.endsWith("/verify-pin") && !path.endsWith("/lock")) {
+    res.on("finish", () => {
+      if (res.statusCode < 400 && (req.session as any)?.isAdmin && !(req as any).__tkdlAdminAuditLogged) {
+        void logAdminAction(req, "admin.request", "admin_route", path, { method, status: res.statusCode });
+      }
+    });
+  }
+  next();
+});
 
 router.use(healthRouter);
 router.use(authRouter);
