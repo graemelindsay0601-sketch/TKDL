@@ -14,7 +14,15 @@ const PREVIEW:Detail={key:"league-1",mode:"singles",isCombined:false,playedAt:ne
 
 export default function MatchDetail(){
   const {key}=useParams<{key:string}>(); const [data,setData]=useState<Detail|null>(null); const [error,setError]=useState("");
-  useEffect(()=>{if(import.meta.env.DEV&&new URLSearchParams(location.search).get("preview")==="1"){setData(PREVIEW);return;}fetch(`/api/match-centre/${encodeURIComponent(key)}`).then(async r=>{if(!r.ok)throw new Error(r.status===404?"Match not found":"Unable to load match");return r.json();}).then(setData).catch(e=>setError(e.message));},[key]);
+  // This component is reused across /match-centre/:key navigations (a param
+  // change, not a remount) — previously neither `data` nor `error` was reset
+  // when `key` changed, so (a) the previous match's result briefly stayed on
+  // screen under the new URL while the new fetch was in flight, and (b) once
+  // any single fetch failed, `error` stayed set forever for the rest of this
+  // mounted instance — the success path only ever called setData, never
+  // setError("") — so every later navigation to a perfectly valid match kept
+  // showing the old error screen even after the new data had loaded fine.
+  useEffect(()=>{setData(null);setError("");if(import.meta.env.DEV&&new URLSearchParams(location.search).get("preview")==="1"){setData(PREVIEW);return;}fetch(`/api/match-centre/${encodeURIComponent(key)}`).then(async r=>{if(!r.ok)throw new Error(r.status===404?"Match not found":"Unable to load match");return r.json();}).then(setData).catch(e=>setError(e.message));},[key]);
   if(error)return <div className="mc-shell"><Link href="/match-centre" className="md-back"><ArrowLeft size={15}/> Match Centre</Link><div className="mc-empty"><Swords/><strong>{error}</strong></div></div>;
   if(!data)return <div className="mc-shell"><div className="mc-empty">Loading match report…</div></div>;
   const statsAvailable=data.stats&&Object.values(data.stats.winner).some(v=>v!=null);

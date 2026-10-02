@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { Swords, Lock, Trophy, Skull, Clock, Users } from "lucide-react";
+import { Swords, Lock, Trophy, Skull, Clock, Users, Shield, Ghost, LockKeyhole, Zap, Sparkles, CheckCircle2 } from "lucide-react";
 import { useCurrentPlayer } from "@/context/auth";
 import { BOSSES, type Boss } from "@/lib/boss-battles-data";
+import { BOT_LEVELS } from "@/lib/bot-engine";
 import { BossBattleScorer } from "@/components/BossBattleScorer";
 import type { GameResult } from "@/components/game-scorer";
 import { useCosmeticsCatalog, glowRowStyle } from "@/lib/cosmetics";
+import "./boss-battle.css";
 
 type Screen = { kind: "ladder" } | { kind: "entrance"; boss: Boss } | { kind: "fight"; boss: Boss } | { kind: "result"; boss: Boss; won: boolean };
 
@@ -24,6 +26,24 @@ function formatSeconds(s: number): string {
   const sec = s % 60;
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
+
+// Each boss gets its own emblem — purely cosmetic, picked to match its
+// gimmick (Wall Block → Shield, Jinxed → Ghost, Cricket Prison → a cell
+// lock, Lockdown's single-number trap → a keyed lock, Annihilator → Zap,
+// the secret final boss → Skull). The *color* each boss uses isn't a new
+// palette — it's lifted straight from BOT_LEVELS (lib/bot-engine.ts) via
+// boss.botLevel, so the ladder's color progression already matches the
+// difficulty curve used everywhere else bots appear in the app.
+const BOSS_ICON: Record<string, typeof Shield> = {
+  "rookie-wall": Shield,
+  "old-jinx": Ghost,
+  "the-warden": Lock,
+  "lockdown": LockKeyhole,
+  "the-annihilator": Zap,
+  "the-reckoning": Skull,
+};
+const tierColor = (boss: Boss) => BOT_LEVELS[boss.botLevel]?.color ?? "#ff005c";
+const tierVar = (boss: Boss) => ({ "--tier": tierColor(boss) }) as React.CSSProperties;
 
 export default function BossBattlePage() {
   // Playing Boss Battle has never needed an account — pick your name from
@@ -129,8 +149,11 @@ export default function BossBattlePage() {
     setScreen({ kind: "result", boss, won });
   };
 
+  const sortedBosses = BOSSES.sort((a, b) => a.order - b.order);
+  const defeatedCount = sortedBosses.filter(b => defeated.has(b.id)).length;
+
   if (loading) {
-    return <div className="max-w-md mx-auto py-16 text-center" style={{ color: "rgba(255,255,255,0.3)" }}>Loading…</div>;
+    return <div className="bb-shell" style={{ textAlign: "center", paddingTop: "4rem", color: "rgba(255,255,255,0.3)" }}>Loading…</div>;
   }
 
   if (screen.kind === "fight") {
@@ -146,36 +169,40 @@ export default function BossBattlePage() {
 
   if (screen.kind === "entrance") {
     const boss = screen.boss;
+    const Icon = BOSS_ICON[boss.id] ?? Swords;
     return (
-      <div className="max-w-md mx-auto py-10 px-4 text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
-        <div style={{ fontSize: "0.7rem", letterSpacing: "0.2em", color: "rgba(255,80,80,0.6)", textTransform: "uppercase" }}>Boss Battle</div>
-        <div style={{ fontSize: "2rem", fontWeight: 900, color: "#fff", marginTop: "8px" }}>{boss.name}</div>
-        <div style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.5)", marginTop: "4px", fontStyle: "italic" }}>"{boss.tagline}"</div>
-        {/* .pdc-card + accent left-border — same convention as rules.tsx's
-            RuleSection — instead of a one-off bordered box. */}
-        <div className="pdc-card p-4" style={{ marginTop: "24px", borderLeft: "3px solid rgba(255,107,107,0.5)", textAlign: "left" }}>
-          <div style={{ fontSize: "0.65rem", fontWeight: 800, letterSpacing: "0.08em", color: "#ff6b6b", textTransform: "uppercase", marginBottom: "8px" }}>Moves</div>
-          {boss.moves.map(m => (
-            <div key={m.name} style={{ marginBottom: "8px" }}>
-              <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#fff" }}>{m.name}</div>
-              <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.5)" }}>{m.description}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.3)", marginTop: "10px" }}>
-          Best of 3 legs · {boss.gameMode === "X01" ? "501, double out" : "Cricket"} · for bragging rights only, no Elo impact
-        </div>
-        <div className="flex gap-2 mt-6">
-          <button onClick={() => setScreen({ kind: "ladder" })}
-            className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider"
-            style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}>
-            Back
-          </button>
-          <button onClick={() => startFight(boss)}
-            className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider"
-            style={{ background: "linear-gradient(135deg,#ff005c,#8b0000)", color: "#fff" }}>
-            <Swords className="inline w-3.5 h-3.5 mr-1.5" />Fight
-          </button>
+      <div className="bb-shell">
+        <div className="bb-vs" style={tierVar(boss)}>
+          <div className="bb-vs-emblem"><Icon /></div>
+          <div className="bb-vs-kicker">Boss {boss.order} of {sortedBosses.length}</div>
+          <h1>{boss.name}</h1>
+          <div className="bb-vs-tagline">"{boss.tagline}"</div>
+          <div className="bb-vs-meta">
+            <span>{boss.gameMode === "X01" ? "501, double out" : "Cricket"}</span>
+            <span><b>{BOT_LEVELS[boss.botLevel]?.label ?? boss.botLevel}</b> tier</span>
+            <span>Best of 3</span>
+          </div>
+          <div className="bb-moves">
+            {boss.moves.map((m, i) => (
+              <div className="bb-move-card" key={m.name}>
+                <span className="bb-move-tag">Leg {i + 1}</span>
+                <div className="bb-move-name"><Sparkles />{m.name}</div>
+                <div className="bb-move-desc">{m.description}</div>
+              </div>
+            ))}
+            {boss.enrageMove && (
+              <div className="bb-move-card enrage">
+                <span className="bb-move-tag">Decider — Leg 3</span>
+                <div className="bb-move-name"><Zap />{boss.enrageMove.name}</div>
+                <div className="bb-move-desc">{boss.enrageMove.description}</div>
+              </div>
+            )}
+          </div>
+          <div className="bb-vs-footnote">For bragging rights only — no Elo impact.</div>
+          <div className="bb-vs-actions">
+            <button className="bb-btn-ghost" onClick={() => setScreen({ kind: "ladder" })}>Back</button>
+            <button className="bb-btn-primary" onClick={() => startFight(boss)}><Swords className="inline w-3.5 h-3.5 mr-1.5" />Fight</button>
+          </div>
         </div>
       </div>
     );
@@ -184,60 +211,59 @@ export default function BossBattlePage() {
   if (screen.kind === "result") {
     const { boss, won } = screen;
     const next = BOSSES.find(b => b.order === boss.order + 1);
+    const glow = won ? "#ffd24a" : "#ff6b6b";
     return (
-      <div className="max-w-md mx-auto py-16 px-4 text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
-        {won ? (
-          <>
-            <Trophy className="mx-auto mb-3" size={40} style={{ color: "#ffd24a" }} />
-            <div style={{ fontSize: "1.4rem", fontWeight: 900, color: "#fff" }}>{boss.name} defeated!</div>
-            {next ? (
-              <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.5)", marginTop: "6px" }}>{next.name} is now unlocked.</div>
-            ) : (
-              <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.5)", marginTop: "6px" }}>That's the whole ladder beaten. Nice work.</div>
-            )}
-          </>
-        ) : (
-          <>
-            <Skull className="mx-auto mb-3" size={40} style={{ color: "#ff6b6b" }} />
-            <div style={{ fontSize: "1.4rem", fontWeight: 900, color: "#fff" }}>{boss.name} won this one.</div>
-            <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.5)", marginTop: "6px" }}>Have another go whenever you're ready.</div>
-          </>
-        )}
-        <div className="flex gap-2 mt-8">
-          <button onClick={() => setScreen({ kind: "ladder" })}
-            className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider"
-            style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}>
-            Ladder
-          </button>
-          <button onClick={() => setScreen({ kind: "entrance", boss })}
-            className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider"
-            style={{ background: "linear-gradient(135deg,#ff005c,#8b0000)", color: "#fff" }}>
-            Run it back
-          </button>
+      <div className="bb-shell">
+        <div className="bb-result" style={{ "--glow": glow } as React.CSSProperties}>
+          <div className="bb-result-glow" />
+          <div className="bb-result-icon">{won ? <Trophy /> : <Skull />}</div>
+          {won ? (
+            <>
+              <h1>{boss.name} defeated!</h1>
+              <p>{next ? `${next.name} is now unlocked.` : "That's the whole ladder beaten. Nice work."}</p>
+              {next && (
+                <div className="bb-unlock-card">
+                  <CheckCircle2 size={22} />
+                  <div><small>Next Up</small><strong>{next.name}</strong></div>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <h1>{boss.name} won this one.</h1>
+              <p>Have another go whenever you're ready.</p>
+            </>
+          )}
+          <div className="bb-vs-actions">
+            <button className="bb-btn-ghost" onClick={() => setScreen({ kind: "ladder" })}>Ladder</button>
+            <button className="bb-btn-primary" onClick={() => setScreen({ kind: "entrance", boss })}>Run it back</button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-md mx-auto py-8 px-4" style={{ fontFamily: "Oswald, sans-serif" }}>
-      <div className="text-center mb-6">
-        <div style={{ fontSize: "0.7rem", letterSpacing: "0.2em", color: "rgba(255,80,80,0.6)", textTransform: "uppercase" }}>Beta</div>
-        <div style={{ fontSize: "1.6rem", fontWeight: 900, color: "#fff" }}>Boss Battle</div>
-        <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>Beat each boss to unlock the next. Arcade only — no Elo impact.</div>
-        <button onClick={toggleLeaderboard}
-          className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide"
-          style={{ background: showLeaderboard ? "rgba(255,210,74,0.15)" : "rgba(255,255,255,0.06)", color: showLeaderboard ? "#ffd24a" : "rgba(255,255,255,0.5)" }}>
-          <Users className="w-3.5 h-3.5" /> Leaderboard
-        </button>
+    <div className="bb-shell">
+      <div className="bb-hero">
+        <div className="bb-kicker"><i />Arcade · No Elo Impact</div>
+        <h1>Boss Battle</h1>
+        <p>Beat each boss to unlock the next. Six fights stand between you and the ladder.</p>
+        <div className="bb-hero-actions">
+          <button className={`bb-pill-btn ${showLeaderboard ? "active" : ""}`} onClick={toggleLeaderboard}>
+            <Users className="w-3.5 h-3.5" /> Leaderboard
+          </button>
+        </div>
+        <div className="bb-progress-wrap">
+          <div className="bb-progress-head"><span>Ladder Progress</span><strong>{defeatedCount}/{sortedBosses.length}</strong></div>
+          <div className="bb-progress-track"><div className="bb-progress-fill" style={{ width: `${(defeatedCount / sortedBosses.length) * 100}%` }} /></div>
+        </div>
       </div>
 
       {/* Player selector — no login needed, pick your name like Master-501/Practice/Tour */}
-      <div className="mb-5">
-        <h2 className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald,sans-serif" }}>Player</h2>
-        <select value={playerId ?? ""} onChange={e => setPlayerId(Number(e.target.value) || null)}
-          className="w-full px-3 py-2.5 rounded-lg text-sm"
-          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff", fontFamily: "Oswald,sans-serif", cursor: "pointer" }}>
+      <div className="bb-field">
+        <span className="bb-field-label">Player</span>
+        <select value={playerId ?? ""} onChange={e => setPlayerId(Number(e.target.value) || null)} className="bb-select">
           <option value="">Select player…</option>
           {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
@@ -246,101 +272,84 @@ export default function BossBattlePage() {
       {showLeaderboard && (
         <div className="pdc-card p-4 mb-5">
           {leaderboardLoading ? (
-            <div className="text-center py-4 text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Loading…</div>
+            <div className="bb-empty">Loading…</div>
           ) : !leaderboard || leaderboard.players.length === 0 ? (
-            <div className="text-center py-2 text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>No one's beaten a boss yet — could be you.</div>
+            <div className="bb-empty">No one's beaten a boss yet — could be you.</div>
           ) : (
-            <div className="space-y-2">
-              <div style={{ fontSize: "0.6rem", fontWeight: 800, letterSpacing: "0.08em", color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: "4px" }}>
-                Ladder Progress
-              </div>
+            <>
+              <div className="bb-lb-title">Ladder Progress</div>
               {leaderboard.players.map((p, i) => {
                 const isMe = p.playerId === playerId;
                 // A purchased GLOW cosmetic overrides the default gold "it's
                 // you" highlight with your own colour, same override
                 // convention as the main leaderboard's SeasonRow/CareerRow.
                 const glowColor = isMe ? myGlowCosmetic?.color ?? null : null;
+                const rankClass = i === 0 ? "gold" : i === 1 ? "silver" : i === 2 ? "bronze" : "";
+                const pct = Math.round((p.bossesDefeated / leaderboard.totalBosses) * 100);
                 return (
-                  <div key={p.playerId} className="flex items-center justify-between text-sm rounded-lg px-2 -mx-2"
-                    style={isMe ? { padding: "0.15rem 0.5rem", ...myGlow } : undefined}>
-                    <div className="flex items-center gap-2">
-                      <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.7rem", width: "1.2em", display: "inline-block" }}>{i + 1}</span>
-                      <span style={{ color: isMe ? (glowColor ?? "#ffd24a") : "#fff", fontWeight: isMe ? 800 : 500 }}>
-                        {p.playerName}
-                      </span>
-                      {p.fullClear && <Trophy className="w-3 h-3" style={{ color: "#ffd24a" }} />}
-                    </div>
-                    <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.75rem" }}>{p.bossesDefeated}/{leaderboard.totalBosses}</span>
+                  <div key={p.playerId} className="bb-lb-row" style={isMe ? myGlow : undefined}>
+                    <span className={`bb-lb-rank ${rankClass}`}>{i + 1}</span>
+                    <span className={`bb-lb-name ${isMe ? "me" : ""}`} style={isMe && glowColor ? { color: glowColor } : undefined}>
+                      {p.playerName}
+                      {p.fullClear && <Trophy className="w-3 h-3" style={{ color: "#ffd24a", flexShrink: 0 }} />}
+                    </span>
+                    <span className="bb-lb-progress"><i style={{ width: `${pct}%` }} /></span>
+                    <span className="bb-lb-frac">{p.bossesDefeated}/{leaderboard.totalBosses}</span>
                   </div>
                 );
               })}
               {Object.keys(leaderboard.fastestPerBoss).length > 0 && (
                 <>
-                  <div style={{ fontSize: "0.6rem", fontWeight: 800, letterSpacing: "0.08em", color: "rgba(255,255,255,0.4)", textTransform: "uppercase", margin: "10px 0 4px" }}>
-                    Fastest Clears
-                  </div>
+                  <div className="bb-lb-title" style={{ marginTop: "16px" }}>Fastest Clears</div>
                   {BOSSES.filter(b => leaderboard.fastestPerBoss[b.id]).sort((a, b) => a.order - b.order).map(b => (
-                    <div key={b.id} className="flex items-center justify-between text-xs">
-                      <span style={{ color: "rgba(255,255,255,0.5)" }}>{b.name}</span>
-                      <span style={{ color: "rgba(255,255,255,0.4)" }}>
-                        <Clock className="inline w-3 h-3 mr-1" style={{ verticalAlign: "-1px" }} />
-                        {leaderboard.fastestPerBoss[b.id].playerName} · {formatSeconds(leaderboard.fastestPerBoss[b.id].seconds)}
-                      </span>
+                    <div key={b.id} className="bb-lb-fastest-row">
+                      <span>{b.name}</span>
+                      <span><Clock />{leaderboard.fastestPerBoss[b.id].playerName} · {formatSeconds(leaderboard.fastestPerBoss[b.id].seconds)}</span>
                     </div>
                   ))}
                 </>
               )}
-            </div>
+            </>
           )}
         </div>
       )}
 
-      {/* Outer .pdc-card wrapper to match the leaderboard panel just above —
-          individual boss rows keep their own locked/won/available styling. */}
-      <div className="pdc-card p-3">
-      <div className="space-y-3">
-        {BOSSES.sort((a, b) => a.order - b.order).map(boss => {
+      <div className="bb-ladder">
+        {sortedBosses.map(boss => {
           const unlocked = isUnlocked(boss);
           const won = defeated.has(boss.id);
           const bossStats = stats[boss.id];
+          const Icon = BOSS_ICON[boss.id] ?? Swords;
+          const isFinal = boss.order === sortedBosses.length;
           return (
             <button
               key={boss.id}
               disabled={!unlocked || !playerId}
               onClick={() => setScreen({ kind: "entrance", boss })}
-              className="w-full text-left"
-              style={{
-                display: "flex", alignItems: "center", gap: "14px", padding: "14px 16px", borderRadius: "12px",
-                background: won ? "rgba(255,210,74,0.06)" : unlocked ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.015)",
-                border: `1px solid ${won ? "rgba(255,210,74,0.3)" : unlocked ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)"}`,
-                opacity: unlocked ? 1 : 0.5, cursor: unlocked ? "pointer" : "not-allowed",
-              }}
+              className="bb-boss-row"
+              style={tierVar(boss)}
             >
-              <div style={{
-                width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                background: won ? "rgba(255,210,74,0.15)" : "rgba(255,80,80,0.1)", flexShrink: 0,
-              }}>
-                {!unlocked ? <Lock size={16} style={{ color: "rgba(255,255,255,0.3)" }} /> : won ? <Trophy size={16} style={{ color: "#ffd24a" }} /> : <Swords size={16} style={{ color: "#ff6b6b" }} />}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "0.9rem", fontWeight: 800, color: unlocked ? "#fff" : "rgba(255,255,255,0.4)" }}>{boss.name}</div>
-                <div style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.35)" }}>
-                  {unlocked ? boss.tagline : "Beat the previous boss to unlock"}
+              <span className={`bb-node ${won ? "won" : ""}`} />
+              <div className={`bb-boss-card ${won ? "won" : ""} ${!unlocked ? "locked" : ""} ${isFinal ? "final" : ""}`}>
+                <div className="bb-boss-icon">{!unlocked ? <Lock size={16} style={{ color: "rgba(255,255,255,0.3)" }} /> : <Icon size={18} />}</div>
+                <div className="bb-boss-body">
+                  <div className="bb-boss-name">{boss.name}</div>
+                  <div className="bb-boss-tag">{unlocked ? boss.tagline : "Beat the previous boss to unlock"}</div>
+                  {unlocked && bossStats && bossStats.attempts > 0 && (
+                    <div className="bb-boss-stats">
+                      {won && <CheckCircle2 size={11} style={{ color: "#ffd24a" }} />}
+                      <span>{bossStats.attempts} attempt{bossStats.attempts === 1 ? "" : "s"}{bossStats.bestSeconds !== null && <> · best {formatSeconds(bossStats.bestSeconds)}</>}</span>
+                    </div>
+                  )}
                 </div>
-                {unlocked && bossStats && bossStats.attempts > 0 && (
-                  <div style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.25)", marginTop: "2px" }}>
-                    {bossStats.attempts} attempt{bossStats.attempts === 1 ? "" : "s"}
-                    {bossStats.bestSeconds !== null && <> · best {formatSeconds(bossStats.bestSeconds)}</>}
-                  </div>
-                )}
-              </div>
-              <div style={{ fontSize: "0.6rem", fontWeight: 700, color: "rgba(255,255,255,0.3)", textTransform: "uppercase" }}>
-                {boss.gameMode === "X01" ? "501" : "Cricket"}
+                <div className="bb-boss-side">
+                  <span className="bb-tier-chip">{BOT_LEVELS[boss.botLevel]?.label ?? boss.botLevel}</span>
+                  <span className="bb-mode-chip">{boss.gameMode === "X01" ? "501" : "Cricket"}</span>
+                </div>
               </div>
             </button>
           );
         })}
-      </div>
       </div>
     </div>
   );

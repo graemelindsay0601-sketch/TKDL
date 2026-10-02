@@ -5,6 +5,7 @@ import { useListPlayers } from "@workspace/api-client-react";
 import { BoardCurseScorer, type BoardCurseResult } from "@/components/BoardCurseScorer";
 import { BOT_LEVELS, type BotLevel } from "@/lib/bot-engine";
 import { getCurseCompendium, type CurseGameMode, type CurseTier } from "@/lib/board-curse-data";
+import "./board-curse.css";
 
 type RosterPlayer = { id: number; name: string; status: string; isActive: boolean };
 const GUEST_OPTION = "__guest__";
@@ -21,6 +22,10 @@ type Screen =
   | { kind: "compendium"; gameMode: CurseGameMode };
 
 const TIER_LABEL: Record<CurseTier, string> = { 1: "Mild — early visits", 2: "Medium — mid-leg", 3: "Severe — late leg" };
+// Escalating severity ramp (amber → flame orange → red) — distinct from
+// boss-battle.tsx's difficulty-tier colors, since curse tiers describe how
+// nasty a single curse's bite is, not a CPU skill level.
+const TIER_COLOR: Record<CurseTier, string> = { 1: "#fbbf24", 2: "#ff8a00", 3: "#ef4444" };
 
 type Record_ = { wins: number; losses: number };
 type LeaderboardEntry = { playerName: string; value: number };
@@ -167,15 +172,9 @@ export default function BoardCursePage() {
     // anything rendered outside/above it here would push it (and the curse readout)
     // off the bottom of the screen, forcing a scroll to reach either one.
     const endlessBanner = screen.endless ? (
-      <div className="flex items-center justify-between mb-2 px-1" style={{ fontFamily: "Oswald, sans-serif" }}>
-        <div style={{ fontSize: "0.8rem", fontWeight: 800, color: "#ff8a00" }}>
-          <InfinityIcon className="inline w-4 h-4 mr-1" />Endless — Leg {endlessStreak + 1}
-        </div>
-        <button onClick={handleStopEndless}
-          className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase"
-          style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)" }}>
-          <Square className="inline w-3 h-3 mr-1" />Stop
-        </button>
+      <div className="bc-endless-banner">
+        <span><InfinityIcon size={16} />Endless — Leg {endlessStreak + 1}</span>
+        <button onClick={handleStopEndless}><Square className="inline w-3 h-3 mr-1" />Stop</button>
       </div>
     ) : null;
     return (
@@ -197,23 +196,16 @@ export default function BoardCursePage() {
   if (screen.kind === "endless-result") {
     const isNewBest = screen.bestStreak === null || screen.streak >= screen.bestStreak;
     return (
-      <div className="max-w-md mx-auto py-16 px-4 text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
-        <InfinityIcon className="mx-auto mb-3" size={40} style={{ color: "#ff8a00" }} />
-        <div style={{ fontSize: "1.4rem", fontWeight: 900, color: "#fff" }}>Streak ended at {screen.streak} leg{screen.streak === 1 ? "" : "s"}</div>
-        <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.5)", marginTop: "6px" }}>
-          {screen.streak === 0 ? "Didn't finish a single leg that time." : isNewBest ? "New personal best!" : `Personal best: ${screen.bestStreak} legs`}
-        </div>
-        <div className="flex gap-2 mt-8">
-          <button onClick={() => setScreen({ kind: "setup" })}
-            className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider"
-            style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}>
-            Back to setup
-          </button>
-          <button onClick={handleStart}
-            className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider"
-            style={{ background: "linear-gradient(135deg,#ff8a00,#8b0000)", color: "#fff" }}>
-            Run it back
-          </button>
+      <div className="bc-shell">
+        <div className="bc-result" style={{ "--glow": "#ff8a00" } as React.CSSProperties}>
+          <div className="bc-result-glow" />
+          <div className="bc-result-icon"><InfinityIcon /></div>
+          <h1>Streak ended at {screen.streak} leg{screen.streak === 1 ? "" : "s"}</h1>
+          <p>{screen.streak === 0 ? "Didn't finish a single leg that time." : isNewBest ? "New personal best!" : `Personal best: ${screen.bestStreak} legs`}</p>
+          <div className="bc-result-actions">
+            <button className="bc-btn-ghost" onClick={() => setScreen({ kind: "setup" })}>Back to setup</button>
+            <button className="bc-btn-primary" onClick={handleStart}>Run it back</button>
+          </div>
         </div>
       </div>
     );
@@ -222,112 +214,83 @@ export default function BoardCursePage() {
   if (screen.kind === "compendium") {
     const groups = getCurseCompendium(screen.gameMode);
     return (
-      <div className="max-w-md mx-auto py-8 px-4" style={{ fontFamily: "Oswald, sans-serif" }}>
+      <div className="bc-shell">
         <div className="text-center mb-6">
           <div style={{ fontSize: "1.4rem", fontWeight: 900, color: "#fff" }}><BookOpen className="inline w-5 h-5 mr-1.5" style={{ color: "#ff8a00" }} />Curse Compendium</div>
           <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>
             Every curse this mode can throw at you. Numbers shown are one example roll — the real bite is re-rolled fresh each time.
           </div>
         </div>
-        <div className="flex gap-2 mb-6">
+        <div className="bc-tabs mb-6">
           {(["X01", "CRICKET"] as CurseGameMode[]).map(m => (
-            <button key={m} onClick={() => setScreen({ kind: "compendium", gameMode: m })}
-              className="flex-1 py-2 rounded-lg text-xs font-bold uppercase"
-              style={{
-                background: screen.gameMode === m ? "rgba(255,138,0,0.15)" : "rgba(255,255,255,0.04)",
-                border: `1px solid ${screen.gameMode === m ? "rgba(255,138,0,0.4)" : "rgba(255,255,255,0.1)"}`,
-                color: screen.gameMode === m ? "#ff8a00" : "rgba(255,255,255,0.5)",
-              }}>
+            <button key={m} className={`bc-tab ${screen.gameMode === m ? "active" : ""}`} onClick={() => setScreen({ kind: "compendium", gameMode: m })}>
               {m === "X01" ? "501" : "Cricket"}
             </button>
           ))}
         </div>
         {groups.map(g => (
-          // Brought onto the app's shared .pdc-card system (matches RuleSection's
-          // "card with accent-colored left border" convention) instead of the
-          // one-off flat boxes this used to be — pure chrome change, same data,
-          // same tiers/curses. Rows inside stay flat with a hairline separator,
-          // same "outer card, flat inner rows" pattern boss-battle's leaderboard
-          // panel already uses.
-          <div key={g.tier} className="pdc-card p-4 mb-4" style={{ borderLeft: "3px solid rgba(255,138,0,0.5)" }}>
-            <div className="text-xs font-bold uppercase mb-3" style={{ color: "#ff8a00", letterSpacing: "0.08em" }}>{TIER_LABEL[g.tier]}</div>
-            <div>
-              {g.curses.map((c, i) => (
-                <div key={c.name} className="py-2.5" style={{ borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#fff" }}>{c.name}</div>
-                  <div style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.45)", marginTop: "2px" }}>{c.sampleDescription}</div>
+          <div key={g.tier} className="bc-tier-section" style={{ "--tier": TIER_COLOR[g.tier] } as React.CSSProperties}>
+            <div className="bc-tier-head"><span className="bc-tier-dot" /><span>{TIER_LABEL[g.tier]}</span></div>
+            <div className="bc-curse-grid">
+              {g.curses.map(c => (
+                <div key={c.name} className="bc-curse-card">
+                  <div className="bc-curse-name">{c.name}</div>
+                  <div className="bc-curse-desc">{c.sampleDescription}</div>
                 </div>
               ))}
             </div>
           </div>
         ))}
-        <button onClick={() => setScreen({ kind: "setup" })}
-          className="w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider"
-          style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}>
-          Back
-        </button>
+        <button className="bc-btn-ghost" style={{ width: "100%" }} onClick={() => setScreen({ kind: "setup" })}>Back</button>
       </div>
     );
   }
 
   if (screen.kind === "leaderboard") {
     return (
-      <div className="max-w-md mx-auto py-8 px-4" style={{ fontFamily: "Oswald, sans-serif" }}>
+      <div className="bc-shell">
         <div className="text-center mb-6">
           <div style={{ fontSize: "1.4rem", fontWeight: 900, color: "#fff" }}><Crown className="inline w-5 h-5 mr-1.5" style={{ color: "#ffd24a" }} />Board Curse Leaderboard</div>
           <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>Solo — across everyone</div>
         </div>
-        <div className="flex gap-2 mb-6">
+        <div className="bc-tabs mb-6">
           {(["X01", "CRICKET"] as CurseGameMode[]).map(m => (
-            <button key={m} onClick={() => { setScreen({ kind: "leaderboard", gameMode: m }); loadLeaderboard(m); }}
-              className="flex-1 py-2 rounded-lg text-xs font-bold uppercase"
-              style={{
-                background: screen.gameMode === m ? "rgba(255,138,0,0.15)" : "rgba(255,255,255,0.04)",
-                border: `1px solid ${screen.gameMode === m ? "rgba(255,138,0,0.4)" : "rgba(255,255,255,0.1)"}`,
-                color: screen.gameMode === m ? "#ff8a00" : "rgba(255,255,255,0.5)",
-              }}>
+            <button key={m} className={`bc-tab ${screen.gameMode === m ? "active" : ""}`} onClick={() => { setScreen({ kind: "leaderboard", gameMode: m }); loadLeaderboard(m); }}>
               {m === "X01" ? "501" : "Cricket"}
             </button>
           ))}
         </div>
         {!leaderboard ? (
-          <div className="text-center text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>Loading…</div>
+          <div className="bc-empty">Loading…</div>
         ) : (
-          <>
-            {/* Same "outer .pdc-card, flat inner rows" convention as Boss
-                Battle's leaderboard panel below, instead of two floating,
-                card-less blocks — no data or row logic changed. */}
-            <div className="pdc-card p-4">
-              <div className="mb-5">
-                <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>Fewest Visits to Close Out</div>
-                {leaderboard.bestVisits.length === 0 ? (
-                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>No runs recorded yet.</div>
-                ) : leaderboard.bestVisits.map((e, i) => (
-                  <div key={i} className="flex items-center justify-between py-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                    <span style={{ fontSize: "0.85rem", color: "#fff" }}>{i + 1}. {e.playerName}</span>
-                    <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#ff8a00" }}>{e.value} visit{e.value === 1 ? "" : "s"}</span>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>Longest Endless Streak</div>
-                {leaderboard.bestStreak.length === 0 ? (
-                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>No streaks recorded yet.</div>
-                ) : leaderboard.bestStreak.map((e, i) => (
-                  <div key={i} className="flex items-center justify-between py-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                    <span style={{ fontSize: "0.85rem", color: "#fff" }}>{i + 1}. {e.playerName}</span>
-                    <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#ff8a00" }}>{e.value} leg{e.value === 1 ? "" : "s"}</span>
-                  </div>
-                ))}
-              </div>
+          <div className="pdc-card p-4">
+            <div className="bc-lb-section">
+              <div className="bc-lb-title">Fewest Visits to Close Out</div>
+              {leaderboard.bestVisits.length === 0 ? (
+                <div className="bc-empty">No runs recorded yet.</div>
+              ) : leaderboard.bestVisits.map((e, i) => (
+                <div key={i} className="bc-lb-row">
+                  <span className={`bc-lb-rank ${i === 0 ? "gold" : i === 1 ? "silver" : i === 2 ? "bronze" : ""}`}>{i + 1}</span>
+                  <span className="bc-lb-name">{e.playerName}</span>
+                  <span className="bc-lb-value">{e.value} visit{e.value === 1 ? "" : "s"}</span>
+                </div>
+              ))}
             </div>
-          </>
+            <div className="bc-lb-section" style={{ marginBottom: 0 }}>
+              <div className="bc-lb-title">Longest Endless Streak</div>
+              {leaderboard.bestStreak.length === 0 ? (
+                <div className="bc-empty">No streaks recorded yet.</div>
+              ) : leaderboard.bestStreak.map((e, i) => (
+                <div key={i} className="bc-lb-row">
+                  <span className={`bc-lb-rank ${i === 0 ? "gold" : i === 1 ? "silver" : i === 2 ? "bronze" : ""}`}>{i + 1}</span>
+                  <span className="bc-lb-name">{e.playerName}</span>
+                  <span className="bc-lb-value">{e.value} leg{e.value === 1 ? "" : "s"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
-        <button onClick={() => setScreen({ kind: "setup" })}
-          className="w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider"
-          style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}>
-          Back
-        </button>
+        <button className="bc-btn-ghost" style={{ width: "100%", marginTop: "16px" }} onClick={() => setScreen({ kind: "setup" })}>Back</button>
       </div>
     );
   }
@@ -335,165 +298,124 @@ export default function BoardCursePage() {
   if (screen.kind === "result") {
     const { format: f, p1Name, p2Name, result } = screen;
     const won = result.winnerIdx === 0;
+    const glow = (f === "solo" || won) ? "#ffd24a" : "#ff6b6b";
     return (
-      <div className="max-w-md mx-auto py-16 px-4 text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
-        {f === "solo" ? (
-          <>
-            <Trophy className="mx-auto mb-3" size={40} style={{ color: "#ffd24a" }} />
-            <div style={{ fontSize: "1.4rem", fontWeight: 900, color: "#fff" }}>Closed out in {result.visitsTaken} visit{result.visitsTaken === 1 ? "" : "s"}</div>
-            {bestVisits !== null && (
-              <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.5)", marginTop: "6px" }}>
-                {result.visitsTaken <= bestVisits ? "New personal best!" : `Personal best: ${bestVisits} visits`}
-              </div>
-            )}
-          </>
-        ) : won ? (
-          <>
-            <Trophy className="mx-auto mb-3" size={40} style={{ color: "#ffd24a" }} />
-            <div style={{ fontSize: "1.4rem", fontWeight: 900, color: "#fff" }}>{p1Name} wins!</div>
-          </>
-        ) : (
-          <>
-            <Skull className="mx-auto mb-3" size={40} style={{ color: "#ff6b6b" }} />
-            <div style={{ fontSize: "1.4rem", fontWeight: 900, color: "#fff" }}>{p2Name} wins.</div>
-            <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.5)", marginTop: "6px" }}>The curse got the better of you this time.</div>
-          </>
-        )}
-        <div className="flex gap-2 mt-8">
-          <button onClick={() => setScreen({ kind: "setup" })}
-            className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider"
-            style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}>
-            Back to setup
-          </button>
-          <button onClick={handleStart}
-            className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider"
-            style={{ background: "linear-gradient(135deg,#ff8a00,#8b0000)", color: "#fff" }}>
-            Run it back
-          </button>
+      <div className="bc-shell">
+        <div className="bc-result" style={{ "--glow": glow } as React.CSSProperties}>
+          <div className="bc-result-glow" />
+          {f === "solo" ? (
+            <>
+              <div className="bc-result-icon"><Trophy /></div>
+              <h1>Closed out in {result.visitsTaken} visit{result.visitsTaken === 1 ? "" : "s"}</h1>
+              {bestVisits !== null && <p>{result.visitsTaken <= bestVisits ? "New personal best!" : `Personal best: ${bestVisits} visits`}</p>}
+            </>
+          ) : won ? (
+            <>
+              <div className="bc-result-icon"><Trophy /></div>
+              <h1>{p1Name} wins!</h1>
+            </>
+          ) : (
+            <>
+              <div className="bc-result-icon"><Skull /></div>
+              <h1>{p2Name} wins.</h1>
+              <p>The curse got the better of you this time.</p>
+            </>
+          )}
+          <div className="bc-result-actions">
+            <button className="bc-btn-ghost" onClick={() => setScreen({ kind: "setup" })}>Back to setup</button>
+            <button className="bc-btn-primary" onClick={handleStart}>Run it back</button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-md mx-auto py-8 px-4" style={{ fontFamily: "Oswald, sans-serif" }}>
-      <div className="text-center mb-6">
-        <div style={{ fontSize: "0.7rem", letterSpacing: "0.2em", color: "rgba(255,138,0,0.6)", textTransform: "uppercase" }}>Beta</div>
-        <div style={{ fontSize: "1.6rem", fontWeight: 900, color: "#fff" }}><Flame className="inline w-6 h-6 mr-1.5" style={{ color: "#ff8a00" }} />Board Curse</div>
-        <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>
-          Random curses strike as the leg goes on, and get worse the longer it runs. Arcade only — no Elo impact.
+    <div className="bc-shell">
+      <div className="bc-hero">
+        <div className="bc-kicker"><i />Arcade · No Elo Impact</div>
+        <h1><Flame />Board Curse</h1>
+        <p>Random curses strike as the leg goes on, and get worse the longer it runs.</p>
+        <div className="bc-hero-actions">
+          <button className="bc-pill-btn" onClick={openLeaderboard}><Crown className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />Leaderboard</button>
+          <button className="bc-pill-btn" onClick={() => setScreen({ kind: "compendium", gameMode })}><BookOpen className="w-3.5 h-3.5" />Curses</button>
         </div>
-        <div className="flex items-center justify-center gap-4 mt-3">
-          <button onClick={openLeaderboard} className="text-xs font-bold uppercase" style={{ color: "#ffd24a" }}>
-            <Crown className="inline w-3.5 h-3.5 mr-1" />Leaderboard
-          </button>
-          <button onClick={() => setScreen({ kind: "compendium", gameMode })} className="text-xs font-bold uppercase" style={{ color: "#ff8a00" }}>
-            <BookOpen className="inline w-3.5 h-3.5 mr-1" />Curses
-          </button>
-        </div>
+        {(bestVisits !== null || bestStreak !== null) && (
+          <div className="bc-stat-row">
+            <div className="bc-stat-tile"><strong>{bestVisits ?? "—"}</strong><span>Best Visits (Solo)</span></div>
+            <div className="bc-stat-tile"><strong>{bestStreak ?? "—"}</strong><span>Longest Streak</span></div>
+          </div>
+        )}
       </div>
 
-      <div className="mb-5">
-        <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>You</div>
-        <select value={playerId ?? ""} onChange={e => setPlayerId(Number(e.target.value) || null)}
-          className="w-full px-4 py-2.5 rounded-lg text-sm"
-          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: playerId ? "#fff" : "rgba(255,255,255,0.35)" }}>
+      <div className="bc-field">
+        <span className="bc-field-label">You</span>
+        <select value={playerId ?? ""} onChange={e => setPlayerId(Number(e.target.value) || null)} className="bc-select">
           <option value="" style={{ color: "#111" }}>Select player…</option>
           {roster.map(p => <option key={p.id} value={p.id} style={{ color: "#111" }}>{p.name}</option>)}
         </select>
       </div>
 
-      <div className="mb-5">
-        <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>Game</div>
-        <div className="flex gap-2">
+      <div className="bc-field">
+        <span className="bc-field-label">Game</span>
+        <div className="bc-tabs">
           {(["X01", "CRICKET"] as CurseGameMode[]).map(m => (
-            <button key={m} onClick={() => setGameMode(m)}
-              className="flex-1 py-2.5 rounded-lg text-xs font-bold uppercase"
-              style={{
-                background: gameMode === m ? "rgba(255,138,0,0.15)" : "rgba(255,255,255,0.04)",
-                border: `1px solid ${gameMode === m ? "rgba(255,138,0,0.4)" : "rgba(255,255,255,0.1)"}`,
-                color: gameMode === m ? "#ff8a00" : "rgba(255,255,255,0.5)",
-              }}>
+            <button key={m} className={`bc-tab ${gameMode === m ? "active" : ""}`} onClick={() => setGameMode(m)}>
               {m === "X01" ? "501" : "Cricket"}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="mb-5">
-        <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>Format</div>
-        <div className="space-y-2">
+      <div className="bc-field">
+        <span className="bc-field-label">Format</span>
+        <div className="bc-format-grid">
           {([
             { key: "solo" as Format, label: "Solo", desc: "Just you vs the board — how far can you get?", icon: User },
             { key: "bot" as Format, label: "vs Bot", desc: "You vs a CPU — curses can strike either of you.", icon: Bot },
             { key: "local" as Format, label: "vs Local Player", desc: "Pass and play — curses can strike either of you.", icon: Users },
           ]).map(opt => (
-            <button key={opt.key} onClick={() => setFormat(opt.key)}
-              className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl"
-              style={{
-                background: format === opt.key ? "rgba(255,138,0,0.1)" : "rgba(255,255,255,0.03)",
-                border: `1px solid ${format === opt.key ? "rgba(255,138,0,0.35)" : "rgba(255,255,255,0.08)"}`,
-              }}>
-              <opt.icon size={18} style={{ color: format === opt.key ? "#ff8a00" : "rgba(255,255,255,0.4)" }} />
-              <div>
-                <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#fff" }}>{opt.label}</div>
-                <div style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.4)" }}>{opt.desc}</div>
-              </div>
+            <button key={opt.key} onClick={() => setFormat(opt.key)} className={`bc-format-card ${format === opt.key ? "active" : ""}`}>
+              <span className="bc-format-icon"><opt.icon size={18} /></span>
+              <div><div className="bc-format-name">{opt.label}</div><div className="bc-format-desc">{opt.desc}</div></div>
             </button>
           ))}
         </div>
       </div>
 
       {format === "solo" && (
-        <button onClick={() => setEndlessMode(v => !v)}
-          className="w-full flex items-center justify-between px-4 py-3 rounded-xl mb-5"
-          style={{
-            background: endlessMode ? "rgba(255,138,0,0.1)" : "rgba(255,255,255,0.03)",
-            border: `1px solid ${endlessMode ? "rgba(255,138,0,0.35)" : "rgba(255,255,255,0.08)"}`,
-          }}>
-          <div className="flex items-center gap-3">
-            <InfinityIcon size={18} style={{ color: endlessMode ? "#ff8a00" : "rgba(255,255,255,0.4)" }} />
-            <div className="text-left">
-              <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#fff" }}>Endless</div>
-              <div style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.4)" }}>Keep playing leg after leg until you stop — chase your longest streak.</div>
-            </div>
-          </div>
-          <div style={{ width: "36px", height: "20px", borderRadius: "999px", background: endlessMode ? "#ff8a00" : "rgba(255,255,255,0.15)", position: "relative", flexShrink: 0 }}>
-            <div style={{ position: "absolute", top: "2px", left: endlessMode ? "18px" : "2px", width: "16px", height: "16px", borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
-          </div>
-        </button>
+        <div className="bc-field">
+          <button onClick={() => setEndlessMode(v => !v)} className={`bc-toggle-row ${endlessMode ? "active" : ""}`}>
+            <span className="bc-toggle-left">
+              <InfinityIcon size={18} />
+              <span><div className="bc-format-name">Endless</div><div className="bc-format-desc">Keep playing leg after leg until you stop — chase your longest streak.</div></span>
+            </span>
+            <span className={`bc-switch ${endlessMode ? "on" : ""}`}><i /></span>
+          </button>
+        </div>
       )}
 
       {(format === "bot" || format === "local") && (
-        <div className="mb-5">
-          <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>Match Length</div>
-          <div className="flex gap-2">
+        <div className="bc-field">
+          <span className="bc-field-label">Match Length</span>
+          <div className="bc-pill-row">
             {([1, 3, 5] as MatchLegs[]).map(n => (
-              <button key={n} onClick={() => setMatchLegs(n)}
-                className="flex-1 py-2 rounded-lg text-xs font-bold"
-                style={{
-                  background: matchLegs === n ? "rgba(255,138,0,0.15)" : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${matchLegs === n ? "rgba(255,138,0,0.4)" : "rgba(255,255,255,0.1)"}`,
-                  color: matchLegs === n ? "#ff8a00" : "rgba(255,255,255,0.5)",
-                }}>
-                Best of {n}
-              </button>
+              <button key={n} className={`bc-pill ${matchLegs === n ? "active" : ""}`} onClick={() => setMatchLegs(n)}>Best of {n}</button>
             ))}
           </div>
         </div>
       )}
 
       {format === "bot" && (
-        <div className="mb-5">
-          <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>CPU Difficulty</div>
-          <div className="grid grid-cols-3 gap-2">
+        <div className="bc-field">
+          <span className="bc-field-label">CPU Difficulty</span>
+          <div className="bc-diff-grid">
             {(Object.keys(BOT_LEVELS) as BotLevel[]).map(lvl => (
-              <button key={lvl} onClick={() => setBotLevel(lvl)}
-                className="py-2 rounded-lg text-xs font-bold"
+              <button key={lvl} className="bc-diff-pill" onClick={() => setBotLevel(lvl)}
                 style={{
-                  background: botLevel === lvl ? `${BOT_LEVELS[lvl].color}22` : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${botLevel === lvl ? BOT_LEVELS[lvl].color : "rgba(255,255,255,0.1)"}`,
-                  color: botLevel === lvl ? BOT_LEVELS[lvl].color : "rgba(255,255,255,0.5)",
+                  background: botLevel === lvl ? `${BOT_LEVELS[lvl].color}22` : undefined,
+                  borderColor: botLevel === lvl ? BOT_LEVELS[lvl].color : undefined,
+                  color: botLevel === lvl ? BOT_LEVELS[lvl].color : undefined,
                 }}>
                 {BOT_LEVELS[lvl].label}
               </button>
@@ -503,11 +425,9 @@ export default function BoardCursePage() {
       )}
 
       {format === "local" && (
-        <div className="mb-5">
-          <div className="text-xs font-bold uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>Opponent</div>
-          <select value={opponentSelection} onChange={e => setOpponentSelection(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-lg text-sm"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: opponentSelection ? "#fff" : "rgba(255,255,255,0.35)" }}>
+        <div className="bc-field">
+          <span className="bc-field-label">Opponent</span>
+          <select value={opponentSelection} onChange={e => setOpponentSelection(e.target.value)} className="bc-select">
             <option value="" style={{ color: "#111" }}>Select a player…</option>
             {opponents.map(p => (
               <option key={p.id} value={String(p.id)} style={{ color: "#111" }}>{p.name}</option>
@@ -516,35 +436,18 @@ export default function BoardCursePage() {
           </select>
           {opponentSelection === GUEST_OPTION && (
             <input value={guestName} onChange={e => setGuestName(e.target.value)} placeholder="Guest's name" autoFocus
-              className="w-full px-4 py-2.5 rounded-lg text-sm mt-2"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }} />
+              className="bc-select" style={{ marginTop: "8px" }} />
           )}
         </div>
       )}
 
-      {format === "solo" && !endlessMode && bestVisits !== null && (
-        <div className="text-center text-xs mb-5" style={{ color: "rgba(255,255,255,0.35)" }}>
-          Personal best: {bestVisits} visit{bestVisits === 1 ? "" : "s"}
-        </div>
-      )}
-      {format === "solo" && endlessMode && bestStreak !== null && (
-        <div className="text-center text-xs mb-5" style={{ color: "rgba(255,255,255,0.35)" }}>
-          Longest streak: {bestStreak} leg{bestStreak === 1 ? "" : "s"}
-        </div>
-      )}
+      {format === "solo" && !endlessMode && bestVisits !== null && <div className="bc-note">Personal best: {bestVisits} visit{bestVisits === 1 ? "" : "s"}</div>}
+      {format === "solo" && endlessMode && bestStreak !== null && <div className="bc-note">Longest streak: {bestStreak} leg{bestStreak === 1 ? "" : "s"}</div>}
       {(format === "bot" || format === "local") && record && (
-        <div className="text-center text-xs mb-5" style={{ color: "rgba(255,255,255,0.35)" }}>
-          Your record {format === "bot" ? "vs Bots" : "vs Local Players"}: {record.wins}-{record.losses}
-        </div>
+        <div className="bc-note">Your record {format === "bot" ? "vs Bots" : "vs Local Players"}: {record.wins}-{record.losses}</div>
       )}
 
-      <button onClick={handleStart} disabled={!canStart}
-        className="w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider"
-        style={{
-          background: canStart ? "linear-gradient(135deg,#ff8a00,#8b0000)" : "rgba(255,255,255,0.06)",
-          color: canStart ? "#fff" : "rgba(255,255,255,0.3)",
-          cursor: canStart ? "pointer" : "not-allowed",
-        }}>
+      <button onClick={handleStart} disabled={!canStart} className="bc-start-btn">
         <Swords className="inline w-3.5 h-3.5 mr-1.5" />Start
       </button>
     </div>

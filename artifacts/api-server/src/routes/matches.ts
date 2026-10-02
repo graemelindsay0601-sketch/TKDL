@@ -114,10 +114,15 @@ router.get("/matches/flashback", async (req, res): Promise<void> => {
   const day = now.getDate();
   const year = now.getFullYear();
 
+  // immutable_month_utc/immutable_day_utc (added in add_performance_indexes_5)
+  // mirror idx_matches_flashback_month_day's indexed expression exactly —
+  // using raw EXTRACT(... FROM played_at) here instead would still work
+  // (same result), but wouldn't match the index's expression, so Postgres
+  // would silently fall back to a sequential scan of matches for every call.
   const anniversary = await db.execute(sql`
     SELECT * FROM matches
-    WHERE EXTRACT(MONTH FROM played_at) = ${month}
-      AND EXTRACT(DAY FROM played_at) = ${day}
+    WHERE immutable_month_utc(played_at) = ${month}
+      AND immutable_day_utc(played_at) = ${day}
       AND EXTRACT(YEAR FROM played_at) < ${year}
     ORDER BY played_at ASC
   `);
@@ -129,8 +134,8 @@ router.get("/matches/flashback", async (req, res): Promise<void> => {
     lastMonth.setMonth(lastMonth.getMonth() - 1);
     const monthly = await db.execute(sql`
       SELECT * FROM matches
-      WHERE EXTRACT(MONTH FROM played_at) = ${lastMonth.getMonth() + 1}
-        AND EXTRACT(DAY FROM played_at) = ${lastMonth.getDate()}
+      WHERE immutable_month_utc(played_at) = ${lastMonth.getMonth() + 1}
+        AND immutable_day_utc(played_at) = ${lastMonth.getDate()}
         AND EXTRACT(YEAR FROM played_at) = ${lastMonth.getFullYear()}
       ORDER BY played_at ASC
     `);
@@ -750,10 +755,40 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
       // Same pot-splitting math team-matches.ts used when paying winners
       // out of what the losing side actually staked — see that file's
       // comment for why a flat `stake` per winner is wrong for uneven teams.
-      const pot = match.stake * loserParticipants.length;
+      //
+      // This used to be `match.stake * loserParticipants.length`, which only
+      // matches the real forward-path pot (wagerPot in lib/wager-pot.ts:
+      // `stake * Math.max(winnerCount, loserCount)`) when the losing side is
+      // the larger (or equal) one. Whenever the WINNING team was bigger
+      // (e.g. 3 winners vs 1 loser), the true pot was stake × 3, but this
+      // reconstructed a too-small stake × 1 — winners' shares were split out
+      // of a shrunken pot (under-crediting them) while the single loser was
+      // flat-restored `points + stake` (under-charging them relative to what
+      // they actually staked), permanently corrupting both sides' standings
+      // for any such legacy row. Only reachable for rows predating the
+      // pointsDelta/eloDelta columns (the hasExactDeltas branch above
+      // handles every match recorded today exactly, from its stored
+      // deltas) — this branch is the best reconstruction possible for that
+      // legacy data, using "per-player" mode's formula since that was the
+      // only mode that existed before stakeMode was introduced (a legacy
+      // row predating per-participant deltas necessarily predates stakeMode
+      // too, which — see team-matches.ts — is accepted but never itself
+      // persisted on the match row; only the resulting deltas are, and
+      // those are exactly what's missing here).
+      const pot = match.stake * Math.max(winnerParticipants.length, loserParticipants.length);
       const baseShare = Math.floor(pot / winnerParticipants.length);
       const remainder = pot - baseShare * winnerParticipants.length;
       const winnerShares = winnerParticipants.map((_, i) => baseShare + (i < remainder ? 1 : 0));
+      // Same split applied to the losing side — the loser restoration loop
+      // below used to add back a flat `match.stake` per loser, which is only
+      // right when loserCount >= winnerCount (where pot/loserCount does
+      // reduce to exactly `stake`). With more winners than losers, each
+      // loser actually staked pot/loserCount — more than the nominal
+      // `stake` — and was being under-charged (over-credited on restore) by
+      // this flat formula.
+      const loserBaseShare = Math.floor(pot / loserParticipants.length);
+      const loserRemainder = pot - loserBaseShare * loserParticipants.length;
+      const loserShares = loserParticipants.map((_, i) => loserBaseShare + (i < loserRemainder ? 1 : 0));
 
       const allPlayerIds = [...winnerParticipants, ...loserParticipants].map(p => p.playerId);
       const allPlayerRows = await tx.select().from(playersTable).where(inArray(playersTable.id, allPlayerIds));
@@ -795,10 +830,11 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
       // forward path bumps every winner's eliminationsCount once when at
       // least one losing player is eliminated, so mirror that going back.
       const eliminatedLoserIds = new Set<number>();
-      for (const lp of loserParticipants) {
+      for (let i = 0; i < loserParticipants.length; i++) {
+        const lp = loserParticipants[i];
         const p = playerById.get(lp.playerId);
         if (!p) continue; // player deleted since — nothing to revert for them
-        if (p.status === "ELIMINATED" && p.points + match.stake > 0) eliminatedLoserIds.add(p.id);
+        if (p.status === "ELIMINATED" && p.points + loserShares[i] > 0) eliminatedLoserIds.add(p.id);
       }
       const anyLoserWasEliminated = eliminatedLoserIds.size > 0;
 
@@ -822,10 +858,11 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
         }).where(eq(playersTable.id, p.id));
       }
 
-      for (const lp of loserParticipants) {
+      for (let i = 0; i < loserParticipants.length; i++) {
+        const lp = loserParticipants[i];
         const p = playerById.get(lp.playerId);
         if (!p) continue;
-        const restoredPoints = p.points + match.stake;
+        const restoredPoints = p.points + loserShares[i];
         const wasEliminated = eliminatedLoserIds.has(p.id);
         const streak = await calcStreak(p.id);
         await tx.update(playersTable).set({
@@ -843,7 +880,7 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
           seasonGamesPlayed: Math.max(0, p.seasonGamesPlayed - 1),
           careerLosses:      Math.max(0, p.careerLosses - 1),
           careerGamesPlayed: Math.max(0, p.careerGamesPlayed - 1),
-          careerPoints:      p.careerPoints + match.stake,
+          careerPoints:      p.careerPoints + loserShares[i],
           currentWinStreak:  streak.winStreak,
           currentLossStreak: streak.lossStreak,
           ...(wasEliminated ? { status: "ACTIVE" } : {}),

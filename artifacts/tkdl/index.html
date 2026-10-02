@@ -48,9 +48,115 @@
       /* Prevent layout shift while loading */
       html { background-color: #04040a; color: #fff; }
       body { margin: 0; padding: 0; background-color: #04040a; }
+
+      /* ── TKDL boot splash ──────────────────────────────────────────────
+         Shown instantly from static markup, before the JS bundle has even
+         finished downloading/parsing — there is no React yet to render
+         anything, so this has to be plain HTML/CSS. main.tsx removes this
+         element (fading it out) the moment it has something real to show
+         in its place: either the app itself, or the server wake-up screen
+         below it if the backend is cold-starting. That hand-off is
+         intentionally seamless because the wake-up screen (renderWakeScreen
+         in main.tsx) uses this exact same mark/ring/dart/spark/wordmark
+         markup and animation — keep the two in sync if you tune this.
+         Mark is the real /icon-192.png (not a drawn dartboard) with the
+         glow-halo treatment from layout.tsx's sidebar logo, two
+         counter-rotating accent rings pulled from the real nav palette
+         (pink/gold outer, cyan/purple inner), and the wordmark matches the
+         real header typography (Oswald 800, 0.2em tracking, pink glow). */
+      #tkdl-splash {
+        position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; padding: 24px;
+        background:
+          radial-gradient(circle at 18% 15%, rgba(255,0,92,.2), transparent 34%),
+          radial-gradient(circle at 82% 85%, rgba(0,102,255,.18), transparent 36%),
+          radial-gradient(circle at 85% 12%, rgba(255,210,74,.10), transparent 30%),
+          radial-gradient(circle at 12% 88%, rgba(139,92,246,.09), transparent 32%),
+          #05030b;
+        transition: opacity .4s ease;
+      }
+      #tkdl-splash.tkdl-splash-out { opacity: 0; pointer-events: none; }
+      .tkdl-mark-wrap { position: relative; width: 150px; height: 150px; margin: 0 auto; }
+      .tkdl-mark-glow { position: absolute; inset: -16%; border-radius: 30%;
+        background: radial-gradient(circle, rgba(255,0,92,.5), transparent 70%);
+        filter: blur(18px); animation: tkdl-glow-pulse 2.2s ease-in-out infinite; }
+      .tkdl-mark-ring { position: absolute; inset: -12%; border-radius: 50%;
+        background: conic-gradient(from 0deg, #ff005c, #ffd24a 30%, transparent 52%, transparent 100%);
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+                mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+        animation: tkdl-ring-spin 3.2s linear infinite; opacity: .9; }
+      .tkdl-mark-ring-inner { position: absolute; inset: -5%; border-radius: 50%;
+        background: conic-gradient(from 180deg, #38bdf8, #8b5cf6 40%, transparent 58%, transparent 100%);
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+                mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+        animation: tkdl-ring-spin-rev 2.6s linear infinite; opacity: .65; }
+      .tkdl-mark-img { position: relative; z-index: 1; width: 100%; height: 100%; border-radius: 22%;
+        object-fit: cover; display: block; box-shadow: 0 10px 26px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.06); }
+      @keyframes tkdl-glow-pulse { 0%, 100% { opacity: .5; transform: scale(.95); } 50% { opacity: 1; transform: scale(1.05); } }
+      @keyframes tkdl-ring-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+      @keyframes tkdl-ring-spin-rev { from { transform: rotate(0); } to { transform: rotate(-360deg); } }
+      .tkdl-dart { position: absolute; top: 50%; left: 50%; width: 56px; height: 10px; margin-top: -5px; margin-left: -56px; transform-origin: 100% 50%; z-index: 2;
+        animation: tkdl-dart-throw 2.4s cubic-bezier(.33,.9,.4,1) infinite; }
+      .tkdl-dart-shaft { position: absolute; right: 5px; left: 12px; top: 50%; height: 3px; margin-top: -1.5px; background: linear-gradient(90deg,#8a8a99,#e8e8f2); border-radius: 2px; }
+      .tkdl-dart-tip { position: absolute; right: -2px; top: 50%; width: 0; height: 0; margin-top: -5px; border-style: solid; border-width: 5px 0 5px 13px; border-color: transparent transparent transparent #ffd24a; filter: drop-shadow(0 0 4px rgba(255,210,74,.7)); }
+      .tkdl-dart-flight { position: absolute; left: 0; top: 50%; width: 17px; height: 17px; margin-top: -8.5px; background: linear-gradient(135deg,#ff005c,#ff6b9d); clip-path: polygon(0 50%, 100% 0, 68% 50%, 100% 100%); }
+      .tkdl-impact { position: absolute; top: 50%; left: 50%; width: 9px; height: 9px; margin: -4.5px; border-radius: 50%; border: 2px solid #ffd24a; opacity: 0; z-index: 2; animation: tkdl-impact-ring 2.4s cubic-bezier(.33,.9,.4,1) infinite; }
+      .tkdl-spark { position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; border-radius: 1px; margin: -2px; z-index: 2; opacity: 0; animation: tkdl-spark-fly 2.4s cubic-bezier(.33,.9,.4,1) infinite; }
+      .tkdl-spark:nth-of-type(1) { background: #ffd24a; --a: -70deg; }
+      .tkdl-spark:nth-of-type(2) { background: #ff005c; --a: -25deg; }
+      .tkdl-spark:nth-of-type(3) { background: #ffd24a; --a: 20deg; }
+      .tkdl-spark:nth-of-type(4) { background: #ff6b9d; --a: 65deg; }
+      .tkdl-spark:nth-of-type(5) { background: #ffd24a; --a: 140deg; }
+      .tkdl-spark:nth-of-type(6) { background: #ff005c; --a: -150deg; }
+      @keyframes tkdl-dart-throw {
+        0% { transform: translate(56px,-66px) rotate(18deg) scale(.55); opacity: 0; }
+        16% { opacity: 1; }
+        54% { transform: translate(0,0) rotate(-24deg) scale(1); opacity: 1; }
+        80% { transform: translate(0,0) rotate(-24deg) scale(1); opacity: 1; }
+        94% { transform: translate(0,0) rotate(-24deg) scale(1); opacity: 0; }
+        100% { transform: translate(56px,-66px) rotate(18deg) scale(.55); opacity: 0; }
+      }
+      @keyframes tkdl-impact-ring {
+        0%, 52% { transform: scale(0); opacity: 0; }
+        58% { transform: scale(1); opacity: .85; }
+        80% { transform: scale(2.6); opacity: 0; }
+        100% { opacity: 0; }
+      }
+      @keyframes tkdl-spark-fly {
+        0%, 54% { transform: rotate(var(--a)) translateY(0); opacity: 0; }
+        60% { opacity: 1; }
+        78% { transform: rotate(var(--a)) translateY(-26px); opacity: 0; }
+        100% { opacity: 0; }
+      }
+      .tkdl-word { margin-top: 22px; text-align: center; font-family: Oswald, Arial, sans-serif; }
+      .tkdl-word b { display: block; font-size: clamp(1.8rem,7vw,2.6rem); font-weight: 800; letter-spacing: .2em; color: #fff; text-shadow: 0 0 24px rgba(255,0,60,.55); }
+      .tkdl-word small { display: block; margin-top: 7px; font-size: .62rem; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: rgba(255,255,255,.4); }
+      .tkdl-bar { width: 140px; height: 3px; margin: 20px auto 0; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; }
+      .tkdl-bar i { display: block; width: 100%; height: 100%; border-radius: 2px; background-size: 300% 100%;
+        background-image: linear-gradient(90deg,#ff005c,#ffd24a,#38bdf8,#8b5cf6,#ff005c); animation: tkdl-bar-shimmer 2.8s linear infinite; }
+      @keyframes tkdl-bar-shimmer { 0% { background-position: 0% 0; } 100% { background-position: 300% 0; } }
     </style>
   </head>
   <body>
+    <div id="tkdl-splash">
+      <section style="text-align: center">
+        <div class="tkdl-mark-wrap">
+          <div class="tkdl-mark-glow"></div>
+          <div class="tkdl-mark-ring"></div>
+          <div class="tkdl-mark-ring-inner"></div>
+          <img class="tkdl-mark-img" src="/icon-192.png" alt="TKDL" />
+          <div class="tkdl-dart">
+            <span class="tkdl-dart-flight"></span>
+            <span class="tkdl-dart-shaft"></span>
+            <span class="tkdl-dart-tip"></span>
+          </div>
+          <div class="tkdl-impact"></div>
+          <span class="tkdl-spark"></span><span class="tkdl-spark"></span><span class="tkdl-spark"></span>
+          <span class="tkdl-spark"></span><span class="tkdl-spark"></span><span class="tkdl-spark"></span>
+        </div>
+        <div class="tkdl-word"><b>TKDL</b><small>Tesco Kilbirnie Darts League</small></div>
+        <div class="tkdl-bar"><i></i></div>
+      </section>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

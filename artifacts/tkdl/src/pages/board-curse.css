@@ -1,0 +1,118 @@
+/* Board Curse — same visual system as boss-battle.css/match-centre.css
+   (Oswald, dark radial-gradient hero, neon accents, uppercase tracked
+   labels). Board Curse's own accent stays the established #ff8a00/#8b0000
+   pairing already used for its buttons; curse tiers get their own
+   escalating color (mild → medium → severe) so the compendium and any
+   tier-colored chip read as a difficulty ramp rather than one flat hue. */
+
+.bc-shell{max-width:620px;margin:0 auto;padding:28px 18px 70px;color:#fff;font-family:Oswald,sans-serif}
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+.bc-hero{position:relative;overflow:hidden;padding:30px 26px;border:1px solid rgba(255,255,255,.09);border-radius:20px;
+  background:radial-gradient(circle at 80% 15%,rgba(255,138,0,.22),transparent 34%),linear-gradient(120deg,rgba(139,0,0,.2),transparent 50%),#0a0911;
+  text-align:center}
+.bc-hero:after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(90deg,transparent 49.5%,rgba(255,255,255,.025) 50%,transparent 50.5%),linear-gradient(0deg,transparent 49.5%,rgba(255,255,255,.018) 50%,transparent 50.5%);
+  background-size:48px 48px}
+.bc-hero>*{position:relative;z-index:1}
+.bc-kicker{display:inline-flex;align-items:center;gap:7px;font:700 .62rem Oswald,sans-serif;letter-spacing:.22em;color:rgba(255,255,255,.45);text-transform:uppercase}
+.bc-kicker i{width:6px;height:6px;border-radius:50%;background:#ff8a00;box-shadow:0 0 10px #ff8a00}
+.bc-hero h1{margin:10px 0 2px;font:900 clamp(2rem,8vw,2.8rem)/1 Oswald,sans-serif;letter-spacing:-.02em;display:flex;align-items:center;justify-content:center;gap:9px}
+.bc-hero h1 svg{color:#ff8a00;width:.78em;height:.78em}
+.bc-hero p{margin:0;font-size:.78rem;color:rgba(255,255,255,.45)}
+.bc-hero-actions{display:flex;justify-content:center;gap:10px;margin-top:16px}
+.bc-pill-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);
+  font:700 .62rem Oswald,sans-serif;letter-spacing:.06em;color:rgba(255,255,255,.55);text-transform:uppercase;cursor:pointer}
+.bc-stat-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.bc-stat-tile{padding:12px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.bc-stat-tile strong{display:block;font:900 1.3rem Oswald,sans-serif;color:#ffd24a}
+.bc-stat-tile span{display:block;margin-top:2px;font:700 .5rem Oswald,sans-serif;letter-spacing:.12em;color:rgba(255,255,255,.35);text-transform:uppercase}
+
+/* ── Fields / format grid ─────────────────────────────────────────────── */
+.bc-field{margin:20px 0}
+.bc-field-label{font:700 .62rem Oswald,sans-serif;letter-spacing:.14em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:8px;display:block}
+.bc-select{width:100%;padding:11px 14px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#fff;font:600 .85rem Oswald,sans-serif;cursor:pointer}
+.bc-tabs{display:flex;gap:8px}
+.bc-tab{flex:1;padding:10px;border-radius:10px;font:700 .68rem Oswald,sans-serif;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5)}
+.bc-tab.active{background:rgba(255,138,0,.15);border-color:rgba(255,138,0,.4);color:#ff8a00}
+
+.bc-format-grid{display:flex;flex-direction:column;gap:8px}
+.bc-format-card{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:14px;cursor:pointer;text-align:left;width:100%;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);transition:transform .15s,border-color .15s}
+.bc-format-card:hover{transform:translateX(2px)}
+.bc-format-card.active{background:rgba(255,138,0,.1);border-color:rgba(255,138,0,.4)}
+.bc-format-icon{flex-shrink:0;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.05)}
+.bc-format-card.active .bc-format-icon{background:rgba(255,138,0,.18)}
+.bc-format-icon svg{color:rgba(255,255,255,.4)}
+.bc-format-card.active .bc-format-icon svg{color:#ff8a00}
+.bc-format-name{font:800 .85rem Oswald,sans-serif;color:#fff}
+.bc-format-desc{font-size:.68rem;color:rgba(255,255,255,.4);margin-top:1px}
+
+.bc-toggle-row{display:flex;align-items:center;justify-content:space-between;width:100%;padding:13px 15px;border-radius:14px;cursor:pointer;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09)}
+.bc-toggle-row.active{background:rgba(255,138,0,.1);border-color:rgba(255,138,0,.4)}
+.bc-toggle-left{display:flex;align-items:center;gap:12px;text-align:left}
+.bc-toggle-left svg{color:rgba(255,255,255,.4)}
+.bc-toggle-row.active .bc-toggle-left svg{color:#ff8a00}
+.bc-switch{width:36px;height:20px;border-radius:999px;position:relative;flex-shrink:0;background:rgba(255,255,255,.15);transition:background .15s}
+.bc-switch.on{background:#ff8a00}
+.bc-switch>i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
+.bc-switch.on>i{left:18px}
+
+.bc-pill-row{display:flex;gap:8px}
+.bc-pill{flex:1;padding:9px;border-radius:10px;font:700 .68rem Oswald,sans-serif;text-align:center;cursor:pointer;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5)}
+.bc-pill.active{background:rgba(255,138,0,.15);border-color:rgba(255,138,0,.4);color:#ff8a00}
+.bc-diff-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.bc-diff-pill{padding:9px 4px;border-radius:10px;font:700 .62rem Oswald,sans-serif;text-align:center;cursor:pointer;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5)}
+
+.bc-note{text-align:center;font-size:.72rem;color:rgba(255,255,255,.38);margin:4px 0 18px}
+.bc-start-btn{width:100%;padding:14px;border-radius:14px;font:700 .75rem Oswald,sans-serif;letter-spacing:.07em;text-transform:uppercase;cursor:pointer;border:0;
+  background:linear-gradient(135deg,#ff8a00,#8b0000);color:#fff;box-shadow:0 8px 24px rgba(255,138,0,.25)}
+.bc-start-btn:disabled{background:rgba(255,255,255,.06);color:rgba(255,255,255,.3);cursor:not-allowed;box-shadow:none}
+
+/* ── Endless banner (shown over the live scorer) ─────────────────────── */
+.bc-endless-banner{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 4px}
+.bc-endless-banner span{font:800 .8rem Oswald,sans-serif;color:#ff8a00;display:flex;align-items:center;gap:5px}
+.bc-endless-banner button{padding:6px 12px;border-radius:8px;font:700 .62rem Oswald,sans-serif;text-transform:uppercase;background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);border:0;cursor:pointer}
+
+/* ── Result screens ──────────────────────────────────────────────────── */
+.bc-result{text-align:center;padding:50px 10px 10px;position:relative}
+.bc-result-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 18%,var(--glow),transparent 50%);opacity:.35}
+.bc-result>*{position:relative;z-index:1}
+.bc-result-icon{width:68px;height:68px;margin:0 auto 14px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--glow) 20%,transparent);border:2px solid var(--glow)}
+.bc-result-icon svg{width:32px;height:32px;color:var(--glow)}
+.bc-result h1{font:900 1.5rem Oswald,sans-serif;color:#fff;margin:0 0 6px}
+.bc-result p{font-size:.78rem;color:rgba(255,255,255,.48);margin:0}
+.bc-result-actions{display:flex;gap:10px;margin-top:26px}
+.bc-btn-ghost{flex:1;padding:13px;border-radius:12px;font:700 .72rem Oswald,sans-serif;letter-spacing:.07em;text-transform:uppercase;cursor:pointer;border:0;background:rgba(255,255,255,.06);color:rgba(255,255,255,.6)}
+.bc-btn-primary{flex:1;padding:13px;border-radius:12px;font:700 .72rem Oswald,sans-serif;letter-spacing:.07em;text-transform:uppercase;cursor:pointer;border:0;background:linear-gradient(135deg,#ff8a00,#8b0000);color:#fff;box-shadow:0 8px 24px rgba(255,138,0,.25)}
+
+/* ── Compendium ───────────────────────────────────────────────────────── */
+.bc-tier-section{margin-bottom:18px}
+.bc-tier-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-left:2px}
+.bc-tier-dot{width:9px;height:9px;border-radius:50%;background:var(--tier);box-shadow:0 0 8px var(--tier)}
+.bc-tier-head span{font:800 .65rem Oswald,sans-serif;letter-spacing:.1em;color:var(--tier);text-transform:uppercase}
+.bc-curse-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bc-curse-card{padding:11px 12px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);border-left:3px solid var(--tier)}
+.bc-curse-name{font:800 .75rem Oswald,sans-serif;color:#fff}
+.bc-curse-desc{font-size:.63rem;color:rgba(255,255,255,.42);margin-top:3px;line-height:1.4}
+
+/* ── Leaderboard ──────────────────────────────────────────────────────── */
+.bc-lb-section{margin-bottom:18px}
+.bc-lb-title{font:800 .6rem Oswald,sans-serif;letter-spacing:.1em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:10px}
+.bc-lb-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.055)}
+.bc-lb-rank{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:800 .62rem Oswald,sans-serif;background:rgba(255,255,255,.06);color:rgba(255,255,255,.4);flex-shrink:0}
+.bc-lb-rank.gold{background:rgba(255,210,74,.2);color:#ffd24a}
+.bc-lb-rank.silver{background:rgba(203,213,225,.18);color:#cbd5e1}
+.bc-lb-rank.bronze{background:rgba(217,119,6,.2);color:#d97706}
+.bc-lb-name{flex:1;min-width:0;font:600 .82rem Oswald,sans-serif;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bc-lb-value{font:800 .8rem Oswald,sans-serif;color:#ff8a00;flex-shrink:0}
+.bc-empty{text-align:center;padding:14px 0;font-size:.72rem;color:rgba(255,255,255,.32)}
+
+@media(max-width:480px){
+  .bc-curse-grid{grid-template-columns:1fr}
+  .bc-hero{padding:24px 18px}
+  .bc-stat-row{grid-template-columns:1fr 1fr}
+}

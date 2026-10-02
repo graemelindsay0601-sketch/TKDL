@@ -3,7 +3,7 @@ import { computeWagerShares } from "../lib/wager-pot";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { db, playersTable, matchesTable, seasonsTable, matchParticipantsTable } from "@workspace/db";
 import { z } from "zod";
-import { calcEloChange } from "../lib/elo";
+import { calcEloChange, ELO_FLOOR } from "../lib/elo";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { createAutoPost } from "../lib/communityNotify";
 import { sendMatchResultBroadcast, sendRankChangeNotifications, sendTeamMatchResultNotification } from "../services/notificationService";
@@ -207,7 +207,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
       const { winnerShares, loserShares } = computeWagerShares(stake, winnerPlayers.length, loserPlayers.length, stakeMode);
       const loserOutcomes = loserPlayers.map((p, i) => {
         const newPoints = Math.max(0, p.points - loserShares[i]);
-        const newElo = Math.max(800, p.elo - lockedEloChange);
+        const newElo = Math.max(ELO_FLOOR, p.elo - lockedEloChange);
         return { pointsDelta: newPoints - p.points, eloDelta: newElo - p.elo, causedElimination: newPoints === 0 };
       });
 
@@ -276,7 +276,7 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
         const eliminated = newPoints === 0;
         const newLossStreak = p.currentLossStreak + 1;
         await tx.update(playersTable).set({
-          elo:               Math.max(800, p.elo - lockedEloChange),
+          elo:               Math.max(ELO_FLOOR, p.elo - lockedEloChange),
           points:            newPoints,
           seasonLosses:      p.seasonLosses + 1,
           seasonGamesPlayed: p.seasonGamesPlayed + 1,

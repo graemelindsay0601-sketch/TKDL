@@ -7,6 +7,7 @@ import { AuthProvider } from "@/context/auth";
 import { Layout } from "@/components/layout";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { lazyWithRetry } from "@/lib/lazy-with-retry";
+import { TkdlLoader } from "@/components/TkdlLoader";
 
 const Dashboard = lazyWithRetry(() => import("@/pages/dashboard"), "dashboard");
 const Leaderboard = lazyWithRetry(() => import("@/pages/leaderboard"), "leaderboard");
@@ -57,9 +58,8 @@ const queryClient = new QueryClient({
 
 function PageLoader() {
   return (
-    <div className="flex justify-center items-center h-64">
-      <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin"
-        style={{ borderTopColor: "#ff005c" }} />
+    <div className="flex justify-center items-center" style={{ minHeight: "50vh" }}>
+      <TkdlLoader />
     </div>
   );
 }

@@ -1,0 +1,123 @@
+/* Boss Battle — visual language matches match-centre.css / dashboard.tsx:
+   Oswald display type, dark radial-gradient hero with a faint scanline
+   grid, neon accents, uppercase letter-spaced labels. Boss Battle's own
+   accent is the established #ff005c/#8b0000 pairing already used for its
+   buttons; each boss additionally borrows its *difficulty tier* color
+   straight from lib/bot-engine.ts's BOT_LEVELS so the ladder's color
+   progression (green → blue → purple → gold → pink) already matches the
+   difficulty curve used everywhere else in the app, instead of inventing
+   a parallel palette. */
+
+.bb-shell{max-width:620px;margin:0 auto;padding:28px 18px 70px;color:#fff;font-family:Oswald,sans-serif}
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+.bb-hero{position:relative;overflow:hidden;padding:30px 26px;border:1px solid rgba(255,255,255,.09);border-radius:20px;
+  background:radial-gradient(circle at 80% 15%,rgba(255,0,92,.22),transparent 34%),linear-gradient(120deg,rgba(139,0,0,.22),transparent 50%),#0a0911;
+  text-align:center}
+.bb-hero:after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(90deg,transparent 49.5%,rgba(255,255,255,.025) 50%,transparent 50.5%),linear-gradient(0deg,transparent 49.5%,rgba(255,255,255,.018) 50%,transparent 50.5%);
+  background-size:48px 48px}
+.bb-hero>*{position:relative;z-index:1}
+.bb-kicker{display:inline-flex;align-items:center;gap:7px;font:700 .62rem Oswald,sans-serif;letter-spacing:.22em;color:rgba(255,255,255,.45);text-transform:uppercase}
+.bb-kicker i{width:6px;height:6px;border-radius:50%;background:#ff005c;box-shadow:0 0 10px #ff005c}
+.bb-hero h1{margin:10px 0 2px;font:900 clamp(2rem,8vw,2.8rem)/1 Oswald,sans-serif;letter-spacing:-.02em}
+.bb-hero p{margin:0;font-size:.78rem;color:rgba(255,255,255,.45)}
+.bb-hero-actions{display:flex;justify-content:center;gap:10px;margin-top:16px}
+.bb-pill-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);
+  font:700 .62rem Oswald,sans-serif;letter-spacing:.06em;color:rgba(255,255,255,.55);text-transform:uppercase;cursor:pointer;transition:background .15s,border-color .15s}
+.bb-pill-btn.active{background:rgba(255,210,74,.14);border-color:rgba(255,210,74,.4);color:#ffd24a}
+
+.bb-progress-wrap{margin-top:20px}
+.bb-progress-head{display:flex;justify-content:space-between;font:700 .55rem Oswald,sans-serif;letter-spacing:.12em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:6px}
+.bb-progress-head strong{color:#ffd24a;font-size:.68rem}
+.bb-progress-track{height:8px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden}
+.bb-progress-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#ff005c,#ffd24a);transition:width .4s ease}
+
+/* ── Player select ───────────────────────────────────────────────────── */
+.bb-field{margin:20px 0}
+.bb-field-label{font:700 .62rem Oswald,sans-serif;letter-spacing:.14em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:8px;display:block}
+.bb-select{width:100%;padding:11px 14px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#fff;font:600 .85rem Oswald,sans-serif;cursor:pointer}
+
+/* ── Ladder ───────────────────────────────────────────────────────────── */
+.bb-ladder{position:relative;padding-left:26px;margin-top:4px}
+.bb-ladder:before{content:"";position:absolute;left:21px;top:28px;bottom:28px;width:2px;
+  background:linear-gradient(180deg,#22c55e,#3b82f6,#a78bfa,#ffd24a,#ff005c);opacity:.35}
+.bb-boss-row{position:relative;display:block;width:100%;text-align:left;margin-bottom:12px}
+.bb-boss-card{position:relative;display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;
+  background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.09);transition:transform .15s,border-color .15s,background .15s}
+.bb-boss-row:not(:disabled):hover .bb-boss-card{transform:translateX(2px)}
+.bb-boss-card.won{background:rgba(255,210,74,.07);border-color:rgba(255,210,74,.3)}
+.bb-boss-card.locked{opacity:.5}
+.bb-boss-card.final{border-width:1.5px;background:linear-gradient(100deg,rgba(255,0,92,.1),rgba(255,255,255,.03));box-shadow:0 0 0 1px rgba(255,0,92,.15) inset}
+.bb-node{position:absolute;left:-26px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#0a0911;border:2px solid var(--tier);box-shadow:0 0 0 4px #0a0911}
+.bb-node.won{background:var(--tier)}
+.bb-boss-icon{flex-shrink:0;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:color-mix(in srgb,var(--tier) 16%,transparent);border:1px solid color-mix(in srgb,var(--tier) 40%,transparent)}
+.bb-boss-icon svg{color:var(--tier)}
+.bb-boss-body{flex:1;min-width:0}
+.bb-boss-name{font:800 .92rem Oswald,sans-serif;color:#fff}
+.bb-boss-card.locked .bb-boss-name{color:rgba(255,255,255,.4)}
+.bb-boss-tag{font-size:.65rem;color:rgba(255,255,255,.38);margin-top:1px}
+.bb-boss-stats{font-size:.58rem;color:rgba(255,255,255,.28);margin-top:4px;display:flex;gap:8px;align-items:center}
+.bb-boss-side{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0}
+.bb-tier-chip{font:700 .5rem Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--tier);padding:2px 7px;border-radius:5px;border:1px solid color-mix(in srgb,var(--tier) 40%,transparent)}
+.bb-mode-chip{font:700 .52rem Oswald,sans-serif;letter-spacing:.06em;color:rgba(255,255,255,.3);text-transform:uppercase}
+
+/* ── Entrance / "fight card" ─────────────────────────────────────────── */
+.bb-vs{text-align:center;padding-top:8px}
+.bb-vs-emblem{width:84px;height:84px;margin:0 auto 14px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:color-mix(in srgb,var(--tier) 18%,transparent);border:2px solid var(--tier);box-shadow:0 0 28px color-mix(in srgb,var(--tier) 55%,transparent)}
+.bb-vs-emblem svg{color:var(--tier);width:38px;height:38px}
+.bb-vs-kicker{font:700 .62rem Oswald,sans-serif;letter-spacing:.2em;color:var(--tier);text-transform:uppercase}
+.bb-vs h1{margin:8px 0 2px;font:900 2rem Oswald,sans-serif;color:#fff}
+.bb-vs-tagline{font-size:.82rem;color:rgba(255,255,255,.45);font-style:italic}
+.bb-vs-meta{display:flex;justify-content:center;gap:16px;margin:14px 0 4px;font:700 .58rem Oswald,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.35)}
+.bb-vs-meta b{color:var(--tier)}
+.bb-moves{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:22px;text-align:left}
+.bb-move-card{padding:12px 13px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.09);border-left:3px solid var(--tier)}
+.bb-move-card.enrage{grid-column:1/-1;background:linear-gradient(100deg,color-mix(in srgb,var(--tier) 14%,transparent),rgba(255,255,255,.03));border-left-color:var(--tier)}
+.bb-move-name{font:800 .72rem Oswald,sans-serif;color:#fff;display:flex;align-items:center;gap:5px}
+.bb-move-name svg{color:var(--tier);width:12px;height:12px}
+.bb-move-desc{font-size:.63rem;color:rgba(255,255,255,.42);margin-top:3px;line-height:1.4}
+.bb-move-tag{font:700 .48rem Oswald,sans-serif;letter-spacing:.1em;color:var(--tier);text-transform:uppercase;display:block;margin-bottom:3px}
+.bb-vs-footnote{font-size:.62rem;color:rgba(255,255,255,.28);margin-top:16px}
+.bb-vs-actions{display:flex;gap:10px;margin-top:22px}
+.bb-btn-ghost,.bb-btn-primary{flex:1;padding:13px;border-radius:12px;font:700 .72rem Oswald,sans-serif;letter-spacing:.07em;text-transform:uppercase;cursor:pointer;border:0}
+.bb-btn-ghost{background:rgba(255,255,255,.06);color:rgba(255,255,255,.6)}
+.bb-btn-primary{background:linear-gradient(135deg,#ff005c,#8b0000);color:#fff;box-shadow:0 8px 24px rgba(255,0,92,.25)}
+
+/* ── Result screen ───────────────────────────────────────────────────── */
+.bb-result{text-align:center;padding:50px 10px 10px;position:relative}
+.bb-result-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 18%,var(--glow),transparent 50%);opacity:.35}
+.bb-result>*{position:relative;z-index:1}
+.bb-result-icon{width:68px;height:68px;margin:0 auto 14px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--glow) 20%,transparent);border:2px solid var(--glow)}
+.bb-result-icon svg{width:32px;height:32px;color:var(--glow)}
+.bb-result h1{font:900 1.6rem Oswald,sans-serif;color:#fff;margin:0 0 6px}
+.bb-result p{font-size:.78rem;color:rgba(255,255,255,.48);margin:0}
+.bb-unlock-card{margin:22px auto 0;max-width:280px;padding:14px;border-radius:12px;background:rgba(255,210,74,.07);border:1px solid rgba(255,210,74,.28);display:flex;align-items:center;gap:10px;text-align:left}
+.bb-unlock-card svg{color:#ffd24a;flex-shrink:0}
+.bb-unlock-card small{display:block;font:700 .5rem Oswald,sans-serif;letter-spacing:.1em;color:rgba(255,210,74,.7);text-transform:uppercase}
+.bb-unlock-card strong{display:block;font:800 .82rem Oswald,sans-serif;color:#fff;margin-top:2px}
+
+/* ── Leaderboard ──────────────────────────────────────────────────────── */
+.bb-lb-title{font:800 .6rem Oswald,sans-serif;letter-spacing:.1em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:10px}
+.bb-lb-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.055)}
+.bb-lb-rank{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:800 .62rem Oswald,sans-serif;background:rgba(255,255,255,.06);color:rgba(255,255,255,.4);flex-shrink:0}
+.bb-lb-rank.gold{background:rgba(255,210,74,.2);color:#ffd24a}
+.bb-lb-rank.silver{background:rgba(203,213,225,.18);color:#cbd5e1}
+.bb-lb-rank.bronze{background:rgba(217,119,6,.2);color:#d97706}
+.bb-lb-name{flex:1;min-width:0;display:flex;align-items:center;gap:6px;font:600 .82rem Oswald,sans-serif;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bb-lb-name.me{color:#ffd24a;font-weight:800}
+.bb-lb-progress{width:50px;height:4px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;flex-shrink:0}
+.bb-lb-progress>i{display:block;height:100%;background:linear-gradient(90deg,#ff005c,#ffd24a)}
+.bb-lb-frac{font-size:.68rem;color:rgba(255,255,255,.4);width:36px;text-align:right;flex-shrink:0}
+.bb-lb-fastest-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:.68rem}
+.bb-lb-fastest-row>span:first-child{color:rgba(255,255,255,.5)}
+.bb-lb-fastest-row>span:last-child{display:flex;align-items:center;gap:4px;color:rgba(255,255,255,.4)}
+.bb-lb-fastest-row svg{width:11px;height:11px}
+.bb-empty{text-align:center;padding:14px 0;font-size:.72rem;color:rgba(255,255,255,.32)}
+
+@media(max-width:480px){
+  .bb-moves{grid-template-columns:1fr}
+  .bb-hero{padding:24px 18px}
+}

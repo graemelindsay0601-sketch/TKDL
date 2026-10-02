@@ -78,9 +78,25 @@ function ResultCard({ match, featured = false }: { match: Match; featured?: bool
 export default function MatchCentre() {
   const [feed, setFeed] = useState<Feed | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [mode, setMode] = useState<"all" | Mode>("all");
   const [query, setQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  const loadFeed = () => {
+    setLoading(true);
+    setLoadFailed(false);
+    fetch("/api/match-centre")
+      .then(r => r.ok ? r.json() : Promise.reject(new Error("Unable to load results")))
+      .then(setFeed)
+      // Previously every failure mode (network error, 500, timeout) collapsed
+      // into the same `{items: [], counts: {}}` as a genuinely empty
+      // archive, rendering "No results found… Try another player or
+      // competition" — actively misdirecting the user toward thinking it's
+      // a search problem rather than the server being unreachable.
+      .catch(() => setLoadFailed(true))
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     const preview = import.meta.env.DEV && new URLSearchParams(window.location.search).get("preview") === "1";
@@ -89,9 +105,7 @@ export default function MatchCentre() {
       setLoading(false);
       return;
     }
-    fetch("/api/match-centre")
-      .then(r => r.ok ? r.json() : Promise.reject(new Error("Unable to load results")))
-      .then(setFeed).catch(() => setFeed({ items: [], counts: {} })).finally(() => setLoading(false));
+    loadFeed();
   }, []);
 
   const filtered = useMemo(() => {
@@ -156,7 +170,15 @@ export default function MatchCentre() {
       <div className="mc-content">
         <main className="mc-history">
           {loading && <div className="mc-empty">Loading the league archive…</div>}
-          {!loading && groups.length === 0 && <div className="mc-empty"><Swords size={28}/><strong>No results found</strong><span>Try another player or competition.</span></div>}
+          {!loading && loadFailed && (
+            <div className="mc-empty">
+              <Swords size={28}/><strong>Couldn't load results</strong><span>Check your connection and try again.</span>
+              <button onClick={loadFeed} style={{ marginTop: "0.75rem", padding: "0.5rem 1.25rem", borderRadius: "0.75rem", fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.3)", color: "#ff005c", cursor: "pointer" }}>
+                Retry
+              </button>
+            </div>
+          )}
+          {!loading && !loadFailed && groups.length === 0 && <div className="mc-empty"><Swords size={28}/><strong>No results found</strong><span>Try another player or competition.</span></div>}
           {groups.map(([date, matches]) => (
             <section className="mc-day" key={date}>
               <div className="mc-day-heading"><CalendarDays size={14}/><strong>{dayLabel(matches[0].playedAt)}</strong><span>{matches.length} {matches.length === 1 ? "match" : "matches"}</span></div>

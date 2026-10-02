@@ -1,0 +1,94 @@
+/* Shared "TKDL is loading" visual identity — your actual app icon (icon-192.png)
+   with a soft glow halo, two counter-rotating accent rings (pink/gold outer,
+   cyan/purple inner — pulled straight from the real nav palette in
+   layout.tsx: league cyan #38bdf8, achievements purple #8b5cf6), and a dart
+   that flies in, sticks on the mark's own bullseye, and throws a small spark
+   burst on impact. This exact mark/ring/dart/spark markup and animation also
+   appears (duplicated, since they run outside React) in index.html's
+   pre-mount splash and in main.tsx's renderWakeScreen — all three are kept
+   visually identical on purpose, so whichever one a visitor happens to see
+   reads as the same branded moment rather than three different loaders. If
+   you tune the colors/timing here, mirror the change in those two places
+   too. The wordmark below matches the real header treatment (layout.tsx):
+   Oswald 800, wide 0.2em tracking, pink glow — not a separate invented style. */
+
+.tkdl-loader{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-family:Oswald,sans-serif}
+
+.tkdl-mark-wrap{position:relative;width:76px;height:76px;flex-shrink:0}
+.tkdl-loader--lg .tkdl-mark-wrap{width:148px;height:148px}
+
+.tkdl-mark-glow{position:absolute;inset:-16%;border-radius:30%;
+  background:radial-gradient(circle,rgba(255,0,92,.5),transparent 70%);
+  filter:blur(14px);animation:tkdl-glow-pulse 2.2s ease-in-out infinite}
+.tkdl-loader--lg .tkdl-mark-glow{filter:blur(18px)}
+
+.tkdl-mark-ring{position:absolute;inset:-12%;border-radius:50%;
+  background:conic-gradient(from 0deg,#ff005c,#ffd24a 30%,transparent 52%,transparent 100%);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));
+          mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));
+  animation:tkdl-ring-spin 3.2s linear infinite;opacity:.9}
+.tkdl-mark-ring-inner{position:absolute;inset:-5%;border-radius:50%;
+  background:conic-gradient(from 180deg,#38bdf8,#8b5cf6 40%,transparent 58%,transparent 100%);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));
+          mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));
+  animation:tkdl-ring-spin-rev 2.6s linear infinite;opacity:.65}
+
+.tkdl-mark-img{position:relative;z-index:1;width:100%;height:100%;border-radius:22%;
+  object-fit:cover;display:block;box-shadow:0 8px 20px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06)}
+
+@keyframes tkdl-glow-pulse{0%,100%{opacity:.5;transform:scale(.95)}50%{opacity:1;transform:scale(1.05)}}
+@keyframes tkdl-ring-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes tkdl-ring-spin-rev{from{transform:rotate(0)}to{transform:rotate(-360deg)}}
+
+.tkdl-dart{position:absolute;top:50%;left:50%;width:34px;height:6px;margin-top:-3px;margin-left:-34px;transform-origin:100% 50%;z-index:2;
+  animation:tkdl-dart-throw 2.4s cubic-bezier(.33,.9,.4,1) infinite}
+.tkdl-loader--lg .tkdl-dart{width:52px;height:9px;margin-top:-4.5px;margin-left:-52px}
+.tkdl-dart-shaft{position:absolute;right:5px;left:11px;top:50%;height:2px;margin-top:-1px;background:linear-gradient(90deg,#8a8a99,#e8e8f2);border-radius:2px}
+.tkdl-dart-tip{position:absolute;right:-2px;top:50%;width:0;height:0;margin-top:-3px;border-style:solid;border-width:3px 0 3px 8px;border-color:transparent transparent transparent #ffd24a;filter:drop-shadow(0 0 3px rgba(255,210,74,.7))}
+.tkdl-loader--lg .tkdl-dart-tip{margin-top:-4.5px;border-width:4.5px 0 4.5px 12px}
+.tkdl-dart-flight{position:absolute;left:0;top:50%;width:11px;height:11px;margin-top:-5.5px;background:linear-gradient(135deg,#ff005c,#ff6b9d);clip-path:polygon(0 50%,100% 0,68% 50%,100% 100%)}
+.tkdl-loader--lg .tkdl-dart-flight{width:16px;height:16px;margin-top:-8px}
+
+.tkdl-impact{position:absolute;top:50%;left:50%;width:8px;height:8px;margin:-4px;border-radius:50%;z-index:2;
+  border:2px solid #ffd24a;opacity:0;animation:tkdl-impact-ring 2.4s cubic-bezier(.33,.9,.4,1) infinite}
+
+.tkdl-spark{position:absolute;top:50%;left:50%;width:3px;height:3px;border-radius:1px;margin:-1.5px;z-index:2;
+  opacity:0;animation:tkdl-spark-fly 2.4s cubic-bezier(.33,.9,.4,1) infinite}
+.tkdl-loader--lg .tkdl-spark{width:4px;height:4px;margin:-2px}
+/* nth-of-type, not nth-child: sparks are the only <span> siblings directly
+   inside .tkdl-mark-wrap (the dart's own flight/shaft/tip spans live inside
+   .tkdl-dart, one level down, so they don't throw this count off). */
+.tkdl-spark:nth-of-type(1){background:#ffd24a;--a:-70deg}
+.tkdl-spark:nth-of-type(2){background:#ff005c;--a:-25deg}
+.tkdl-spark:nth-of-type(3){background:#ffd24a;--a:20deg}
+.tkdl-spark:nth-of-type(4){background:#ff6b9d;--a:65deg}
+.tkdl-spark:nth-of-type(5){background:#ffd24a;--a:140deg}
+.tkdl-spark:nth-of-type(6){background:#ff005c;--a:-150deg}
+
+@keyframes tkdl-board-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes tkdl-dart-throw{
+  0%{transform:translate(52px,-62px) rotate(18deg) scale(.55);opacity:0}
+  16%{opacity:1}
+  54%{transform:translate(0,0) rotate(-24deg) scale(1);opacity:1}
+  80%{transform:translate(0,0) rotate(-24deg) scale(1);opacity:1}
+  94%{transform:translate(0,0) rotate(-24deg) scale(1);opacity:0}
+  100%{transform:translate(52px,-62px) rotate(18deg) scale(.55);opacity:0}
+}
+@keyframes tkdl-impact-ring{
+  0%,52%{transform:scale(0);opacity:0}
+  58%{transform:scale(1);opacity:.85}
+  80%{transform:scale(2.6);opacity:0}
+  100%{opacity:0}
+}
+@keyframes tkdl-spark-fly{
+  0%,54%{transform:rotate(var(--a)) translateY(0);opacity:0}
+  60%{opacity:1}
+  78%{transform:rotate(var(--a)) translateY(-22px);opacity:0}
+  100%{opacity:0}
+}
+
+.tkdl-word{text-align:center}
+.tkdl-word b{display:block;font-size:1.05rem;font-weight:800;letter-spacing:.14em;color:#fff;text-shadow:0 0 14px rgba(255,0,60,.5)}
+.tkdl-loader--lg .tkdl-word b{font-size:clamp(1.8rem,7vw,2.6rem);letter-spacing:.2em;text-shadow:0 0 24px rgba(255,0,60,.55)}
+.tkdl-word small{display:block;margin-top:2px;font-size:.5rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.38)}
+.tkdl-loader--lg .tkdl-word small{font-size:.62rem;margin-top:5px}

@@ -782,7 +782,17 @@ function ShiftWarsSubmitSection() {
   }
 
   if (error) {
-    return <div className="pdc-card px-6 py-12 text-center text-sm" style={{ color: "#ff7b9d" }}>Couldn’t load Shift Wars teams. The server may still be waking — try again in a moment.</div>;
+    return (
+      <div className="pdc-card px-6 py-12 text-center text-sm" style={{ color: "#ff7b9d", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem" }}>
+        <span>Couldn’t load Shift Wars teams. The server may still be waking — try again in a moment.</span>
+        <button
+          onClick={() => void reload()}
+          style={{ padding: "0.5rem 1.25rem", borderRadius: "0.75rem", fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.3)", color: "#ff005c", cursor: "pointer" }}
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   if (teams.length === 0) {
@@ -942,7 +952,17 @@ function DoublesSubmitSection() {
   }
 
   if (error) {
-    return <div className="pdc-card px-6 py-12 text-center text-sm" style={{ color: "#ff7b9d" }}>Couldn’t load the Doubles draw. The server may still be waking — try again in a moment.</div>;
+    return (
+      <div className="pdc-card px-6 py-12 text-center text-sm" style={{ color: "#ff7b9d", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem" }}>
+        <span>Couldn’t load the Doubles draw. The server may still be waking — try again in a moment.</span>
+        <button
+          onClick={() => void reload()}
+          style={{ padding: "0.5rem 1.25rem", borderRadius: "0.75rem", fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", background: "rgba(0,102,255,0.1)", border: "1px solid rgba(0,102,255,0.3)", color: "#0066ff", cursor: "pointer" }}
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   if (activeTeams.length === 0) {

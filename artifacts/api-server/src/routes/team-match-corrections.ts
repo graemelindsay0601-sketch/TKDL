@@ -4,9 +4,9 @@ import { db } from "@workspace/db";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { logAdminAction } from "../lib/adminAudit";
 import { reverseTeamLedger } from "../lib/team-match-rollback";
+import { ELO_FLOOR } from "../lib/elo";
 
 const router = Router();
-const ELO_FLOOR = 800;
 
 type League = "doubles" | "shift_wars";
 // "multi" = the 3+-team live-elimination format (doubles-multi/shift-wars-
