@@ -1,0 +1,48 @@
+import { useEffect,useMemo,useState } from "react";
+import { Link,useLocation,useSearch } from "wouter";
+import { Activity,ArrowLeft,ChevronRight,ExternalLink,History,MonitorPlay,Play,Radio,RotateCcw,Swords,Target,Trophy,Users } from "lucide-react";
+import { useFetch } from "@/hooks/use-fetch";
+import { readMatchSnapshot } from "@/lib/nativeParity";
+import { saveMatchdayDraft,type MatchdayCompetition,type MatchdayDraft } from "@/lib/matchday";
+import "./matchday.css";
+
+type Entry={id:number;name:string;points:number;elo?:number;wins?:number;losses?:number;tier?:string;form?:string[];members?:string[];tagline?:string|null};
+type CentreMatch={key:string;winnerName:string;loserName:string;stake:number;playedAt:string;mode:string};
+type H2H={player1:{id:number;name:string;wins:number;elo:number;currentStreak:number};player2:{id:number;name:string;wins:number;elo:number;currentStreak:number};totalMatches:number;recentMatches:Array<{id:number;winnerId:number}>};
+type Live={sessionId:string;status:"prematch"|"live"|"finished";format:string;game:string;sides:[string[],string[]];updatedAt:string};
+const META={singles:{label:"Singles",accent:"#ff005c"},doubles:{label:"Doubles Event",accent:"#0066ff"},"shift-wars":{label:"Shift Wars",accent:"#22c55e"}} as const;
+
+function newSession(){return `matchday-${Date.now()}-${Math.random().toString(36).slice(2,9)}`}
+function formDots(form:string[]|undefined){return <div className="md-form">{(form??[]).slice(0,5).map((v,i)=><i key={i} className={v==="W"?"win":"loss"}>{v}</i>)}{!form?.length&&<small>Form building</small>}</div>}
+
+export default function Matchday(){
+  const search=useSearch(),params=new URLSearchParams(search),show=params.get("show")==="1";
+  const [,navigate]=useLocation();
+  const [competition,setCompetition]=useState<MatchdayCompetition>((params.get("competition") as MatchdayCompetition)||"singles");
+  const [a,setA]=useState(Number(params.get("a"))||0),[b,setB]=useState(Number(params.get("b"))||0);
+  const [doubles,setDoubles]=useState<Entry[]>([]),[shifts,setShifts]=useState<Entry[]>([]),[recent,setRecent]=useState<CentreMatch[]>([]),[live,setLive]=useState<Live|null>(null);
+  const {data:players}=useFetch<any[]>("/api/players");
+  const h2hUrl=show&&competition==="singles"&&a&&b?`/api/stats/h2h?p1=${a}&p2=${b}`:null;
+  const {data:h2h}=useFetch<H2H>(h2hUrl);
+  const hasRecovery=useMemo(()=>Boolean(readMatchSnapshot("tkdl_play_snapshot")),[]);
+  useEffect(()=>{Promise.allSettled([
+    fetch("/api/seasons/current?leagueType=doubles").then(r=>r.ok?r.json():null).then(s=>s?.id?fetch(`/api/seasons/${s.id}/doubles/teams`).then(r=>r.json()):[]).then(rows=>setDoubles((Array.isArray(rows)?rows:[]).filter((x:any)=>!x.isEliminated).map((x:any)=>({id:Number(x.id),name:x.teamName,points:Number(x.points),elo:Number(x.elo),wins:Number(x.wins),losses:Number(x.losses),members:x.players?.map((p:any)=>p.name)??[]})))),
+    fetch("/api/shift-wars/teams").then(r=>r.ok?r.json():[]).then(rows=>setShifts((Array.isArray(rows)?rows:[]).map((x:any)=>({id:Number(x.id),name:x.name,points:Number(x.points),wins:Number(x.wins),losses:Number(x.losses),members:x.players?.map((p:any)=>p.name)??[]})))),
+    fetch("/api/match-centre").then(r=>r.ok?r.json():{items:[]}).then(data=>setRecent((data.items??[]).slice(0,6))),
+    fetch("/api/live-match",{cache:"no-store"}).then(r=>r.ok?r.json():{active:null}).then(data=>setLive(data.active??null)),
+  ])},[]);
+  const singles:Entry[]=(players??[]).filter((p:any)=>p.status==="ACTIVE").map((p:any)=>({id:Number(p.id),name:p.name,points:Number(p.points),elo:Number(p.elo),wins:Number(p.seasonWins??0),losses:Number(p.seasonLosses??0),tier:p.tier,form:p.recentForm,tagline:p.tagline}));
+  const entries=competition==="singles"?singles:competition==="doubles"?doubles:shifts;
+  const sideA=entries.find(x=>x.id===a),sideB=entries.find(x=>x.id===b),ready=Boolean(sideA&&sideB&&a!==b),meta=META[competition];
+  useEffect(()=>{if(a&&!entries.some(x=>x.id===a))setA(0);if(b&&!entries.some(x=>x.id===b))setB(0)},[competition,entries.length]);
+  const draft:MatchdayDraft|null=ready?{competition,sideAId:a,sideBId:b,sideAName:sideA!.name,sideBName:sideB!.name,sessionId:params.get("session")||newSession(),createdAt:Date.now()}:null;
+  async function publish(next:MatchdayDraft){saveMatchdayDraft(next);await fetch("/api/live-match",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:next.sessionId,status:"prematch",format:meta.label,game:"Pre-Match Show",sides:[[next.sideAName],[next.sideBName]],score:null,presentation:{headline:"NEXT ON THE OCHE",sideA:{points:sideA?.points,elo:sideA?.elo,form:sideA?.form},sideB:{points:sideB?.points,elo:sideB?.elo,form:sideB?.form},h2h:h2h?{aWins:h2h.player1.id===a?h2h.player1.wins:h2h.player2.wins,bWins:h2h.player1.id===b?h2h.player1.wins:h2h.player2.wins,total:h2h.totalMatches}:null}})}).catch(()=>{});}
+  async function openShow(){if(!draft)return;await publish(draft);navigate(`/matchday?show=1&competition=${competition}&a=${a}&b=${b}&session=${encodeURIComponent(draft.sessionId)}`)}
+  async function scorer(){if(!draft)return;await publish(draft);navigate("/play?matchday=1")}
+  if(show&&ready)return <div className="md-show" style={{"--accent":meta.accent} as React.CSSProperties}><div className="md-grid"/><header><button onClick={()=>navigate("/matchday")}><ArrowLeft/>CONTROL ROOM</button><span><Radio/> TKDL LIVE · PRE-MATCH</span><Link href="/broadcast"><MonitorPlay/>TV VIEW</Link></header><main><div className="md-kicker">NEXT ON THE OCHE · {meta.label.toUpperCase()}</div><h1>THE <em>PRE-MATCH</em> SHOW</h1><div className="md-versus"><article><small>SIDE A</small><h2>{sideA!.name}</h2><p>{sideA!.members?.join(" · ")||sideA!.tagline||sideA!.tier||"Ready for the oche"}</p><strong>{sideA!.points}<span>PTS</span></strong>{formDots(sideA!.form)}</article><div><span>VS</span><Target/></div><article><small>SIDE B</small><h2>{sideB!.name}</h2><p>{sideB!.members?.join(" · ")||sideB!.tagline||sideB!.tier||"Ready for the oche"}</p><strong>{sideB!.points}<span>PTS</span></strong>{formDots(sideB!.form)}</article></div><section className="md-tale"><div><small>POINTS GAP</small><strong>{Math.abs(sideA!.points-sideB!.points)}</strong></div><div><small>HEAD TO HEAD</small><strong>{h2h?`${h2h.player1.id===a?h2h.player1.wins:h2h.player2.wins}–${h2h.player1.id===b?h2h.player1.wins:h2h.player2.wins}`:"FIRST MEETING"}</strong></div><div><small>FORM EDGE</small><strong>{(sideA!.form?.filter(x=>x==="W").length??0)===(sideB!.form?.filter(x=>x==="W").length??0)?"TOO CLOSE":(sideA!.form?.filter(x=>x==="W").length??0)>(sideB!.form?.filter(x=>x==="W").length??0)?sideA!.name:sideB!.name}</strong></div></section><div className="md-show-actions"><button onClick={()=>void scorer()}><Play/>CONTINUE TO SCORER</button><Link href="/broadcast"><ExternalLink/>OPEN BROADCAST SCREEN</Link></div></main></div>;
+  return <div className="md-control"><header className="md-control-hero"><div><span><Activity/>MATCHDAY OPERATIONS</span><h1>LEAGUE NIGHT<br/><em>CONTROL ROOM</em></h1><p>Prepare the next match, run the pre-match show and move straight into scoring.</p></div><div className="md-status"><i className={live?"on":""}/><small>BROADCAST STATUS</small><strong>{live?live.status.toUpperCase():"STANDBY"}</strong>{live&&<span>{live.sides[0].join(" & ")} vs {live.sides[1].join(" & ")}</span>}</div></header>
+    {hasRecovery&&<section className="md-recovery"><RotateCcw/><div><strong>Interrupted match available</strong><span>The scorer saved its last safe position on this device.</span></div><Link href="/play">RESUME MATCH <ChevronRight/></Link></section>}
+    <div className="md-control-grid"><section className="md-launch"><div className="md-section-title"><Swords/><div><small>NEXT MATCH</small><h2>Build the show</h2></div></div><div className="md-competitions">{(Object.keys(META) as MatchdayCompetition[]).map(key=><button key={key} className={competition===key?"active":""} style={{"--accent":META[key].accent} as React.CSSProperties} onClick={()=>{setCompetition(key);setA(0);setB(0)}}>{META[key].label}</button>)}</div><div className="md-pickers"><label>SIDE A<select value={a} onChange={e=>setA(Number(e.target.value))}><option value={0}>Choose {competition==="singles"?"player":"team"}…</option>{entries.filter(x=>x.id!==b).map(x=><option key={x.id} value={x.id}>{x.name} · {x.points} pts</option>)}</select></label><b>VS</b><label>SIDE B<select value={b} onChange={e=>setB(Number(e.target.value))}><option value={0}>Choose {competition==="singles"?"player":"team"}…</option>{entries.filter(x=>x.id!==a).map(x=><option key={x.id} value={x.id}>{x.name} · {x.points} pts</option>)}</select></label></div><button className="md-build" disabled={!ready} onClick={()=>void openShow()}><Radio/>BUILD PRE-MATCH SHOW <ChevronRight/></button><p className="md-note">The show also appears on the Broadcast screen. Starting the scorer replaces it with live scores automatically.</p></section>
+      <aside><div className="md-section-title"><History/><div><small>TONIGHT</small><h2>Latest results</h2></div></div>{recent.length?recent.map(match=><Link href={`/match-centre/${match.key}`} className="md-result" key={match.key}><div><strong>{match.winnerName}</strong><span>beat {match.loserName}</span></div><b>{match.stake}<small>PTS</small></b></Link>):<div className="md-empty">No results recorded yet.</div>}<div className="md-links"><Link href="/leaderboard"><Trophy/>STANDINGS</Link><Link href="/broadcast"><MonitorPlay/>BROADCAST</Link><Link href="/match-centre"><History/>MATCH CENTRE</Link></div></aside></div>
+  </div>;
+}

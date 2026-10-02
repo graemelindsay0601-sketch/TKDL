@@ -16,6 +16,7 @@ import { sql } from "drizzle-orm";
 import { paramStr } from "../lib/http";
 import { bossBattleRateLimit } from "../middleware/writeRateLimit";
 import { checkBoardCurseAchievements } from "../lib/board-curse-achievements";
+import { isRecentDuplicateSubmit } from "../lib/recentSubmitGuard";
 
 const router = Router();
 
@@ -122,6 +123,16 @@ router.post("/board-curse/record", bossBattleRateLimit, async (req: Request, res
     const pid = parseInt(playerId, 10);
     if (!Number.isFinite(pid) || !isValidFormat(format) || typeof won !== "boolean") {
       res.status(400).json({ error: "playerId, format, and won (boolean) are required" });
+      return;
+    }
+
+    // Unlike practice.ts's richer session body, there's nothing here to hash
+    // for real idempotency keying — a double-tap or retried request looks
+    // identical to a second genuine result. Treat the exact same outcome
+    // arriving again within a few seconds as a duplicate submit rather than
+    // a second real match (see recentSubmitGuard.ts).
+    if (isRecentDuplicateSubmit(`board-curse-record:${pid}:${format}:${won}`)) {
+      res.json({ success: true });
       return;
     }
 

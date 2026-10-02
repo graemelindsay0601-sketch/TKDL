@@ -23,6 +23,7 @@ import { sql } from "drizzle-orm";
 import { paramStr } from "../lib/http";
 import { bossBattleRateLimit } from "../middleware/writeRateLimit";
 import { checkBossBattleAchievements } from "../lib/boss-battle-achievements";
+import { isRecentDuplicateSubmit } from "../lib/recentSubmitGuard";
 
 const router = Router();
 
@@ -93,6 +94,16 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
     // reintroduce a login requirement the app deliberately doesn't want.
     const order = BOSS_ORDER[bossId];
     const didWin = won === true;
+
+    // Same reasoning as board-curse.ts's /record route: this body has no
+    // per-attempt nonce or timing data to hash for real idempotency, so a
+    // retried/double-tapped submit is indistinguishable from a second real
+    // fight by content alone. Treat the exact same outcome arriving again
+    // within a few seconds as a duplicate (see recentSubmitGuard.ts).
+    if (isRecentDuplicateSubmit(`boss-battle-attempt:${pid}:${bossId}:${didWin}`)) {
+      res.json({ success: true });
+      return;
+    }
 
     const [player] = (await db.execute(sql`SELECT id FROM players WHERE id = ${pid}`)).rows as any[];
     if (!player) {

@@ -93,25 +93,33 @@ router.post("/goals", async (req, res): Promise<void> => {
   const { goalType, targetValue } = body.data;
 
   try {
-    const activeCountRows = (await db.execute(sql`
-      SELECT COUNT(*)::int AS cnt FROM player_goals WHERE player_id = ${playerId} AND achieved_at IS NULL
-    `)).rows as { cnt: number }[];
-    if ((activeCountRows[0]?.cnt ?? 0) >= MAX_ACTIVE_GOALS) {
-      res.status(400).json({ error: `You can only track ${MAX_ACTIVE_GOALS} active goals at once — finish or drop one first` });
-      return;
-    }
-
     const currentValue = (await currentValuesFor(playerId))[goalType];
     if (targetValue <= currentValue) {
       res.status(400).json({ error: `You're already at ${currentValue} — set a target above that` });
       return;
     }
 
-    const inserted = (await db.execute(sql`
-      INSERT INTO player_goals (player_id, goal_type, target_value)
-      VALUES (${playerId}, ${goalType}, ${targetValue})
-      RETURNING id, goal_type, target_value, created_at, achieved_at
-    `)).rows[0] as { id: number; goal_type: GoalType; target_value: number; created_at: string; achieved_at: string | null };
+    // Previously the active-count check and the insert were two separate
+    // statements with no lock between them — a double-click or a retried
+    // network call could both pass the count check before either insert
+    // committed, letting a player end up with more than MAX_ACTIVE_GOALS.
+    // Same per-key advisory-lock pattern already used for the player-code
+    // race in players.ts/auth.ts, scoped to this player so it doesn't
+    // serialize goal creation across the whole league.
+    const inserted = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('tkdl-player-goals-' || ${playerId}::text))`);
+      const activeCountRows = (await tx.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM player_goals WHERE player_id = ${playerId} AND achieved_at IS NULL
+      `)).rows as { cnt: number }[];
+      if ((activeCountRows[0]?.cnt ?? 0) >= MAX_ACTIVE_GOALS) {
+        throw new Error("TOO_MANY_ACTIVE_GOALS");
+      }
+      return (await tx.execute(sql`
+        INSERT INTO player_goals (player_id, goal_type, target_value)
+        VALUES (${playerId}, ${goalType}, ${targetValue})
+        RETURNING id, goal_type, target_value, created_at, achieved_at
+      `)).rows[0] as { id: number; goal_type: GoalType; target_value: number; created_at: string; achieved_at: string | null };
+    });
 
     res.status(201).json({
       id: inserted.id,
@@ -122,6 +130,10 @@ router.post("/goals", async (req, res): Promise<void> => {
       achievedAt: inserted.achieved_at,
     });
   } catch (err) {
+    if (err instanceof Error && err.message === "TOO_MANY_ACTIVE_GOALS") {
+      res.status(400).json({ error: `You can only track ${MAX_ACTIVE_GOALS} active goals at once — finish or drop one first` });
+      return;
+    }
     req.log.error({ err }, "POST /goals failed");
     res.status(500).json({ error: "Failed to create goal" });
   }

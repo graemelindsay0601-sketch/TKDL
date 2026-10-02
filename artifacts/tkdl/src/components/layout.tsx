@@ -20,6 +20,7 @@ const communityNav = [
 ];
 const playNav = [
   { href: "/submit",       label: "Submit Match", icon: Plus            },
+  { href: "/matchday",     label: "Matchday Control", icon: Radio       },
 ];
 const practiceNav = [
   { href: "/practice",     label: "Practice",     icon: Dumbbell        },

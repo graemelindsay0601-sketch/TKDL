@@ -4,7 +4,7 @@ import { useListPlayers, useSubmitMatch, getGetLeaderboardQueryKey, getGetStatsS
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/hooks/use-settings";
-import { Swords, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, AlertCircle, User, Building2 } from "lucide-react";
+import { Swords, Trophy, RotateCcw, ChevronRight, BookOpen, Info, Zap, AlertCircle, User, Building2, Radio } from "lucide-react";
 import { GameScorer, type GameTypeOption, type GameResult, type PracticeStats } from "@/components/game-scorer";
 import { CustomHandicapCard, CUSTOM_HANDICAP_KEY } from "@/components/custom-handicap-picker";
 import { UnevenX01Card, UnevenCricketCard, UNEVEN_X01_KEY, UNEVEN_CRICKET_KEY, buildUnevenX01GameType } from "@/components/uneven-teams-picker";
@@ -22,6 +22,7 @@ import { useWakeLock, useZoomLock, useExitGuard, readMatchSnapshot, clearMatchSn
 import { teamRoster, wagerShares, totalWagerError, validCombinedSelection, type WagerAccount } from "@/lib/live-scorer-setup";
 import type { LiveScoreState } from "@/lib/scorers";
 import { isScorerRecoveryState, recoveryMatchesEngine, type ScorerRecoveryState } from "@/lib/scorer-recovery";
+import { clearMatchdayDraft, readMatchdayDraft } from "@/lib/matchday";
 
 const PLAY_SNAPSHOT_KEY = "tkdl_play_snapshot";
 
@@ -390,6 +391,7 @@ function PlayerSlot({ label, color, value, onChange, exclude, players }: {
 
 // ── Setup Screen ───────────────────────────────────────────────────────────────
 function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void }) {
+  const [matchdayDraft] = useState(() => readMatchdayDraft());
   const { data: playersData } = useListPlayers();
   const currentPlayer         = useCurrentPlayer();
   const { data: appSettings }  = useSettings();
@@ -408,14 +410,14 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
     .filter(f => f.key !== "doubles-multi" || doublesEventEnabled)
     .filter(f => f.key !== "shift-wars-multi" || shiftWarsEnabled);
   const [gameTypes, setGameTypes] = useState<GameTypeOption[]>([]);
-  const [format, setFormat]       = useState<Format>("1v1");
+  const [format, setFormat]       = useState<Format>(() => matchdayDraft?.competition === "doubles" ? "doubles-event" : matchdayDraft?.competition === "shift-wars" ? "shift-wars" : "1v1");
   // Widened from 3 to 6 slots so the same backing arrays cover Uneven
   // Teams' up-to-6-per-side roster (team-matches.ts's own existing
   // winnerIds/loserIds cap) as well as 2v2/3v3 — resolveTeam() below
   // always slices to whichever size actually applies, so this is a no-op
   // for every existing format.
-  const [team1Ids, setTeam1Ids]   = useState<string[]>(["", "", "", "", "", ""]);
-  const [team2Ids, setTeam2Ids]   = useState<string[]>(["", "", "", "", "", ""]);
+  const [team1Ids, setTeam1Ids]   = useState<string[]>(() => [matchdayDraft?.competition === "singles" ? String(matchdayDraft.sideAId) : "", "", "", "", "", ""]);
+  const [team2Ids, setTeam2Ids]   = useState<string[]>(() => [matchdayDraft?.competition === "singles" ? String(matchdayDraft.sideBId) : "", "", "", "", "", ""]);
   // Uneven Teams' own per-side roster size, each independently adjustable
   // 1–6 — seeded to the base format's normal team size the moment the
   // toggle is switched on (see the Switch below), then freely adjustable
@@ -430,10 +432,10 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
   const [tab, setTab]             = useState("competitive");
   const [rulesGame, setRulesGame] = useState<GameTypeOption | null>(null);
   const [bullUp, setBullUp]       = useState(false);
-  const [doublesTeam1Id, setDoublesTeam1Id] = useState("");
-  const [doublesTeam2Id, setDoublesTeam2Id] = useState("");
-  const [shiftWarsTeam1Id, setShiftWarsTeam1Id] = useState("");
-  const [shiftWarsTeam2Id, setShiftWarsTeam2Id] = useState("");
+  const [doublesTeam1Id, setDoublesTeam1Id] = useState(matchdayDraft?.competition === "doubles" ? String(matchdayDraft.sideAId) : "");
+  const [doublesTeam2Id, setDoublesTeam2Id] = useState(matchdayDraft?.competition === "doubles" ? String(matchdayDraft.sideBId) : "");
+  const [shiftWarsTeam1Id, setShiftWarsTeam1Id] = useState(matchdayDraft?.competition === "shift-wars" ? String(matchdayDraft.sideAId) : "");
+  const [shiftWarsTeam2Id, setShiftWarsTeam2Id] = useState(matchdayDraft?.competition === "shift-wars" ? String(matchdayDraft.sideBId) : "");
   // "Combined side" match (doubles-event/shift-wars only): Side A stays a
   // single official team (the "solo" side, unchanged); Side B can optionally
   // absorb one or more EXTRA official teams into a temporary group, each
@@ -460,6 +462,8 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
   const { teams: shiftWarsTeams, loaded: shiftWarsTeamsLoaded } = useShiftWarsTeamsForPlay();
   const shiftWarsTeam1 = shiftWarsTeams.find(t => String(t.id) === shiftWarsTeam1Id) ?? null;
   const shiftWarsTeam2 = shiftWarsTeams.find(t => String(t.id) === shiftWarsTeam2Id) ?? null;
+
+  useEffect(() => { if (matchdayDraft) clearMatchdayDraft(); }, []); // consume this one launch only
 
   useEffect(() => {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
@@ -923,6 +927,8 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
         </div>
       </div>
       <div className="pdc-divider" />
+
+      {matchdayDraft && <div className="rounded-xl px-4 py-3 flex items-center gap-3" style={{background:"rgba(255,210,74,.07)",border:"1px solid rgba(255,210,74,.2)"}}><Radio className="w-4 h-4" style={{color:"#ffd24a"}}/><div><div className="text-xs font-black uppercase" style={{fontFamily:"Oswald, sans-serif",color:"#ffd24a"}}>Loaded from Matchday Control</div><div className="text-xs text-white/35">{matchdayDraft.sideAName} vs {matchdayDraft.sideBName} · choose the game and wager to begin.</div></div></div>}
 
       {/* Format selector */}
       <div>

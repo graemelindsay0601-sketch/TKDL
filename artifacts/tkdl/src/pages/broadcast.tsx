@@ -9,7 +9,7 @@ type Summary = { currentSeasonName: string; currentSeasonMatches: number; totalP
 type League = { key: string; label: string; note: string; rows: Standing[] };
 type FeedItem = { type: string; text: string; accent: string };
 type Champion = { championName: string; name: string };
-type LiveMatch = { sessionId: string; status: "live" | "finished"; winnerSide?: 0 | 1; winnerName?: string; format: string; game: string; sides: [string[], string[]]; score: null | { mode: "x01" | "cricket"; scores: [number, number]; turn: 0 | 1; detail?: [string, string]; currentPlayer?: string; lastVisit?: string; checkout?: string }; updatedAt: string };
+type LiveMatch = { sessionId: string; status: "prematch" | "live" | "finished"; winnerSide?: 0 | 1; winnerName?: string; format: string; game: string; sides: [string[], string[]]; score: null | { mode: "x01" | "cricket"; scores: [number, number]; turn: 0 | 1; detail?: [string, string]; currentPlayer?: string; lastVisit?: string; checkout?: string }; updatedAt: string; presentation?: { headline?:string; sideA?:{points?:number;elo?:number;form?:string[]}; sideB?:{points?:number;elo?:number;form?:string[]}; h2h?:{aWins:number;bWins:number;total:number}|null } };
 type DrawTeam = { id: number; name: string; players: string[] };
 const time = (value: Date) => value.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 function matchDate(value: string) {
@@ -258,8 +258,11 @@ export default function Broadcast() {
     {drawShowOpen && loaded && <DoublesDrawShow teams={drawTeams} onClose={closeDrawShow} onFullscreen={() => void fullscreen()} />}
     {liveMatch && <section className="ls-live-match" aria-live="polite">
       <div className="ls-live-backdrop" aria-hidden="true">LIVE</div>
-      <div className="ls-live-heading"><span><Radio size={16}/> LIVE FROM THE OCHE</span><strong>{liveMatch.format}</strong><i>{liveMatch.game}</i></div>
-      {liveMatch.status === "finished" ? <div className="ls-live-winner">
+      <div className="ls-live-heading"><span><Radio size={16}/> {liveMatch.status === "prematch" ? "NEXT ON THE OCHE" : "LIVE FROM THE OCHE"}</span><strong>{liveMatch.format}</strong><i>{liveMatch.game}</i></div>
+      {liveMatch.status === "prematch" ? <div className="ls-prematch-board">
+        {([0,1] as const).map(side=><article key={side}><small>SIDE {side===0?"A":"B"}</small><h2>{liveMatch.sides[side].join(" & ")}</h2><strong>{side===0?liveMatch.presentation?.sideA?.points:liveMatch.presentation?.sideB?.points}<span> PTS</span></strong><p>{side===0?liveMatch.presentation?.sideA?.elo:liveMatch.presentation?.sideB?.elo ? `${side===0?liveMatch.presentation?.sideA?.elo:liveMatch.presentation?.sideB?.elo} ELO` : "READY FOR THE OCHE"}</p></article>)}
+        <div className="ls-prematch-vs"><span>VS</span><Target size={36}/>{liveMatch.presentation?.h2h&&<small>H2H {liveMatch.presentation.h2h.aWins}–{liveMatch.presentation.h2h.bWins}</small>}</div>
+      </div> : liveMatch.status === "finished" ? <div className="ls-live-winner">
         <div className="ls-live-trophy"><Crown size={52}/></div><small>MATCH WINNER</small><h2>{liveMatch.winnerName ?? (liveMatch.winnerSide !== undefined ? liveMatch.sides[liveMatch.winnerSide].join(" & ") : "WINNER")}</h2><p>{liveMatch.game} · {liveMatch.format}</p><div><span>RESULT COMPLETE</span><ArrowUpRight size={24}/></div>
       </div> : <div className="ls-live-board">
         {([0, 1] as const).map(side => <div key={side} className={`ls-live-side ${liveMatch.score?.turn === side ? "is-throwing" : ""}`}>
@@ -270,7 +273,7 @@ export default function Broadcast() {
         </div>)}
         <div className="ls-live-vs"><span>VS</span><Target size={34}/></div>
       </div>}
-      <div className="ls-live-pulse"><i/><span>{liveMatch.status === "finished" ? "Returning to league coverage shortly" : liveMatch.score?.checkout ? `Checkout route · ${liveMatch.score.checkout}` : liveMatch.score?.lastVisit ? `Last visit · ${liveMatch.score.lastVisit}` : "Scores update automatically from the live scorer"}</span></div>
+      <div className="ls-live-pulse"><i/><span>{liveMatch.status === "prematch" ? "Pre-match coverage · scorer standing by" : liveMatch.status === "finished" ? "Returning to league coverage shortly" : liveMatch.score?.checkout ? `Checkout route · ${liveMatch.score.checkout}` : liveMatch.score?.lastVisit ? `Last visit · ${liveMatch.score.lastVisit}` : "Scores update automatically from the live scorer"}</span></div>
     </section>}
     <div className="ls-masthead"><div className="ls-ghost-word" aria-hidden="true">TKDL</div><div><div className="ls-eyebrow"><span />THE LEAGUE. EVERY ANGLE.</div><h1>GAME ON<span>.</span></h1></div><div className="ls-season"><span>ON THE BOARD</span><strong>{summary?.currentSeasonName ?? "League overview"}</strong><div className="ls-season-stats"><b>{summary?.totalPlayers ?? "—"}<small>PLAYERS</small></b><b>{summary?.currentSeasonMatches ?? "—"}<small>MATCHES</small></b><b>{leagues.length || "—"}<small>FORMATS</small></b></div></div></div>
     {transition > 0 && league && <div className="ls-transition" key={transition} aria-hidden="true"><div><span>NOW SHOWING</span><strong>{league.label.toUpperCase()} STANDINGS</strong><small>{league.note}</small></div></div>}
