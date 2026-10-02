@@ -52,8 +52,17 @@ router.get("/achievements/detail/:system/:key", async (req, res): Promise<void> 
         WHERE pa.achievement_id = ${def.id}
         ORDER BY pa.unlocked_at ASC
       `));
+      // The frontend (achievements.tsx/achievement-detail.tsx) always masks
+      // a hidden achievement's name/description behind "???"/"Hidden
+      // Achievement" client-side — but previously this response still
+      // shipped the real text, visible to anyone who opened the network
+      // tab, unauthenticated. Enforce the same masking server-side so the
+      // spoiler text never actually leaves the server for a hidden one.
       res.json({
-        system, key: def.key, name: def.name, description: def.description, icon: def.icon,
+        system, key: def.key,
+        name: def.hidden ? "Hidden Achievement" : def.name,
+        description: def.hidden ? "Keep playing to discover how this one unlocks." : def.description,
+        icon: def.icon,
         rarity: def.rarity, category: def.category, hidden: def.hidden,
         reward: { coins: def.coinReward, pack: def.packReward },
         repeatable: holders.some(h => h.season_id !== 0),
@@ -149,8 +158,13 @@ router.get("/achievements", async (_req, res): Promise<void> => {
     unlockCounts.set(row.achievement_id, row.unlock_count);
   }
 
+  // Same masking as the detail route above — previously the real name/
+  // description for a hidden achievement shipped in this list response
+  // too, with only the frontend's own client-side swap hiding it visually.
   const result = achievements.map(a => ({
     ...a,
+    name: a.hidden ? "Hidden Achievement" : a.name,
+    description: a.hidden ? "Keep playing to discover how this one unlocks." : a.description,
     unlockedCount: unlockCounts.get(a.id) ?? 0,
   }));
 

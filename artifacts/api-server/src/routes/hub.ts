@@ -123,7 +123,7 @@ router.get("/hub/pulse", async (_req, res): Promise<void> => {
         LIMIT 8
       `),
       db.execute(sql`
-        SELECT cp.id, p.name AS player_name, cp.content, cp.photo_path,
+        SELECT cp.id, p.name AS player_name, cp.content, cp.photo_content_type,
           (SELECT COUNT(*)::int FROM post_reactions WHERE post_id = cp.id) AS reaction_count,
           (SELECT COUNT(*)::int FROM post_comments WHERE post_id = cp.id) AS comment_count,
           cp.created_at
@@ -179,7 +179,12 @@ router.get("/hub/pulse", async (_req, res): Promise<void> => {
       ...(posts.rows as any[]).map(p => ({
         id: `post-${p.id}`,
         category: "community" as const,
-        icon: p.photo_path ? "📸" : "💬",
+        // photo_path is a legacy column from the old object-storage era and
+        // is always NULL for posts made since the move to in-DB photo_image/
+        // photo_content_type (see community.ts) — this previously meant
+        // every photo post showed a speech-bubble icon here instead of a
+        // camera.
+        icon: p.photo_content_type ? "📸" : "💬",
         title: `${p.player_name} ${p.content ? "posted: " + p.content.slice(0, 60) : "shared a photo"}`,
         subtitle: [p.reaction_count > 0 ? `${p.reaction_count} reactions` : null, p.comment_count > 0 ? `${p.comment_count} comments` : null].filter(Boolean).join(" · "),
         timestamp: p.created_at,

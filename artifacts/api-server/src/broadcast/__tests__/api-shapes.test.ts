@@ -43,6 +43,10 @@ describe("GRAPHIC_KIND_BY_STORY_TYPE", () => {
       assert.equal(GRAPHIC_KIND_BY_STORY_TYPE[t], "TitlePredictorGraphic");
     }
   });
+
+  test("wide team results map to their dedicated graphic", () => {
+    assert.equal(GRAPHIC_KIND_BY_STORY_TYPE.TEAM_RESULT, "TeamResultGraphic");
+  });
 });
 
 describe("sceneForSegment", () => {
@@ -130,6 +134,19 @@ describe("serializeSegment", () => {
     assert.equal(api.type, "closing");
     assert.equal(api.graphic, null);
     assert.equal(api.estimatedSeconds, 6);
+  });
+
+  test("a team result preserves its display-ready sides and uses the team result graphic", () => {
+    const facts = {
+      resultKind: "doubles_combined",
+      winnerName: "Checkout Crew + The Finishers",
+      loserName: "Perfect Pair",
+      winnerEntityIds: [2, 3],
+      loserEntityIds: [8],
+      stake: 30,
+    };
+    const api = serializeSegment(segment({ storyType: "TEAM_RESULT", leagueType: "doubles", facts }), "slot-2");
+    assert.deepEqual(api.graphic, { kind: "TeamResultGraphic", data: facts });
   });
 
   test("an interview transports its frozen question and answer facts to the dedicated scene", () => {

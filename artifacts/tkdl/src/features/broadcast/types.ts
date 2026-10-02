@@ -15,7 +15,8 @@ export type Scene = "desk" | "analysis" | "graphic" | "result" | "headlines" | "
 
 export type GraphicKind =
   | "LeagueTableGraphic" | "TitlePredictorGraphic" | "MatchContextGraphic"
-  | "HeadToHeadGraphic" | "FormWatchGraphic" | "WagerGraphic" | "ResultGraphic";
+  | "HeadToHeadGraphic" | "FormWatchGraphic" | "WagerGraphic" | "ResultGraphic"
+  | "TeamResultGraphic";
 
 export type DialogueTurn = { speaker: "A" | "B"; text: string; pose?: string; holdSeconds: number };
 

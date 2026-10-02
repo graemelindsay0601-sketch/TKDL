@@ -114,7 +114,11 @@ export default function HeadToHead() {
   const [p2Id, setP2Id] = useState(params.get("p2") ? Number(params.get("p2")) : 0);
   const [showFullTimeline, setShowFullTimeline] = useState(false);
 
-  const { data: players } = useFetch<PlayerOption[]>("/api/players");
+  // Previously only `data` was read here — a failed /api/players fetch left
+  // the dropdowns with just "Select player…" and no options, indistinguishable
+  // from "the league genuinely has no players." `error` was already exposed
+  // by useFetch (added for the dashboard wallet widget) but never read here.
+  const { data: players, error: playersError } = useFetch<PlayerOption[]>("/api/players");
   const h2hUrl = p1Id && p2Id && p1Id !== p2Id ? `/api/stats/h2h?p1=${p1Id}&p2=${p2Id}` : null;
   const { data: h2h, loading } = useFetch<H2HData>(h2hUrl);
 
@@ -137,6 +141,18 @@ export default function HeadToHead() {
           Head to Head
         </h1>
       </div>
+
+      {playersError && (
+        <div className="pdc-card p-4 flex items-center justify-between gap-3" style={{ border: "1px solid rgba(255,0,92,0.3)" }}>
+          <span className="text-xs" style={{ color: "#ff8fb4", fontFamily: "Oswald, sans-serif" }}>
+            Couldn't load the player list.
+          </span>
+          <button onClick={() => window.location.reload()} className="px-3 py-1.5 rounded-lg text-xs font-bold shrink-0"
+            style={{ background: "rgba(255,0,92,0.15)", border: "1px solid rgba(255,0,92,0.4)", color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+            Reload
+          </button>
+        </div>
+      )}
 
       {/* Player pickers */}
       <div className="pdc-card p-5">

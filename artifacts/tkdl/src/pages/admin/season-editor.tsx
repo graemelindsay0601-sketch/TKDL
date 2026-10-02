@@ -31,30 +31,54 @@ export function SeasonEditor() {
     setLoading(false);
   };
 
-  const patchSeason = async (id: number, data: any) => {
-    await fetch(`/api/admin/seasons/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    queryClient.invalidateQueries({ queryKey: getListSeasonsQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
-    load();
-    toast({ title: "Season updated" });
+  // Previously these fired the request and unconditionally toasted "updated"
+  // with no res.ok check — a 4xx/5xx looked identical to success in the UI.
+  // Now each returns whether it actually succeeded, which setChampion below
+  // uses to avoid a split-brain state.
+  const patchSeason = async (id: number, data: any): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/admin/seasons/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      queryClient.invalidateQueries({ queryKey: getListSeasonsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
+      load();
+      toast({ title: "Season updated" });
+      return true;
+    } catch {
+      toast({ title: "Couldn't update season", variant: "destructive" });
+      return false;
+    }
   };
 
-  const patchStanding = async (seasonId: number, playerId: number, data: any) => {
-    await fetch(`/api/admin/seasons/${seasonId}/standings/${playerId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    load();
-    toast({ title: "Standing updated" });
+  const patchStanding = async (seasonId: number, playerId: number, data: any): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/admin/seasons/${seasonId}/standings/${playerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      load();
+      toast({ title: "Standing updated" });
+      return true;
+    } catch {
+      toast({ title: "Couldn't update standing", variant: "destructive" });
+      return false;
+    }
   };
 
+  // Crowning a champion is two sequential PATCHes (season record, then the
+  // standing row). Previously both fired unconditionally, so if the first
+  // PATCH failed silently, the second still ran — leaving a standing marked
+  // champion on a season with no championId, or vice versa. Now the second
+  // PATCH only fires once the first has actually succeeded.
   const setChampion = async (seasonId: number, playerId: number, playerName: string) => {
-    await patchSeason(seasonId, { championId: playerId, championName: playerName, playoffPending: false });
+    const seasonOk = await patchSeason(seasonId, { championId: playerId, championName: playerName, playoffPending: false });
+    if (!seasonOk) return;
     await patchStanding(seasonId, playerId, { isChampion: true });
   };
 

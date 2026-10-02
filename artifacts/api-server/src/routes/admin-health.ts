@@ -9,6 +9,62 @@ import { londonMonthKey, londonSeasonName } from "../lib/season-calendar";
 
 const router = Router();
 
+router.get("/admin/operations/broadcast-health", requireAdminSession, async (_req, res): Promise<void> => {
+  const [editionRows, publishedRows, storyRows, diagnosticRows] = await Promise.all([
+    db.execute(sql`
+      SELECT id,slot_key,slot_type,status,created_at,published_at,data_cutoff,diagnostic
+      FROM broadcast_editions ORDER BY id DESC LIMIT 1
+    `),
+    db.execute(sql`
+      SELECT id,slot_key,slot_type,status,created_at,published_at,data_cutoff,diagnostic
+      FROM broadcast_editions WHERE status='PUBLISHED'
+      ORDER BY published_at DESC NULLS LAST,id DESC LIMIT 1
+    `),
+    db.execute(sql`
+      SELECT
+        COUNT(*) FILTER (WHERE lifecycle='NEW')::int new_count,
+        COUNT(*) FILTER (WHERE lifecycle IN ('HOT','ACTIVE','COOLING'))::int active_count,
+        COUNT(*) FILTER (
+          WHERE lifecycle IN ('NEW','HOT','ACTIVE','COOLING')
+            AND updated_at < NOW()-INTERVAL '14 days'
+        )::int stale_count,
+        COUNT(*) FILTER (WHERE story_key LIKE '%:superseded:%')::int invalidated_count,
+        COUNT(*) FILTER (
+          WHERE (lifecycle IN ('NEW','HOT','ACTIVE','COOLING') AND resolved_at IS NOT NULL)
+             OR (lifecycle='RESOLVED' AND resolved_at IS NULL)
+        )::int invalid_count,
+        MAX(updated_at) latest_story_at
+      FROM broadcast_stories
+    `),
+    db.execute(sql`
+      SELECT id,slot_key,status,created_at,diagnostic
+      FROM broadcast_editions
+      WHERE status IN ('FAILED','SKIPPED') OR diagnostic IS NOT NULL
+      ORDER BY id DESC LIMIT 5
+    `),
+  ]);
+
+  const serialiseEdition = (row: any) => row ? ({
+    id:Number(row.id), slotKey:row.slot_key, slotType:row.slot_type, status:row.status,
+    createdAt:row.created_at, publishedAt:row.published_at, dataCutoff:row.data_cutoff,
+    diagnostic:row.diagnostic,
+  }) : null;
+  const stories:any=storyRows.rows[0]??{};
+  res.json({
+    generatedAt:new Date().toISOString(),
+    latestEdition:serialiseEdition(editionRows.rows[0]),
+    lastPublishedEdition:serialiseEdition(publishedRows.rows[0]),
+    stories:{
+      new:Number(stories.new_count??0), active:Number(stories.active_count??0),
+      stale:Number(stories.stale_count??0), invalidated:Number(stories.invalidated_count??0),
+      invalid:Number(stories.invalid_count??0), latestUpdatedAt:stories.latest_story_at??null,
+    },
+    recentDiagnostics:(diagnosticRows.rows as any[]).map(row=>({
+      id:Number(row.id),slotKey:row.slot_key,status:row.status,createdAt:row.created_at,diagnostic:row.diagnostic,
+    })),
+  });
+});
+
 router.get("/admin/operations/season-preview", requireAdminSession, async (_req, res): Promise<void> => {
   const [seasons, singles, doubles, shiftWars, playerCountRows] = await Promise.all([
     db.execute(sql`SELECT id,name,league_type,start_date FROM seasons WHERE is_active=true ORDER BY league_type,id DESC`),

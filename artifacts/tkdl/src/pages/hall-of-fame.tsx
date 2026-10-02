@@ -4,6 +4,7 @@ import { Award, Trophy, Zap, Target, Flame, Star, Dumbbell, Medal, ArrowLeft, Sk
 import { TierBadge } from "@/components/tier-badge";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, type CosmeticDefinition } from "@/lib/cosmetics";
 import { useFetch } from "@/hooks/use-fetch";
+import { LeagueRecordsBook } from "@/components/league-records-book";
 
 type PlayerRecord = { id: number; name: string; careerWins: number; careerLosses: number; careerGamesPlayed: number; careerWinRate: number; careerPeakElo: number; careerPoints: number; leagueTitles: number; longestWinStreak: number; longestLossStreak: number; careerBiggestPointsFall: number; sessions: number; total180s: number; tourTrophies: number; achievements: number; eliminationsCount: number; timesEliminated: number; biggestSingleLoss: number };
 type Champion = { id: number; name: string; championId: number; championName: string; endDate: string | null };
@@ -196,6 +197,8 @@ export default function HallOfFame() {
             <RecordCard icon={<Skull className="w-4 h-4" />} label="The Executioner" accent="#ff005c" top={data.mostEliminations} valueKey="eliminationsCount" subtitle="MOST OPPONENTS ELIMINATED" description="Counts opponents this player reduced to zero points." nameStyle={nameStyleFor(data.mostEliminations?.[0]?.id)} />
           </div>
           </div>
+
+          <LeagueRecordsBook />
 
           <div data-testid="hall-skill">
           <SectionTitle icon={<Target className="w-4 h-4"/>} eyebrow="BEYOND THE TABLE" title="Skill, Practice & Tour" description="Records earned across practice, achievements and Tour Mode." accent="#a78bfa" />

@@ -1,5 +1,6 @@
 import { X, BookOpen } from "lucide-react";
 import type { GameTypeOption } from "./game-scorer";
+import { buildFallbackGameRules } from "@/lib/game-rules";
 
 // ── Static fallback rules for games without DB rules_text ─────────────────────
 const RULES: Record<string, string> = {
@@ -51,7 +52,8 @@ interface Props {
 }
 
 export function RulesModal({ game, onClose }: Props) {
-  const rules = (game as any).rulesText ?? RULES[game.key] ?? game.description;
+  const storedRules = typeof (game as any).rulesText === "string" ? (game as any).rulesText.trim() : "";
+  const rules = storedRules || RULES[game.key] || buildFallbackGameRules(game);
 
   return (
     <div
@@ -81,17 +83,23 @@ export function RulesModal({ game, onClose }: Props) {
               {rules.split("\n\n").map((block: string, i: number) => {
                 const trimmed = block.trim();
                 if (!trimmed) return null;
-                // Detect header lines (no colon mid-sentence, short, possibly bold)
-                const isHeader = trimmed.endsWith(":") || (trimmed.includes("PHASE") || trimmed.includes("ROUND") || trimmed.includes("PHASE") || /^[A-Z ]+$/.test(trimmed));
+                const lines = trimmed.split("\n");
+                const firstLine = lines[0].trim();
+                // A detailed block commonly starts with a heading followed
+                // by its bullets. Treat that first line as the heading
+                // without swallowing the instructions beneath it.
+                const hasHeader = firstLine.endsWith(":") || /^(PHASE|ROUND)\b/.test(firstLine) || /^[A-Z &/-]+$/.test(firstLine);
+                const bodyLines = hasHeader ? lines.slice(1) : lines;
                 return (
                   <div key={i}>
-                    {isHeader ? (
+                    {hasHeader && (
                       <div className="font-bold text-sm uppercase tracking-wider mt-4 mb-1" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
-                        {trimmed}
+                        {firstLine}
                       </div>
-                    ) : (
+                    )}
+                    {bodyLines.length > 0 && (
                       <div className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.7)" }}>
-                        {trimmed.split("\n").map((line: string, j: number) => (
+                        {bodyLines.map((line: string, j: number) => (
                           <div key={j} className={line.startsWith("•") || line.startsWith("-") ? "ml-2 mt-1" : j > 0 ? "mt-1" : ""}>
                             {line}
                           </div>
@@ -102,9 +110,7 @@ export function RulesModal({ game, onClose }: Props) {
                 );
               })}
             </div>
-          ) : (
-            <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>No detailed rules available yet for this game.</p>
-          )}
+          ) : null}
         </div>
 
         <div className="px-5 py-4 shrink-0 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>

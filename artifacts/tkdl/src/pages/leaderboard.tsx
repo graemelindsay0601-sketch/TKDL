@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import { useSettings } from "@/hooks/use-settings";
 import { apiFetchJson } from "@/lib/api-fetch";
 import { useCosmeticsCatalog, glowRowStyle, leaderboardTagStyle, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
+import { StandingsWhatIf } from "@/components/standings-what-if";
 
 type Mode = "season" | "doubles" | "shiftwars" | "career" | "achievements" | "bot" | "tour" | "master501" | "records";
 
@@ -580,6 +581,12 @@ export default function Standings() {
   const doublesRows   = (doublesData ?? []) as any[];
   const doublesChemistryRows = Array.isArray(doublesChemistryData) ? doublesChemistryData as any[] : [];
   const shiftWarsRows = (shiftWarsData ?? []) as any[];
+  const whatIfRows = useMemo(() => {
+    if (mode === "season") return active.map((row:any)=>({ id:Number(row.playerId), name:row.playerName, points:Number(row.points), elo:Number(row.elo) }));
+    if (mode === "doubles") return doublesRows.filter((row:any)=>!row.isEliminated).map((row:any)=>({ id:Number(row.id), name:row.teamName, points:Number(row.points), elo:Number(row.elo) }));
+    if (mode === "shiftwars") return shiftWarsRows.filter((row:any)=>!row.isEliminated).map((row:any)=>({ id:Number(row.id), name:row.name, points:Number(row.points) }));
+    return [];
+  }, [mode, active, doublesRows, shiftWarsRows]);
   const shiftWarsHistoryRows = (shiftWarsHistoryData ?? []) as any[];
   const maxDarts   = Math.max(...botRows.map(r => r.totalDarts), 1);
 
@@ -657,6 +664,10 @@ export default function Standings() {
             <SortBtn key={s.key} active={careerSort === s.key} onClick={() => setSort(s.key)}>{s.label}</SortBtn>
           ))}
         </div>
+      )}
+
+      {!isLoading && (mode === "season" || mode === "doubles" || mode === "shiftwars") && (
+        <StandingsWhatIf key={mode} rows={whatIfRows} competition={mode === "season" ? "Singles" : mode === "doubles" ? "Doubles" : "Shift Wars"} accent={mode === "season" ? "#ff005c" : mode === "doubles" ? "#0066ff" : "#22c55e"} />
       )}
 
       {/* Column headers */}

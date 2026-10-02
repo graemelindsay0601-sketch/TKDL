@@ -538,7 +538,18 @@ router.post("/community/posts/:id/reject", async (req, res): Promise<void> => {
   if (!sessionIsAdmin(req)) { res.status(403).json({ error: "Admin required" }); return; }
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  await db.execute(sql`UPDATE community_posts SET status = 'rejected' WHERE id = ${id}`);
+  // Previously had no status guard — unlike approve/pin/unpin below, this
+  // would unconditionally flip ANY post to rejected regardless of its
+  // current state. With a stale admin moderation queue (another admin just
+  // approved it, or two admins acting near-simultaneously), clicking Reject
+  // could silently unpublish a post that was already live/pinned, with no
+  // trace of what happened.
+  const result = await db.execute(sql`
+    UPDATE community_posts SET status = 'rejected'
+    WHERE id = ${id} AND status = 'pending'
+    RETURNING id
+  `);
+  if (!result.rows.length) { res.status(404).json({ error: "Post not found or no longer pending" }); return; }
   res.json({ ok: true });
 });
 

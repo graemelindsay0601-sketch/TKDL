@@ -8,9 +8,24 @@ export function PracticeAnalytics() {
 
   useEffect(() => {
     fetch("/api/admin/practice/stats")
-      .then(r => r.json())
-      .then(d => { setStats(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(d => {
+        // Guard the response shape before it reaches render — previously an
+        // unguarded fetch meant an error body (or anything missing
+        // byGame/byPlayer/recent) got set as-is, and stats.byGame.length etc.
+        // below threw at render time, taking down the ENTIRE admin panel via
+        // its page-level ErrorBoundary, not just this section.
+        if (d && Array.isArray(d.byGame) && Array.isArray(d.byPlayer) && Array.isArray(d.recent)) {
+          setStats(d);
+        } else {
+          setStats(null);
+        }
+      })
+      .catch(() => setStats(null))
+      .finally(() => setLoading(false));
   }, []);
 
   return (

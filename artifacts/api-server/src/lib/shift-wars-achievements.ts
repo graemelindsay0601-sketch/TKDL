@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { logger } from "./logger";
 import type { AchievementDef } from "./achievements";
 import { grantIfNotHas } from "./achievement-grant";
+import { shiftWarsTeamResultAchievementKeys } from "./team-achievement-rules";
 
 // ─── Achievement definitions ──────────────────────────────────────────────────
 //
@@ -25,6 +26,8 @@ export const SHIFT_WARS_ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { key:"SW_HIGH_STAKES",  name:"💰 Big Shift Energy",   description:"Win a Shift Wars match with a stake of 20+ points",       icon:"💰", rarity:"Rare",   category:"Shift Wars", hidden:false, priority:36, criteriaType:"SW_HIGH_STAKE", criteriaValue:20, engineType:"MATCH_EVENT", coinReward: 35 },
   { key:"SW_TOP_TEAM",     name:"👑 Top of the Rota",    description:"Your department is in 1st place on the Shift Wars board", icon:"👑", rarity:"Epic",   category:"Shift Wars", hidden:false, priority:60, criteriaType:"SW_TOP_TEAM",  criteriaValue:1,  engineType:"STAT_BASED", coinReward: 75 },
   { key:"SW_RIVALRY_3",    name:"⚔️ Old Rivalry",        description:"Beat the same rival department 3 times",                  icon:"⚔️", rarity:"Rare",   category:"Shift Wars", hidden:false, priority:38, criteriaType:"SW_RIVAL_WINS", criteriaValue:3,  engineType:"STAT_BASED", coinReward: 35 },
+  { key:"SW_SOLO_OUTNUMBERED", name:"🛡 Skeleton Crew", description:"Your department wins while fielding one player against a combined side of at least two", icon:"🛡", rarity:"Epic", category:"Shift Wars", hidden:false, priority:64, criteriaType:"SW_SOLO_OUTNUMBERED", criteriaValue:1, engineType:"MATCH_EVENT", coinReward:75 },
+  { key:"SW_MULTI_SURVIVOR", name:"👑 Last Shift Standing", description:"Your department wins a match against at least two other departments", icon:"👑", rarity:"Rare", category:"Shift Wars", hidden:false, priority:44, criteriaType:"SW_MULTI_WIN", criteriaValue:1, engineType:"MATCH_EVENT", coinReward:35 },
 ];
 
 // ─── Main check + award function ─────────────────────────────────────────────
@@ -66,6 +69,36 @@ export async function checkShiftWarsAchievements(winnerTeamId: number): Promise<
     `);
     const hasRivalry3 = rivalRows.rows.length > 0;
 
+    const resultFactRows = await db.execute(sql`
+      SELECT
+        EXISTS (
+          SELECT 1
+          FROM shift_wars_combined_matches m
+          WHERE m.solo_team_id = ${winnerTeamId}
+            AND m.solo_won = TRUE
+            AND m.solo_fielded_count = 1
+            AND (
+              SELECT COALESCE(SUM(s.fielded_count), 0)
+              FROM shift_wars_combined_match_sides s
+              WHERE s.match_id = m.id
+            ) >= 2
+        ) AS won_solo_outnumbered,
+        EXISTS (
+          SELECT 1
+          FROM shift_wars_multi_matches m
+          WHERE m.winner_team_id = ${winnerTeamId}
+            AND m.participant_count >= 3
+        ) AS won_multi_team
+    `);
+    const facts = resultFactRows.rows[0] as {
+      won_solo_outnumbered?: boolean;
+      won_multi_team?: boolean;
+    } | undefined;
+    const resultAchievementKeys = shiftWarsTeamResultAchievementKeys({
+      wonSoloOutnumbered: facts?.won_solo_outnumbered === true,
+      wonMultiTeam: facts?.won_multi_team === true,
+    });
+
     const rosterRows = await db.execute(sql`
       SELECT id FROM players WHERE shift_wars_team_id = ${winnerTeamId}
     `);
@@ -79,6 +112,7 @@ export async function checkShiftWarsAchievements(winnerTeamId: number): Promise<
       if (hadHighStake) await grantIfNotHas(playerId, "SW_HIGH_STAKES");
       if (topTeam)       await grantIfNotHas(playerId, "SW_TOP_TEAM");
       if (hasRivalry3)   await grantIfNotHas(playerId, "SW_RIVALRY_3");
+      for (const key of resultAchievementKeys) await grantIfNotHas(playerId, key);
     }
   } catch (err) {
     logger.error({ err, winnerTeamId }, "Failed to check Shift Wars achievements");

@@ -24,18 +24,32 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
   const [newModes, setNewModes]           = useState({ isActive: true, practiceEnabled: true, tourEnabled: true, m501Enabled: true, shadowBotEnabled: true });
   const [creatingNew, setCreatingNew]     = useState(false);
   const [loaded, setLoaded]               = useState(false);
+  const [loadError, setLoadError]         = useState(false);
   const queryClient = useQueryClient();
 
   // This panel only ever renders inside the already PIN-gated /admin page, so
   // the browser's admin session cookie is all that's needed here.
   const adminHeaders = () => ({ "Content-Type": "application/json" });
 
+  // Previously `loaded` was set to true unconditionally, so a failed fetch
+  // (network error or non-2xx) left `accounts` empty and fell straight into
+  // the "No accounts yet — create the first one below" branch — indistinguishable
+  // from a genuinely empty account list. loadError keeps those apart.
   const load = async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/users", { credentials: "include" });
-    if (res.ok) setAccounts(await res.json());
+    setLoadError(false);
+    try {
+      const res = await fetch("/api/admin/users", { credentials: "include" });
+      if (res.ok) {
+        setAccounts(await res.json());
+        setLoaded(true);
+      } else {
+        setLoadError(true);
+      }
+    } catch {
+      setLoadError(true);
+    }
     setLoading(false);
-    setLoaded(true);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -120,9 +134,16 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
     <CollapsibleAdminSection title="Player Accounts" icon={Users} accent="#4d94ff" borderColor="rgba(0,102,255,0.15)" background="rgba(0,102,255,0.02)" badge={badge}>
       <div className="p-5" onClick={e => { if (!loaded && e.currentTarget === e.target) handleOpen(); }}>
         {!loaded ? (
-          <button onClick={() => void load()} className="text-xs py-2 w-full text-center" style={{ color: "rgba(255,255,255,0.35)" }}>
-            {loading ? "Loading…" : "Load accounts"}
-          </button>
+          loadError ? (
+            <div className="text-xs py-2 w-full text-center" style={{ color: "#ff005c" }}>
+              Couldn't load accounts.{" "}
+              <button onClick={() => void load()} className="underline font-bold">Retry</button>
+            </div>
+          ) : (
+            <button onClick={() => void load()} className="text-xs py-2 w-full text-center" style={{ color: "rgba(255,255,255,0.35)" }}>
+              {loading ? "Loading…" : "Load accounts"}
+            </button>
+          )
         ) : loading ? (
           <div className="py-4 text-center" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.8rem" }}>Loading…</div>
         ) : accounts.length > 0 ? (

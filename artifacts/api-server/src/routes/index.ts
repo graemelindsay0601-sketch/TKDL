@@ -37,6 +37,7 @@ import liveMatchRouter from "./live-match";
 import matchCentreRouter from "./match-centre";
 import teamMatchCorrectionsRouter from "./team-match-corrections";
 import adminHealthRouter from "./admin-health";
+import insightsRouter from "./insights";
 import { logAdminAction } from "../lib/adminAudit";
 
 const router: IRouter = Router();
@@ -102,6 +103,7 @@ router.use(liveMatchRouter);
 router.use(matchCentreRouter);
 router.use(teamMatchCorrectionsRouter);
 router.use(adminHealthRouter);
+router.use(insightsRouter);
 
 export default router;
 export { initializeCardClashSchema };

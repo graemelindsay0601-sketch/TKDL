@@ -129,17 +129,27 @@ router.get("/messages/:partnerId", async (req, res): Promise<void> => {
       LIMIT 100
     `);
   } else {
+    // Previously a flat "ORDER BY created_at ASC LIMIT 100" here — correct only
+    // while the thread has under 100 messages total. Past that, it always
+    // returns the OLDEST 100 and nothing newer ever appears: the frontend's
+    // 5-second poll never passes sinceId, so every refresh hits this exact
+    // branch, and a long-running thread looks frozen forever with no error.
+    // Fix: take the newest 100 first, then re-sort that page back into
+    // chronological order for display.
     rows = await db.execute(sql`
-      SELECT dm.id, dm.sender_id, dm.receiver_id, dm.content, dm.photo_path, dm.photo_content_type, dm.sticker_id, dm.read_at, dm.created_at,
-             pl.name AS sender_name
-      FROM direct_messages dm
-      JOIN players pl ON pl.id = dm.sender_id
-      WHERE (
-        (dm.sender_id = ${myId}      AND dm.receiver_id = ${partnerId}) OR
-        (dm.sender_id = ${partnerId} AND dm.receiver_id = ${myId})
-      )
-      ORDER BY dm.created_at ASC
-      LIMIT 100
+      SELECT * FROM (
+        SELECT dm.id, dm.sender_id, dm.receiver_id, dm.content, dm.photo_path, dm.photo_content_type, dm.sticker_id, dm.read_at, dm.created_at,
+               pl.name AS sender_name
+        FROM direct_messages dm
+        JOIN players pl ON pl.id = dm.sender_id
+        WHERE (
+          (dm.sender_id = ${myId}      AND dm.receiver_id = ${partnerId}) OR
+          (dm.sender_id = ${partnerId} AND dm.receiver_id = ${myId})
+        )
+        ORDER BY dm.created_at DESC
+        LIMIT 100
+      ) recent
+      ORDER BY created_at ASC
     `);
   }
   res.json(rows.rows);

@@ -15,7 +15,15 @@ function useSeasonMatches(seasonId: number) {
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     if (!seasonId) return;
+    // This component is reused across /seasons/:id navigations (a param
+    // change, not a remount), and previously the old season's matches stayed
+    // in state until the new fetch resolved. That left a window where the
+    // header's match count, and the Storylines/Preview cards below (which
+    // only gate on matches.length, not a loading flag), showed data computed
+    // from the PREVIOUS season under the new season's name/standings —
+    // the same class of bug as the DM-thread-switching fix in account.tsx.
     setLoading(true);
+    setData([]);
     apiFetchJson<any[]>(`/api/seasons/${seasonId}/matches`)
       .then(d => { setData(Array.isArray(d) ? d : []); setLoading(false); })
       .catch(() => setLoading(false));
@@ -37,6 +45,11 @@ function useSeasonPreview(seasonId: number) {
   const [data, setData] = useState<SeasonPreview | null>(null);
   useEffect(() => {
     if (!seasonId) return;
+    // Same stale-data-on-switch issue as useSeasonMatches above — clear the
+    // previous season's preview immediately so the defending-champion/Elo-
+    // favorite/hottest-streak card can't briefly show the wrong season's
+    // players under the new season's header.
+    setData(null);
     apiFetchJson<SeasonPreview>(`/api/seasons/${seasonId}/preview`)
       .then(d => setData(d ?? null))
       .catch(() => setData(null));

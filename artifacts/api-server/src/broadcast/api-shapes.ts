@@ -119,7 +119,8 @@ export function sceneForSegment(segment: SceneInput): Scene {
 
 export type GraphicKind =
   | "LeagueTableGraphic" | "TitlePredictorGraphic" | "MatchContextGraphic"
-  | "HeadToHeadGraphic" | "FormWatchGraphic" | "WagerGraphic" | "ResultGraphic";
+  | "HeadToHeadGraphic" | "FormWatchGraphic" | "WagerGraphic" | "ResultGraphic"
+  | "TeamResultGraphic";
 
 /**
  * Every StoryType maps to exactly one graphic kind — a TypeScript object
@@ -132,7 +133,7 @@ export type GraphicKind =
 export const GRAPHIC_KIND_BY_STORY_TYPE: Record<StoryType, GraphicKind> = {
   // RESULT
   MATCH_RESULT: "ResultGraphic",
-  TEAM_RESULT: "ResultGraphic",
+  TEAM_RESULT: "TeamResultGraphic",
   UPSET: "MatchContextGraphic",
   MAJOR_UPSET: "MatchContextGraphic",
   MODEL_SHOCK: "MatchContextGraphic",

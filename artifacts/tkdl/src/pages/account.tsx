@@ -600,6 +600,7 @@ export default function AccountPage() {
   const [notifsEnabled,    setNotifsEnabled]   = useState(false);
   const [myPhotoPosts,     setMyPhotoPosts]    = useState<any[] | null>(null);
   const [photosLoading,    setPhotosLoading]   = useState(false);
+  const [photosError,      setPhotosError]     = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [allPlayers,       setAllPlayers]      = useState<any[]>([]);
   const [showNewMsg,       setShowNewMsg]      = useState(false);
@@ -718,14 +719,41 @@ export default function AccountPage() {
 
   const loadConversations = useCallback(async () => {
     if (!user?.playerId) return;
-    const r = await fetch("/api/messages/conversations", { credentials: "include" });
-    if (r.ok) setConversations(await r.json());
-  }, [user?.playerId]);
+    try {
+      const r = await fetch("/api/messages/conversations", { credentials: "include" });
+      if (r.ok) setConversations(await r.json());
+      else toast({ title: "Couldn't load conversations", variant: "destructive" });
+    } catch {
+      toast({ title: "Couldn't load conversations", description: "Network error — try again.", variant: "destructive" });
+    }
+  }, [user?.playerId, toast]);
 
   const loadThread = useCallback(async (partnerId: number) => {
-    const r = await fetch(`/api/messages/${partnerId}`, { credentials: "include" });
-    if (r.ok) setThreadMessages(await r.json());
-  }, []);
+    try {
+      const r = await fetch(`/api/messages/${partnerId}`, { credentials: "include" });
+      if (r.ok) setThreadMessages(await r.json());
+      else toast({ title: "Couldn't load messages", variant: "destructive" });
+    } catch {
+      toast({ title: "Couldn't load messages", description: "Network error — try again.", variant: "destructive" });
+    }
+  }, [toast]);
+
+  // Resets all composer state when switching conversations — previously
+  // switching activeConvId left msgText/msgPhotoFile/msgPhotoPreview/msgSticker/
+  // threadMessages stale from whichever conversation was open before, so a
+  // half-typed draft (or picked photo/sticker) for conversation A could get
+  // sent into conversation B.
+  const openConversation = useCallback((partnerId: number) => {
+    setActiveConvId(partnerId);
+    setMsgText("");
+    if (msgPhotoPreview) URL.revokeObjectURL(msgPhotoPreview);
+    setMsgPhotoFile(null);
+    setMsgPhotoPreview(null);
+    setMsgSticker(null);
+    setThreadMessages([]);
+    setShowNewMsg(false);
+    void loadThread(partnerId);
+  }, [loadThread, msgPhotoPreview]);
 
   // ── Open DM from ?dm=<playerId> URL param ────────────────────────────────
   useEffect(() => {
@@ -762,15 +790,19 @@ export default function AccountPage() {
       fetch("/api/notifications/mark-all-read", { method: "POST", credentials: "include" })
         .then(r => { if (r.ok) setUnreadNotifCount(0); })
         .catch(() => {});
-    } else if (socialTab === "photos" && myPhotoPosts === null) {
+    } else if (socialTab === "photos" && myPhotoPosts === null && !photosError) {
       if (!user?.playerId) return;
       setPhotosLoading(true);
       fetch(`/api/community/posts?player_id=${user.playerId}&photo_only=true&limit=100`)
-        .then(r => r.ok ? r.json() : [])
-        .then(setMyPhotoPosts)
+        .then(r => {
+          if (!r.ok) throw new Error("request failed");
+          return r.json();
+        })
+        .then((data) => { setMyPhotoPosts(data); setPhotosError(false); })
+        .catch(() => setPhotosError(true))
         .finally(() => setPhotosLoading(false));
     }
-  }, [activeTab, socialTab, loadConversations, user?.playerId, myPhotoPosts, notifsEnabled]);
+  }, [activeTab, socialTab, loadConversations, user?.playerId, myPhotoPosts, notifsEnabled, photosError]);
 
   useEffect(() => {
     if (!user?.playerId || !notifsEnabled) return;
@@ -2403,7 +2435,7 @@ export default function AccountPage() {
                     .filter((p: any) => p.isActive && p.id !== user?.playerId)
                     .map((p: any) => (
                       <button key={p.id}
-                        onClick={() => { setActiveConvId(p.id); void loadThread(p.id); setShowNewMsg(false); }}
+                        onClick={() => openConversation(p.id)}
                         className="w-full px-4 py-2.5 flex items-center gap-3 text-left transition-colors hover:bg-white/5"
                         style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
                         <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
@@ -2428,7 +2460,7 @@ export default function AccountPage() {
               ) : (
                 conversations.map((conv: any) => (
                   <button key={conv.playerId}
-                    onClick={() => { setActiveConvId(conv.playerId); void loadThread(conv.playerId); setShowNewMsg(false); }}
+                    onClick={() => openConversation(conv.playerId)}
                     className="w-full px-4 py-3 flex items-center gap-3 text-left transition-colors hover:bg-white/5"
                     style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                     <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-sm"
@@ -2738,6 +2770,20 @@ export default function AccountPage() {
             <div className="flex items-center justify-center py-16">
               <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin"
                 style={{ borderTopColor: "#ff005c" }} />
+            </div>
+          ) : photosError ? (
+            <div className="pdc-card flex flex-col items-center justify-center py-16 gap-3">
+              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", letterSpacing: "0.12em",
+                color: "rgba(255,255,255,0.25)", textTransform: "uppercase" }}>
+                Couldn't Load Photos
+              </div>
+              <button
+                onClick={() => setPhotosError(false)}
+                className="mt-1 px-5 py-2 rounded-xl transition-opacity hover:opacity-75"
+                style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.28)",
+                  color: "#ff005c", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.12em" }}>
+                Retry
+              </button>
             </div>
           ) : myPhotoPosts && myPhotoPosts.length === 0 ? (
             <div className="pdc-card flex flex-col items-center justify-center py-16 gap-3">

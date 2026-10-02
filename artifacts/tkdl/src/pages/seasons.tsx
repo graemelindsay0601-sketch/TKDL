@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { Calendar, Trophy, Hash, Clock, ChevronDown, ChevronUp, Plus, Check, X, Target } from "lucide-react";
 import { apiFetchJson, apiFetchJsonOr } from "@/lib/api-fetch";
 import { useToast } from "@/hooks/use-toast";
+import { MonthlyLeagueReports } from "@/components/monthly-league-reports";
 
 // Fetch players hook
 function usePlayers() {
@@ -572,6 +573,8 @@ export default function Seasons() {
           {seasons?.length ?? 0} seasons · Full history
         </p>
       </div>
+
+      <MonthlyLeagueReports />
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">

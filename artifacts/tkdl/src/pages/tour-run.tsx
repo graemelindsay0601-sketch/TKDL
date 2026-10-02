@@ -435,6 +435,23 @@ export default function TourRun() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ playerId: run.player_id, playerWon }),
       });
+      if (!res.ok) {
+        // The server's own idempotency guard (e.g. a 409 when this run was
+        // already advanced by a retried/duplicate submit) used to come back
+        // here as a response with no `bracket` field. That got spread
+        // straight into state as `bracket: undefined`, and the very next
+        // render's getCurrentOpponent()/`bracket.format` lookup threw and
+        // blanked the whole page. Re-sync from the server's current state
+        // instead of trusting this response's shape.
+        const fresh = await fetch(`/api/tour/runs/run/${run.id}`).then(r => r.ok ? r.json() : null).catch(() => null);
+        if (fresh) setRun(fresh);
+        setAdvancingError(
+          res.status === 409
+            ? "That result was already recorded — the bracket has been refreshed."
+            : "Failed to record result — check your connection and try again."
+        );
+        return;
+      }
       const data = await res.json();
       setRun(prev => prev ? { ...prev, bracket: data.bracket, status: data.status } : prev);
       if (data.won || data.eliminated) {

@@ -198,7 +198,7 @@ function PlayerCard({ player, leaderboardRank }: { player: any; leaderboardRank?
 }
 
 export default function Players() {
-  const { data: players, isLoading } = useListPlayers();
+  const { data: players, isLoading, isError, refetch } = useListPlayers();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"points" | "elo" | "streak" | "name">("points");
 
@@ -280,6 +280,18 @@ export default function Players() {
       {isLoading ? (
         <div className="flex justify-center py-20">
           <div className="w-10 h-10 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
+        </div>
+      ) : isError ? (
+        // Previously a failed fetch left `players` undefined with no error
+        // flag checked, so this fell into the same empty-grid render as a
+        // genuinely empty roster — "0 active" with no indication anything
+        // had gone wrong.
+        <div className="text-center py-20" style={{ color: "rgba(255,255,255,0.3)" }}>
+          Couldn't load players.
+          <button onClick={() => refetch()} className="block mx-auto mt-3 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider"
+            style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.3)", color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
+            Retry
+          </button>
         </div>
       ) : searched.length === 0 && q !== "" ? (
         <div className="text-center py-20" style={{ color: "rgba(255,255,255,0.3)" }}>

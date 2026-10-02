@@ -334,7 +334,11 @@ function ForYouZone({ currentPlayer, myStreak }: { currentPlayer: { playerId: nu
   const catalog = useCosmeticsCatalog();
   const { data: spotlight } = useFetch<HubSpotlight>("/api/broadcast/hub-spotlight");
   const { data: tourRuns } = useFetch<TourRun[]>(currentPlayer ? `/api/tour/runs/${currentPlayer.playerId}` : null);
-  const { data: currency } = useFetch<PlayerCurrency>(currentPlayer ? `/api/card-clash/shop/currency/${currentPlayer.playerId}` : null);
+  // Card Clash can be disabled via the admin kill switch, in which case this
+  // 403s — without tracking that separately from "no currency fetched yet",
+  // the wallet card below would show a plain "0 coins", indistinguishable
+  // from a player who genuinely has none.
+  const { data: currency, error: currencyError } = useFetch<PlayerCurrency>(currentPlayer ? `/api/card-clash/shop/currency/${currentPlayer.playerId}` : null);
   const { data: cosmetics } = useFetch<PlayerCosmetics>(currentPlayer ? `/api/players/${currentPlayer.playerId}/cosmetics` : null);
   const { data: pinsData } = useFetch<{ pins: PinnedAchievement[] }>(currentPlayer ? `/api/players/${currentPlayer.playerId}/pinned-achievements` : null);
   const { data: onThisDay } = useFetch<OnThisDayMatch | null>(currentPlayer ? `/api/hub/on-this-day/${currentPlayer.playerId}` : null);
@@ -384,9 +388,13 @@ function ForYouZone({ currentPlayer, myStreak }: { currentPlayer: { playerId: nu
         </span>
         <Link href="/account?tab=cosmetics" className="text-xs font-bold uppercase" style={{ color: "#00c8a0", opacity: 0.7, fontFamily: "Oswald, sans-serif", fontSize: "0.56rem" }}>Shop →</Link>
       </div>
-      <span className="font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.5rem", color: "#ffd24a", textShadow: "0 0 16px rgba(255,210,74,0.4)" }}>
-        {currency?.cardPoints ?? 0}<span className="text-xs font-normal ml-1" style={{ color: "rgba(255,255,255,0.3)" }}>coins</span>
-      </span>
+      {currencyError ? (
+        <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Coins unavailable right now</span>
+      ) : (
+        <span className="font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.5rem", color: "#ffd24a", textShadow: "0 0 16px rgba(255,210,74,0.4)" }}>
+          {currency?.cardPoints ?? 0}<span className="text-xs font-normal ml-1" style={{ color: "rgba(255,255,255,0.3)" }}>coins</span>
+        </span>
+      )}
       {(equippedName || equippedIcon) ? (
         <div className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
           {equippedName?.name}{equippedName && EquippedIconComp ? " · " : ""}{EquippedIconComp && equippedIcon?.name}
@@ -419,6 +427,29 @@ function ForYouZone({ currentPlayer, myStreak }: { currentPlayer: { playerId: nu
         <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.82rem", color: "rgba(255,255,255,0.9)" }}>Catch up on the latest broadcast</span>
         {spotlight.title && <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>{spotlight.title}</span>}
         <Link href="/tkdl-live" className="text-xs font-black uppercase" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif", fontSize: "0.54rem" }}>Watch →</Link>
+      </div>
+    );
+  }
+
+  // Previously, when onThisDay was outranked by a tkdl/tour nudge (see the
+  // priority order above), the anniversary match data was fetched but never
+  // rendered anywhere — no hero, no rail card — so it silently vanished for
+  // that one calendar day. Mirrors the tour/tkdl/streak rail-card fallback.
+  if (onThisDay && nudge !== "onThisDay") {
+    railCards.push(
+      <div key="onThisDay" className="rounded-xl px-4 py-3.5 flex flex-col gap-2" style={{ background: "rgba(255,210,74,0.06)", border: "1px solid rgba(255,210,74,0.28)" }}>
+        <span className="flex items-center gap-1.5 font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.54rem", letterSpacing: "0.13em", color: "#ffd24a" }}>
+          <Calendar className="w-3.5 h-3.5" /> On This Day
+        </span>
+        <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.82rem", color: "rgba(255,255,255,0.9)" }}>
+          {onThisDay.yearsAgo} year{onThisDay.yearsAgo === 1 ? "" : "s"} ago
+        </span>
+        <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+          {onThisDay.wasWin
+            ? `You beat ${onThisDay.opponentName} today, ${onThisDay.yearsAgo} year${onThisDay.yearsAgo === 1 ? "" : "s"} back`
+            : `${onThisDay.opponentName} beat you today, ${onThisDay.yearsAgo} year${onThisDay.yearsAgo === 1 ? "" : "s"} back`}
+        </span>
+        <Link href={`/h2h?p1=${currentPlayer.playerId}&p2=${onThisDay.opponentId}`} className="text-xs font-black uppercase" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif", fontSize: "0.54rem" }}>See rivalry →</Link>
       </div>
     );
   }
@@ -617,7 +648,10 @@ function ExploreAndReference({ settings }: { settings: any }) {
   const modes: { key: string; label: string; icon: React.ReactNode; accent: string; href: string; show: boolean }[] = [
     { key: "practice",   label: "Practice",     icon: <Dumbbell className="w-3 h-3" />,     accent: "#00e5a0", href: "/practice",    show: true },
     { key: "master501",  label: "Master-501",   icon: <Zap className="w-3 h-3" />,          accent: "#00c8a0", href: "/master501",   show: true },
-    { key: "cardclash",  label: "Card Clash",   icon: <Layers className="w-3 h-3" />,       accent: "#f97316", href: "/card-clash",  show: settings?.card_clash_enabled ?? true },
+    // Card Clash defaults to hidden (not true like the other toggles below) —
+    // it's under an explicit kill switch, so a settings-load hiccup or a
+    // failed fetch should never flash its tile back into view.
+    { key: "cardclash",  label: "Card Clash",   icon: <Layers className="w-3 h-3" />,       accent: "#f97316", href: "/card-clash",  show: settings?.card_clash_enabled ?? false },
     { key: "doubles",    label: "Doubles",      icon: <Users className="w-3 h-3" />,        accent: "#0066ff", href: "/leaderboard?mode=doubles", show: settings?.doubles_event_enabled ?? true },
     { key: "shiftwars",  label: "Shift Wars",   icon: <Building2 className="w-3 h-3" />,    accent: "#22c55e", href: "/leaderboard?mode=shiftwars", show: settings?.shift_wars_enabled ?? true },
     { key: "bossbattle", label: "Boss Battle",  icon: <Skull className="w-3 h-3" />,        accent: "#ef4444", href: "/boss-battle", show: settings?.boss_battle_enabled ?? true },

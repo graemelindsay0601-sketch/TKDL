@@ -6,6 +6,7 @@ import { type PracticeStats } from "@/lib/stats-types";
 import { SessionHistorySection } from "@/components/session-history";
 import { useCurrentPlayer } from "@/context/auth";
 import { useWakeLock, useZoomLock, useExitGuard, useMatchSnapshot, readMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
+import { useToast } from "@/hooks/use-toast";
 
 const M501_SNAPSHOT_KEY = "tkdl_master501_snapshot";
 type M501Snapshot = { tier: number; round: number; tierName: string };
@@ -66,6 +67,8 @@ export default function Master501() {
   const [runId,       setRunId]       = useState<number | null>(null);
   const [startCfg,    setStartCfg]    = useState<StartCfg | null>(null);
   const [matchResult, setMatchResult] = useState<{ result: "win" | "loss"; legsWon: number; legsLost: number } | null>(null);
+  const [saveFailed,  setSaveFailed]  = useState(false);
+  const { toast } = useToast();
   const [loading,     setLoading]     = useState(false);
   const [lastStats,   setLastStats]   = useState<PracticeStats | null>(null);
   const [lbRows,      setLbRows]      = useState<LbRow[]>([]);
@@ -114,12 +117,22 @@ export default function Master501() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ playerId, tier, round }),
       });
+      if (!res.ok) {
+        // Previously an unchecked res.ok meant a failed start left startCfg
+        // undefined, so every later phase guard (bullup/playing both require
+        // `&& startCfg`) silently failed to match and the page just fell back
+        // to the Lobby with no feedback — the Play/Replay button looked broken.
+        toast({ title: "Couldn't start the match", description: "Check your connection and try again.", variant: "destructive" });
+        return;
+      }
       const data = await res.json();
       setRunId(data.runId);
       setStartCfg(data.config as StartCfg);
       setBullResult(null);
       setPhase("bullup");
-    } catch { /* ignore */ }
+    } catch {
+      toast({ title: "Couldn't start the match", description: "Check your connection and try again.", variant: "destructive" });
+    }
     finally { setStartingCell(null); }
   };
 
@@ -171,23 +184,51 @@ export default function Master501() {
       }).catch(() => {});
     }
 
+    // Previously this PATCH's response was never checked, so a failed/dropped
+    // request still fell through to setPhase("result") and showed "LEVEL
+    // CLEARED" for a win the server never recorded — the player's ladder
+    // progress would then silently revert the next time they opened the
+    // lobby, with no explanation. Track whether the save actually landed so
+    // the result screen can say so and offer a retry.
+    let patchOk = true;
     try {
       if (runId) {
-        await fetch(`/api/master501/runs/${runId}`, {
+        const res = await fetch(`/api/master501/runs/${runId}`, {
           method: "PATCH", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ result, legsWon, legsLost }),
         });
+        patchOk = res.ok;
       }
-      if (playerId) {
-        const pr = await fetch(`/api/master501/progress/${playerId}`).then(r => r.json());
-        setProgress(pr);
+      if (patchOk && playerId) {
+        const pr = await fetch(`/api/master501/progress/${playerId}`).then(r => r.ok ? r.json() : null);
+        if (pr) setProgress(pr);
       }
-    } catch { /* ignore */ }
+    } catch { patchOk = false; }
+    setSaveFailed(!patchOk);
     setPhase("result");
   };
 
+  const retrySaveResult = async () => {
+    if (!runId || !matchResult) return;
+    try {
+      const res = await fetch(`/api/master501/runs/${runId}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ result: matchResult.result, legsWon: matchResult.legsWon, legsLost: matchResult.legsLost }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (playerId) {
+        const pr = await fetch(`/api/master501/progress/${playerId}`).then(r => r.ok ? r.json() : null);
+        if (pr) setProgress(pr);
+      }
+      setSaveFailed(false);
+      toast({ title: "Result saved" });
+    } catch {
+      toast({ title: "Still couldn't save", description: "Check your connection and try again.", variant: "destructive" });
+    }
+  };
+
   const handlePlayAgain = () => {
-    setMatchResult(null); setRunId(null); setStartCfg(null); setPhase("lobby");
+    setMatchResult(null); setRunId(null); setStartCfg(null); setSaveFailed(false); setPhase("lobby");
   };
 
   // Native-app parity: keep the screen awake, stop pinch-zoom, and trap the
@@ -224,6 +265,18 @@ export default function Master501() {
               {matchResult.legsWon} – {matchResult.legsLost}
             </div>
           </div>
+
+          {saveFailed && (
+            <div className="w-full rounded-xl p-3 flex items-center justify-between gap-3" style={{ background: "rgba(255,0,92,0.08)", border: "1px solid rgba(255,0,92,0.3)" }}>
+              <span className="text-xs" style={{ color: "#ff8fb4", fontFamily: "Oswald,sans-serif" }}>
+                This result wasn't saved to your progress.
+              </span>
+              <button onClick={() => void retrySaveResult()} className="px-3 py-1.5 rounded-lg text-xs font-bold shrink-0"
+                style={{ background: "rgba(255,0,92,0.15)", border: "1px solid rgba(255,0,92,0.4)", color: "#ff005c", fontFamily: "Oswald,sans-serif" }}>
+                Retry
+              </button>
+            </div>
+          )}
 
           {next && (
             <div className="w-full rounded-xl p-4 text-center" style={{ background: acc + "0a", border: `1px solid ${acc}30` }}>

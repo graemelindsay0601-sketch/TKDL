@@ -225,20 +225,46 @@ router.get("/leaderboard/achievements", async (_req, res): Promise<void> => {
 // ── Bot / Practice leaderboard ───────────────────────────────────────────────
 router.get("/leaderboard/bot", async (_req, res): Promise<void> => {
   try {
+    // Previously this only joined practice_sessions via player1_id and
+    // summed the p1_* columns — same undercount bug already found and fixed
+    // one file over in stats.ts's /stats/hall-of-fame (see its all_sessions
+    // CTE comment): anyone who mostly played 2-player practice sessions as
+    // player2 showed artificially low (or zero) totals here, while the same
+    // player's numbers on Hall of Fame correctly included their P2 activity.
+    // Also previously missing the M501 exclusion stats-detailed.ts applies
+    // (practice_sessions holds both true solo-Practice sessions AND M501
+    // tour-mode session logs) — without it, Shadow Bot numbers here were
+    // inflated by, and duplicated, activity already reported separately
+    // under Master-501 Rankings.
     const rows = (await db.execute(sql`
+      WITH bot_sessions AS (
+        SELECT player1_id AS player_id, p1_darts AS darts, p1_score AS score,
+               p1_checkout_hits AS checkout_hits, p1_180s AS s180s,
+               p1_checkout_attempts AS checkout_attempts, game_type_key
+        FROM practice_sessions
+        WHERE player1_id IS NOT NULL
+          AND game_type_key NOT ILIKE '%M501%' AND game_type_key NOT ILIKE '%MASTER%'
+        UNION ALL
+        SELECT player2_id AS player_id, p2_darts AS darts, p2_score AS score,
+               p2_checkout_hits AS checkout_hits, p2_180s AS s180s,
+               p2_checkout_attempts AS checkout_attempts, game_type_key
+        FROM practice_sessions
+        WHERE player2_id IS NOT NULL
+          AND game_type_key NOT ILIKE '%M501%' AND game_type_key NOT ILIKE '%MASTER%'
+      )
       SELECT
-        p.id                                      AS player_id,
-        p.name                                    AS player_name,
+        p.id                                        AS player_id,
+        p.name                                      AS player_name,
         p.status,
-        COUNT(ps.id)::int                              AS total_sessions,
-        COALESCE(SUM(ps.p1_darts), 0)::int            AS total_darts,
-        COALESCE(SUM(ps.p1_score), 0)::int            AS total_score,
-        COALESCE(SUM(ps.p1_checkout_hits), 0)::int    AS checkout_hits,
-        COALESCE(SUM(ps.p1_180s), 0)::int             AS total_180s,
-        COUNT(DISTINCT ps.game_type_key)::int          AS unique_games,
-        COALESCE(SUM(ps.p1_checkout_attempts), 0)::int AS checkout_attempts
+        COUNT(bs.player_id)::int                      AS total_sessions,
+        COALESCE(SUM(bs.darts), 0)::int               AS total_darts,
+        COALESCE(SUM(bs.score), 0)::int                AS total_score,
+        COALESCE(SUM(bs.checkout_hits), 0)::int       AS checkout_hits,
+        COALESCE(SUM(bs.s180s), 0)::int                AS total_180s,
+        COUNT(DISTINCT bs.game_type_key)::int          AS unique_games,
+        COALESCE(SUM(bs.checkout_attempts), 0)::int   AS checkout_attempts
       FROM players p
-      LEFT JOIN practice_sessions ps ON ps.player1_id = p.id
+      LEFT JOIN bot_sessions bs ON bs.player_id = p.id
       WHERE p.is_active = true
       GROUP BY p.id, p.name, p.status
       ORDER BY total_darts DESC, total_sessions DESC

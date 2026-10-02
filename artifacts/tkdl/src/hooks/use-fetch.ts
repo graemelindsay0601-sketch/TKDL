@@ -27,7 +27,7 @@ import { useQuery } from "@tanstack/react-query";
  * "no player selected" or "not signed in".
  */
 export function useFetch<T>(url: string | null) {
-  const { data, isLoading } = useQuery<T>({
+  const { data, isLoading, isError } = useQuery<T>({
     queryKey: ["raw-fetch", url],
     queryFn: async () => {
       const res = await fetch(url!);
@@ -37,5 +37,8 @@ export function useFetch<T>(url: string | null) {
     enabled: url !== null,
     staleTime: 30_000,
   });
-  return { data: data ?? null, loading: url !== null && isLoading };
+  // isError lets a caller tell "fetched and genuinely empty/zero" apart from
+  // "the request failed" — both otherwise collapse into the same `data: null`
+  // the hook returns while nothing has resolved yet.
+  return { data: data ?? null, loading: url !== null && isLoading, error: url !== null && isError };
 }

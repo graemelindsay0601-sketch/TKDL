@@ -24,6 +24,7 @@ import { useSettings } from "@/hooks/use-settings";
 import { useFetch } from "@/hooks/use-fetch";
 import { useCurrentPlayer } from "@/context/auth";
 import { apiFetchJson } from "@/lib/api-fetch";
+import { FinalWhistle, type FinalWhistleReceipt } from "@/components/final-whistle";
 
 const TIER_COLOR: Record<string, string> = {
   Diamond:  "#38bdf8",
@@ -465,6 +466,7 @@ function TeamModeSubmitSection({ onExit }: { onExit: () => void }) {
   const [stake, setStake]         = useState("5");
   const [gameType, setGameType]   = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [receipt, setReceipt] = useState<FinalWhistleReceipt | null>(null);
 
   const involved = [...winnerIds, ...loserIds];
   const involvedPlayers = activePlayers.filter(p => involved.includes(p.id));
@@ -504,19 +506,42 @@ function TeamModeSubmitSection({ onExit }: { onExit: () => void }) {
     }
     setSubmitting(true);
     try {
+      const storedTeamGameType = !gameType ? "team_501" : gameType.toLowerCase() === "killer" ? "multi_killer" : `team_${gameType.toLowerCase().replaceAll(" ", "_")}`;
       const res = await fetch("/api/team-matches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ winnerIds, loserIds, stake: stakeN, gameType: gameType || undefined }),
+        body: JSON.stringify({ winnerIds, loserIds, stake: stakeN, gameType: storedTeamGameType }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
       }
+      const data = await res.json() as any;
       const payoutDesc = unevenTeams
         ? `${winnerIds.map((id, i) => `${nameOf(id)} +${winnerShares[i]}`).join(", ")} · ${loserIds.map(id => `${nameOf(id)} -${stakeN}`).join(", ")}`
         : `${winnerIds.map(nameOf).join(" & ")} def. ${loserIds.map(nameOf).join(" & ")} — ±${stakeN} pts`;
       toast({ title: "Team Match Recorded ✓", description: payoutDesc });
+      const rankFor = (id: number) => data.rankChanges?.[id] ?? {};
+      setReceipt({
+        matchKey: `league-${data.match.id}`,
+        competition: unevenTeams ? `${winnerIds.length}v${loserIds.length} Team Match` : "Team Match",
+        gameType: gameType || "501",
+        winnerName: winnerIds.map(nameOf).join(" & "), loserName: loserIds.map(nameOf).join(" & "), stake: stakeN,
+        participants: [
+          ...winnerIds.map((id, index) => {
+            const player = activePlayers.find(p => p.id === id)!;
+            const share = data.winnerShares?.find((row: any) => row.id === id)?.share ?? winnerShares[index] ?? stakeN;
+            const rank = rankFor(id);
+            return { id, name: player.name, result: "win" as const, pointsBefore: player.points, pointsAfter: player.points + share, eloBefore: player.elo, eloAfter: player.elo + Number(data.eloChange ?? 0), rank: rank.newRank, rankChange: rank.rankChange, record: `${(player.seasonWins ?? 0) + 1}W–${player.seasonLosses ?? 0}L` };
+          }),
+          ...loserIds.map(id => {
+            const player = activePlayers.find(p => p.id === id)!;
+            const owed = data.loserShares?.find((row: any) => row.id === id)?.owed ?? stakeN;
+            const rank = rankFor(id), after = Math.max(0, player.points - owed);
+            return { id, name: player.name, result: "loss" as const, pointsBefore: player.points, pointsAfter: after, eloBefore: player.elo, eloAfter: Math.max(800, player.elo - Number(data.eloChange ?? 0)), rank: rank.newRank, rankChange: rank.rankChange, record: `${player.seasonWins ?? 0}W–${(player.seasonLosses ?? 0) + 1}L`, eliminated: data.eliminations?.includes(id) || after === 0 };
+          }),
+        ],
+      });
       const involvedIds = [...winnerIds, ...loserIds];
       setWinnerIds([]); setLoserIds([]); setStake("5"); setGameType(""); setSide("winner");
       queryClient.invalidateQueries({ queryKey: getGetLeaderboardQueryKey() });
@@ -536,6 +561,7 @@ function TeamModeSubmitSection({ onExit }: { onExit: () => void }) {
 
   return (
     <div className="space-y-5">
+      {receipt && <FinalWhistle receipt={receipt} onClose={() => setReceipt(null)} />}
       {/* Exit back to 1v1 */}
       <button type="button" onClick={onExit}
         className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wide hover:opacity-80"
@@ -694,6 +720,7 @@ function ShiftWarsSubmitSection() {
   const [stake, setStake]         = useState("5");
   const [gameType, setGameType]   = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [receipt, setReceipt] = useState<FinalWhistleReceipt | null>(null);
 
   const winner = teams.find((t: any) => t.id === winnerTeamId) ?? null;
   const loser  = teams.find((t: any) => t.id === loserTeamId)  ?? null;
@@ -731,7 +758,12 @@ function ShiftWarsSubmitSection() {
         const body = await res.json().catch(() => ({}));
         throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
       }
+      const data = await res.json() as any;
       toast({ title: "Shift Wars Match Recorded ✓", description: `${winner.name} def. ${loser.name} — ±${stakeN} pts` });
+      setReceipt({ matchKey:`shift-${data.match.id}`, competition:"Shift Wars", gameType:gameType || "501", winnerName:winner.name, loserName:loser.name, stake:stakeN, participants:[
+        { id:winner.id, name:winner.name, result:"win", pointsBefore:winner.points, pointsAfter:winner.points + stakeN, rank:data.newWinnerTeamRank, rankChange:data.winnerTeamRankChange, record:`${winner.wins + 1}W–${winner.losses}L` },
+        { id:loser.id, name:loser.name, result:"loss", pointsBefore:loser.points, pointsAfter:Math.max(0,loser.points-stakeN), rank:data.newLoserTeamRank, rankChange:data.loserTeamRankChange, record:`${loser.wins}W–${loser.losses + 1}L` },
+      ] });
       setWinnerTeamId(null); setLoserTeamId(null); setStake("5"); setGameType("");
       qc.invalidateQueries({ queryKey: ["leaderboard-shiftwars"] });
       reload();
@@ -763,6 +795,7 @@ function ShiftWarsSubmitSection() {
 
   return (
     <div className="space-y-5">
+      {receipt && <FinalWhistle receipt={receipt} onClose={() => setReceipt(null)} />}
       <MatchupStrip
         winner={winner ? { name: winner.name, sub: `${winner.points}pts` } : null}
         loser={loser ? { name: loser.name, sub: `${loser.points}pts` } : null}
@@ -845,6 +878,7 @@ function DoublesSubmitSection() {
   const [stake, setStake]         = useState("5");
   const [gameType, setGameType]   = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [receipt, setReceipt] = useState<FinalWhistleReceipt | null>(null);
 
   const activeTeams = teams.filter((t: any) => !t.isEliminated);
   const winner = activeTeams.find((t: any) => t.id === winnerTeamId) ?? null;
@@ -883,7 +917,13 @@ function DoublesSubmitSection() {
         const body = await res.json().catch(() => ({}));
         throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
       }
+      const data = await res.json() as any;
       toast({ title: "Doubles Match Recorded ✓", description: `${winner.teamName} def. ${loser.teamName} — ±${stakeN} pts` });
+      const eloChange=Number(data.eloChange ?? 0);
+      setReceipt({ matchKey:`doubles-${data.match.id}`, competition:"Doubles Event", gameType:gameType || "501", winnerName:winner.teamName, loserName:loser.teamName, stake:stakeN, participants:[
+        { id:winner.id, name:winner.teamName, result:"win", pointsBefore:winner.points, pointsAfter:winner.points + stakeN, eloBefore:winner.elo, eloAfter:winner.elo + eloChange, rank:data.newWinnerTeamRank, rankChange:data.winnerTeamRankChange, record:`${winner.wins + 1}W–${winner.losses}L` },
+        { id:loser.id, name:loser.teamName, result:"loss", pointsBefore:loser.points, pointsAfter:Math.max(0,loser.points-stakeN), eloBefore:loser.elo, eloAfter:Math.max(800,loser.elo-eloChange), rank:data.newLoserTeamRank, rankChange:data.loserTeamRankChange, record:`${loser.wins}W–${loser.losses + 1}L`, eliminated:Boolean(data.loserEliminated) },
+      ] });
       setWinnerTeamId(null); setLoserTeamId(null); setStake("5"); setGameType("");
       qc.invalidateQueries({ queryKey: ["leaderboard-doubles"] });
       reload();
@@ -915,6 +955,7 @@ function DoublesSubmitSection() {
 
   return (
     <div className="space-y-5">
+      {receipt && <FinalWhistle receipt={receipt} onClose={() => setReceipt(null)} />}
       <MatchupStrip
         winner={winner ? { name: winner.teamName, sub: `${winner.points}pts · ${winner.elo} ELO` } : null}
         loser={loser ? { name: loser.teamName, sub: `${loser.points}pts · ${loser.elo} ELO` } : null}
@@ -1113,6 +1154,7 @@ export default function SubmitMatch() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const currentPlayer = useCurrentPlayer();
+  const [receipt, setReceipt] = useState<FinalWhistleReceipt | null>(null);
 
   useEffect(() => {
     if (mode === "doubles" && !doublesEventEnabled) setModeState("singles");
@@ -1185,6 +1227,15 @@ export default function SubmitMatch() {
             title: "Match Recorded ✓",
             description: `${data.winnerName} def. ${data.loserName} — ±${values.stake} pts`,
           });
+          const selectedWinner = activePlayers.find(player => player.id === values.winnerId);
+          const selectedLoser = activePlayers.find(player => player.id === values.loserId);
+          if (selectedWinner && selectedLoser) setReceipt({
+            matchKey:`league-${data.id}`, competition:"Singles League", gameType:values.gameType || "501", winnerName:data.winnerName, loserName:data.loserName, stake:values.stake,
+            participants:[
+              { id:selectedWinner.id, name:selectedWinner.name, result:"win", pointsBefore:selectedWinner.points, pointsAfter:data.newWinnerPoints ?? selectedWinner.points + values.stake, eloBefore:selectedWinner.elo, eloAfter:selectedWinner.elo + Number(data.eloChange ?? 0), rank:data.newWinnerRank, rankChange:data.winnerRankChange, record:`${(selectedWinner.seasonWins ?? 0)+1}W–${selectedWinner.seasonLosses ?? 0}L` },
+              { id:selectedLoser.id, name:selectedLoser.name, result:"loss", pointsBefore:selectedLoser.points, pointsAfter:data.newLoserPoints ?? Math.max(0,selectedLoser.points-values.stake), eloBefore:selectedLoser.elo, eloAfter:Math.max(800,selectedLoser.elo-Number(data.eloChange ?? 0)), rank:data.newLoserRank, rankChange:data.loserRankChange, record:`${selectedLoser.seasonWins ?? 0}W–${(selectedLoser.seasonLosses ?? 0)+1}L`, eliminated:Boolean(data.loserEliminated) },
+            ],
+          });
           form.reset({ winnerId: 0, loserId: 0, stake: 5, gameType: "", notes: "" });
           queryClient.invalidateQueries({ queryKey: getGetLeaderboardQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
@@ -1205,6 +1256,7 @@ export default function SubmitMatch() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-5 pb-8">
+      {receipt && <FinalWhistle receipt={receipt} onClose={() => setReceipt(null)} />}
       <div className="pdc-divider" />
       <div>
         <h1 className="text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
