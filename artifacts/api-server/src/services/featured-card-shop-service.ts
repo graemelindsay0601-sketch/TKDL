@@ -10,6 +10,7 @@ import {
 import { eq, and, gte, sql } from "drizzle-orm";
 import cron from "node-cron";
 import { logger } from "../lib/logger";
+import { getFeatureFlag, FEATURES } from "./feature-flags-service";
 
 /**
  * Rarity-based pricing for featured shop
@@ -371,6 +372,17 @@ export function initializeFeaturedCardScheduler(): void {
     // edge-of-day race with the `today` cutoff used in rotateFeatureCards)
     cron.schedule("5 0 * * *", async () => {
       try {
+        // Re-checked on every firing (not just at scheduler-init time) so
+        // flipping the card_clash flag off in the admin panel takes effect
+        // the very next midnight without needing a restart — part of the
+        // Card Clash kill switch (see routes/card-clash.ts's gating
+        // middleware for the other half). A disabled shop nobody can reach
+        // doesn't need daily re-stocking.
+        const flag = await getFeatureFlag(FEATURES.CARD_CLASH);
+        if (!flag?.enabled) {
+          logger.info("Featured card shop: skipping daily rotation — Card Clash is disabled");
+          return;
+        }
         await rotateFeatureCards();
         logger.info("Featured card shop: daily rotation complete");
       } catch (error) {

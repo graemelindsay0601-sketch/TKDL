@@ -132,6 +132,7 @@ export type GraphicKind =
 export const GRAPHIC_KIND_BY_STORY_TYPE: Record<StoryType, GraphicKind> = {
   // RESULT
   MATCH_RESULT: "ResultGraphic",
+  TEAM_RESULT: "ResultGraphic",
   UPSET: "MatchContextGraphic",
   MAJOR_UPSET: "MatchContextGraphic",
   MODEL_SHOCK: "MatchContextGraphic",

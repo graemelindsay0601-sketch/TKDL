@@ -20,6 +20,7 @@ import { addPerformanceIndexes2 } from "./db/migrations/add_performance_indexes_
 import { addPerformanceIndexes3 } from "./db/migrations/add_performance_indexes_3";
 import { addPerformanceIndexes4 } from "./db/migrations/add_performance_indexes_4";
 import { addPerformanceIndexes5 } from "./db/migrations/add_performance_indexes_5";
+import { relaxAdminAnnouncementsAdminId } from "./db/migrations/relax_admin_announcements_admin_id";
 import { ensureAdminAuditTable } from "./lib/adminAudit";
 import { seedTourSystem } from "./lib/tourSeed";
 import { ensureCardClashAchievementTables } from "./lib/card-clash-achievements";
@@ -1608,6 +1609,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runInitStep("seedTitles", seedTitles);
   await runMigrationStep("addPerformanceIndexes4", addPerformanceIndexes4);
   await runMigrationStep("addPerformanceIndexes5", addPerformanceIndexes5);
+  await runMigrationStep("relaxAdminAnnouncementsAdminId", relaxAdminAnnouncementsAdminId);
 
   collectingSchemaFailures = false;
   const clean = schemaFailureCount === 0;

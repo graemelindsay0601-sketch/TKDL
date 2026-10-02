@@ -120,6 +120,7 @@ import { detectPerformanceStories, type SinglesPerformanceFacts } from "./story-
 import { detectLeagueStories, detectChampion as detectChampionOnly, detectSeasonRecap, type LeagueStandingsFacts, type LeagueEntityStanding } from "./story-detectors-league";
 import { detectMilestoneStories, type SinglesMilestoneFacts } from "./story-detectors-milestone";
 import { detectDoublesMatchStories, detectDoublesFormStories, type DoublesMatchResultFacts, type DoublesTeamFormFacts } from "./story-detectors-doubles";
+import { detectTeamResult, type TeamResultFacts } from "./story-detectors-team-result";
 import { detectShiftWarsStories, type ShiftWarsStandingsFacts, type ShiftWarsTeamStanding, type ShiftWarsDeficitWindow } from "./story-detectors-shift-wars";
 import { detectArchiveH2HStories, detectSeasonComparison, type ArchiveH2HFacts, type SeasonComparisonFacts } from "./story-detectors-archive";
 import { detectShadowBotPromo, detectPracticeActivity, detectFeatureSpotlight, type PracticeActivityFacts } from "./story-detectors-filler";
@@ -425,6 +426,128 @@ function rankByPointsDesc(standings: { entityId: number; points: number }[], ent
 export type NewSinglesMatch = { id: number; seasonId: number; playedAt: Date; winnerId: number; loserId: number; gameType: string };
 export type NewTeamMatch = { id: number; playedAt: Date; winnerTeamId: number; loserTeamId: number };
 export type NewDoublesMatch = NewTeamMatch & { seasonId: number };
+
+function numericIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(Number).filter(Number.isFinite);
+}
+
+/** Negative anchors keep combined/multi table ids distinct from the normal
+ * match table while still satisfying the broadcast engine's integer anchor
+ * contract. The real table/id pair remains in facts.resultRef. */
+function extendedAnchor(matchId: number, kind: "combined" | "multi"): number {
+  return -(matchId * 10 + (kind === "combined" ? 1 : 2));
+}
+
+async function loadTeamResultsSince(cutoffStart: Date, cutoffEnd: Date): Promise<TeamResultFacts[]> {
+  const [playerTeams, doublesCombined, doublesMulti, shiftStandard, shiftCombined, shiftMulti] = await Promise.all([
+    db.execute(sql`
+      SELECT m.id, m.season_id, m.played_at, m.winner_name, m.loser_name, m.stake,
+        COALESCE(array_agg(mp.player_id ORDER BY mp.position) FILTER (WHERE mp.team = 'winner'), ARRAY[m.winner_id]) winner_ids,
+        COALESCE(array_agg(mp.player_id ORDER BY mp.position) FILTER (WHERE mp.team = 'loser'), ARRAY[m.loser_id]) loser_ids
+      FROM matches m
+      JOIN seasons s ON s.id = m.season_id
+      LEFT JOIN match_participants mp ON mp.match_id = m.id
+      WHERE (m.game_type LIKE 'team_%' OR m.game_type = 'multi_killer')
+        AND m.played_at <= ${cutoffEnd}
+        AND (m.played_at > ${cutoffStart} OR (s.is_active = true AND NOT EXISTS (
+          SELECT 1 FROM broadcast_stories bs WHERE bs.facts->>'resultRef' = 'singles-team:' || m.id::text
+        )))
+      GROUP BY m.id, m.season_id, m.played_at, m.winner_name, m.loser_name, m.stake, m.winner_id, m.loser_id
+    `),
+    db.execute(sql`
+      SELECT m.id, m.season_id, m.played_at, m.solo_won, m.pot, solo.id solo_id, solo.team_name solo_name,
+        string_agg(side.team_name, ' + ' ORDER BY x.id) opposition_name,
+        array_agg(side.id ORDER BY x.id) opposition_ids
+      FROM doubles_combined_matches m
+      JOIN seasons s ON s.id = m.season_id
+      JOIN doubles_teams solo ON solo.id = m.solo_team_id
+      JOIN doubles_combined_match_sides x ON x.match_id = m.id
+      JOIN doubles_teams side ON side.id = x.team_id
+      WHERE m.played_at <= ${cutoffEnd}
+        AND (m.played_at > ${cutoffStart} OR (s.is_active = true AND NOT EXISTS (
+          SELECT 1 FROM broadcast_stories bs WHERE bs.facts->>'resultRef' = 'doubles-combined:' || m.id::text
+        )))
+      GROUP BY m.id, m.season_id, m.played_at, m.solo_won, m.pot, solo.id, solo.team_name
+    `),
+    db.execute(sql`
+      SELECT m.id, m.season_id, m.played_at, m.pot, winner.id winner_id, winner.team_name winner_name,
+        string_agg(team.team_name, ' + ' ORDER BY p.id) FILTER (WHERE NOT p.is_winner) loser_name,
+        array_agg(team.id ORDER BY p.id) FILTER (WHERE NOT p.is_winner) loser_ids
+      FROM doubles_multi_matches m
+      JOIN seasons s ON s.id = m.season_id
+      JOIN doubles_teams winner ON winner.id = m.winner_team_id
+      JOIN doubles_multi_match_participants p ON p.match_id = m.id
+      JOIN doubles_teams team ON team.id = p.team_id
+      WHERE m.played_at <= ${cutoffEnd}
+        AND (m.played_at > ${cutoffStart} OR (s.is_active = true AND NOT EXISTS (
+          SELECT 1 FROM broadcast_stories bs WHERE bs.facts->>'resultRef' = 'doubles-multi:' || m.id::text
+        )))
+      GROUP BY m.id, m.season_id, m.played_at, m.pot, winner.id, winner.team_name
+    `),
+    db.execute(sql`
+      SELECT m.id, m.season_id, m.played_at, m.stake, winner.id winner_id, winner.name winner_name,
+        loser.id loser_id, loser.name loser_name
+      FROM shift_wars_matches m
+      JOIN seasons s ON s.id = m.season_id
+      JOIN shift_wars_teams winner ON winner.id = m.winner_team_id
+      JOIN shift_wars_teams loser ON loser.id = m.loser_team_id
+      WHERE m.played_at <= ${cutoffEnd}
+        AND (m.played_at > ${cutoffStart} OR (s.is_active = true AND NOT EXISTS (
+          SELECT 1 FROM broadcast_stories bs WHERE bs.facts->>'resultRef' = 'shift-standard:' || m.id::text
+        )))
+    `),
+    db.execute(sql`
+      SELECT m.id, m.season_id, m.played_at, m.solo_won, m.pot, solo.id solo_id, solo.name solo_name,
+        string_agg(side.name, ' + ' ORDER BY x.id) opposition_name,
+        array_agg(side.id ORDER BY x.id) opposition_ids
+      FROM shift_wars_combined_matches m
+      JOIN seasons s ON s.id = m.season_id
+      JOIN shift_wars_teams solo ON solo.id = m.solo_team_id
+      JOIN shift_wars_combined_match_sides x ON x.match_id = m.id
+      JOIN shift_wars_teams side ON side.id = x.team_id
+      WHERE m.played_at <= ${cutoffEnd}
+        AND (m.played_at > ${cutoffStart} OR (s.is_active = true AND NOT EXISTS (
+          SELECT 1 FROM broadcast_stories bs WHERE bs.facts->>'resultRef' = 'shift-combined:' || m.id::text
+        )))
+      GROUP BY m.id, m.season_id, m.played_at, m.solo_won, m.pot, solo.id, solo.name
+    `),
+    db.execute(sql`
+      SELECT m.id, m.season_id, m.played_at, m.pot, winner.id winner_id, winner.name winner_name,
+        string_agg(team.name, ' + ' ORDER BY p.id) FILTER (WHERE NOT p.is_winner) loser_name,
+        array_agg(team.id ORDER BY p.id) FILTER (WHERE NOT p.is_winner) loser_ids
+      FROM shift_wars_multi_matches m
+      JOIN seasons s ON s.id = m.season_id
+      JOIN shift_wars_teams winner ON winner.id = m.winner_team_id
+      JOIN shift_wars_multi_match_participants p ON p.match_id = m.id
+      JOIN shift_wars_teams team ON team.id = p.team_id
+      WHERE m.played_at <= ${cutoffEnd}
+        AND (m.played_at > ${cutoffStart} OR (s.is_active = true AND NOT EXISTS (
+          SELECT 1 FROM broadcast_stories bs WHERE bs.facts->>'resultRef' = 'shift-multi:' || m.id::text
+        )))
+      GROUP BY m.id, m.season_id, m.played_at, m.pot, winner.id, winner.name
+    `),
+  ]);
+
+  const result: TeamResultFacts[] = [];
+  for (const raw of playerTeams.rows as any[]) result.push({
+    resultRef: `singles-team:${raw.id}`, resultKind: "uneven_team", leagueType: "singles",
+    matchId: Number(raw.id), anchorMatchId: Number(raw.id), seasonId: Number(raw.season_id), playedAt: new Date(raw.played_at),
+    winnerName: String(raw.winner_name), loserName: String(raw.loser_name), winnerEntityIds: numericIds(raw.winner_ids), loserEntityIds: numericIds(raw.loser_ids), stake: Number(raw.stake),
+  });
+  for (const raw of doublesCombined.rows as any[]) {
+    const oppositionIds = numericIds(raw.opposition_ids); const soloWon = Boolean(raw.solo_won);
+    result.push({ resultRef:`doubles-combined:${raw.id}`,resultKind:"doubles_combined",leagueType:"doubles",matchId:Number(raw.id),anchorMatchId:extendedAnchor(Number(raw.id),"combined"),seasonId:Number(raw.season_id),playedAt:new Date(raw.played_at),winnerName:soloWon?String(raw.solo_name):String(raw.opposition_name),loserName:soloWon?String(raw.opposition_name):String(raw.solo_name),winnerEntityIds:soloWon?[Number(raw.solo_id)]:oppositionIds,loserEntityIds:soloWon?oppositionIds:[Number(raw.solo_id)],stake:Number(raw.pot) });
+  }
+  for (const raw of doublesMulti.rows as any[]) result.push({ resultRef:`doubles-multi:${raw.id}`,resultKind:"doubles_multi",leagueType:"doubles",matchId:Number(raw.id),anchorMatchId:extendedAnchor(Number(raw.id),"multi"),seasonId:Number(raw.season_id),playedAt:new Date(raw.played_at),winnerName:String(raw.winner_name),loserName:String(raw.loser_name),winnerEntityIds:[Number(raw.winner_id)],loserEntityIds:numericIds(raw.loser_ids),stake:Number(raw.pot) });
+  for (const raw of shiftStandard.rows as any[]) result.push({ resultRef:`shift-standard:${raw.id}`,resultKind:"shift_standard",leagueType:"shift_wars",matchId:Number(raw.id),anchorMatchId:Number(raw.id),seasonId:Number(raw.season_id),playedAt:new Date(raw.played_at),winnerName:String(raw.winner_name),loserName:String(raw.loser_name),winnerEntityIds:[Number(raw.winner_id)],loserEntityIds:[Number(raw.loser_id)],stake:Number(raw.stake) });
+  for (const raw of shiftCombined.rows as any[]) {
+    const oppositionIds = numericIds(raw.opposition_ids); const soloWon = Boolean(raw.solo_won);
+    result.push({ resultRef:`shift-combined:${raw.id}`,resultKind:"shift_combined",leagueType:"shift_wars",matchId:Number(raw.id),anchorMatchId:extendedAnchor(Number(raw.id),"combined"),seasonId:Number(raw.season_id),playedAt:new Date(raw.played_at),winnerName:soloWon?String(raw.solo_name):String(raw.opposition_name),loserName:soloWon?String(raw.opposition_name):String(raw.solo_name),winnerEntityIds:soloWon?[Number(raw.solo_id)]:oppositionIds,loserEntityIds:soloWon?oppositionIds:[Number(raw.solo_id)],stake:Number(raw.pot) });
+  }
+  for (const raw of shiftMulti.rows as any[]) result.push({ resultRef:`shift-multi:${raw.id}`,resultKind:"shift_multi",leagueType:"shift_wars",matchId:Number(raw.id),anchorMatchId:extendedAnchor(Number(raw.id),"multi"),seasonId:raw.season_id==null?null:Number(raw.season_id),playedAt:new Date(raw.played_at),winnerName:String(raw.winner_name),loserName:String(raw.loser_name),winnerEntityIds:[Number(raw.winner_id)],loserEntityIds:numericIds(raw.loser_ids),stake:Number(raw.pot) });
+  return result.sort((a,b)=>a.playedAt.getTime()-b.playedAt.getTime() || a.resultRef.localeCompare(b.resultRef));
+}
 
 export type NewMatchesWindow = {
   singles: NewSinglesMatch[];
@@ -1674,7 +1797,7 @@ async function sweepStaleSeasonStories(now: Date): Promise<number> {
 export type DetectAndUpdateStoriesResult = {
   cutoffStart: Date;
   cutoffEnd: Date;
-  newMatchesProcessed: { singles: number; doubles: number; shiftWars: number };
+  newMatchesProcessed: { singles: number; doubles: number; shiftWars: number; teamResults: number };
   storiesUpserted: number;
   storiesArchived: number;
   byFamily: Partial<Record<StoryFamily, number>>;
@@ -1703,6 +1826,7 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
   matchRowCache.clear();
 
   const newMatches = await loadNewMatchesSince(cutoffStart, cutoffEnd);
+  const teamResults = await loadTeamResultsSince(cutoffStart, cutoffEnd);
 
   const byFamily: Partial<Record<StoryFamily, number>> = {};
   let storiesUpserted = 0;
@@ -1895,6 +2019,25 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
     }
   }
 
+  // Baseline result coverage for every wider result shape. This deliberately
+  // runs after the specialised Singles/Doubles detectors: standard 1v1s keep
+  // their richer upset/performance analysis, while uneven/combined/multi and
+  // Shift Wars results receive an honest team-shaped rundown of their own.
+  for (const result of teamResults) {
+    try {
+      const seasonId = result.seasonId ?? (result.leagueType === "shift_wars"
+        ? await resolveShiftWarsSeasonForCutoff(result.playedAt)
+        : null);
+      if (seasonId === null) continue;
+      await recordUpsert(detectTeamResult({ ...result, seasonId }), 100, seasonId);
+      if (result.leagueType === "singles") singlesMatchSeasonIds.add(seasonId);
+      else if (result.leagueType === "doubles") doublesMatchSeasonIds.add(seasonId);
+      else shiftWarsMatchSeasonIds.add(seasonId);
+    } catch (err) {
+      logger.error({ err, resultRef: result.resultRef }, "team result story failed — continuing with the rest of the broadcast batch");
+    }
+  }
+
   // ── LEAGUE family (all three leagues) ───────────────────────────────────
   const shiftWarsLeagueConfidenceBySeasonId = new Map<number, number>();
 
@@ -1987,7 +2130,14 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
 
   return {
     cutoffStart, cutoffEnd,
-    newMatchesProcessed: { singles: newMatches.singles.length, doubles: newMatches.doubles.length, shiftWars: newMatches.shiftWars.length },
+    newMatchesProcessed: {
+      singles: newMatches.singles.length,
+      doubles: newMatches.doubles.length,
+      shiftWars: newMatches.shiftWars.length,
+      // Standard Shift Wars rows are already counted immediately above;
+      // this field is the additional uneven/combined/multi result count.
+      teamResults: teamResults.filter(result => result.resultKind !== "shift_standard").length,
+    },
     storiesUpserted, storiesArchived, byFamily,
     catchUpSeasonIds: newMatches.catchUpSeasonIds,
   };

@@ -10,7 +10,7 @@ type Match = {
   winnerName: string; loserName: string;
   winnerPlayerIds: number[]; loserPlayerIds: number[];
   stake: number; eloChange: number | null; gameType: string;
-  seasonName: string | null; notes: string | null; isCombined: boolean;
+  seasonName: string | null; notes: string | null; isCombined: boolean; isMulti?: boolean;
 };
 type Feed = { items: Match[]; counts: Record<string, number> };
 
@@ -54,7 +54,7 @@ function ResultCard({ match, featured = false }: { match: Match; featured?: bool
   const Icon = info.icon;
   return (
     <article className={`mc-result ${featured ? "mc-featured" : ""}`} style={{ "--mode": info.color } as React.CSSProperties}>
-      <div className="mc-result-mode"><Icon size={13}/><span>{info.short}</span>{match.isCombined && <b>HANDICAP</b>}</div>
+      <div className="mc-result-mode"><Icon size={13}/><span>{info.short}</span>{match.isCombined && <b>HANDICAP</b>}{match.isMulti && <b>MULTI</b>}</div>
       <div className="mc-result-main">
         <div className="mc-side mc-side-winner">
           <small>WINNER</small><PlayerName name={match.winnerName} ids={match.winnerPlayerIds} winner />

@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { useState, useEffect } from "react";
 import { Calendar, Trophy, Hash, Clock, ChevronDown, ChevronUp, Plus, Check, X, Target } from "lucide-react";
 import { apiFetchJson, apiFetchJsonOr } from "@/lib/api-fetch";
+import { useToast } from "@/hooks/use-toast";
 
 // Fetch players hook
 function usePlayers() {
@@ -66,38 +67,55 @@ function PlayoffSection({ seasonId, standings }: { seasonId: number; standings: 
   // authorization comes from the admin session cookie set by the real PIN
   // screen (POST /api/admin/verify-pin). No PIN is sent with these requests.
   const isAdmin = sessionStorage.getItem("tkdl_admin_unlocked") === "1";
+  const { toast } = useToast();
 
   const addMatch = async () => {
     if (!form.player1Id || !form.player2Id || form.player1Id === form.player2Id) return;
     setSubmitting(true);
-    await fetch(`/api/seasons/${seasonId}/playoff`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ player1Id: parseInt(form.player1Id), player2Id: parseInt(form.player2Id), round: form.round, gameType: form.gameType }),
-    });
-    setSubmitting(false);
-    setAdding(false);
-    setForm({ player1Id: "", player2Id: "", round: "final", gameType: "Best of 3" });
-    refresh();
+    try {
+      await apiFetchJson(`/api/seasons/${seasonId}/playoff`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ player1Id: parseInt(form.player1Id), player2Id: parseInt(form.player2Id), round: form.round, gameType: form.gameType }),
+      });
+      setAdding(false);
+      setForm({ player1Id: "", player2Id: "", round: "final", gameType: "Best of 3" });
+      refresh();
+    } catch (err) {
+      toast({ title: "Couldn't add playoff match", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const setWinner = async (matchId: number, winnerId: number) => {
     setSettingWinner(matchId);
-    await fetch(`/api/seasons/${seasonId}/playoff/${matchId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ winnerId }),
-    });
-    setSettingWinner(null);
-    refresh();
-    window.location.reload();
+    try {
+      await apiFetchJson(`/api/seasons/${seasonId}/playoff/${matchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ winnerId }),
+      });
+      refresh();
+      // Only reload once the write actually succeeded — previously this ran
+      // unconditionally, so a failed PATCH (expired admin session, a
+      // network blip) looked like a clean success with the match silently
+      // never recorded.
+      window.location.reload();
+    } catch (err) {
+      toast({ title: "Couldn't set winner", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
+    } finally {
+      setSettingWinner(null);
+    }
   };
 
   const deleteMatch = async (matchId: number) => {
-    await fetch(`/api/seasons/${seasonId}/playoff/${matchId}`, {
-      method: "DELETE",
-    });
-    refresh();
+    try {
+      await apiFetchJson(`/api/seasons/${seasonId}/playoff/${matchId}`, { method: "DELETE" });
+      refresh();
+    } catch (err) {
+      toast({ title: "Couldn't delete match", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
+    }
   };
 
   const activePlayers = players.filter(p => p.isActive);

@@ -887,10 +887,20 @@ export async function sendThreatAlertNotifications(
 }
 
 /**
- * Create and send an admin announcement to selected players
+ * Create and send an admin announcement to selected players.
+ *
+ * `adminId` is nullable — see the ALTER in relax_admin_announcements_admin_id.ts
+ * for why: admin access here is PIN-only (requireAdminSession), never tied to
+ * a specific player record, so there is no real "admin player id" to pass.
+ * The caller used to hardcode a guessed player id, which threw a foreign-key
+ * violation on every single call whenever that id didn't exist in `players`
+ * — the entire announcement feature failed before a single notification row
+ * was ever written, since this INSERT runs first. `admin_id` is write-only
+ * attribution metadata (nothing reads it back — no admin UI displays "sent
+ * by X"), so null is a correct, safe value, not a workaround.
  */
 export async function createAnnouncement(
-  adminId: number,
+  adminId: number | null,
   title: string,
   body: string,
   targetPlayers?: number[] | null,

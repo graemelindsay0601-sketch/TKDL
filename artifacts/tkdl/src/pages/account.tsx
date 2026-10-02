@@ -339,6 +339,11 @@ const MAX_ACTIVE_GOALS_CLIENT = 3; // mirrors MAX_ACTIVE_GOALS in routes/goals.t
 
 function PersonalGoals({ playerId }: { playerId: number }) {
   const [goals, setGoals]         = useState<Goal[] | null>(null);
+  // Separate from `goals === null` so a failed INITIAL load can show a
+  // retry affordance instead of the whole card silently never appearing —
+  // previously `goals` doubled as both "still loading" and "failed
+  // forever" with no way to tell them apart or retry.
+  const [loadError, setLoadError] = useState(false);
   const [newType, setNewType]     = useState<Goal["goalType"]>("elo");
   const [newTarget, setNewTarget] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -347,13 +352,24 @@ function PersonalGoals({ playerId }: { playerId: number }) {
   const load = useCallback(async () => {
     try {
       const r = await fetch(`/api/players/${playerId}/goals`);
-      if (r.ok) setGoals((await r.json()).goals);
-    } catch { /* leave goals as-is on a transient failure */ }
+      if (r.ok) { setGoals((await r.json()).goals); setLoadError(false); }
+      else setLoadError(true);
+    } catch { setLoadError(true); }
   }, [playerId]);
 
   useEffect(() => { void load(); }, [load]);
 
-  if (goals === null) return null;
+  if (goals === null) {
+    if (!loadError) return null; // still loading
+    return (
+      <SectionCard title="Personal Goals" icon={Target} accent="#00e5a0">
+        <p className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>Couldn't load your goals.</p>
+        <button onClick={() => void load()} className="text-xs underline" style={{ color: "#00e5a0" }}>
+          Retry
+        </button>
+      </SectionCard>
+    );
+  }
 
   const activeGoals   = goals.filter(g => !g.achievedAt);
   const achievedGoals = goals.filter(g => g.achievedAt);
@@ -383,8 +399,17 @@ function PersonalGoals({ playerId }: { playerId: number }) {
   };
 
   const deleteGoal = async (id: number) => {
-    const r = await fetch(`/api/goals/${id}`, { method: "DELETE", credentials: "include" });
-    if (r.ok) void load();
+    try {
+      const r = await fetch(`/api/goals/${id}`, { method: "DELETE", credentials: "include" });
+      if (r.ok) {
+        void load();
+      } else {
+        const data = await r.json().catch(() => ({}));
+        toast({ title: "Couldn't delete goal", description: data.error, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Couldn't delete goal", description: "Network error — try again.", variant: "destructive" });
+    }
   };
 
   return (

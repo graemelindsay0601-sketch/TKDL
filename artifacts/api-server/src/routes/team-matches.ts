@@ -6,8 +6,9 @@ import { z } from "zod";
 import { calcEloChange } from "../lib/elo";
 import { matchSubmitRateLimit } from "../middleware/writeRateLimit";
 import { createAutoPost } from "../lib/communityNotify";
-import { sendRankChangeNotifications, sendTeamMatchResultNotification } from "../services/notificationService";
+import { sendMatchResultBroadcast, sendRankChangeNotifications, sendTeamMatchResultNotification } from "../services/notificationService";
 import { rankPlayersByPoints, type RankablePlayer } from "../lib/leaderboardRank";
+import { invalidateProgressCache } from "./players";
 
 const TeamMatchBody = z.object({
   winnerIds: z.array(z.number().int().positive()).min(1).max(6),
@@ -342,6 +343,8 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
     throw err;
   }
 
+  invalidateProgressCache(allIds);
+
   // Leaderboard-position rank diff for every player who played — reuses
   // the exact same helper the singles flow uses (routes/matches.ts), since
   // Team Match wagers/settles against individual players' own points/elo,
@@ -391,6 +394,13 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
   // otherwise invisible outside the app. Matches how Singles/Doubles/Shift
   // Wars all already notify their own participants.
   void sendTeamMatchResultNotification(match.winnerName, match.loserName, winnerIds, loserIds, stake, eloChange, `team-match:${match.id}`);
+  void sendMatchResultBroadcast(
+    allIds,
+    "🎯 Team Match Result",
+    `${match.winnerName} beat ${match.loserName}`,
+    { matchId: match.id, winnerTeamName: match.winnerName, loserTeamName: match.loserName, mode: "team" },
+    `team-match-broadcast:${match.id}`,
+  );
 
   // Auto community post (fire and forget — never delay the response). Team
   // Matches never had any community-feed integration before this — mirrors

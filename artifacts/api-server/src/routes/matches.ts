@@ -700,6 +700,24 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
       await tx.delete(matchParticipantsTable).where(eq(matchParticipantsTable.matchId, id));
     }
 
+    // A corrected/deleted result must disappear from generated surfaces too.
+    // Push notifications already delivered cannot be recalled, but the in-app
+    // community card and any pending/live broadcast story can be retired.
+    await tx.execute(sql`
+      UPDATE community_posts
+      SET status = 'rejected'
+      WHERE post_type = 'auto'
+        AND auto_meta->>'matchId' = ${String(id)}
+        AND auto_meta->>'type' IN ('match', 'team_match')
+    `);
+    await tx.execute(sql`
+      UPDATE broadcast_stories
+      SET lifecycle = 'RESOLVED', resolved_at = COALESCE(resolved_at, NOW()), updated_at = NOW()
+      WHERE league_type = 'singles'
+        AND anchor_match_id = ${id}
+        AND lifecycle <> 'RESOLVED'
+    `);
+
     // Recalculate from both direct Singles rows and match_participants so a
     // non-captain's team results count in the same order as their Singles.
     const calcStreak = async (pid: number) => {
@@ -877,6 +895,10 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
       totalMatches: sql`GREATEST(0, ${seasonsTable.totalMatches} - 1)`,
     }).where(eq(seasonsTable.id, match.seasonId));
   });
+
+  invalidateProgressCache(participants.length > 0
+    ? participants.map(p => p.playerId)
+    : [match.winnerId, match.loserId]);
 
   void logAdminAction(req, "match.delete", "match", id, {
     winner: match.winnerName,

@@ -19,6 +19,7 @@ type CentreMatch = {
   seasonName: string | null;
   notes: string | null;
   isCombined: boolean;
+  isMulti?: boolean;
 };
 
 const router = Router();
@@ -63,7 +64,7 @@ router.get("/match-centre/:key", async (req, res): Promise<void> => {
         context={meetingNumber:Number(history.prior_meetings)+1,winnerWinsBefore:Number(history.winner_wins),loserWinsBefore:Number(history.loser_wins)};
       }
       result = {
-        key: req.params.key, mode: teamGame ? "team" : "singles", isCombined: teamGame && winnerPeople.length !== loserPeople.length,
+        key: req.params.key, mode: teamGame ? "team" : "singles", isCombined: teamGame && winnerPeople.length !== loserPeople.length, isMulti: false,
         playedAt: row.played_at, seasonName: row.season_name, gameType: row.game_type, notes: row.notes, stake: row.stake,
         winner: { name: row.winner_name, pointsDelta: sumDelta(winnerPeople, "points_delta", row.stake), eloDelta: sumDelta(winnerPeople, "elo_delta", row.elo_change) },
         loser: { name: row.loser_name, pointsDelta: sumDelta(loserPeople, "points_delta", -row.stake), eloDelta: sumDelta(loserPeople, "elo_delta", -row.elo_change) },
@@ -101,7 +102,7 @@ router.get("/match-centre/:key", async (req, res): Promise<void> => {
       const loserRows = people.filter(p => !p.is_winner);
       const loserNames = loserRows.map(p => p.name).join(" + ");
       result = {
-        key: req.params.key, mode: multiDoubles ? "doubles" : "shift_wars", isCombined: false,
+        key: req.params.key, mode: multiDoubles ? "doubles" : "shift_wars", isCombined: false, isMulti: true,
         playedAt: row.played_at, seasonName: row.season_name, gameType: row.game_type, notes: row.notes, stake: row.pot,
         winner: { name: row.winner_name, pointsDelta: winnerRow?.points_delta ?? row.pot, eloDelta: multiDoubles ? (winnerRow?.elo_delta ?? row.elo_change) : null },
         loser: { name: loserNames, pointsDelta: loserRows.reduce((n, p) => n + Number(p.points_delta), 0), eloDelta: multiDoubles ? loserRows.reduce((n, p) => n + Number(p.elo_delta), 0) : null },
@@ -124,7 +125,7 @@ router.get("/match-centre/:key", async (req, res): Promise<void> => {
         ? await db.execute(sql`SELECT t.team_name name, x.fielded_count, x.points_delta, x.elo_delta, x.eliminated FROM doubles_combined_match_sides x JOIN doubles_teams t ON t.id=x.team_id WHERE x.match_id=${parsed.id} ORDER BY x.id`)
         : await db.execute(sql`SELECT t.name, x.fielded_count, x.points_delta, NULL::integer elo_delta, false eliminated FROM shift_wars_combined_match_sides x JOIN shift_wars_teams t ON t.id=x.team_id WHERE x.match_id=${parsed.id} ORDER BY x.id`);
       const row:any=main.rows[0]; const sideRows=sides.rows as any[];
-      if(row){ const opposition=sideRows.map(x=>x.name).join(" + "); result={key:req.params.key,mode:doubles?"doubles":"shift_wars",isCombined:true,playedAt:row.played_at,seasonName:row.season_name,gameType:row.game_type,notes:row.notes,stake:row.pot,winner:{name:row.solo_won?row.solo_name:opposition,pointsDelta:row.solo_won?row.solo_points_delta:sideRows.reduce((n,x)=>n+Number(x.points_delta),0),eloDelta:doubles?(row.solo_won?row.solo_elo_delta:sideRows.reduce((n,x)=>n+Number(x.elo_delta),0)):null},loser:{name:row.solo_won?opposition:row.solo_name,pointsDelta:row.solo_won?sideRows.reduce((n,x)=>n+Number(x.points_delta),0):row.solo_points_delta,eloDelta:doubles?(row.solo_won?sideRows.reduce((n,x)=>n+Number(x.elo_delta),0):row.solo_elo_delta):null},participants:[{playerName:row.solo_name,team:"solo",position:0,fieldedCount:row.solo_fielded_count,pointsDelta:row.solo_points_delta,eloDelta:doubles?row.solo_elo_delta:null},...sideRows.map((x,i)=>({playerName:x.name,team:"opposition",position:i,fieldedCount:x.fielded_count,pointsDelta:x.points_delta,eloDelta:x.elo_delta,causedElimination:x.eliminated}))],stats:null}; }
+      if(row){ const opposition=sideRows.map(x=>x.name).join(" + "); result={key:req.params.key,mode:doubles?"doubles":"shift_wars",isCombined:true,isMulti:false,playedAt:row.played_at,seasonName:row.season_name,gameType:row.game_type,notes:row.notes,stake:row.pot,winner:{name:row.solo_won?row.solo_name:opposition,pointsDelta:row.solo_won?row.solo_points_delta:sideRows.reduce((n,x)=>n+Number(x.points_delta),0),eloDelta:doubles?(row.solo_won?row.solo_elo_delta:sideRows.reduce((n,x)=>n+Number(x.elo_delta),0)):null},loser:{name:row.solo_won?opposition:row.solo_name,pointsDelta:row.solo_won?sideRows.reduce((n,x)=>n+Number(x.points_delta),0):row.solo_points_delta,eloDelta:doubles?(row.solo_won?sideRows.reduce((n,x)=>n+Number(x.elo_delta),0):row.solo_elo_delta):null},participants:[{playerName:row.solo_name,team:row.solo_won?"winner":"opposition",position:0,fieldedCount:row.solo_fielded_count,pointsDelta:row.solo_points_delta,eloDelta:doubles?row.solo_elo_delta:null},...sideRows.map((x,i)=>({playerName:x.name,team:row.solo_won?"opposition":"winner",position:i,fieldedCount:x.fielded_count,pointsDelta:x.points_delta,eloDelta:x.elo_delta,causedElimination:x.eliminated}))],stats:null}; }
     }
   }
   if (!result) { res.status(404).json({ error: "Match not found" }); return; }
@@ -307,13 +308,13 @@ router.get("/match-centre", async (_req, res): Promise<void> => {
     key: `doubles-multi-${row.id}`, id: row.id, mode: "doubles", playedAt: row.played_at,
     winnerName: row.winner_name, loserName: (doublesMultiLosers.get(row.id) ?? []).join(" + "),
     winnerPlayerIds: [], loserPlayerIds: [], stake: row.pot, eloChange: row.elo_change,
-    gameType: row.game_type, seasonName: row.season_name, notes: row.notes, isCombined: false,
+    gameType: row.game_type, seasonName: row.season_name, notes: row.notes, isCombined: false, isMulti: true,
   });
   for (const row of shiftMultiResult.rows as any[]) items.push({
     key: `shift-multi-${row.id}`, id: row.id, mode: "shift_wars", playedAt: row.played_at,
     winnerName: row.winner_name, loserName: (shiftMultiLosers.get(row.id) ?? []).join(" + "),
     winnerPlayerIds: [], loserPlayerIds: [], stake: row.pot, eloChange: null,
-    gameType: row.game_type, seasonName: row.season_name, notes: row.notes, isCombined: false,
+    gameType: row.game_type, seasonName: row.season_name, notes: row.notes, isCombined: false, isMulti: true,
   });
 
   items.sort((a, b) => new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime());

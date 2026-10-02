@@ -12,6 +12,7 @@ import { createNotification as createCommunityNotification } from "../lib/commun
 import { drawDoublesTeams } from "../lib/doublesDraw";
 import { logger } from "../lib/logger";
 import { logAdminAction, getRecentAdminActions } from "../lib/adminAudit";
+import { invalidateProgressCache } from "./players";
 
 const router = Router();
 
@@ -202,7 +203,7 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
 
   class MatchEditConflictError extends Error {}
 
-  let result: { updated: typeof matchesTable.$inferSelect; newEloChange: number };
+  let result: { updated: typeof matchesTable.$inferSelect; newEloChange: number; affectedPlayerIds: number[] };
   try {
     result = await db.transaction(async (tx) => {
       const [match] = await tx.select().from(matchesTable).where(eq(matchesTable.id, matchId)).for("update");
@@ -305,7 +306,67 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
         ...(notes !== undefined ? { notes } : {}),
       }).where(eq(matchesTable.id, matchId)).returning();
 
-      return { updated, newEloChange };
+      // Remove the now-stale generated feed card. A corrected result can be
+      // announced again by the normal result flow if it is re-entered; keeping
+      // the old winner/loser text visible would be actively misleading.
+      await tx.execute(sql`
+        UPDATE community_posts
+        SET status = 'rejected'
+        WHERE post_type = 'auto'
+          AND auto_meta->>'matchId' = ${String(matchId)}
+          AND auto_meta->>'type' = 'match'
+      `);
+
+      // Editions freeze their dialogue. Retire the old story row under a
+      // non-canonical key so live viewers invalidate that segment, while the
+      // next programme build can create a fresh canonical story row from the
+      // corrected winner/loser facts. Reusing the same row would make an old
+      // Edition's frozen words look valid again after regeneration.
+      await tx.execute(sql`
+        UPDATE broadcast_stories
+        SET story_key = story_key || ':superseded:' || id::text,
+            facts = facts - 'matchId' - 'resultRef',
+            lifecycle = 'RESOLVED',
+            resolved_at = NOW(),
+            updated_at = NOW()
+        WHERE league_type = 'singles'
+          AND anchor_match_id = ${matchId}
+          AND story_key NOT LIKE '%:superseded:%'
+      `);
+
+      // The result being edited is guaranteed to be the newest one, so a
+      // short replay of each affected player's result sequence gives an exact
+      // current streak, including earlier uneven-team appearances.
+      for (const playerId of allIds) {
+        const history = await tx.execute(sql`
+          SELECT m.played_at,
+                 CASE WHEN mp.player_id IS NOT NULL THEN mp.team = 'winner'
+                      ELSE m.winner_id = ${playerId} END AS won
+          FROM matches m
+          LEFT JOIN match_participants mp
+            ON mp.match_id = m.id AND mp.player_id = ${playerId}
+          WHERE m.winner_id = ${playerId} OR m.loser_id = ${playerId} OR mp.player_id = ${playerId}
+          ORDER BY m.played_at DESC, m.id DESC
+        `);
+        const rows = history.rows as { won: boolean }[];
+        let count = 0;
+        if (rows.length > 0) {
+          const firstWon = rows[0].won;
+          for (const row of rows) {
+            if (row.won !== firstWon) break;
+            count++;
+          }
+          await tx.update(playersTable).set({
+            currentWinStreak: firstWon ? count : 0,
+            currentLossStreak: firstWon ? 0 : count,
+          }).where(eq(playersTable.id, playerId));
+        } else {
+          await tx.update(playersTable).set({ currentWinStreak: 0, currentLossStreak: 0 })
+            .where(eq(playersTable.id, playerId));
+        }
+      }
+
+      return { updated, newEloChange, affectedPlayerIds: allIds };
     });
   } catch (err) {
     if (err instanceof MatchEditConflictError) {
@@ -314,6 +375,8 @@ router.patch("/admin/matches/:id", async (req, res): Promise<void> => {
     }
     throw err;
   }
+
+  invalidateProgressCache(result.affectedPlayerIds);
 
   void logAdminAction(req, "match.edit", "match", matchId, {
     before: { winner: matchPreCheck.winnerName, loser: matchPreCheck.loserName, stake: matchPreCheck.stake, notes: matchPreCheck.notes },
@@ -332,7 +395,7 @@ router.delete("/admin/players/:id", async (req, res): Promise<void> => {
     .from(playersTable).where(eq(playersTable.id, playerId));
   if (!player) { res.status(404).json({ error: "Player not found" }); return; }
 
-  await db.update(playersTable).set({ isActive: false }).where(eq(playersTable.id, playerId));
+  await db.update(playersTable).set({ isActive: false, status: "INACTIVE" }).where(eq(playersTable.id, playerId));
 
   req.log.info({ playerId, name: player.name }, "Player retired by admin");
   void logAdminAction(req, "player.retire", "player", playerId, { name: player.name });
@@ -427,7 +490,18 @@ router.get("/admin/seasons/shift-wars", async (_req, res): Promise<void> => {
 // push + in-app notification row) already existed in notificationService.ts;
 // it just never had a route in front of it, and was silently failing until
 // the notifications table above got its missing columns (see seedCommunityTables).
-const CREATE_ANNOUNCEMENT_ADMIN_ID = 1; // Graeme — the one real admin, matches the convention already used by /admin/test-comms below
+//
+// This previously passed a hardcoded guessed admin player id ("the one real
+// admin, matches the convention already used by /admin/test-comms below" —
+// which wasn't actually true; test-comms uses the logged-in session's real
+// player id, not a constant). admin_announcements.admin_id had a NOT NULL +
+// FK to players(id), so that guess threw a foreign-key violation on every
+// single call unless that exact id happened to exist — meaning the whole
+// feature could fail outright before a single player notification was ever
+// created. Admin access here is PIN-only and was never tied to a player
+// record, so there's no real admin player id to pass; createAnnouncement
+// now takes null, and relax_admin_announcements_admin_id.ts made the column
+// nullable to match (see that migration's comment for the full reasoning).
 
 const AnnouncementBody = z.object({
   title: z.string().min(1),
@@ -442,7 +516,7 @@ router.post("/admin/announcements", requireAdminSession, async (req, res): Promi
   const { title, body, target_players, critical } = parsed.data;
   try {
     const announcementId = await createAnnouncement(
-      CREATE_ANNOUNCEMENT_ADMIN_ID, title, body, target_players ?? null, critical ?? false
+      null, title, body, target_players ?? null, critical ?? false
     );
     res.json({ ok: true, id: announcementId });
   } catch (err) {

@@ -36,8 +36,34 @@ import { db, cardClashMatchesTable, cardClashSeasonsTable, cardInventoryTable } 
 import { eq, sql } from "drizzle-orm";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { paramStr } from "../lib/http";
+import { isFeatureAvailable, getFeatureStatus, FEATURES } from "../services/feature-flags-service";
 
 const router = Router();
+
+// ── Card Clash kill switch ───────────────────────────────────────────────
+// Card Clash is benched (paused indefinitely, not actively worked on) but
+// until now had no real off switch: GET /feature-status (below) reported the
+// card_clash flag's state so the frontend could hide its own UI, but every
+// other route in this file — including every currency-moving one — stayed
+// fully live and reachable no matter what the flag said, so disabling it in
+// the admin panel bought nothing: same DB load, same live attack surface,
+// same work for this server to do on every request. This blocks every route
+// below at the door (before any query/business logic runs) whenever the
+// flag is off, using the same isFeatureAvailable(FEATURES.X, isAdmin)
+// pattern already established for TKDL LIVE (routes/broadcast.ts) — enabled
+// turns it fully back on, adminTestMode lets an admin session back in alone
+// (e.g. to inspect data) without opening it to players. GET /feature-status
+// itself is exempt so the frontend can always learn the real state and show
+// an honest "not available" message instead of every request just erroring.
+function sessionIsAdmin(req: Request): boolean {
+  return (req.session as any)?.isAdmin === true;
+}
+router.use(async (req, res, next) => {
+  if (req.path === "/feature-status") { next(); return; }
+  const available = await isFeatureAvailable(FEATURES.CARD_CLASH, sessionIsAdmin(req));
+  if (!available) { res.status(403).json({ error: "Card Clash is currently unavailable." }); return; }
+  next();
+});
 
 // === AUTO-FIX CARD CLASH ON STARTUP ===
 export async function initializeCardClashSchema() {
@@ -882,8 +908,6 @@ router.post("/admin/player/reset", verifyAdminPin, async (req: Request, res: Res
 });
 
 // Get feature status (public endpoint - everyone can check)
-import { getFeatureStatus, FEATURES } from "../services/feature-flags-service";
-
 router.get("/feature-status", async (req: Request, res: Response) => {
   try {
     // This app stores auth on the session; req.user is never populated.

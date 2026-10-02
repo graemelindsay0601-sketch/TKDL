@@ -138,6 +138,18 @@ const MATCH_RESULT_PHRASES: Phrase[] = [
   ph("MATCH_RESULT.closer.2", "B", "closer", "That is in the books — keep the results coming.", "positive", { requires: MATCH_RESULT_REQUIRES }),
 ];
 
+const TEAM_RESULT_REQUIRES = ["winnerName", "loserName"];
+const TEAM_RESULT_PHRASES: Phrase[] = [
+  ph("TEAM_RESULT.qf.1", "A", "quick_fact", "{{winnerName}} beat {{loserName}} in the latest team result.", "neutral", { requires: TEAM_RESULT_REQUIRES }),
+  ph("TEAM_RESULT.qf.2", "A", "quick_fact", "A team result is in: {{winnerName}} take the win over {{loserName}}.", "neutral", { requires: TEAM_RESULT_REQUIRES }),
+  ph("TEAM_RESULT.qr.1", "B", "quick_reaction", "That result changes the picture, and every side involved will feel it.", "neutral", { requires: TEAM_RESULT_REQUIRES }),
+  ph("TEAM_RESULT.qr.2", "B", "quick_reaction", "The format was different, but the points count exactly the same.", "positive", { requires: TEAM_RESULT_REQUIRES }),
+  ph("TEAM_RESULT.fact.1", "A", "fact", "The confirmed result has {{winnerName}} defeating {{loserName}}.", "neutral", { requires: TEAM_RESULT_REQUIRES }),
+  ph("TEAM_RESULT.reaction.1", "B", "reaction", "That took coordination as well as finishing — a proper team result.", "positive", { requires: TEAM_RESULT_REQUIRES }),
+  ph("TEAM_RESULT.context.1", "A", "context", "We will see what that did to the competition table in the full rundown.", "neutral", { requires: TEAM_RESULT_REQUIRES }),
+  ph("TEAM_RESULT.closer.1", "B", "closer", "Result confirmed. Those points are in the book.", "neutral", { requires: TEAM_RESULT_REQUIRES }),
+];
+
 const UPSET_REQUIRES = ["winnerId", "loserId", "winnerProbability"];
 
 const UPSET_PHRASES: Phrase[] = [
@@ -1760,6 +1772,7 @@ ph("BANTER.a.45", "A", "banter", "Right, let's get back to it — there's more h
 // ── Assembly ───────────────────────────────────────────────────────────
 export const COMMENTARY_LIBRARY: Partial<Record<StoryType, Phrase[]>> = {
   MATCH_RESULT: MATCH_RESULT_PHRASES,
+  TEAM_RESULT: TEAM_RESULT_PHRASES,
   UPSET: UPSET_PHRASES,
   MAJOR_UPSET: MAJOR_UPSET_PHRASES,
   MODEL_SHOCK: MODEL_SHOCK_PHRASES,
