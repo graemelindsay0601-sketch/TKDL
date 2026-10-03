@@ -228,15 +228,24 @@ function isFlashbackFamily(story: Pick<BroadcastStory, "storyType">): boolean {
   return family === "ARCHIVE" || family === "FILLER" || CLOSED_LEAGUE_MATTER_TYPES.has(story.storyType as StoryType);
 }
 
-function rankCandidates(merged: readonly MergedStoryGroup[], previousProgramme: EditionProgramme | null, slotKey: string): RankedCandidate[] {
+function rankCandidates(merged: readonly MergedStoryGroup[], previousProgramme: EditionProgramme | null, recentProgrammes: readonly EditionProgramme[], slotKey: string): RankedCandidate[] {
   const previousSegmentByStoryId = new Map<number, ProgrammeSegment>();
   const previousTypeCounts = new Map<string, number>();
   if (previousProgramme) {
     for (const seg of previousProgramme.segments) {
-      if (seg.storyType && seg.purpose !== "headlines") previousTypeCounts.set(seg.storyType, (previousTypeCounts.get(seg.storyType) ?? 0) + 1);
       if (seg.storyId !== null) previousSegmentByStoryId.set(seg.storyId, seg);
       for (const id of seg.supportingStoryIds) previousSegmentByStoryId.set(id, seg);
     }
+  }
+  const recentStoryIds = new Set<number>();
+  for (const programme of recentProgrammes) {
+    const typesInEdition = new Set<string>();
+    for (const seg of programme.segments) {
+      if (seg.storyType && seg.purpose !== "headlines") typesInEdition.add(seg.storyType);
+      if (seg.storyId !== null && seg.purpose !== "headlines") recentStoryIds.add(seg.storyId);
+      if (seg.purpose !== "headlines") for (const id of seg.supportingStoryIds) recentStoryIds.add(id);
+    }
+    for (const type of typesInEdition) previousTypeCounts.set(type, (previousTypeCounts.get(type) ?? 0) + 1);
   }
 
   const ranked = merged.map((group): RankedCandidate => {
@@ -248,7 +257,12 @@ function rankCandidates(merged: readonly MergedStoryGroup[], previousProgramme: 
     const alreadyGivenResolutionSegment = previousSegment?.lifecycleAtBroadcast === "RESOLVED";
     const treatment = treatmentForScore(group.primary.score);
     const basePriority = fullSegmentPriority({ baseScore: group.primary.score, carryForwardState, alreadyGivenResolutionSegment });
-    const priority = basePriority - topicRecurrencePenalty({ previousTypeCount: previousTypeCounts.get(group.primary.storyType) ?? 0, family: storyFamily(group.primary), treatment, exactStoryRepeated: previousSegment !== null });
+    const materiallyDeveloped = carryForwardState === "DEVELOPED";
+    const priority = basePriority - topicRecurrencePenalty({
+      previousTypeCount: previousTypeCounts.get(group.primary.storyType) ?? 0,
+      family: storyFamily(group.primary), treatment,
+      exactStoryRepeated: recentStoryIds.has(group.primary.id) && !materiallyDeveloped,
+    });
     return { group, treatment, carryForwardState, priority };
   });
 
@@ -323,12 +337,22 @@ export function directorSelect(params: {
   mode: OrdinaryProgrammeMode;
   /** The immediately preceding PUBLISHED Edition's programme, or null if none exists yet (first-ever Edition) — used only for 11.2 carry-forward classification. */
   previousProgramme: EditionProgramme | null;
+  /** Up to the last few published programmes. The immediate previous one
+   * still controls lifecycle carry-forward; this wider window prevents an
+   * unchanged analysis topic disappearing for one Edition and returning in
+   * the next as though it were new. */
+  recentProgrammes?: readonly EditionProgramme[];
   pacing?: import("./director-math.ts").ProgrammePacingRule;
   /** Seeds 10.5's variety shuffle among tied candidates — same per-Edition seeded-RNG contract (seeded-rng.ts) as every other seeded choice in this codebase (e.g. commentaryRng): same slotKey -> the same shuffle, every viewer, every rebuild of that exact slot. */
   slotKey: string;
 }): DirectorResult {
   const merged = mergeStoriesByAnchorAndNarrative(params.pool);
-  const ranked = rankCandidates(merged, params.previousProgramme, params.slotKey);
+  const ranked = rankCandidates(
+    merged,
+    params.previousProgramme,
+    params.recentProgrammes ?? (params.previousProgramme ? [params.previousProgramme] : []),
+    params.slotKey,
+  );
   const distinctLeagues = new Set(ranked.map(c => c.group.primary.leagueType));
   const ctx = newContext(distinctLeagues.size <= 1);
   const entries: RunningOrderEntry[] = [];

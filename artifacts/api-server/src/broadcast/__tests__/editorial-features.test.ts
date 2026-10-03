@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { buildEditorialFeatures, type EditorialMatch, type EditorialPlayer } from "../editorial-features.ts";
+import { buildEditorialFeatures, weaveStudioSegments, type EditorialMatch, type EditorialPlayer } from "../editorial-features.ts";
 import type { PowerRankingMatch } from "../power-rankings.ts";
 
 const cutoff = new Date("2026-09-09T12:00:00Z");
@@ -140,16 +140,38 @@ describe("recurring editorial features", () => {
     assert.ok((ranking?.dialogue.length ?? 0) > 3);
   });
 
-  test("host wager opinion is bounded by balances and explicitly not a recommendation", () => {
+  test("pundit picks give the presenters distinct calls and a bounded studio stake", () => {
     const segments = buildEditorialFeatures({
       players, matches, stories: [], cutoff, rotationKey: "broad-opinion", broad: true,
     });
-    const opinion = segments.find(segment => segment.facts?.featureTitle === "What Would You Wager?");
+    const opinion = segments.find(segment => segment.facts?.featureTitle === "Pundit Picks");
     if (opinion) {
       assert.ok(Number(opinion.facts?.opinionStake) <= Number(opinion.facts?.legalMaximum));
-      assert.match(opinion.dialogue.map(turn => turn.text).join(" "), /Host opinion/i);
-      assert.match(opinion.dialogue.map(turn => turn.text).join(" "), /not a recommendation/i);
+      assert.notEqual(opinion.facts?.chalkyPickId, opinion.facts?.tonPickId);
+      assert.match(opinion.dialogue.map(turn => turn.text).join(" "), /studio points/i);
+      assert.deepEqual(opinion.dialogue.map(turn => turn.speaker), ["A", "B", "A", "B"]);
     }
+  });
+
+  test("ordinary magazine rotation can select two desks and rests recently aired titles", () => {
+    const first = buildEditorialFeatures({ players, matches, stories: [], cutoff, rotationKey: "magazine-two", broad: false, maxFeatures: 2 });
+    assert.equal(first.length, 2);
+    const recent = new Set(first.map(segment => String(segment.facts?.featureTitle)));
+    const next = buildEditorialFeatures({ players, matches, stories: [], cutoff, rotationKey: "magazine-two", broad: false, maxFeatures: 2, recentlyAiredFeatureTitles: recent });
+    assert.equal(next.length, 2);
+    assert.ok(next.every(segment => !recent.has(String(segment.facts?.featureTitle))));
+  });
+
+  test("weaves studio beats through the programme before what to watch and closing", () => {
+    const make = (purpose: any): any => ({ purpose, slot: 1, importance: "utility", storyId: null, supportingStoryIds: [], storyType: null, leagueType: null, lifecycleAtBroadcast: null, dialogue: [], validityRules: [], facts: null });
+    const result = weaveStudioSegments(
+      [make("opening"), make("main_story"), make("supporting_story_or_checkin"), make("form_h2h_or_spotlight"), make("what_to_watch"), make("closing"), make("headlines")],
+      [make("player_focus"), make("fan_verdict")],
+    );
+    const purposes = result.map(segment => segment.purpose);
+    assert.ok(purposes.indexOf("player_focus") < purposes.indexOf("what_to_watch"));
+    assert.ok(purposes.indexOf("fan_verdict") < purposes.indexOf("what_to_watch"));
+    assert.equal(purposes.at(-1), "headlines");
   });
 
   test("weekly performance award uses persisted detector score and match timing", () => {

@@ -90,8 +90,9 @@ function upsetDescription(storyType: string): string {
 
 /**
  * Builds recurring desk features only from the supplied cutoff snapshot.
- * Ordinary programmes receive one rotating feature; recovery programmes can
- * carry a broader, still bounded set. No feature owns a story id, so a
+ * Ordinary programmes receive a small rotating set; recovery programmes can
+ * carry a broader, still bounded set. Recently aired titles move behind fresh
+ * choices. No feature owns a story id, so a
  * persisted result remains the sole spoken result narrative for its match.
  */
 export function buildEditorialFeatures(params: {
@@ -101,6 +102,8 @@ export function buildEditorialFeatures(params: {
   cutoff: Date;
   rotationKey: string;
   broad: boolean;
+  maxFeatures?: number;
+  recentlyAiredFeatureTitles?: ReadonlySet<string>;
   representedMatchIds?: ReadonlySet<number>;
   powerRankingMatches?: readonly PowerRankingMatch[];
 }): ProgrammeSegment[] {
@@ -368,13 +371,21 @@ export function buildEditorialFeatures(params: {
     const legalMax = Math.min(first.points, second.points);
     if (legalMax > 0) {
       const opinion = Math.max(1, Math.min(legalMax, Math.round(median(stakes.length ? stakes : [1]))));
+      const tonPick = [...contenders.slice(1)].sort((a, b) => b.elo - a.elo || b.currentWinStreak - a.currentWinStreak || a.id - b.id)[0] ?? second;
       features.push({
-        key: "what-wager", purpose: "lighter_or_archive_or_callback", graphicKind: "WagerGraphic",
-        lineA: `Host opinion — What Would You Wager? In a purely hypothetical match between ${first.name} and ${second.name}, Chalky's number would be ${opinion}.`,
-        lineB: `The legal maximum from their current balances is ${legalMax}. This is presenter opinion, not a recommendation or a fixture announcement.`,
+        key: "pundit-picks", purpose: "lighter_or_archive_or_callback", graphicKind: "WagerGraphic",
+        lineA: `Pundit Picks: Chalky is backing ${first.name}, the current table leader.`,
+        lineB: `Ton is taking ${tonPick.name} as the challenger and putting ${opinion} studio points on the call.`,
+        dialogue: [
+          { speaker: "A", text: `Pundit Picks. I am staying with the table: ${first.name} leads on ${first.points} points, so that is my call.`, holdSeconds: 8 },
+          { speaker: "B", text: `Too safe. I am taking ${tonPick.name}; the rating is ${tonPick.elo} and the current winning run is ${tonPick.currentWinStreak}.`, holdSeconds: 8 },
+          { speaker: "A", text: `How confident are you? I have ${opinion} studio points on ${first.name}.`, holdSeconds: 6 },
+          { speaker: "B", text: `Match it. ${opinion} studio points on ${tonPick.name}, and we will see whose call ages better.`, holdSeconds: 7 },
+        ],
         facts: {
-          featureTitle: "What Would You Wager?", labelledAs: "host opinion",
-          playerIds: [first.id, second.id], firstPlayerName: first.name, secondPlayerName: second.name,
+          featureTitle: "Pundit Picks", labelledAs: "studio prediction",
+          playerIds: [first.id, tonPick.id], chalkyPickId: first.id, chalkyPickName: first.name,
+          tonPickId: tonPick.id, tonPickName: tonPick.name,
           stake: opinion, opinionStake: opinion, legalMaximum: legalMax,
         },
       });
@@ -417,10 +428,12 @@ export function buildEditorialFeatures(params: {
   if (features.length === 0) return [];
   const start = stableIndex(params.rotationKey, features.length);
   const rotated = [...features.slice(start), ...features.slice(0, start)];
+  const fresh = rotated.filter(feature => !params.recentlyAiredFeatureTitles?.has(String(feature.facts.featureTitle ?? "")));
+  const eligible = fresh.length > 0 ? [...fresh, ...rotated.filter(feature => !fresh.includes(feature))] : rotated;
   // A producer-triggered catch-up/clean sweep is deliberately the complete
   // editorial reset: include every feature whose evidence gate passed.
-  // Ordinary scheduled Editions still rotate one desk at a time.
-  const selected = params.broad ? rotated : rotated.slice(0, 1);
+  // Ordinary scheduled Editions still use a small configured desk count.
+  const selected = params.broad ? eligible : eligible.slice(0, Math.max(1, params.maxFeatures ?? 1));
   return selected.map((feature, index) => {
     const a = turn(feature.lineA);
     const b = { ...turn(feature.lineB), speaker: "B" as const };
@@ -439,4 +452,28 @@ export function buildEditorialFeatures(params: {
       ...(feature.graphicKind ? { graphicKind: feature.graphicKind } : {}),
     };
   });
+}
+
+/** Places interviews, audience votes and recurring desks through the middle
+ * of the programme. Previously every utility feature was appended after
+ * WHAT TO WATCH, immediately before the sign-off, so useful discussion felt
+ * detached from the show it was meant to enrich. */
+export function weaveStudioSegments(
+  programme: readonly ProgrammeSegment[],
+  additions: readonly ProgrammeSegment[],
+): ProgrammeSegment[] {
+  if (additions.length === 0) return [...programme];
+  const opening = programme.filter(segment => segment.purpose === "opening");
+  const headlines = programme.filter(segment => segment.purpose === "headlines");
+  const ending = programme.filter(segment => segment.purpose === "what_to_watch" || segment.purpose === "closing");
+  const body = programme.filter(segment => !["opening", "headlines", "what_to_watch", "closing"].includes(segment.purpose));
+  const woven: ProgrammeSegment[] = [];
+  const interval = Math.max(1, Math.ceil(body.length / (additions.length + 1)));
+  let additionIndex = 0;
+  body.forEach((segment, index) => {
+    woven.push(segment);
+    if ((index + 1) % interval === 0 && additionIndex < additions.length) woven.push(additions[additionIndex++]);
+  });
+  while (additionIndex < additions.length) woven.push(additions[additionIndex++]);
+  return [...opening, ...woven, ...ending, ...headlines];
 }

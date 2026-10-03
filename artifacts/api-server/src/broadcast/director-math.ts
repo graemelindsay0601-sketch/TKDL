@@ -223,15 +223,16 @@ export function isCarryForwardEligibleForFullSegment(state: CarryForwardState, a
 export const LEAGUE_AIRTIME_SOFT_CAP = 0.55; // "55% of full-segment time per league in a normal Edition"
 export const MAX_FULL_SEGMENTS_PER_SUBJECT = 2; // "at most two full segments in one Edition unless separate Major events justify more"
 export const REPETITION_PENALTY = 15; // judgment call: enough to usually push a repeated ACTIVE story below a genuinely new one of similar raw score, without being an absolute ban (11.2's "may carry forward ... reduce priority", not "never again")
-export const TOPIC_RECURRENCE_PENALTY = 5;
+export const TOPIC_RECURRENCE_PENALTY = 7;
+export const EXACT_STORY_RECURRENCE_PENALTY = 18;
 
-/** A new story id can still repeat the previous Edition's exact topic. Keep
- * fresh results and major events untouched; gently rotate recurring analysis
- * and feature topics when another story is close enough in value. */
+/** A new story id can still repeat a recently aired topic. Fresh results and
+ * milestones stay untouched, while unchanged analysis receives both a topic
+ * penalty and an exact-story penalty across the rolling Edition window. */
 export function topicRecurrencePenalty(params: { previousTypeCount: number; family: string; treatment: Treatment; exactStoryRepeated: boolean }): number {
-  if (params.exactStoryRepeated || params.previousTypeCount < 1 || params.treatment === "major") return 0;
   if (params.family === "RESULT" || params.family === "MILESTONE") return 0;
-  return Math.min(2, params.previousTypeCount) * TOPIC_RECURRENCE_PENALTY;
+  const topicPenalty = Math.min(3, params.previousTypeCount) * TOPIC_RECURRENCE_PENALTY;
+  return topicPenalty + (params.exactStoryRepeated ? EXACT_STORY_RECURRENCE_PENALTY : 0);
 }
 
 /**

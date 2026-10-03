@@ -407,12 +407,12 @@ describe("sequenceEditorialBeats", () => {
 });
 
 describe("topicRecurrencePenalty", () => {
-  test("rotates recurring analysis topics without suppressing fresh results or major events", () => {
-    assert.equal(topicRecurrencePenalty({ previousTypeCount: 1, family: "H2H", treatment: "featured", exactStoryRepeated: false }), 5);
-    assert.equal(topicRecurrencePenalty({ previousTypeCount: 3, family: "LEAGUE", treatment: "supporting", exactStoryRepeated: false }), 10);
+  test("rotates recurring analysis topics without suppressing fresh results", () => {
+    assert.equal(topicRecurrencePenalty({ previousTypeCount: 1, family: "H2H", treatment: "featured", exactStoryRepeated: false }), 7);
+    assert.equal(topicRecurrencePenalty({ previousTypeCount: 3, family: "LEAGUE", treatment: "supporting", exactStoryRepeated: false }), 21);
     assert.equal(topicRecurrencePenalty({ previousTypeCount: 1, family: "RESULT", treatment: "featured", exactStoryRepeated: false }), 0);
-    assert.equal(topicRecurrencePenalty({ previousTypeCount: 1, family: "H2H", treatment: "major", exactStoryRepeated: false }), 0);
-    assert.equal(topicRecurrencePenalty({ previousTypeCount: 1, family: "H2H", treatment: "featured", exactStoryRepeated: true }), 0);
+    assert.equal(topicRecurrencePenalty({ previousTypeCount: 1, family: "H2H", treatment: "major", exactStoryRepeated: false }), 7);
+    assert.equal(topicRecurrencePenalty({ previousTypeCount: 1, family: "H2H", treatment: "featured", exactStoryRepeated: true }), 25);
   });
 });
 

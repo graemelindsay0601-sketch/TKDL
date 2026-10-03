@@ -183,4 +183,26 @@ describe("mode-specific running orders", () => {
     assert.ok(bodyTypes.includes("H2H_DOMINANCE"));
     assert.ok(bodyTypes.includes("TITLE_RACE"));
   });
+
+  test("rests unchanged analysis aired throughout the recent Edition window", () => {
+    const repeated = story({ id: 61, storyType: "H2H_DOMINANCE", score: 70, subjectKeys: ["h2h:1:2"] });
+    const alternative = story({ id: 62, storyType: "RIVALRY", score: 60, subjectKeys: ["h2h:3:4"] });
+    const recentProgramme = {
+      mode: "BALANCED" as const,
+      segments: [{
+        slot: 7, purpose: "form_h2h_or_spotlight" as const, importance: "featured" as const,
+        storyId: 61, supportingStoryIds: [], storyType: "H2H_DOMINANCE", leagueType: "singles" as const,
+        lifecycleAtBroadcast: "ACTIVE" as const, dialogue: [], validityRules: [], facts: {},
+      }],
+    };
+    const result = directorSelect({
+      pool: [repeated, alternative], previousProgramme: null,
+      recentProgrammes: [recentProgramme, recentProgramme, recentProgramme],
+      slotKey: "rolling-memory", mode: "MAGAZINE",
+    }).runningOrder;
+    const bodyTypes = result
+      .filter(entry => entry.group && !["headlines", "what_to_watch", "closing"].includes(entry.purpose))
+      .map(entry => entry.group!.primary.storyType);
+    assert.ok(bodyTypes.indexOf("RIVALRY") < bodyTypes.indexOf("H2H_DOMINANCE"));
+  });
 });

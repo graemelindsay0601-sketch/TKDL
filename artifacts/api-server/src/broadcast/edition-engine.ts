@@ -79,7 +79,7 @@ import {
   type StoryFamily, type StoryType, type Treatment,
 } from "./story-types.ts";
 import { validateStoryFactCutoffs } from "./cutoff-snapshot-math.ts";
-import { buildEditorialFeatures } from "./editorial-features.ts";
+import { buildEditorialFeatures, weaveStudioSegments } from "./editorial-features.ts";
 import { collectInterviewSegments } from "./interview-feature.ts";
 import { collectFanVerdictSegments } from "./fan-verdict.ts";
 import type { PowerRankingMatch } from "./power-rankings.ts";
@@ -960,6 +960,15 @@ async function buildEdition(params: {
   }
 
   const previousProgramme = previous && isEditionProgramme(previous.programme) ? previous.programme : null;
+  const recentProgrammeRows = await db
+    .select({ programme: broadcastEditionsTable.programme })
+    .from(broadcastEditionsTable)
+    .where(eq(broadcastEditionsTable.status, "PUBLISHED"))
+    .orderBy(desc(broadcastEditionsTable.publishedAt), desc(broadcastEditionsTable.id))
+    .limit(3);
+  const recentProgrammes = recentProgrammeRows
+    .map(row => row.programme)
+    .filter(isEditionProgramme);
 
   let runningOrder: RunningOrderEntry[];
   let programmeMode: ProgrammeMode;
@@ -982,6 +991,7 @@ async function buildEdition(params: {
     runningOrder = directorSelect({
       pool,
       previousProgramme,
+      recentProgrammes,
       slotKey: seedSlotKey,
       mode: programmeMode,
       pacing: config.programmeProfiles[programmeMode],
@@ -1145,6 +1155,7 @@ async function buildEdition(params: {
       const reserveOrder = directorSelect({
         pool: reservePool,
         previousProgramme,
+        recentProgrammes,
         slotKey: `${seedSlotKey}:reserve:${pass}`,
         mode: ordinaryProgrammeMode,
         pacing: config.programmeProfiles[ordinaryProgrammeMode],
@@ -1193,7 +1204,8 @@ async function buildEdition(params: {
   // Persisted result stories remain the sole result narrative for a match:
   // represented match ids are excluded from Points Swing, while the other
   // features describe aggregates/current state rather than replaying winners.
-  if (closedLeagueSeasons.length === 0 && audienceSegments.length === 0) {
+  let editorialSegments: ProgrammeSegment[] = [];
+  if (closedLeagueSeasons.length === 0) {
     const [editorialPlayers, editorialMatches, editorialStories, powerRankingResult] = await Promise.all([
       db.select({
         id: playersTable.id, name: playersTable.name, elo: playersTable.elo, points: playersTable.points,
@@ -1255,25 +1267,28 @@ async function buildEdition(params: {
         representedMatchIds.add(source.anchorMatchId);
       }
     }
-    const editorial = buildEditorialFeatures({
+    editorialSegments = buildEditorialFeatures({
       players: editorialPlayers,
       matches: editorialMatches,
       stories: editorialStories,
       cutoff: cutoffEnd,
       rotationKey: seedSlotKey,
       broad: isSeasonCatchUp,
+      maxFeatures: programmeMode === "MAGAZINE" ? 2 : 1,
+      recentlyAiredFeatureTitles: new Set(recentProgrammes.flatMap(programme =>
+        programme.segments.flatMap(segment =>
+          typeof segment.facts?.featureTitle === "string" ? [segment.facts.featureTitle] : [],
+        ),
+      )),
       representedMatchIds,
       powerRankingMatches,
     });
-    const closingIndex = segments.findIndex(segment => segment.purpose === "closing");
-    if (closingIndex >= 0) segments.splice(closingIndex, 0, ...editorial);
-    else segments.push(...editorial);
   }
-  if (audienceSegments.length > 0) {
-    const closingIndex = segments.findIndex(segment => segment.purpose === "closing");
-    if (closingIndex >= 0) segments.splice(closingIndex, 0, ...audienceSegments);
-    else segments.push(...audienceSegments);
-  }
+  const studioSegments = audienceSegments.length > 0
+    ? editorialSegments.flatMap((segment, index) => [segment, ...(audienceSegments[index] ? [audienceSegments[index]] : [])])
+      .concat(audienceSegments.slice(editorialSegments.length))
+    : editorialSegments;
+  segments.splice(0, segments.length, ...weaveStudioSegments(segments, studioSegments));
   segments.forEach((segment, index) => { segment.slot = index + 1; });
 
   const selectedStoriesById = new Map<number, BroadcastStory>();
