@@ -161,11 +161,21 @@ router.get("/achievements", async (_req, res): Promise<void> => {
   // Same masking as the detail route above — previously the real name/
   // description for a hidden achievement shipped in this list response
   // too, with only the frontend's own client-side swap hiding it visually.
+  //
+  // gamerscore is computed here from the same gamerscoreForRarity() used
+  // for the shadow-bot and tour achievement lists below, rather than left
+  // for the frontend to re-derive — tkdl/src/pages/achievements.tsx used to
+  // keep its own hardcoded rarity->gamerscore map (gForRarity) that had
+  // drifted from this one (Common showed 10G here, really worth 5; Mythic
+  // showed 200G, really worth 250), silently misreporting the gamerscore
+  // value on every league achievement card. Shipping the real number
+  // removes the only place that duplicate map was needed.
   const result = achievements.map(a => ({
     ...a,
     name: a.hidden ? "Hidden Achievement" : a.name,
     description: a.hidden ? "Keep playing to discover how this one unlocks." : a.description,
     unlockedCount: unlockCounts.get(a.id) ?? 0,
+    gamerscore: gamerscoreForRarity(a.rarity),
   }));
 
   res.set("Cache-Control", "public, max-age=300");

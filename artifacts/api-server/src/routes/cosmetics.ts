@@ -126,12 +126,6 @@ router.post("/players/:id/cosmetics/purchase", async (req, res): Promise<void> =
       // schema/cosmetics.ts's header comment on `purchasable`).
       if (!def.purchasable) throw new Error("NOT_PURCHASABLE");
 
-      const already = await tx
-        .select()
-        .from(playerCosmeticsTable)
-        .where(and(eq(playerCosmeticsTable.playerId, playerId), eq(playerCosmeticsTable.cosmeticId, cosmeticId)));
-      if (already.length > 0) throw new Error("ALREADY_OWNED");
-
       // FOR UPDATE locks the currency row for the rest of the transaction —
       // same guard as purchasePack in card-shop-service.ts, for the same
       // reason: without it, two concurrent purchase clicks could both read
@@ -144,6 +138,24 @@ router.post("/players/:id/cosmetics/purchase", async (req, res): Promise<void> =
         .limit(1);
       const balance = currency[0]?.cardPoints ?? 0;
       if (!currency[0] || balance < def.price) throw new Error("INSUFFICIENT_COINS");
+
+      // Ownership check runs AFTER acquiring the currency row lock, not
+      // before — a plain SELECT ahead of the lock let two concurrent clicks
+      // (an easy double-click, not an attack) both see zero owned rows and
+      // both proceed; the second then hit playerCosmeticsTable's real unique
+      // constraint on INSERT below and fell through to the generic 500
+      // "Failed to purchase cosmetic" instead of the already-implemented
+      // "already owned" 409. No double-charge ever happened (the whole
+      // thing is one transaction, rolled back on the failed insert) — this
+      // was purely a wrong error message on an easily-triggered race.
+      // Serializing on the lock means the second request's SELECT here now
+      // runs after the first request's INSERT has committed, so it sees the
+      // real row and throws the correct, specific error.
+      const already = await tx
+        .select()
+        .from(playerCosmeticsTable)
+        .where(and(eq(playerCosmeticsTable.playerId, playerId), eq(playerCosmeticsTable.cosmeticId, cosmeticId)));
+      if (already.length > 0) throw new Error("ALREADY_OWNED");
 
       const newBalance = balance - def.price;
       await tx
@@ -170,6 +182,12 @@ router.post("/players/:id/cosmetics/purchase", async (req, res): Promise<void> =
     if (message === "NOT_PURCHASABLE")    { res.status(403).json({ error: "This cosmetic can't be bought — it's awarded automatically" }); return; }
     if (message === "ALREADY_OWNED")      { res.status(409).json({ error: "You already own this cosmetic" }); return; }
     if (message === "INSUFFICIENT_COINS") { res.status(400).json({ error: "Not enough coins" }); return; }
+    // Defense in depth alongside the lock-ordering fix above — same
+    // established pattern as matches.ts/doubles.ts/shift-wars.ts/
+    // team-matches.ts's idempotency-key races and game-types.ts's key
+    // conflict: a genuine unique-constraint hit still maps to the correct
+    // 409 instead of a generic 500, however it happens to occur.
+    if ((err as { code?: string }).code === "23505") { res.status(409).json({ error: "You already own this cosmetic" }); return; }
     logger.error({ err }, "Failed to purchase cosmetic");
     res.status(500).json({ error: "Failed to purchase cosmetic" });
   }

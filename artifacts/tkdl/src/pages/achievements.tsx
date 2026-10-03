@@ -8,9 +8,16 @@ import { useFetch } from "@/hooks/use-fetch";
 
 // ── League achievement helpers ─────────────────────────────────────────────────
 
+// Fallback only — the real value now ships from the server as
+// `a.gamerscore` (routes/achievements.ts, computed by the single source of
+// truth gamerscoreForRarity() in lib/shadow-bot-achievements.ts). This local
+// copy previously WAS the only source for this page and had drifted from
+// the server's real values (Common showed 10G, really worth 5; Mythic
+// showed 200G, really worth 250) — corrected to match exactly, and kept
+// only as a fallback for a response that predates the gamerscore field.
 function gForRarity(rarity: string): number {
-  const map: Record<string, number> = { Common: 10, Rare: 25, Epic: 50, Legendary: 100, Mythic: 200 };
-  return map[rarity] ?? 10;
+  const map: Record<string, number> = { Common: 5, Uncommon: 10, Rare: 25, Epic: 50, Legendary: 100, Mythic: 250 };
+  return map[rarity] ?? 5;
 }
 
 const RARITIES   = ["All", "Mythic", "Legendary", "Epic", "Rare", "Common"] as const;
@@ -61,7 +68,7 @@ function AchCard({ a, hovered, onHover, onClick }: { a: any; hovered: boolean; o
           <div className="flex items-center gap-1.5">
             {!isHidden && (
               <span className="font-black" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,210,74,0.55)", fontSize: "0.58rem" }}>
-                {gForRarity(a.rarity)}G
+                {(a as any).gamerscore ?? gForRarity(a.rarity)}G
               </span>
             )}
             {!isHidden && unlocked > 0 && (
