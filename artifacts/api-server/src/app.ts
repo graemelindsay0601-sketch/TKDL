@@ -26,6 +26,7 @@ import { ensureAdminAuditTable } from "./lib/adminAudit";
 import { seedTourSystem } from "./lib/tourSeed";
 import { createCareerSaves } from "./db/migrations/create_career_saves";
 import { createCareerWorld } from "./db/migrations/create_career_world";
+import { createCareerCalendar } from "./db/migrations/create_career_calendar";
 import { ensureCardClashAchievementTables } from "./lib/card-clash-achievements";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
 import { initializeInterviewDeskTables, seedInterviewQuestionBank } from "./lib/interviewDeskMigration";
@@ -1515,6 +1516,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runInitStep("initializeFeatureFlags", initializeFeatureFlags);
   await runMigrationStep("createCareerSavesA1", () => createCareerSaves(db));
   await runMigrationStep("createCareerWorldA2", () => createCareerWorld(db));
+  await runMigrationStep("createCareerCalendarA3", () => createCareerCalendar(db));
   await runInitStep("addTkdlLiveBroadcastTables", addTkdlLiveBroadcastTables);
   await runInitStep("addBroadcastStorySeasonId", addBroadcastStorySeasonId);
   await runInitStep("addSeasonBroadcastReviewedAt", addSeasonBroadcastReviewedAt);

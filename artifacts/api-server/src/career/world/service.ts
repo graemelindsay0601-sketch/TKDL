@@ -14,13 +14,13 @@ import { formAfterMatch } from "./form.ts";
 import { developNpc, evolveOffSeason } from "./development.ts";
 
 export type CareerActor = { playerId: number; isAdmin?: boolean };
-type Root = { id: string; world_seed: string; world_generation_version: number; difficulty: CareerDifficulty; current_season: number };
-type World = { season: number; period: number; elapsed_year: number; generation_version: number; simulation_version: number };
+export type Root = { id: string; world_seed: string; world_generation_version: number; difficulty: CareerDifficulty; current_season: number };
+export type World = { season: number; period: number; elapsed_year: number; generation_version: number; simulation_version: number };
 const periodSchema = z.object({ season: z.number().int().positive(), period: z.number().int().positive(), elapsedYears: z.number().finite().positive().max(1), opportunity: z.number().finite().min(0).max(1) }).strict();
 const offSeasonSchema = z.object({ season: z.number().int().positive(), opportunity: z.number().finite().min(0).max(1) }).strict();
-const simulationSchema = z.object({ matchKey: z.string().min(1).max(120), playerAId: z.string().uuid(), playerBId: z.string().uuid(), context: matchContextSchema, format: matchFormatSchema }).strict();
+export const simulationSchema = z.object({ matchKey: z.string().min(1).max(120), playerAId: z.string().uuid(), playerBId: z.string().uuid(), context: matchContextSchema, format: matchFormatSchema }).strict();
 
-async function lockRoot(tx: CareerExecutor, actor: CareerActor, saveId: string, active = true): Promise<Root> {
+export async function lockRoot(tx: CareerExecutor, actor: CareerActor, saveId: string, active = true): Promise<Root> {
   careerIdSchema.parse(saveId);
   if (!Number.isSafeInteger(actor.playerId) || actor.playerId <= 0) throw new Error("Authenticated Career actor required");
   const flags = (await tx.execute(sql`SELECT enabled, admin_test_mode FROM feature_flags WHERE feature_name = ${CAREER_FEATURE}`)).rows;
@@ -31,7 +31,7 @@ async function lockRoot(tx: CareerExecutor, actor: CareerActor, saveId: string, 
   assertGenerationVersion(Number(row.world_generation_version));
   return row as Root;
 }
-async function worldState(tx: CareerExecutor, root: Root): Promise<World> {
+export async function worldState(tx: CareerExecutor, root: Root): Promise<World> {
   const row = (await tx.execute(sql`SELECT * FROM career_world_state WHERE career_save_id = ${root.id}`)).rows[0];
   if (!row) throw new CareerError(409, "Initialize Career world first");
   if (row.generation_version !== root.world_generation_version || row.simulation_version !== SIMULATION_VERSION) throw new CareerError(409, "Career world requires a version migration");
@@ -46,6 +46,54 @@ function canonical(value: unknown): string {
 }
 function checkRetry(saved: unknown, requested: unknown): void {
   if (canonical(saved) !== canonical(requested)) throw new CareerError(409, "Operation identity was already used with different inputs");
+}
+
+/**
+ * Transaction-level A2 simulation boundary (added for A3 batching).
+ * Caller must already hold the locked root. Requests run sequentially in the
+ * supplied order so form carries between matches exactly as single calls would.
+ * Behaviour per request is identical to the original simulateMatch body:
+ * stored retries return the stored result; reused keys with different inputs fail.
+ */
+export async function simulateMatchesInTransaction(tx: CareerExecutor, root: Root, world: World, requests: readonly z.infer<typeof simulationSchema>[]): Promise<SimulatedMatch[]> {
+  if (!requests.length) return [];
+  const parsed = requests.map(request => simulationSchema.parse(request));
+  const keys = parsed.map(request => request.matchKey);
+  if (new Set(keys).size !== keys.length) throw new CareerError(409, "Duplicate match identity in one batch");
+  const saveId = root.id;
+  const stored = new Map((await tx.execute(sql`SELECT match_key, request, result FROM career_simulated_matches WHERE career_save_id = ${saveId}
+    AND match_key IN (${sql.join(keys.map(key => sql`${key}`), sql`, `)})`)).rows.map(row => [String(row.match_key), row]));
+  const ids = [...new Set(parsed.flatMap(request => [request.playerAId, request.playerBId]))];
+  const players = new Map((await loadNpcs(tx, saveId, { ids })).map(player => [player.id, player]));
+  const results: SimulatedMatch[] = [];
+  const inserts: unknown[] = [];
+  const touched = new Set<string>();
+  for (const request of parsed) {
+    const existing = stored.get(request.matchKey);
+    if (existing) { checkRetry(existing.request, request); results.push(existing.result as SimulatedMatch); continue; }
+    const a = players.get(request.playerAId), b = players.get(request.playerBId);
+    if (!a || !b) throw new CareerError(404, "Career opponent not found");
+    if (a.status !== "ACTIVE" || b.status !== "ACTIVE" || a.id === b.id) throw new CareerError(409, "Match requires two active distinct NPCs");
+    const input = { players: [structuredClone(a), structuredClone(b)] as [typeof a, typeof b], seed: root.world_seed, generationVersion: root.world_generation_version,
+      matchKey: request.matchKey, difficulty: root.difficulty, context: request.context, format: request.format };
+    const result = simulateNpcMatch(input);
+    inserts.push({ id: stableUuid(root.world_seed, root.world_generation_version, "match", request.matchKey), match_key: request.matchKey,
+      season: world.season, period: world.period, simulation_version: SIMULATION_VERSION, player_a_id: a.id, player_b_id: b.id, winner_id: result.winnerId,
+      request, input_snapshot: input, result });
+    a.form = formAfterMatch(a.form, result.performance[0], result.stats[0], result.performance[1]);
+    b.form = formAfterMatch(b.form, result.performance[1], result.stats[1], result.performance[0]);
+    touched.add(a.id); touched.add(b.id);
+    results.push(result);
+  }
+  if (inserts.length) {
+    await tx.execute(sql`INSERT INTO career_simulated_matches (career_save_id, id, match_key, season, period, simulation_version, player_a_id, player_b_id, winner_id, request, input_snapshot, result)
+      SELECT ${saveId}::uuid, m.id, m.match_key, m.season, m.period, m.simulation_version, m.player_a_id, m.player_b_id, m.winner_id, m.request, m.input_snapshot, m.result
+      FROM jsonb_to_recordset(${JSON.stringify(inserts)}::jsonb) AS m(id uuid, match_key text, season integer, period integer, simulation_version integer,
+        player_a_id uuid, player_b_id uuid, winner_id uuid, request jsonb, input_snapshot jsonb, result jsonb)`);
+    await persistNpcs(tx, saveId, [...touched].map(id => players.get(id)!));
+    await tx.execute(sql`UPDATE career_saves SET updated_at = NOW() WHERE id = ${saveId}`);
+  }
+  return results;
 }
 
 /** Internal A3 integration boundary. No public debug/simulation HTTP endpoints. */
@@ -76,23 +124,7 @@ export function createCareerWorldService(database: CareerDatabase) {
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId);
         const world = await worldState(tx, root);
-        const existing = (await tx.execute(sql`SELECT request, result FROM career_simulated_matches WHERE career_save_id = ${saveId} AND match_key = ${request.matchKey}`)).rows[0];
-        if (existing) { checkRetry(existing.request, request); return existing.result as SimulatedMatch; }
-        const players = await loadNpcs(tx, saveId, { ids: [request.playerAId, request.playerBId] });
-        const a = players.find(player => player.id === request.playerAId), b = players.find(player => player.id === request.playerBId);
-        if (!a || !b) throw new CareerError(404, "Career opponent not found");
-        if (a.status !== "ACTIVE" || b.status !== "ACTIVE" || a.id === b.id) throw new CareerError(409, "Match requires two active distinct NPCs");
-        const input = { players: [a, b] as [typeof a, typeof b], seed: root.world_seed, generationVersion: root.world_generation_version,
-          matchKey: request.matchKey, difficulty: root.difficulty, context: request.context, format: request.format };
-        const result = simulateNpcMatch(input);
-        await tx.execute(sql`INSERT INTO career_simulated_matches (career_save_id, id, match_key, season, period, simulation_version, player_a_id, player_b_id, winner_id, request, input_snapshot, result)
-          VALUES (${saveId}, ${stableUuid(root.world_seed, root.world_generation_version, "match", request.matchKey)}, ${request.matchKey}, ${world.season}, ${world.period}, ${SIMULATION_VERSION},
-            ${a.id}, ${b.id}, ${result.winnerId}, ${JSON.stringify(request)}::jsonb, ${JSON.stringify(input)}::jsonb, ${JSON.stringify(result)}::jsonb)`);
-        a.form = formAfterMatch(a.form, result.performance[0], result.stats[0], result.performance[1]);
-        b.form = formAfterMatch(b.form, result.performance[1], result.stats[1], result.performance[0]);
-        await persistNpcs(tx, saveId, [a, b]);
-        await tx.execute(sql`UPDATE career_saves SET updated_at = NOW() WHERE id = ${saveId}`);
-        return result;
+        return (await simulateMatchesInTransaction(tx, root, world, [request]))[0];
       });
     },
     async advancePeriod(actor: CareerActor, saveId: string, body: unknown) {

@@ -11,6 +11,7 @@
     "test": "node --test src/lib/__tests__/*.test.ts src/broadcast/__tests__/*.test.ts",
     "career:world": "node scripts/career-world.ts",
     "career:balance": "node scripts/career-balance.ts",
+    "career:calendar": "node scripts/career-calendar.ts",
     "generate-vapid-keys": "node scripts/generate-vapid-keys.mjs"
   },
   "dependencies": {
