@@ -224,6 +224,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       if (played.week < WEEKS_PER_SEASON) {
         await tx.execute(sql`UPDATE career_saves SET current_week = ${played.week + 1}, updated_at = NOW() WHERE id = ${saveId} AND current_week = ${played.week}`);
         await openRegistrations(tx, saveId, played.season, played.week + 1);
+        await providers.finance?.onCalendarMoved(tx, root, played.season, played.week + 1);
         return { seasonEnd: false, next: { season: played.season, week: played.week + 1 } };
       }
       const open = (await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_event_instances WHERE career_save_id = ${saveId} AND season = ${played.season} AND status NOT IN ('COMPLETED','CANCELLED')`)).rows[0];
@@ -238,6 +239,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       await finalizeSeason(tx, root, played.season);
       await ensureSeason(tx, root, Number(root.current_season));
       await openRegistrations(tx, saveId, Number(root.current_season), Number(root.current_week));
+      await providers.finance?.onCalendarMoved(tx, root, Number(root.current_season), Number(root.current_week));
       return { season: Number(root.current_season), week: Number(root.current_week) };
     });
     return { ...played, advancedTo: next, offSeason };
@@ -263,6 +265,8 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     if (!view.canEnter) return { created: false, denied: view.denials, view };
     const excluded = await exclusiveConflicts(tx, root.id, event);
     if (excluded.has(HUMAN)) return { created: false, denied: ["NOT_ELIGIBLE"] as DenialReason[], view };
+    const financeDenials = providers.finance ? await providers.finance.entryCheck(tx, root, event, siblings) : [];
+    if (financeDenials.length) return { created: false, denied: financeDenials, view };
     for (const target of siblings) {
       if (target.status !== "REGISTRATION_OPEN") return { created: false, denied: ["REGISTRATION_CLOSED"] as DenialReason[], view };
       await tx.execute(sql`INSERT INTO career_event_entries (career_save_id, event_id, participant_key, participant_kind, npc_id, source, status, entered_season, entered_week)
@@ -271,6 +275,8 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         WHERE career_event_entries.status = 'WITHDRAWN'`);
       await insertBookings(tx, root.id, season, target, [HUMAN]);
     }
+    // A4: the entry fee is charged in this same transaction; a failure rolls the entry back.
+    await providers.finance?.onHumanEntry(tx, root, event, siblings);
     await tx.execute(sql`UPDATE career_saves SET updated_at = NOW() WHERE id = ${root.id}`);
     return { created: true, view };
   }
@@ -304,7 +310,8 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         const events = (await loadInstances(tx, root.id, sql.join(filters, sql` AND `))).sort((a, b) => a.start_day - b.start_day || b.calendar_priority - a.calendar_priority || (a.instance_key < b.instance_key ? -1 : 1));
         const human = await loadHumanContext(tx, root, season, events, providers);
         const windows = seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`));
-        let rows = events.map(event => presentEvent(event, humanView(event, human, windows)));
+        const previews = providers.finance ? await providers.finance.previews(tx, root, season, events) : null;
+        let rows = events.map(event => withFinance(presentEvent(event, humanView(event, human, windows)), previews?.get(event.id)));
         if (q.scope === "MY_SCHEDULE") rows = rows.filter(r => r.human && ["ENTERED", "CONFIRMED", "PLAYING", "COMPLETED", "WITHDRAWN"].includes(r.human.relationship));
         if (q.scope === "AVAILABLE") rows = rows.filter(r => r.human?.canEnter);
         return { overview: await overview(tx, root, seasonRow), season, scope: q.scope, events: rows };
@@ -332,7 +339,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           status: m.status, winnerKey: m.winner_key, legs: m.legs_a === null ? null : [m.legs_a, m.legs_b], firstThrow: m.first_throw, firstThrowMethod: m.first_throw_method,
           resultSource: m.result_source, summary: m.summary });
         return {
-          event: presentEvent(event, humanView(event, human, windows)),
+          event: withFinance(presentEvent(event, humanView(event, human, windows)), providers.finance ? (await providers.finance.previews(tx, root, event.season, [event])).get(event.id) : undefined),
           field: entries.map(e => ({ participantKey: String(e.participant_key), kind: e.participant_kind, name: name.get(String(e.participant_key)), nationality: e.nationality ?? null,
             tier: e.tier ?? null, source: e.source, status: e.status, seed: e.draw_seed })),
           draw: { rounds, matches: matches.map(present) },
@@ -370,8 +377,9 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           await tx.execute(sql`UPDATE career_event_entries SET status = 'WITHDRAWN', withdrawn_at = NOW() WHERE career_save_id = ${root.id} AND event_id = ${target.id} AND participant_key = ${HUMAN} AND status <> 'WITHDRAWN'`);
           await tx.execute(sql`DELETE FROM career_participant_bookings WHERE career_save_id = ${root.id} AND event_id = ${target.id} AND participant_key = ${HUMAN}`);
           // Post-lock withdrawal is auditable: the entry stays, matches resolve as walkovers.
-          if (target.status === "IN_PROGRESS") await progressEvent(tx, root, state, target, lastDayOfWeek(Number(root.current_week)));
+          if (target.status === "IN_PROGRESS") await progressEvent(tx, root, state, target, lastDayOfWeek(Number(root.current_week)), providers);
         }
+        await providers.finance?.onHumanWithdraw(tx, root, targets, postLock);
         return { withdrawn: true, postLock, denials: [] as DenialReason[] };
       });
     },
@@ -400,7 +408,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           first_throw_detail = ${JSON.stringify({ method: "LIVE_BULL_UP" })}::jsonb, result_source = 'HUMAN_LIVE', completed_at = NOW()
           WHERE career_save_id = ${root.id} AND id = ${match.id} AND status = 'AWAITING_HUMAN'`);
         const event = await eventOwned(tx, root.id, match.event_id);
-        const progress = await progressEvent(tx, root, state, event, lastDayOfWeek(Number(root.current_week)));
+        const progress = await progressEvent(tx, root, state, event, lastDayOfWeek(Number(root.current_week)), providers);
         return { matchId: match.id, winnerKey: winner, eventStatus: event.status, eventCompleted: progress.completed };
       });
     },
@@ -501,6 +509,13 @@ function reasonsFor(events: readonly InstanceRow[], human: HumanContext, windows
   }
   if (week === 1) reasons.push({ type: "SEASON_START", eventId: "", name: `Season ${season}` });
   return reasons;
+}
+/** A4 preview attached to A3 DTOs; an unaffordable entry adds an explicit INSUFFICIENT_FUNDS denial. */
+function withFinance<T extends ReturnType<typeof presentEvent>>(dto: T, preview: ({ affordable: boolean } & Record<string, unknown>) | undefined): T & { finance: unknown } {
+  if (!preview) return { ...dto, finance: null };
+  const human = dto.human && dto.human.canEnter && !preview.affordable
+    ? { ...dto.human, canEnter: false, denials: [...dto.human.denials, "INSUFFICIENT_FUNDS" as DenialReason] } : dto.human;
+  return { ...dto, human, finance: preview };
 }
 const stageNameFor = (round: number, rounds: number) => { const remaining = 2 ** (rounds - round + 1); return remaining === 2 ? "FINAL" : remaining === 4 ? "SEMI_FINAL" : remaining === 8 ? "QUARTER_FINAL" : `LAST_${remaining}`; };
 export type CareerCalendarService = ReturnType<typeof createCareerCalendarService>;

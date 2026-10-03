@@ -1,5 +1,8 @@
 import type { Npc } from "../world/types.ts";
 import { zoneOf, localityByRegion, type Zone } from "./geography.ts";
+import type { CareerExecutor } from "../database.ts";
+import type { DenialReason } from "./eligibility.ts";
+import type { InstanceRow, RootRow } from "./engine.ts";
 
 /**
  * Provider boundaries for authority A3 does not own.
@@ -45,7 +48,28 @@ export const A3_PLACEHOLDER_STATUS: SportingStatusProvider = {
 
 export const NO_SEEDING: SeedingProvider = { id: "NONE", order: () => [] };
 
-export type CalendarProviders = { sportingStatus: SportingStatusProvider; seeding: SeedingProvider };
+/**
+ * A4 finance boundary. A3 stays the sporting authority and calls these hooks inside
+ * its own transactions so sporting + financial effects commit or roll back together.
+ * Absent hooks = A3 behaves exactly as locked (all A3 tests run without them).
+ */
+export interface CalendarFinanceHooks {
+  /** Extra denials (e.g. INSUFFICIENT_FUNDS) for entering this event/series now. */
+  entryCheck(tx: CareerExecutor, root: RootRow, event: InstanceRow, siblings: readonly InstanceRow[]): Promise<DenialReason[]>;
+  /** Called after the human's entry rows exist, same transaction. Throw to roll back the entry. */
+  onHumanEntry(tx: CareerExecutor, root: RootRow, event: InstanceRow, siblings: readonly InstanceRow[]): Promise<void>;
+  onHumanWithdraw(tx: CareerExecutor, root: RootRow, targets: readonly InstanceRow[], postLock: boolean): Promise<void>;
+  /** Start of a week's play-out, before any field locks (trip/travel commitment). */
+  beforeWeek(tx: CareerExecutor, root: RootRow, season: number, week: number): Promise<void>;
+  onEventCancelled(tx: CareerExecutor, root: RootRow, event: InstanceRow, reason: string): Promise<void>;
+  onEventCompleted(tx: CareerExecutor, root: RootRow, event: InstanceRow, results: readonly { participant_key: string; finishing_position: number; is_champion: boolean }[]): Promise<void>;
+  /** The calendar clock moved to (season, week) — offers/contract lifecycle. */
+  onCalendarMoved(tx: CareerExecutor, root: RootRow, season: number, week: number): Promise<void>;
+  /** Batch previews for calendar DTOs (no N+1). */
+  previews(tx: CareerExecutor, root: RootRow, season: number, events: readonly InstanceRow[]): Promise<Map<string, { affordable: boolean } & Record<string, unknown>>>;
+}
+
+export type CalendarProviders = { sportingStatus: SportingStatusProvider; seeding: SeedingProvider; finance?: CalendarFinanceHooks };
 export const DEFAULT_PROVIDERS: CalendarProviders = { sportingStatus: A3_PLACEHOLDER_STATUS, seeding: NO_SEEDING };
 
 export function npcFacts(npc: Npc) {

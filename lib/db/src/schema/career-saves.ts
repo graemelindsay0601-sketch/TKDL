@@ -39,6 +39,8 @@ export const careerSavesTable = pgTable("career_saves", {
   check("career_saves_versions_check", sql`${t.careerSchemaVersion} > 0 AND ${t.worldGenerationVersion} > 0 AND ${t.eventDatabaseVersion} > 0 AND ${t.playerDatabaseVersion} > 0`),
   check("career_saves_seed_check", sql`${t.worldSeed} ~ '^[0-9a-f]{64}$'`),
   check("career_saves_settings_check", sql`jsonb_typeof(${t.settingsSnapshot}) = 'object'`),
+  // A4: the balance is a cache of the immutable ledger and can never go negative.
+  check("career_saves_balance_nonnegative", sql`${t.balancePence} >= 0`),
   check("career_saves_ranking_check", sql`${t.professionalRanking} IS NULL OR ${t.professionalRanking} > 0`),
   check("career_saves_ranking_money_check", sql`${t.professionalRankingMoneyPence} >= 0`),
 ]);
@@ -50,7 +52,17 @@ export const careerFinanceEntriesTable = pgTable("career_finance_entries", {
   kind: text("kind").notNull(),
   amountPence: integer("amount_pence").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, t => [index("career_finance_entries_save_idx").on(t.careerSaveId)]);
+  // A4 ledger columns (see create_career_finance.ts, which also installs the defaults/immutability triggers and composite FKs).
+  category: text("category").notNull(), headline: text("headline").notNull(), operationKey: text("operation_key").notNull(),
+  season: integer("season"), week: integer("week"), eventId: uuid("event_id"), tripId: uuid("trip_id"), contractId: uuid("contract_id"),
+  reversesEntryId: uuid("reverses_entry_id"), grossAmountPence: integer("gross_amount_pence"), sponsorCoveredPence: integer("sponsor_covered_pence").notNull().default(0),
+  financeVersion: integer("finance_version"), reason: text("reason"), detail: jsonb("detail").notNull().default(sql`'{}'::jsonb`),
+}, t => [
+  index("career_finance_entries_save_idx").on(t.careerSaveId),
+  uniqueIndex("career_finance_entries_operation_unique").on(t.careerSaveId, t.operationKey),
+  uniqueIndex("career_finance_entries_save_id_unique").on(t.careerSaveId, t.id),
+  index("career_finance_entries_recent_idx").on(t.careerSaveId, t.createdAt, t.id),
+]);
 
 export type CareerSave = typeof careerSavesTable.$inferSelect;
 export type CareerFinanceEntry = typeof careerFinanceEntriesTable.$inferSelect;

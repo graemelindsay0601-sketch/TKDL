@@ -255,6 +255,7 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     await tx.execute(sql`DELETE FROM career_participant_bookings WHERE career_save_id = ${saveId} AND event_id = ${event.id}`);
     await tx.execute(sql`UPDATE career_event_entries SET status = 'WITHDRAWN', withdrawn_at = NOW() WHERE career_save_id = ${saveId} AND event_id = ${event.id} AND status <> 'WITHDRAWN'`);
     await transition(tx, event, "CANCELLED", { reason: "INSUFFICIENT_ENTRANTS" });
+    await providers.finance?.onEventCancelled(tx, root, event, "INSUFFICIENT_ENTRANTS");
     return { locked: false, entrants };
   }
   if (additions.length) {
@@ -369,8 +370,8 @@ async function saveSlotUpdates(tx: CareerExecutor, saveId: string, rows: MatchRo
 }
 
 /** Single-event convenience wrapper (human result / withdrawal paths). */
-export async function progressEvent(tx: CareerExecutor, root: RootRow, world: World, event: InstanceRow, uptoDay: number) {
-  const out = await progressEvents(tx, root, world, [event], uptoDay);
+export async function progressEvent(tx: CareerExecutor, root: RootRow, world: World, event: InstanceRow, uptoDay: number, providers?: CalendarProviders) {
+  const out = await progressEvents(tx, root, world, [event], uptoDay, providers);
   return { completed: event.status === "COMPLETED", awaitingHuman: out.awaitingHuman, simulated: out.simulated };
 }
 
@@ -381,7 +382,7 @@ export async function progressEvent(tx: CareerExecutor, root: RootRow, world: Wo
  * through A2 in a stable order (event start, key, round, slot). Human matches stop
  * at AWAITING_HUMAN; everything not depending on them continues.
  */
-export async function progressEvents(tx: CareerExecutor, root: RootRow, world: World, events: InstanceRow[], uptoDay: number): Promise<{ completed: number; awaitingHuman: MatchRow[]; simulated: number }> {
+export async function progressEvents(tx: CareerExecutor, root: RootRow, world: World, events: InstanceRow[], uptoDay: number, providers?: CalendarProviders): Promise<{ completed: number; awaitingHuman: MatchRow[]; simulated: number }> {
   let live = events.filter(e => e.status === "IN_PROGRESS").sort((a, b) => a.start_day - b.start_day || (a.instance_key < b.instance_key ? -1 : 1));
   let simulated = 0, completed = 0;
   let awaiting: MatchRow[] = [];
@@ -417,7 +418,7 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
       slotUpdates.push(...updates.filter(u => !walkoverIds.has(u.id)));
       if (!changed && !npcReady.some(r => r.event === event)) continue;
     }
-    for (const done of finishedEvents) { await completeEvent(tx, root, done.event, done.matches, done.rounds); completed++; }
+    for (const done of finishedEvents) { await completeEvent(tx, root, done.event, done.matches, done.rounds, providers); completed++; }
     await saveSlotUpdates(tx, root.id, slotUpdates);
     if (walkovers.length) {
       await tx.execute(sql`UPDATE career_tournament_matches t SET status = 'WALKOVER', winner_key = w.winner_key, result_source = 'WALKOVER', completed_at = NOW(),
@@ -461,7 +462,7 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Permanent facts: results for every confirmed entrant, champion, entitlement outputs. */
-async function completeEvent(tx: CareerExecutor, root: RootRow, event: InstanceRow, matches: MatchRow[], rounds: number) {
+async function completeEvent(tx: CareerExecutor, root: RootRow, event: InstanceRow, matches: MatchRow[], rounds: number, providers?: CalendarProviders) {
   // Everyone placed in the official draw gets a permanent result, including post-lock withdrawals.
   const drawn = [...new Set(matches.flatMap(m => [m.a_key, m.b_key]).filter((k): k is string => !!k))];
   const entries = (await tx.execute(sql`SELECT participant_key, participant_kind, npc_id FROM career_event_entries WHERE career_save_id = ${root.id} AND event_id = ${event.id}
@@ -500,6 +501,8 @@ async function completeEvent(tx: CareerExecutor, root: RootRow, event: InstanceR
   }));
   if (grants.length) await insertEntitlements(tx, root.id, event.season, grants, "EVENT_RESULT");
   await transition(tx, event, "COMPLETED", { set: sql`champion_participant_key = ${champion}, champion_npc_id = ${champion === HUMAN ? null : champion}, completed_at = NOW()` });
+  // A4: financial consequences of the immutable result, same transaction (exactly-once via ledger operation keys).
+  await providers?.finance?.onEventCompleted(tx, root, event, results);
 }
 
 export async function insertEntitlements(tx: CareerExecutor, saveId: string, awardedSeason: number, grants: Record<string, unknown>[], sourceKind: "EVENT_RESULT" | "PROVIDER") {
@@ -524,6 +527,7 @@ export const lastDayOfWeek = (week: number) => week * DAYS_PER_WEEK;
 export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, season: number, week: number, providers: CalendarProviders) {
   if (week < 1 || week > WEEKS_PER_SEASON) throw new CareerError(409, "Week outside season");
   await openRegistrations(tx, root.id, season, week);
+  await providers.finance?.beforeWeek(tx, root, season, week);
   const starting = (await loadInstances(tx, root.id, sql`season = ${season} AND start_week = ${week} AND status IN ('REGISTRATION_OPEN','REGISTRATION_CLOSED','DRAW_PENDING')`))
     // Priority first; within a priority, earlier days first (so series day 1 locks before later days copy it).
     .sort((a, b) => b.calendar_priority - a.calendar_priority || a.start_day - b.start_day || (a.instance_key < b.instance_key ? -1 : 1));
@@ -535,6 +539,7 @@ export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, 
       if (!event.executable) {
         await tx.execute(sql`DELETE FROM career_participant_bookings WHERE career_save_id = ${root.id} AND event_id = ${event.id}`);
         await transition(tx, event, "CANCELLED", { reason: "UNSUPPORTED_FORMAT" });
+        await providers.finance?.onEventCancelled(tx, root, event, "UNSUPPORTED_FORMAT");
         summary.cancelledUnsupported++;
         continue;
       }
@@ -545,7 +550,7 @@ export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, 
     if (event.status === "DRAW_PENDING") { await makeDraw(tx, root, event, providers); summary.drawn++; }
   }
   const live = await loadInstances(tx, root.id, sql`season = ${season} AND status = 'IN_PROGRESS' AND start_week <= ${week}`);
-  const progress = await progressEvents(tx, root, world, live, lastDayOfWeek(week));
+  const progress = await progressEvents(tx, root, world, live, lastDayOfWeek(week), providers);
   summary.simulatedMatches += progress.simulated;
   summary.completed += progress.completed;
   summary.awaitingHuman.push(...progress.awaitingHuman.map(m => m.id));
