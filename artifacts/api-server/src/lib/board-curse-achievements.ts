@@ -40,7 +40,14 @@ export const BOARD_CURSE_ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
 // off the two tables rather than trusting the just-written request body, so
 // it's correct regardless of which route triggered the check.
 
-export async function checkBoardCurseAchievements(playerId: number): Promise<void> {
+export async function checkBoardCurseAchievements(playerId: number): Promise<AchievementDef[]> {
+  const unlocked: AchievementDef[] = [];
+  const grant = async (key: string) => {
+    if (await grantIfNotHas(playerId, key)) {
+      const definition = BOARD_CURSE_ACHIEVEMENT_DEFINITIONS.find(item => item.key === key);
+      if (definition) unlocked.push(definition);
+    }
+  };
   try {
     const bestRows = await db.execute(sql`
       SELECT
@@ -60,22 +67,23 @@ export async function checkBoardCurseAchievements(playerId: number): Promise<voi
     const wonBot    = records.some(r => r.format === "bot"   && Number(r.wins ?? 0) > 0);
     const wonLocal  = records.some(r => r.format === "local" && Number(r.wins ?? 0) > 0);
 
-    if (totalWins >= 1)  await grantIfNotHas(playerId, "BC_FIRST_WIN");
-    if (totalWins >= 10) await grantIfNotHas(playerId, "BC_WINS_10");
-    if (totalWins >= 25) await grantIfNotHas(playerId, "BC_WINS_25");
-    if (totalWins >= 50) await grantIfNotHas(playerId, "BC_WINS_50");
-    if (wonBot && wonLocal) await grantIfNotHas(playerId, "BC_BOTH_FORMATS");
+    if (totalWins >= 1)  await grant("BC_FIRST_WIN");
+    if (totalWins >= 10) await grant("BC_WINS_10");
+    if (totalWins >= 25) await grant("BC_WINS_25");
+    if (totalWins >= 50) await grant("BC_WINS_50");
+    if (wonBot && wonLocal) await grant("BC_BOTH_FORMATS");
 
     if (maxStreak !== null) {
-      if (maxStreak >= 10) await grantIfNotHas(playerId, "BC_STREAK_10");
-      if (maxStreak >= 25) await grantIfNotHas(playerId, "BC_STREAK_25");
-      if (maxStreak >= 50) await grantIfNotHas(playerId, "BC_STREAK_50");
+      if (maxStreak >= 10) await grant("BC_STREAK_10");
+      if (maxStreak >= 25) await grant("BC_STREAK_25");
+      if (maxStreak >= 50) await grant("BC_STREAK_50");
     }
     if (minVisits !== null) {
-      if (minVisits <= 15) await grantIfNotHas(playerId, "BC_EFFICIENT");
-      if (minVisits <= 12) await grantIfNotHas(playerId, "BC_RUTHLESS");
+      if (minVisits <= 15) await grant("BC_EFFICIENT");
+      if (minVisits <= 12) await grant("BC_RUTHLESS");
     }
   } catch (err) {
     logger.error({ err, playerId }, "Failed to check Board Curse achievements");
   }
+  return unlocked;
 }

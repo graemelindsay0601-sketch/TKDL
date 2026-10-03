@@ -5,6 +5,7 @@ import { useListPlayers } from "@workspace/api-client-react";
 import { BoardCurseScorer, type BoardCurseResult } from "@/components/BoardCurseScorer";
 import { BOT_LEVELS, type BotLevel } from "@/lib/bot-engine";
 import { getCurseCompendium, type CurseGameMode, type CurseTier } from "@/lib/board-curse-data";
+import { AchievementRewardModal, type AchievementRewardData } from "@/components/AchievementRewardModal";
 import "./board-curse.css";
 
 type RosterPlayer = { id: number; name: string; status: string; isActive: boolean };
@@ -29,6 +30,7 @@ const TIER_COLOR: Record<CurseTier, string> = { 1: "#fbbf24", 2: "#ff8a00", 3: "
 
 type Record_ = { wins: number; losses: number };
 type LeaderboardEntry = { playerName: string; value: number };
+type ArcadeRun = { id:number; mode:string; gameType:string|null; format:string|null; opponentLabel:string|null; outcome:string; visits:number|null; streak:number|null; milestoneLabel:string|null; playedAt:string };
 
 export default function BoardCursePage() {
   // Playing Board Curse has never needed an account — pick your name from
@@ -73,6 +75,17 @@ export default function BoardCursePage() {
   const [endlessStreak, setEndlessStreak] = useState(0);
   const [endlessKey, setEndlessKey] = useState(0);
   const [leaderboard, setLeaderboard] = useState<{ bestVisits: LeaderboardEntry[]; bestStreak: LeaderboardEntry[] } | null>(null);
+  const [history, setHistory] = useState<ArcadeRun[]>([]);
+  const [saveState, setSaveState] = useState<"idle"|"saving"|"saved"|"error">("idle");
+  const [rewardQueue, setRewardQueue] = useState<AchievementRewardData[]>([]);
+
+  const loadHistory = () => {
+    if (!playerId) { setHistory([]); return; }
+    fetch(`/api/arcade/history/${playerId}?limit=10`).then(r => r.ok ? r.json() : [])
+      .then((rows: ArcadeRun[]) => setHistory(rows.filter(row => row.mode === "board_curse")))
+      .catch(() => setHistory([]));
+  };
+  useEffect(loadHistory, [playerId]);
 
   const loadBest = (mode: CurseGameMode) => {
     if (!playerId) return;
@@ -101,6 +114,7 @@ export default function BoardCursePage() {
   }, [format]);
 
   const handleStart = () => {
+    setSaveState("idle");
     const p1Name = playerName;
     const p2Name = format === "bot" ? `CPU (${BOT_LEVELS[botLevel].label})` : format === "local" ? opponentName : "The Board";
     setEndlessStreak(0);
@@ -114,14 +128,21 @@ export default function BoardCursePage() {
   };
 
   const reportBest = async (mode: CurseGameMode, opts: { visits?: number; streak?: number }) => {
-    if (!playerId) return;
+    if (!playerId) return false;
     try {
-      await fetch("/api/board-curse/best", {
+      setSaveState("saving");
+      const response = await fetch("/api/board-curse/best", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ playerId, gameType: mode, ...opts }),
       });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error ?? "Result could not be saved");
+      setSaveState("saved");
+      if (Array.isArray(data.achievements) && data.achievements.length) setRewardQueue(queue => [...queue, ...data.achievements]);
       loadBest(mode);
-    } catch { /* best just won't update this time — not worth blocking the result screen over */ }
+      loadHistory();
+      return true;
+    } catch { setSaveState("error"); return false; }
   };
 
   const handleMatchComplete = async (s: Extract<Screen, { kind: "fight" }>, result: BoardCurseResult) => {
@@ -136,12 +157,18 @@ export default function BoardCursePage() {
     } else {
       if (playerId) {
         try {
-          await fetch("/api/board-curse/record", {
+          setSaveState("saving");
+          const response = await fetch("/api/board-curse/record", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ playerId, format: s.format, won: result.winnerIdx === 0 }),
+            body: JSON.stringify({ playerId, format: s.format, won: result.winnerIdx === 0, gameType: s.gameMode, opponentLabel: s.p2Name, visits: result.visitsTaken }),
           });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data?.error ?? "Result could not be saved");
+          setSaveState("saved");
+          if (Array.isArray(data.achievements) && data.achievements.length) setRewardQueue(queue => [...queue, ...data.achievements]);
           loadRecord(s.format);
-        } catch { /* record just won't update this time */ }
+          loadHistory();
+        } catch { setSaveState("error"); }
       }
     }
     setScreen({ kind: "result", gameMode: s.gameMode, format: s.format, p1Name: s.p1Name, p2Name: s.p2Name, result });
@@ -196,18 +223,22 @@ export default function BoardCursePage() {
   if (screen.kind === "endless-result") {
     const isNewBest = screen.bestStreak === null || screen.streak >= screen.bestStreak;
     return (
+      <>
       <div className="bc-shell">
         <div className="bc-result" style={{ "--glow": "#ff8a00" } as React.CSSProperties}>
           <div className="bc-result-glow" />
           <div className="bc-result-icon"><InfinityIcon /></div>
           <h1>Streak ended at {screen.streak} leg{screen.streak === 1 ? "" : "s"}</h1>
           <p>{screen.streak === 0 ? "Didn't finish a single leg that time." : isNewBest ? "New personal best!" : `Personal best: ${screen.bestStreak} legs`}</p>
+          <div className={`bc-save-state ${saveState}`}>{saveState === "saving" ? "Saving run…" : saveState === "saved" ? "Run saved · records and rewards updated" : saveState === "error" ? "Run shown, but it could not be saved" : "Arcade run"}</div>
           <div className="bc-result-actions">
             <button className="bc-btn-ghost" onClick={() => setScreen({ kind: "setup" })}>Back to setup</button>
             <button className="bc-btn-primary" onClick={handleStart}>Run it back</button>
           </div>
         </div>
       </div>
+      <AchievementRewardModal achievement={rewardQueue[0] ?? null} isOpen={rewardQueue.length > 0} onClose={() => setRewardQueue(queue => queue.slice(1))} />
+      </>
     );
   }
 
@@ -300,6 +331,7 @@ export default function BoardCursePage() {
     const won = result.winnerIdx === 0;
     const glow = (f === "solo" || won) ? "#ffd24a" : "#ff6b6b";
     return (
+      <>
       <div className="bc-shell">
         <div className="bc-result" style={{ "--glow": glow } as React.CSSProperties}>
           <div className="bc-result-glow" />
@@ -321,41 +353,66 @@ export default function BoardCursePage() {
               <p>The curse got the better of you this time.</p>
             </>
           )}
+          <div className={`bc-save-state ${saveState}`}>{saveState === "saving" ? "Saving match…" : saveState === "saved" ? "Match saved · records and rewards updated" : saveState === "error" ? "Match shown, but it could not be saved" : "Arcade match"}</div>
           <div className="bc-result-actions">
             <button className="bc-btn-ghost" onClick={() => setScreen({ kind: "setup" })}>Back to setup</button>
             <button className="bc-btn-primary" onClick={handleStart}>Run it back</button>
           </div>
         </div>
       </div>
+      <AchievementRewardModal achievement={rewardQueue[0] ?? null} isOpen={rewardQueue.length > 0} onClose={() => setRewardQueue(queue => queue.slice(1))} />
+      </>
     );
   }
 
   return (
     <div className="bc-shell">
       <div className="bc-hero">
-        <div className="bc-kicker"><i />Arcade · No Elo Impact</div>
-        <h1><Flame />Board Curse</h1>
-        <p>Random curses strike as the leg goes on, and get worse the longer it runs.</p>
-        <div className="bc-hero-actions">
-          <button className="bc-pill-btn" onClick={openLeaderboard}><Crown className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />Leaderboard</button>
-          <button className="bc-pill-btn" onClick={() => setScreen({ kind: "compendium", gameMode })}><BookOpen className="w-3.5 h-3.5" />Curses</button>
-        </div>
-        {(bestVisits !== null || bestStreak !== null) && (
-          <div className="bc-stat-row">
-            <div className="bc-stat-tile"><strong>{bestVisits ?? "—"}</strong><span>Best Visits (Solo)</span></div>
-            <div className="bc-stat-tile"><strong>{bestStreak ?? "—"}</strong><span>Longest Streak</span></div>
+        <div className="bc-hero-copy">
+          <div className="bc-kicker"><i />TKDL Arcade · Anomaly Detected</div>
+          <h1><Flame />Board <span>Curse</span></h1>
+          <p>The board fights back. Random curses corrupt the leg, change the rules and grow more severe with every visit.</p>
+          <div className="bc-hero-actions">
+            <button className="bc-pill-btn" onClick={openLeaderboard}><Crown className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />Survivors</button>
+            <button className="bc-pill-btn" onClick={() => setScreen({ kind: "compendium", gameMode })}><BookOpen className="w-3.5 h-3.5" />Curse Archive</button>
           </div>
-        )}
+        </div>
+        <div className="bc-signal-card">
+          <div className="bc-signal-head"><span>Curse Signal</span><b>LIVE</b></div>
+          <div className="bc-signal-orb"><Flame /><i /><i /><i /></div>
+          <strong>{gameMode === "X01" ? "501 BOARD ONLINE" : "CRICKET BOARD ONLINE"}</strong>
+          <small>Severity escalates from mild interference to a full board takeover.</small>
+          <div className="bc-severity-track"><i /><i /><i /></div>
+          {(bestVisits !== null || bestStreak !== null) && (
+            <div className="bc-stat-row">
+              <div className="bc-stat-tile"><strong>{bestVisits ?? "—"}</strong><span>Best Visits</span></div>
+              <div className="bc-stat-tile"><strong>{bestStreak ?? "—"}</strong><span>Longest Streak</span></div>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="bc-field">
-        <span className="bc-field-label">You</span>
-        <select value={playerId ?? ""} onChange={e => setPlayerId(Number(e.target.value) || null)} className="bc-select">
-          <option value="" style={{ color: "#111" }}>Select player…</option>
-          {roster.map(p => <option key={p.id} value={p.id} style={{ color: "#111" }}>{p.name}</option>)}
-        </select>
-      </div>
+      <div className="bc-arena-grid">
+        <aside className="bc-control-rail">
+          <div className="bc-panel-heading"><span>Player Terminal</span><small>01</small></div>
+          <div className="bc-field">
+            <span className="bc-field-label">You</span>
+            <select value={playerId ?? ""} onChange={e => setPlayerId(Number(e.target.value) || null)} className="bc-select">
+              <option value="" style={{ color: "#111" }}>Select player…</option>
+              {roster.map(p => <option key={p.id} value={p.id} style={{ color: "#111" }}>{p.name}</option>)}
+            </select>
+          </div>
+          <div className="bc-contract-card">
+            <span>Active Contract</span>
+            <strong>{format === "solo" ? (endlessMode ? "Endless Survival" : "Solo Survival") : format === "bot" ? `CPU Duel · ${BOT_LEVELS[botLevel].label}` : "Local Duel"}</strong>
+            <p>{gameMode === "X01" ? "501" : "Cricket"} · {format === "solo" ? (endlessMode ? "Until you stop" : "One leg") : `Best of ${matchLegs}`}</p>
+            <div><i /><small>No Elo or league points at risk</small></div>
+          </div>
+          {history.length > 0 && <div className="bc-history"><div className="bc-lb-title">Recent Curses</div>{history.slice(0,4).map(run => <div className="bc-history-row" key={run.id}><i className={run.outcome}/><span>{run.format === "solo" ? run.streak ? `${run.streak} leg streak` : `${run.visits ?? "—"} visits` : run.opponentLabel}</span><b>{run.outcome === "win" ? "W" : "L"}</b></div>)}</div>}
+        </aside>
 
+        <section className="bc-setup-panel">
+          <div className="bc-panel-heading"><span>Configure The Encounter</span><small>02</small></div>
       <div className="bc-field">
         <span className="bc-field-label">Game</span>
         <div className="bc-tabs">
@@ -450,6 +507,8 @@ export default function BoardCursePage() {
       <button onClick={handleStart} disabled={!canStart} className="bc-start-btn">
         <Swords className="inline w-3.5 h-3.5 mr-1.5" />Start
       </button>
+        </section>
+      </div>
     </div>
   );
 }

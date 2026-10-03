@@ -123,7 +123,7 @@ import { detectMilestoneStories, type SinglesMilestoneFacts } from "./story-dete
 import { detectDoublesMatchStories, detectDoublesFormStories, type DoublesMatchResultFacts, type DoublesTeamFormFacts } from "./story-detectors-doubles";
 import { detectShiftWarsStories, type ShiftWarsStandingsFacts, type ShiftWarsTeamStanding, type ShiftWarsDeficitWindow } from "./story-detectors-shift-wars";
 import { detectArchiveH2HStories, detectSeasonComparison, type ArchiveH2HFacts, type SeasonComparisonFacts } from "./story-detectors-archive";
-import { detectShadowBotPromo, detectPracticeActivity, detectFeatureSpotlight, type PracticeActivityFacts } from "./story-detectors-filler";
+import { detectShadowBotPromo, detectPracticeActivity, detectFeatureSpotlight, detectArcadeMilestone, type PracticeActivityFacts } from "./story-detectors-filler";
 import { listEnabledFeatureSpotlights } from "./feature-spotlight-registry";
 import { factsWithSnapshotCutoff } from "./cutoff-snapshot-math";
 import { logger } from "../lib/logger";
@@ -2026,6 +2026,25 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
   const enabledSpotlights = await listEnabledFeatureSpotlights();
   for (const spotlight of enabledSpotlights) {
     await recordUpsert(detectFeatureSpotlight(spotlight), 100, null);
+  }
+
+  // Real Boss Battle / Board Curse records saved since the previous cutoff.
+  // One latest milestone per player keeps an arcade session from flooding a
+  // programme while still giving meaningful clears and records airtime.
+  const arcadeMilestones = (await db.execute(sql`
+    SELECT DISTINCT ON (ar.player_id) ar.player_id, ar.mode, ar.milestone_kind, ar.milestone_label
+    FROM arcade_runs ar
+    WHERE ar.played_at > ${cutoffStart} AND ar.played_at <= ${cutoffEnd}
+      AND ar.milestone_kind IS NOT NULL AND ar.milestone_label IS NOT NULL
+    ORDER BY ar.player_id, ar.played_at DESC
+  `)).rows as {player_id:number;mode:string;milestone_kind:string;milestone_label:string}[];
+  for (const event of arcadeMilestones) {
+    await recordUpsert(detectArcadeMilestone({
+      playerId:Number(event.player_id),
+      arcadeMode:event.mode === "boss_battle" ? "Boss Battle" : "Board Curse",
+      milestoneKind:event.milestone_kind,
+      milestoneLabel:event.milestone_label,
+    }), 100, null);
   }
 
   // ── Time-based ARCHIVED sweep — see this file's own section header above

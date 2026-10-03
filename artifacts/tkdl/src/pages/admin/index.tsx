@@ -35,6 +35,7 @@ import { NotificationDeliveryHistory } from "./notification-delivery-history";
 import { IntegrityHealth } from "./integrity-health";
 import { OperationsDashboard } from "./operations-dashboard";
 import { BroadcastHealth } from "./broadcast-health";
+import { ArcadeBalance } from "./arcade-balance";
 
 const AdminCardClashPanel = lazy(() => import("@/components/admin-card-clash-panel"));
 const AdminChallengesPanel = lazy(() => import("@/components/admin-challenges-panel"));
@@ -43,6 +44,7 @@ const AdminBroadcastPanel = lazy(() => import("@/components/admin-broadcast-pane
 const ADMIN_TOOLS = [
   ["operations", "Operations Centre", "status season notifications database"],
   ["broadcast-health", "Broadcast Health", "live programme stories diagnostics rebuild"],
+  ["arcade-balance", "Arcade Balancing", "boss battle board curse difficulty runs"],
   ["feature-flags", "Feature Flags", "access settings toggles"],
   ["game-types", "Game Types", "scorer formats"],
   ["user-accounts", "User Accounts", "login password players"],
@@ -310,6 +312,7 @@ function AdminContent({ onLock }: { onLock: () => void }) {
 
       <OperationsDashboard />
       <BroadcastHealth />
+      <ArcadeBalance />
 
       <div className="flex items-center gap-2 text-xs uppercase tracking-[.18em] font-bold text-white/30"><Layers3 className="w-4 h-4" />Access and configuration</div>
 

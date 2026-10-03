@@ -105,7 +105,7 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
       return;
     }
 
-    const [player] = (await db.execute(sql`SELECT id FROM players WHERE id = ${pid}`)).rows as any[];
+    const [player] = (await db.execute(sql`SELECT id, name FROM players WHERE id = ${pid}`)).rows as any[];
     if (!player) {
       res.status(400).json({ error: "Player not found" });
       return;
@@ -126,6 +126,21 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
     }
 
     const bestSeconds = didWin ? sanitizeSeconds(elapsedSeconds) : null;
+    const [previousProgress, previousStats] = await Promise.all([
+      db.execute(sql`SELECT 1 FROM boss_battle_progress WHERE player_id=${pid} AND boss_id=${bossId} LIMIT 1`),
+      db.execute(sql`SELECT best_seconds FROM boss_battle_stats WHERE player_id=${pid} AND boss_id=${bossId} LIMIT 1`),
+    ]);
+    const firstDefeat = didWin && previousProgress.rows.length === 0;
+    const previousBest = (previousStats.rows[0] as any)?.best_seconds;
+    const newBest = bestSeconds !== null && (previousBest === null || previousBest === undefined || bestSeconds < Number(previousBest));
+    const milestoneKind = firstDefeat ? (order === TOTAL_BOSSES ? "boss_ladder_clear" : "boss_defeat") : newBest ? "boss_personal_best" : null;
+    const milestoneLabel = milestoneKind === "boss_ladder_clear"
+      ? `${player.name} cleared the full Boss Battle ladder`
+      : milestoneKind === "boss_defeat"
+        ? `${player.name} defeated boss ${order} of ${TOTAL_BOSSES}`
+        : milestoneKind === "boss_personal_best"
+          ? `${player.name} set a new best time against boss ${order}`
+          : null;
 
     // Both statements below are individually safe via ON CONFLICT, but they
     // used to run as two separate round-trips — a crash or lost connection
@@ -154,15 +169,18 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
           ON CONFLICT (player_id, boss_id) DO NOTHING
         `);
       }
+      await tx.execute(sql`
+        INSERT INTO arcade_runs (player_id,mode,game_type,format,boss_id,opponent_label,outcome,elapsed_seconds,milestone_kind,milestone_label)
+        VALUES (${pid},'boss_battle',NULL,'solo',${bossId},${`Boss ${order}`},${didWin ? "win" : "loss"},${bestSeconds},${milestoneKind},${milestoneLabel})
+      `);
     });
 
     // .catch() required — a bare `void` call with no handler becomes an
     // unhandled promise rejection if checkBossBattleAchievements ever throws,
     // crashing the whole Node process (Node >=15 default behavior) after this
     // attempt has already committed and responded successfully.
-    void checkBossBattleAchievements(pid)
-      .catch(err => (req as any).log?.error({ err }, "Boss battle achievement check error"));
-    res.json({ success: true });
+    const achievements = await checkBossBattleAchievements(pid);
+    res.json({ success: true, saved: true, achievements });
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to record boss battle attempt");
     res.status(500).json({ error: "Failed to record boss battle attempt" });

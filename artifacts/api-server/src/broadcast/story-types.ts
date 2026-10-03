@@ -85,7 +85,7 @@ export const ARCHIVE_STORY_TYPES = [
 // director.ts's slot 8 for how a stale FILLER story earns priority so
 // "every so often" is actually enforced rather than left to chance.
 export const FILLER_STORY_TYPES = [
-  "PRACTICE_ACTIVITY", "SHADOW_BOT_PROMO", "FEATURE_SPOTLIGHT",
+  "PRACTICE_ACTIVITY", "SHADOW_BOT_PROMO", "FEATURE_SPOTLIGHT", "ARCADE_MILESTONE",
 ] as const;
 
 export const STORY_FAMILIES = [

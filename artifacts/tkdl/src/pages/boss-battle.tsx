@@ -6,6 +6,7 @@ import { BOT_LEVELS } from "@/lib/bot-engine";
 import { BossBattleScorer } from "@/components/BossBattleScorer";
 import type { GameResult } from "@/components/game-scorer";
 import { useCosmeticsCatalog, glowRowStyle } from "@/lib/cosmetics";
+import { AchievementRewardModal, type AchievementRewardData } from "@/components/AchievementRewardModal";
 import "./boss-battle.css";
 
 type Screen = { kind: "ladder" } | { kind: "entrance"; boss: Boss } | { kind: "fight"; boss: Boss } | { kind: "result"; boss: Boss; won: boolean };
@@ -19,6 +20,7 @@ type LeaderboardData = {
   players: { playerId: number; playerName: string; bossesDefeated: number; fullClear: boolean; lastDefeatAt: string }[];
   fastestPerBoss: Record<string, { playerName: string; seconds: number }>;
 };
+type ArcadeRun = { id:number; mode:string; bossId:string|null; outcome:string; elapsedSeconds:number|null; milestoneLabel:string|null; playedAt:string };
 
 /** mm:ss for a fight duration — best times are always well under an hour. */
 function formatSeconds(s: number): string {
@@ -62,6 +64,9 @@ export default function BossBattlePage() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [history, setHistory] = useState<ArcadeRun[]>([]);
+  const [saveState, setSaveState] = useState<"idle"|"saving"|"saved"|"error">("idle");
+  const [rewardQueue, setRewardQueue] = useState<AchievementRewardData[]>([]);
 
   const playerName = players.find(p => p.id === playerId)?.name ?? "";
 
@@ -106,6 +111,14 @@ export default function BossBattlePage() {
   };
 
   useEffect(loadProgress, [playerId]);
+  const loadHistory = () => {
+    if (!playerId) { setHistory([]); return; }
+    fetch(`/api/arcade/history/${playerId}?limit=8`)
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: ArcadeRun[]) => setHistory(rows.filter(row => row.mode === "boss_battle")))
+      .catch(() => setHistory([]));
+  };
+  useEffect(loadHistory, [playerId]);
 
   const toggleLeaderboard = () => {
     setShowLeaderboard(v => !v);
@@ -126,6 +139,7 @@ export default function BossBattlePage() {
   };
 
   const startFight = (boss: Boss) => {
+    setSaveState("idle");
     setFightStartedAt(Date.now());
     setScreen({ kind: "fight", boss });
   };
@@ -134,16 +148,22 @@ export default function BossBattlePage() {
     const won = result.winnerIdx === 0;
     const elapsedSeconds = fightStartedAt ? Math.round((Date.now() - fightStartedAt) / 1000) : undefined;
     if (playerId) {
+      setSaveState("saving");
       try {
-        await fetch("/api/boss-battles/attempt", {
+        const response = await fetch("/api/boss-battles/attempt", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ playerId, bossId: boss.id, won, elapsedSeconds }),
         });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data?.error ?? "Result could not be saved");
+        setSaveState("saved");
+        if (Array.isArray(data.achievements) && data.achievements.length) setRewardQueue(data.achievements);
         // Refetch rather than patch locally — attempts/wins/best time are
         // server-computed (upserts, min() on best time), so re-reading is
         // the only way to stay exactly in sync with what was actually saved.
         loadProgress();
-      } catch { /* progress just won't be saved this time — not worth blocking the result screen over */ }
+        loadHistory();
+      } catch { setSaveState("error"); }
     }
     setFightStartedAt(null);
     setScreen({ kind: "result", boss, won });
@@ -213,6 +233,7 @@ export default function BossBattlePage() {
     const next = BOSSES.find(b => b.order === boss.order + 1);
     const glow = won ? "#ffd24a" : "#ff6b6b";
     return (
+      <>
       <div className="bb-shell">
         <div className="bb-result" style={{ "--glow": glow } as React.CSSProperties}>
           <div className="bb-result-glow" />
@@ -234,43 +255,68 @@ export default function BossBattlePage() {
               <p>Have another go whenever you're ready.</p>
             </>
           )}
+          <div className={`bb-save-state ${saveState}`}>
+            {saveState === "saving" ? "Saving arcade result…" : saveState === "saved" ? "Result saved · records and rewards updated" : saveState === "error" ? "Result shown, but it could not be saved" : "Arcade result"}
+          </div>
           <div className="bb-vs-actions">
             <button className="bb-btn-ghost" onClick={() => setScreen({ kind: "ladder" })}>Ladder</button>
             <button className="bb-btn-primary" onClick={() => setScreen({ kind: "entrance", boss })}>Run it back</button>
           </div>
         </div>
       </div>
+      <AchievementRewardModal achievement={rewardQueue[0] ?? null} isOpen={rewardQueue.length > 0} onClose={() => setRewardQueue(queue => queue.slice(1))} />
+      </>
     );
   }
 
   return (
     <div className="bb-shell">
       <div className="bb-hero">
-        <div className="bb-kicker"><i />Arcade · No Elo Impact</div>
-        <h1>Boss Battle</h1>
-        <p>Beat each boss to unlock the next. Six fights stand between you and the ladder.</p>
-        <div className="bb-hero-actions">
-          <button className={`bb-pill-btn ${showLeaderboard ? "active" : ""}`} onClick={toggleLeaderboard}>
-            <Users className="w-3.5 h-3.5" /> Leaderboard
-          </button>
+        <div className="bb-hero-copy">
+          <div className="bb-kicker"><i />TKDL Arcade · Campaign Protocol</div>
+          <h1>Boss <span>Battle</span></h1>
+          <p>Climb a six-fight gauntlet. Every opponent brings a different rule set, signature moves and a harder route to the crown.</p>
+          <div className="bb-hero-actions">
+            <button className={`bb-pill-btn ${showLeaderboard ? "active" : ""}`} onClick={toggleLeaderboard}>
+              <Users className="w-3.5 h-3.5" /> Hall of Challengers
+            </button>
+          </div>
         </div>
-        <div className="bb-progress-wrap">
-          <div className="bb-progress-head"><span>Ladder Progress</span><strong>{defeatedCount}/{sortedBosses.length}</strong></div>
-          <div className="bb-progress-track"><div className="bb-progress-fill" style={{ width: `${(defeatedCount / sortedBosses.length) * 100}%` }} /></div>
+        <div className="bb-command-card">
+          <div className="bb-command-label"><span>Campaign Status</span><Shield /></div>
+          <strong>{defeatedCount === sortedBosses.length ? "LADDER CLEARED" : `${sortedBosses.length - defeatedCount} BOSS${sortedBosses.length - defeatedCount === 1 ? "" : "ES"} REMAIN`}</strong>
+          <small>{playerId ? "Progress is saved against your selected player" : "Select a player to enter the arena"}</small>
+          <div className="bb-progress-wrap">
+            <div className="bb-progress-head"><span>Clearance</span><strong>{defeatedCount}/{sortedBosses.length}</strong></div>
+            <div className="bb-progress-track"><div className="bb-progress-fill" style={{ width: `${(defeatedCount / sortedBosses.length) * 100}%` }} /></div>
+          </div>
+          <div className="bb-command-cells">
+            <span><b>{defeatedCount}</b> Defeated</span>
+            <span><b>{Math.min(defeatedCount + 1, sortedBosses.length)}</b> Unlocked</span>
+            <span><b>0</b> Elo Risk</span>
+          </div>
         </div>
       </div>
 
-      {/* Player selector — no login needed, pick your name like Master-501/Practice/Tour */}
-      <div className="bb-field">
-        <span className="bb-field-label">Player</span>
-        <select value={playerId ?? ""} onChange={e => setPlayerId(Number(e.target.value) || null)} className="bb-select">
-          <option value="">Select player…</option>
-          {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-      </div>
+      <div className="bb-arena-grid">
+        <aside className="bb-control-rail">
+          <div className="bb-panel-heading"><span>Challenger Check-In</span><small>01</small></div>
+          {/* Player selector — no login needed, pick your name like Master-501/Practice/Tour */}
+          <div className="bb-field">
+            <span className="bb-field-label">Player</span>
+            <select value={playerId ?? ""} onChange={e => setPlayerId(Number(e.target.value) || null)} className="bb-select">
+              <option value="">Select player…</option>
+              {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div className="bb-briefing">
+            <span><Zap /> Arcade Rules</span>
+            <p>Boss abilities change the match as you play. Wins unlock the next fight; losses never affect league Elo.</p>
+          </div>
+          {history.length > 0 && <div className="bb-history"><div className="bb-lb-title">Recent Battles</div>{history.slice(0,4).map(run => <div className="bb-history-row" key={run.id}><i className={run.outcome}/><span>{run.bossId?.replaceAll("-", " ")}</span><b>{run.outcome === "win" ? "W" : "L"}</b></div>)}</div>}
 
       {showLeaderboard && (
-        <div className="pdc-card p-4 mb-5">
+        <div className="bb-leaderboard-panel">
           {leaderboardLoading ? (
             <div className="bb-empty">Loading…</div>
           ) : !leaderboard || leaderboard.players.length === 0 ? (
@@ -313,8 +359,11 @@ export default function BossBattlePage() {
           )}
         </div>
       )}
+        </aside>
 
-      <div className="bb-ladder">
+        <section className="bb-campaign-panel">
+          <div className="bb-panel-heading"><span>Campaign Ladder</span><small>Choose Your Fight</small></div>
+          <div className="bb-ladder">
         {sortedBosses.map(boss => {
           const unlocked = isUnlocked(boss);
           const won = defeated.has(boss.id);
@@ -350,6 +399,8 @@ export default function BossBattlePage() {
             </button>
           );
         })}
+          </div>
+        </section>
       </div>
     </div>
   );

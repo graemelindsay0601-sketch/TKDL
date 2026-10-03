@@ -1622,6 +1622,14 @@ const FEATURE_SPOTLIGHT_PHRASES: Phrase[] = [
   ph("FEATURE_SPOTLIGHT.banter.3", "A", "banter", "You know you're going to have a look at {{featureName}} before the night is out.", "positive", { requires: FEATURE_SPOTLIGHT_REQUIRES, tone: "humour" }),
 ];
 
+const ARCADE_MILESTONE_REQUIRES = ["playerId", "arcadeMode", "milestoneLabel"];
+const ARCADE_MILESTONE_PHRASES: Phrase[] = [
+  ph("ARCADE_MILESTONE.qf.1", "A", "quick_fact", "Arcade update — {{milestoneLabel}}.", "positive", { requires: ARCADE_MILESTONE_REQUIRES }),
+  ph("ARCADE_MILESTONE.qr.1", "B", "quick_reaction", "That is a proper {{arcadeMode}} marker. Plenty in the league will want a go at beating it.", "positive", { requires: ARCADE_MILESTONE_REQUIRES }),
+  ph("ARCADE_MILESTONE.qf.2", "A", "quick_fact", "A new mark has gone down in {{arcadeMode}}: {{milestoneLabel}}.", "positive", { requires: ARCADE_MILESTONE_REQUIRES }),
+  ph("ARCADE_MILESTONE.qr.2", "B", "quick_reaction", "Good effort from {{playerName}} — the arcade records are starting to mean something now.", "positive", { requires: ARCADE_MILESTONE_REQUIRES }),
+];
+
 // ════════════════════════════════════════════════════════════════════════
 // Universal CALLBACK phrases — the one blueprint that isn't keyed to a
 // specific story type's own facts, by design. "A references stored
@@ -1838,6 +1846,7 @@ export const COMMENTARY_LIBRARY: Partial<Record<StoryType, Phrase[]>> = {
   PRACTICE_ACTIVITY: PRACTICE_ACTIVITY_PHRASES,
   SHADOW_BOT_PROMO: SHADOW_BOT_PROMO_PHRASES,
   FEATURE_SPOTLIGHT: FEATURE_SPOTLIGHT_PHRASES,
+  ARCADE_MILESTONE: ARCADE_MILESTONE_PHRASES,
 };
 
 export { UNIVERSAL_CALLBACK_PHRASES, UNIVERSAL_BANTER_PHRASES };

@@ -27,16 +27,9 @@ window.addEventListener("vite:preloadError", () => {
 
 // Register service worker with update detection.
 //
-// This used to register /sw.js while use-push-notifications.ts separately
-// registered /service-worker.js — two different scripts fighting over the
-// same "/" scope. Only one script can actually control the page at a time,
-// so depending on registration order/timing, push subscriptions set up
-// against one script's registration could end up controlled by the other's
-// (mismatched) push/notificationclick handlers, or churn every time either
-// one re-registered. /service-worker.js is the one whose push handler
-// actually matches the payload shape the backend sends (title/body/icon/
-// badge/data — see sendPushNotification in notificationService.ts); /sw.js
-// expected a different shape and is no longer registered anywhere.
+// /service-worker.js is the app's single worker for the root scope. Keeping
+// push handling, offline shell caching and update detection in one script
+// prevents registrations from replacing each other on player devices.
 if ("serviceWorker" in navigator && !import.meta.env.DEV) {
   // Tapping a push notification when the app's already open (backgrounded,
   // or on a home-screen PWA) needs the window to land on that notification's

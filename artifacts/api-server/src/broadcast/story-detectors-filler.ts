@@ -27,6 +27,26 @@
 // Doubles/Shift Wars have their own real activity.
 import type { StoryCandidate } from "./story-types.ts";
 
+export type ArcadeMilestoneFacts = {
+  playerId: number;
+  arcadeMode: "Boss Battle" | "Board Curse";
+  milestoneLabel: string;
+  milestoneKind: string;
+};
+
+/** A real saved arcade record, promoted into the lighter end of TKDL LIVE. */
+export function detectArcadeMilestone(facts: ArcadeMilestoneFacts): StoryCandidate {
+  return {
+    storyType: "ARCADE_MILESTONE",
+    leagueType: "singles",
+    subjectKeys: [`singles:${facts.playerId}`],
+    sentiment: "positive",
+    tags: ["arcade", "milestone", facts.milestoneKind],
+    facts: { playerId:facts.playerId, arcadeMode:facts.arcadeMode, milestoneLabel:facts.milestoneLabel, milestoneKind:facts.milestoneKind },
+    components: { competitiveImportance:10, unexpectedness:5, historicalSignificance:10, performanceAnomaly:5, entertainmentValue:5 },
+  };
+}
+
 // ── PRACTICE_ACTIVITY ────────────────────────────────────────────────────
 // Real, verified aggregate practice/M-501 activity (never Shadow Bot
 // sessions — those are deliberately excluded so Shadow Bot stays pure

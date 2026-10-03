@@ -121,3 +121,88 @@
   .bb-moves{grid-template-columns:1fr}
   .bb-hero{padding:24px 18px}
 }
+
+/* ── Arena refresh ─────────────────────────────────────────────────────
+   The original page was designed as a 620px setup form. These overrides
+   turn the campaign into the same wide broadcast/arena surface used by the
+   rest of the modern TKDL screens while retaining the compact mobile flow. */
+.bb-shell{max-width:1180px;padding:30px 22px 84px;position:relative}
+.bb-hero{min-height:330px;padding:42px 46px;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(310px,.75fr);gap:42px;align-items:center;text-align:left;border-color:rgba(255,0,92,.22);box-shadow:0 28px 80px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.05)}
+.bb-hero:before{content:"BOSS";position:absolute;right:-18px;bottom:-45px;font:900 10rem/1 Oswald,sans-serif;letter-spacing:-.08em;color:rgba(255,255,255,.025);transform:skewX(-8deg);pointer-events:none}
+.bb-hero-copy{position:relative;z-index:1;max-width:650px}
+.bb-hero h1{justify-content:flex-start;font-size:clamp(3.1rem,7vw,6rem);letter-spacing:-.055em;margin:15px 0 12px;text-transform:uppercase}
+.bb-hero h1 span{color:#ff2d75;text-shadow:0 0 32px rgba(255,0,92,.4)}
+.bb-hero p{max-width:590px;font:500 .95rem/1.65 system-ui,sans-serif;color:rgba(255,255,255,.56)}
+.bb-hero-actions{justify-content:flex-start;margin-top:22px}
+.bb-pill-btn{padding:10px 16px;border-color:rgba(255,45,117,.24);background:rgba(255,45,117,.08);color:rgba(255,255,255,.72)}
+.bb-pill-btn:hover,.bb-pill-btn.active{border-color:rgba(255,45,117,.58);background:rgba(255,45,117,.17);color:#fff}
+.bb-command-card{position:relative;z-index:2;padding:22px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.075),rgba(255,255,255,.025));box-shadow:0 22px 50px rgba(0,0,0,.3);backdrop-filter:blur(8px)}
+.bb-command-label{display:flex;align-items:center;justify-content:space-between;font:700 .57rem Oswald,sans-serif;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.4)}
+.bb-command-label svg{width:17px;color:#ff2d75}
+.bb-command-card>strong{display:block;margin:18px 0 5px;font:900 1.35rem Oswald,sans-serif;letter-spacing:.035em;color:#fff}
+.bb-command-card>small{display:block;font:500 .68rem/1.4 system-ui,sans-serif;color:rgba(255,255,255,.4)}
+.bb-command-card .bb-progress-wrap{margin-top:20px}
+.bb-command-cells{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:16px}
+.bb-command-cells span{padding:9px 5px;border:1px solid rgba(255,255,255,.07);border-radius:9px;background:rgba(0,0,0,.18);font:700 .46rem Oswald,sans-serif;letter-spacing:.08em;text-align:center;text-transform:uppercase;color:rgba(255,255,255,.32)}
+.bb-command-cells b{display:block;margin-bottom:2px;font-size:.88rem;color:#fff}
+
+.bb-arena-grid{display:grid;grid-template-columns:310px minmax(0,1fr);gap:18px;margin-top:18px;align-items:start}
+.bb-control-rail,.bb-campaign-panel{border:1px solid rgba(255,255,255,.085);border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018));box-shadow:0 18px 48px rgba(0,0,0,.18)}
+.bb-control-rail{padding:20px;position:sticky;top:18px}
+.bb-campaign-panel{padding:20px}
+.bb-panel-heading{display:flex;align-items:center;justify-content:space-between;padding-bottom:13px;border-bottom:1px solid rgba(255,255,255,.075);font:800 .65rem Oswald,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.72)}
+.bb-panel-heading small{font-size:.5rem;color:#ff2d75}
+.bb-field{margin:17px 0}
+.bb-select{border-color:rgba(255,45,117,.2);background:#12101a}
+.bb-select:focus{outline:none;border-color:#ff2d75;box-shadow:0 0 0 3px rgba(255,45,117,.12)}
+.bb-briefing{padding:14px;border-radius:12px;border:1px solid rgba(255,210,74,.14);background:rgba(255,210,74,.045)}
+.bb-briefing>span{display:flex;align-items:center;gap:7px;font:800 .58rem Oswald,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#ffd24a}
+.bb-briefing svg{width:13px}
+.bb-briefing p{margin:7px 0 0;font:500 .66rem/1.5 system-ui,sans-serif;color:rgba(255,255,255,.42)}
+.bb-leaderboard-panel{margin-top:17px;padding-top:17px;border-top:1px solid rgba(255,255,255,.075)}
+.bb-history{margin-top:17px;padding-top:17px;border-top:1px solid rgba(255,255,255,.075)}
+.bb-history-row{display:grid;grid-template-columns:8px 1fr auto;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.045);text-transform:capitalize}
+.bb-history-row i{width:6px;height:6px;border-radius:50%;background:#ef4444}.bb-history-row i.win{background:#22c55e;box-shadow:0 0 7px rgba(34,197,94,.55)}
+.bb-history-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 .62rem system-ui,sans-serif;color:rgba(255,255,255,.48)}
+.bb-history-row b{font:900 .62rem Oswald,sans-serif;color:rgba(255,255,255,.7)}
+.bb-save-state{display:inline-flex;margin-top:18px;padding:7px 12px;border:1px solid rgba(255,255,255,.1);border-radius:999px;font:700 .56rem Oswald,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4)}
+.bb-save-state.saving{color:#ffd24a;border-color:rgba(255,210,74,.3)}.bb-save-state.saved{color:#4ade80;border-color:rgba(74,222,128,.3);background:rgba(34,197,94,.06)}.bb-save-state.error{color:#fb7185;border-color:rgba(251,113,133,.3)}
+
+.bb-ladder{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:16px 0 0;margin:0;counter-reset:boss}
+.bb-ladder:before{display:none}
+.bb-boss-row{counter-increment:boss;margin:0;height:100%}
+.bb-boss-row:last-child{grid-column:1/-1}
+.bb-boss-card{height:100%;min-height:118px;padding:18px;border-radius:15px;overflow:hidden;background:linear-gradient(135deg,color-mix(in srgb,var(--tier) 7%,transparent),rgba(255,255,255,.025))}
+.bb-boss-card:after{content:"0" counter(boss);position:absolute;right:12px;bottom:-13px;font:900 4.8rem/1 Oswald,sans-serif;color:color-mix(in srgb,var(--tier) 8%,transparent);pointer-events:none}
+.bb-boss-row:not(:disabled):hover .bb-boss-card{transform:translateY(-3px);border-color:color-mix(in srgb,var(--tier) 55%,transparent);box-shadow:0 16px 34px color-mix(in srgb,var(--tier) 11%,transparent)}
+.bb-node{display:none}
+.bb-boss-icon{width:48px;height:48px;border-radius:13px}
+.bb-boss-name{font-size:1.05rem;letter-spacing:.01em}
+.bb-boss-tag{font:500 .67rem/1.35 system-ui,sans-serif;max-width:290px}
+.bb-boss-side{position:relative;z-index:1}
+.bb-boss-card.final{min-height:104px;background:linear-gradient(100deg,rgba(255,0,92,.16),rgba(255,210,74,.06),rgba(255,255,255,.025));box-shadow:inset 0 0 35px rgba(255,0,92,.06)}
+
+.bb-vs,.bb-result{max-width:840px;margin:0 auto;padding:44px;border:1px solid rgba(255,255,255,.09);border-radius:22px;background:radial-gradient(circle at 50% 0,color-mix(in srgb,var(--tier,#ff005c) 20%,transparent),transparent 44%),rgba(10,9,17,.82);box-shadow:0 28px 80px rgba(0,0,0,.28)}
+.bb-result{--tier:var(--glow);padding-top:55px}
+.bb-moves{gap:12px}
+.bb-move-card{padding:16px}
+
+@media(max-width:860px){
+  .bb-hero{grid-template-columns:1fr;gap:25px;padding:34px}
+  .bb-hero h1{font-size:clamp(3rem,12vw,5rem)}
+  .bb-arena-grid{grid-template-columns:1fr}
+  .bb-control-rail{position:static}
+}
+@media(max-width:620px){
+  .bb-shell{padding:18px 12px 70px}
+  .bb-hero{min-height:0;padding:27px 20px;border-radius:17px}
+  .bb-hero:before{font-size:6.5rem;bottom:-24px}
+  .bb-hero h1{font-size:3.15rem}
+  .bb-command-card{padding:17px}
+  .bb-arena-grid{gap:12px;margin-top:12px}
+  .bb-control-rail,.bb-campaign-panel{padding:15px;border-radius:15px}
+  .bb-ladder{grid-template-columns:1fr}
+  .bb-boss-row:last-child{grid-column:auto}
+  .bb-boss-card{min-height:100px;padding:14px}
+  .bb-vs,.bb-result{padding:28px 18px;border-radius:17px}
+}

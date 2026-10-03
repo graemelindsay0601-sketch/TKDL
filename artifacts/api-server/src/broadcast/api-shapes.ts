@@ -215,6 +215,7 @@ export const GRAPHIC_KIND_BY_STORY_TYPE: Record<StoryType, GraphicKind> = {
   PRACTICE_ACTIVITY: "ResultGraphic",
   SHADOW_BOT_PROMO: "ResultGraphic",
   FEATURE_SPOTLIGHT: "ResultGraphic",
+  ARCADE_MILESTONE: "ResultGraphic",
 };
 
 // familyForStoryType/StoryFamily are re-exercised (not just imported) by

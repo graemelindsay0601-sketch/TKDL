@@ -225,12 +225,13 @@ router.get("/admin/operations", requireAdminSession, async (_req, res): Promise<
 
 router.get("/admin/operations/deployment-health", requireAdminSession, async (_req, res): Promise<void> => {
   const versionKey=deploymentBootstrapKey();
-  const [tableRows,scoringRows,standingRows,seasonRows,queueRows,broadcastRows,bootstrapRows]=await Promise.all([
+  const [tableRows,scoringRows,standingRows,seasonRows,queueRows,broadcastRows,walletRows,bootstrapRows]=await Promise.all([
     db.execute(sql`
       SELECT name,to_regclass(name) IS NOT NULL present FROM unnest(ARRAY[
         'matches','match_participants','doubles_matches','doubles_combined_matches','doubles_multi_matches',
         'shift_wars_matches','shift_wars_combined_matches','shift_wars_multi_matches','match_posters',
-        'notifications','pending_push_notifications','broadcast_editions','broadcast_stories'
+        'notifications','pending_push_notifications','broadcast_editions','broadcast_stories',
+        'player_currency','currency_transactions','cosmetic_definitions','player_cosmetics'
       ]) name
     `),
     db.execute(sql`
@@ -263,6 +264,35 @@ router.get("/admin/operations/deployment-health", requireAdminSession, async (_r
         (SELECT COUNT(*)::int FROM broadcast_stories WHERE lifecycle IN ('NEW','HOT','ACTIVE','COOLING')) active_stories,
         (SELECT COUNT(*)::int FROM broadcast_editions WHERE status='FAILED' AND created_at>NOW()-INTERVAL '7 days') recent_failures
     `),
+    db.execute(sql`
+      WITH latest_tx AS (
+        SELECT DISTINCT ON(player_id) player_id,balance_after
+        FROM currency_transactions ORDER BY player_id,created_at DESC,id DESC
+      ), equipped AS (
+        SELECT id player_id,equipped_name_style_id cosmetic_id FROM players WHERE equipped_name_style_id IS NOT NULL
+        UNION ALL SELECT id,equipped_profile_icon_id FROM players WHERE equipped_profile_icon_id IS NOT NULL
+        UNION ALL SELECT id,equipped_banner_id FROM players WHERE equipped_banner_id IS NOT NULL
+        UNION ALL SELECT id,equipped_frame_id FROM players WHERE equipped_frame_id IS NOT NULL
+        UNION ALL SELECT id,equipped_glow_id FROM players WHERE equipped_glow_id IS NOT NULL
+        UNION ALL SELECT id,equipped_result_theme_id FROM players WHERE equipped_result_theme_id IS NOT NULL
+        UNION ALL SELECT id,equipped_bubble_color_id FROM players WHERE equipped_bubble_color_id IS NOT NULL
+        UNION ALL SELECT id,equipped_avatar_badge_id FROM players WHERE equipped_avatar_badge_id IS NOT NULL
+        UNION ALL SELECT id,equipped_leaderboard_tag_id FROM players WHERE equipped_leaderboard_tag_id IS NOT NULL
+        UNION ALL SELECT id,equipped_tagline_style_id FROM players WHERE equipped_tagline_style_id IS NOT NULL
+        UNION ALL SELECT id,equipped_post_accent_id FROM players WHERE equipped_post_accent_id IS NOT NULL
+        UNION ALL SELECT id,equipped_checkout_effect_id FROM players WHERE equipped_checkout_effect_id IS NOT NULL
+        UNION ALL SELECT id,equipped_scorer_theme_id FROM players WHERE equipped_scorer_theme_id IS NOT NULL
+        UNION ALL SELECT id,equipped_player_card_finish_id FROM players WHERE equipped_player_card_finish_id IS NOT NULL
+        UNION ALL SELECT id,equipped_trophy_case_style_id FROM players WHERE equipped_trophy_case_style_id IS NOT NULL
+        UNION ALL SELECT id,equipped_recap_style_id FROM players WHERE equipped_recap_style_id IS NOT NULL
+        UNION ALL SELECT id,equipped_rank_up_effect_id FROM players WHERE equipped_rank_up_effect_id IS NOT NULL
+        UNION ALL SELECT id,equipped_account_accent_id FROM players WHERE equipped_account_accent_id IS NOT NULL
+      )
+      SELECT
+        (SELECT COUNT(*)::int FROM player_currency WHERE card_points<0) negative_balances,
+        (SELECT COUNT(*)::int FROM player_currency pc JOIN latest_tx tx ON tx.player_id=pc.player_id WHERE pc.card_points<>tx.balance_after) ledger_mismatches,
+        (SELECT COUNT(*)::int FROM equipped e LEFT JOIN player_cosmetics pc ON pc.player_id=e.player_id AND pc.cosmetic_id=e.cosmetic_id WHERE pc.id IS NULL) unowned_equipped
+    `),
     versionKey?db.execute(sql`SELECT completed_at FROM app_bootstrap_versions WHERE version_key=${versionKey} LIMIT 1`):Promise.resolve({rows:[{completed_at:null}]}) as any,
   ]);
   const missing=(tableRows.rows as any[]).filter(row=>!row.present).map(row=>String(row.name));
@@ -270,6 +300,7 @@ router.get("/admin/operations/deployment-health", requireAdminSession, async (_r
   const standings:any=standingRows.rows[0]??{};
   const queue:any=queueRows.rows[0]??{};
   const broadcast:any=broadcastRows.rows[0]??{};
+  const wallet:any=walletRows.rows[0]??{};
   const startup=getStartupStatus();
   const activeSeasons=new Map((seasonRows.rows as any[]).map(row=>[String(row.league_type),{count:Number(row.count),current:row.current_month===true}]));
   const seasonReady=["singles","doubles","shift_wars"].every(type=>activeSeasons.get(type)?.count===1&&activeSeasons.get(type)?.current);
@@ -281,6 +312,7 @@ router.get("/admin/operations/deployment-health", requireAdminSession, async (_r
     {key:"notifications",label:"Notification delivery",status:Number(queue.overdue??0)>0?"review":"pass",detail:Number(queue.overdue??0)>0?`${Number(queue.overdue)} notifications overdue by 15+ minutes`:`${Number(queue.due??0)} due · ${Number(queue.retrying??0)} retrying`},
     {key:"seasons",label:"Monthly season rollover",status:seasonReady?"pass":"fail",detail:seasonReady?"Singles, Doubles and Shift Wars are on the current London month":"One or more competitions needs a current monthly season"},
     {key:"broadcast",label:"TKDL LIVE",status:Number(broadcast.recent_failures??0)>0?"review":broadcast.latest_status?"pass":"review",detail:broadcast.latest_status?`${broadcast.latest_status} latest edition · ${Number(broadcast.active_stories??0)} active stories${Number(broadcast.recent_failures??0)?` · ${Number(broadcast.recent_failures)} recent failures`:""}`:"No broadcast edition has been generated yet"},
+    {key:"wallet",label:"Wallet & Customise",status:Number(wallet.negative_balances??0)||Number(wallet.ledger_mismatches??0)||Number(wallet.unowned_equipped??0)?"fail":"pass",detail:Number(wallet.negative_balances??0)||Number(wallet.ledger_mismatches??0)||Number(wallet.unowned_equipped??0)?`${Number(wallet.negative_balances??0)} negative balances · ${Number(wallet.ledger_mismatches??0)} ledger mismatches · ${Number(wallet.unowned_equipped??0)} unowned equipped items`:"Coin balances, wallet history and equipped ownership agree"},
   ] as const;
   const overall=checks.some(check=>check.status==="fail")?"attention":checks.some(check=>check.status==="review")?"review":"healthy";
   res.json({generatedAt:new Date().toISOString(),overall,versionKey,startup,checks});

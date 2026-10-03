@@ -13,6 +13,7 @@ import {
   detectPracticeActivity,
   detectShadowBotPromo,
   detectFeatureSpotlight,
+  detectArcadeMilestone,
   type PracticeActivityFacts,
   type FeatureSpotlightFacts,
 } from "../story-detectors-filler.ts";
@@ -55,6 +56,16 @@ describe("detectPracticeActivity", () => {
     const story = detectPracticeActivity(practiceFacts());
     assert.ok(story);
     assert.deepEqual(story.subjectKeys, ["filler:practice_activity"]);
+  });
+});
+
+describe("detectArcadeMilestone", () => {
+  test("turns a persisted arcade milestone into a player-grounded broadcast story", () => {
+    const story = detectArcadeMilestone({ playerId:16, arcadeMode:"Boss Battle", milestoneKind:"boss_ladder_clear", milestoneLabel:"Graeme cleared the full Boss Battle ladder" });
+    assert.equal(story.storyType, "ARCADE_MILESTONE");
+    assert.deepEqual(story.subjectKeys, ["singles:16"]);
+    assert.equal(story.facts.milestoneKind, "boss_ladder_clear");
+    assert.equal(story.facts.milestoneLabel, "Graeme cleared the full Boss Battle ladder");
   });
 });
 

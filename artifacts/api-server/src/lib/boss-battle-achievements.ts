@@ -34,7 +34,14 @@ export const BOSS_BATTLE_ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
 // Called after every fight is recorded (POST /boss-battles/attempt), win or
 // loss — several of these (grind, persistence) can be earned off a loss.
 
-export async function checkBossBattleAchievements(playerId: number): Promise<void> {
+export async function checkBossBattleAchievements(playerId: number): Promise<AchievementDef[]> {
+  const unlocked: AchievementDef[] = [];
+  const grant = async (key: string) => {
+    if (await grantIfNotHas(playerId, key)) {
+      const definition = BOSS_BATTLE_ACHIEVEMENT_DEFINITIONS.find(item => item.key === key);
+      if (definition) unlocked.push(definition);
+    }
+  };
   try {
     const progressRows = await db.execute(sql`
       SELECT COUNT(*)::int AS defeated_count FROM boss_battle_progress WHERE player_id = ${playerId}
@@ -55,15 +62,16 @@ export async function checkBossBattleAchievements(playerId: number): Promise<voi
       return min === null ? s : Math.min(min, s);
     }, null);
 
-    if (defeatedCount >= 1) await grantIfNotHas(playerId, "BOSS_FIRST_WIN");
-    if (defeatedCount >= 3) await grantIfNotHas(playerId, "BOSS_HALFWAY");
-    if (defeatedCount >= 6) await grantIfNotHas(playerId, "BOSS_LADDER_CLEAR");
-    if (hasFirstTry)        await grantIfNotHas(playerId, "BOSS_FIRST_TRY");
-    if (hasPersisted)       await grantIfNotHas(playerId, "BOSS_NEVER_GAVE_UP");
-    if (totalAttempts >= 25) await grantIfNotHas(playerId, "BOSS_GRINDER_25");
-    if (totalAttempts >= 75) await grantIfNotHas(playerId, "BOSS_GRINDER_75");
-    if (bestEver !== null && bestEver <= 90) await grantIfNotHas(playerId, "BOSS_SPEED_DEMON");
+    if (defeatedCount >= 1) await grant("BOSS_FIRST_WIN");
+    if (defeatedCount >= 3) await grant("BOSS_HALFWAY");
+    if (defeatedCount >= 6) await grant("BOSS_LADDER_CLEAR");
+    if (hasFirstTry)        await grant("BOSS_FIRST_TRY");
+    if (hasPersisted)       await grant("BOSS_NEVER_GAVE_UP");
+    if (totalAttempts >= 25) await grant("BOSS_GRINDER_25");
+    if (totalAttempts >= 75) await grant("BOSS_GRINDER_75");
+    if (bestEver !== null && bestEver <= 90) await grant("BOSS_SPEED_DEMON");
   } catch (err) {
     logger.error({ err, playerId }, "Failed to check Boss Battle achievements");
   }
+  return unlocked;
 }

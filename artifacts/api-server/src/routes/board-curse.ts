@@ -17,6 +17,7 @@ import { paramStr } from "../lib/http";
 import { bossBattleRateLimit } from "../middleware/writeRateLimit";
 import { checkBoardCurseAchievements } from "../lib/board-curse-achievements";
 import { isRecentDuplicateSubmit } from "../lib/recentSubmitGuard";
+import { requireAdminSession } from "../middleware/requireAdminSession";
 
 const router = Router();
 
@@ -74,30 +75,48 @@ router.post("/board-curse/best", bossBattleRateLimit, async (req: Request, res: 
       res.status(400).json({ error: "streak must be a positive number" });
       return;
     }
-    await db.execute(sql`
-      INSERT INTO board_curse_best (player_id, game_type, best_visits, best_streak)
-      VALUES (${pid}, ${gameType}, ${v}, ${s})
-      ON CONFLICT (player_id, game_type) DO UPDATE SET
-        best_visits = CASE
-          WHEN ${v}::int IS NULL THEN board_curse_best.best_visits
-          WHEN board_curse_best.best_visits IS NULL THEN ${v}::int
-          ELSE LEAST(board_curse_best.best_visits, ${v}::int)
-        END,
-        best_streak = CASE
-          WHEN ${s}::int IS NULL THEN board_curse_best.best_streak
-          WHEN board_curse_best.best_streak IS NULL THEN ${s}::int
-          ELSE GREATEST(board_curse_best.best_streak, ${s}::int)
-        END,
-        updated_at = NOW()
-    `);
+    const [previous, player] = await Promise.all([
+      db.execute(sql`SELECT best_visits,best_streak FROM board_curse_best WHERE player_id=${pid} AND game_type=${gameType}`),
+      db.execute(sql`SELECT name FROM players WHERE id=${pid}`),
+    ]);
+    if (!player.rows[0]) { res.status(400).json({ error: "Player not found" }); return; }
+    const old = previous.rows[0] as any;
+    const newVisitBest = v !== null && (old?.best_visits == null || v < Number(old.best_visits));
+    const newStreakBest = s !== null && (old?.best_streak == null || s > Number(old.best_streak));
+    const milestoneKind = newStreakBest ? "curse_streak_best" : newVisitBest ? "curse_visit_best" : null;
+    const playerName = String((player.rows[0] as any).name);
+    const milestoneLabel = newStreakBest
+      ? `${playerName} set a new Board Curse streak of ${s}`
+      : newVisitBest ? `${playerName} cleared Board Curse in a personal-best ${v} visits` : null;
+    await db.transaction(async tx => {
+      await tx.execute(sql`
+        INSERT INTO board_curse_best (player_id, game_type, best_visits, best_streak)
+        VALUES (${pid}, ${gameType}, ${v}, ${s})
+        ON CONFLICT (player_id, game_type) DO UPDATE SET
+          best_visits = CASE
+            WHEN ${v}::int IS NULL THEN board_curse_best.best_visits
+            WHEN board_curse_best.best_visits IS NULL THEN ${v}::int
+            ELSE LEAST(board_curse_best.best_visits, ${v}::int)
+          END,
+          best_streak = CASE
+            WHEN ${s}::int IS NULL THEN board_curse_best.best_streak
+            WHEN board_curse_best.best_streak IS NULL THEN ${s}::int
+            ELSE GREATEST(board_curse_best.best_streak, ${s}::int)
+          END,
+          updated_at = NOW()
+      `);
+      await tx.execute(sql`
+        INSERT INTO arcade_runs (player_id,mode,game_type,format,opponent_label,outcome,visits,streak,milestone_kind,milestone_label)
+        VALUES (${pid},'board_curse',${gameType},'solo','The Board','win',${v},${s},${milestoneKind},${milestoneLabel})
+      `);
+    });
     // .catch() required — the route's own try/catch only guards the awaited
     // work above; a bare `void` fire-and-forget call with no handler becomes
     // an unhandled promise rejection if checkBoardCurseAchievements ever
     // throws, crashing the whole Node process (Node >=15 default behavior)
     // after this result has already committed and responded successfully.
-    void checkBoardCurseAchievements(pid)
-      .catch(err => (req as any).log?.error({ err }, "Board curse achievement check error"));
-    res.json({ success: true });
+    const achievements = await checkBoardCurseAchievements(pid);
+    res.json({ success: true, saved: true, achievements, personalBest: newVisitBest || newStreakBest });
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to record board curse result");
     res.status(500).json({ error: "Failed to record board curse result" });
@@ -125,7 +144,7 @@ router.get("/board-curse/record/:playerId/:format", async (req: Request, res: Re
 
 router.post("/board-curse/record", bossBattleRateLimit, async (req: Request, res: Response) => {
   try {
-    const { playerId, format, won } = req.body ?? {};
+    const { playerId, format, won, gameType, opponentLabel, visits } = req.body ?? {};
     const pid = parseInt(playerId, 10);
     if (!Number.isFinite(pid) || !isValidFormat(format) || typeof won !== "boolean") {
       res.status(400).json({ error: "playerId, format, and won (boolean) are required" });
@@ -142,19 +161,79 @@ router.post("/board-curse/record", bossBattleRateLimit, async (req: Request, res
       return;
     }
 
-    await db.execute(sql`
-      INSERT INTO board_curse_records (player_id, format, wins, losses)
-      VALUES (${pid}, ${format}, ${won ? 1 : 0}, ${won ? 0 : 1})
-      ON CONFLICT (player_id, format) DO UPDATE SET
-        wins = board_curse_records.wins + ${won ? 1 : 0},
-        losses = board_curse_records.losses + ${won ? 0 : 1}
-    `);
-    void checkBoardCurseAchievements(pid)
-      .catch(err => (req as any).log?.error({ err }, "Board curse achievement check error"));
-    res.json({ success: true });
+    const previous = await db.execute(sql`SELECT wins FROM board_curse_records WHERE player_id=${pid} AND format=${format}`);
+    const firstWin = won && Number((previous.rows[0] as any)?.wins ?? 0) === 0;
+    const player = await db.execute(sql`SELECT name FROM players WHERE id=${pid}`);
+    if (!player.rows[0]) { res.status(400).json({ error: "Player not found" }); return; }
+    const playerName = String((player.rows[0] as any).name);
+    const safeGameType = isValidGameType(gameType) ? gameType : null;
+    const safeVisits = Number.isFinite(Number(visits)) && Number(visits) > 0 ? Math.round(Number(visits)) : null;
+    const milestoneKind = firstWin ? "curse_first_win" : null;
+    const milestoneLabel = firstWin ? `${playerName} recorded a first Board Curse ${format} win` : null;
+    await db.transaction(async tx => {
+      await tx.execute(sql`
+        INSERT INTO board_curse_records (player_id, format, wins, losses)
+        VALUES (${pid}, ${format}, ${won ? 1 : 0}, ${won ? 0 : 1})
+        ON CONFLICT (player_id, format) DO UPDATE SET
+          wins = board_curse_records.wins + ${won ? 1 : 0},
+          losses = board_curse_records.losses + ${won ? 0 : 1}
+      `);
+      await tx.execute(sql`
+        INSERT INTO arcade_runs (player_id,mode,game_type,format,opponent_label,outcome,visits,milestone_kind,milestone_label)
+        VALUES (${pid},'board_curse',${safeGameType},${format},${String(opponentLabel ?? "Opponent").slice(0,80)},${won ? "win" : "loss"},${safeVisits},${milestoneKind},${milestoneLabel})
+      `);
+    });
+    const achievements = await checkBoardCurseAchievements(pid);
+    res.json({ success: true, saved: true, achievements });
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to record board curse match result");
     res.status(500).json({ error: "Failed to record board curse match result" });
+  }
+});
+
+router.get("/arcade/history/:playerId", async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(paramStr(req.params.playerId), 10);
+    const requested = Math.max(1, Math.min(50, Number(req.query.limit) || 12));
+    if (!Number.isFinite(playerId)) { res.status(400).json({ error: "Invalid playerId" }); return; }
+    const rows = await db.execute(sql`
+      SELECT id,mode,game_type,format,boss_id,opponent_label,outcome,elapsed_seconds,visits,streak,milestone_kind,milestone_label,played_at
+      FROM arcade_runs WHERE player_id=${playerId} ORDER BY played_at DESC LIMIT ${requested}
+    `);
+    res.json(rows.rows.map((row: any) => ({
+      id:Number(row.id), mode:row.mode, gameType:row.game_type, format:row.format, bossId:row.boss_id,
+      opponentLabel:row.opponent_label, outcome:row.outcome, elapsedSeconds:row.elapsed_seconds == null ? null : Number(row.elapsed_seconds),
+      visits:row.visits == null ? null : Number(row.visits), streak:row.streak == null ? null : Number(row.streak),
+      milestoneKind:row.milestone_kind, milestoneLabel:row.milestone_label, playedAt:row.played_at,
+    })));
+  } catch (err) {
+    (req as any).log?.error({ err }, "Failed to load arcade history");
+    res.status(500).json({ error: "Failed to load arcade history" });
+  }
+});
+
+router.get("/admin/arcade/balance", requireAdminSession, async (req: Request, res: Response) => {
+  try {
+    const [bosses, curseModes, curseRecords, curseBests, recent] = await Promise.all([
+      // Boss Battle already had trustworthy aggregate counters before the
+      // run ledger existed, so the dashboard can show its full history on
+      // day one rather than only attempts recorded after this deployment.
+      db.execute(sql`SELECT boss_id,SUM(attempts)::int attempts,SUM(wins)::int wins,ROUND(AVG(best_seconds) FILTER(WHERE best_seconds IS NOT NULL))::int avg_seconds FROM boss_battle_stats GROUP BY boss_id ORDER BY CASE boss_id WHEN 'rookie-wall' THEN 1 WHEN 'old-jinx' THEN 2 WHEN 'the-warden' THEN 3 WHEN 'lockdown' THEN 4 WHEN 'the-annihilator' THEN 5 ELSE 6 END`),
+      db.execute(sql`SELECT game_type,format,COUNT(*)::int runs,COUNT(*) FILTER(WHERE outcome='win')::int wins,ROUND(AVG(visits) FILTER(WHERE visits IS NOT NULL),1) avg_visits,MAX(streak)::int best_streak FROM arcade_runs WHERE mode='board_curse' GROUP BY game_type,format ORDER BY game_type,format`),
+      db.execute(sql`SELECT format,SUM(wins+losses)::int runs,SUM(wins)::int wins FROM board_curse_records GROUP BY format ORDER BY format`),
+      db.execute(sql`SELECT game_type,COUNT(*)::int players,MIN(best_visits)::int best_visits,MAX(best_streak)::int best_streak FROM board_curse_best GROUP BY game_type ORDER BY game_type`),
+      db.execute(sql`SELECT COUNT(*) FILTER(WHERE played_at>NOW()-INTERVAL '7 days')::int week_runs,COUNT(DISTINCT player_id) FILTER(WHERE played_at>NOW()-INTERVAL '30 days')::int month_players FROM arcade_runs`),
+    ]);
+    res.json({
+      bosses:bosses.rows.map((r:any)=>({bossId:r.boss_id,attempts:Number(r.attempts),wins:Number(r.wins),winRate:Number(r.attempts)?Math.round(Number(r.wins)*100/Number(r.attempts)):0,avgSeconds:r.avg_seconds==null?null:Number(r.avg_seconds)})),
+      curseModes:curseModes.rows.map((r:any)=>({gameType:r.game_type,format:r.format,runs:Number(r.runs),wins:Number(r.wins),winRate:Number(r.runs)?Math.round(Number(r.wins)*100/Number(r.runs)):0,avgVisits:r.avg_visits==null?null:Number(r.avg_visits),bestStreak:r.best_streak==null?null:Number(r.best_streak)})),
+      curseRecords:curseRecords.rows.map((r:any)=>({format:r.format,runs:Number(r.runs),wins:Number(r.wins),winRate:Number(r.runs)?Math.round(Number(r.wins)*100/Number(r.runs)):0})),
+      curseBests:curseBests.rows.map((r:any)=>({gameType:r.game_type,players:Number(r.players),bestVisits:r.best_visits==null?null:Number(r.best_visits),bestStreak:r.best_streak==null?null:Number(r.best_streak)})),
+      activity:{weekRuns:Number((recent.rows[0] as any)?.week_runs??0),monthPlayers:Number((recent.rows[0] as any)?.month_players??0)},
+    });
+  } catch (err) {
+    (req as any).log?.error({ err }, "Failed to load arcade balancing data");
+    res.status(500).json({ error: "Failed to load arcade balancing data" });
   }
 });
 

@@ -1098,6 +1098,36 @@ async function seedBoardCurseRecords() {
   logger.info("Board curse records table ready");
 }
 
+// One shared event ledger for the arcade modes. The existing progress/best
+// tables remain the fast source for ladders and personal records; this table
+// preserves each actual run so players can see recent history, TKDL LIVE can
+// report real arcade milestones, and admins can balance modes from evidence.
+async function seedArcadeRuns() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS arcade_runs (
+      id               SERIAL PRIMARY KEY,
+      player_id        INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      mode             TEXT NOT NULL,
+      game_type        TEXT,
+      format           TEXT,
+      boss_id          TEXT,
+      opponent_label   TEXT,
+      outcome          TEXT NOT NULL,
+      elapsed_seconds  INTEGER,
+      visits           INTEGER,
+      streak           INTEGER,
+      milestone_kind   TEXT,
+      milestone_label  TEXT,
+      metadata         JSONB NOT NULL DEFAULT '{}'::jsonb,
+      played_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_arcade_runs_player_played ON arcade_runs(player_id, played_at DESC)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_arcade_runs_mode_played ON arcade_runs(mode, played_at DESC)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_arcade_runs_milestone ON arcade_runs(played_at DESC) WHERE milestone_kind IS NOT NULL`);
+  logger.info("Arcade run history table ready");
+}
+
 // Backs drill-progress-service.ts, which was fully written (real mastery/
 // trend queries) but never had its table created — nothing currently writes
 // to it (no drill-runner UI calls POST .../drills/complete yet), so the
@@ -1549,6 +1579,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runInitStep("seedBossBattleProgress", seedBossBattleProgress);
   await runInitStep("seedBoardCurseBest", seedBoardCurseBest);
   await runInitStep("seedBoardCurseRecords", seedBoardCurseRecords);
+  await runInitStep("seedArcadeRuns", seedArcadeRuns);
   await runInitStep("seedDoublesTables", seedDoublesTables);
   await runInitStep("seedShiftWars", seedShiftWars);
   await runInitStep("seedPractice", seedPractice);
