@@ -9,6 +9,8 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test src/lib/__tests__/*.test.ts src/broadcast/__tests__/*.test.ts",
+    "career:world": "node scripts/career-world.ts",
+    "career:balance": "node scripts/career-balance.ts",
     "generate-vapid-keys": "node scripts/generate-vapid-keys.mjs"
   },
   "dependencies": {
