@@ -24,6 +24,7 @@ import { addPerformanceIndexes6 } from "./db/migrations/add_performance_indexes_
 import { relaxAdminAnnouncementsAdminId } from "./db/migrations/relax_admin_announcements_admin_id";
 import { ensureAdminAuditTable } from "./lib/adminAudit";
 import { seedTourSystem } from "./lib/tourSeed";
+import { createCareerSaves } from "./db/migrations/create_career_saves";
 import { ensureCardClashAchievementTables } from "./lib/card-clash-achievements";
 import { seedNotificationTables, initializeNotificationPreferences } from "./lib/notificationsMigration";
 import { initializeInterviewDeskTables, seedInterviewQuestionBank } from "./lib/interviewDeskMigration";
@@ -1511,6 +1512,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runInitStep("initializeCardClashSchema", initializeCardClashSchema);
   await runInitStep("ensureCardClashAchievementTables", ensureCardClashAchievementTables);
   await runInitStep("initializeFeatureFlags", initializeFeatureFlags);
+  await runMigrationStep("createCareerSavesA1", () => createCareerSaves(db));
   await runInitStep("addTkdlLiveBroadcastTables", addTkdlLiveBroadcastTables);
   await runInitStep("addBroadcastStorySeasonId", addBroadcastStorySeasonId);
   await runInitStep("addSeasonBroadcastReviewedAt", addSeasonBroadcastReviewedAt);
